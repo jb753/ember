@@ -8,11 +8,11 @@ sys.path.insert(0, os.path.abspath("_ext"))
 
 project = "ember"
 author = "James Brind"
-release = importlib.metadata.version("ember")
+release = importlib.metadata.version("ember-cfd")
 version = release
-python_version = importlib.metadata.metadata("ember")["Requires-Python"].removeprefix(
-    ">="
-)
+python_version = importlib.metadata.metadata("ember-cfd")[
+    "Requires-Python"
+].removeprefix(">=")
 
 start_year = 2023
 current_year = datetime.datetime.now().year

@@ -1,6 +1,6 @@
 [project]
-name = "ember"
-version = "0.1.0"
+name = "ember-cfd"
+dynamic = ["version"]
 description = "Enhanced Multi-block solvER for turbomachinery computational fluid dynamics"
 readme = "README.md"
 authors = [
@@ -27,8 +27,10 @@ filterwarnings = [
 ]
 
 [build-system]
-requires = ["setuptools>=68,<90", "wheel>=0.40", "numpy~=2.5.0", "meson>=1.1.0", "ninja>=1.10"]
+requires = ["setuptools>=68,<90", "setuptools-scm>=8", "wheel>=0.40", "numpy~=2.5.0", "meson>=1.1.0", "ninja>=1.10"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
 
 [tool.cibuildwheel]
 build = "cp312-* cp313-* cp314-*"

@@ -10,14 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # setuptools-scm needs full history and tags to compute the version
+          fetch-depth: 0
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v4.1.0
 
+      - name: Build sdist
+        run: pipx run build --sdist --outdir wheelhouse
+
       - uses: actions/upload-artifact@v4
         with:
           name: wheels
-          path: wheelhouse/*.whl
+          path: |
+            wheelhouse/*.whl
+            wheelhouse/*.tar.gz
 
   verify-install:
     needs: build-wheels
@@ -44,7 +52,7 @@ jobs:
       - name: Install from local index
         run: |
           uv venv verify-venv
-          uv pip install --python verify-venv/bin/python --index-url http://localhost:8080/simple/ ember
+          uv pip install --python verify-venv/bin/python --index-url http://localhost:8080/simple/ ember-cfd
 
       - name: Smoke test the installed wheel
         run: |

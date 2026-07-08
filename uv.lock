@@ -376,8 +376,7 @@ wheels = [
 ]
 
 [[package]]
-name = "ember"
-version = "0.1.0"
+name = "ember-cfd"
 source = { editable = "." }
 dependencies = [
     { name = "h5py" },

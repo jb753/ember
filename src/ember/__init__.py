@@ -30,5 +30,5 @@ __all__ = [
     "average",
 ]
 
-__version__ = importlib.metadata.version("ember")
+__version__ = importlib.metadata.version("ember-cfd")
 __copyright__ = "2025 James Brind"
