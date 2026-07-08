@@ -41,7 +41,10 @@ bibtex_bibfiles = ["refs.bib"]
 sphinx_gallery_conf = {
     "examples_dirs": "../examples",
     "gallery_dirs": "auto_examples",
-    "filename_pattern": r".*\.py",
+    # Only execute examples/plot_*.py on a normal build. examples/run_*.py
+    # cases are expensive (many seconds each) and are only re-run when
+    # explicitly requested, e.g. `make docs-full` -- see examples/README.txt.
+    "filename_pattern": r"[\\/]plot_",
     "within_subsection_order": "FileNameSortKey",
     "matplotlib_animations": False,
     "remove_config_comments": True,
