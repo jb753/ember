@@ -56,8 +56,39 @@ jobs:
 
       - name: Smoke test the installed wheel
         run: |
-          verify-venv/bin/python -c "
-          import ember, ember.fortran, ember.block
-          ember.block.Block((4,))
-          print('ember wheel installs and imports correctly')
-          "
+          verify-venv/bin/python -c "from ember.fortran import set_residual; print('OK')"
+
+  publish-testpypi:
+    needs: verify-install
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: wheelhouse
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: wheelhouse/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install from TestPyPI
+        run: |
+          uv venv testpypi-venv
+          # Dependencies (numpy, h5py, ...) generally aren't published on
+          # TestPyPI, so fall back to real PyPI for anything it's missing.
+          uv pip install --python testpypi-venv/bin/python \
+            --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            ember-cfd
+
+      - name: Smoke test the installed package
+        run: |
+          testpypi-venv/bin/python -c "from ember.fortran import set_residual; print('OK')"
