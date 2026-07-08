@@ -36,23 +36,25 @@ jobs:
           name: wheels
           path: wheelhouse
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
       - name: Start local package index
         run: |
           mkdir -p packages
-          uvx --from pypiserver pypi-server run -p 8080 -a . -P . packages &
-          sleep 3
+          pipx run --spec pypiserver pypi-server run -p 8080 -a . -P . packages &
+          # First run has to install pypiserver into a fresh pipx venv, so
+          # poll for readiness instead of assuming a fixed startup delay.
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/simple/ && break
+            sleep 1
+          done
           curl -sf http://localhost:8080/simple/
 
       - name: Publish wheels to local index
-        run: uv publish --publish-url http://localhost:8080/ -u x -p x wheelhouse/*.whl
+        run: pipx run twine upload --repository-url http://localhost:8080/ -u x -p x wheelhouse/*.whl
 
       - name: Install from local index
         run: |
-          uv venv verify-venv
-          uv pip install --python verify-venv/bin/python --index-url http://localhost:8080/simple/ ember-cfd
+          python -m venv verify-venv
+          verify-venv/bin/pip install --index-url http://localhost:8080/simple/ ember-cfd
 
       - name: Smoke test the installed wheel
         run: |
@@ -76,15 +78,12 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: wheelhouse/
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
       - name: Install from TestPyPI
         run: |
-          uv venv testpypi-venv
+          python -m venv testpypi-venv
           # Dependencies (numpy, h5py, ...) generally aren't published on
           # TestPyPI, so fall back to real PyPI for anything it's missing.
-          uv pip install --python testpypi-venv/bin/python \
+          testpypi-venv/bin/pip install \
             --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
             ember-cfd
