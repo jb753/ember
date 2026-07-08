@@ -106,9 +106,13 @@ and velocity::
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
     b = Block()
     b.set_fluid(fluid)
-    b.set_x(0.0).set_r(0.75).set_t(0.0)
+    b.set_x(0.0)
+    b.set_r(0.75)
+    b.set_t(0.0)
     b.set_P_T(1e5, 300.0)
-    b.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+    b.set_Vx(100.0)
+    b.set_Vr(0.0)
+    b.set_Vt(0.0)
     print(b.P)   # 100000.0
     print(b.T)   # 300.0
     print(b.Ma)  # 0.28795615
@@ -130,16 +134,6 @@ Indexing and slicing return a view over a sub-region::
     b2.set_x(np.arange(6, dtype=float).reshape(3, 2) * 0.1)
     print(b2[0, :].x)  # [0.  0.1]
     print(b2[:, 1].x)  # [0.1 0.3 0.5]
-
-Setter methods return self and can be chained::
-
-    # example: chaining
-    from ember.block import Block
-    from ember.fluid import PerfectFluid
-
-    fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
-    b = Block().set_fluid(fluid).set_rho_u(1.1, 1e4)
-    print(b.T)  # 313.93036
 
 :py:meth:`Block.copy` decouples the backing array so mutations do not propagate::
 
@@ -285,7 +279,6 @@ class _MaskedBlock:
             # The rollback writes raw data without bumping versions, so any
             # cache populated during the setter is now stale; drop it.
             block.clear_cache()
-            return self  # chain on the proxy
 
         return wrapper
 
@@ -382,7 +375,6 @@ class Block(ember.struct.StructuredData):
         halfVsq_nd = 0.5 * (Vx_nd**2 + Vr_nd**2 + Vt_nd**2)
         e_nd = u_nd + halfVsq_nd
         self._set_data_by_keys(("rhoe",), rho_nd * e_nd, store_init=True)
-        return self
 
     def _get_face_wall_arrays(self, non_wall_patches=None):
         """Get face wall indicator arrays (iwall, jwall, kwall).
@@ -734,10 +726,6 @@ class Block(ember.struct.StructuredData):
         conserved : array-like, shape (..., 5)
             Dimensional conserved variables with components along the last axis. Each component must broadcast to block shape and be finite. Density must be >0.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
 
         if conserved.shape[-1] != 5:
@@ -757,7 +745,6 @@ class Block(ember.struct.StructuredData):
         conserved[..., 3] /= self._rhoV_ref * self.L_ref
         conserved[..., 4] /= self._rhoVsq_ref
         self._set_data_by_keys(keys, conserved)
-        return self
 
     def set_fluid(self, fluid_new):
         """Set equation of state preserving any existing flow field.
@@ -774,11 +761,6 @@ class Block(ember.struct.StructuredData):
         ----------
         fluid_new : Fluid
             New fluid / equation of state object.
-
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
 
         """
         has_old = "fluid" in self._metadata
@@ -830,8 +812,6 @@ class Block(ember.struct.StructuredData):
             for p in self.patches.outlet:
                 p._P_target_nd = None
 
-        return self
-
     def set_h_s(self, h, s):
         """Store enthalpy and entropy.
 
@@ -844,11 +824,6 @@ class Block(ember.struct.StructuredData):
         s : array-like
             Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
 
         if np.any(~np.isfinite(h)):
@@ -859,7 +834,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_h_s(h / self.fluid.u_ref, s / self.fluid.Rgas_ref)
         )
-        return self
 
     def set_L_ref(self, L_ref):
         """Set reference length scale preserving existing dimensional values.
@@ -879,11 +853,6 @@ class Block(ember.struct.StructuredData):
         ----------
         L_ref : float
             Reference length scale [m]. Should be scalar, positive, and finite.
-
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
 
         """
 
@@ -922,8 +891,6 @@ class Block(ember.struct.StructuredData):
         for p in self.patches.outlet:
             p._P_target_nd = None
 
-        return self
-
     def set_label(self, label):
         """Set a string label describing the block.
 
@@ -932,14 +899,8 @@ class Block(ember.struct.StructuredData):
         label : str
             Descriptive label for the block.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         self._set_metadata_by_key("label", label)
-        return self
 
     def set_mu_turb(self, mu_turb):
         """Store turbulent viscosity.
@@ -951,16 +912,10 @@ class Block(ember.struct.StructuredData):
         mu_turb : array-like
             Turbulent viscosity [kg/m/s]. Must be >=0 and finite, and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
         if np.any(mu_turb < 0) or np.any(~np.isfinite(mu_turb)):
             raise ValueError("mu_turb must be positive and finite.")
         self._set_data_by_keys(("mu_turb",), mu_turb)
-        return self
 
     def set_Nb(self, Nb):
         """Set number of blades in the row containing this block.
@@ -972,13 +927,8 @@ class Block(ember.struct.StructuredData):
         Nb : int
             Number of blades in the row containing this block [-].
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
         self._set_metadata_by_key("Nb", int(Nb))
-        return self
 
     def set_Omega(self, Omega):
         """Set reference frame angular velocity.
@@ -991,13 +941,8 @@ class Block(ember.struct.StructuredData):
         Omega : float
             Angular velocity of the rotating reference frame [rad/s].
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
         self._set_metadata_by_key("Omega", np.float32(Omega))
-        return self
 
     def set_P_h(self, P, h):
         """Store static pressure and enthalpy.
@@ -1012,11 +957,6 @@ class Block(ember.struct.StructuredData):
         h : array-like
             Specific static enthalpy [J/kg]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(P <= 0) or np.any(~np.isfinite(P)):
             raise ValueError("Pressure must be positive and finite.")
@@ -1026,7 +966,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_P_h(P / self.fluid.P_ref, h / self.fluid.u_ref)
         )
-        return self
 
     def set_P_rho(self, P, rho):
         """Store static pressure and density.
@@ -1041,18 +980,13 @@ class Block(ember.struct.StructuredData):
         rho : array-like
             Density [kg/m^3]. Must be positive, finite, and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(P <= 0) or np.any(~np.isfinite(P)):
             raise ValueError("Pressure must be positive and finite.")
         if np.any(rho <= 0) or np.any(~np.isfinite(rho)):
             raise ValueError("Density must be positive and finite.")
 
-        return self.set_P_rho_nd(P / self.fluid.P_ref, rho / self.fluid.rho_ref)
+        self.set_P_rho_nd(P / self.fluid.P_ref, rho / self.fluid.rho_ref)
 
     def set_P_rho_nd(self, P_nd, rho_nd):
         """Store static pressure and density, nondimensional inputs.
@@ -1070,14 +1004,8 @@ class Block(ember.struct.StructuredData):
             Density normalised by ``fluid.rho_ref`` [--]. Should be positive and
             finite; no validation is performed.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         self._set_rho_u_nd(*self.fluid.set_P_rho(P_nd, rho_nd))
-        return self
 
     def set_P_s(self, P, s):
         """Store static pressure and entropy.
@@ -1092,11 +1020,6 @@ class Block(ember.struct.StructuredData):
         s : array-like
             Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(P <= 0) or np.any(~np.isfinite(P)):
             raise ValueError("Pressure must be positive and finite.")
@@ -1105,7 +1028,6 @@ class Block(ember.struct.StructuredData):
 
         rho_nd, u_nd = self.fluid.set_P_s(P / self.fluid.P_ref, s / self.fluid.Rgas_ref)
         self._set_rho_u_nd(rho_nd, u_nd)
-        return self
 
     def set_P_T(self, P, T):
         """Store static pressure and temperature.
@@ -1119,11 +1041,6 @@ class Block(ember.struct.StructuredData):
         T : array-like
             Temperature [K]. Must be positive, finite, and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
 
         if np.any(P <= 0) or np.any(~np.isfinite(P)):
@@ -1134,7 +1051,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_P_T(P / self.fluid.P_ref, T / self.fluid.T_ref)
         )
-        return self
 
     def set_r(self, r):
         """Store radial coordinates.
@@ -1143,11 +1059,6 @@ class Block(ember.struct.StructuredData):
         ----------
         r : array-like
             Radial coordinates [m]. Must be >0 and finite, and broadcast to block shape.
-
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
 
         """
 
@@ -1164,8 +1075,6 @@ class Block(ember.struct.StructuredData):
         self._set_data_by_keys(("rhorVt",), rhorVt_new, store_init=False)
         self._set_data_by_keys(("r",), r_nd)
 
-        return self
-
     def set_rho_s(self, rho, s):
         """Store density and entropy.
 
@@ -1179,11 +1088,6 @@ class Block(ember.struct.StructuredData):
         s : array-like
             Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(rho <= 0) or np.any(~np.isfinite(rho)):
             raise ValueError("Density must be positive and finite.")
@@ -1193,7 +1097,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_rho_s(rho / self.fluid.rho_ref, s / self.fluid.Rgas_ref)
         )
-        return self
 
     def set_rho_u(self, rho, u):
         """Store density and internal energy.
@@ -1208,11 +1111,6 @@ class Block(ember.struct.StructuredData):
         u : array-like
             Specific internal energy [J/kg]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
 
         if np.any(rho <= 0) or np.any(~np.isfinite(rho)):
@@ -1221,7 +1119,7 @@ class Block(ember.struct.StructuredData):
         if np.any(~np.isfinite(u)):
             raise ValueError("Internal energy must be finite.")
 
-        return self._set_rho_u_nd(rho / self.fluid.rho_ref, u / self._Vsq_ref)
+        self._set_rho_u_nd(rho / self.fluid.rho_ref, u / self._Vsq_ref)
 
     def set_rho_u_Vxrt_nd(self, rho_nd, u_nd, Vx_nd, Vr_nd, Vt_nd):
         r"""Write conserved variables from non-dimensional state and velocity.
@@ -1252,11 +1150,6 @@ class Block(ember.struct.StructuredData):
             Non-dimensional radial velocity. Must broadcast to block shape.
         Vt_nd : array-like
             Non-dimensional tangential velocity. Must broadcast to block shape.
-
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
 
         """
         r_nd = self._get_data_by_keys(("r",), raise_uninit=False)
@@ -1297,8 +1190,6 @@ class Block(ember.struct.StructuredData):
         for k in keys:
             self._versions[k] += 1
 
-        return self
-
     def set_rpm(self, rpm):
         """Set reference frame angular velocity in revolutions per minute.
 
@@ -1309,12 +1200,8 @@ class Block(ember.struct.StructuredData):
         rpm : float
             Angular velocity of the rotating reference frame [rpm].
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
-        return self.set_Omega(rpm * np.pi / 30.0)
+        self.set_Omega(rpm * np.pi / 30.0)
 
     def set_t(self, t):
         """Store circumferential coordinates.
@@ -1324,18 +1211,12 @@ class Block(ember.struct.StructuredData):
         t : array-like
             Circumferential coordinates [rad]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
 
         if np.any(~np.isfinite(t)):
             raise ValueError("Circumferential coordinates must be finite.")
 
         self._set_data_by_keys(("t",), t)
-        return self
 
     def set_T_s(self, T, s):
         """Store temperature and entropy.
@@ -1350,11 +1231,6 @@ class Block(ember.struct.StructuredData):
         s : array-like
             Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(T <= 0) or np.any(~np.isfinite(T)):
             raise ValueError("Temperature must be positive and finite.")
@@ -1364,7 +1240,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_T_s(T / self.fluid.T_ref, s / self.fluid.Rgas_ref)
         )
-        return self
 
     def set_triangulated(self, value):
         """Set whether the data represents a triangulated mesh.
@@ -1375,14 +1250,8 @@ class Block(ember.struct.StructuredData):
             True if the block holds triangulated (unstructured) data with shape
             ``(ntri, 3)``; False for a structured quadrilateral mesh.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         super().set_triangulated(value)
-        return self
 
     def set_V_Alpha_Beta(self, V, Alpha, Beta):
         r"""Set the velocity vector from speed, yaw angle, and pitch angle.
@@ -1410,11 +1279,6 @@ class Block(ember.struct.StructuredData):
         Beta : array-like
             Yaw angle :math:`\beta` [deg]. Must broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         # Use trigonometric identities to avoid tan(90°) singularity
         cosAlpha = np.cos(np.radians(Alpha))
@@ -1434,9 +1298,9 @@ class Block(ember.struct.StructuredData):
             * V[..., None]
         )
 
-        self.set_Vx(Vxrt[..., 0]).set_Vr(Vxrt[..., 1]).set_Vt(Vxrt[..., 2])
-
-        return self
+        self.set_Vx(Vxrt[..., 0])
+        self.set_Vr(Vxrt[..., 1])
+        self.set_Vt(Vxrt[..., 2])
 
     def set_Vr(self, Vr):
         """Store radial velocity.
@@ -1453,10 +1317,6 @@ class Block(ember.struct.StructuredData):
         ----------
         Vr : array-like
             Radial velocity [m/s]. Must be finite and broadcast to block shape.
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if np.any(~np.isfinite(Vr)):
@@ -1465,7 +1325,6 @@ class Block(ember.struct.StructuredData):
         rho_nd, u_nd = self._rho_nd_uninit, self._u_nd_uninit
         self._set_data_by_keys(("rhoVr",), rho_nd * Vr / self._V_ref)
         self._update_rhoe_nd(rho_nd, u_nd)
-        return self
 
     def set_Vt(self, Vt):
         """Store circumferential velocity.
@@ -1482,10 +1341,6 @@ class Block(ember.struct.StructuredData):
         ----------
         Vt : array-like
             Circumferential velocity [m/s]. Must be finite and broadcast to block shape.
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if np.any(~np.isfinite(Vt)):
@@ -1495,7 +1350,6 @@ class Block(ember.struct.StructuredData):
         r_nd = self._get_data_by_keys(("r",), raise_uninit=False)
         self._set_data_by_keys(("rhorVt",), rho_nd * r_nd * Vt / self._V_ref)
         self._update_rhoe_nd(rho_nd, u_nd)
-        return self
 
     def set_Vx(self, Vx):
         """Store axial velocity.
@@ -1512,10 +1366,6 @@ class Block(ember.struct.StructuredData):
         ----------
         Vx : array-like
             Axial velocity [m/s]. Must be finite and broadcast to block shape.
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if np.any(~np.isfinite(Vx)):
@@ -1524,8 +1374,6 @@ class Block(ember.struct.StructuredData):
         rho_nd, u_nd = self._rho_nd_uninit, self._u_nd_uninit
         self._set_data_by_keys(("rhoVx",), rho_nd * Vx / self._V_ref)
         self._update_rhoe_nd(rho_nd, u_nd)
-
-        return self
 
     def set_Vxrt(self, Vxrt):
         """Store polar velocity components from a single array.
@@ -1543,10 +1391,6 @@ class Block(ember.struct.StructuredData):
             Polar velocity components [m/s], with Vx, Vr, Vt along the last
             axis. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if Vxrt.shape[-1] != 3:
@@ -1562,7 +1406,6 @@ class Block(ember.struct.StructuredData):
         self._set_data_by_keys(("rhoVr",), rho_nd * Vr / self._V_ref)
         self._set_data_by_keys(("rhorVt",), rho_nd * r_nd * Vt / self._V_ref)
         self._update_rhoe_nd(rho_nd, u_nd)
-        return self
 
     def set_wdist(self, wdist):
         """Store distance to nearest wall.
@@ -1575,15 +1418,10 @@ class Block(ember.struct.StructuredData):
             Distance to nearest viscous wall [m]. Must be >=0 and finite,
             and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
         if np.any(wdist < 0) or np.any(~np.isfinite(wdist)):
             raise ValueError("wdist must be positive and finite.")
         self._set_data_by_keys(("wdist",), wdist / self.L_ref)
-        return self
 
     def set_x(self, x):
         """Store axial coordinates.
@@ -1593,15 +1431,10 @@ class Block(ember.struct.StructuredData):
         x : array-like
             Axial coordinates [m]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
         if np.any(~np.isfinite(x)):
             raise ValueError("Axial coordinates must be finite.")
         self._set_data_by_keys(("x",), x / self.L_ref)
-        return self
 
     def set_xrt(self, xrt):
         """Store polar coordinates from a single array.
@@ -1612,18 +1445,15 @@ class Block(ember.struct.StructuredData):
             Polar coordinates, with x [m], r [m], t [rad] along the last axis.
             Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if xrt.shape[-1] != 3:
             raise ValueError(f"Expected xrt shape (..., 3), but got {xrt.shape}")
 
         x, r, t = xrt[..., 0], xrt[..., 1], xrt[..., 2]
-        self.set_x(x).set_r(r).set_t(t)
-        return self
+        self.set_x(x)
+        self.set_r(r)
+        self.set_t(t)
 
     def set_xyz(self, xyz):
         """Store Cartesian coordinates.
@@ -1641,10 +1471,6 @@ class Block(ember.struct.StructuredData):
         xyz : array-like, shape (..., 3)
             Cartesian coordinates [m], with x, y, z along the last axis. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
 
         if xyz.shape[-1] != 3:
@@ -1657,8 +1483,9 @@ class Block(ember.struct.StructuredData):
         # ember uses z = -r * sin(t), so t = arctan2(-z, y)
         r = np.sqrt(y**2 + z**2)
         t = np.arctan2(-z, y)
-        self.set_x(x).set_r(r).set_t(t)
-        return self
+        self.set_x(x)
+        self.set_r(r)
+        self.set_t(t)
 
     def copy(self, keep_patches=True):
         """Return an independent copy of this block.
@@ -1731,10 +1558,10 @@ class Block(ember.struct.StructuredData):
         (including the velocity field preserved by thermodynamic setters) is
         untouched.
 
-        Any setter is supported, and calls chain. The proxy snapshots this
-        block's backing array on each setter call, so to keep the copy cheap on
-        a large block, narrow it first with a basic-index slice -- a slice is a
-        view, so writes still propagate to the parent::
+        Any setter is supported. The proxy snapshots this block's backing array
+        on each setter call, so to keep the copy cheap on a large block, narrow
+        it first with a basic-index slice -- a slice is a view, so writes still
+        propagate to the parent::
 
             block[0].masked(mask).set_P_T(1e5, 600.0)
 
@@ -1759,9 +1586,15 @@ class Block(ember.struct.StructuredData):
             import numpy as np
 
             fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
-            b = Block((4,)).set_fluid(fluid)
-            b.set_x(0.0).set_r(1.0).set_t(0.0)
-            b.set_P_T(1e5, 300.0).set_Vx(5.0).set_Vr(0.0).set_Vt(0.0)
+            b = Block((4,))
+            b.set_fluid(fluid)
+            b.set_x(0.0)
+            b.set_r(1.0)
+            b.set_t(0.0)
+            b.set_P_T(1e5, 300.0)
+            b.set_Vx(5.0)
+            b.set_Vr(0.0)
+            b.set_Vt(0.0)
             b.masked(np.array([True, False, True, False])).set_P_T(1e5, 600.0)
             print(b.T)   # [600. 300. 600. 300.]
             print(b.Vx)  # [5. 5. 5. 5.]

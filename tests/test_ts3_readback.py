@@ -36,9 +36,12 @@ def _make_grid(T_dtm=300.0, set_mu_turb=False):
     for shape, (xs, rs, ts_) in zip(shapes, spans):
         block = Block(shape=shape)
         xrt = util.linmesh3(xs, rs, ts_, shape)
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
-        block.set_rpm(0.0).set_Nb(1)
+        block.set_rpm(0.0)
+        block.set_Nb(1)
 
         # A genuinely non-trivial state: varying P/T and all three velocities.
         ramp = np.linspace(0.0, 1.0, shape[0]).reshape(-1, 1, 1)

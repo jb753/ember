@@ -122,7 +122,6 @@ class InletPatch(RevolutionPatch):
         self._target_nd = None
         self._Po_nd_target = None
         self._P_nd_soln = None
-        return self
 
     def apply(self):
         """Impose inlet boundary conditions on the patch.

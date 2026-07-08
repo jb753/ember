@@ -1497,7 +1497,9 @@ def test_consistency_with_block_properties():
     r = np.linspace(0.5, 1.0, ni, dtype=np.float32)
     x = np.zeros(ni, dtype=np.float32)
     t = np.zeros(ni, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Set up rotation
     block.set_Omega(500.0)
@@ -1557,7 +1559,9 @@ def test_consistency_with_rotating_block():
     r = np.linspace(0.5, 1.0, ni, dtype=np.float32)  # radius_ratio = 2.0
     x = np.zeros(ni, dtype=np.float32)
     t = np.zeros(ni, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Set rotation (lower to avoid convergence issues)
     block.set_Omega(300.0)
@@ -1620,7 +1624,9 @@ def test_tangential_velocity_consistency():
     r = np.linspace(0.5, 1.0, ni, dtype=np.float32)  # radius_ratio = 2.0
     x = np.zeros(ni, dtype=np.float32)
     t = np.zeros(ni, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Set moderate rotation to create tangential velocities
     block.set_Omega(400.0)
@@ -1685,7 +1691,9 @@ def test_tangential_velocity_consistency():
     r_mixed = np.linspace(0.5, 0.75, ni_mixed, dtype=np.float32)  # radius_ratio = 1.5
     x_mixed = np.zeros(ni_mixed, dtype=np.float32)
     t_mixed = np.zeros(ni_mixed, dtype=np.float32)
-    mixed_block.set_x(x_mixed).set_r(r_mixed).set_t(t_mixed)
+    mixed_block.set_x(x_mixed)
+    mixed_block.set_r(r_mixed)
+    mixed_block.set_t(t_mixed)
 
     # Set rotation
     mixed_block.set_Omega(300.0)

@@ -79,4 +79,3 @@ class CoolingPatch(Patch):
             if angle_def_arr.ndim > 0:
                 raise ValueError("angle_def must be a scalar, not an array")
             self.angle_def = int(angle_def)
-        return self

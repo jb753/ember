@@ -21,7 +21,9 @@ def _build_block():
     block = ember.block.Block(shape=SHAPE)
     block.set_Nb(36)
     xrt = util.linmesh3((0.0, 0.15), (0.5, 0.9), (0.0, 0.1), SHAPE)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     block.set_fluid(PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72))
     block.set_P_T(101325.0, 300.0)
     x, r, t = block.x, block.r, block.t

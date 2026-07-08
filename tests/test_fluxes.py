@@ -41,7 +41,9 @@ def uniform_flow_block():
     xrt = util.linmesh3((0, L), rlim, (-pitch / 2, pitch / 2), shape)
 
     # Set coordinates with Fortran order
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set up perfect gas fluid
     fluid = ember.fluid.PerfectFluid(
@@ -55,7 +57,9 @@ def uniform_flow_block():
     # Set uniform thermodynamic state
     block.set_P_T(2e5, 350.0)
     V_ref = 100.0
-    block.set_Vx(V_ref).set_Vr(0.8 * V_ref).set_Vt(-0.3 * V_ref)
+    block.set_Vx(V_ref)
+    block.set_Vr(0.8 * V_ref)
+    block.set_Vt(-0.3 * V_ref)
     block.set_Omega(100.0)  # rad/s
 
     return block
@@ -71,7 +75,9 @@ def uniform_flow_block_1d():
     x = np.linspace(0, 0.1, shape[0])
     r = np.full_like(x, 1.0)  # Constant radius
     t = np.full_like(x, 0.0)  # Constant theta
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Set up fluid
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -83,9 +89,9 @@ def uniform_flow_block_1d():
     Vt = 0.0
     P = 101325.0
     block.set_P_T(P * np.ones(shape), 288.15 * np.ones(shape))
-    block.set_Vx(Vx * np.ones(shape)).set_Vr(Vr * np.ones(shape)).set_Vt(
-        Vt * np.ones(shape)
-    )
+    block.set_Vx(Vx * np.ones(shape))
+    block.set_Vr(Vr * np.ones(shape))
+    block.set_Vt(Vt * np.ones(shape))
 
     return block
 
@@ -105,10 +111,14 @@ def scalar_block():
     block.set_fluid(fluid)
 
     # Set coordinates and thermodynamic state
-    block.set_x(np.array([0.05])).set_r(np.array([2.0])).set_t(np.array([0.1]))
+    block.set_x(np.array([0.05]))
+    block.set_r(np.array([2.0]))
+    block.set_t(np.array([0.1]))
     block.set_P_T(2e5, 350.0)
     V_ref = 100.0
-    block.set_Vx(V_ref).set_Vr(0.8 * V_ref).set_Vt(-0.3 * V_ref)
+    block.set_Vx(V_ref)
+    block.set_Vr(0.8 * V_ref)
+    block.set_Vt(-0.3 * V_ref)
     block.set_Omega(100.0)  # rad/s
 
     return block
@@ -132,7 +142,9 @@ def uniform_flow_block_2d():
     xrt = np.stack([x_mesh, r_mesh, t_mesh], axis=-1)
 
     # Set coordinates with Fortran order
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set up perfect gas fluid
     fluid = ember.fluid.PerfectFluid(
@@ -146,7 +158,9 @@ def uniform_flow_block_2d():
     # Set uniform thermodynamic state
     block.set_P_T(2e5, 350.0)
     V_ref = 100.0
-    block.set_Vx(V_ref).set_Vr(0.8 * V_ref).set_Vt(-0.3 * V_ref)
+    block.set_Vx(V_ref)
+    block.set_Vr(0.8 * V_ref)
+    block.set_Vt(-0.3 * V_ref)
     block.set_Omega(100.0)  # rad/s
 
     return block

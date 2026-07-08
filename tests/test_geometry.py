@@ -439,7 +439,9 @@ def test_get_dA_tri_integration():
 
     # Set up coordinates
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.0], (*shape, 1))[..., 0, :]
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set fluid and conserved variables
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -508,7 +510,9 @@ def test_geometry_dA_tri_property():
     block_2d = Block(shape=shape_2d)
 
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.0], (*shape_2d, 1))[..., 0, :]
-    block_2d.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block_2d.set_x(xrt[..., 0])
+    block_2d.set_r(xrt[..., 1])
+    block_2d.set_t(xrt[..., 2])
 
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_2d.set_fluid(fluid)
@@ -570,7 +574,9 @@ def test_geometry_dA_dispatch():
     x = np.linspace(0, 1, ni)[:, None] * np.ones((1, nj))
     r = np.linspace(0.1, 1, nj)[None, :] * np.ones((ni, 1))
     t = np.zeros((ni, nj))
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Test quadrilateral dispatch (default)
     assert not block.triangulated, "Block should default to non-triangulated"
@@ -592,18 +598,26 @@ def test_structured_vs_triangulated_total_area():
     # Use the same block setup as the mix_out test
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(2e5, 400.0)
-    block.set_Vx(100.0).set_Vr(60.0).set_Vt(30.0).set_label("beans")
+    block.set_Vx(100.0)
+    block.set_Vr(60.0)
+    block.set_Vt(30.0)
+    block.set_label("beans")
 
     block_structured = block[0]
 
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_structured.set_fluid(fluid)
     block_structured.set_P_T(1e5, 300.0)
-    block_structured.set_Vx(100.0).set_Vr(20.0).set_Vt(10.0)
+    block_structured.set_Vx(100.0)
+    block_structured.set_Vr(20.0)
+    block_structured.set_Vt(10.0)
 
     # Calculate structured total area
     area_structured = np.sum(block_structured.dA_quad, axis=(0, 1))
@@ -639,18 +653,26 @@ def test_structured_vs_triangulated_flux():
     # Use the same block setup as the mix_out test
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(2e5, 400.0)
-    block.set_Vx(100.0).set_Vr(60.0).set_Vt(30.0).set_label("beans")
+    block.set_Vx(100.0)
+    block.set_Vr(60.0)
+    block.set_Vt(30.0)
+    block.set_label("beans")
 
     block_structured = block[0]
 
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_structured.set_fluid(fluid)
     block_structured.set_P_T(1e5, 300.0)
-    block_structured.set_Vx(100.0).set_Vr(20.0).set_Vt(10.0)
+    block_structured.set_Vx(100.0)
+    block_structured.set_Vr(20.0)
+    block_structured.set_Vt(10.0)
 
     # Calculate structured conserved flows
     flow_structured = average.flow_conserved(block_structured)
@@ -877,13 +899,16 @@ def test_radial_momentum_flux_pressure():
     # Create 3D block with only axial velocity (Vr=0)
     shape = (5, 5, 5)
     xrt = util.linmesh3((0.0, 0.1), (0.5, 1.0), (0.0, 0.1), shape)
-    block_3d = (
-        Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-    )
+    block_3d = Block(shape=shape)
+    block_3d.set_x(xrt[..., 0])
+    block_3d.set_r(xrt[..., 1])
+    block_3d.set_t(xrt[..., 2])
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_3d.set_fluid(fluid)
     block_3d.set_P_T(1e5, 300.0)
-    block_3d.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)  # Vr = 0
+    block_3d.set_Vx(100.0)
+    block_3d.set_Vr(0.0)
+    block_3d.set_Vt(0.0)
 
     # Take 2D cut
     block_2d = block_3d[2]  # Middle slice

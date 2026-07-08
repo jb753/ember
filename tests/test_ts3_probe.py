@@ -28,9 +28,12 @@ def _make_block(shape=(6, 5, 4), rpm=3600.0, Nb=24):
         np.linspace(0.0, np.pi / 8, shape[2]),
         indexing="ij",
     )
-    block.set_x(xv).set_r(rv).set_t(tv)
+    block.set_x(xv)
+    block.set_r(rv)
+    block.set_t(tv)
     block.set_fluid(PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7))
-    block.set_rpm(rpm).set_Nb(Nb)
+    block.set_rpm(rpm)
+    block.set_Nb(Nb)
 
     rho = np.ones(shape, dtype=np.float32) * 1.2
     conserved = np.stack(

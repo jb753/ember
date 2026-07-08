@@ -19,7 +19,9 @@ from ember.periodic import PeriodicPatch
 def _make_block(shape, extents=((0.0, 1.0), (0.5, 1.5), (0.0, 0.2))):
     b = ember.block.Block(shape=shape)
     xrt = util.linmesh3(*extents, shape)
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
     return b
 
 

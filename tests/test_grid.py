@@ -49,7 +49,9 @@ class TestLabelledListSlicing:
         for i, label in enumerate(labels):
             block = Block(shape=(2, 2, 2))
             xrt = util.linmesh3([i, i + 1], [1.0, 2.0], [0.0, 0.1], (2, 2, 2))
-            block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+            block.set_x(xrt[..., 0])
+            block.set_r(xrt[..., 1])
+            block.set_t(xrt[..., 2])
             block.set_label(label)
             blocks.append(block)
 
@@ -316,7 +318,9 @@ class TestGridPatchCollectionBasics:
         ]:
             block.set_fluid(fluid)
             xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-            block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+            block.set_x(xrt[..., 0])
+            block.set_r(xrt[..., 1])
+            block.set_t(xrt[..., 2])
 
         # Add patches to block1
         self.block1_patches = [
@@ -404,9 +408,13 @@ class TestGridPatchCollectionIndexing:
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
         self.block1.set_fluid(fluid)
-        self.block1.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block1.set_x(xrt[..., 0])
+        self.block1.set_r(xrt[..., 1])
+        self.block1.set_t(xrt[..., 2])
         self.block2.set_fluid(fluid)
-        self.block2.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block2.set_x(xrt[..., 0])
+        self.block2.set_r(xrt[..., 1])
+        self.block2.set_t(xrt[..., 2])
 
         # Block1 patches (indices 0, 1, 2)
         self.patch1 = PeriodicPatch(i=0, j=(0, 2), k=(0, 2), label="patch1")
@@ -489,9 +497,13 @@ class TestGridPatchCollectionTypeAccess:
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
         self.block1.set_fluid(fluid)
-        self.block1.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block1.set_x(xrt[..., 0])
+        self.block1.set_r(xrt[..., 1])
+        self.block1.set_t(xrt[..., 2])
         self.block2.set_fluid(fluid)
-        self.block2.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block2.set_x(xrt[..., 0])
+        self.block2.set_r(xrt[..., 1])
+        self.block2.set_t(xrt[..., 2])
 
         # Add various patch types to block1
         self.periodic1 = PeriodicPatch(i=0, j=(2, 7), k=(2, 7), label="periodic1")
@@ -556,7 +568,9 @@ class TestGridPatchCollectionTypeAccess:
             ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         )
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         periodic = PeriodicPatch(i=0, j=(1, 3), k=(1, 3), label="only_periodic")
         block.patches.append(periodic)
@@ -585,7 +599,9 @@ class TestGridPatchCollectionReadOnly:
             ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         )
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-        self.block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block.set_x(xrt[..., 0])
+        self.block.set_r(xrt[..., 1])
+        self.block.set_t(xrt[..., 2])
 
         patch = PeriodicPatch(i=0, j=(1, 3), k=(1, 3), label="test_patch")
         self.block.patches.append(patch)
@@ -671,7 +687,9 @@ class TestGridPatchCollectionStringRepresentation:
             ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         )
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Add various patch types
         block.patches.append(PeriodicPatch(i=0, j=(1, 5), k=(1, 5), label="periodic1"))
@@ -725,7 +743,9 @@ class TestGridPatchCollectionIntegration:
             ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         )
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.patches.append(PeriodicPatch(i=0, j=(1, 3), k=(1, 3), label="test"))
 
         grid.append(block)
@@ -742,10 +762,14 @@ class TestGridPatchCollectionIntegration:
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         block1.set_fluid(fluid)
         _xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape1)
-        block1.set_x(_xrt1[..., 0]).set_r(_xrt1[..., 1]).set_t(_xrt1[..., 2])
+        block1.set_x(_xrt1[..., 0])
+        block1.set_r(_xrt1[..., 1])
+        block1.set_t(_xrt1[..., 2])
         block2.set_fluid(fluid)
         _xrt2 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape2)
-        block2.set_x(_xrt2[..., 0]).set_r(_xrt2[..., 1]).set_t(_xrt2[..., 2])
+        block2.set_x(_xrt2[..., 0])
+        block2.set_r(_xrt2[..., 1])
+        block2.set_t(_xrt2[..., 2])
 
         patch1 = PeriodicPatch(i=0, j=(1, 3), k=(1, 3), label="patch1")
         patch2 = InletPatch(i=0, j=(1, 4), k=(1, 4), label="patch2")
@@ -771,7 +795,9 @@ def _make_block():
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     _xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (2, 2, 2))
-    block.set_x(_xrt[..., 0]).set_r(_xrt[..., 1]).set_t(_xrt[..., 2])
+    block.set_x(_xrt[..., 0])
+    block.set_r(_xrt[..., 1])
+    block.set_t(_xrt[..., 2])
     return block
 
 
@@ -901,10 +927,14 @@ def _make_flow_block(shape=(5, 6, 8), Nb=30):
     block = Block(shape=shape)
     block.set_fluid(fluid)
     xrt = util.linmesh3([0.0, 1.0], [1.0, 2.0], [0.0, 2 * np.pi / Nb], shape)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     block.set_Nb(Nb)
     block.set_P_rho(1e5 * np.ones(shape), 1.2 * np.ones(shape))
-    block.set_Vx(50.0 * np.ones(shape)).set_Vr(np.zeros(shape)).set_Vt(np.zeros(shape))
+    block.set_Vx(50.0 * np.ones(shape))
+    block.set_Vr(np.zeros(shape))
+    block.set_Vt(np.zeros(shape))
     return block
 
 
@@ -945,11 +975,6 @@ class TestApplyBconds:
         inlet.attach_to_block(b1)
         inlet.set_Po_To_Alpha_Beta(Po=1.1e5, To=300.0, Alpha=0.0, Beta=0.0)
         return grid, inlet
-
-    def test_returns_self(self):
-        """apply_bconds returns the grid for chaining."""
-        grid, _ = self._grid_with_inlet_and_seam()
-        assert grid.apply_bconds() is grid
 
     def test_uses_patch_rf(self):
         """The inlet rf attribute drives the apply; different rf -> different state."""

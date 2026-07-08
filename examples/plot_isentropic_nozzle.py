@@ -77,8 +77,10 @@ def axial_velocity(V):
     return np.stack([V, zero, zero], axis=-1)
 
 
-block = ember.block.Block(shape=(ni,)).set_fluid(fluid)
-block.set_h_s(ho * np.ones(ni), s).set_Vxrt(axial_velocity(np.zeros(ni)))
+block = ember.block.Block(shape=(ni,))
+block.set_fluid(fluid)
+block.set_h_s(ho * np.ones(ni), s)
+block.set_Vxrt(axial_velocity(np.zeros(ni)))
 
 # %%
 # Outlet boundary condition
@@ -116,7 +118,8 @@ for sweep in range(200):
     V_target = mass_flux / (rho * A_A1)  # Mass conservation on the current guess
 
     V = V_prev + relax * (V_target - V_prev)  # Under-relaxed update
-    block.set_h_s(ho - 0.5 * V**2, s).set_Vxrt(axial_velocity(V))
+    block.set_h_s(ho - 0.5 * V**2, s)
+    block.set_Vxrt(axial_velocity(V))
 
     if np.max(np.abs(V - V_prev)) < 1e-4:
         break

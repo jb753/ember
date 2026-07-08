@@ -531,7 +531,12 @@ def read_ts3(fname):
 
             # Create the ember block object
             block = Block(shape=(ni, nj, nk))
-            block.set_x(x).set_r(r).set_t(t).set_rpm(rpm).set_Nb(Nb).set_label(str(ib))
+            block.set_x(x)
+            block.set_r(r)
+            block.set_t(t)
+            block.set_rpm(rpm)
+            block.set_Nb(Nb)
+            block.set_label(str(ib))
 
             # The following bp are optional
 
@@ -1408,7 +1413,9 @@ def _build_flowfield(conserved, cp, ga, mu, Omega):
     x, r, rt, ro, rovx, rovr, rorvt, roe = conserved
 
     block = Block(shape=x.shape)
-    block.set_x(x).set_r(r).set_t(rt / r)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(rt / r)
     # Pr does not affect any returned quantity and is absent from the sidecar.
     # T_dtm=1.0 mirrors read_ts3 (TS3 sets internal energy datum near 1 K).
     block.set_fluid(PerfectFluid(cp=cp, gamma=ga, mu=mu, Pr=1.0, T_dtm=1.0))

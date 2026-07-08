@@ -40,11 +40,13 @@ def _make_block(ni, nj, nk, *, span_dim, Vt):
     block = Block(shape=(ni, nj, nk))
     block.set_fluid(_FLUID)
     block.set_Nb(_Nb)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
     block.set_P_T(P0, 300.0)
-    block.set_Vx(50.0 * np.ones((ni, nj, nk))).set_Vr(np.zeros((ni, nj, nk))).set_Vt(
-        Vt * np.ones((ni, nj, nk))
-    )
+    block.set_Vx(50.0 * np.ones((ni, nj, nk)))
+    block.set_Vr(np.zeros((ni, nj, nk)))
+    block.set_Vt(Vt * np.ones((ni, nj, nk)))
     return block
 
 
@@ -176,13 +178,6 @@ def test_apply_default_no_adjustment(attached_patch):
 # ---------------------------------------------------------------------------
 
 
-def test_set_adjustment_returns_self():
-    """set_adjustment returns self for chaining."""
-    patch = OutletPatch(i=-1, j=(0, -1), k=(0, -1))
-    patch.set_P(P0)
-    assert patch.set_adjustment() is patch
-
-
 def test_set_adjustment_stores_values():
     """set_adjustment stores K_dyn, radial_equilibrium and rf."""
     patch = OutletPatch(i=-1, j=(0, -1), k=(0, -1))
@@ -222,14 +217,6 @@ def test_set_backflow_stores_nondim_snapshot(swirl_block):
     assert np.isclose(snap[2], Vr / fluid.V_ref)
     assert np.isclose(snap[3], Vt / fluid.V_ref)
     assert patch._backflow_enabled
-
-
-def test_set_backflow_returns_self(swirl_block):
-    """set_backflow returns self for chaining."""
-    patch = OutletPatch(i=-1, j=(0, -1), k=(0, -1))
-    patch.set_P(P0)
-    patch.attach_to_block(swirl_block)
-    assert patch.set_backflow(400000.0, 1500.0, 0.0, 0.0) is patch
 
 
 def test_set_backflow_rejects_non_scalar(swirl_block):

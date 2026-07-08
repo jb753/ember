@@ -606,7 +606,9 @@ def test_set_ho_s_ma_nonunity_refs():
     r = np.ones(3, dtype=np.float32)
     x = np.zeros(3, dtype=np.float32)
     t = np.zeros(3, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Reference stagnation conditions (dimensional)
     To1, Po1 = 300.0, 101325.0
@@ -639,7 +641,9 @@ def test_set_ho_s_rhoVm_nonunity_refs():
     r = np.ones(3, dtype=np.float32)
     x = np.zeros(3, dtype=np.float32)
     t = np.zeros(3, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     To1, Po1 = 300.0, 101325.0
     rho_o, u_o = fluid.set_P_T(Po1 / fluid.P_ref, To1 / fluid.T_ref)
@@ -673,7 +677,9 @@ def test_set_Po_To_Ma_rel_nonunity_refs():
     r = np.ones(3, dtype=np.float32)
     x = np.zeros(3, dtype=np.float32)
     t = np.zeros(3, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     Po_inlet, To_inlet = 101325.0, 300.0
     Ma_rel = np.array([0.3, 0.6, 0.9])
@@ -709,7 +715,9 @@ def test_physical_properties_ref_independent():
         )
         block = ember.block.Block(shape=())
         block.set_fluid(fluid)
-        block.set_x(np.float32(0.0)).set_r(np.float32(1.0)).set_t(np.float32(0.0))
+        block.set_x(np.float32(0.0))
+        block.set_r(np.float32(1.0))
+        block.set_t(np.float32(0.0))
         block.set_P_T(P, T)
         block.set_Vx(Vx)
         block.set_Vr(Vr)
@@ -794,7 +802,9 @@ def test_set_Po_To_Ma_rel_perfect_gas():
     r = np.ones(4, dtype=np.float32)
     x = np.zeros(4, dtype=np.float32)
     t = np.zeros(4, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Reference total conditions
     To_inlet, Po_inlet = 300.0, 101325.0
@@ -844,7 +854,9 @@ def test_set_Po_To_Ma_rel_pure_radial_flow():
     r = np.linspace(0.5, 1.0, ni, dtype=np.float32)
     x = np.zeros(ni, dtype=np.float32)
     t = np.zeros(ni, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Pure radial flow parameters
     Po_inlet, To_inlet = 101325.0, 300.0
@@ -885,7 +897,9 @@ def test_set_Po_To_Ma_rel_with_rotation():
     r = np.array([0.8, 1.0], dtype=np.float32)
     x = np.zeros(ni, dtype=np.float32)
     t = np.zeros(ni, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Set rotation (good working value for unified approach)
     Omega = 500.0  # rad/s (high but workable rotation)
@@ -934,7 +948,9 @@ def test_set_Po_To_Ma_rel_flow_angle_consistency():
     r = np.ones(3, dtype=np.float32)
     x = np.zeros(3, dtype=np.float32)
     t = np.zeros(3, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Flow parameters with mixed angles
     Po_inlet, To_inlet = 101325.0, 300.0
@@ -975,7 +991,9 @@ def test_set_Po_To_Ma_rel_energy_conservation():
     r = np.ones(4, dtype=np.float32)
     x = np.zeros(4, dtype=np.float32)
     t = np.zeros(4, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Set reference conditions
     Po_inlet, To_inlet = 150000.0, 400.0
@@ -1014,7 +1032,9 @@ def test_set_Po_To_Ma_rel_isentropic():
     r = np.ones(5, dtype=np.float32)
     x = np.zeros(5, dtype=np.float32)
     t = np.zeros(5, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Set flow field
     Po_inlet, To_inlet = 101325.0, 300.0
@@ -1045,7 +1065,9 @@ def test_set_Po_To_Ma_rel_method_chaining():
     r = np.ones(2, dtype=np.float32)
     x = np.zeros(2, dtype=np.float32)
     t = np.zeros(2, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     result = ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, 101325.0, 300.0, 0.5, 0.0, 0.0
@@ -1064,7 +1086,9 @@ def test_set_Po_To_Ma_rel_array_broadcasting():
     r = np.ones(3, dtype=np.float32)
     x = np.zeros(3, dtype=np.float32)
     t = np.zeros(3, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Test with scalar and array inputs
     Po_inlet = 101325.0  # scalar
@@ -1097,7 +1121,9 @@ def test_set_Po_To_Ma_rel_convergence_parameters():
     r = np.ones(2, dtype=np.float32)
     x = np.zeros(2, dtype=np.float32)
     t = np.zeros(2, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Test with default convergence parameters (handled internally in set_iter.py)
     ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
@@ -1144,7 +1170,9 @@ def test_iterative_setters_self_consistency():
     r = np.linspace(1.0, 1.5, ni, dtype=np.float32)  # Hub to tip: 1.0m to 1.5m radius
     x = np.zeros(ni, dtype=np.float32)  # Axial coordinate
     t = np.zeros(ni, dtype=np.float32)  # Tangential coordinate
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Set realistic rotation rate
     Omega = 3000.0 * (2 * np.pi / 60)  # 3000 RPM converted to rad/s ≈ 314 rad/s
@@ -1284,7 +1312,9 @@ def test_iterative_setters_realistic_conditions():
     r = np.linspace(0.8, 1.2, ni, dtype=np.float32)  # 0.8m to 1.2m radius
     x = np.linspace(0.0, 0.1, ni, dtype=np.float32)  # 10cm axial length
     t = np.zeros(ni, dtype=np.float32)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Typical compressor rotation (converted from user specification)
     Omega = 3000.0 * (2 * np.pi / 60)  # 3000 RPM ≈ 314 rad/s

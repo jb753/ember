@@ -59,7 +59,9 @@ def block():
     dr = 0.1
     pitch = 0.1
     xrt = util.linmesh3([0, L], [rm - dr / 2, rm + dr / 2], [0.0, pitch], shape)
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
     return b
 
 
@@ -92,11 +94,15 @@ def test_inviscid_patch_vs_inlet():
     xrt = util.linmesh3([0, 0.1], [0.95, 1.05], [0.0, 0.1], shape)
 
     block_inlet = ember.block.Block(shape=shape)
-    block_inlet.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block_inlet.set_x(xrt[..., 0])
+    block_inlet.set_r(xrt[..., 1])
+    block_inlet.set_t(xrt[..., 2])
     block_inlet.patches["inlet"] = ember.patch.InletPatch(i=0, label="inlet")
 
     block_inviscid = ember.block.Block(shape=shape)
-    block_inviscid.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block_inviscid.set_x(xrt[..., 0])
+    block_inviscid.set_r(xrt[..., 1])
+    block_inviscid.set_t(xrt[..., 2])
     block_inviscid.patches["inviscid"] = ember.patch.InviscidPatch(
         i=0, label="inviscid"
     )
@@ -121,7 +127,9 @@ def test_inviscid_patch_demonstration():
 
     # Block with no patches: i=0 is both a friction and distance wall
     block_bare = ember.block.Block(shape=shape)
-    block_bare.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block_bare.set_x(xrt[..., 0])
+    block_bare.set_r(xrt[..., 1])
+    block_bare.set_t(xrt[..., 2])
     assert np.all(block_bare.ijk_wall_visc["walli1"] == 0.0), (
         "i=0 should initially be friction wall"
     )
@@ -131,7 +139,9 @@ def test_inviscid_patch_demonstration():
 
     # Block with InviscidPatch at i=0
     block = ember.block.Block(shape=shape)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     block.patches["inviscid"] = ember.patch.InviscidPatch(i=0, label="inviscid")
 
     # InviscidPatch ELIMINATES friction walls (it is in SLIP_TYPES)

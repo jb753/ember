@@ -317,7 +317,9 @@ def mix_out(block, AR=1.0):
     rmix = util.rms([block.r.min(), block.r.max()])
     xmix = util.bounds(block.x).mean()
     tmix = util.bounds(block.t).mean()
-    mix.set_x(xmix).set_r(rmix).set_t(tmix)
+    mix.set_x(xmix)
+    mix.set_r(rmix)
+    mix.set_t(tmix)
 
     # Initial guess for conserved variables simple mean
     mix.set_conserved(block.conserved.mean(axis=(0, 1)))

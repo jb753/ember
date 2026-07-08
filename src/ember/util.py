@@ -1090,7 +1090,10 @@ def resolve_to_interface(block, chi):
     Vn = -sin_chi * Vx_old + cos_chi * Vr_old
 
     # Update block velocities: Vm->Vx, Vn->Vr, Vt unchanged
-    return block.set_Vx(Vm).set_Vr(Vn).set_Vt(Vt)
+    block.set_Vx(Vm)
+    block.set_Vr(Vn)
+    block.set_Vt(Vt)
+    return block
 
 
 def resolve_from_interface(block, chi):
@@ -1126,7 +1129,10 @@ def resolve_from_interface(block, chi):
     Vr = sin_chi * Vm + cos_chi * Vn
 
     # Update block velocities
-    return block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
+    return block
 
 
 def perm_flip_to_dirs(perm, flip, const_dim):

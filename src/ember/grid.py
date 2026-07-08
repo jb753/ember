@@ -551,7 +551,6 @@ class Grid(_LabelledList):
         """
         for block in self:
             block.set_fluid(fluid_obj)
-        return self
 
     def set_L_ref(self, L_ref):
         """Set reference length scale on all blocks, preserving dimensional geometry and flow field.
@@ -569,7 +568,6 @@ class Grid(_LabelledList):
         """
         for block in self:
             block.set_L_ref(L_ref)
-        return self
 
     def set_primitive_cart_unstr(self, xyz, primitive_cart):
         r"""Set primitive variables from Cartesian unstructured data.
@@ -650,9 +648,9 @@ class Grid(_LabelledList):
                 primitive_pol[ind, :].reshape(block.shape + (5,)).astype(np.float32)
             )
             block.set_P_rho(primitive_block[..., 4], primitive_block[..., 0])
-            block.set_Vx(primitive_block[..., 1]).set_Vr(
-                primitive_block[..., 2]
-            ).set_Vt(primitive_block[..., 3])
+            block.set_Vx(primitive_block[..., 1])
+            block.set_Vr(primitive_block[..., 2])
+            block.set_Vt(primitive_block[..., 3])
 
     def get_convergence(self):
         """Grid-representative convergence monitors at one step, non-dimensional.
@@ -730,17 +728,12 @@ class Grid(_LabelledList):
         cached array, so its ``flags.writeable`` is toggled around the in-place
         kernel write (mirrors :meth:`update_sources`).
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             avg = block.conserved_avg_nd
             avg.flags.writeable = True
             ember.fortran.accumulate_avg(block.conserved_nd, avg, n_step_avg)
             avg.flags.writeable = False
-        return self
 
     def apply_bconds(self):
         """Apply all boundary conditions across the grid once.
@@ -754,10 +747,6 @@ class Grid(_LabelledList):
         and mixing communicators lazily via :attr:`connectivity`; subsequent
         calls reuse the cached communicators until ``connectivity.clear()``.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         # Refresh mixing-plane targets from the current cross-plane state before
         # the mixing patches read them in their apply step below.
@@ -773,7 +762,6 @@ class Grid(_LabelledList):
 
         # Close the point-matched periodic seams last.
         self.connectivity.periodic.apply()
-        return self
 
     def apply_guess_meridional(self, block_guess, refine_factor=1):
         """Apply meridional flow field guess using curvilinear interpolation.
@@ -896,7 +884,9 @@ class Grid(_LabelledList):
                 Vm = Vx * lx + Vr * lr  # signed projection onto i-gridline
                 Vx_snapped = np.where(mask, Vm * lx, Vx)
                 Vr_snapped = np.where(mask, Vm * lr, Vr)
-                block.set_Vx(Vx_snapped).set_Vr(Vr_snapped).set_Vt(block.Vt)
+                block.set_Vx(Vx_snapped)
+                block.set_Vr(Vr_snapped)
+                block.set_Vt(block.Vt)
 
                 # --- Tangential snap: preserve |Vt|, sign from lrt ---
                 Vt = block.Vt.copy()
@@ -1011,7 +1001,9 @@ class Grid(_LabelledList):
                 Vx_snapped = np.where(mask, V_i * lx, Vx)
                 Vr_snapped = np.where(mask, V_i * lr, Vr)
                 Vt_snapped = np.where(mask, V_i * lrt, Vt)
-                block.set_Vx(Vx_snapped).set_Vr(Vr_snapped).set_Vt(Vt_snapped)
+                block.set_Vx(Vx_snapped)
+                block.set_Vr(Vr_snapped)
+                block.set_Vt(Vt_snapped)
 
             block.set_mu_turb(np.full((ni, nj, nk), mu_mean))
 
@@ -1028,14 +1020,9 @@ class Grid(_LabelledList):
         restarts : list of BlockRestart
             One BlockRestart per block in this Grid.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block, restart in zip(self, restarts):
             apply_restart(block, restart)
-        return self
 
     def apply_rotation(self, row_types, Omega):
         """Apply rotation settings to blocks based on row types.
@@ -1175,10 +1162,6 @@ class Grid(_LabelledList):
         so any subsequent averaging window starts clean. Owns the
         ``flags.writeable`` toggle on the read-only average buffer.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             block.conserved_nd[...] = block.conserved_avg_nd
@@ -1187,7 +1170,6 @@ class Grid(_LabelledList):
             avg.flags.writeable = True
             avg.fill(0.0)
             avg.flags.writeable = False
-        return self
 
     def flat(self):
         """Return concatenated flattened view of all blocks.
@@ -1209,14 +1191,9 @@ class Grid(_LabelledList):
         src : Grid
             Source Grid providing the solution.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for tgt_block, src_block in zip(self, src):
             ember.block_util.interp_from(tgt_block, src_block)
-        return self
 
     def resample(self, factors):
         """Resample all blocks, returning a new Grid at the new resolution."""
@@ -1243,7 +1220,6 @@ class Grid(_LabelledList):
                 sf2=sf2,
                 xs=block.scratch[..., 0],
             )
-        return self
 
     def update_bconds(self, freeze=False):
         """Refresh boundary-condition targets across the grid once.
@@ -1260,10 +1236,6 @@ class Grid(_LabelledList):
         still run so backflow density relaxation stays anchored to the current
         step.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         if not freeze:
             self.connectivity.mixing.exchange()
@@ -1277,7 +1249,6 @@ class Grid(_LabelledList):
                 patch.update_soln()
                 if not freeze:
                     patch.update_target()
-        return self
 
     def update_cached_conserved(self):
         """Refresh conserved-dependent caches on every block.
@@ -1287,14 +1258,9 @@ class Grid(_LabelledList):
         recompute on next access. Needed after writing ``conserved_nd`` directly
         (bypassing the setters), e.g. the explicit scree march.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             block.update_cached_conserved()
-        return self
 
     def update_filter(self, delta_filt, cfl):
         for block in self:
@@ -1341,10 +1307,6 @@ class Grid(_LabelledList):
             ``set_residual`` has finished using it as ``flow_i`` and the march
             reuses it only afterwards.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             i_cusp_start, i_cusp_end = block.i_cusp
@@ -1406,7 +1368,6 @@ class Grid(_LabelledList):
                     nk=nk,
                 )
             block.residual_nd.flags.writeable = False
-        return self
 
     def update_sources(self, inviscid, gain_filt):
         """Zero and rebuild the body force on every block of this grid level.
@@ -1431,10 +1392,6 @@ class Grid(_LabelledList):
             Selective-frequency-damping gain; the SFD force is added only when
             nonzero.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         # F_body_nd is a read-only cached buffer. Unlock it for the assembly below
         # and re-lock at the end, so consumers (the residual kernels) only ever
@@ -1544,8 +1501,6 @@ class Grid(_LabelledList):
         for block in self:
             block.F_body_nd.flags.writeable = False
 
-        return self
-
     def update_timestep(self, rf, fac_visc=1.0):
         """Recompute the volumetric time step on every block.
 
@@ -1568,10 +1523,6 @@ class Grid(_LabelledList):
         tolerates the same cfl as the inviscid one; ``1.0`` leaves the bare
         directional radius untouched.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             block.dt_vol_nd.flags.writeable = True
@@ -1590,7 +1541,6 @@ class Grid(_LabelledList):
                 fac_visc=fac_visc,
             )
             block.dt_vol_nd.flags.writeable = False
-        return self
 
     def write_emb(self, filename, compress=False):
         """Write grid to EMB binary format file.

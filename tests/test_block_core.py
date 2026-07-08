@@ -14,21 +14,17 @@ Test cases:
 - test_set_rho_s: Density and entropy setting
 - test_set_Omega: Rotation rate setting
 - test_set_Nb: Blade count setting
-- test_all_set_methods_have_self_return: Method chaining validation
 - test_coordinate_access_before_initialization: Error handling for uninitialized coordinates
 - test_thermodynamic_access_before_initialization: Error handling for uninitialized thermodynamics
 - test_velocity_access_before_initialization: Error handling for uninitialized velocities
 - test_individual_coordinate_setters: Individual coordinate component setters
-- test_individual_coordinate_setters_method_chaining: Method chaining for coordinate setters
 - test_set_r_validates_zero_radius: Validation of zero radius values
 - test_individual_velocity_setters: Individual velocity component setters
-- test_individual_velocity_setters_method_chaining: Method chaining for velocity setters
 - test_individual_coordinate_access_before_initialization: Error handling for individual coordinate access
 - test_individual_velocity_access_before_initialization: Error handling for individual velocity access
 - test_coordinate_access_works_after_setters: Coordinate access after initialization
 - test_velocity_access_works_after_setters: Velocity access after initialization
 - test_set_conserved_args_variations: Argument variations for conserved variable setting
-- test_args_methods_return_self_for_chaining: Method chaining validation for argument methods
 - test_set_datum: Thermodynamic datum setting
 - test_set_datum_effect: Effect of datum changes on u and s
 - test_set_datum_preserves_fluid_properties: Fluid property preservation during datum changes
@@ -38,7 +34,6 @@ Test cases:
 - test_conserved_writable_performance_vs_copy: Performance comparison of in-place vs copy operations
 - test_set_rpm_scalar: Setting scalar rpm
 - test_set_rpm_conversion: Type conversion to float32 through Omega
-- test_set_rpm_returns_self: set_rpm returns self for chaining
 - test_set_rpm_consistency_with_rpm_property: set_rpm is consistent with rpm property
 - test_Re_ref: Reference Reynolds number property
 - test_P_nd: Nondimensional pressure property
@@ -63,7 +58,9 @@ def block():
 
     # Set up simple coordinates
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
 
     # Set up fluid
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -119,7 +116,9 @@ def test_block_dl_min(block):
 def test_props_read_only():
     shape = (2, 3, 4)
     b = ember.block.Block(shape=shape)
-    b.set_x(np.ones(shape)).set_r(np.ones(shape)).set_t(np.ones(shape))
+    b.set_x(np.ones(shape))
+    b.set_r(np.ones(shape))
+    b.set_t(np.ones(shape))
 
     prop_names = [
         "x",
@@ -146,7 +145,9 @@ def test_props_not_writable_in_place(block):
     Vr = np.zeros(block.shape, dtype=np.float32)
     Vt = np.zeros(block.shape, dtype=np.float32)
     block.set_rho_u(rho, u)
-    block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
 
     # Basic stored arrays
     basic_props = ["x", "r", "t", "xrt", "rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"]
@@ -186,7 +187,9 @@ def _populate(block):
     Vr = np.broadcast_to(5.0 + j, block.shape).astype(np.float32)
     Vt = np.broadcast_to(2.0 + k, block.shape).astype(np.float32)
     block.set_rho_u(rho, u)
-    block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
 
 
 def _manual_node_avg(x):
@@ -243,7 +246,9 @@ def test_conserved_cell_nd_cache_invalidation(block):
 def test_default_Omega_Nb():
     shape = (2, 3, 4)
     b = ember.block.Block(shape=shape)
-    b.set_x(np.ones(shape)).set_r(np.ones(shape)).set_t(np.ones(shape))
+    b.set_x(np.ones(shape))
+    b.set_r(np.ones(shape))
+    b.set_t(np.ones(shape))
 
     assert b.Omega == 0.0
     assert b.Nb == 1
@@ -449,7 +454,9 @@ def test_coordinate_access_before_initialization():
     xrt[..., 0] = np.linspace(0, 1, shape[0])[:, None, None]  # x coordinates
     xrt[..., 1] = np.linspace(0.5, 1.5, shape[1])[None, :, None]  # r coordinates
     xrt[..., 2] = np.linspace(0, 0.1, shape[2])[None, None, :]  # t coordinates
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
 
     # Now these should work without errors
     assert b.x.shape == shape
@@ -468,7 +475,9 @@ def test_thermodynamic_access_before_initialization():
     xrt[..., 0] = np.linspace(0, 1, shape[0])[:, None, None]  # x coordinates
     xrt[..., 1] = np.linspace(0.5, 1.5, shape[1])[None, :, None]  # r coordinates
     xrt[..., 2] = np.linspace(0, 0.1, shape[2])[None, None, :]  # t coordinates
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
 
     # Test: Accessing fluid properties before set_fluid should raise errors
     with pytest.raises(ValueError, match="Working fluid must be set using set_fluid"):
@@ -533,7 +542,9 @@ def test_velocity_access_before_initialization():
     xrt[..., 0] = np.linspace(0, 1, shape[0])[:, None, None]  # x coordinates
     xrt[..., 1] = np.linspace(0.5, 1.5, shape[1])[None, :, None]  # r coordinates
     xrt[..., 2] = np.linspace(0, 0.1, shape[2])[None, None, :]  # t coordinates
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
 
     # Set up fluid and thermodynamic state
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -576,9 +587,9 @@ def test_velocity_access_before_initialization():
         _ = b.Vt
 
     # After setting velocities, these should work without errors
-    b.set_Vx(np.full(shape, 50.0, dtype=np.float32)).set_Vr(
-        np.full(shape, 10.0, dtype=np.float32)
-    ).set_Vt(np.full(shape, 30.0, dtype=np.float32))
+    b.set_Vx(np.full(shape, 50.0, dtype=np.float32))
+    b.set_Vr(np.full(shape, 10.0, dtype=np.float32))
+    b.set_Vt(np.full(shape, 30.0, dtype=np.float32))
 
     # Now these should work without errors
     assert b.rhoVx.shape == shape
@@ -626,18 +637,6 @@ def test_individual_coordinate_setters(block):
     np.testing.assert_allclose(block.xrt, expected_xrt, rtol=rtol)
 
 
-def test_individual_coordinate_setters_method_chaining(block):
-    """Test that individual coordinate setters return self for method chaining."""
-    # Test method chaining works with scalar values
-    result = block.set_x(1.0).set_r(1.5).set_t(0.2)
-    assert result is block, "Method chaining should return the same block instance"
-
-    # Verify final state is correct (scalars should broadcast to full arrays)
-    np.testing.assert_allclose(block.x, 1.0, rtol=1e-6)
-    np.testing.assert_allclose(block.r, 1.5, rtol=1e-6)
-    np.testing.assert_allclose(block.t, 0.2, rtol=1e-6)
-
-
 def test_set_r_validates_zero_radius(block):
     """Test that set_r raises ValueError for zero radius."""
     # Test zero radius validation
@@ -668,18 +667,6 @@ def test_individual_velocity_setters(block):
         [np.full(shape, 15.0), np.full(shape, 8.0), np.full(shape, 12.0)], axis=-1
     )
     np.testing.assert_allclose(block.Vxrt, expected_Vxrt, rtol=rtol)
-
-
-def test_individual_velocity_setters_method_chaining(block):
-    """Test that individual velocity setters return self for method chaining."""
-    # Test method chaining works with scalar values
-    result = block.set_Vx(10.0).set_Vr(5.0).set_Vt(8.0)
-    assert result is block, "Method chaining should return the same block instance"
-
-    # Verify final state is correct (scalars should broadcast to full arrays)
-    np.testing.assert_allclose(block.Vx, 10.0, rtol=1e-6)
-    np.testing.assert_allclose(block.Vr, 5.0, rtol=1e-6)
-    np.testing.assert_allclose(block.Vt, 8.0, rtol=1e-6)
 
 
 def test_individual_coordinate_access_before_initialization():
@@ -736,7 +723,9 @@ def test_individual_velocity_access_before_initialization():
     b = ember.block.Block(shape=shape)
 
     # Set up coordinates and thermodynamic state (required for velocity calculations)
-    b.set_x(np.ones(shape)).set_r(np.ones(shape)).set_t(np.ones(shape))
+    b.set_x(np.ones(shape))
+    b.set_r(np.ones(shape))
+    b.set_t(np.ones(shape))
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     b.set_fluid(fluid)
     b.set_P_T(101325.0, 300.0)
@@ -794,7 +783,9 @@ def test_coordinate_access_works_after_setters():
     xrt[..., 0] = 1.5  # x
     xrt[..., 1] = 2.0  # r
     xrt[..., 2] = 0.5  # t
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
 
     # Individual coordinate access should work
     np.testing.assert_allclose(b.x, 1.5)
@@ -808,13 +799,17 @@ def test_velocity_access_works_after_setters():
     b = ember.block.Block(shape=shape)
 
     # Set up required state
-    b.set_x(np.ones(shape)).set_r(np.ones(shape)).set_t(np.ones(shape))
+    b.set_x(np.ones(shape))
+    b.set_r(np.ones(shape))
+    b.set_t(np.ones(shape))
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     b.set_fluid(fluid)
     b.set_P_T(101325.0, 300.0)
 
     # Initialize all velocities using individual setters
-    b.set_Vx(15.0).set_Vr(8.0).set_Vt(12.0)
+    b.set_Vx(15.0)
+    b.set_Vr(8.0)
+    b.set_Vt(12.0)
 
     # Individual velocity access should work
     np.testing.assert_allclose(b.Vx, 15.0)
@@ -846,43 +841,6 @@ def test_set_conserved_args_variations(block):
     np.testing.assert_allclose(block.conserved, conserved_array, rtol=rtol)
 
 
-def test_args_methods_return_self_for_chaining():
-    """Test that all *args methods return self for method chaining."""
-    shape = (2, 2, 2)
-    b = ember.block.Block(shape=shape)
-
-    # Set up fluid
-    fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
-    b.set_fluid(fluid)
-
-    # Test set_x/set_r/set_t chaining
-    result1 = b.set_x(np.ones(shape)).set_r(np.ones(shape)).set_t(np.ones(shape))
-    assert result1 is b, "set_x/set_r/set_t should return self"
-
-    result2 = (
-        b.set_x(np.ones(shape)).set_r(np.ones(shape) * 1.5).set_t(np.ones(shape) * 0.5)
-    )
-    assert result2 is b, "set_x/set_r/set_t should return self"
-
-    # Test set_Vx/set_Vr/set_Vt chaining
-    b.set_P_T(101325.0, 300.0)  # Need thermodynamic state for velocities
-
-    result3 = b.set_Vx(np.zeros(shape)).set_Vr(np.zeros(shape)).set_Vt(np.zeros(shape))
-    assert result3 is b, "set_Vx/set_Vr/set_Vt should return self"
-
-    result4 = (
-        b.set_Vx(np.ones(shape) * 10)
-        .set_Vr(np.ones(shape) * 5)
-        .set_Vt(np.ones(shape) * 8)
-    )
-    assert result4 is b, "set_Vx/set_Vr/set_Vt should return self"
-
-    # Test set_conserved chaining (single array only)
-    conserved = np.random.rand(*shape, 5) + 0.1  # Avoid zeros
-    result5 = b.set_conserved(conserved)
-    assert result5 is b, "set_conserved(single_array) should return self"
-
-
 def test_set_datum(block):
     """Test set_datum method preserves thermodynamic state and velocities."""
     rtol = 1e-6
@@ -892,9 +850,9 @@ def test_set_datum(block):
     u_initial = np.full(block.shape, 200000.0, dtype=np.float32)
     block.set_rho_u(rho_initial, u_initial)
 
-    block.set_Vx(np.full(block.shape, 50.0, dtype=np.float32)).set_Vr(
-        np.full(block.shape, 10.0, dtype=np.float32)
-    ).set_Vt(np.full(block.shape, 30.0, dtype=np.float32))
+    block.set_Vx(np.full(block.shape, 50.0, dtype=np.float32))
+    block.set_Vr(np.full(block.shape, 10.0, dtype=np.float32))
+    block.set_Vt(np.full(block.shape, 30.0, dtype=np.float32))
 
     # Store original state
     T_orig = block.T.copy()
@@ -936,9 +894,9 @@ def test_set_datum_effect(block):
 
     # At the new datum state, both u and s should be zero
     block_datum = ember.block.Block(shape=block.shape)
-    block_datum.set_x(block.xrt[..., 0]).set_r(block.xrt[..., 1]).set_t(
-        block.xrt[..., 2]
-    )
+    block_datum.set_x(block.xrt[..., 0])
+    block_datum.set_r(block.xrt[..., 1])
+    block_datum.set_t(block.xrt[..., 2])
     block_datum.set_fluid(block.fluid)
     block_datum.set_P_T(P_dtm_new, T_dtm_new)
 
@@ -982,7 +940,9 @@ def test_conserved_nd_writable_in_place_modification_with_slice(block):
     Vt = np.full(block.shape, 30.0, dtype=np.float32)
     P = np.full(block.shape, 101325.0, dtype=np.float32)
     block.set_P_rho(P, rho)
-    block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
 
     # Store reference to original data array
     data_ref = block._data
@@ -1032,7 +992,9 @@ def test_conserved_nd_writable_full_array(block):
     Vt = np.full(block.shape, 30.0, dtype=np.float32)
     P = np.full(block.shape, 101325.0, dtype=np.float32)
     block.set_P_rho(P, rho)
-    block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
 
     # Store original nondimensional conserved variables
     conserved_nd_orig = block.conserved_nd.copy()
@@ -1060,7 +1022,9 @@ def test_conserved_nd_writable_partial_variables(block):
     Vt = np.full(block.shape, 30.0, dtype=np.float32)
     P = np.full(block.shape, 101325.0, dtype=np.float32)
     block.set_P_rho(P, rho)
-    block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
 
     # Store original values (dimensional, with unity refs these equal nondim)
     rho_orig = block.rho.copy()
@@ -1125,7 +1089,9 @@ def test_conserved_nd_writable_performance_vs_copy():
 
     # Set up coordinates
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set up fluid
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -1138,7 +1104,9 @@ def test_conserved_nd_writable_performance_vs_copy():
     Vt = np.full(shape, 30.0, dtype=np.float32)
     P = np.full(shape, 101325.0, dtype=np.float32)
     block.set_P_rho(P, rho)
-    block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
 
     # Test slice
     test_slice = (slice(10, 40), slice(20, 30), slice(None))
@@ -1182,13 +1150,6 @@ def test_set_rpm_conversion():
     expected_omega = 1000.0 * 2.0 * np.pi / 60.0
     assert block.Omega == np.float32(expected_omega)
     assert isinstance(block.Omega, np.float32)
-
-
-def test_set_rpm_returns_self():
-    """Test that set_rpm returns self for chaining."""
-    block = ember.block.Block(shape=(5, 5, 5))
-    result = block.set_rpm(1000.0)
-    assert result is block
 
 
 def test_set_rpm_consistency_with_rpm_property():
@@ -1246,7 +1207,9 @@ def _make_block_with_L_ref(L_ref):
     b = ember.block.Block(shape=shape)
     b.set_L_ref(L_ref)
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     b.set_fluid(fluid)
     return b, xrt
@@ -1292,11 +1255,15 @@ def test_Vt_independent_of_L_ref():
     """Tangential velocity is the same regardless of L_ref."""
     b1, _ = _make_block_with_L_ref(1.0)
     b1.set_P_T(101325.0, 300.0)
-    b1.set_Vx(50.0).set_Vr(10.0).set_Vt(30.0)
+    b1.set_Vx(50.0)
+    b1.set_Vr(10.0)
+    b1.set_Vt(30.0)
 
     b2, _ = _make_block_with_L_ref(2.0)
     b2.set_P_T(101325.0, 300.0)
-    b2.set_Vx(50.0).set_Vr(10.0).set_Vt(30.0)
+    b2.set_Vx(50.0)
+    b2.set_Vr(10.0)
+    b2.set_Vt(30.0)
 
     np.testing.assert_allclose(b1.Vt, b2.Vt, rtol=1e-6)
     np.testing.assert_allclose(b1.Vx, b2.Vx, rtol=1e-6)
@@ -1319,7 +1286,9 @@ def test_set_conserved_L_ref():
     """set_conserved accepts dimensional rhorVt and round-trips correctly."""
     b, xrt = _make_block_with_L_ref(2.0)
     b.set_P_T(101325.0, 300.0)
-    b.set_Vx(50.0).set_Vr(10.0).set_Vt(30.0)
+    b.set_Vx(50.0)
+    b.set_Vr(10.0)
+    b.set_Vt(30.0)
 
     # Grab dimensional conserved
     cons_dim = np.stack((b.rho, b.rhoVx, b.rhoVr, b.rhorVt, b.rhoe), axis=-1).copy()

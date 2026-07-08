@@ -53,7 +53,9 @@ def test_emb_basic_roundtrip(tmp_path):
 
     # Set coordinates
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Create grid
     original_grid = Grid([block])
@@ -97,9 +99,15 @@ def test_emb_multiblock_roundtrip(tmp_path):
     xrt2 = util.linmesh3([1.0, 2.0], [1.5, 2.5], [0.1, 0.3], (4, 3, 6))
     xrt3 = util.linmesh3([2.0, 2.5], [0.8, 1.8], [0.0, 0.15], (2, 5, 3))
 
-    block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
-    block3.set_x(xrt3[..., 0]).set_r(xrt3[..., 1]).set_t(xrt3[..., 2])
+    block1.set_x(xrt1[..., 0])
+    block1.set_r(xrt1[..., 1])
+    block1.set_t(xrt1[..., 2])
+    block2.set_x(xrt2[..., 0])
+    block2.set_r(xrt2[..., 1])
+    block2.set_t(xrt2[..., 2])
+    block3.set_x(xrt3[..., 0])
+    block3.set_r(xrt3[..., 1])
+    block3.set_t(xrt3[..., 2])
 
     # Create original grid
     original_grid = Grid([block1, block2, block3])
@@ -142,8 +150,12 @@ def test_emb_with_patches_roundtrip(tmp_path):
     xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.3], (5, 6, 7))
     xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.1, 0.4], (4, 5, 6))
 
-    block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+    block1.set_x(xrt1[..., 0])
+    block1.set_r(xrt1[..., 1])
+    block1.set_t(xrt1[..., 2])
+    block2.set_x(xrt2[..., 0])
+    block2.set_r(xrt2[..., 1])
+    block2.set_t(xrt2[..., 2])
 
     # Add patches to blocks
     inlet1 = InletPatch(i=0, j=(0, -1), k=(0, -1), label="inlet_1")
@@ -237,7 +249,9 @@ def test_emb_with_flow_data_roundtrip(tmp_path):
 
     # Set coordinates
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set up fluid and flow data
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
@@ -340,8 +354,12 @@ def test_emb_patch_block_shape_restoration(tmp_path):
     # Set coordinates
     xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.3], (5, 6, 7))
     xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.1, 0.4], (4, 5, 8))
-    block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+    block1.set_x(xrt1[..., 0])
+    block1.set_r(xrt1[..., 1])
+    block1.set_t(xrt1[..., 2])
+    block2.set_x(xrt2[..., 0])
+    block2.set_r(xrt2[..., 1])
+    block2.set_t(xrt2[..., 2])
 
     # Add patches with negative indices (require block shape for resolution)
     inlet_patch = InletPatch(i=0, j=(1, -2), k=(2, -1), label="inlet_negative")
@@ -424,7 +442,9 @@ def test_emb_compression_roundtrip(tmp_path):
     for i in range(2):
         block = Block(shape=(10, 10, 10))
         xrt = util.linmesh3([i, i + 1], [0.5, 1.5], [0.0, 0.2], (10, 10, 10))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Add some flow data
         fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
@@ -499,9 +519,15 @@ def test_write_plot3d_multiblock_roundtrip(tmp_path):
     xrt2 = util.linmesh3([1.0, 2.0], [1.5, 2.5], [0.1, 0.3], (4, 3, 6))
     xrt3 = util.linmesh3([2.0, 2.5], [0.8, 1.8], [0.0, 0.15], (2, 5, 3))
 
-    block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
-    block3.set_x(xrt3[..., 0]).set_r(xrt3[..., 1]).set_t(xrt3[..., 2])
+    block1.set_x(xrt1[..., 0])
+    block1.set_r(xrt1[..., 1])
+    block1.set_t(xrt1[..., 2])
+    block2.set_x(xrt2[..., 0])
+    block2.set_r(xrt2[..., 1])
+    block2.set_t(xrt2[..., 2])
+    block3.set_x(xrt3[..., 0])
+    block3.set_r(xrt3[..., 1])
+    block3.set_t(xrt3[..., 2])
 
     # Create original grid
     original_grid = Grid([block1, block2, block3])
@@ -565,8 +591,12 @@ def test_plot3d_fvbnd_roundtrip(tmp_path):
     xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.3], (5, 6, 7))
     xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.1, 0.4], (4, 5, 6))
 
-    block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+    block1.set_x(xrt1[..., 0])
+    block1.set_r(xrt1[..., 1])
+    block1.set_t(xrt1[..., 2])
+    block2.set_x(xrt2[..., 0])
+    block2.set_r(xrt2[..., 1])
+    block2.set_t(xrt2[..., 2])
 
     # Add patches to blocks
     inlet1 = InletPatch(i=0, j=(0, -1), k=(0, -1), label="inlet_1")
@@ -624,8 +654,12 @@ def test_grid_write_plot3d_with_fvbnd(tmp_path):
     xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.3], (5, 6, 7))
     xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.1, 0.4], (4, 5, 6))
 
-    block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+    block1.set_x(xrt1[..., 0])
+    block1.set_r(xrt1[..., 1])
+    block1.set_t(xrt1[..., 2])
+    block2.set_x(xrt2[..., 0])
+    block2.set_r(xrt2[..., 1])
+    block2.set_t(xrt2[..., 2])
 
     # Add patches to blocks
     inlet1 = InletPatch(i=0, j=(0, -1), k=(0, -1), label="inlet_1")
@@ -675,7 +709,9 @@ def test_grid_write_plot3d_coordinates_only(tmp_path):
     # Create simple grid
     block = Block(shape=(3, 4, 5))
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     grid = Grid([block])
 
@@ -748,9 +784,15 @@ def test_write_ts3_multiblock_roundtrip(tmp_path):
     xrt2 = util.linmesh3([1.0, 2.0], [1.5, 2.5], [0.1, 0.3], (4, 3, 6))
     xrt3 = util.linmesh3([2.0, 2.5], [0.8, 1.8], [0.0, 0.15], (2, 5, 3))
 
-    block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
-    block3.set_x(xrt3[..., 0]).set_r(xrt3[..., 1]).set_t(xrt3[..., 2])
+    block1.set_x(xrt1[..., 0])
+    block1.set_r(xrt1[..., 1])
+    block1.set_t(xrt1[..., 2])
+    block2.set_x(xrt2[..., 0])
+    block2.set_r(xrt2[..., 1])
+    block2.set_t(xrt2[..., 2])
+    block3.set_x(xrt3[..., 0])
+    block3.set_r(xrt3[..., 1])
+    block3.set_t(xrt3[..., 2])
 
     # Create fluid and set flow data for TS3 requirements
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
@@ -854,8 +896,11 @@ def test_write_ts3_no_fluid_geometry_only_roundtrip(tmp_path):
     """
     block = Block(shape=(3, 4, 5))
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-    block.set_rpm(0.0).set_Nb(1)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
+    block.set_rpm(0.0)
+    block.set_Nb(1)
     grid = Grid([block])
 
     output_file = tmp_path / "no_fluid.hdf5"
@@ -877,8 +922,11 @@ def test_write_ts3_no_fluid_strict_raises():
     """Strict write of a fluid-less grid still raises."""
     block = Block(shape=(3, 4, 5))
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-    block.set_rpm(0.0).set_Nb(1)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
+    block.set_rpm(0.0)
+    block.set_Nb(1)
     grid = Grid([block])
 
     with pytest.raises(ValueError, match="Requires working fluid set in strict mode"):
@@ -892,7 +940,9 @@ def test_ts3_basic_roundtrip(tmp_path):
 
     # Set coordinates
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set up fluid and minimal flow data
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
@@ -943,7 +993,9 @@ def test_ts3_geometry_only_non_strict(tmp_path):
     # Create a simple block with only coordinates
     block = Block(shape=(3, 4, 5))
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set minimal required properties for TS3
     block.set_rpm(0.0)
@@ -965,7 +1017,9 @@ def test_ts3_geometry_only_strict_mode(tmp_path):
     # Create a simple block with only coordinates
     block = Block(shape=(3, 4, 5))
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set minimal required properties for TS3
     block.set_rpm(0.0)
@@ -1027,9 +1081,15 @@ def test_ts3_multiblock_with_patches_roundtrip(tmp_path):
     xrt3 = np.stack([xv3, rv3, tv3], axis=-1)
 
     # Set coordinates
-    block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
-    block3.set_x(xrt3[..., 0]).set_r(xrt3[..., 1]).set_t(xrt3[..., 2])
+    block1.set_x(xrt1[..., 0])
+    block1.set_r(xrt1[..., 1])
+    block1.set_t(xrt1[..., 2])
+    block2.set_x(xrt2[..., 0])
+    block2.set_r(xrt2[..., 1])
+    block2.set_t(xrt2[..., 2])
+    block3.set_x(xrt3[..., 0])
+    block3.set_r(xrt3[..., 1])
+    block3.set_t(xrt3[..., 2])
 
     # Create fluid and set flow properties
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
@@ -1202,7 +1262,9 @@ def test_ts3_write_preserves_block_variables(tmp_path):
     """
     block = Block(shape=(3, 4, 5))
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
     block.set_fluid(fluid)
@@ -1235,7 +1297,9 @@ def _make_inlet_writer():
 
     block = Block(shape=(3, 4, 5))
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     inlet = InletPatch(i=0, j=(0, -1), k=(0, -1), label="inlet")
     block.patches.append(inlet)
     inlet.set_Po_To_Alpha_Beta(
@@ -1290,7 +1354,9 @@ def _make_tri_block():
     r = np.linspace(0.5, 1.5, shape[1])
     x_mesh, r_mesh = np.meshgrid(x, r, indexing="ij")
     _xrt = np.stack([x_mesh, r_mesh, np.zeros_like(x_mesh)], axis=-1)
-    b.set_x(_xrt[..., 0]).set_r(_xrt[..., 1]).set_t(_xrt[..., 2])
+    b.set_x(_xrt[..., 0])
+    b.set_r(_xrt[..., 1])
+    b.set_t(_xrt[..., 2])
     b.set_P_T(101325.0, 300.0)
     return triangulate_to_unstructured(b)
 
@@ -1320,7 +1386,9 @@ def test_to_tm3_requires_triangulated(tmp_path):
     """to_tm3 raises ValueError on a non-triangulated block."""
     b = Block(shape=(3, 4, 5))
     _xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
-    b.set_x(_xrt[..., 0]).set_r(_xrt[..., 1]).set_t(_xrt[..., 2])
+    b.set_x(_xrt[..., 0])
+    b.set_r(_xrt[..., 1])
+    b.set_t(_xrt[..., 2])
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     b.set_fluid(fluid)
     with pytest.raises(ValueError, match="triangulated"):

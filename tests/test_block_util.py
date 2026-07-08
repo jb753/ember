@@ -18,7 +18,7 @@ Test cases:
 - test_orthogonal_transformation: Transformation is orthogonal
 - test_chi_180deg: Chi=180° case
 - test_chi_270deg: Chi=270° case
-- test_method_chaining: Functions return block for method chaining
+- test_functions_return_block: Functions return the block they act on
 - test_preserves_block_properties: Transformation preserves non-velocity properties
 - test_derived_properties_update: Derived velocity properties update correctly
 - test_extremely_small_velocities: Extremely small velocity magnitudes
@@ -43,7 +43,9 @@ def block():
     # Create block with coordinates
     b = ember.block.Block(shape=shape)
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
 
     # Set up fluid and thermodynamic state
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -59,7 +61,9 @@ class TestResolveToInterface:
     def test_chi_zero(self, block):
         """Test chi=0 case: Vm should equal Vx, Vn should equal Vr."""
         Vx_orig, Vr_orig, Vt_orig = 100.0, 50.0, 25.0
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         util.resolve_to_interface(block, 0.0)
 
@@ -71,7 +75,9 @@ class TestResolveToInterface:
     def test_chi_45deg(self, block):
         """Test chi=45° case: Vm=(Vx+Vr)/√2, Vn=(Vr-Vx)/√2."""
         Vx_orig, Vr_orig, Vt_orig = 100.0, 50.0, 25.0
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         chi = 45.0  # 45 degrees
         util.resolve_to_interface(block, chi)
@@ -88,7 +94,9 @@ class TestResolveToInterface:
     def test_chi_90deg(self, block):
         """Test chi=90° case: Vm should equal Vr, Vn should equal -Vx."""
         Vx_orig, Vr_orig, Vt_orig = 100.0, 50.0, 25.0
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         util.resolve_to_interface(block, 90.0)
 
@@ -100,7 +108,9 @@ class TestResolveToInterface:
     def test_chi_array_input(self, block):
         """Test with chi as an array (spatially varying interface angle)."""
         Vx_orig, Vr_orig, Vt_orig = 100.0, 50.0, 25.0
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         # Create spatially varying chi
         chi = np.linspace(0, 90.0, block.shape[0])  # Varies along i direction
@@ -126,7 +136,9 @@ class TestResolveFromInterface:
     def test_chi_zero(self, block):
         """Test chi=0 case: should recover original velocities."""
         # Set interface-aligned velocities (Vm=Vx=100, Vn=Vr=50)
-        block.set_Vx(100.0).set_Vr(50.0).set_Vt(25.0)
+        block.set_Vx(100.0)
+        block.set_Vr(50.0)
+        block.set_Vt(25.0)
 
         util.resolve_from_interface(block, 0.0)
 
@@ -139,7 +151,9 @@ class TestResolveFromInterface:
         """Test chi=90° case: should transform interface velocities back."""
         # Set interface-aligned velocities (Vm=Vx=50, Vn=Vr=-100)
         # These would have come from original Vx=100, Vr=50 with chi=90°
-        block.set_Vx(50.0).set_Vr(-100.0).set_Vt(25.0)
+        block.set_Vx(50.0)
+        block.set_Vr(-100.0)
+        block.set_Vt(25.0)
 
         util.resolve_from_interface(block, 90.0)
 
@@ -156,7 +170,9 @@ class TestRoundtripConsistency:
     def test_roundtrip_scalar_chi(self, block, chi):
         """Test roundtrip consistency for various scalar chi values."""
         Vx_orig, Vr_orig, Vt_orig = 100.0, 50.0, 25.0
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         # Forward transformation
         util.resolve_to_interface(block, chi)
@@ -177,7 +193,9 @@ class TestRoundtripConsistency:
         Vr_orig = np.random.uniform(-50, 50, block.shape).astype(np.float32)
         Vt_orig = np.random.uniform(10, 40, block.shape).astype(np.float32)
 
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         # Create spatially varying chi
         chi = np.random.uniform(0, 360.0, block.shape).astype(np.float32)
@@ -199,7 +217,9 @@ class TestSpecialCases:
 
     def test_zero_velocities(self, block):
         """Test with zero meridional velocities."""
-        block.set_Vx(0.0).set_Vr(0.0).set_Vt(25.0)
+        block.set_Vx(0.0)
+        block.set_Vr(0.0)
+        block.set_Vt(25.0)
 
         util.resolve_to_interface(block, 45.0)
 
@@ -211,7 +231,9 @@ class TestSpecialCases:
     def test_large_velocities(self, block):
         """Test with large velocity magnitudes."""
         Vx_orig, Vr_orig, Vt_orig = 1e6, -5e5, 1e4
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         # Test roundtrip with large values
         util.resolve_to_interface(block, 180.0 / 3)
@@ -225,7 +247,9 @@ class TestSpecialCases:
     def test_negative_velocities(self, block):
         """Test with negative velocity components."""
         Vx_orig, Vr_orig, Vt_orig = -100.0, -50.0, -25.0
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         util.resolve_to_interface(block, 180.0 / 6)  # 30 degrees
 
@@ -244,7 +268,9 @@ class TestSpecialCases:
         chi_values = np.linspace(0, 360.0, 8, endpoint=False)
 
         for chi in chi_values:
-            block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+            block.set_Vx(Vx_orig)
+            block.set_Vr(Vr_orig)
+            block.set_Vt(Vt_orig)
             util.resolve_to_interface(block, chi)
 
             # Magnitude should be preserved for meridional components
@@ -263,7 +289,9 @@ class TestSpecialCases:
         Vr_orig = np.random.uniform(-100, 100, block.shape).astype(np.float32)
         Vt_orig = np.random.uniform(-50, 50, block.shape).astype(np.float32)
 
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         # Store original meridional magnitude
         original_mag = np.sqrt(Vx_orig**2 + Vr_orig**2)
@@ -286,7 +314,9 @@ class TestSpecificAngles:
     def test_chi_180deg(self, block):
         """Test chi=180° case: Vm should equal -Vx, Vn should equal -Vr."""
         Vx_orig, Vr_orig, Vt_orig = 100.0, 50.0, 25.0
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         util.resolve_to_interface(block, 180.0)  # 180 degrees
 
@@ -298,7 +328,9 @@ class TestSpecificAngles:
     def test_chi_270deg(self, block):
         """Test chi=270° case: Vm should equal -Vr, Vn should equal Vx."""
         Vx_orig, Vr_orig, Vt_orig = 100.0, 50.0, 25.0
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         util.resolve_to_interface(block, 270.0)  # 270 degrees
 
@@ -311,18 +343,23 @@ class TestSpecificAngles:
 class TestIntegration:
     """Test integration with existing block functionality."""
 
-    def test_method_chaining(self, block):
-        """Test that resolve_to_interface returns block for method chaining."""
-        result = util.resolve_to_interface(block.set_Vx(100).set_Vr(50).set_Vt(25), 0.0)
-        assert result is block, "Function should return the block for chaining"
+    def test_functions_return_block(self, block):
+        """Test that resolve_to_interface/resolve_from_interface return the block."""
+        block.set_Vx(100)
+        block.set_Vr(50)
+        block.set_Vt(25)
+        result = util.resolve_to_interface(block, 0.0)
+        assert result is block, "Function should return the block"
 
         result2 = util.resolve_from_interface(block, 0.0)
-        assert result2 is block, "Function should return the block for chaining"
+        assert result2 is block, "Function should return the block"
 
     def test_preserves_block_properties(self, block):
         """Test that transformation preserves non-velocity block properties."""
         # Set up block with some properties
-        block.set_Vx(100.0).set_Vr(50.0).set_Vt(25.0)
+        block.set_Vx(100.0)
+        block.set_Vr(50.0)
+        block.set_Vt(25.0)
 
         # Store non-velocity properties
         orig_rho = block.rho.copy()
@@ -342,7 +379,9 @@ class TestIntegration:
     def test_derived_properties_update(self, block):
         """Test that derived velocity properties update correctly."""
         Vx_orig, Vr_orig, Vt_orig = 100.0, 50.0, 25.0
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         # Store original derived properties
         orig_Vm = block.Vm.copy()
@@ -364,7 +403,9 @@ class TestEdgeCases:
     def test_extremely_small_velocities(self, block):
         """Test with extremely small velocity magnitudes."""
         Vx_orig, Vr_orig, Vt_orig = 1e-10, 1e-11, 1e-12
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         util.resolve_to_interface(block, 45.0)
 
@@ -387,7 +428,9 @@ class TestEdgeCases:
         Vr_orig = 50.0 * (-1) ** (i + j)
         Vt_orig = 25.0 * (-1) ** k
 
-        block.set_Vx(Vx_orig).set_Vr(Vr_orig).set_Vt(Vt_orig)
+        block.set_Vx(Vx_orig)
+        block.set_Vr(Vr_orig)
+        block.set_Vt(Vt_orig)
 
         # Test roundtrip
         util.resolve_to_interface(block, 180.0 / 3)
@@ -444,12 +487,16 @@ def block1(perfect_fluid):
 
     # Set coordinates
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
 
     # Set fluid and flow state
     b.set_fluid(perfect_fluid)
     b.set_P_T(101325.0, 300.0)
-    b.set_Vx(100.0).set_Vr(10.0).set_Vt(5.0)
+    b.set_Vx(100.0)
+    b.set_Vr(10.0)
+    b.set_Vt(5.0)
     b.set_Omega(1000.0)
     b.set_Nb(24)
 
@@ -464,12 +511,16 @@ def block2(perfect_fluid):
 
     # Set coordinates
     xrt = util.linmesh3([1.0, 2.0], [0.5, 1.5], [0.0, 0.2], shape)
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
 
     # Set fluid and flow state
     b.set_fluid(perfect_fluid)
     b.set_P_T(101325.0, 300.0)
-    b.set_Vx(120.0).set_Vr(15.0).set_Vt(8.0)
+    b.set_Vx(120.0)
+    b.set_Vr(15.0)
+    b.set_Vt(8.0)
     b.set_Omega(1000.0)
     b.set_Nb(24)
 
@@ -484,12 +535,16 @@ def block3(perfect_fluid):
 
     # Set coordinates
     xrt = util.linmesh3([2.0, 3.0], [0.5, 1.5], [0.0, 0.2], shape)
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
 
     # Set fluid and flow state
     b.set_fluid(perfect_fluid)
     b.set_P_T(101325.0, 300.0)
-    b.set_Vx(80.0).set_Vr(5.0).set_Vt(2.0)
+    b.set_Vx(80.0)
+    b.set_Vr(5.0)
+    b.set_Vt(2.0)
     b.set_Omega(1000.0)
     b.set_Nb(24)
 
@@ -507,9 +562,9 @@ class TestConcatenateBasic:
     def test_single_block_returns_copy(self, block1):
         """Test that concatenating one block returns a copy."""
         # Initialize all data in the block before concatenation
-        block1.set_x(block1.xrt[..., 0]).set_r(block1.xrt[..., 1]).set_t(
-            block1.xrt[..., 2]
-        )  # Ensure coordinates are set
+        block1.set_x(block1.xrt[..., 0])
+        block1.set_r(block1.xrt[..., 1])
+        block1.set_t(block1.xrt[..., 2])
         conserved = np.stack(
             [block1.rho, block1.rhoVx, block1.rhoVr, block1.rhorVt, block1.rhoe],
             axis=-1,
@@ -562,10 +617,14 @@ class TestConcatenateBasic:
         shape2 = (3, 6, 5)  # Same i,k but different j
         block2 = ember.block.Block(shape=shape2)
         xrt2 = util.linmesh3([0.0, 1.0], [1.5, 2.5], [0.0, 0.2], shape2)
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
         block2.set_fluid(perfect_fluid)
         block2.set_P_T(101325.0, 300.0)
-        block2.set_Vx(120.0).set_Vr(15.0).set_Vt(8.0)
+        block2.set_Vx(120.0)
+        block2.set_Vr(15.0)
+        block2.set_Vt(8.0)
         # Set same metadata as block1
         block2.set_Omega(1000.0)
         block2.set_Nb(24)
@@ -618,7 +677,9 @@ class TestConcatenateValidation:
         # Create block with different fluid object (even with same properties)
         block2 = ember.block.Block(shape=(5, 4, 5))
         xrt2 = util.linmesh3([1.0, 2.0], [0.5, 1.5], [0.0, 0.2], (5, 4, 5))
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         # Different fluid object (even with same properties) should cause error
         different_fluid = ember.fluid.PerfectFluid(
@@ -643,7 +704,9 @@ class TestConcatenateMetadata:
         # Create block2 without setting Omega (will use default)
         block2 = ember.block.Block(shape=(5, 4, 5))
         xrt2 = util.linmesh3([1.0, 2.0], [0.5, 1.5], [0.0, 0.2], (5, 4, 5))
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
         block2.set_fluid(perfect_fluid)
 
         # block1 has Omega set, block2 doesn't - should error
@@ -799,10 +862,14 @@ class TestConcatenateData:
         shape2 = (3, 6, 5)
         block2 = ember.block.Block(shape=shape2)
         xrt2 = util.linmesh3([0.0, 1.0], [1.5, 2.5], [0.0, 0.2], shape2)
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
         block2.set_fluid(perfect_fluid)
         block2.set_P_T(101325.0, 300.0)
-        block2.set_Vx(120.0).set_Vr(15.0).set_Vt(8.0)
+        block2.set_Vx(120.0)
+        block2.set_Vr(15.0)
+        block2.set_Vt(8.0)
         # Set same metadata as block1
         block2.set_Omega(1000.0)
         block2.set_Nb(24)
@@ -822,7 +889,9 @@ class TestConcatenateData:
         # Create block2 with some uninitialized data
         block2 = ember.block.Block(shape=(5, 4, 5))
         xrt2 = util.linmesh3([1.0, 2.0], [0.5, 1.5], [0.0, 0.2], (5, 4, 5))
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
         block2.set_fluid(perfect_fluid)
         # Set same metadata as block1
         block2.set_Omega(1000.0)
@@ -878,7 +947,9 @@ class TestConcatenateEdgeCases:
         # Create block with different fluid object
         block2 = ember.block.Block(shape=(5, 4, 5))
         xrt2 = util.linmesh3([1.0, 2.0], [0.5, 1.5], [0.0, 0.2], (5, 4, 5))
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         # Different fluid object should cause error
         different_fluid = ember.fluid.PerfectFluid(
@@ -902,12 +973,16 @@ class TestConcatenateEdgeCases:
         # Set minimal required data with non-zero r coordinates
         xrt1 = np.zeros(block1.shape + (3,))
         xrt1[..., 1] = 1.0  # Set r=1.0 to avoid zero radius error
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
         block1.set_fluid(perfect_fluid)
 
         xrt2 = np.zeros(block2.shape + (3,))
         xrt2[..., 1] = 1.0  # Set r=1.0 to avoid zero radius error
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
         block2.set_fluid(perfect_fluid)
 
         result = ember.block_util.concatenate(block1, block2, axis=0)
@@ -936,7 +1011,9 @@ class TestMemoryUsage:
 
         xrt = util.linmesh3([0.0, 0.1], [1.0, 1.1], [-0.05, 0.05], shape)
         b = ember.block.Block(shape=shape)
-        b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        b.set_x(xrt[..., 0])
+        b.set_r(xrt[..., 1])
+        b.set_t(xrt[..., 2])
         b.set_fluid(fluid)
 
         Po1, To1 = 1e5, 300.0

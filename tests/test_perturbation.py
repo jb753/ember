@@ -27,10 +27,13 @@ def scalar_blocks():
 
     # Base state
     block1 = ember.block.Block(shape=())
-    block1.set_x(np.array([0.05])).set_r(np.array([0.85])).set_t(
-        np.array([0.05])
-    ).set_fluid(fluid)
-    block1.set_Vx(100.0).set_Vr(80.0).set_Vt(50.0)
+    block1.set_x(np.array([0.05]))
+    block1.set_r(np.array([0.85]))
+    block1.set_t(np.array([0.05]))
+    block1.set_fluid(fluid)
+    block1.set_Vx(100.0)
+    block1.set_Vr(80.0)
+    block1.set_Vt(50.0)
     block1.set_P_rho(1.2e5, 295.0)
 
     # Small perturbation to conserved variables
@@ -38,7 +41,8 @@ def scalar_blocks():
     dcons = util.get_atol(block1.conserved, block1.r.mean(), rtol=eps)
 
     # Perturbed state
-    block2 = block1.copy().set_conserved(block1.conserved + dcons)
+    block2 = block1.copy()
+    block2.set_conserved(block1.conserved + dcons)
 
     # Set appropriate tolerance for primitive variables
     prim1 = np.stack((block1.rho, block1.Vx, block1.Vr, block1.Vt, block1.P), axis=-1)
@@ -458,10 +462,13 @@ def test_matrix_reference_invariance():
     # Base state with default references
     fluid_base = ember.fluid.PerfectFluid(cp=1105.0, gamma=1.3, mu=1.8e-4, Pr=0.8)
     block_base = ember.block.Block(shape=())
-    block_base.set_x(np.array([0.05])).set_r(np.array([0.85])).set_t(
-        np.array([0.05])
-    ).set_fluid(fluid_base)
-    block_base.set_Vx(100.0).set_Vr(80.0).set_Vt(50.0)
+    block_base.set_x(np.array([0.05]))
+    block_base.set_r(np.array([0.85]))
+    block_base.set_t(np.array([0.05]))
+    block_base.set_fluid(fluid_base)
+    block_base.set_Vx(100.0)
+    block_base.set_Vr(80.0)
+    block_base.set_Vt(50.0)
     block_base.set_P_rho(1.2e5, 295.0)
 
     # Same physical state with different references
@@ -474,10 +481,13 @@ def test_matrix_reference_invariance():
         V_ref=200.0,
     )
     block_ref = ember.block.Block(shape=())
-    block_ref.set_x(np.array([0.05])).set_r(np.array([0.85])).set_t(
-        np.array([0.05])
-    ).set_fluid(fluid_ref)
-    block_ref.set_Vx(100.0).set_Vr(80.0).set_Vt(50.0)
+    block_ref.set_x(np.array([0.05]))
+    block_ref.set_r(np.array([0.85]))
+    block_ref.set_t(np.array([0.05]))
+    block_ref.set_fluid(fluid_ref)
+    block_ref.set_Vx(100.0)
+    block_ref.set_Vr(80.0)
+    block_ref.set_Vt(50.0)
     block_ref.set_P_rho(1.2e5, 295.0)
     block_ref.set_L_ref(0.05)
 
@@ -533,10 +543,13 @@ def test_matrix_uniformity_all_dimensions():
     for shape in test_shapes:
         # Create block with uniform flow field
         block = ember.block.Block(shape=shape)
-        block.set_x(np.array([0.05])).set_r(np.array([0.85])).set_t(
-            np.array([0.05])
-        ).set_fluid(fluid)
-        block.set_Vx(100.0).set_Vr(80.0).set_Vt(50.0)
+        block.set_x(np.array([0.05]))
+        block.set_r(np.array([0.85]))
+        block.set_t(np.array([0.05]))
+        block.set_fluid(fluid)
+        block.set_Vx(100.0)
+        block.set_Vr(80.0)
+        block.set_Vt(50.0)
         block.set_P_rho(1.2e5, 295.0)
 
         # Test all transformation matrices exist and have correct shape

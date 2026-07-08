@@ -258,4 +258,3 @@ class MixingCommunicator:
         for bid, pid in self.pairs.keys():
             _, flip = self.pairs[(bid, pid)]
             self._exchange_pair(bid, pid, flip)
-        return self
