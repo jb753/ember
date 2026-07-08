@@ -5,6 +5,8 @@ Tests Block class functionality for structured grid operations including coordin
 Test cases:
 - test_block_dA: Block face area calculations
 - test_block_dl_min: Minimum grid spacing calculations
+- test_block_vol_positive_left_handed: Cell volumes are positive for the normal (left-handed) i,j,k grid
+- test_vol_sign_matches_left_handed_jacobian: get_vol's sign convention matches the left-handed real-space Jacobian
 - test_props_read_only: Read-only property validation
 - test_default_Omega_Nb: Default rotation rate and blade count
 - test_set_rho_u_conserves_velocity: Velocity conservation during density updates
@@ -141,6 +143,42 @@ def test_block_dl_min(block):
     # Verify property is consistent across multiple accesses
     dl_min_second = block.dl_min
     assert np.allclose(block.dl_min, dl_min_second)
+
+
+def test_block_vol_positive_left_handed(block):
+    """Cell volumes must be positive when i, j, k increase in the x, r,
+    theta directions respectively (x increasing with i, r increasing with
+    j, theta increasing with k). Per docs/coordinate_system.rst, theta is
+    measured clockwise looking upstream, so this index triple is a
+    left-handed set in real (x, y, z) space -- see
+    test_vol_sign_matches_left_handed_jacobian for the underlying
+    orientation check.
+    """
+    assert (block.vol > 0.0).all()
+
+
+def test_vol_sign_matches_left_handed_jacobian(block):
+    """get_vol's sign convention is the divergence-theorem volume with a
+    deliberately flipped face-normal winding, so that a left-handed (i, j,
+    k) triad in real Cartesian space -- the normal grid, since theta runs
+    clockwise -- gives a positive volume. Confirm this against an
+    independent Jacobian triple product computed directly from x, y, z
+    (which is right-handed by construction), so any accidental change to
+    the get_dAi/dAj/dAk winding order that flips this convention is caught.
+    """
+    xyz = np.stack([block.x, block.y, block.z], axis=-1)
+
+    P000 = xyz[0, 0, 0]
+    di = xyz[1, 0, 0] - P000
+    dj = xyz[0, 1, 0] - P000
+    dk = xyz[0, 0, 1] - P000
+    jac_det = np.dot(np.cross(di, dj), dk)
+
+    # (i, j, k) increasing along (x, r, theta) is left-handed in real xyz
+    # space, i.e. a negative Jacobian triple product...
+    assert jac_det < 0.0
+    # ...yet get_vol reports positive cell volumes for this same grid.
+    assert (block.vol > 0.0).all()
 
 
 def test_props_read_only():
