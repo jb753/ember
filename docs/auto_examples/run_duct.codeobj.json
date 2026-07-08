@@ -1,0 +1,3050 @@
+{
+ "Alpha_in": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "ER": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "Ma_bulk": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "Nb": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "Omega": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "P_out": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "Po": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "Po_in": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "T_field": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "T_out": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "To": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "To_in": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "U": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "V": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "Vbar": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "Vx": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "Vx.dtype": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.dtypes",
+   "module_short": "numpy.dtypes",
+   "name": "Float32DType"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "Float32DType"
+  }
+ ],
+ "Vx.shape": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "tuple"
+  }
+ ],
+ "a_o": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "ax_err": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes"
+  }
+ ],
+ "ax_err.axhline": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.axhline"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.axhline"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.axhline"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.axhline"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.axhline"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.axhline"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.axhline"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.axhline"
+  }
+ ],
+ "ax_err.grid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.grid"
+  }
+ ],
+ "ax_err.plot": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.plot"
+  }
+ ],
+ "ax_err.set_title": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_title"
+  }
+ ],
+ "ax_err.set_ylabel": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_ylabel"
+  }
+ ],
+ "ax_res": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes"
+  }
+ ],
+ "ax_res.grid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.grid"
+  }
+ ],
+ "ax_res.semilogy": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.semilogy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.semilogy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.semilogy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.semilogy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.semilogy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.semilogy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.semilogy"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.semilogy"
+  }
+ ],
+ "ax_res.set_title": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_title"
+  }
+ ],
+ "ax_res.set_ylabel": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_ylabel"
+  }
+ ],
+ "ax_s": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes"
+  }
+ ],
+ "ax_s.grid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.grid"
+  }
+ ],
+ "ax_s.plot": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.plot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.plot"
+  }
+ ],
+ "ax_s.set_title": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_title"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_title"
+  }
+ ],
+ "ax_s.set_xlabel": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_xlabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_xlabel"
+  }
+ ],
+ "ax_s.set_ylabel": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Axes.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes._base",
+   "module_short": "matplotlib.axes._base",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.axes",
+   "module_short": "matplotlib.axes",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "_AxesBase.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.set_ylabel"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.set_ylabel"
+  }
+ ],
+ "block": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block"
+  }
+ ],
+ "block.Alpha": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.Alpha"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.Alpha"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.Alpha"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.Alpha"
+  }
+ ],
+ "block.P": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.P"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.P"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.P"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.P"
+  }
+ ],
+ "block.Po": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.Po"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.Po"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.Po"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.Po"
+  }
+ ],
+ "block.Rgas.mean": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.Rgas"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.Rgas"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.Rgas"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.Rgas"
+  }
+ ],
+ "block.T": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.T"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.T"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.T"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.T"
+  }
+ ],
+ "block.To": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.To"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.To"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.To"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.To"
+  }
+ ],
+ "block.V": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.V"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.V"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.V"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.V"
+  }
+ ],
+ "block.Vx": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.Vx"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.Vx"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.Vx"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.Vx"
+  }
+ ],
+ "block.ho": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.ho"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.ho"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.ho"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.ho"
+  }
+ ],
+ "block.patches": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.patches"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.patches"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.patches"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.patches"
+  }
+ ],
+ "block.r": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.r"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.r"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.r"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.r"
+  }
+ ],
+ "block.s": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.s"
+  }
+ ],
+ "block.set_Nb": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.set_Nb"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.set_Nb"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.set_Nb"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.set_Nb"
+  }
+ ],
+ "block.set_Omega": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.set_Omega"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.set_Omega"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.set_Omega"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.set_Omega"
+  }
+ ],
+ "block.set_Vt": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.set_Vt"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.set_Vt"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.set_Vt"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.set_Vt"
+  }
+ ],
+ "block.set_Vx": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.set_Vx"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.set_Vx"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.set_Vx"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.set_Vx"
+  }
+ ],
+ "block.set_fluid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.set_fluid"
+  }
+ ],
+ "block.set_h_s": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.set_h_s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.set_h_s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.set_h_s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.set_h_s"
+  }
+ ],
+ "block.set_xrt": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block.set_xrt"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block.set_xrt"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.set_xrt"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.set_xrt"
+  }
+ ],
+ "conf": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.scree",
+   "module_short": "ember.scree",
+   "name": "ScreeConfig"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "ScreeConfig"
+  }
+ ],
+ "dh": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "drhoe": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "ds": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "ds_mid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "e_o": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "ember.block.Block": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block"
+  }
+ ],
+ "ember.fluid.PerfectFluid": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "PerfectFluid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "_Fluid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_Fluid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid"
+  }
+ ],
+ "ember.grid.Grid": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.collections",
+   "module_short": "ember.collections",
+   "name": "_LabelledList"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_LabelledList"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid"
+  }
+ ],
+ "ember.patch.InletPatch": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.inlet",
+   "module_short": "ember.inlet",
+   "name": "InletPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "InletPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.basepatch",
+   "module_short": "ember.basepatch",
+   "name": "RevolutionPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "RevolutionPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.basepatch",
+   "module_short": "ember.basepatch",
+   "name": "Patch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Patch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.patch",
+   "module_short": "ember.patch",
+   "name": "InletPatch"
+  }
+ ],
+ "ember.patch.OutletPatch": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.outlet",
+   "module_short": "ember.outlet",
+   "name": "OutletPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "OutletPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.basepatch",
+   "module_short": "ember.basepatch",
+   "name": "RevolutionPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "RevolutionPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.basepatch",
+   "module_short": "ember.basepatch",
+   "name": "Patch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Patch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.patch",
+   "module_short": "ember.patch",
+   "name": "OutletPatch"
+  }
+ ],
+ "ember.scree.ScreeConfig": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.scree",
+   "module_short": "ember.scree",
+   "name": "ScreeConfig"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "ScreeConfig"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.scree",
+   "module_short": "ember.scree",
+   "name": "ScreeConfig"
+  }
+ ],
+ "ember.scree.loop": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.scree",
+   "module_short": "ember.scree",
+   "name": "loop"
+  }
+ ],
+ "ember.set_iter.set_ho_s_Ma_Alpha_Beta": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.set_iter",
+   "module_short": "ember.set_iter",
+   "name": "set_ho_s_Ma_Alpha_Beta"
+  }
+ ],
+ "err": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "eta_half": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "fig": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "Figure"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Figure"
+  }
+ ],
+ "fig.tight_layout": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "Figure.tight_layout"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Figure.tight_layout"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.figure",
+   "module_short": "matplotlib.figure",
+   "name": "FigureBase.tight_layout"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "FigureBase.tight_layout"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.artist",
+   "module_short": "matplotlib.artist",
+   "name": "Artist.tight_layout"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib",
+   "module_short": "matplotlib",
+   "name": "Artist.tight_layout"
+  }
+ ],
+ "fluid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "PerfectFluid"
+  }
+ ],
+ "fluid.change_datum": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid.change_datum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "PerfectFluid.change_datum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "_Fluid.change_datum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_Fluid.change_datum"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.change_datum"
+  }
+ ],
+ "fluid.get_a": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid.get_a"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "PerfectFluid.get_a"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "_Fluid.get_a"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_Fluid.get_a"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.get_a"
+  }
+ ],
+ "fluid.get_h": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid.get_h"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "PerfectFluid.get_h"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "_Fluid.get_h"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_Fluid.get_h"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.get_h"
+  }
+ ],
+ "fluid.get_s": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid.get_s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "PerfectFluid.get_s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "_Fluid.get_s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_Fluid.get_s"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.get_s"
+  }
+ ],
+ "fluid.set_P_T": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid.set_P_T"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "PerfectFluid.set_P_T"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "_Fluid.set_P_T"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_Fluid.set_P_T"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_P_T"
+  }
+ ],
+ "grid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid"
+  }
+ ],
+ "grid.calculate_wdist": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid.calculate_wdist"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid.calculate_wdist"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.collections",
+   "module_short": "ember.collections",
+   "name": "_LabelledList.calculate_wdist"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_LabelledList.calculate_wdist"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.calculate_wdist"
+  }
+ ],
+ "grid.set_L_ref": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid.set_L_ref"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid.set_L_ref"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.collections",
+   "module_short": "ember.collections",
+   "name": "_LabelledList.set_L_ref"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_LabelledList.set_L_ref"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_L_ref"
+  }
+ ],
+ "grid.set_fluid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.collections",
+   "module_short": "ember.collections",
+   "name": "_LabelledList.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_LabelledList.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_fluid"
+  }
+ ],
+ "h_static": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "hist": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.convergence_history",
+   "module_short": "ember.convergence_history",
+   "name": "ConvergenceHistory"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "ConvergenceHistory"
+  }
+ ],
+ "hist.err_mdot": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.convergence_history",
+   "module_short": "ember.convergence_history",
+   "name": "ConvergenceHistory.err_mdot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "ConvergenceHistory.err_mdot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.err_mdot"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.err_mdot"
+  }
+ ],
+ "hist.i_log": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.convergence_history",
+   "module_short": "ember.convergence_history",
+   "name": "ConvergenceHistory.i_log"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "ConvergenceHistory.i_log"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.i_log"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.i_log"
+  }
+ ],
+ "hist.i_step": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.convergence_history",
+   "module_short": "ember.convergence_history",
+   "name": "ConvergenceHistory.i_step"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "ConvergenceHistory.i_step"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.i_step"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.i_step"
+  }
+ ],
+ "hist.residual": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.convergence_history",
+   "module_short": "ember.convergence_history",
+   "name": "ConvergenceHistory.residual"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "ConvergenceHistory.residual"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.residual"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.residual"
+  }
+ ],
+ "hist.zeta": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.convergence_history",
+   "module_short": "ember.convergence_history",
+   "name": "ConvergenceHistory.zeta"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "ConvergenceHistory.zeta"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData.zeta"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData.zeta"
+  }
+ ],
+ "ho": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "ho_field": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "ho_frac": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "i_step": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "length": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "length_ratio": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "m": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "me": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "mz": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "n": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "n_half": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "ni": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "nj": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "nk": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "np.abs": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ufunc"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "abs"
+  }
+ ],
+ "np.asarray": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "asarray"
+  }
+ ],
+ "np.inf": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "inf"
+  }
+ ],
+ "np.isfinite": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ufunc"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "isfinite"
+  }
+ ],
+ "np.linspace": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "linspace"
+  }
+ ],
+ "np.pi": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "pi"
+  }
+ ],
+ "np.random.default_rng": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "_cython_3_2_8",
+   "module_short": "_cython_3_2_8",
+   "name": "cython_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.random",
+   "module_short": "numpy.random",
+   "name": "default_rng"
+  }
+ ],
+ "pitch": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "plt.show": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.pyplot",
+   "module_short": "matplotlib.pyplot",
+   "name": "show"
+  }
+ ],
+ "plt.subplots": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.pyplot",
+   "module_short": "matplotlib.pyplot",
+   "name": "subplots"
+  }
+ ],
+ "r_high": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "r_low": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "r_mid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "r_mid_ratio": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "ramp": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "rho_o": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "rng": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.random._generator",
+   "module_short": "numpy.random",
+   "name": "Generator"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.random",
+   "module_short": "numpy.random",
+   "name": "Generator"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "Generator"
+  }
+ ],
+ "rng.standard_normal": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.random._generator",
+   "module_short": "numpy.random",
+   "name": "Generator.standard_normal"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.random",
+   "module_short": "numpy.random",
+   "name": "Generator.standard_normal"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "Generator.standard_normal"
+  }
+ ],
+ "s_field": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "s_frac": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "side": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "so": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "util.cluster": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.util",
+   "module_short": "ember.util",
+   "name": "cluster"
+  }
+ ],
+ "util.linmesh3": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.util",
+   "module_short": "ember.util",
+   "name": "linmesh3"
+  }
+ ],
+ "xrt": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ],
+ "zeta": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ndarray"
+  }
+ ]
+}
