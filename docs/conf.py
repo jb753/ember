@@ -44,6 +44,11 @@ sphinx_gallery_conf = {
     # Only execute examples/plot_*.py on a normal build. examples/run_*.py
     # cases are expensive (many seconds each) and are only re-run when
     # explicitly requested, e.g. `make docs-full` -- see examples/README.txt.
+    # Their generated docs/auto_examples/run_* output is committed to git (see
+    # .gitignore) so a clean checkout, e.g. Read the Docs, reuses it via
+    # sphinx-gallery's md5 cache instead of re-running it. After changing a
+    # run_*.py example: `make docs-full`, then `git add` the regenerated
+    # docs/auto_examples/run_* files and commit them.
     "filename_pattern": r"[\\/]plot_",
     "within_subsection_order": "FileNameSortKey",
     "matplotlib_animations": False,
