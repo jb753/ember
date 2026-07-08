@@ -1,0 +1,47 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.coverage
+
+examples/.ipynb_checkpoints
+
+# Virtual environments
+.venv
+
+# Claude Code project instructions
+CLAUDE.md
+.claude/
+
+*so
+*.mod
+
+# Editable install directory
+/ember/
+
+# Benchmark scripts
+benchmark_*.py
+
+doc/_build/
+doc/_static/
+docs/_build/
+
+# sphinx-gallery generated output
+docs/auto_examples/
+docs/sg_execution_times.rst
+
+*.pkl
+for-reference/
+
+# Reference papers, profiler dumps, Fortran sources
+*.pdf
+*.lprof
+*.f
+
+# Archived/untracked scratch scripts and study outputs
+archive/
+
+matplotlibrc

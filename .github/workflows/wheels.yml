@@ -1,0 +1,55 @@
+name: Build wheels
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-wheels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v4.1.0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: wheelhouse/*.whl
+
+  verify-install:
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: wheelhouse
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Start local package index
+        run: |
+          mkdir -p packages
+          uvx --from pypiserver pypi-server run -p 8080 -a . -P . packages &
+          sleep 3
+          curl -sf http://localhost:8080/simple/
+
+      - name: Publish wheels to local index
+        run: uv publish --publish-url http://localhost:8080/ -u x -p x wheelhouse/*.whl
+
+      - name: Install from local index
+        run: |
+          uv venv verify-venv
+          uv pip install --python verify-venv/bin/python --index-url http://localhost:8080/simple/ ember
+
+      - name: Smoke test the installed wheel
+        run: |
+          verify-venv/bin/python -c "
+          import ember, ember.fortran, ember.block
+          ember.block.Block((4,))
+          print('ember wheel installs and imports correctly')
+          "

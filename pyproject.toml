@@ -1,0 +1,70 @@
+[project]
+name = "ember"
+version = "0.1.0"
+description = "Enhanced Multi-block solvER for turbomachinery computational fluid dynamics"
+readme = "README.md"
+authors = [
+    { name = "James Brind", email = "jb753@cam.ac.uk" }
+]
+# Follows SPEC 0's Python support window: https://scientific-python.org/specs/spec-0000/
+requires-python = ">=3.12"
+dependencies = [
+    "h5py~=3.16.0",
+    "numpy~=2.5.0",
+    "pykdtree~=1.4.3",
+    "pyyaml~=6.0.3",
+]
+
+[tool.uv]
+managed = true
+
+[tool.ruff.lint]
+ignore = ["E741"]  # Allow ambiguous variable names like I (rothalpy)
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+]
+
+[build-system]
+requires = ["setuptools>=68,<90", "wheel>=0.40", "numpy~=2.5.0", "meson>=1.1.0", "ninja>=1.10"]
+build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+build = "cp312-* cp313-* cp314-*"
+skip = "*-musllinux* *-win32 *-macosx*"
+archs = ["x86_64"]
+# h5py>=3.16 only ships manylinux_2_28 wheels (no manylinux2014), so the
+# build container must match or pip falls back to a source build that
+# fails without system HDF5 dev libraries.
+manylinux-x86_64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y gcc-gfortran"
+test-requires = "pytest"
+test-command = "pytest {project}/tests -q"
+
+[dependency-groups]
+docs = [
+    "sphinx>=8.2.3",
+    "sphinx-autodoc-typehints>=3.2.0",
+    "sphinxcontrib-bibtex",
+    "sphinx-gallery",
+    "autodocsumm",
+    "snowballstemmer==2.2.0",
+    "matplotlib",
+]
+dev = [
+    {"include-group" = "docs"},
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.1",
+    "ruff>=0.12.8",
+    'sphinx-autobuild',
+    'twine',
+    'bump-my-version',
+    'ninja',
+    "pyqt5>=5.15.11",  # for debug plotting
+    "line-profiler>=5.0.0",
+    "vulture>=2.14",
+    "memray>=1.19.3",
+]

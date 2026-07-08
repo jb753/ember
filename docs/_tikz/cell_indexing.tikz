@@ -1,0 +1,150 @@
+\documentclass[tikz,border=6pt]{standalone}
+\usepackage{tikz}
+\usepackage{tikz-3dplot}
+\usepackage{amsmath}
+\usetikzlibrary{arrows.meta, calc}
+
+% phi_d=35: rotate cube about r-axis for a better 3/4 view
+% theta_d=70: moderate elevation so depth is visible
+% Mapping: i->x (right), j->z (up), k->y (into page)
+\tdplotsetmaincoords{70}{15}
+
+\begin{document}
+\begin{tikzpicture}[tdplot_main_coords, scale=5.6,
+    arr/.style={-{Stealth[length=5pt,width=4pt]}, thick},
+    facelabel/.style={font=\small, align=center},
+    nodelabel/.style={font=\scriptsize, inner sep=1pt},
+    dot/.style={circle, fill, inner sep=0pt, minimum size=4pt},
+]
+
+% ---------------------------------------------------------------
+% Corners: i along x, j along z, k along y
+% A=(i,j,k)   B=(i+1,j,k)   C=(i+1,j+1,k)   D=(i,j+1,k)
+% E=(i,j,k+1) F=(i+1,j,k+1) G=(i+1,j+1,k+1) H=(i,j+1,k+1)
+% In (x,y,z): i->x, k->y, j->z
+% ---------------------------------------------------------------
+\coordinate (A) at (0, 0, 0);
+\coordinate (B) at (1, 0, 0);
+\coordinate (C) at (1, 0, 1);
+\coordinate (D) at (0, 0, 1);
+\coordinate (E) at (0, 1, 0);
+\coordinate (F) at (1, 1, 0);
+\coordinate (G) at (1, 1, 1);
+\coordinate (H) at (0, 1, 1);
+% Face centres
+\coordinate (Fi) at (0,   0.5, 0.5);
+\coordinate (Fj) at (0.5, 0.5, 0  );
+\coordinate (Fk) at (0.5, 0,   0.5);
+
+% ---------------------------------------------------------------
+% Painter's order: i-face (back-left), j-face (bottom), k-face (front).
+% Fills first, then hidden edges, then visible edges, then coloured
+% face outlines, then dots -- each layer sits on top of the previous.
+% ---------------------------------------------------------------
+
+% --- Face fills (back to front) ---
+% i-face (x=0, left face A-D-H-E) -- red
+\fill[red!10]   (A) -- (D) -- (H) -- (E) -- cycle;
+% j-face (z=0, bottom face A-B-F-E) -- green
+\fill[green!10] (A) -- (B) -- (F) -- (E) -- cycle;
+% k-face (y=0, front face A-B-C-D) -- blue
+\fill[blue!10]  (A) -- (B) -- (C) -- (D) -- cycle;
+
+% --- Structural edges (solid grey) ---
+% k-face perimeter (y=0, front)
+\draw[gray!70, thin] (A) -- (B) -- (C) -- (D) -- cycle;
+% Depth edges
+\draw[gray!70, thin] (A) -- (E);
+\draw[gray!70, thin] (B) -- (F);
+\draw[gray!70, thin] (D) -- (H);
+% Back/top edges
+\draw[gray!70, thin] (E) -- (F);
+\draw[gray!70, thin] (E) -- (H);
+\draw[gray!70, thin] (F) -- (G);
+\draw[gray!70, thin] (G) -- (H);
+\draw[gray!70, thin] (C) -- (G);
+
+% --- Highlighted face outlines: solid on visible segments, dashed on hidden ---
+% i-face (A-D-H-E): A-D and D-H are visible; H-E and E-A are hidden
+\draw[red!65!black, thick]        (A) -- (D) -- (H);
+\draw[red!65!black, thick, dashed](H) -- (E) -- (A);
+% j-face (A-B-F-E): A-B and B-F are visible; F-E and E-A are hidden
+\draw[green!50!black, thick]        (A) -- (B) -- (F);
+\draw[green!50!black, thick, dashed](F) -- (E) -- (A);
+% k-face (A-B-C-D): all on y=0 front face, all visible
+\draw[blue!65!black, thick] (A) -- (B) -- (C) -- (D) -- cycle;
+
+% --- Vertex dots on top of all edges ---
+\foreach \pt in {A,B,C,D,E,F,G,H} {
+    \node[dot] at (\pt) {};
+}
+
+% --- Face centre dots ---
+\node[dot, minimum size=5pt, fill=red!65!black]   at (Fi) {};
+\node[dot, minimum size=5pt, fill=green!50!black] at (Fj) {};
+\node[dot, minimum size=5pt, fill=blue!65!black]  at (Fk) {};
+
+% --- Cell centre dot ---
+\coordinate (Centre) at (0.5, 0.5, 0.5);
+\node[dot, minimum size=5pt, fill=orange!80!black] at (Centre) {};
+\node[nodelabel, anchor=south west, text=orange!80!black]
+    at (Centre) {Cell $(i,\;j,\;k)$};
+
+% ---------------------------------------------------------------
+% Face-normal arrows from face centroids, pointing outward
+% ---------------------------------------------------------------
+% i-face (x=0, normal in -x direction)
+\draw[arr, red!65!black] (Fi) -- ++(-0.19, 0, 0)
+    node[facelabel, left, text=red!65!black] {$i$ face\\$(i,j,k)$};
+
+% j-face (z=0, normal in -z direction)
+\draw[arr, green!50!black] (Fj) -- ++(0, 0, -0.19)
+    node[facelabel, below, text=green!50!black] {$j$ face\\$(i,j,k)$};
+
+% k-face (y=0, normal in -y direction)
+\draw[arr, blue!65!black] (Fk) -- ++(0, -0.19, 0)
+    node[facelabel, right, xshift=3pt, text=blue!65!black] {$k$ face\\$(i,j,k)$};
+
+
+
+% ---------------------------------------------------------------
+% Node index labels -- anchored to run away from the cube centre
+% Cube centre is at (0.5, 0.5, 0.5).  Each label is placed on
+% the far side of its vertex from the centre.
+% ---------------------------------------------------------------
+% A=(0,0,0): front-bottom-left -> below left
+\node[nodelabel, anchor=north east] at (A) {$(i,\;j,\;k)$};
+% B=(1,0,0): front-bottom-right -> below right
+\node[nodelabel, anchor=north west] at (B) {$(i{+}1,\;j,\;k)$};
+% C=(1,0,1): front-top-right -> above right
+\node[nodelabel, anchor=south west] at (C) {$(i{+}1,\;j{+}1,\;k)$};
+% D=(0,0,1): front-top-left -> above left
+\node[nodelabel, anchor=south east] at (D) {$(i,\;j{+}1,\;k)$};
+% E=(0,1,0): back-bottom-left -> below left (recedes into page)
+\node[nodelabel, anchor=north east] at (E) {$(i,\;j,\;k{+}1)$};
+% F=(1,1,0): back-bottom-right -> below right
+\node[nodelabel, anchor=north west] at (F) {$(i{+}1,\;j,\;k{+}1)$};
+% G=(1,1,1): back-top-right -> above right
+\node[nodelabel, anchor=south west] at (G) {$(i{+}1,\;j{+}1,\;k{+}1)$};
+% H=(0,1,1): back-top-left -> above left
+\node[nodelabel, anchor=south east] at (H) {$(i,\;j{+}1,\;k{+}1)$};
+
+% ---------------------------------------------------------------
+% Coordinate axes -- origin placed below-left of the cube
+% x points right (along i), r points up (along j=z), rtheta into page (along k=y)
+% ---------------------------------------------------------------
+\begin{scope}[shift={(-0.275, -0.05, -0.275)}]
+    \coordinate (O) at (0,0,0);
+    % x -> i direction (3D x-axis)
+    \draw[arr, thick] (O) -- (0.2, 0, 0)
+        node[right, font=\small] {$x$};
+    % r -> j direction (3D z-axis, projects upward)
+    \draw[arr, thick] (O) -- (0, 0, 0.2)
+        node[above, font=\small] {$r$};
+    % rtheta -> k direction (3D y-axis, recedes into page)
+    \draw[arr, thick] (O) -- (0, 0.2, 0)
+        node[above right, font=\small] {$r\theta$};
+\end{scope}
+
+\end{tikzpicture}
+\end{document}

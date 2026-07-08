@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y gfortran ninja-build
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --no-install-project
+
+      - name: Build wheel
+        run: uv build --wheel
+
+      - name: Install wheel
+        run: uv pip install --no-deps dist/*.whl
+
+      - name: Test
+        run: uv run --no-sync pytest tests
+
+      - name: Lint
+        run: uv run --no-sync ruff check src tests
+
+      - name: Check SPEC 0 compliance
+        run: uv run --no-sync python tools/check_spec0.py
