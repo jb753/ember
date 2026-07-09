@@ -1,78 +1,98 @@
 """Collection of connected blocks forming a complete flow domain.
 
 This module defines the :class:`Grid`, the top-level container for a
-multi-block structured simulation. A :class:`Grid` is an ordered collection of
+multi-block structured simulation. A grid is an ordered collection of
 :class:`~ember.block.Block` objects together with the topology that connects
 them. A :class:`Grid` stores no flow field of its own: every coordinate and
 conserved quantity lives on the constituent blocks.
 Therefore the solution is read from one block at a time as in ``grid[0].P``.
 
+
 Construction and labelled access
 ================================
 
-The constructor takes an optional list of blocks; blocks may also be appended one
-at a time. A block carries its own label, set with
-:meth:`~ember.block.Block.set_label`, which must be unique within the grid::
+Like a list, blocks can be added to a grid at construction or a later time::
 
     from ember.block import Block
     from ember.grid import Grid
 
-    grid = Grid([Block(shape=(10, 10, 10))])
+    grid = Grid([Block(shape=(10, 11, 10))])
     rotor = Block(shape=(20, 20, 20))
     rotor.set_label("rotor")
     grid.append(rotor)
 
 The grid then behaves as a standard Python collection: it supports iteration,
-``len``, membership testing, and the usual mutating operations (``append``,
-``extend``, ``insert``, ``remove``, ``pop``, ``clear``). Indexing accepts either
-an integer position or a label string, so ``grid[1]`` and ``grid["rotor"]``
-return the same block. Membership testing likewise accepts either a block or a
-label, so ``"rotor" in grid`` is True. :attr:`Grid.labels` lists the labels in
-order, with ``None`` for any unlabelled block. A grid is picklable, which is how
-:meth:`Grid.write_emb` stores it.
+:func:`len`, membership testing, and the usual mutating operations
+(:meth:`Grid.append`, :meth:`Grid.extend`, :meth:`Grid.insert`,
+:meth:`Grid.remove`, :meth:`Grid.pop`, :meth:`Grid.clear`). Indexing accepts
+either an integer position or a label string, and membership testing accepts
+either a block or a label. :attr:`Grid.labels` lists the labels in order, with
+``None`` for any unlabelled block::
 
-Topology
-========
+    len(grid)                 # 2
+    grid[1] is grid["rotor"]  # True -- refers to same block
+    "rotor" in grid           # True -- membership by label
+    rotor in grid             # True -- membership by block
+    grid.labels               # [None, 'rotor'] -- None if unlabelled
 
-What distinguishes a :class:`Grid` from a list of blocks is the topology it
-derives from the blocks' boundary patches.
 
-Blocks joined to one another by periodic patches make up a single *blade row*.
-Rows are separated from one another by mixing patches, and
-:attr:`Grid.rows` groups the blocks accordingly, ordering the rows from inlet to
-outlet; :attr:`Grid.n_row` is their count. The first row's upstream face is the
-domain inlet and the last row's downstream face is the domain outlet, which is
-what lets :attr:`Grid.row_station_bid_pid` name a pair of measurement stations
-for each row without being told where they are.
+Connectivity
+============
+
+What distinguishes a :class:`Grid` from a plain list of blocks is the topology it
+derives from the blocks' boundary patches, as found in :attr:`~ember.block.Block.patches`.
 
 :attr:`Grid.patches` presents every patch on every block as one flat, read-only
 sequence, filterable by patch type (``grid.patches.inlet``,
 ``grid.patches.periodic``, and so on). It is a view: patches are still owned by
 the block they sit on, and are added and removed there.
 
-:attr:`Grid.connectivity` builds the pairings between those patches -- matching
-each patch to its partner on a neighbouring block, and owning the communicators
-that exchange data across the resulting seams. Pairings are found lazily on
-first access and then cached on the grid, grouped by patch type
-(``grid.connectivity.periodic.pair()``, and likewise ``mixing``, ``nonmatch``,
-``cusp``). Because the cache is keyed to the topology as it stood when it was
-built, changing that topology -- adding or removing a block or a patch --
-requires ``grid.connectivity.clear()`` to invalidate it.
+:attr:`Grid.connectivity` manages communicators that exchange data across
+the seams between blocks, one per patch type, reached as
+``grid.connectivity.periodic`` and likewise ``mixing``, ``nonmatch``, ``cusp``.
+
+A communicator pairs its patches -- matching each to its partner on a
+neighbouring block -- the first time it is used, and caches the result for subsequent usages. Pairing
+is therefore automatic, and driven by the exchange itself, e.g. a call to
+:meth:`Grid.apply_bconds`.
+
+Changing grid topology -- adding or removing a block or a patch -- may break the
+indexing describing pairing, and unfortunately the cache does not detect this.
+In these situations, the cache must be flushed by hand::
+
+    grid.append(another_block)
+    grid.connectivity.clear()  # drop the stale pairs
+
+The next communicator exchange will then pair the new topology from scratch.
+
+The pairings can also be inspected directly, by calling ``pair()`` on the whole
+manager or on one patch type. It returns a dict keyed by the ``(bid, pid)``
+identifier of each patch, indexing like ``grid[bid].patches[pid]``.
+The  values are the corresponding ``(bid, pid)`` of the patch it matches
+and the geometric transform between the two. Both halves of a pair appear as
+keys, so the mapping can be followed from either side::
+
+    pairs = grid.connectivity.periodic.pair()
+    # block 0 patch 0 is paired with block 1 patch 0, and vice versa
+    pairs[(0, 0)]  # ((1, 0), transform)
+    pairs[(1, 0)]  # ((0, 0), transform)
+
+Blocks joined to one another by periodic patches make up a single blade row.
+Rows are separated from one another by mixing patches, and
+:attr:`Grid.rows` groups the blocks accordingly, ordering the rows from inlet to
+outlet; :attr:`Grid.n_row` is their count. The first row's upstream face is the
+domain inlet and the last row's downstream face is the domain outlet. Both
+properties pair the periodic patches for themselves.
 
 Driving a solver
 ================
 
-The ``update_*`` and ``apply_*`` methods (:meth:`Grid.update_residual`,
-:meth:`Grid.update_sources`, :meth:`Grid.apply_bconds`, and the rest) are the
-individual stages of one explicit time step. They are not independent: they must
-be called in a particular order, and several of them depend on whether the
-pressure/temperature cache is currently fresh or deliberately frozen. They are
-intended to be driven by :func:`ember.solver.run`, which documents that ordering
-and the lagged-pressure scheme it implements. Consult :mod:`ember.solver` before
-calling them directly.
+Many of the grid methods, such as :meth:`Grid.update_residual` and
+:meth:`Grid.apply_bconds`, form the inner loop of a time-marching solver. They
+are documented in :mod:`ember.solver`, and should be used with care.
 
-Two of them stand slightly apart, as they report on a march rather than advance
-it. :meth:`Grid.get_convergence` returns a :class:`ConvergenceStep` of
+During time marching,
+:meth:`Grid.get_convergence` returns a :class:`ConvergenceStep` of
 residual and station monitors for the current step, which
 :class:`~ember.convergence_history.ConvergenceHistory` accumulates into a time
 series. :meth:`Grid.check_nan` raises :class:`DivergenceError` if the flow field
@@ -84,20 +104,11 @@ File formats
 A grid can be read from and written to three formats. The reading methods are
 constructors, returning a new :class:`Grid`.
 
-* EMB -- the native format: a pickle of the grid with its blocks, patches, and
-  labels, optionally gzip-compressed (:meth:`Grid.read_emb` detects compression
-  automatically). Being a pickle of the objects themselves, it is the format
-  that preserves a grid most completely. :meth:`Grid.read_emb`,
-  :meth:`Grid.write_emb`.
+* EMB -- :meth:`Grid.read_emb`, :meth:`Grid.write_emb`. Our native format: a pickle of the grid with its blocks, patches, and  labels, optionally gzip-compressed. Being a pickle of the objects themselves, it is the format   that preserves a grid most completely.
 
-* Plot3D -- the multi-block structured interchange format, carrying coordinates
-  only. Boundary patches are stored alongside it in a separate FieldView
-  boundary (``.fvbnd``) file, which may be read and written with the Plot3D file
-  or on its own via :meth:`Grid.write_fvbnd`. :meth:`Grid.read_plot3d`,
-  :meth:`Grid.write_plot3d`.
+* Plot3D -- :meth:`Grid.read_plot3d`, :meth:`Grid.write_plot3d`. The standard multi-block structured interchange format, carrying coordinates only. Boundary patches are stored alongside it in a separate FieldView  boundary file, which may be read and written with the Plot3D file  or on its own via :meth:`Grid.write_fvbnd`.
 
-* TS3 -- the HDF5-based format of the Turbostream 3 solver, carrying geometry
-  and flow field. :meth:`Grid.read_ts3`, :meth:`Grid.write_ts3`.
+* TS3 -- :meth:`Grid.read_ts3`, :meth:`Grid.write_ts3`. The HDF5-based format of the Turbostream 3 solver, carrying geometry  and flow field.
 """
 
 from ember.collections import _LabelledList, GridPatchCollection
@@ -1744,7 +1755,7 @@ class Grid(_LabelledList):
         >>> grid = Grid([block1, block2])  # Single row
         >>> grid.n_row  # Returns 1
         >>>
-        >>> grid_multi = Grid([stator_blocks, rotor_blocks])  # Two rows
+        >>> grid_multi = Grid([stator_block, rotor_block])  # Two rows
         >>> grid_multi.n_row  # Returns 2
         """
         return len(self.rows)
