@@ -6,6 +6,8 @@ This example solves for the viscous flow through a square duct.
 
 """
 
+import time
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -180,59 +182,116 @@ def plot_mesh(block, i=0):
 # ---------------
 #
 # ``ember.solver.run`` advances the flow field with an explicit
-# Runge-Kutta scheme accelerated by a three-level multigrid correction.
+# Runge-Kutta scheme accelerated by a two-level multigrid correction.
 
 
-def solve(grid):
-    """March the flow field and return the history with its logged step count."""
+def solve(grid, n_stage, cfl, sf_resid):
+    """March the flow field and return the history with its logged step count.
+
+    ``n_stage=0`` selects Denton's basic scree march, and ``n_stage>=1`` a
+    Jameson multi-stage Runge-Kutta step. ``sf_resid`` is the implicit
+    residual smoothing factor, which relaxes the explicit stability limit and
+    so admits a larger ``cfl``.
+    """
+    n_step = 1000
     conf = ember.solver.SolverConfig(
-        n_step=50,
+        n_step=n_step,
         n_step_log=10,
         n_step_avg=1,
-        cfl=3.0,
-        n_stage=4,
-        n_levels=3,
+        cfl=cfl,
+        n_stage=n_stage,
+        n_levels=2,
         fac_mgrid=0.2,
-        sf_resid=0.0,
+        sf_resid=sf_resid,
         inviscid=False,
     )
+    tic = time.perf_counter()
     hist = ember.solver.run(grid, conf)
+    wall = time.perf_counter() - tic
+
     n = hist.i_log + 1
     i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
+
+    # A diverged march breaks out of the step loop early, so the step count it
+    # actually reached is unknown to within one logging interval. Quoting a
+    # per-step cost against the requested n_step would flatter it.
+    tag = f"n_stage={n_stage}, cfl={cfl}, sf_resid={sf_resid}: {wall:.1f} s"
+    if hist.diverged:
+        print(f"{tag}, DIVERGED after >={int(i_step[-1])} of {n_step} steps")
+    else:
+        block = grid[0]
+        n_node = block.ni * block.nj * block.nk
+        print(
+            f"{tag}, {wall / n_step * 1e3:.1f} ms/step, "
+            f"{wall / n_step / n_node * 1e6:.3f} us/node/step"
+        )
+
     return hist, n, i_step
+
+
+def build_case():
+    """Assemble a fresh grid at the perturbed initial condition.
+
+    ``ember.solver.run`` marches the grid in place, so each of the schemes
+    compared below needs its own copy to start from the same state.
+    """
+    fluid = ember.fluid.PerfectFluid(
+        cp=1005.0,
+        gamma=1.4,
+        mu=1.0e-3,
+        Pr=0.72,
+        T_dtm=400.0,
+    )
+    block, rho_o, ho, so, Vbar = make_block(fluid)
+    P_out, T_out = set_boundary_conditions(block, ho, so)
+    add_velocity_noise(block)
+    grid = make_grid(block, fluid, rho_o, Vbar, P_out, T_out)
+    add_thermodynamic_ramp(grid[0])
+    return grid
 
 
 # %%
 # Convergence history
 # -------------------
 #
-# The energy residual should decay several orders of magnitude, while the
-# inlet-to-outlet mass flow error and entropy rise settle to their converged
-# values.
+# Three marches of the same initial condition, differing only in the time
+# integrator, the CFL number, and the residual smoothing. Everything else,
+# including the two multigrid levels, is held fixed.
+
+CASES = (
+    ("scree, CFL=0.4", dict(n_stage=0, cfl=0.4, sf_resid=0.0)),
+    ("RK4, CFL=3", dict(n_stage=4, cfl=3.0, sf_resid=0.0)),
+    ("RK4 + IRS, CFL=10", dict(n_stage=4, cfl=10.0, sf_resid=1.0)),
+)
 
 
-def plot_history(hist, n, i_step):
-    """Plot energy residual, mass flow error, and entropy rise against step."""
+def plot_history(results):
+    """Overlay energy residual, mass flow error, and entropy rise per scheme."""
     fig, (ax_res, ax_err, ax_s) = plt.subplots(3, 1, figsize=(7.5, 9.5), sharex=True)
+    ax_err.axhline(0.0, color="0.6", lw=0.8)
 
-    drhoe = np.abs(np.asarray(hist.residual, dtype=float)[:n, 4])
-    m = np.isfinite(drhoe) & (drhoe > 0)
-    ax_res.semilogy(i_step[m], drhoe[m], marker=".", ms=3, lw=1.0)
+    for label, hist, n, i_step in results:
+        drhoe = np.abs(np.asarray(hist.residual, dtype=float)[:n, 4])
+        m = np.isfinite(drhoe) & (drhoe > 0)
+        ax_res.semilogy(i_step[m], drhoe[m], marker=".", ms=3, lw=1.0, label=label)
+
+        err = np.asarray(hist.err_mdot, dtype=float)[:n]
+        me = np.isfinite(err)
+        ax_err.plot(i_step[me], err[me], marker=".", ms=3, lw=1.0, label=label)
+
+        zeta = np.asarray(hist.zeta, dtype=float)[:n]
+        mz = np.isfinite(zeta)
+        ax_s.plot(i_step[mz], zeta[mz], marker=".", ms=3, lw=1.0, label=label)
+
     ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
     ax_res.set_title("Energy residual (semilog)")
     ax_res.grid(True, which="both", alpha=0.3)
+    ax_res.legend()
 
-    err = np.asarray(hist.err_mdot, dtype=float)[:n]
-    me = np.isfinite(err)
-    ax_err.axhline(0.0, color="0.6", lw=0.8)
-    ax_err.plot(i_step[me], err[me], marker=".", ms=3, lw=1.0)
     ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
     ax_err.set_title("Mass flow error")
     ax_err.grid(True, alpha=0.3)
 
-    zeta = np.asarray(hist.zeta, dtype=float)[:n]
-    mz = np.isfinite(zeta)
-    ax_s.plot(i_step[mz], zeta[mz], marker=".", ms=3, lw=1.0)
     ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
     ax_s.set_title("Entropy rise")
     ax_s.set_xlabel("i_step")
@@ -246,18 +305,15 @@ def plot_history(hist, n, i_step):
 # Run the case
 # ------------
 
-fluid = ember.fluid.PerfectFluid(
-    cp=1005.0,
-    gamma=1.4,
-    mu=1.0e-3,
-    Pr=0.72,
-    T_dtm=400.0,
-)
-block, rho_o, ho, so, Vbar = make_block(fluid)
-P_out, T_out = set_boundary_conditions(block, ho, so)
-add_velocity_noise(block)
-grid = make_grid(block, fluid, rho_o, Vbar, P_out, T_out)
-add_thermodynamic_ramp(grid[0])
+grid = build_case()
+
+# %%
+# The cross-section mesh of the assembled grid, before any marching.
+
 plot_mesh(grid[0])
-hist, n, i_step = solve(grid)
-plot_history(hist, n, i_step)
+
+# %%
+# Now march the flow field once per scheme and plot how each converges.
+
+results = [(label, *solve(build_case(), **kwargs)) for label, kwargs in CASES]
+plot_history(results)

@@ -1606,6 +1606,10 @@ class Grid(_LabelledList):
                 dai=block.dAi_nd,
                 daj=block.dAj_nd,
                 dak=block.dAk_nd,
+                # Produced by the viscous pass (set_tau_q_soa, via
+                # update_sources), so it is still zero on a grid that has not
+                # yet marched -- tolerate it uninitialised. Zero mu_turb makes
+                # lam_diff vanish and dt_vol fall back to the convective limit.
                 mu_turb=block._get_data_by_keys(("mu_turb",), raise_uninit=False),
                 vol=block.vol_nd,
                 rf=rf,
