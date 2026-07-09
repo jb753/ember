@@ -8,7 +8,7 @@ It is the same case driven by ``scripts/run_duct.py``, with the command-line
 options replaced by fixed values below.
 
 Unlike the other examples in this gallery, the grid here is large enough
-(around 90000 nodes) that the multigrid solve takes on the order of ten
+(around 450000 nodes) that the multigrid solve takes on the order of ten
 seconds, so it is **not** executed on every documentation build (see
 ``examples/README.txt``). Run ``make docs-full`` to regenerate this page's
 output after changing the case.
@@ -26,56 +26,88 @@ import ember.set_iter
 from ember import util
 
 # %%
-# Grid and mean flow
-# ------------------
+# Case definition
+# ---------------
 #
-# The duct cross-section is a square of side ``side``, bent onto a mean
-# radius ``r_mid_ratio * side`` and repeated around the annulus at ``Nb``
-# passages so the pitch matches the near-wall grid spacing. The mean flow is
-# fixed by a bulk Mach number at a given stagnation state.
+# The duct cross-section is a square of side ``SIDE``, bent onto a mean
+# radius ``R_MID_RATIO * SIDE`` and repeated around the annulus at ``Nb``
+# passages. ``Nb`` is chosen so that the arc subtended by one passage at the
+# mean radius is as close to ``SIDE`` as an integer passage count allows,
+# making the cross-section square. The streamwise mesh is uniform, while the
+# two cross-stream directions are clustered towards both walls at expansion
+# ratio ``ER``, so the near-wall spacing is not prescribed: it falls out of
+# ``SIDE``, ``NJ``, and ``NK``. The mean flow is fixed by a bulk Mach number
+# at a given stagnation state.
 
-side = 0.1
-r_mid_ratio = 5.0
-length_ratio = 3.0
+SIDE = 0.1
+R_MID_RATIO = 5.0
+LENGTH_RATIO = 3.0
 ER = 1.05
-ni, nj, nk = 25, 65, 57
-Ma_bulk = 0.3
-Po = 1e5
-To = 300.0
+NI, NJ, NK = 121, 65, 57
+MA_BULK = 0.3
+PO = 1e5
+TO = 300.0
 
-r_mid = r_mid_ratio * side
-r_low = r_mid - 0.5 * side
-r_high = r_mid + 0.5 * side
-length = length_ratio * side
+R_MID = R_MID_RATIO * SIDE
 
-n_half = (nj + 1) // 2
-eta_half = util.cluster(n_half, ER, 1.0)
-ds_mid = 0.5 * side * float(eta_half[-1] - eta_half[-2])
 
-Nb = round(2.0 * np.pi * r_mid / (nk * ds_mid)) * 2
-pitch = 2.0 * np.pi / Nb
+def make_fluid():
+    """Return the perfect fluid used throughout the case."""
+    return ember.fluid.PerfectFluid(
+        cp=1005.0, gamma=1.4, mu=1.0e-3, Pr=0.72, T_dtm=400.0
+    )
 
-xrt = util.linmesh3(
-    [0.0, length], [r_low, r_high], [-0.5 * pitch, 0.5 * pitch], (ni, nj, nk)
-)
-block = ember.block.Block(shape=(ni, nj, nk))
-block.set_xrt(xrt)
-block.set_Nb(Nb)
 
-fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1.0e-3, Pr=0.72, T_dtm=400.0)
-block.set_fluid(fluid)
+def count_passages():
+    """Passage count whose pitch subtends an arc of ~SIDE at the mean radius."""
+    return round(2.0 * np.pi * R_MID / SIDE)
 
-rho_o, e_o = fluid.set_P_T(Po, To)
-ho = fluid.get_h(rho_o, e_o)
-so = fluid.get_s(rho_o, e_o)
-a_o = fluid.get_a(rho_o, e_o)
-Vbar = Ma_bulk * a_o
-ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho, so, Ma_bulk, 0.0, 0.0)
 
-U = Vbar / np.inf
-Omega = U / r_mid
-block.set_Omega(Omega)
-block.set_Vt(Omega * block.r)
+def cluster_walls(n):
+    """Unit vector of n points, clustered at both ends at expansion ratio ER.
+
+    ``util.cluster`` expands away from a single end, so a half-width vector is
+    mirrored about the centreline. Requires an odd ``n`` for the two halves to
+    share their midpoint.
+    """
+    if n % 2 == 0:
+        raise ValueError(f"n must be odd to mirror about the centreline, got {n}")
+    half = util.cluster((n + 1) // 2, ER, 1.0)
+    return np.concatenate([0.5 * half, 1.0 - 0.5 * half[-2::-1]])
+
+
+def make_block(fluid):
+    """Build the duct block with its mesh, fluid, and uniform mean flow."""
+    Nb = count_passages()
+    pitch = 2.0 * np.pi / Nb
+    r_low = R_MID - 0.5 * SIDE
+    length = LENGTH_RATIO * SIDE
+
+    xv = np.linspace(0.0, length, NI, dtype=np.float32)
+    rv = r_low + SIDE * cluster_walls(NJ)
+    tv = pitch * (cluster_walls(NK) - 0.5)
+    xm, rm, tm = np.meshgrid(xv, rv, tv, indexing="ij")
+    xrt = np.stack((xm, rm, tm), axis=-1).astype(np.float32)
+
+    block = ember.block.Block(shape=(NI, NJ, NK))
+    block.set_xrt(xrt)
+    block.set_Nb(Nb)
+    block.set_fluid(fluid)
+
+    rho_o, e_o = fluid.set_P_T(PO, TO)
+    ho = fluid.get_h(rho_o, e_o)
+    so = fluid.get_s(rho_o, e_o)
+    a_o = fluid.get_a(rho_o, e_o)
+    Vbar = MA_BULK * a_o
+    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho, so, MA_BULK, 0.0, 0.0)
+
+    U = Vbar / np.inf
+    Omega = U / R_MID
+    block.set_Omega(Omega)
+    block.set_Vt(Omega * block.r)
+
+    return block, rho_o, ho, so, Vbar
+
 
 # %%
 # Boundary conditions
@@ -84,17 +116,23 @@ block.set_Vt(Omega * block.r)
 # The inlet fixes stagnation conditions and swirl angle, and the outlet fixes
 # static pressure with a backflow state for any transient reverse flow.
 
-block.patches["inlet"] = ember.patch.InletPatch(i=0)
-block.patches["outlet"] = ember.patch.OutletPatch(i=-1)
 
-Po_in = block.Po[0].mean()
-To_in = block.To[0].mean()
-Alpha_in = block.Alpha[0].mean()
-P_out = block.P[-1].mean()
-T_out = block.T[-1].mean()
-block.patches["inlet"].set_Po_To_Alpha_Beta(Po_in, To_in, Alpha_in, 0.0)
-block.patches["outlet"].set_P(P_out)
-block.patches["outlet"].set_backflow(ho, so, 0.0, 0.0)
+def set_boundary_conditions(block, ho, so):
+    """Attach inlet and outlet patches consistent with the mean flow."""
+    block.patches["inlet"] = ember.patch.InletPatch(i=0)
+    block.patches["outlet"] = ember.patch.OutletPatch(i=-1)
+
+    Po_in = block.Po[0].mean()
+    To_in = block.To[0].mean()
+    Alpha_in = block.Alpha[0].mean()
+    P_out = block.P[-1].mean()
+    T_out = block.T[-1].mean()
+    block.patches["inlet"].set_Po_To_Alpha_Beta(Po_in, To_in, Alpha_in, 0.0)
+    block.patches["outlet"].set_P(P_out)
+    block.patches["outlet"].set_backflow(ho, so, 0.0, 0.0)
+
+    return P_out, T_out
+
 
 # %%
 # Initial condition
@@ -105,33 +143,70 @@ block.patches["outlet"].set_backflow(ho, so, 0.0, 0.0)
 # streamwise ramp in enthalpy, entropy, and velocity so the solution has to
 # do some work to relax back to the boundary-condition-consistent state.
 
-rng = np.random.default_rng(0)
-Vx = block.Vx
-block.set_Vx(Vx * (1.0 + 0.01 * rng.standard_normal(Vx.shape)).astype(Vx.dtype))
 
-grid = ember.grid.Grid([block])
-grid.set_L_ref(side)
-grid.set_fluid(
-    fluid.change_datum(P_out, T_out).change_ref(rho_o, Vbar, block.Rgas.mean())
-)
-grid.calculate_wdist()
+def add_velocity_noise(block, seed=0):
+    """Perturb the axial velocity with a 1% random ripple."""
+    rng = np.random.default_rng(seed)
+    Vx = block.Vx
+    block.set_Vx(Vx * (1.0 + 0.01 * rng.standard_normal(Vx.shape)).astype(Vx.dtype))
 
-block = grid[0]
-V = np.asarray(block.V)
-ho_field = np.asarray(block.ho)
-s_field = np.asarray(block.s)
-T_field = np.asarray(block.T)
-h_static = ho_field - 0.5 * V**2
 
-ho_frac = 0.01  # ho raised by 1% of local dynamic enthalpy
-s_frac = 0.01  # s raised by entropy equivalent of that offset
-dh = ho_frac * 0.5 * V**2
-ds = s_frac * 0.5 * V**2 / T_field
-block.set_h_s(h_static + dh, s_field + ds)  # velocity preserved
+def make_grid(block, fluid, rho_o, Vbar, P_out, T_out):
+    """Wrap the block in a grid, set the non-dimensionalisation, and get wdist."""
+    grid = ember.grid.Grid([block])
+    grid.set_L_ref(SIDE)
+    grid.set_fluid(
+        fluid.change_datum(P_out, T_out).change_ref(rho_o, Vbar, block.Rgas.mean())
+    )
+    grid.calculate_wdist()
+    return grid
 
-Vx = np.asarray(block.Vx)
-ramp = np.linspace(1.0, 1.01, ni, dtype=Vx.dtype)  # +1% streamwise Vx ramp
-block.set_Vx(Vx * ramp[:, None, None])
+
+def add_thermodynamic_ramp(block):
+    """Offset ho and s, then ramp Vx by +1% along the duct."""
+    V = np.asarray(block.V)
+    ho_field = np.asarray(block.ho)
+    s_field = np.asarray(block.s)
+    T_field = np.asarray(block.T)
+    h_static = ho_field - 0.5 * V**2
+
+    ho_frac = 0.01  # ho raised by 1% of local dynamic enthalpy
+    s_frac = 0.01  # s raised by entropy equivalent of that offset
+    dh = ho_frac * 0.5 * V**2
+    ds = s_frac * 0.5 * V**2 / T_field
+    block.set_h_s(h_static + dh, s_field + ds)  # velocity preserved
+
+    Vx = np.asarray(block.Vx)
+    ramp = np.linspace(1.0, 1.01, NI, dtype=Vx.dtype)  # +1% streamwise Vx ramp
+    block.set_Vx(Vx * ramp[:, None, None])
+
+
+# %%
+# Cross-section mesh
+# ------------------
+#
+# A constant-``i`` slice through the block, drawn in the Cartesian ``y``-``z``
+# plane. The passage count chosen above makes the cross-section square to
+# within the rounding of ``Nb`` to an integer, and the geometric expansion
+# away from each wall is visible as the thinning of cells towards all four
+# sides.
+
+
+def plot_mesh(block, i=0):
+    """Draw the constant-i grid slice in the y-z plane."""
+    y = np.asarray(block.y)[i]
+    z = np.asarray(block.z)[i]
+
+    fig, ax = plt.subplots(figsize=(6.0, 6.0))
+    ax.plot(z, y, color="C0", lw=0.4)  # lines of constant j
+    ax.plot(z.T, y.T, color="C0", lw=0.4)  # lines of constant k
+    ax.set_xlabel("$z$")
+    ax.set_ylabel("$y$")
+    ax.set_title(f"Cross-section mesh at $i={i}$ ({NJ} x {NK} nodes)")
+    ax.set_aspect("equal")
+    fig.tight_layout()
+    plt.show()
+
 
 # %%
 # Multigrid march
@@ -140,20 +215,25 @@ block.set_Vx(Vx * ramp[:, None, None])
 # ``ember.solver.run`` advances the flow field with an explicit
 # Runge-Kutta scheme accelerated by a three-level multigrid correction.
 
-conf = ember.solver.SolverConfig(
-    n_step=300,
-    n_step_log=10,
-    n_step_avg=1,
-    cfl=3.0,
-    n_stage=4,
-    n_levels=3,
-    fac_mgrid=0.2,
-    sf_resid=0.0,
-    inviscid=False,
-)
-hist = ember.solver.run(grid, conf)
-n = hist.i_log + 1
-i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
+
+def solve(grid):
+    """March the flow field and return the history with its logged step count."""
+    conf = ember.solver.SolverConfig(
+        n_step=50,
+        n_step_log=10,
+        n_step_avg=1,
+        cfl=3.0,
+        n_stage=4,
+        n_levels=3,
+        fac_mgrid=0.2,
+        sf_resid=0.0,
+        inviscid=False,
+    )
+    hist = ember.solver.run(grid, conf)
+    n = hist.i_log + 1
+    i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
+    return hist, n, i_step
+
 
 # %%
 # Convergence history
@@ -163,30 +243,50 @@ i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
 # inlet-to-outlet mass flow error and entropy rise settle to their converged
 # values.
 
-fig, (ax_res, ax_err, ax_s) = plt.subplots(3, 1, figsize=(7.5, 9.5), sharex=True)
 
-drhoe = np.abs(np.asarray(hist.residual, dtype=float)[:n, 4])
-m = np.isfinite(drhoe) & (drhoe > 0)
-ax_res.semilogy(i_step[m], drhoe[m], marker=".", ms=3, lw=1.0)
-ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
-ax_res.set_title("Energy residual (semilog)")
-ax_res.grid(True, which="both", alpha=0.3)
+def plot_history(hist, n, i_step):
+    """Plot energy residual, mass flow error, and entropy rise against step."""
+    fig, (ax_res, ax_err, ax_s) = plt.subplots(
+        3, 1, figsize=(7.5, 9.5), sharex=True
+    )
 
-err = np.asarray(hist.err_mdot, dtype=float)[:n]
-me = np.isfinite(err)
-ax_err.axhline(0.0, color="0.6", lw=0.8)
-ax_err.plot(i_step[me], err[me], marker=".", ms=3, lw=1.0)
-ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
-ax_err.set_title("Mass flow error")
-ax_err.grid(True, alpha=0.3)
+    drhoe = np.abs(np.asarray(hist.residual, dtype=float)[:n, 4])
+    m = np.isfinite(drhoe) & (drhoe > 0)
+    ax_res.semilogy(i_step[m], drhoe[m], marker=".", ms=3, lw=1.0)
+    ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
+    ax_res.set_title("Energy residual (semilog)")
+    ax_res.grid(True, which="both", alpha=0.3)
 
-zeta = np.asarray(hist.zeta, dtype=float)[:n]
-mz = np.isfinite(zeta)
-ax_s.plot(i_step[mz], zeta[mz], marker=".", ms=3, lw=1.0)
-ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
-ax_s.set_title("Entropy rise")
-ax_s.set_xlabel("i_step")
-ax_s.grid(True, alpha=0.3)
+    err = np.asarray(hist.err_mdot, dtype=float)[:n]
+    me = np.isfinite(err)
+    ax_err.axhline(0.0, color="0.6", lw=0.8)
+    ax_err.plot(i_step[me], err[me], marker=".", ms=3, lw=1.0)
+    ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
+    ax_err.set_title("Mass flow error")
+    ax_err.grid(True, alpha=0.3)
 
-fig.tight_layout()
-plt.show()
+    zeta = np.asarray(hist.zeta, dtype=float)[:n]
+    mz = np.isfinite(zeta)
+    ax_s.plot(i_step[mz], zeta[mz], marker=".", ms=3, lw=1.0)
+    ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
+    ax_s.set_title("Entropy rise")
+    ax_s.set_xlabel("i_step")
+    ax_s.grid(True, alpha=0.3)
+
+    fig.tight_layout()
+    plt.show()
+
+
+# %%
+# Run the case
+# ------------
+
+fluid = make_fluid()
+block, rho_o, ho, so, Vbar = make_block(fluid)
+P_out, T_out = set_boundary_conditions(block, ho, so)
+add_velocity_noise(block)
+grid = make_grid(block, fluid, rho_o, Vbar, P_out, T_out)
+add_thermodynamic_ramp(grid[0])
+plot_mesh(grid[0])
+hist, n, i_step = solve(grid)
+plot_history(hist, n, i_step)

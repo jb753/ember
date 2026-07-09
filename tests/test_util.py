@@ -817,6 +817,68 @@ class TestCluster:
             )
 
 
+class TestClusterSymmetric:
+    """Tests for cluster_symmetric function."""
+
+    def test_cluster_symmetric_basic_properties(self):
+        """Endpoints, length, dtype, and monotonicity."""
+        n = 9
+        z = util.cluster_symmetric(n, 1.2, 1.0)
+
+        assert z.shape == (n,)
+        assert z.dtype == np.float32
+        assert z[0] == 0.0
+        assert z[-1] == 1.0
+        assert np.all(np.diff(z) > 0)
+
+    def test_cluster_symmetric_symmetric(self):
+        """Distribution is symmetric about 0.5, with a node on the centreline."""
+        n = 11
+        z = util.cluster_symmetric(n, 1.2, 1.0)
+        assert np.allclose(z + z[::-1], 1.0, atol=1e-6)
+        assert z[n // 2] == 0.5
+
+    def test_cluster_symmetric_dense_at_ends(self):
+        """Spacing is finer at both ends than in the middle."""
+        z = util.cluster_symmetric(21, 1.2, 1.0)
+        d = np.diff(z)
+        assert d[0] < d[len(d) // 2]
+        assert d[-1] < d[len(d) // 2]
+        assert np.allclose(d, d[::-1], atol=1e-6)
+
+    def test_cluster_symmetric_expansion_ratio(self):
+        """Spacing grows at ER away from each wall, unlike cosine_cluster."""
+        ER = 1.1
+        d = np.diff(util.cluster_symmetric(21, ER, 1.0))
+        # growth rate over the first half, walking in from the wall
+        ratio = d[1 : len(d) // 2] / d[: len(d) // 2 - 1]
+        assert np.allclose(ratio, ER, atol=1e-4)
+
+    def test_cluster_symmetric_uniform_when_er_one(self):
+        """ER=1.0 degenerates to uniform spacing."""
+        n = 5
+        assert np.allclose(util.cluster_symmetric(n, 1.0, 1.0), np.linspace(0, 1, n))
+
+    def test_cluster_symmetric_respects_dmax(self):
+        """No spacing in the returned vector exceeds dmax."""
+        dmax = 0.06
+        d = np.diff(util.cluster_symmetric(21, 1.3, dmax))
+        assert np.all(d <= dmax + 1e-6)
+
+    def test_cluster_symmetric_requires_odd_n(self):
+        """Even n, or n < 3, raises ValueError."""
+        for bad in (0, 1, 2, 4, 10):
+            with pytest.raises(ValueError):
+                util.cluster_symmetric(bad, 1.2, 1.0)
+
+    def test_cluster_symmetric_matches_mirrored_cluster(self):
+        """Equivalent to mirroring a half-width cluster about the centreline."""
+        n, ER = 65, 1.05
+        half = util.cluster((n + 1) // 2, ER, 2.0)
+        expected = np.concatenate([0.5 * half, 1.0 - 0.5 * half[-2::-1]])
+        assert np.allclose(util.cluster_symmetric(n, ER, 1.0), expected, atol=1e-7)
+
+
 class TestSignedDistance:
     """Test signed distance function."""
 
