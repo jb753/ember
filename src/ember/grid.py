@@ -1,14 +1,10 @@
-"""Grid collection for managing multiple Block objects with connectivity analysis.
+"""Grid collection for managing multiple connected blocks.
 
-This module provides the Grid class which serves as the top-level container for multi-block
-structured CFD simulations. The Grid manages collections of Block objects with support for
-label-based access, automatic connectivity detection between blocks, and methods for computing
-domain-wide flow statistics. Key features include spatial indexing using KD-trees for efficient
-neighbor finding, detection and tracking of periodic and mixing-plane patch pairs, computation
-of circumferentially-averaged flow properties, and utilities for extracting boundary flows at
-inlets and outlets. The connectivity property provides detailed inter-block topology information
-essential for implementing multi-block boundary conditions, while the averaging capabilities
-enable efficient turbomachinery performance analysis across blade rows.
+This module provides the Grid class which serves as the top-level container for
+multi-block structured CFD simulations. The Grid manages collections of Block
+objects with support for label-based access, automatic connectivity detection
+between blocks, and methods for computing domain-wide flow statistics.
+
 """
 
 from ember.collections import _LabelledList, GridPatchCollection
@@ -17,10 +13,10 @@ import ember.block_util
 import ember.fortran
 from ember.block_restart import apply_restart
 import numpy as np
-import collections
 import itertools
 import pickle
 import gzip
+from dataclasses import dataclass
 from ember import util
 import ember.block
 from ember.patch import RotatingPatch
@@ -29,14 +25,7 @@ import ember.mixing_communicator
 import ember.nonmatch_communicator
 
 
-Convergence = collections.namedtuple(
-    "Convergence",
-    "residual mdot ho s mdot_target mdot_throttle P_throttle dP_P dP_I dP_D",
-    defaults=(0.0,) * 6,  # throttle fields; get_convergence always sets them
-)
-
-
-class SolverDivergedError(RuntimeError):
+class DivergenceError(RuntimeError):
     """Raised when a block's conserved field contains a NaN.
 
     A dedicated type lets a solver loop catch divergence precisely and exit
@@ -660,22 +649,16 @@ class Grid(_LabelledList):
 
         Returns
         -------
-        Convergence
-            Namedtuple ``(residual, mdot, ho, s, mdot_target, mdot_throttle,
-            P_throttle, dP_P, dP_I, dP_D)``. ``residual`` is the block-mean
-            ``|residual_nd|`` per conserved variable, shape ``(5,)``. ``mdot``,
-            ``ho``, ``s`` are shape ``(2*n_row,)`` station vectors at each row's
-            upstream then downstream face, inlet to outlet
-            (``[row0_up, row0_dn, row1_up, row1_dn, ...]``), all
-            non-dimensionalised by the fluid reference scales. The remaining
-            scalar fields are the outlet PID throttle state from
-            :meth:`ember.outlet.OutletPatch.get_throttle_stats`.
+        ConvergenceStep
+            Residual and station monitors for this step, with the outlet PID
+            throttle state taken from
+            :meth:`ember.outlet.OutletPatch.get_throttle_stats`. See
+            :class:`ConvergenceStep` for the meaning of each field.
 
-        The ``rhorVt`` (angular-momentum) residual is divided per block by
-        ``block.r_mid_nd`` so its reported magnitude is a tangential-momentum
-        scale comparable to the ``rhoVx``/``rhoVr`` residuals. This rescaling is
-        for monitoring only; ``residual_nd`` itself (which drives the RK sweep)
-        is untouched.
+        Notes
+        -----
+        ``residual_nd`` itself (which drives the RK sweep) is untouched by the
+        ``rhorVt`` rescaling applied to the reported residual.
         """
 
         def _block_residual(b):
@@ -695,7 +678,7 @@ class Grid(_LabelledList):
                 mdot.append(m)
                 ho.append(h)
                 s.append(se)
-        return Convergence(
+        return ConvergenceStep(
             residual=residual,
             mdot=np.array(mdot),
             ho=np.array(ho),
@@ -1128,14 +1111,14 @@ class Grid(_LabelledList):
 
         Raises
         ------
-        SolverDivergedError
+        DivergenceError
             If any block contains a NaN, naming the first such block (index and
             label). The grid is left untouched so the invalid field can be
             inspected.
         """
         for iblock, block in enumerate(self):
             if np.isnan(block.conserved_nd[..., 0]).any():
-                raise SolverDivergedError(
+                raise DivergenceError(
                     f"NaN in conserved_nd density of block {iblock} ({block.label!r})"
                 )
 
@@ -2173,3 +2156,56 @@ class GridConnectivityManager:
         return self._connectivity(PeriodicPatch)
 
     # end periodic
+
+
+# eq=False: the array fields would make a generated __eq__ return an array,
+# raising on truth-testing. Identity comparison is all this type needs.
+@dataclass(frozen=True, eq=False)
+class ConvergenceStep:
+    """Grid-wide convergence monitors at a single time step, non-dimensional.
+
+    Produced by :meth:`Grid.get_convergence` and consumed by
+    :meth:`ember.convergence_history.ConvergenceHistory.record_convergence`,
+    which unpacks the station vectors into one scalar column per station.
+
+    Station vectors are ordered inlet to outlet, each blade row contributing
+    its upstream then downstream face
+    (``[row0_up, row0_dn, row1_up, row1_dn, ...]``), so they have length
+    ``2 * n_row``.
+    """
+
+    residual: np.ndarray
+    """Block-mean ``|residual_nd|`` per conserved variable, shape ``(5,)``,
+    ordered ``(rho, rhoVx, rhoVr, rhorVt, rhoe)``. The ``rhorVt`` entry is
+    divided per block by ``block.r_mid_nd`` so its magnitude is comparable to
+    the ``rhoVx``/``rhoVr`` residuals; this rescaling is for monitoring only."""
+
+    mdot: np.ndarray
+    """Station mass flow rates, shape ``(2 * n_row,)``, non-dimensionalised by
+    the fluid mass-flux scale."""
+
+    ho: np.ndarray
+    """Station stagnation enthalpies, shape ``(2 * n_row,)``,
+    non-dimensionalised by ``u_ref``."""
+
+    s: np.ndarray
+    """Station specific entropies, shape ``(2 * n_row,)``,
+    non-dimensionalised by ``Rgas_ref``."""
+
+    mdot_target: float = 0.0
+    """Outlet throttle mass flow setpoint [kg/s]; zero when throttle inactive."""
+
+    mdot_throttle: float = 0.0
+    """Mass flow measured at the outlet patch on its last target update [kg/s]."""
+
+    P_throttle: float = 0.0
+    """Total PID pressure correction applied at the outlet [Pa]."""
+
+    dP_P: float = 0.0
+    """Proportional contribution to :attr:`P_throttle` [Pa]."""
+
+    dP_I: float = 0.0
+    """Integral contribution to :attr:`P_throttle` [Pa]."""
+
+    dP_D: float = 0.0
+    """Derivative contribution to :attr:`P_throttle` [Pa]."""

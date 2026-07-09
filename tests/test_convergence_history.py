@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from ember.convergence_history import ConvergenceHistory
 from ember.fluid import PerfectFluid
-from ember.grid import Convergence
+from ember.grid import ConvergenceStep
 
 _DATA = Path(__file__).parent / "data"
 
@@ -17,8 +17,8 @@ _FLUID = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
 
 
 def _throttle_conv(mdot_target, mdot_throttle, P_throttle):
-    """A Convergence carrying only throttle state (flow monitors left NaN)."""
-    return Convergence(
+    """A ConvergenceStep carrying only throttle state (flow monitors left NaN)."""
+    return ConvergenceStep(
         residual=np.full(5, np.nan, np.float32),
         mdot=np.full(2, np.nan, np.float32),
         ho=np.full(2, np.nan, np.float32),
@@ -291,7 +291,7 @@ def test_to_json_creates_files(hist_with_throttle, tmp_path):
 
     hist = hist_with_throttle
     hist.record_convergence(
-        Convergence(
+        ConvergenceStep(
             residual=np.full(5, 1e-3, dtype=np.float32),
             mdot=np.array([1.0, 1.0], dtype=np.float32),
             ho=np.array([300000.0, 300000.0], dtype=np.float32),
@@ -309,7 +309,7 @@ def test_to_json_format(hist_with_throttle, tmp_path):
 
     hist = hist_with_throttle
     hist.record_convergence(
-        Convergence(
+        ConvergenceStep(
             residual=np.full(5, 1e-3, dtype=np.float32),
             mdot=np.array([1.0, 1.0], dtype=np.float32),
             ho=np.array([300000.0, 300000.0], dtype=np.float32),
@@ -333,7 +333,7 @@ def test_to_json_x_matches_steps(hist_with_throttle, tmp_path):
     for i in range(1, 4):
         hist.record_step(i * 10)
     hist.record_convergence(
-        Convergence(
+        ConvergenceStep(
             residual=np.full(5, 1e-3, dtype=np.float32),
             mdot=np.array([1.0, 1.0], dtype=np.float32),
             ho=np.array([300000.0, 300000.0], dtype=np.float32),
@@ -374,7 +374,7 @@ def _make_hist_with_row_flows(n_row, steps=3):
         ]
         mdot = np.array([v for pair in mdot_rows for v in pair], dtype=np.float32)
         hist.record_convergence(
-            Convergence(
+            ConvergenceStep(
                 residual=np.full(5, np.nan, dtype=np.float32),
                 mdot=mdot,
                 ho=np.zeros(len(mdot), dtype=np.float32),
@@ -414,7 +414,7 @@ def test_err_mdot_row_values():
         hist._versions[k] += 1
     hist.record_step(0)
     hist.record_convergence(
-        Convergence(
+        ConvergenceStep(
             residual=np.full(5, np.nan, dtype=np.float32),
             mdot=np.array([10.0, 9.0], dtype=np.float32),
             ho=np.zeros(2, dtype=np.float32),

@@ -28,6 +28,10 @@ class ConvergenceHistory(StructuredData):
 
     _TIME_SCALE = 1e-3  # seconds per stored unit (i.e. milliseconds)
 
+    # A history built by any route other than a completed solver run has not
+    # observed a divergence, so `diverged` reads False without being set.
+    _defaults = {"diverged": False}
+
     # Through-flow stations: each blade row contributes an upstream and a
     # downstream face, ordered inlet->outlet as
     # [row0_up, row0_dn, row1_up, row1_dn, ...]. Width 4 covers n_row <= 2.
@@ -494,14 +498,11 @@ class ConvergenceHistory(StructuredData):
 
         Parameters
         ----------
-        conv : ember.grid.Convergence
-            Namedtuple from :meth:`ember.grid.Grid.get_convergence`. ``residual``
-            has shape ``(5,)``; ``mdot``, ``ho``, ``s`` are ``(2*n_row,)``
-            non-dimensional station vectors
-            ``[row0_up, row0_dn, row1_up, row1_dn, ...]``; the remaining scalar
-            fields carry the outlet throttle state
-            (``mdot_target``, ``mdot_throttle``, ``P_throttle``, ``dP_P``,
-            ``dP_I``, ``dP_D``).
+        conv : ember.grid.ConvergenceStep
+            One step's monitors, from :meth:`ember.grid.Grid.get_convergence`.
+            The ``mdot``, ``ho`` and ``s`` station vectors are unpacked into one
+            scalar column per station, so at most 4 stations (``n_row <= 2``)
+            can be recorded.
         """
         n = len(conv.mdot)
         if n > 4:
@@ -617,6 +618,20 @@ class ConvergenceHistory(StructuredData):
     def dP_P(self):
         """Proportional PID contribution [Pa]."""
         return self._get_data_by_keys(("dP_P",))
+
+    @property
+    def diverged(self):
+        """True if the run that produced this history blew up.
+
+        Set by :func:`ember.solver.run` when :meth:`ember.grid.Grid.check_nan`
+        raises :class:`ember.grid.DivergenceError`, in which case the step loop
+        broke early and only ``i_log + 1`` records were written.
+        """
+        return self._get_metadata_by_key("diverged")
+
+    @diverged.setter
+    def diverged(self, value):
+        self._set_metadata_by_key("diverged", bool(value))
 
     @property
     def err_mdot(self):

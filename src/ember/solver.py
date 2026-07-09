@@ -19,7 +19,7 @@ integrators on each step according to :attr:`SolverConfig.n_stage`:
 Both integrators share the same lagged-pressure loop: the conserved cache is
 flushed once per step (one full-field pressure evaluation), the body force and
 dt_vol are refreshed only every few steps on that fresh P, the march and the
-constant-coefficient smoother (:meth:`Grid.smooth`) then run on the frozen
+constant-coefficient smoother (:meth:`~ember.grid.Grid.smooth`) then run on the frozen
 state, and the boundary conditions touch only boundary slices. This keeps
 exactly one full-field P recompute per step; everything else reuses the cache.
 """
@@ -30,7 +30,7 @@ from dataclasses import dataclass
 import ember
 from ember import util
 from ember.convergence_history import ConvergenceHistory
-from ember.grid import SolverDivergedError
+from ember.grid import DivergenceError
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ def scree_step(grid, cfl):
     leading elements -- nothing outside the kernel reads it, so only its
     element count matters, not its indexing.
 
-    Smoothing is not applied here -- the caller runs :meth:`Grid.smooth` once on
+    Smoothing is not applied here -- the caller runs :meth:`~ember.grid.Grid.smooth` once on
     the post-step state, shared with the RK path.
     """
 
@@ -184,7 +184,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
 
     The whole per-block body -- fine term, all coarse levels, and the final
     scatter -- runs in one fused Fortran kernel
-    (:func:`ember.fortran.advance_rk_stage_mg_fused_opt`), with no per-level
+    (``advance_rk_stage_mg_fused_opt``), with no per-level
     Python crossings or numpy temporaries. That variant restructures the coarse
     path for speed (~2x on the coarse levels at production sizes): restrict is a
     coarse-cell register reduction folding in the zero+scale passes, and the
@@ -210,7 +210,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     level, exactly like the fine-grid smoothing ``Grid.update_residual``
     already applies via its ``sf`` argument -- both are driven by the same
     ``SolverConfig.sf_resid`` value (see :func:`rk_step`). This selects the
-    experimental :func:`ember.fortran.advance_rk_stage_mg_fused_irs` kernel
+    experimental ``advance_rk_stage_mg_fused_irs`` kernel
     instead of ``_opt``; ``sf_irs=0`` makes its smoothing step an exact no-op
     (see the kernel's docstring), so it is only selected when ``sf_irs > 0``,
     keeping the default (no coarse IRS) path byte-identical to before. The
@@ -311,7 +311,7 @@ def rk_step(grid, conf):
     top-of-loop rebuild. This trims one full residual evaluation per step (five
     down to ``n_stage``).
 
-    Smoothing is not applied here -- the caller runs :meth:`Grid.smooth` once on
+    Smoothing is not applied here -- the caller runs :meth:`~ember.grid.Grid.smooth` once on
     the post-step state, shared with the scree path.
     """
     # Snapshot U_n into block.store; each stage marches off this snapshot.
@@ -365,34 +365,40 @@ def run(grid, conf):
     Implements the lagged-pressure ordering so each step pays exactly one
     full-field pressure evaluation:
 
-    0. flush the conserved cache so the residual sees a fresh full-field P;
-    1. every ``n_refresh`` steps, rebuild the body force and relax ``dt_vol``
+    1. flush the conserved cache so the residual sees a fresh full-field P;
+    2. every ``n_refresh`` steps, rebuild the body force and relax ``dt_vol``
        (both read the just-refreshed P/a);
-    1b. every ``conf.n_step_log`` steps, record and print a convergence message
-       (:meth:`Grid.get_convergence` + :meth:`ConvergenceHistory.format_message`).
+    3. every ``conf.n_step_log`` steps, record and print a convergence message
+       (:meth:`~ember.grid.Grid.get_convergence` +
+       :meth:`~ember.convergence_history.ConvergenceHistory.format_message`).
        Placed after the body-force refresh but before the march so its residual
        read serves as the step's single full-field recompute, which
        :func:`scree_step` then reuses; ``show_cfl=False`` since the fixed-CFL march
        has no per-cell CFL field to report;
-    2. march every block with the selected integrator (:func:`scree_step` or the
+    4. march every block with the selected integrator (:func:`scree_step` or the
        RK :func:`advance_rk_stage_mg` sweep) -- writes ``conserved_nd`` in place
        without bumping the cache, so P/T stay frozen for the rest of the step;
-    3. smooth every block with the constant-coefficient kernel
-       (:meth:`Grid.smooth`), which needs no P/T and so reuses the frozen state;
-    4. refresh the boundary targets (:meth:`Grid.update_bconds` -- interior-P
-       snapshot, outlet throttle/equilibrium) and impose them
-       (:meth:`Grid.apply_bconds`); the patches read/write only boundary slices,
-       so no full-field P recompute rides along.
+    5. smooth every block with the constant-coefficient kernel
+       (:meth:`~ember.grid.Grid.smooth`), which needs no P/T and so reuses the
+       frozen state;
+    6. refresh the boundary targets (:meth:`~ember.grid.Grid.update_bconds` --
+       interior-P snapshot, outlet throttle/equilibrium) and impose them
+       (:meth:`~ember.grid.Grid.apply_bconds`); the patches read/write only
+       boundary slices, so no full-field P recompute rides along.
 
-    ``dt_vol`` is relaxed in place by :meth:`Grid.update_timestep` (the kernel blends
+    ``dt_vol`` is relaxed in place by :meth:`~ember.grid.Grid.update_timestep` (the kernel blends
     ``rf*new + (1-rf)*old``); the first refresh uses ``rf=1.0`` to initialise the
     uninitialised buffer, ``rf_dt`` thereafter. CFL is the fixed module-level
     :data:`CFL`.
 
     Returns
     -------
-    Grid
-        ``grid``, for chaining.
+    ConvergenceHistory
+        The recorded history. If the march blew up, the step loop breaks early,
+        :attr:`~ember.convergence_history.ConvergenceHistory.diverged` is True, and ``grid`` keeps the
+        invalid field for inspection (the pseudotime average is not finalised,
+        since it would overwrite ``conserved_nd`` with a buffer that
+        ``accumulate_avg`` may never have populated).
     """
 
     # Fail fast if the grid cannot be evenly blocked for multigrid.
@@ -414,8 +420,9 @@ def run(grid, conf):
 
         try:
             grid.check_nan()
-        except SolverDivergedError as err:
+        except DivergenceError as err:
             logger.error("Solver diverged at step %d: %s", i_step, err)
+            hist.diverged = True
             break
 
         # Refresh source terms on the n_step_source cadence -- the viscous pass
@@ -456,7 +463,10 @@ def run(grid, conf):
         if i_step >= (conf.n_step - conf.n_step_avg):
             grid.accumulate_avg(conf.n_step_avg)
 
-    # Copy the final average back in the primary storage
-    grid.finalise_average()
+    # Copy the final average back in the primary storage. Skipped on divergence:
+    # the loop broke before accumulate_avg ran, so this would overwrite the
+    # invalid conserved_nd with a zeroed average buffer and destroy the evidence.
+    if not hist.diverged:
+        grid.finalise_average()
 
     return hist

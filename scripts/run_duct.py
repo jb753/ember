@@ -59,6 +59,15 @@ def build_grid(ncell):
     ni = ncell // (nj * nk)
     ni = ((ni - 1 + 4) // 8) * 8 + 1
 
+    # Below this the duct is too short to march: a handful of streamwise cells
+    # gives the inlet and outlet patches no interior between them, and ni=1
+    # (ncell < nj*nk) yields zero cells, which the Fortran kernels reject.
+    if ni < 25:
+        raise ValueError(
+            f"ncell={ncell} gives only ni={ni} streamwise nodes "
+            f"(nj={nj}, nk={nk}); need ni >= 25, i.e. ncell >= {25 * nj * nk}"
+        )
+
     xrt = util.linmesh3(
         [0.0, length], [r_low, r_high], [-0.5 * pitch, 0.5 * pitch], (ni, nj, nk)
     )
@@ -166,21 +175,12 @@ def run(args):
         sys.exit(1)
 
     # ember.solver.run catches a NaN blow-up internally (Grid.check_nan) and
-    # just breaks its step loop early rather than re-raising, so a diverged
-    # run does not necessarily surface as an exception here. It also always
-    # calls grid.finalise_average() on the way out -- even after an early
-    # break, when accumulate_avg never ran -- which overwrites conserved_nd
-    # with a never-populated (zero) average buffer, so a post-hoc NaN check on
-    # conserved_nd is a dead end too (and wall-clock time is unreliable: an
-    # early bail-out finishes fast, but so does a small/cheap grid). Instead,
-    # compare how many convergence records the run actually logged against how
-    # many a full n_step march would have produced at the n_step_log cadence
-    # fixed above -- a short count means the step loop broke early.
-    expected_n = (args.n_step - 1) // conf.n_step_log + 1
-    n = hist.i_log + 1
-    if n < expected_n:
-        print(f"Diverged (only {n}/{expected_n} convergence records logged)")
+    # breaks its step loop early rather than re-raising, so a diverged run does
+    # not surface as an exception here.
+    if hist.diverged:
+        print(f"Diverged (after {hist.i_log + 1} convergence records)")
         sys.exit(1)
+    n = hist.i_log + 1
     i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
     per_node_step = wall / args.n_step / n_nodes * 1e6
     print(f"{wall:.3f}s  {per_node_step:.3f} us/node/step")
