@@ -19,7 +19,6 @@ Test cases:
 - test_grid_check_passes_valid_grid: Valid grid validation passing
 - test_conserved_round_trip: Round trip conserved variables conversion
 - test_primitive_round_trip: Round trip primitive variables conversion
-- test_grid_flat_removes_patches: Grid.flat() patch removal on multi-block grids
 - test_identity_transformation: Identity transformation detection in _align_cartesian
 - test_permutation_only: Coordinate permutation detection
 - test_sign_flips_only: Coordinate sign flip detection
@@ -37,8 +36,18 @@ import numpy as np
 import pytest
 from ember.grid import Grid
 from ember.block import Block
+from ember.block_util import concatenate
 from ember.patch import InletPatch, MixingPatch, OutletPatch, PeriodicPatch
 from ember import util
+
+
+def _flatten(grid):
+    """Concatenate every block of `grid` into one flat Block.
+
+    The unstructured setters take a point cloud in this order, so the round-trip
+    and alignment tests below build their inputs with it.
+    """
+    return concatenate(*[block.flat() for block in grid])
 
 
 class TestGridProperties:
@@ -1202,7 +1211,7 @@ class TestGridCartesianUnstructured:
             block.set_conserved(conserved_original[ib])
 
         # Step 2: Extract polar data and convert to Cartesian
-        flat_grid = test_grid.flat()
+        flat_grid = _flatten(test_grid)
 
         # Convert coordinates and velocities to Cartesian with transformation
         xyz_cart, Vxyz_cart = util.pol_to_cart(
@@ -1253,7 +1262,7 @@ class TestGridCartesianUnstructured:
             conserved_original[ib] = block.conserved.copy()
 
         # Step 2: Extract polar data and convert to Cartesian
-        flat_grid = test_grid.flat()
+        flat_grid = _flatten(test_grid)
 
         # Convert coordinates and velocities to Cartesian with transformation
         xyz_cart, Vxyz_cart = util.pol_to_cart(
@@ -1286,58 +1295,6 @@ class TestGridCartesianUnstructured:
                     atol=tols[ip],
                     rtol=0,
                 )
-
-
-def test_grid_flat_removes_patches():
-    """Test that grid.flat() properly handles patches on multi-block grids."""
-    from ember.fluid import PerfectFluid
-
-    # Create two blocks with patches
-    shape = (3, 3, 3)
-    fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
-
-    block1 = Block(shape=shape)
-    x = np.ones((3, 3, 3), dtype=np.float32)
-    r = np.ones((3, 3, 3), dtype=np.float32) * 1.5
-    t = np.ones((3, 3, 3), dtype=np.float32)
-    block1.set_x(x)
-    block1.set_r(r)
-    block1.set_t(t)
-    block1.set_fluid(fluid)
-    block1.set_P_rho(1e5, 1.2)
-    block1.set_Vx(0.0)
-    block1.set_Vr(0.0)
-    block1.set_Vt(0.0)
-
-    # Add patches to first block (use non-revolution types since geometry is not SoR)
-    block1.patches.append(PeriodicPatch(k=0))
-    block1.patches.append(PeriodicPatch(i=0))
-
-    # Create second block with different patch
-    block2 = Block(shape=shape)
-    block2.set_x(x)
-    block2.set_r(r)
-    block2.set_t(t)
-    block2.set_fluid(fluid)
-    block2.set_P_rho(1e5, 1.2)
-    block2.set_Vx(0.0)
-    block2.set_Vr(0.0)
-    block2.set_Vt(0.0)
-    block2.patches.append(PeriodicPatch(i=-1))
-
-    assert len(block1.patches) == 2
-    assert len(block2.patches) == 1
-
-    # Create grid and flatten
-    grid = Grid([block1, block2])
-    flat_block = grid.flat()
-
-    # Should have combined all nodes from both blocks
-    assert flat_block.shape == (54,)  # 2 blocks * 27 nodes each = 54
-    assert np.all(np.isfinite(flat_block.conserved))
-
-    # Flattened block should have no patches (patches don't make sense on 1D data)
-    assert len(flat_block.patches) == 0
 
 
 class TestAlignCartesian:
@@ -1385,7 +1342,7 @@ class TestAlignCartesian:
 
     def test_identity_transformation(self, align_test_grid):
         """Test that identity transformation is detected correctly."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_input = np.stack([_f.x, _f.y, _f.z], axis=-1)
 
         perm, signs, block_indices = align_test_grid._align_cartesian(xyz_input)
@@ -1408,7 +1365,7 @@ class TestAlignCartesian:
     )
     def test_permutation_only(self, align_test_grid, perm):
         """Test coordinate permutations without sign flips."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_original = np.stack([_f.x, _f.y, _f.z], axis=-1)
         xyz_input = xyz_original[:, list(perm)]
 
@@ -1436,7 +1393,7 @@ class TestAlignCartesian:
     )
     def test_sign_flips_only(self, align_test_grid, signs):
         """Test coordinate sign flips without permutations."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_original = np.stack([_f.x, _f.y, _f.z], axis=-1)
         xyz_input = xyz_original * np.array(signs)
 
@@ -1449,7 +1406,7 @@ class TestAlignCartesian:
 
     def test_combined_transformation(self, align_test_grid):
         """Test combination of permutation and sign flips."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_original = np.stack([_f.x, _f.y, _f.z], axis=-1)
         perm = (2, 0, 1)  # z, x, y
         signs = (-1, 1, -1)
@@ -1496,7 +1453,7 @@ class TestAlignCartesian:
 
     def test_block_indices_structure(self, align_test_grid):
         """Test that block indices have correct structure and values."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_input = np.stack([_f.x, _f.y, _f.z], axis=-1)
 
         perm, signs, block_indices = align_test_grid._align_cartesian(xyz_input)

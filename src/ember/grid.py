@@ -1,10 +1,103 @@
-"""Grid collection for managing multiple connected blocks.
+"""Collection of connected blocks forming a complete flow domain.
 
-This module provides the Grid class which serves as the top-level container for
-multi-block structured CFD simulations. The Grid manages collections of Block
-objects with support for label-based access, automatic connectivity detection
-between blocks, and methods for computing domain-wide flow statistics.
+This module defines the :class:`Grid`, the top-level container for a
+multi-block structured simulation. A :class:`Grid` is an ordered collection of
+:class:`~ember.block.Block` objects together with the topology that connects
+them. A :class:`Grid` stores no flow field of its own: every coordinate and
+conserved quantity lives on the constituent blocks.
+Therefore the solution is read from one block at a time as in ``grid[0].P``.
 
+Construction and labelled access
+================================
+
+The constructor takes an optional list of blocks; blocks may also be appended one
+at a time. A block carries its own label, set with
+:meth:`~ember.block.Block.set_label`, which must be unique within the grid::
+
+    from ember.block import Block
+    from ember.grid import Grid
+
+    grid = Grid([Block(shape=(10, 10, 10))])
+    rotor = Block(shape=(20, 20, 20))
+    rotor.set_label("rotor")
+    grid.append(rotor)
+
+The grid then behaves as a standard Python collection: it supports iteration,
+``len``, membership testing, and the usual mutating operations (``append``,
+``extend``, ``insert``, ``remove``, ``pop``, ``clear``). Indexing accepts either
+an integer position or a label string, so ``grid[1]`` and ``grid["rotor"]``
+return the same block. Membership testing likewise accepts either a block or a
+label, so ``"rotor" in grid`` is True. :attr:`Grid.labels` lists the labels in
+order, with ``None`` for any unlabelled block. A grid is picklable, which is how
+:meth:`Grid.write_emb` stores it.
+
+Topology
+========
+
+What distinguishes a :class:`Grid` from a list of blocks is the topology it
+derives from the blocks' boundary patches.
+
+Blocks joined to one another by periodic patches make up a single *blade row*.
+Rows are separated from one another by mixing patches, and
+:attr:`Grid.rows` groups the blocks accordingly, ordering the rows from inlet to
+outlet; :attr:`Grid.n_row` is their count. The first row's upstream face is the
+domain inlet and the last row's downstream face is the domain outlet, which is
+what lets :attr:`Grid.row_station_bid_pid` name a pair of measurement stations
+for each row without being told where they are.
+
+:attr:`Grid.patches` presents every patch on every block as one flat, read-only
+sequence, filterable by patch type (``grid.patches.inlet``,
+``grid.patches.periodic``, and so on). It is a view: patches are still owned by
+the block they sit on, and are added and removed there.
+
+:attr:`Grid.connectivity` builds the pairings between those patches -- matching
+each patch to its partner on a neighbouring block, and owning the communicators
+that exchange data across the resulting seams. Pairings are found lazily on
+first access and then cached on the grid, grouped by patch type
+(``grid.connectivity.periodic.pair()``, and likewise ``mixing``, ``nonmatch``,
+``cusp``). Because the cache is keyed to the topology as it stood when it was
+built, changing that topology -- adding or removing a block or a patch --
+requires ``grid.connectivity.clear()`` to invalidate it.
+
+Driving a solver
+================
+
+The ``update_*`` and ``apply_*`` methods (:meth:`Grid.update_residual`,
+:meth:`Grid.update_sources`, :meth:`Grid.apply_bconds`, and the rest) are the
+individual stages of one explicit time step. They are not independent: they must
+be called in a particular order, and several of them depend on whether the
+pressure/temperature cache is currently fresh or deliberately frozen. They are
+intended to be driven by :func:`ember.solver.run`, which documents that ordering
+and the lagged-pressure scheme it implements. Consult :mod:`ember.solver` before
+calling them directly.
+
+Two of them stand slightly apart, as they report on a march rather than advance
+it. :meth:`Grid.get_convergence` returns a :class:`ConvergenceStep` of
+residual and station monitors for the current step, which
+:class:`~ember.convergence_history.ConvergenceHistory` accumulates into a time
+series. :meth:`Grid.check_nan` raises :class:`DivergenceError` if the flow field
+has blown up.
+
+File formats
+============
+
+A grid can be read from and written to three formats. The reading methods are
+constructors, returning a new :class:`Grid`.
+
+* EMB -- the native format: a pickle of the grid with its blocks, patches, and
+  labels, optionally gzip-compressed (:meth:`Grid.read_emb` detects compression
+  automatically). Being a pickle of the objects themselves, it is the format
+  that preserves a grid most completely. :meth:`Grid.read_emb`,
+  :meth:`Grid.write_emb`.
+
+* Plot3D -- the multi-block structured interchange format, carrying coordinates
+  only. Boundary patches are stored alongside it in a separate FieldView
+  boundary (``.fvbnd``) file, which may be read and written with the Plot3D file
+  or on its own via :meth:`Grid.write_fvbnd`. :meth:`Grid.read_plot3d`,
+  :meth:`Grid.write_plot3d`.
+
+* TS3 -- the HDF5-based format of the Turbostream 3 solver, carrying geometry
+  and flow field. :meth:`Grid.read_ts3`, :meth:`Grid.write_ts3`.
 """
 
 from ember.collections import _LabelledList, GridPatchCollection
@@ -25,49 +118,11 @@ import ember.mixing_communicator
 import ember.nonmatch_communicator
 
 
-class DivergenceError(RuntimeError):
-    """Raised when a block's conserved field contains a NaN.
-
-    A dedicated type lets a solver loop catch divergence precisely and exit
-    cleanly (leaving the invalid field in place for debugging) while genuinely
-    unexpected errors still propagate. See :meth:`Grid.check_nan`.
-    """
-
-
 class Grid(_LabelledList):
-    """Collection of Block objects with pythonic iterable and collection interface.
+    """An ordered, labelled collection of connected blocks.
 
-    Provides a convenient way to manage multiple Block objects with support for:
-    - Standard collection operations (add, remove, extend, etc.)
-    - Pythonic iteration and indexing (including by label)
-    - Block labeling with uniqueness validation
-    - Serialization support
-
-    Examples
-    --------
-    >>> from ember.block import Block
-    >>> from ember.grid import Grid
-    >>>
-    >>> # Create a grid and add blocks
-    >>> grid = Grid()
-    >>> block1 = Block(shape=(10, 10, 10))
-    >>> block2 = Block(shape=(20, 20, 20))
-    >>>
-    >>> # Add blocks with labels
-    >>> grid.add(block1, label="inlet_block")
-    >>> grid.add(block2, label="outlet_block")
-    >>>
-    >>> # Access by index or label
-    >>> first_block = grid[0]
-    >>> inlet_block = grid["inlet_block"]
-    >>>
-    >>> # Iterate over blocks
-    >>> for block in grid:
-    >>>     print(f"Block shape: {block.shape}")
-    >>>
-    >>> # Check membership
-    >>> assert "inlet_block" in grid
-    >>> assert len(grid) == 2
+    See the :mod:`ember.grid` module documentation for the collection
+    interface, the topology derived from block patches, and the file formats.
     """
 
     def __init__(self, blocks=None):
@@ -269,8 +324,20 @@ class Grid(_LabelledList):
 
         # Phase 1: Coarse alignment using bounding boxes
         bbox_input = util.bounding_box(xyz)
-        flat = self.flat()
-        bbox_grid = util.bounding_box(np.stack([flat.x, flat.y, flat.z], axis=-1))
+        # Reduce each block to its own eight corners before taking the bounding
+        # box of those, rather than materialising every node of the grid at
+        # once: the corners already carry the per-axis extremes, so the box of
+        # the corners is the box of the nodes.
+        bbox_grid = util.bounding_box(
+            np.concatenate(
+                [
+                    util.bounding_box(
+                        np.stack([b.x.ravel(), b.y.ravel(), b.z.ravel()], axis=-1)
+                    )
+                    for b in self
+                ]
+            )
+        )
 
         # Test all combinations on bounding box vertices
         transform_errors = []
@@ -1153,18 +1220,6 @@ class Grid(_LabelledList):
             avg.flags.writeable = True
             avg.fill(0.0)
             avg.flags.writeable = False
-
-    def flat(self):
-        """Return concatenated flattened view of all blocks.
-
-        Returns
-        -------
-        Block
-            Single block containing concatenated flat data from all blocks
-        """
-        from ember.block_util import concatenate
-
-        return concatenate(*[block.flat() for block in self])
 
     def interp_from(self, src):
         """Interpolate solution from src Grid onto this one, block by block.
@@ -2209,3 +2264,12 @@ class ConvergenceStep:
 
     dP_D: float = 0.0
     """Derivative contribution to :attr:`P_throttle` [Pa]."""
+
+
+class DivergenceError(RuntimeError):
+    """Raised when a block's conserved field contains a NaN.
+
+    A dedicated type lets a solver loop catch divergence precisely and exit
+    cleanly (leaving the invalid field in place for debugging) while genuinely
+    unexpected errors still propagate. See :meth:`Grid.check_nan`.
+    """
