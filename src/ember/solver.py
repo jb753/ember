@@ -10,7 +10,11 @@ integrators on each step according to :attr:`SolverConfig.n_stage`:
   which builds the unscaled residual exactly as multall (F1=2, F2=-1, F3=0),
   scales it by dt_vol*CFL, and distributes it to the nodes by accumulating
   straight onto ``conserved_nd`` -- bypassing the setters so the P/T cache
-  versions are left untouched (frozen pressure);
+  versions are left untouched (frozen pressure); optionally accelerated by
+  Denton block-sum multigrid at ``n_levels >= 1``, restricting the same
+  lagged ``[2*(dF/dt)_n - (dF/dt)_{n-1}]`` quantity at every coarse level
+  (matching multall's ``TSTEP``, which sums its own lagged ``STORE`` into
+  the multigrid block accumulators);
 
 * ``n_stage >= 1`` -- a Jameson multi-stage Runge-Kutta step (:func:`rk_step`),
   optionally accelerated by Denton block-sum multigrid
@@ -70,7 +74,10 @@ class SolverConfig:
     viscous limit to recover the inviscid stable CFL."""
 
     sf_resid: float = 0.0
-    """Implicit residual smoothing factor"""
+    """Implicit residual smoothing factor. Only affects the RK path's coarse
+    multigrid correction (:func:`advance_rk_stage_mg`'s ``sf_irs``); scree
+    (``n_stage == 0``) does not yet have an IRS-smoothed multigrid variant,
+    so this is inert whenever ``n_stage == 0``."""
 
     gain_filt: float = 0.0
     """Selective frequency damping gain."""
@@ -82,13 +89,15 @@ class SolverConfig:
     """Number of time integration stages per step. 0 for scree, >=1 for RK."""
 
     n_levels: int = 0
-    """Number of coarse multigrid levels; 0 disables multigrid."""
+    """Number of coarse multigrid levels; 0 disables multigrid. Honored by
+    both integrators (:func:`scree_step` and :func:`rk_step`)."""
 
     fac_mgrid: float = 0.2
-    """Scaling factor on multigrid corrections."""
+    """Scaling factor on multigrid corrections. Honored by both integrators
+    (:func:`scree_step` and :func:`rk_step`)."""
 
 
-def scree_step(grid, cfl):
+def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
     """Advance `block` one scree step in place.
 
     Assumes ``block.dt_vol_nd`` is populated and the block's cached
@@ -96,18 +105,38 @@ def scree_step(grid, cfl):
     responsible for invalidating caches and applying boundary conditions
     between steps.
 
-    The whole step is one fused Fortran kernel (``scree_advance``): it builds
-    the extrapolated, scaled increment ``(2*residual - store)*CFL*dt_vol``,
-    rolls the residual history (``store <- residual``), and scatters the
-    cell-centred increment straight onto ``conserved_nd`` -- bypassing the
-    setters so the P/T cache versions stay frozen.
+    With ``n_levels == 0`` (the default) the whole step is one fused Fortran
+    kernel (``scree_advance``): it builds the extrapolated, scaled increment
+    ``(2*residual - store)*CFL*dt_vol``, rolls the residual history
+    (``store <- residual``), and scatters the cell-centred increment straight
+    onto ``conserved_nd`` -- bypassing the setters so the P/T cache versions
+    stay frozen. This path is untouched by ``fac_mgrid``/``n_levels`` and
+    reproduces every existing caller byte-for-byte.
+
+    With ``n_levels >= 1``, ``scree_advance_mg`` additionally injects a Denton
+    block-sum multigrid correction at ``n_levels`` coarse levels, exactly like
+    :func:`advance_rk_stage_mg`'s coarse path but for the scree fine term.
+    Every level -- fine and coarse -- restricts/uses the same Denton-lagged
+    quantity ``(2*residual - store)``, not plain ``residual``: this was
+    verified against multall's ``TSTEP`` reference, which computes the
+    lagged ``STORE = F1*DELTA + F2*DIFF`` first and sums exactly that into
+    its multigrid block accumulators (not the raw flux imbalance). For
+    ``l = 1..n_levels`` the coarse block has ``b = 2**l`` and
+    ``coef_l = cfl*fac_mgrid/b**2 * 2**-(l-1)`` -- :func:`advance_rk_stage_mg`'s
+    formula with ``alpha=1``, since scree takes one full-weight step per call
+    rather than a partial RK sub-stage.
 
     ``block.store`` is the persistent previous-step residual buffer
     (``(dF/dt)_{n-1}``); the kernel reads it then overwrites it with the
     current residual for the next step. The transient increment buffer is
     borrowed from ``block.scratch`` as a cell-shaped, zero-copy view of the
     leading elements -- nothing outside the kernel reads it, so only its
-    element count matters, not its indexing.
+    element count matters, not its indexing. When ``n_levels >= 1``, the
+    coarse block-sum accumulator (``corr``) and separable-prolong scratch
+    (``aplane``, ``bb``) are carved from ``block.tau_q_halo`` -- dead outside
+    the viscous pass at this point in the step, exactly as for
+    :func:`advance_rk_stage_mg` -- so no per-step allocation is needed for
+    either integrator.
 
     Smoothing is not applied here -- the caller runs :meth:`~ember.grid.Grid.smooth` once on
     the post-step state, shared with the RK path.
@@ -125,16 +154,41 @@ def scree_step(grid, cfl):
         # residual_nd is read here (a cache hit from the loop's get_convergence, or
         # a fresh evaluation) BEFORE the kernel runs. residual_nd itself uses
         # block.scratch as its flow_i workspace, so it must be fully materialised
-        # before scree_advance reuses scratch as tmp -- passing it as an argument
-        # guarantees that ordering.
-        ember.fortran.scree_advance(
-            cons=block.conserved_nd,
-            residual=block.residual_nd,
-            store=store_cell,
-            dt_vol=block.dt_vol_nd,
-            cfl=cfl,
-            tmp=tmp,
-        )
+        # before scree_advance(_mg) reuses scratch as tmp -- passing it as an
+        # argument guarantees that ordering.
+        if n_levels > 0:
+            nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
+            # aplane, bb, corr are carved from tau_q_halo -- dead outside the
+            # viscous pass (already completed and consumed before this call),
+            # same reuse as advance_rk_stage_mg's coarse scratch.
+            aplane, bb, corr = util.carve_view(
+                block.tau_q_halo,
+                (ni - 1, nc1j),
+                (ni - 1, nj - 1, nc1k, 5),
+                (nc1i, nc1j, nc1k, 5),
+            )
+            ember.fortran.scree_advance_mg(
+                cons=block.conserved_nd,
+                residual=block.residual_nd,
+                store=store_cell,
+                dt_vol=block.dt_vol_nd,
+                cfl=cfl,
+                fmgrid=fac_mgrid,
+                n_levels=n_levels,
+                tmp=tmp,
+                corr=corr,
+                aplane=aplane,
+                bb=bb,
+            )
+        else:
+            ember.fortran.scree_advance(
+                cons=block.conserved_nd,
+                residual=block.residual_nd,
+                store=store_cell,
+                dt_vol=block.dt_vol_nd,
+                cfl=cfl,
+                tmp=tmp,
+            )
 
 
 def _mg_irs_scratch_sizes(ni, nj, nk, n_levels, np=5):
@@ -452,7 +506,7 @@ def run(grid, conf):
         # Take a step with the selected integrator.  Both reuse the first
         # residual evaluated above, RK then recalculates each substep
         if conf.n_stage == 0:
-            scree_step(grid, conf.cfl)
+            scree_step(grid, conf.cfl, conf.fac_mgrid, conf.n_levels)
         else:
             rk_step(grid, conf)
 

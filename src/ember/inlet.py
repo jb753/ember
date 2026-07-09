@@ -53,7 +53,7 @@ class InletPatch(RevolutionPatch):
         self._Po_nd_target = None
         self._P_nd_soln = None
         # Relaxation factor for the static-pressure update, read by apply().
-        self.rf = 1.0
+        self.rf = 0.2
 
     def _calc_target(self):
         """Compute nondimensional target tuple from Po, To, Alpha, Beta."""

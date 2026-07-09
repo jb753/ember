@@ -1,4 +1,13 @@
 {
+ "CASES": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "tuple"
+  }
+ ],
  "ER": [
   {
    "is_class": false,
@@ -62,15 +71,6 @@
    "name": "float"
   }
  ],
- "P_out": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "float32"
-  }
- ],
  "R_MID": [
   {
    "is_class": false,
@@ -107,24 +107,6 @@
    "name": "float"
   }
  ],
- "T_out": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "float32"
-  }
- ],
- "Vbar": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "float32"
-  }
- ],
  "add_thermodynamic_ramp": [
   {
    "is_class": false,
@@ -143,662 +125,7 @@
    "name": "function"
   }
  ],
- "block": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block"
-  }
- ],
- "block.Alpha": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.Alpha"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.Alpha"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.Alpha"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.Alpha"
-  }
- ],
- "block.P": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.P"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.P"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.P"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.P"
-  }
- ],
- "block.Po": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.Po"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.Po"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.Po"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.Po"
-  }
- ],
- "block.Rgas.mean": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.Rgas"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.Rgas"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.Rgas"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.Rgas"
-  }
- ],
- "block.T": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.T"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.T"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.T"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.T"
-  }
- ],
- "block.To": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.To"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.To"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.To"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.To"
-  }
- ],
- "block.V": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.V"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.V"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.V"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.V"
-  }
- ],
- "block.Vx": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.Vx"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.Vx"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.Vx"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.Vx"
-  }
- ],
- "block.ho": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.ho"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.ho"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.ho"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.ho"
-  }
- ],
- "block.patches": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.patches"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.patches"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.patches"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.patches"
-  }
- ],
- "block.r": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.r"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.r"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.r"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.r"
-  }
- ],
- "block.s": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.s"
-  }
- ],
- "block.set_Nb": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.set_Nb"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.set_Nb"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.set_Nb"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.set_Nb"
-  }
- ],
- "block.set_Omega": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.set_Omega"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.set_Omega"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.set_Omega"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.set_Omega"
-  }
- ],
- "block.set_Vt": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.set_Vt"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.set_Vt"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.set_Vt"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.set_Vt"
-  }
- ],
- "block.set_Vx": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.set_Vx"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.set_Vx"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.set_Vx"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.set_Vx"
-  }
- ],
- "block.set_fluid": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.set_fluid"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.set_fluid"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.set_fluid"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.set_fluid"
-  }
- ],
- "block.set_h_s": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.set_h_s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.set_h_s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.set_h_s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.set_h_s"
-  }
- ],
- "block.set_xrt": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.set_xrt"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.set_xrt"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.set_xrt"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.set_xrt"
-  }
- ],
- "block.y": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.y"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.y"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.y"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.y"
-  }
- ],
- "block.z": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.block",
-   "module_short": "ember.block",
-   "name": "Block.z"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "Block.z"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.z"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.z"
-  }
- ],
- "cluster_walls": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "function"
-  }
- ],
- "count_passages": [
+ "build_case": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -1103,207 +430,6 @@
    "name": "run"
   }
  ],
- "fluid": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "PerfectFluid"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "PerfectFluid"
-  }
- ],
- "fluid.change_datum": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "PerfectFluid.change_datum"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "PerfectFluid.change_datum"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "_Fluid.change_datum"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "_Fluid.change_datum"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "abc",
-   "module_short": "abc",
-   "name": "ABC.change_datum"
-  }
- ],
- "fluid.get_a": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "PerfectFluid.get_a"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "PerfectFluid.get_a"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "_Fluid.get_a"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "_Fluid.get_a"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "abc",
-   "module_short": "abc",
-   "name": "ABC.get_a"
-  }
- ],
- "fluid.get_h": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "PerfectFluid.get_h"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "PerfectFluid.get_h"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "_Fluid.get_h"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "_Fluid.get_h"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "abc",
-   "module_short": "abc",
-   "name": "ABC.get_h"
-  }
- ],
- "fluid.get_s": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "PerfectFluid.get_s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "PerfectFluid.get_s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "_Fluid.get_s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "_Fluid.get_s"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "abc",
-   "module_short": "abc",
-   "name": "ABC.get_s"
-  }
- ],
- "fluid.set_P_T": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "PerfectFluid.set_P_T"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "PerfectFluid.set_P_T"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.fluid",
-   "module_short": "ember.fluid",
-   "name": "_Fluid.set_P_T"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "_Fluid.set_P_T"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "abc",
-   "module_short": "abc",
-   "name": "ABC.set_P_T"
-  }
- ],
  "grid": [
   {
    "is_class": false,
@@ -1431,200 +557,7 @@
    "name": "ABC.set_fluid"
   }
  ],
- "hist": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.convergence_history",
-   "module_short": "ember.convergence_history",
-   "name": "ConvergenceHistory"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "ConvergenceHistory"
-  }
- ],
- "hist.err_mdot": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.convergence_history",
-   "module_short": "ember.convergence_history",
-   "name": "ConvergenceHistory.err_mdot"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "ConvergenceHistory.err_mdot"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.err_mdot"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.err_mdot"
-  }
- ],
- "hist.i_log": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.convergence_history",
-   "module_short": "ember.convergence_history",
-   "name": "ConvergenceHistory.i_log"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "ConvergenceHistory.i_log"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.i_log"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.i_log"
-  }
- ],
- "hist.i_step": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.convergence_history",
-   "module_short": "ember.convergence_history",
-   "name": "ConvergenceHistory.i_step"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "ConvergenceHistory.i_step"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.i_step"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.i_step"
-  }
- ],
- "hist.residual": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.convergence_history",
-   "module_short": "ember.convergence_history",
-   "name": "ConvergenceHistory.residual"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "ConvergenceHistory.residual"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.residual"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.residual"
-  }
- ],
- "hist.zeta": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.convergence_history",
-   "module_short": "ember.convergence_history",
-   "name": "ConvergenceHistory.zeta"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "ConvergenceHistory.zeta"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.struct",
-   "module_short": "ember.struct",
-   "name": "StructuredData.zeta"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "StructuredData.zeta"
-  }
- ],
- "ho": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "float32"
-  }
- ],
- "i_step": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "ndarray"
-  }
- ],
  "make_block": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "function"
-  }
- ],
- "make_fluid": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -1640,15 +573,6 @@
    "module": "builtins",
    "module_short": "builtins",
    "name": "function"
-  }
- ],
- "n": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "int"
   }
  ],
  "np.abs": [
@@ -1681,22 +605,6 @@
    "module": "numpy",
    "module_short": "numpy",
    "name": "asarray"
-  }
- ],
- "np.concatenate": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "_ArrayFunctionDispatcher"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "concatenate"
   }
  ],
  "np.float32": [
@@ -1873,6 +781,15 @@
    "name": "function"
   }
  ],
+ "plot_mesh_k": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
  "plt.show": [
   {
    "is_class": false,
@@ -1905,13 +822,13 @@
    "name": "subplots"
   }
  ],
- "rho_o": [
+ "results": [
   {
    "is_class": false,
    "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "float32"
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "list"
   }
  ],
  "set_boundary_conditions": [
@@ -1923,15 +840,6 @@
    "name": "function"
   }
  ],
- "so": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "numpy",
-   "module_short": "numpy",
-   "name": "float32"
-  }
- ],
  "solve": [
   {
    "is_class": false,
@@ -1941,7 +849,23 @@
    "name": "function"
   }
  ],
- "util.cluster": [
+ "time.perf_counter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "time",
+   "module_short": "time",
+   "name": "perf_counter"
+  }
+ ],
+ "util.cluster_symmetric": [
   {
    "is_class": false,
    "is_explicit": false,
@@ -1954,7 +878,7 @@
    "is_explicit": false,
    "module": "ember.util",
    "module_short": "ember.util",
-   "name": "cluster"
+   "name": "cluster_symmetric"
   }
  ]
 }

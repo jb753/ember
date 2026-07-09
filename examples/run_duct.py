@@ -159,6 +159,9 @@ def add_thermodynamic_ramp(block):
 # within the rounding of ``Nb`` to an integer, and the geometric expansion
 # away from each wall is visible as the thinning of cells towards all four
 # sides.
+#
+# A constant-``k`` slice, drawn in the meridional ``x``-``r`` plane, shows the
+# streamwise mesh (uniform) and the clustering towards the two ``r`` walls.
 
 
 def plot_mesh(block, i=0):
@@ -167,12 +170,26 @@ def plot_mesh(block, i=0):
     z = np.asarray(block.z)[i]
 
     fig, ax = plt.subplots(figsize=(6.0, 6.0))
-    ax.plot(z, y, color="C0", lw=0.4)  # lines of constant j
-    ax.plot(z.T, y.T, color="C0", lw=0.4)  # lines of constant k
-    ax.set_xlabel("$z$")
-    ax.set_ylabel("$y$")
+    ax.plot(z, y, color="k", lw=0.2)  # lines of constant j
+    ax.plot(z.T, y.T, color="k", lw=0.2)  # lines of constant k
     ax.set_title(f"Cross-section mesh at $i={i}$ ({NJ} x {NK} nodes)")
     ax.set_aspect("equal")
+    ax.axis("off")
+    fig.tight_layout()
+    plt.show()
+
+
+def plot_mesh_k(block, k=0):
+    """Draw the constant-k grid slice in the meridional x-r plane."""
+    x = np.asarray(block.x)[:, :, k]
+    r = np.asarray(block.r)[:, :, k]
+
+    fig, ax = plt.subplots(figsize=(8.0, 4.0))
+    ax.plot(x, r, color="k", lw=0.2)  # lines of constant j
+    ax.plot(x.T, r.T, color="k", lw=0.2)  # lines of constant i
+    ax.set_title(f"Meridional mesh at $k={k}$ ({NI} x {NJ} nodes)")
+    ax.set_aspect("equal")
+    ax.axis("off")
     fig.tight_layout()
     plt.show()
 
@@ -185,23 +202,24 @@ def plot_mesh(block, i=0):
 # Runge-Kutta scheme accelerated by a two-level multigrid correction.
 
 
-def solve(grid, n_stage, cfl, sf_resid):
+def solve(grid, n_stage, cfl, sf_resid, fac_mgrid):
     """March the flow field and return the history with its logged step count.
 
     ``n_stage=0`` selects Denton's basic scree march, and ``n_stage>=1`` a
     Jameson multi-stage Runge-Kutta step. ``sf_resid`` is the implicit
     residual smoothing factor, which relaxes the explicit stability limit and
-    so admits a larger ``cfl``.
+    so admits a larger ``cfl``. ``fac_mgrid`` scales the two-level multigrid
+    correction and is tuned separately per scheme.
     """
-    n_step = 1000
+    n_step = 500
     conf = ember.solver.SolverConfig(
         n_step=n_step,
-        n_step_log=10,
+        n_step_log=50,
         n_step_avg=1,
         cfl=cfl,
         n_stage=n_stage,
         n_levels=2,
-        fac_mgrid=0.2,
+        fac_mgrid=fac_mgrid,
         sf_resid=sf_resid,
         inviscid=False,
     )
@@ -215,7 +233,10 @@ def solve(grid, n_stage, cfl, sf_resid):
     # A diverged march breaks out of the step loop early, so the step count it
     # actually reached is unknown to within one logging interval. Quoting a
     # per-step cost against the requested n_step would flatter it.
-    tag = f"n_stage={n_stage}, cfl={cfl}, sf_resid={sf_resid}: {wall:.1f} s"
+    tag = (
+        f"n_stage={n_stage}, cfl={cfl}, sf_resid={sf_resid}, "
+        f"fac_mgrid={fac_mgrid}: {wall:.1f} s"
+    )
     if hist.diverged:
         print(f"{tag}, DIVERGED after >={int(i_step[-1])} of {n_step} steps")
     else:
@@ -254,14 +275,14 @@ def build_case():
 # Convergence history
 # -------------------
 #
-# Three marches of the same initial condition, differing only in the time
-# integrator, the CFL number, and the residual smoothing. Everything else,
-# including the two multigrid levels, is held fixed.
+# Two marches of the same initial condition, differing in the time
+# integrator, the CFL number, and the multigrid scaling factor. The two
+# multigrid levels are held fixed for both.
 
 CASES = (
-    ("scree, CFL=0.4", dict(n_stage=0, cfl=0.4, sf_resid=0.0)),
-    ("RK4, CFL=3", dict(n_stage=4, cfl=3.0, sf_resid=0.0)),
-    ("RK4 + IRS, CFL=10", dict(n_stage=4, cfl=10.0, sf_resid=1.0)),
+    ("scree, CFL=0.4", dict(n_stage=0, cfl=0.4, sf_resid=0.0, fac_mgrid=0.4)),
+    ("RK4, CFL=4.0", dict(n_stage=4, cfl=4.0, sf_resid=0.0, fac_mgrid=0.0)),
+    ("RK4+RS, CFL=8.0", dict(n_stage=4, cfl=8.0, sf_resid=1.0, fac_mgrid=0.0)),
 )
 
 
@@ -311,6 +332,11 @@ grid = build_case()
 # The cross-section mesh of the assembled grid, before any marching.
 
 plot_mesh(grid[0])
+
+# %%
+# The meridional mesh of the same grid.
+
+plot_mesh_k(grid[0])
 
 # %%
 # Now march the flow field once per scheme and plot how each converges.
