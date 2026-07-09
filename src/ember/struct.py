@@ -611,11 +611,12 @@ class StructuredData:
         return out  # end method
 
     def reshape(self, shape):
-        """Reshape the data axes, not a copy.
+        """Reshape the data axes to a different shape.
 
         Returns a new instance sharing metadata with the original. The output
-        data is a zero-copy view where possible (contiguous input); otherwise
-        numpy makes a copy. The total number of spatial points must be unchanged.
+        data is a zero-copy view where possible;
+        otherwise numpy makes a copy. The total number of spatial points must
+        be unchanged.
 
         Parameters
         ----------
@@ -657,7 +658,7 @@ class StructuredData:
         """Reorder the data axes, defaulting to reversal.
 
         Returns a new instance sharing metadata with the original. The data is
-        a zero-copy view where possible (contiguous input); otherwise numpy
+        a zero-copy view where possible; otherwise numpy
         makes a copy. Writes through a view are visible in the original.
 
         Parameters
@@ -705,7 +706,7 @@ class StructuredData:
 
         Returns a new instance of the same class sharing the underlying data
         array, metadata dict, and version counters with the original. Mutations
-        to data (e.g. writing to a variable array) are visible through both
+        to data (i.e. writing to the array) are visible through both
         objects. Derived properties are held in a separate per-instance cache,
         so each view starts cold.
 
