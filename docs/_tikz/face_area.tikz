@@ -1,0 +1,152 @@
+\documentclass[tikz,border=6pt]{standalone}
+\usepackage{tikz}
+\usepackage{tikz-3dplot}
+\usepackage{amsmath}
+\usetikzlibrary{arrows.meta, calc}
+
+% Same viewpoint as cell_indexing.tikz
+% Mapping: x -> 3D x (right), r -> 3D z (up), r*theta -> 3D y (into page)
+\tdplotsetmaincoords{70}{15}
+
+\begin{document}
+\begin{tikzpicture}[
+    arr/.style={-{Stealth[length=5pt,width=4pt]}, thick},
+    edgearr/.style={-{Stealth[length=4pt,width=3pt]}, semithick, gray!70},
+    nodelabel/.style={font=\scriptsize, inner sep=1.5pt},
+    steplabel/.style={font=\small, align=center},
+    dot/.style={circle, fill, inner sep=0pt, minimum size=3.6pt},
+]
+
+% ===============================================================
+% Panel (a): the quadrilateral i-face in pseudo-Cartesian space
+%   A = (i, j,   k  )    B = (i, j,   k+1)
+%   C = (i, j+1, k+1)    D = (i, j+1, k  )
+% Coordinates are (x, r*theta, r) to suit the tdplot axis mapping.
+% The face is deliberately warped: the four nodes are not coplanar.
+% ===============================================================
+\begin{scope}[tdplot_main_coords, scale=3.4]
+
+\coordinate (A) at ( 0.00, 0.00, 0.00);
+\coordinate (B) at ( 0.12, 1.00, 0.00);
+\coordinate (C) at ( 0.00, 1.10, 1.00);
+\coordinate (D) at (-0.10, 0.05, 1.05);
+% Face centre: mean of the four nodes
+\coordinate (G) at ( 0.005, 0.5375, 0.5125);
+
+\fill[red!8] (A) -- (B) -- (C) -- (D) -- cycle;
+
+% Edge vectors delta x_e, drawn as arrows along the perimeter
+\draw[edgearr] (A) -- (B) node[nodelabel, pos=0.55, below right=-2pt] {$\delta\mathbf{x}_1$};
+\draw[edgearr] (B) -- (C) node[nodelabel, midway, right] {$\delta\mathbf{x}_2$};
+\draw[edgearr] (C) -- (D) node[nodelabel, pos=0.55, above left=-3pt] {$\delta\mathbf{x}_3$};
+\draw[edgearr] (D) -- (A) node[nodelabel, midway, left] {$\delta\mathbf{x}_4$};
+
+\foreach \pt in {A,B,C,D}{\node[dot] at (\pt) {};}
+\node[dot, fill=red!65!black] at (G) {};
+\node[nodelabel, anchor=west, text=red!65!black, xshift=2pt] at (G) {$\mathbf{0}$};
+
+\node[nodelabel, anchor=north east] at (A) {$A=(i,\;j,\;k)$};
+\node[nodelabel, anchor=north west] at (B) {$B=(i,\;j,\;k{+}1)$};
+\node[nodelabel, anchor=south west] at (C) {$C=(i,\;j{+}1,\;k{+}1)$};
+\node[nodelabel, anchor=south east] at (D) {$D=(i,\;j{+}1,\;k)$};
+
+% Local axes
+\begin{scope}[shift={(0.35, -0.35, -0.30)}]
+    \coordinate (O) at (0,0,0);
+    \draw[arr] (O) -- (0.30, 0, 0) node[right, font=\small] {$x$};
+    \draw[arr] (O) -- (0, 0, 0.30) node[above, font=\small] {$r$};
+    \draw[arr] (O) -- (0, 0.30, 0) node[above right, font=\small] {$r\theta$};
+\end{scope}
+
+\end{scope}
+
+% ===============================================================
+% Projection arrow between the panels
+% ===============================================================
+\node[steplabel, text=red!65!black, anchor=south] at (5.05, 1.62) {drop $x$};
+\draw[arr, red!65!black] (4.45, 1.5) -- (5.65, 1.5);
+\node[font=\scriptsize, anchor=north, align=center]
+    at (5.05, 1.40) {project on to\\the $r$--$r\theta$ plane};
+
+% ===============================================================
+% Panel (b): the projected polygon, split into four triangles
+% Plot coordinates are (r*theta, r), so a counter-clockwise
+% traversal gives a positive delta A_x.
+% ===============================================================
+\begin{scope}[shift={(6.9, 0.35)}, scale=3.0]
+
+\coordinate (A2) at (0.00,  0.00);
+\coordinate (B2) at (1.00,  0.00);
+\coordinate (C2) at (1.10,  1.00);
+\coordinate (D2) at (0.05,  1.05);
+\coordinate (G2) at (0.5375, 0.5125);
+% Midpoint of edge 1
+\coordinate (M1) at (0.50,  0.00);
+
+% The three unhighlighted triangles
+\fill[red!6] (G2) -- (B2) -- (C2) -- cycle;
+\fill[red!6] (G2) -- (C2) -- (D2) -- cycle;
+\fill[red!6] (G2) -- (D2) -- (A2) -- cycle;
+% The highlighted triangle for edge 1
+\fill[red!22] (G2) -- (A2) -- (B2) -- cycle;
+
+% Spokes from centre to each node
+\draw[gray!55, thin] (G2) -- (A2);
+\draw[gray!55, thin] (G2) -- (B2);
+\draw[gray!55, thin] (G2) -- (C2);
+\draw[gray!55, thin] (G2) -- (D2);
+
+% Perimeter, with edge 1 emphasised
+\draw[edgearr] (B2) -- (C2) node[nodelabel, midway, right] {$\delta\mathbf{x}_2$};
+\draw[edgearr] (C2) -- (D2) node[nodelabel, midway, above] {$\delta\mathbf{x}_3$};
+\draw[edgearr] (D2) -- (A2) node[nodelabel, midway, left] {$\delta\mathbf{x}_4$};
+\draw[-{Stealth[length=5pt,width=4pt]}, thick, red!65!black]
+    (A2) -- (B2) node[nodelabel, pos=0.78, below] {$\delta\mathbf{x}_1$};
+
+% Position vector of the edge midpoint, and the outward edge normal
+\draw[arr, red!65!black] (G2) -- (M1)
+    node[nodelabel, pos=0.45, left=-1pt] {$\mathbf{x}_1$};
+\draw[arr, red!65!black] (M1) -- ++(0.0, -0.32)
+    node[nodelabel, below] {$\delta\mathbf{n}_{1x}$};
+
+\foreach \pt in {A2,B2,C2,D2}{\node[dot] at (\pt) {};}
+\node[dot, fill=red!65!black] at (G2) {};
+\node[nodelabel, anchor=south west, text=red!65!black, inner sep=2pt] at (G2) {$\mathbf{0}$};
+\node[dot, fill=red!65!black, minimum size=3.0pt] at (M1) {};
+
+\node[nodelabel, anchor=north east] at (A2) {$A$};
+\node[nodelabel, anchor=north west] at (B2) {$B$};
+\node[nodelabel, anchor=south west] at (C2) {$C$};
+\node[nodelabel, anchor=south east] at (D2) {$D$};
+
+% Axes for the projected plane
+\begin{scope}[shift={(-0.34, -0.30)}]
+    \coordinate (O2) at (0,0);
+    \draw[arr] (O2) -- (0.26, 0) node[right, font=\small] {$r\theta$};
+    \draw[arr] (O2) -- (0, 0.26) node[above, font=\small] {$r$};
+\end{scope}
+
+\end{scope}
+
+% ===============================================================
+% Captions, on a common baseline below both panels
+% ===============================================================
+\node[steplabel, anchor=north] at (1.75, -1.75)
+    {(a) warped $i$ face, nodes shifted\\so the face centre is the origin};
+\node[steplabel, anchor=north] at (8.55, -1.75)
+    {(b) each edge contributes the signed area of\\
+     its triangle, $\tfrac{1}{2}\,\mathbf{x}_e\times\delta\mathbf{x}_e$};
+
+% ===============================================================
+% The assembled sum for the highlighted component
+% ===============================================================
+\node[font=\small, anchor=north] at (5.15, -2.95)
+    {$\delta A_x
+       = \dfrac{1}{2}\displaystyle\sum_{e=1}^{4}
+         \mathbf{F}_x(\mathbf{x}_e)\cdot\delta\mathbf{n}_{ex}
+       = \dfrac{1}{2}\displaystyle\sum_{e=1}^{4}
+         \bigl(r\theta_e\,\delta r_e
+             - r_e\,\delta r\theta_e\bigr)$};
+
+\end{tikzpicture}
+\end{document}

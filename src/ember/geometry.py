@@ -310,7 +310,7 @@ def get_dAj(xrt, out=None):
     r"""Area vectors of constant-j faces, computed via Gauss's theorem.
 
     Each face is bounded by the four nodes
-    :math:`(i,j,k),\,(i,j,k{+}1),\,(i{+}1,j,k{+}1),\,(i{+}1,j,k)`.
+    :math:`(i,j,k),\,(i{+}1,j,k),\,(i{+}1,j,k{+}1),\,(i,j,k{+}1)`.
     See the module docstring for the Gauss quadrature formula used.
 
     Parameters

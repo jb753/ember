@@ -124,9 +124,9 @@ subroutine get_dAj(xrt, dAj, ni, nj, nk)
             do i = 1, ni-1
                 ! Get vertices for this face
                 A = xrt(i, j, k, :)      ! A(i,j,k)
-                B = xrt(i, j, k+1, :)    ! B(i,j,k+1)
+                B = xrt(i+1, j, k, :)    ! B(i+1,j,k)
                 C = xrt(i+1, j, k+1, :)  ! C(i+1,j,k+1)
-                D = xrt(i+1, j, k, :)    ! D(i+1,j,k)
+                D = xrt(i, j, k+1, :)    ! D(i,j,k+1)
 
                 ! Inlined dA_Gauss calculation
                 ! Assemble vertices
@@ -184,7 +184,7 @@ subroutine get_dAj(xrt, dAj, ni, nj, nk)
                 dl(:, 3, 2) = dv(:, 1)
                 dl(:, 3, 3) = dv(:, 3)
 
-                ! Apply Gauss' theorem for area - direct assignment (negated for dAj)
+                ! Apply Gauss' theorem for area - direct assignment
                 dAj(i, j, k, 1) = 0.0d0
                 dAj(i, j, k, 2) = 0.0d0
                 dAj(i, j, k, 3) = 0.0d0
@@ -196,7 +196,7 @@ subroutine get_dAj(xrt, dAj, ni, nj, nk)
                     dAj(i, j, k, 3) = dAj(i, j, k, 3) + F(m, 3, 1) * dl(m, 3, 1) &
                         + F(m, 3, 2) * dl(m, 3, 2) + F(m, 3, 3) * dl(m, 3, 3)
                 end do
-                dAj(i, j, k, :) = -dAj(i, j, k, :) * 0.5d0
+                dAj(i, j, k, :) = dAj(i, j, k, :) * 0.5d0
             end do
         end do
     end do
