@@ -3,6 +3,85 @@ r"""Storage and manipulation of flow field data for a single structured grid blo
 This module defines the :class:`Block`, our fundamental data structure for representing flow fields on structured grids with any number of dimensions. The class stores coordinates and conserved quantities, and provides properties for derived quantities such as velocity, stagnation pressure, and Mach number. There is also a store for scalar metadata related to
 the entire field, such as reference frame angular velocity. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`.
 
+Initialisation
+==============
+
+The only required argument to the :class:`Block` constructor is the shape of the structured grid, which may be any number of dimensions::
+
+    from ember.block import Block
+    block = Block((ni, nj, nk, ...))  # an ND block
+
+To begin with, an array is allocated to store the raw data only. Storage
+for derived quantities is then allocated lazily on first access, and cached for
+subsequent calls to save memory. Data and metadata are stored after initialisation using :ref:`block-setters`, and the raw and derived quantities are accessed via attributes such as :attr:`Block.x`, :attr:`Block.P`, and :attr:`Block.Ma`.
+
+.. _block-setters:
+
+Setter methods
+==============
+
+All writes to a :class:`Block` go through a setter method, which validates the
+input, non-dimensionalises it (see :ref:`block-reference-scales`), and
+invalidates any cached derived quantities that depend on it. The setters are:
+
+Geometry:
+
+* :meth:`Block.set_x` -- axial coordinates
+* :meth:`Block.set_r` -- radial coordinates
+* :meth:`Block.set_t` -- circumferential coordinates
+* :meth:`Block.set_xrt` -- all three polar coordinates from one array
+* :meth:`Block.set_xyz` -- Cartesian coordinates, converted to polar on write
+* :meth:`Block.set_wdist` -- distance to the nearest wall
+
+Kinematics:
+
+* :meth:`Block.set_Vx` -- axial velocity
+* :meth:`Block.set_Vr` -- radial velocity
+* :meth:`Block.set_Vt` -- circumferential velocity
+* :meth:`Block.set_Vxrt` -- all three velocity components from one array
+* :meth:`Block.set_V_Alpha_Beta` -- velocity from speed, yaw angle, and pitch angle
+
+Thermodynamic state:
+
+By the two-property rule, each of these takes two independent properties and
+inverts the equation of state to recover density and internal energy, leaving
+the velocity field untouched. See :ref:`block-equations-of-state` for details.
+
+* :meth:`Block.set_P_T` -- static pressure and temperature
+* :meth:`Block.set_P_h` -- static pressure and enthalpy
+* :meth:`Block.set_P_s` -- static pressure and entropy
+* :meth:`Block.set_P_rho` -- static pressure and density
+* :meth:`Block.set_P_rho_nd` -- static pressure and density, non-dimensional
+* :meth:`Block.set_rho_u` -- density and internal energy
+* :meth:`Block.set_rho_s` -- density and entropy
+* :meth:`Block.set_T_s` -- temperature and entropy
+* :meth:`Block.set_h_s` -- enthalpy and entropy
+
+Combined:
+
+Five independent properties are enough to fully specify the flow field.
+
+* :meth:`Block.set_conserved` -- the conserved variables directly
+* :meth:`Block.set_rho_u_Vxrt_nd` -- density, internal energy, and velocity components, non-dimensional
+
+Metadata:
+
+Scalar properties of the field as a whole, rather than per-node data. The first
+two are exceptions: they rescale the raw data in place so that dimensional
+values are preserved when the reference scales change.
+
+* :meth:`Block.set_fluid` -- equation of state
+* :meth:`Block.set_L_ref` -- reference length scale
+* :meth:`Block.set_Omega` -- reference frame angular velocity
+* :meth:`Block.set_rpm` -- reference frame angular velocity, in rev/min
+* :meth:`Block.set_Nb` -- number of blades in the row containing this block
+* :meth:`Block.set_label` -- a string describing the block
+* :meth:`Block.set_triangulated` -- flag for triangulated cut data
+
+Miscellaneous:
+
+* :meth:`Block.set_mu_turb` -- turbulent viscosity
+
 
 Indexing and slicing
 ====================
@@ -46,21 +125,23 @@ Reduction over a spatial axis:
 * :meth:`Block.nanmean` -- as above, ignoring NaNs
 
 
+.. _block-equations-of-state:
+
 Equations of state
 ==================
 
 :class:`Block` does not implement an equation of state itself.  It stores only
 the conserved quantities at grid nodes and delegates every thermodynamic
 relation to a :mod:`ember.fluid` equation of state attached by
-:meth:`Block.set_fluid()`. The :class:`Block` works in terms of density and internal energy, and the :mod:`fluid` performs to and from other thermodynamic properties as needed.
+:meth:`Block.set_fluid()`. The :class:`Block` works in terms of density and internal energy, and the :mod:`fluid` performs calculations to convert from other thermodynamic properties as needed.
 
 Reading a thermodynamic property such as static pressure :attr:`Block.P` first extracts internal energy :attr:`Block.u` from the conserved quantities :attr:`Block.conserved` by subtracting kinetic energy.
-Then, density and internal energy are passed to :py:meth:`ember.fluid.PerfectFluid.get_P` which evaluates the equation of state to calculate pressure. Temperature, entropy, and so on follow this same pattern.
+Then, density and internal energy are passed to :py:meth:`ember.fluid.PerfectFluid.get_P` which evaluates the equation of state to calculate pressure. The result is stored in a cache array for repeated use, that is cleared if the underlying conserved data changes. Temperature, entropy, and so on follow this same pattern.
 
-Writing a thermodynamic state is the reverse of reading out a derived property, although by the two-property rule the set methods take two arguments.
+Writing a thermodynamic state is the reverse of reading out a derived property, although by the two-property rule the set methods must take two arguments.
 :py:meth:`Block.set_P_T` passes pressure
 and temperature to :py:meth:`ember.fluid.PerfectFluid.set_P_T`, which inverts the equation of state to find the corresponding density and internal energy.
-:class:`Block` then saves density directly, and updates the other conserved quantities to reflect the new thermodynamic state while preserving the velocity field.
+:class:`Block` then saves density directly, and updates total energy to reflect the new thermodynamic state while preserving the velocity field.
 
 This works even before any velocity has been set, because a new block starts
 with dummy initial values for density, radius, momenta, and energy.
@@ -74,7 +155,7 @@ Reference scales
 
 Block non-dimensionalisation follows the scheme described in
 :mod:`ember.fluid`; see :ref:`reference-scales`.
-Three raw scales are chosen by the user and passed to the working fluid constructor:
+Three base scales are chosen by the user and passed to the working fluid constructor:
 :math:`\rho_\mathrm{ref}`, :math:`V_\mathrm{ref}`, and :math:`R_\mathrm{ref}`.
 Three derived thermodynamic scales are then formed:
 :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2`,
@@ -87,14 +168,18 @@ Spatial coordinates are normalised by a separate reference length
 accessible as :py:attr:`Block.L_ref`.  It defaults to 1.0 and is
 independent of the fluid.
 
-At rest, a :class:`Block` stores the raw data in non-dimensional form,
-although the reference scales all default to unity. Furthermore, changes to the
-reference scales are handled by rescaling the raw data in place, so they do
-not affect the dimensional properties of the block. This means that
-the non-dimensional storage is completely transparent to the user.
+At rest, a :class:`Block` stores the raw data in non-dimensional form. Calls to, for example, :meth:`Block.set_P_T` and :meth:`Block.set_Vx` divide the dimensional input by the appropriate reference scale before storage.
+Calls to
+:meth:`Block.set_L_ref` and :meth:`Block.set_fluid` rescale the raw data in
+place to maintain the same dimensional values if the reference scales change.
+This keeps the non-dimensional storage completely transparent to the
+user.
+
+Non-dimensional versions of dimensional properties such as :attr:`Block.P_nd` and :attr:`Block.Vx_nd` have an `_nd` suffix to distinguish them from the dimensional versions. The same suffix also applies to setters which take non-dimensional inputs like :meth:`Block.set_P_rho_nd`.
 
 Examples
 ========
+
 Construct a scalar block, set coordinates, fluid, thermodynamic state,
 and velocity::
 
@@ -158,11 +243,9 @@ from ember import util
 from ember.struct import cached_array, cached_object, derived_array, scratch_array
 from functools import wraps
 import ember.fortran
-from ember.block_util import memory_usage
 
 __all__ = [
     "Block",
-    "memory_usage",
 ]
 
 
@@ -1260,27 +1343,27 @@ class Block(ember.struct.StructuredData):
 
         .. math::
 
-            \begin{align}
+            \begin{aligned}
             V_x      &= V \cos\beta\cos\alpha \\
             V_r      &= V \sin\beta\cos\alpha \\
             V_\theta &= V \sin\alpha
-            \end{align}
+            \end{aligned}
 
-        where :math:`\alpha` is the pitch angle and :math:`\beta` is the yaw
-        angle. Trigonometric identities are used to avoid the :math:`\tan(90°)`
-        singularity.
+        where :math:`\alpha` is the yaw angle and :math:`\beta` is the pitch
+        angle. Trigonometric identities are used to avoid the
+        :math:`\tan 90^\circ` singularity.
 
         Parameters
         ----------
         V : array-like
             Velocity magnitude [m/s]. Must broadcast to block shape.
         Alpha : array-like
-            Pitch angle :math:`\alpha` [deg]. Must broadcast to block shape.
+            Yaw angle :math:`\alpha` [deg]. Must broadcast to block shape.
         Beta : array-like
-            Yaw angle :math:`\beta` [deg]. Must broadcast to block shape.
+            Pitch angle :math:`\beta` [deg]. Must broadcast to block shape.
 
         """
-        # Use trigonometric identities to avoid tan(90°) singularity
+        # Use trigonometric identities to avoid tan(90 deg) singularity
         cosAlpha = np.cos(np.radians(Alpha))
         sinAlpha = np.sin(np.radians(Alpha))
         cosBeta = np.cos(np.radians(Beta))
@@ -1532,9 +1615,8 @@ class Block(ember.struct.StructuredData):
     def flat(self):
         """Flatten all axes into a single axis, returning a view rather than a copy.
 
-        On top of the base flattening, this copies the metadata dict and replaces
-        the patches with an empty :class:`~ember.collections.BlockPatchCollection`,
-        since spatial patches have no meaning on a 1D flattened layout.
+        This copies the metadata dict and but clears patches,
+        since 2D spatial patches have no meaning on a 1D flattened layout.
 
         Returns
         -------
@@ -1610,45 +1692,12 @@ class Block(ember.struct.StructuredData):
         :attr:`conserved_nd` directly, as that bypasses the usual cache
         invalidation that happens in the setter methods.
 
+        Unlike :meth:`clear_cache`, this does not clear cached geometry
+        such as :attr:`vol_nd`.
+
         """
         for k in ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"):
             self._versions[k] += 1
-
-    def update_filter(self, cfl, delta):
-        """Evolve the SFD low-pass filter :attr:`conserved_filt_nd` one step.
-
-        First-order exponential moving average of the cell-centred conserved
-        state toward the current cell state, with per-cell timestep
-        ``dt = cfl * dt_vol * vol``. ``cfl`` may be the per-cell/per-equation
-        ``working.cfl`` array or a single scalar; the rank selects the matching
-        kernel. ``delta`` is the filter time constant.
-
-        Must run after the CFL and ``dt_vol`` for the step are current. This is
-        the lone per-step writer of the read-only ``conserved_filt_nd`` buffer
-        (the restart apply is the only other writer), so it owns the
-        ``flags.writeable`` toggle (mirrors the timestep writers).
-        """
-        cons_filt = self.conserved_filt_nd
-        cons_filt.flags.writeable = True
-        if np.ndim(cfl) == 0:
-            ember.fortran.update_filter_scalar(
-                cons_filt=cons_filt,
-                cons_cell=self.conserved_cell_nd,
-                cfl=cfl,
-                dt_vol=self.dt_vol_nd,
-                vol=self.vol_nd,
-                delta_filt=delta,
-            )
-        else:
-            ember.fortran.update_filter_array(
-                cons_filt=cons_filt,
-                cons_cell=self.conserved_cell_nd,
-                cfl=cfl,
-                dt_vol=self.dt_vol_nd,
-                vol=self.vol_nd,
-                delta_filt=delta,
-            )
-        cons_filt.flags.writeable = False
 
     @derived_array
     def a(self):
@@ -1662,13 +1711,7 @@ class Block(ember.struct.StructuredData):
 
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def a_nd(self, out):
-        r"""Nondimensional acoustic speed :math:`a/V_\mathrm{ref}` [-], nodal array.
-
-        Cached on the conserved variables (same keys as :attr:`_u_nd_uninit`, its
-        only real dependency via ``u``) so the reusable buffer is passed to
-        ``get_a`` as ``out`` and recomputed in place each stage rather than
-        allocating a fresh array on the per-stage CFL/timestep path.
-        """
+        r"""Nondimensional acoustic speed :math:`a/V_\mathrm{ref}` [-], nodal array."""
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_a(self._rho_nd_uninit, self.u_nd, out=out)
 

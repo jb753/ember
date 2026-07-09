@@ -1262,16 +1262,38 @@ class Grid(_LabelledList):
         for block in self:
             block.update_cached_conserved()
 
-    def update_filter(self, delta_filt, cfl):
+    def update_filter(self, cfl, delta_filt):
+        """Evolve the SFD low-pass filter one step on every block.
+
+        First-order exponential moving average of each block's cell-centred
+        conserved state toward its current cell state, with per-cell timestep
+        ``dt = cfl * dt_vol * vol``. ``cfl`` may be the per-cell/per-equation
+        ``working.cfl`` array or a single scalar; the rank selects the matching
+        kernel. ``delta_filt`` is the filter time constant.
+
+        Must run after the CFL and ``dt_vol`` for the step are current. This is
+        the lone per-step writer of the read-only ``conserved_filt_nd`` buffer
+        (the restart apply is the only other writer), so it owns the
+        ``flags.writeable`` toggle (mirrors the timestep writers).
+
+        """
+        kernel = (
+            ember.fortran.update_filter_scalar
+            if np.ndim(cfl) == 0
+            else ember.fortran.update_filter_array
+        )
         for block in self:
-            ember.fortran.update_filter_scalar(
-                cons_filt=block.conserved_filt_nd,
+            cons_filt = block.conserved_filt_nd
+            cons_filt.flags.writeable = True
+            kernel(
+                cons_filt=cons_filt,
                 cons_cell=block.conserved_cell_nd,
                 cfl=cfl,
                 dt_vol=block.dt_vol_nd,
                 vol=block.vol_nd,
                 delta_filt=delta_filt,
             )
+            cons_filt.flags.writeable = False
 
     def update_residual(self, dampin=None, sf=0.0):
         """Rebuild the unintegrated net-flow residual on every block.

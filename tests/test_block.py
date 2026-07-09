@@ -2365,6 +2365,53 @@ def test_block_member_order():
     assert_class_member_order(src, "Block")
 
 
+EXPECTED_SETTER_GROUPS = (
+    "Geometry",
+    "Kinematics",
+    "Thermodynamic state",
+    "Combined",
+    "Metadata",
+    "Miscellaneous",
+)
+
+
+def test_module_docstring_lists_all_setters():
+    """Every Block.set_* method is listed exactly once in the docstring groups."""
+    import inspect
+    import re
+
+    doc = inspect.cleandoc(ember.block.__doc__)
+
+    # Attribute each bullet to the most recent 'Label:' line. Labels carrying no
+    # set_ bullets, such as the Array methods groups, drop out.
+    groups = {}
+    label = None
+    for line in doc.splitlines():
+        m_label = re.match(r"^(\w[\w ]*):$", line)
+        if m_label:
+            label = m_label.group(1)
+            continue
+        m_bullet = re.match(r"^\* :meth:`Block\.(set_\w+)`", line)
+        if m_bullet:
+            groups.setdefault(label, []).append(m_bullet.group(1))
+
+    listed = [name for names in groups.values() for name in names]
+    actual = {
+        n
+        for n in dir(ember.block.Block)
+        if n.startswith("set_") and callable(getattr(ember.block.Block, n))
+    }
+
+    assert actual, "introspection found no setters"
+    assert tuple(groups) == EXPECTED_SETTER_GROUPS
+    duplicated = sorted({n for n in listed if listed.count(n) > 1})
+    assert not duplicated, f"listed in more than one group: {duplicated}"
+    assert set(listed) == actual, (
+        f"missing from docstring: {sorted(actual - set(listed))}; "
+        f"listed but not on Block: {sorted(set(listed) - actual)}"
+    )
+
+
 def _exec_docstring_example(name):
     """Find the '::' code block tagged '# example: <name>' in the ember.block module
     docstring, exec it, assert all '# value' annotations against captured print output,
