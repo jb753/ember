@@ -389,7 +389,6 @@ def test_vol_dA_scale_L_ref():
     # Same dimensional input -> same dimensional output
     np.testing.assert_allclose(b2.vol, b1.vol, rtol=1e-5)
     np.testing.assert_allclose(b2.dAi, b1.dAi, rtol=1e-5)
-    np.testing.assert_allclose(b2.dl_min, b1.dl_min, rtol=1e-5)
 
 
 def test_Vt_independent_of_L_ref():

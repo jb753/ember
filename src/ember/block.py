@@ -1940,27 +1940,6 @@ class Block(ember.struct.StructuredData):
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_dhdrho_P(self._rho_nd_uninit, self.u_nd, out=out)
 
-    @derived_array
-    def dl_min(self):
-        r"""Minimum cell length :math:`\delta l_\mathrm{min}` [m], cell array.
-
-        See :attr:`dl_min_nd` for the nondimensional form and the geometry reference.
-        """
-        return self.dl_min_nd * self.L_ref
-
-    @cached_array("x", "r", "t")
-    def dl_min_nd(self, out):
-        r"""Minimum nondimensional cell length :math:`\delta l_\mathrm{min} / L_\mathrm{ref}` [-].
-
-        See :ref:`minimum-length-scale` for the calculation.
-        """
-        assert self.ndim == 3, (
-            "dl_min_nd is only defined for a three-dimensional block."
-        )
-        return ember.geometry.get_dl_min(
-            self.dAi_nd, self.dAj_nd, self.dAk_nd, self.vol_nd, out=out
-        )
-
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def dsdP_rho_nd(self, out):
         r"""Nondimensional derivative of entropy wrt. pressure at constant density :math:`(\partial s/\partial p)_\rho \, p_\mathrm{ref} / R_\mathrm{ref}` [-]."""
@@ -1997,22 +1976,6 @@ class Block(ember.struct.StructuredData):
         r"""Nondimensional derivative of internal energy wrt. density at constant pressure :math:`(\partial u/\partial \rho)_p \, \rho_\mathrm{ref} / V_\mathrm{ref}^2` [-]."""
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_dudrho_P(self._rho_nd_uninit, self.u_nd, out=out)
-
-    @cached_array("x", "r", "t")
-    def ell(self, out):
-        r"""Anisotropic smoothing length-scale ratios, nodal array of shape `(ni, nj, nk, 3)`.
-
-        See :ref:`smoothing-length-scales` for the calculation.
-        """
-        assert self.ndim == 3, "ell is only defined for a three-dimensional block."
-
-        node_ratios = ember.geometry.get_ell(self.vol, self.dAi, self.dAj, self.dAk)
-
-        if out is not None:
-            out[...] = node_ratios
-            return out
-
-        return node_ratios
 
     @cached_array()
     def F_body_nd(self, out):

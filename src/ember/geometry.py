@@ -262,11 +262,13 @@ def get_dA_tri(xrt, out=None):
 
 
 def get_dAi(xrt, out=None):
-    r"""Area vectors of constant-i faces, computed via Gauss's theorem.
+    r"""Area vectors of constant-i faces.
 
     Each face is bounded by the four nodes
-    :math:`(i,j,k),\,(i,j,k{+}1),\,(i,j{+}1,k{+}1),\,(i,j{+}1,k)`.
-    See the module docstring for the Gauss quadrature formula used.
+    :math:`(i,j,k),\,(i,j,k{+}1),\,(i,j{+}1,k{+}1),\,(i,j{+}1,k)`,
+    circulating so that the area vector points along increasing i.
+    Evaluated as half the cross product of the face diagonals, which is
+    exact for a warped face; see the Geometry and indexing documentation.
 
     Parameters
     ----------
@@ -307,11 +309,13 @@ def get_dAi(xrt, out=None):
 
 
 def get_dAj(xrt, out=None):
-    r"""Area vectors of constant-j faces, computed via Gauss's theorem.
+    r"""Area vectors of constant-j faces.
 
     Each face is bounded by the four nodes
-    :math:`(i,j,k),\,(i{+}1,j,k),\,(i{+}1,j,k{+}1),\,(i,j,k{+}1)`.
-    See the module docstring for the Gauss quadrature formula used.
+    :math:`(i,j,k),\,(i{+}1,j,k),\,(i{+}1,j,k{+}1),\,(i,j,k{+}1)`,
+    circulating so that the area vector points along increasing j.
+    Evaluated as half the cross product of the face diagonals, which is
+    exact for a warped face; see the Geometry and indexing documentation.
 
     Parameters
     ----------
@@ -352,11 +356,13 @@ def get_dAj(xrt, out=None):
 
 
 def get_dAk(xrt, out=None):
-    r"""Area vectors of constant-k faces, computed via Gauss's theorem.
+    r"""Area vectors of constant-k faces.
 
     Each face is bounded by the four nodes
-    :math:`(i,j,k),\,(i,j{+}1,k),\,(i{+}1,j{+}1,k),\,(i{+}1,j,k)`.
-    See the module docstring for the Gauss quadrature formula used.
+    :math:`(i,j,k),\,(i,j{+}1,k),\,(i{+}1,j{+}1,k),\,(i{+}1,j,k)`,
+    circulating so that the area vector points along increasing k.
+    Evaluated as half the cross product of the face diagonals, which is
+    exact for a warped face; see the Geometry and indexing documentation.
 
     Parameters
     ----------
@@ -504,103 +510,6 @@ def get_vol(xrt, dAi, dAj, dAk, out=None):
     return _handle_output(vol, out)
 
 
-def get_dl_min(dAi, dAj, dAk, vol, out=None):
-    r"""Minimum bounding length scale for each cell.
-
-    .. math::
-
-        \delta l_\mathrm{min} = \frac{\delta\mathcal{V}}
-            {\max\!\bigl(\|\delta A_i\|, \|\delta A_j\|, \|\delta A_k\|\bigr)}
-
-    where each face area magnitude is taken as the larger of the two opposing
-    faces in that direction.
-
-    Parameters
-    ----------
-    dAi : Array
-        Constant-i face area vectors.
-    dAj : Array
-        Constant-j face area vectors.
-    dAk : Array
-        Constant-k face area vectors.
-    vol : Array
-        Cell volumes.
-    out : Array, optional
-        Output array.
-
-    Returns
-    -------
-    Array
-        Minimum bounding length scale for each cell.
-    """
-
-    # Accept both (3, ...) components-first and (..., 3) components-last layouts
-    # Check components-first only when last dim is not 3 (avoids ambiguity)
-    if dAi.ndim == 4 and dAi.shape[-1] != 3 and dAi.shape[0] == 3:
-        dAi = np.moveaxis(dAi, 0, -1)
-    if dAj.ndim == 4 and dAj.shape[-1] != 3 and dAj.shape[0] == 3:
-        dAj = np.moveaxis(dAj, 0, -1)
-    if dAk.ndim == 4 and dAk.shape[-1] != 3 and dAk.shape[0] == 3:
-        dAk = np.moveaxis(dAk, 0, -1)
-
-    # Get face area magnitudes
-    dAi = util.vecnorm(dAi)
-    dAj = util.vecnorm(dAj)
-    dAk = util.vecnorm(dAk)
-
-    # Take the minimum of the bounding length
-    # scales for every coordinate direction
-    dAi_max = np.maximum(dAi[1:, :, :], dAi[:-1, :, :])
-    dAj_max = np.maximum(dAj[:, 1:, :], dAj[:, :-1, :])
-    dAk_max = np.maximum(dAk[:, :, 1:], dAk[:, :, :-1])
-
-    # Smallest length scale uses max area
-    dAmax = np.maximum(np.maximum(dAi_max, dAj_max), dAk_max)
-    dlmin = vol / dAmax
-
-    return _handle_output(dlmin, out)
-
-
-def get_zeta(xrt, out=None):
-    """Calculate normalized arc length along i, j, k grid lines.
-
-    Computes normalized arc length [0 to 1] for all three grid directions
-    and returns them in a single stacked array.
-
-    Parameters
-    ----------
-    xrt : Array, shape (ni, nj, nk, 3)
-        Polar coordinates at three-dimensional block nodes.
-    out : Array, optional
-        Output array to store results. Must have shape (ni, nj, nk, 3).
-
-    Returns
-    -------
-    zeta : Array, shape (ni, nj, nk, 3)
-        Normalized arc lengths from 0 to 1 along each direction where:
-        zeta[:,:,:,0] = zetai (arc length along i)
-        zeta[:,:,:,1] = zetaj (arc length along j)
-        zeta[:,:,:,2] = zetak (arc length along k)
-
-    """
-    # Validate input
-    ndim = xrt.ndim - 1  # Spatial dimensions only
-    if ndim != 3:
-        raise ValueError(f"zeta is not defined for ndim={ndim}.")
-
-    ni, nj, nk = xrt.shape[:3]
-
-    # Allocate output array
-    zeta = util.zeros((ni, nj, nk, 3))
-
-    # Call Fortran implementation
-    import ember.fortran
-
-    ember.fortran.get_zeta(xrt, zeta)
-
-    return _handle_output(zeta, out)
-
-
 def compute_parametric_coords(xrt, const_dim):
     """Compute parametric coordinates for a structured patch face.
 
@@ -686,78 +595,3 @@ def compute_parametric_coords(xrt, const_dim):
     uv = np.expand_dims(uv_2d, axis=const_dim)
 
     return uv
-
-
-def get_ell(vol, dAi, dAj, dAk):
-    r"""Anisotropic smoothing length-scale factors with Martinelli scaling.
-
-    Each direction's smoothing weight follows the Martinelli/Swanson-Turkel
-    anisotropic scaling of the JST dissipation. With the per-direction
-    spectral radius taken as the geometric (area) part :math:`\lambda_d \propto
-    \mathrm{d}A_d`, the scaled coefficient
-    :math:`\lambda_d [1 + \sum_{e \neq d}(\lambda_e/\lambda_d)^\sigma]`
-    reduces, after the sum-to-three normalisation below, to the one-parameter
-    power law
-
-    .. math::
-        L_d = 3\, \mathrm{d}A_d^{\,p} \Big/ \sum_e \mathrm{d}A_e^{\,p},
-        \qquad p = 1 - \sigma .
-
-    :math:`p = 1` (:math:`\sigma = 0`) is the pure directional limit (most
-    dissipation concentrated in the thin direction); :math:`p = 0` is isotropic.
-    Here :math:`p = 0.5` (:math:`\sigma = 0.5`) is hard-coded, in the range
-    recommended for high-aspect-ratio viscous grids: it keeps the streamwise
-    high-frequency dissipation finite so the odd-even mode in the long
-    direction is damped on the schedule of the global time step.
-
-    Parameters
-    ----------
-    vol : Array, shape (ni, nj, nk)
-        Cell volumes (unused: the volume factor cancels in the normalisation).
-    dAi : Array, shape (3, ni+1, nj, nk)
-        Constant-i face area vectors, components on first axis.
-    dAj : Array, shape (3, ni, nj+1, nk)
-        Constant-j face area vectors, components on first axis.
-    dAk : Array, shape (3, ni, nj, nk+1)
-        Constant-k face area vectors, components on first axis.
-
-    Returns
-    -------
-    Array, shape (ni+1, nj+1, nk+1, 3)
-        Node-centred smoothing weights for (i, j, k) directions, normalised so
-        the three directional weights sum to 3 (all equal to 1 for an isotropic
-        cell).
-    """
-    p = 0.5
-
-    # Per-direction floor on the normalised weight. The sum-to-three
-    # normalisation below discards the magnitude of the Martinelli scaling and
-    # with it the standard guarantee lambda~_d >= lambda_d (each direction keeps
-    # at least its isotropic share). On a high-aspect-ratio cell the long
-    # direction's weight is driven below the isotropic value of 1, starving its
-    # high-frequency (odd/even) dissipation. Flooring each nodal weight at the
-    # isotropic value restores that guarantee: it is a no-op on isotropic cells
-    # and only ever lifts a starved direction back up, never reduces the thin
-    # direction. Since it scales the 4th-order (biharmonic) term, which is ~0 on
-    # smooth gradients, this damps the 2 dx mode without smearing the mean field.
-    floor = 1.0
-
-    dAi_mag = np.linalg.norm(dAi, axis=0)
-    dAj_mag = np.linalg.norm(dAj, axis=0)
-    dAk_mag = np.linalg.norm(dAk, axis=0)
-
-    dAi_avg = 0.5 * (dAi_mag[1:, :, :] + dAi_mag[:-1, :, :])
-    dAj_avg = 0.5 * (dAj_mag[:, 1:, :] + dAj_mag[:, :-1, :])
-    dAk_avg = 0.5 * (dAk_mag[:, :, 1:] + dAk_mag[:, :, :-1])
-
-    ni, nj, nk = vol.shape
-    cell_ratios = np.zeros((ni, nj, nk, 3))
-    cell_ratios[..., 0] = dAi_avg**p
-    cell_ratios[..., 1] = dAj_avg**p
-    cell_ratios[..., 2] = dAk_avg**p
-
-    node_ratios = cell_to_node(cell_ratios)
-    node_ratios *= 3.0 / node_ratios.sum(axis=-1, keepdims=True)
-    np.maximum(node_ratios, floor, out=node_ratios)
-
-    return node_ratios

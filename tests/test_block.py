@@ -4,7 +4,6 @@ Tests Block class functionality for structured grid operations including coordin
 
 Test cases:
 - test_block_dA: Block face area calculations
-- test_block_dl_min: Minimum grid spacing calculations
 - test_block_vol_positive_left_handed: Cell volumes are positive for the normal (left-handed) i,j,k grid
 - test_vol_sign_matches_left_handed_jacobian: get_vol's sign convention matches the left-handed real-space Jacobian
 - test_props_read_only: Read-only property validation
@@ -124,23 +123,6 @@ def test_block_dA(block):
     assert np.allclose(block.dAj, dAj_second)
     assert np.allclose(block.dAk, dAk_second)
     assert np.allclose(block.vol, vol_second)
-
-
-def test_block_dl_min(block):
-    """Test that Block.dl_min property works correctly."""
-    # Calculate expected dl_min using the function directly
-    dAi = ember.geometry.get_dAi(block.xrt)
-    dAj = ember.geometry.get_dAj(block.xrt)
-    dAk = ember.geometry.get_dAk(block.xrt)
-    vol = ember.geometry.get_vol(block.xrt, dAi, dAj, dAk)
-    expected_dl_min = ember.geometry.get_dl_min(dAi, dAj, dAk, vol)
-
-    # Test that the property returns the same result
-    assert np.allclose(block.dl_min, expected_dl_min)
-
-    # Verify property is consistent across multiple accesses
-    dl_min_second = block.dl_min
-    assert np.allclose(block.dl_min, dl_min_second)
 
 
 def test_block_vol_positive_left_handed(block):
