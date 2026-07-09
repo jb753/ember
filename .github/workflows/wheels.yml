@@ -91,3 +91,20 @@ jobs:
       - name: Smoke test the installed package
         run: |
           testpypi-venv/bin/python -c "from ember.fortran import set_residual; print('OK')"
+
+  publish-pypi:
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: wheelhouse
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wheelhouse/
