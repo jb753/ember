@@ -1,6 +1,6 @@
 # ember
 
-An 'Enhanced Multi-block solvER' for turbomachinery computational fluid
+An 'Enhanced Multi-Block solvER' for turbomachinery computational fluid
 dynamics, written by [James Brind](https://jamesbrind.uk) of the [Whittle
 Laboratory](https://whittle.eng.cam.ac.uk) at the University of Cambridge.
 Solves the compressible Reynolds-averaged Navier-Stokes equations on
@@ -59,20 +59,21 @@ block.set_fluid(fluid)
 
 # Define inlet boundary conditions at i=0 face
 # Fixed stagnation pressure and temperature, no swirl
-Po1 = 1e5
-To1 = 300.0
+Po1 = 1e5  # [Pa]
+To1 = 300.0  # [K]
 block.patches["inlet"] = ember.patch.InletPatch(i=0)
 block.patches["inlet"].set_Po_To_Alpha_Beta(Po1, To1, 0.0, 0.0)
 
 # Define outlet boundary conditions at i=-1 face
 # Fixed static pressure
-P2 = 0.9e5
+P2 = 0.9e5  # [Pa]
 block.patches["outlet"] = ember.patch.OutletPatch(i=-1)
 block.patches["outlet"].set_P(P2)
 
 # Initial conditions: uniform axial flow
 block.set_P_T(P2, To1)
-block.set_Vx(100.0)
+Vx_guess = 100.0  # [m/s]
+block.set_Vx(Vx_guess)
 block.set_Vr(0.0)
 block.set_Vt(0.0)
 
