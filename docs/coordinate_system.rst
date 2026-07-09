@@ -41,6 +41,9 @@ one of three shapes depending on where the quantity is located.
      - | Face areas
        | Fluxes
 
+The indexing conventions are illustrated graphically in the following diagram,
+showing node, cell, and face indices for a single hexahedral cell.
+
 .. tikz:: _tikz/cell_indexing.tikz
    :alt: Diagram of a single hexahedral cell showing node indices at each corner and the three face types (i-face, j-face, k-face) with their outward normals.
    :align: center
@@ -57,7 +60,7 @@ axis.
 Coordinate system
 -----------------
 
-Grids are described in polar coordinates :math:`(x, r, \theta)` where :math:`x`
+Grids are described in cylindrical polar coordinates :math:`(x, r, \theta)` where :math:`x`
 is the axial direction, :math:`r` the radial direction, and :math:`\theta` the
 circumferential angle measured clockwise when looking upstream, giving a
 *left-handed* system opposite to the right-handed convention common in general
@@ -65,21 +68,21 @@ CFD codes.  A consequence is that cell volumes computed from the divergence
 theorem are positive when the index triple :math:`(i, j, k)` is a left-handed
 set, i.e.\ when :math:`i`, :math:`j`, and :math:`k` increase in the
 :math:`x`, :math:`r`, and :math:`\theta` directions respectively.
-
-.. tikz:: _tikz/coordinate_system.tikz
-   :alt: Left-handed polar coordinate system viewed looking upstream, showing the axial x, radial r, and circumferential r-theta directions at a point, with a circular arrow marking the clockwise sense of increasing theta.
-   :align: center
-   :width: 70%
-
-Where a Cartesian frame is needed, it is right-handed and related to the polar
-coordinates by
+The polar system is related to a standard right-handed Cartesian frame by
 
 .. math::
 
     y = r \cos\theta, \qquad z = -r \sin\theta
 
 so that the :math:`\theta = 0` datum lies along :math:`+y` and the minus sign
-on :math:`z` produces the clockwise sense of increasing :math:`\theta`.
+on :math:`z` produces the clockwise sense of increasing :math:`\theta`,
+as illustrated in the diagram.
+
+.. tikz:: _tikz/coordinate_system.tikz
+   :alt: Left-handed polar coordinate system viewed looking upstream, showing the axial x, radial r, and circumferential r-theta directions at a point, with a circular arrow marking the clockwise sense of increasing theta.
+   :align: center
+   :width: 70%
+
 
 .. _face-areas:
 
