@@ -14,7 +14,7 @@ Developed by `James Brind <https://jamesbrind.uk/>`_ at the `Whittle Laboratory 
 
 .. toctree::
    :maxdepth: 2
-   :caption: API Reference
+   :caption: Reference manual
 
    coordinate_system
    api/fluid

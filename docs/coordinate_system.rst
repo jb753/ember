@@ -66,6 +66,21 @@ theorem are positive when the index triple :math:`(i, j, k)` is a left-handed
 set, i.e.\ when :math:`i`, :math:`j`, and :math:`k` increase in the
 :math:`x`, :math:`r`, and :math:`\theta` directions respectively.
 
+.. tikz:: _tikz/coordinate_system.tikz
+   :alt: Left-handed polar coordinate system viewed looking upstream, showing the axial x, radial r, and circumferential r-theta directions at a point, with a circular arrow marking the clockwise sense of increasing theta.
+   :align: center
+   :width: 70%
+
+Where a Cartesian frame is needed, it is right-handed and related to the polar
+coordinates by
+
+.. math::
+
+    y = r \cos\theta, \qquad z = -r \sin\theta
+
+so that the :math:`\theta = 0` datum lies along :math:`+y` and the minus sign
+on :math:`z` produces the clockwise sense of increasing :math:`\theta`.
+
 .. _face-areas:
 
 Face areas
