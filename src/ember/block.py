@@ -2423,8 +2423,8 @@ class Block(ember.struct.StructuredData):
 
             conserved_nd += cfl * dt_vol_nd * residual_nd
 
-        At steady state the residual tends to zero. See ``scree.advance`` and
-        ``scree.advance_rk_stage_mg`` for the integrators that consume it.
+        At steady state the residual tends to zero. See ``solver.scree_step`` and
+        ``solver.advance_rk_stage_mg`` for the integrators that consume it.
         """
         return util.allocate_or_reuse(out, self.shape_cell + (5,))
 
@@ -2517,8 +2517,8 @@ class Block(ember.struct.StructuredData):
         - viscous face-flux scratch (slots 0-3) in
           :meth:`ember.grid.Grid.update_sources`;
         - inviscid ``flow`` buffer (all 5 slots) in :attr:`residual_nd`, and the
-          per-step increment buffer in ``scree.scree_step`` /
-          ``scree.advance_rk_stage_mg``.
+          per-step increment buffer in ``solver.scree_step`` /
+          ``solver.advance_rk_stage_mg``.
 
         Because nothing persists, each consumer owns the whole buffer for the
         duration of its own call and may treat it as freshly-allocated private
@@ -2555,17 +2555,17 @@ class Block(ember.struct.StructuredData):
         Counterpart to :attr:`scratch`: a buffer that DOES carry meaning between
         kernel calls. UNLIKE :attr:`scratch` its value must survive across calls,
         so no consumer may treat it as throwaway. It is sized to the nodal shape
-        and serves two mutually exclusive scree integrators (selected by
-        ``ScreeConfig.n_stage``):
+        and serves two mutually exclusive integrators (selected by
+        ``SolverConfig.n_stage``):
 
         - Denton lagged march (``n_stage == 0``): holds the ``(dF/dt)_{n-1}`` term
-          of the scree extrapolation (``scree.advance``) -- written at the end of
+          of the scree extrapolation (``solver.scree_step``) -- written at the end of
           one step and read at the start of the next. That term is cell-shaped, so
-          ``advance`` takes a leading ``(ni-1, nj-1, nk-1, 5)`` F-order view of
+          ``scree_step`` takes a leading ``(ni-1, nj-1, nk-1, 5)`` F-order view of
           this buffer (zero copy) and feeds it to ``scree_advance``.
         - Jameson RK march (``n_stage >= 1``): holds the nodal conserved snapshot
           ``U^(0)`` taken at the start of each step; every stage marches off it
-          (``scree.advance_rk_stage_mg``).
+          (``solver.advance_rk_stage_mg``).
 
         Uses the :func:`scratch_array` mechanism (allocated once, never
         invalidated, left writeable for the ``intent(inout)`` kernel write).
@@ -2643,7 +2643,7 @@ class Block(ember.struct.StructuredData):
 
         Because it carries no state between passes, the flat buffer doubles as
         the coarse block-sum accumulator and separable-prolong scratch in
-        ``scree.advance_rk_stage_mg`` (see that function's docstring), where the
+        ``solver.advance_rk_stage_mg`` (see that function's docstring), where the
         (i,j,k) layout inside is irrelevant -- only the element count matters.
         Each borrower (a viscous pass, or one RK-stage multigrid call) owns the
         whole buffer for its own duration and may treat it as freshly-allocated

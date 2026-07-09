@@ -1,15 +1,24 @@
-"""Denton basic "scree" explicit time march with a lagged-pressure loop.
+"""Explicit time-marching solver with a lagged-pressure loop.
 
-F_{n+1} = F_n + [2*(dF/dt)_n - (dF/dt)_{n-1}] * dt    (Denton 2017, Eq 4)
+:func:`run` drives a whole grid to a steady state, selecting one of two
+integrators on each step according to :attr:`SolverConfig.n_stage`:
 
-The per-block step (:func:`advance`) builds the unscaled residual exactly as
-multall (F1=2, F2=-1, F3=0), scales it by dt_vol*CFL, and distributes it to the
-nodes by accumulating straight onto ``conserved_nd`` -- bypassing the setters so
-the P/T cache versions are left untouched (frozen pressure).
+* ``n_stage == 0`` -- Denton's basic "scree" march (:func:`scree_step`),
 
-:func:`loop` drives a whole grid on that idea: the conserved cache is flushed
-once per step (one full-field pressure evaluation), the body force and dt_vol
-are refreshed only every few steps on that fresh P, the march and the
+    F_{n+1} = F_n + [2*(dF/dt)_n - (dF/dt)_{n-1}] * dt    (Denton 2017, Eq 4)
+
+  which builds the unscaled residual exactly as multall (F1=2, F2=-1, F3=0),
+  scales it by dt_vol*CFL, and distributes it to the nodes by accumulating
+  straight onto ``conserved_nd`` -- bypassing the setters so the P/T cache
+  versions are left untouched (frozen pressure);
+
+* ``n_stage >= 1`` -- a Jameson multi-stage Runge-Kutta step (:func:`rk_step`),
+  optionally accelerated by Denton block-sum multigrid
+  (:func:`advance_rk_stage_mg`).
+
+Both integrators share the same lagged-pressure loop: the conserved cache is
+flushed once per step (one full-field pressure evaluation), the body force and
+dt_vol are refreshed only every few steps on that fresh P, the march and the
 constant-coefficient smoother (:meth:`Grid.smooth`) then run on the frozen
 state, and the boundary conditions touch only boundary slices. This keeps
 exactly one full-field P recompute per step; everything else reuses the cache.
@@ -27,8 +36,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ScreeConfig:
-    """Configuration for the scree explicit time march."""
+class SolverConfig:
+    """Configuration for the explicit time-marching solver."""
 
     n_step: int
 
@@ -42,7 +51,7 @@ class ScreeConfig:
     """Number of steps to average over."""
 
     cfl: float = 0.4
-    """Constant CFL number for the scree march"""
+    """Constant CFL number for the march"""
 
     sf4: float = 0.008
     """Fourth-order smoothing factor."""
@@ -200,7 +209,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     smoothing (Jameson IRS) to the coarse block-restricted residual at every
     level, exactly like the fine-grid smoothing ``Grid.update_residual``
     already applies via its ``sf`` argument -- both are driven by the same
-    ``ScreeConfig.sf_resid`` value (see :func:`rk_step`). This selects the
+    ``SolverConfig.sf_resid`` value (see :func:`rk_step`). This selects the
     experimental :func:`ember.fortran.advance_rk_stage_mg_fused_irs` kernel
     instead of ``_opt``; ``sf_irs=0`` makes its smoothing step an exact no-op
     (see the kernel's docstring), so it is only selected when ``sf_irs > 0``,
@@ -350,8 +359,8 @@ def _validate_mg(grid, n_levels):
 
 
 @util.profile
-def loop(grid, conf):
-    """Drive a grid through ``n_step`` explicit scree steps.
+def run(grid, conf):
+    """Drive a grid through ``n_step`` explicit time-marching steps.
 
     Implements the lagged-pressure ordering so each step pays exactly one
     full-field pressure evaluation:
@@ -363,9 +372,9 @@ def loop(grid, conf):
        (:meth:`Grid.get_convergence` + :meth:`ConvergenceHistory.format_message`).
        Placed after the body-force refresh but before the march so its residual
        read serves as the step's single full-field recompute, which
-       :func:`advance` then reuses; ``show_cfl=False`` since the fixed-CFL march
+       :func:`scree_step` then reuses; ``show_cfl=False`` since the fixed-CFL march
        never populates ``working.cfl``;
-    2. march every block with the selected integrator (:func:`advance` or the
+    2. march every block with the selected integrator (:func:`scree_step` or the
        RK :func:`advance_rk_stage_mg` sweep) -- writes ``conserved_nd`` in place
        without bumping the cache, so P/T stay frozen for the rest of the step;
     3. smooth every block with the constant-coefficient kernel

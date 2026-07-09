@@ -1648,16 +1648,16 @@
   {
    "is_class": false,
    "is_explicit": false,
-   "module": "ember.scree",
-   "module_short": "ember.scree",
-   "name": "ScreeConfig"
+   "module": "ember.solver",
+   "module_short": "ember.solver",
+   "name": "SolverConfig"
   },
   {
    "is_class": false,
    "is_explicit": false,
    "module": "ember",
    "module_short": "ember",
-   "name": "ScreeConfig"
+   "name": "SolverConfig"
   }
  ],
  "dh": [
@@ -1946,45 +1946,6 @@
    "name": "OutletPatch"
   }
  ],
- "ember.scree.ScreeConfig": [
-  {
-   "is_class": true,
-   "is_explicit": false,
-   "module": "ember.scree",
-   "module_short": "ember.scree",
-   "name": "ScreeConfig"
-  },
-  {
-   "is_class": true,
-   "is_explicit": false,
-   "module": "ember",
-   "module_short": "ember",
-   "name": "ScreeConfig"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.scree",
-   "module_short": "ember.scree",
-   "name": "ScreeConfig"
-  }
- ],
- "ember.scree.loop": [
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "builtins",
-   "module_short": "builtins",
-   "name": "function"
-  },
-  {
-   "is_class": false,
-   "is_explicit": false,
-   "module": "ember.scree",
-   "module_short": "ember.scree",
-   "name": "loop"
-  }
- ],
  "ember.set_iter.set_ho_s_Ma_Alpha_Beta": [
   {
    "is_class": false,
@@ -1999,6 +1960,45 @@
    "module": "ember.set_iter",
    "module_short": "ember.set_iter",
    "name": "set_ho_s_Ma_Alpha_Beta"
+  }
+ ],
+ "ember.solver.SolverConfig": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.solver",
+   "module_short": "ember.solver",
+   "name": "SolverConfig"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "SolverConfig"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.solver",
+   "module_short": "ember.solver",
+   "name": "SolverConfig"
+  }
+ ],
+ "ember.solver.run": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.solver",
+   "module_short": "ember.solver",
+   "name": "run"
   }
  ],
  "err": [

@@ -3,7 +3,7 @@ Square-duct multigrid convergence
 ==================================
 
 This example solves the inviscid flow through a square duct with an
-``ember.scree`` explicit multigrid march, and plots the convergence history.
+``ember.solver`` explicit multigrid march, and plots the convergence history.
 It is the same case driven by ``scripts/run_duct.py``, with the command-line
 options replaced by fixed values below.
 
@@ -21,7 +21,7 @@ import ember.block
 import ember.grid
 import ember.fluid
 import ember.patch
-import ember.scree
+import ember.solver
 import ember.set_iter
 from ember import util
 
@@ -137,10 +137,10 @@ block.set_Vx(Vx * ramp[:, None, None])
 # Multigrid march
 # ---------------
 #
-# ``ember.scree.loop`` advances the flow field with an explicit
+# ``ember.solver.run`` advances the flow field with an explicit
 # Runge-Kutta scheme accelerated by a three-level multigrid correction.
 
-conf = ember.scree.ScreeConfig(
+conf = ember.solver.SolverConfig(
     n_step=300,
     n_step_log=10,
     n_step_avg=1,
@@ -151,7 +151,7 @@ conf = ember.scree.ScreeConfig(
     sf_resid=0.0,
     inviscid=False,
 )
-hist = ember.scree.loop(grid, conf)
+hist = ember.solver.run(grid, conf)
 n = hist.i_log + 1
 i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
 

@@ -12,7 +12,7 @@ import ember.fluid
 import ember.grid
 import ember.mixing_communicator
 import ember.patch
-import ember.scree
+import ember.solver
 from ember import util
 
 
@@ -99,14 +99,14 @@ def mixing_grid():
 
 def test_mixing_plane_no_nan(mixing_grid):
     """Mixing-plane run completes 5 steps without NaN or non-physical values."""
-    config = ember.scree.ScreeConfig(
+    config = ember.solver.SolverConfig(
         n_step=5,
         n_step_avg=1,
         n_step_log=5,
         n_stage=4,
     )
 
-    ember.scree.loop(mixing_grid, config)
+    ember.solver.run(mixing_grid, config)
 
     for block in mixing_grid:
         assert np.all(np.isfinite(block.conserved)), "Non-finite conserved variables"

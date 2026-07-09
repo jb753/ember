@@ -17,7 +17,7 @@ import ember.block
 import ember.grid
 import ember.fluid
 import ember.patch
-import ember.scree
+import ember.solver
 import ember.set_iter
 from ember import util
 
@@ -145,7 +145,7 @@ def run(args):
         f"fac_mgrid={args.fac_mgrid}, sf_resid={args.sf_resid}, n_step={args.n_step}"
     )
 
-    conf = ember.scree.ScreeConfig(
+    conf = ember.solver.SolverConfig(
         n_step=args.n_step,
         n_step_log=100,
         n_step_avg=1,
@@ -159,13 +159,13 @@ def run(args):
 
     try:
         t0 = time.perf_counter()
-        hist = ember.scree.loop(grid, conf)
+        hist = ember.solver.run(grid, conf)
         wall = time.perf_counter() - t0
     except (RuntimeError, FloatingPointError) as exc:
         print(f"Diverged ({type(exc).__name__}: {exc})")
         sys.exit(1)
 
-    # ember.scree.loop catches a NaN blow-up internally (Grid.check_nan) and
+    # ember.solver.run catches a NaN blow-up internally (Grid.check_nan) and
     # just breaks its step loop early rather than re-raising, so a diverged
     # run does not necessarily surface as an exception here. It also always
     # calls grid.finalise_average() on the way out -- even after an early

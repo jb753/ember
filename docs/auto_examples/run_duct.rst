@@ -22,7 +22,7 @@ Square-duct multigrid convergence
 ==================================
 
 This example solves the inviscid flow through a square duct with an
-``ember.scree`` explicit multigrid march, and plots the convergence history.
+``ember.solver`` explicit multigrid march, and plots the convergence history.
 It is the same case driven by ``scripts/run_duct.py``, with the command-line
 options replaced by fixed values below.
 
@@ -44,7 +44,7 @@ output after changing the case.
     import ember.grid
     import ember.fluid
     import ember.patch
-    import ember.scree
+    import ember.solver
     import ember.set_iter
     from ember import util
 
@@ -117,12 +117,6 @@ fixed by a bulk Mach number at a given stagnation state.
 
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-
-    <ember.block.Block object at 0x7f26f48afc50>
 
 
 
@@ -155,12 +149,6 @@ static pressure with a backflow state for any transient reverse flow.
 
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-
-    OutletPatch(i=(-1, -1), j=(0, -1), k=(0, -1), label='outlet')
 
 
 
@@ -211,12 +199,6 @@ do some work to relax back to the boundary-condition-consistent state.
 
 
 
-.. rst-class:: sphx-glr-script-out
-
- .. code-block:: none
-
-
-    <ember.block.Block object at 0x7f26f48afc50>
 
 
 
@@ -225,7 +207,7 @@ do some work to relax back to the boundary-condition-consistent state.
 Multigrid march
 ---------------
 
-``ember.scree.loop`` advances the flow field with an explicit
+``ember.solver.run`` advances the flow field with an explicit
 Runge-Kutta scheme accelerated by a three-level multigrid correction.
 
 .. GENERATED FROM PYTHON SOURCE LINES 142-158
@@ -233,7 +215,7 @@ Runge-Kutta scheme accelerated by a three-level multigrid correction.
 .. code-block:: Python
 
 
-    conf = ember.scree.ScreeConfig(
+    conf = ember.solver.SolverConfig(
         n_step=300,
         n_step_log=10,
         n_step_avg=1,
@@ -244,7 +226,7 @@ Runge-Kutta scheme accelerated by a three-level multigrid correction.
         sf_resid=0.0,
         inviscid=False,
     )
-    hist = ember.scree.loop(grid, conf)
+    hist = ember.solver.run(grid, conf)
     n = hist.i_log + 1
     i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
 
@@ -311,7 +293,7 @@ values.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 13.301 seconds)
+   **Total running time of the script:** (0 minutes 13.914 seconds)
 
 
 .. _sphx_glr_download_auto_examples_run_duct.py:

@@ -161,7 +161,7 @@ def make_restart(grid):
     snapshot covers all multigrid levels without needing access to the coarse
     grids directly. dt_vol is not snapshotted — it is recomputed from the
     restored field on the next run. No current solver loop populates this
-    stash (it predates ``scree.py``'s multigrid), so ``cfl`` presently always
+    stash (it predates ``solver.py``'s multigrid), so ``cfl`` presently always
     falls back to the fine level's own working CFL.
 
     The conserved field is taken from the ``_conserved_inst_restart`` stash —

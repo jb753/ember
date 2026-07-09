@@ -17,7 +17,7 @@ import pytest
 
 import ember.grid  # noqa: F401  binds ember.fortran
 import ember
-import ember.scree
+import ember.solver
 from ember.block import Block
 from ember.fluid import PerfectFluid
 
@@ -40,7 +40,7 @@ def _make_inputs(ni, nj, nk, seed):
 
 
 def _make_scratch(ni, nj, nk, n_levels):
-    """Buffers matching the carve_view shapes used in ember.scree.advance_rk_stage_mg."""
+    """Buffers matching the carve_view shapes used in ember.solver.advance_rk_stage_mg."""
     nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
     tmp = np.asfortranarray(np.zeros((ni - 1, nj - 1, nk - 1, NP), dtype=np.float32))
     corr = np.asfortranarray(np.zeros((nc1i, nc1j, nc1k, NP), dtype=np.float32))
@@ -214,7 +214,7 @@ def test_sf_irs_damps_checkerboard_coarse_correction():
 
 
 def _make_block(shape):
-    """Minimal block for exercising ember.scree.advance_rk_stage_mg directly.
+    """Minimal block for exercising ember.solver.advance_rk_stage_mg directly.
 
     Only geometry/fluid/thermodynamic state are set up (mirrors
     conftest._make_block); residual_nd/dt_vol_nd/store are poked directly
@@ -236,7 +236,7 @@ def _make_block(shape):
 
 
 def test_advance_rk_stage_mg_sf_irs_wiring():
-    """ember.scree.advance_rk_stage_mg selects the IRS kernel when sf_irs>0.
+    """ember.solver.advance_rk_stage_mg selects the IRS kernel when sf_irs>0.
 
     sf_irs=0 (the default) must reproduce the pre-existing _opt-only path
     exactly; sf_irs>0 must route through advance_rk_stage_mg_fused_irs instead
@@ -262,20 +262,20 @@ def test_advance_rk_stage_mg_sf_irs_wiring():
         return ember.grid.Grid([block])
 
     grid_opt = _build()
-    ember.scree.advance_rk_stage_mg(
+    ember.solver.advance_rk_stage_mg(
         grid_opt, alpha=1.0, cfl=0.4, fac_mgrid=0.2, n_levels=n_levels
     )
     cons_default = grid_opt[0].conserved_nd.copy()
 
     grid_zero = _build()
-    ember.scree.advance_rk_stage_mg(
+    ember.solver.advance_rk_stage_mg(
         grid_zero, alpha=1.0, cfl=0.4, fac_mgrid=0.2, n_levels=n_levels, sf_irs=0.0
     )
     cons_zero = grid_zero[0].conserved_nd.copy()
     np.testing.assert_array_equal(cons_default, cons_zero)
 
     grid_irs = _build()
-    ember.scree.advance_rk_stage_mg(
+    ember.solver.advance_rk_stage_mg(
         grid_irs, alpha=1.0, cfl=0.4, fac_mgrid=0.2, n_levels=n_levels, sf_irs=0.6
     )
     cons_irs = grid_irs[0].conserved_nd.copy()

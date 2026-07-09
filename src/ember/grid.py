@@ -1256,7 +1256,7 @@ class Grid(_LabelledList):
         Fans :meth:`~ember.block.Block.update_cached_conserved` out across the grid, forcing
         each block's cached properties keyed on the conserved variables to
         recompute on next access. Needed after writing ``conserved_nd`` directly
-        (bypassing the setters), e.g. the explicit scree march.
+        (bypassing the setters), e.g. the explicit time march.
 
         """
         for block in self:

@@ -365,7 +365,7 @@ class ConvergenceHistory(StructuredData):
             When provided, a timing line is inserted after the step header.
         show_cfl : bool, optional
             Append the per-equation CFL line (default True). Set False for
-            fixed-CFL marches (e.g. the explicit scree loop) that never populate
+            fixed-CFL marches (e.g. the explicit solver loop) that never populate
             ``now.cfl``.
 
         Returns
