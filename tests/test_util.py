@@ -27,6 +27,9 @@ Test cases:
 import itertools
 import numpy as np
 import pytest
+import ember.block
+import ember.fluid
+import ember.set_iter
 from ember import util
 from ember.util import angles_to_components, components_to_angles
 
