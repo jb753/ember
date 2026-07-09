@@ -1267,9 +1267,9 @@ class Grid(_LabelledList):
 
         First-order exponential moving average of each block's cell-centred
         conserved state toward its current cell state, with per-cell timestep
-        ``dt = cfl * dt_vol * vol``. ``cfl`` may be the per-cell/per-equation
-        ``working.cfl`` array or a single scalar; the rank selects the matching
-        kernel. ``delta_filt`` is the filter time constant.
+        ``dt = cfl * dt_vol * vol``. ``cfl`` may be a per-cell/per-equation
+        array of shape ``(ni-1, nj-1, nk-1, 5)`` or a single scalar; the rank
+        selects the matching kernel. ``delta_filt`` is the filter time constant.
 
         Must run after the CFL and ``dt_vol`` for the step are current. This is
         the lone per-step writer of the read-only ``conserved_filt_nd`` buffer

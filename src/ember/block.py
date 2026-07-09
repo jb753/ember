@@ -249,77 +249,6 @@ __all__ = [
 ]
 
 
-def _working(func):
-    """Decorator for lazy-allocated working arrays stored in self._store.
-
-    Only used by WorkingArrays. First access calls func(self, out=None) and
-    stashes the result in self._store; subsequent accesses return the same
-    object. Never invalidated by data changes.
-    """
-    func_key = func.__name__
-
-    @wraps(func)
-    def wrapper(self):
-        if func_key not in self._store:
-            self._store[func_key] = func(self, out=None)
-        return self._store[func_key]
-
-    return property(wrapper)
-
-
-class WorkingArrays:
-    """Lazy-allocated solver scratch arrays for a Block.
-
-    Accessed via ``block.working``. Arrays are allocated on first access and
-    reused for the lifetime of the solver run. Storage lives in ``self._store``
-    independently of ``Block._store`` (which holds cached_array and
-    cached_object entries).
-    """
-
-    __slots__ = ("block", "_store")
-
-    def __init__(self, block):
-        self.block = block
-        self._store = {}
-
-    def __contains__(self, key):
-        return key in self._store
-
-    @_working
-    def cfl(self, out):
-        """Courant-Friedrichs-Lewy number for per-equation time stepping.
-
-        Storage is allocated zeros on first access and modified in place.
-        Clear cache to deallocate.
-
-        Returns
-        -------
-        Array, shape (ni-1, nj-1, nk-1, 5)
-            Cell-centered CFL numbers for each conserved variable equation.
-
-        """
-        return util.allocate_or_reuse(out, self.block.shape_cell + (5,))
-
-    def clear(self, keep=()):
-        """Drop all entries except those whose names are in `keep`."""
-        for k in [k for k in self._store if k not in keep]:
-            del self._store[k]
-
-    @_working
-    def error(self, out):
-        """Error estimate array for adaptive time stepping.
-
-        Returns
-        -------
-        Array, shape (ni-1, nj-1, nk-1, 5)
-            Cell-centered error estimates for each conserved variable equation.
-        """
-        return util.allocate_or_reuse(out, self.block.shape_cell + (5,))
-
-    def get(self, key, default=None):
-        return self._store.get(key, default)
-
-
 class _MaskedBlock:
     """Proxy that confines any :class:`Block` setter to the masked nodes.
 
@@ -370,7 +299,7 @@ class Block(ember.struct.StructuredData):
     def __init__(self, shape=()):
         """Allocate a structured grid block.
 
-        This is the primary data container for flow fields. It stores coordinates and conserved variables, and provides properties for derived variables such as velocity, pressure and Mach number. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`, and provides working arrays for solver computations at ``block.working``.
+        This is the primary data container for flow fields. It stores coordinates and conserved variables, and provides properties for derived variables such as velocity, pressure and Mach number. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`.
 
         The setters fall into two complementary families: thermodynamic setters
         (e.g. :py:meth:`set_P_T`, :py:meth:`set_rho_u`) set the density and
@@ -420,9 +349,6 @@ class Block(ember.struct.StructuredData):
 
         # Initialize cache storage for cached properties
         self._store = {}
-
-        # Initialize working arrays namespace
-        self.working = WorkingArrays(self)
 
         # If we are a single point, unset triangulated flag
         if self.ndim == 0:
@@ -502,11 +428,6 @@ class Block(ember.struct.StructuredData):
                 kwall[*ijk_face.T] += 1
 
         return iwall, jwall, kwall
-
-    def _bare_copy(self):
-        out = super()._bare_copy()
-        out.working = WorkingArrays(out)
-        return out
 
     def _make_fluid_property(prop_name, doc, ref=None):
         """Factory for creating fluid property getters.
@@ -966,7 +887,6 @@ class Block(ember.struct.StructuredData):
         )
 
         self.clear_cache()
-        self.working.clear()
 
         for p in self.patches.inlet:
             p._target_nd = None

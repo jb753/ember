@@ -658,54 +658,12 @@ class TestGridInterpFrom:
         # tgt j=6 should exactly match src j=3
         np.testing.assert_allclose(tgt.Vx[:, 6, :], src.Vx[:, 3, :], atol=1e-3)
 
-    def test_same_shape_cfl_copied(self):
-        """Same-shape interp_from copies cfl when present on src."""
-        src = _make_state_block((4, 4, 4))
-        cfl_vals = (
-            np.random.default_rng(0)
-            .uniform(0.1, 2.0, src.working.cfl.shape)
-            .astype(np.float32)
-        )
-        src.working.cfl[...] = cfl_vals
-
-        tgt = _make_state_block((4, 4, 4))
-        Grid([tgt]).interp_from(Grid([src]))
-
-        np.testing.assert_array_equal(tgt.working.cfl, cfl_vals)
-
-    def test_same_shape_no_cfl_not_allocated(self):
-        """Same-shape interp_from does not allocate cfl on tgt when src has none."""
-        src = _make_state_block((4, 4, 4))
-        tgt = _make_state_block((4, 4, 4))
-        Grid([tgt]).interp_from(Grid([src]))
-
-        assert "cfl" not in tgt._store
-
-    def test_upsample_cfl_uniform(self):
-        """Upsampling a uniform cfl field gives the same value everywhere."""
-        src = _make_state_block((3, 3, 3))
-        cfl_val = 0.75
-        src.working.cfl[...] = cfl_val
-
-        tgt = _make_state_block((6, 6, 6))
-        Grid([tgt]).interp_from(Grid([src]))
-
-        np.testing.assert_allclose(tgt.working.cfl, cfl_val, rtol=1e-5)
-
-    def test_upsample_cfl_not_allocated_when_src_absent(self):
-        """Upsampling does not allocate cfl on tgt when src has none."""
-        src = _make_state_block((3, 3, 3))
-        tgt = _make_state_block((6, 6, 6))
-        Grid([tgt]).interp_from(Grid([src]))
-
-        assert "cfl" not in tgt._store
-
 
 class TestGridApplyGuessRestart:
     """Tests for Grid.apply_guess_restart method.
 
     apply_guess_restart takes a list of BlockRestart objects, transfers only
-    conserved variables (no mu_turb, no cfl), and interpolates in uniform
+    conserved variables (no mu_turb), and interpolates in uniform
     index space (no critical-index awareness).
     """
 
@@ -808,13 +766,6 @@ class TestBlockRestartImmutability:
         arr[0, 0, 0, 0] = 99.0
         assert r.conserved[0, 0, 0, 0] == 0.0
 
-    def test_cfl_is_frozen(self):
-        cfl = np.zeros((1, 1, 1, 5))
-        r = BlockRestart(np.zeros((2, 2, 2, 5)), cfl=(cfl,))
-        assert r.cfl[0] is not cfl
-        with pytest.raises(ValueError):
-            r.cfl[0][0, 0, 0, 0] = 1.0
-
     def test_outlet_and_mixing_are_frozen(self):
         a = np.ones((2, 2, 2))
         b = np.ones((1, 2, 1, 5))
@@ -845,65 +796,6 @@ def _mixing_block_with_target(shape, P=2e5, T=350.0):
     mixing.attach_to_block(block)
     mixing.set_target()
     return block, mixing
-
-
-class TestRestartCfl:
-    """cfl field round-trip via BlockRestart."""
-
-    def test_cfl_present_round_trip(self):
-        src = _make_state_block((4, 4, 4))
-        src.working.cfl[...] = 0.42
-        tgt = _make_state_block((4, 4, 4))
-
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-
-        np.testing.assert_allclose(tgt.working.cfl, src.working.cfl)
-
-    def test_cfl_absent_not_allocated(self):
-        src = _make_state_block((4, 4, 4))
-        assert "cfl" not in src._store
-        tgt = _make_state_block((4, 4, 4))
-
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-
-        assert "cfl" not in tgt._store
-
-    def test_cfl_upsample_uniform(self):
-        src = _make_state_block((4, 4, 4))
-        src.working.cfl[...] = 0.7
-        tgt = _make_state_block((6, 6, 6))
-
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-
-        np.testing.assert_allclose(tgt.working.cfl, np.zeros(tgt.working.cfl.shape))
-
-    def test_coarse_cfl_in_snapshot_tuple(self):
-        """make_restart picks up coarse CFL stashed by finalise; cfl[1] matches coarse."""
-        fine = _make_state_block((4, 4, 4))
-        fine.working.cfl[...] = 0.5
-        coarse_cfl = np.full((3, 3, 3, 5), 0.25, dtype=np.float32)
-        fine.working._store["_cfl_coarse_restart"] = (coarse_cfl,)
-
-        restarts = make_restart(Grid([fine]))
-
-        assert len(restarts[0].cfl) == 2
-        np.testing.assert_allclose(restarts[0].cfl[0], fine.working.cfl)
-        np.testing.assert_allclose(restarts[0].cfl[1], coarse_cfl)
-
-    def test_apply_restart_stashes_coarse_cfl(self):
-        """apply_restart stores cfl[1:] in block.working['_cfl_coarse_restart']."""
-        fine = _make_state_block((4, 4, 4))
-        fine.working.cfl[...] = 0.5
-        coarse_cfl = np.full((3, 3, 3, 5), 0.25, dtype=np.float32)
-        fine.working._store["_cfl_coarse_restart"] = (coarse_cfl,)
-
-        restart = make_restart(Grid([fine]))[0]
-        tgt = _make_state_block((4, 4, 4))
-        apply_restart(tgt, restart)
-
-        stashed = tgt.working.get("_cfl_coarse_restart")
-        assert len(stashed) == 1
-        np.testing.assert_allclose(stashed[0], coarse_cfl)
 
 
 class TestRestartOutlet:

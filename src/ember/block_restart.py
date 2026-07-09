@@ -66,12 +66,6 @@ class BlockRestart:
         the filtered field is reconstructed as conserved_cell + lag. Stored
         dimensional so reference scales can differ between save and restore.
         None if conserved_filt was never allocated.
-    cfl : tuple of (ndarray or None), or None
-        Cell-centred CFL fields across all multigrid levels, indexed
-        fine-to-coarse. ``cfl[0]`` is the finest level, shape
-        (ni-1, nj-1, nk-1, 5). Coarser levels follow at indices 1+.
-        An individual element is None if that level had no cfl
-        allocated. The whole field is None if no level had cfl data.
     outlet : tuple of ndarray
         One read-only array per OutletPatch, in `block.patches.outlet`
         order. Each array is `_P_target_nd / _P_raw_nd` (a unitless
@@ -102,7 +96,6 @@ class BlockRestart:
 
     conserved: np.ndarray
     conserved_filt_lag: np.ndarray | None = None
-    cfl: tuple | None = None
     outlet: tuple = ()
     outlet_rho_soln: tuple = ()
     outlet_P_last: tuple = ()
@@ -115,12 +108,6 @@ class BlockRestart:
         if self.conserved_filt_lag is not None:
             object.__setattr__(
                 self, "conserved_filt_lag", _frozen_copy(self.conserved_filt_lag)
-            )
-        if self.cfl is not None:
-            object.__setattr__(
-                self,
-                "cfl",
-                tuple(_frozen_copy(a) if a is not None else None for a in self.cfl),
             )
         object.__setattr__(self, "outlet", tuple(_frozen_copy(a) for a in self.outlet))
         object.__setattr__(
@@ -157,20 +144,8 @@ class BlockRestart:
 def make_restart(grid):
     """Return a list of BlockRestart snapshots, one per block in grid.
 
-    Coarse-level CFL data is read from the ``_cfl_coarse_restart`` stash, so the
-    snapshot covers all multigrid levels without needing access to the coarse
-    grids directly. dt_vol is not snapshotted — it is recomputed from the
-    restored field on the next run. No current solver loop populates this
-    stash (it predates ``solver.py``'s multigrid), so ``cfl`` presently always
-    falls back to the fine level's own working CFL.
-
-    The conserved field is taken from the ``_conserved_inst_restart`` stash —
-    the instantaneous converged solution rather than ``block.conserved``,
-    which time-averaging overwrites (see :meth:`ember.grid.Grid.finalise_average`).
-    The time average is the mean of the converged limit cycle and is not
-    itself on that cycle, so restarting from it injects a spurious residual.
-    No current solver loop populates this stash either, so ``block.conserved``
-    is used instead until one does.
+    dt_vol is not snapshotted — it is recomputed from the restored field on the
+    next run.
 
     Parameters
     ----------
@@ -206,23 +181,10 @@ def make_restart(grid):
         else:
             cons_filt_lag_dim = None
 
-        cfl_fine = block.working.get("cfl")
-        cfl_coarse = block.working.get("_cfl_coarse_restart", ())
-        cfl_levels = (cfl_fine,) + tuple(cfl_coarse)
-        cfl = None if all(c is None for c in cfl_levels) else cfl_levels
-
-        # finalise overwrites block.conserved with the time average; prefer the
-        # instantaneous converged field it stashes for restart. Falls back to
-        # block.conserved when the grid was never run through finalise.
-        conserved = block.working.get("_conserved_inst_restart")
-        if conserved is None:
-            conserved = block.conserved
-
         restarts.append(
             BlockRestart(
-                conserved=conserved,
+                conserved=block.conserved,
                 conserved_filt_lag=cons_filt_lag_dim,
-                cfl=cfl,
                 outlet=outlet,
                 outlet_rho_soln=outlet_rho_soln,
                 outlet_P_last=outlet_P_last,
@@ -237,9 +199,9 @@ def make_restart(grid):
 def apply_restart(block, restart):
     """Apply a BlockRestart to block.
 
-    Conserved variables are always restored; cfl is restored only if the
-    source had it. dt_vol is not restored — it is a fast local quantity
-    recomputed from the restored field by `Grid.update_timestep`. Outlet
+    Conserved variables are always restored. dt_vol is not restored — it is a
+    fast local quantity recomputed from the restored field by
+    `Grid.update_timestep`. Outlet
     pressure profiles are interpolated in index space then rescaled by the
     destination patch's `_P_raw`, so the user can change the mean target
     pressure between save and restore.
@@ -280,17 +242,6 @@ def apply_restart(block, restart):
         cons_filt.flags.writeable = True
         cons_filt[...] = block.conserved_cell_nd + lag_nd
         cons_filt.flags.writeable = False
-
-    if restart.cfl is not None and restart.cfl[0] is not None:
-        cfl0 = restart.cfl[0]
-        target_cfl_shape = block.shape_cell + (5,)
-        if cfl0.shape == target_cfl_shape:
-            block.working.cfl[...] = cfl0
-        else:
-            block.working.cfl.fill(0.0)
-
-    if restart.cfl is not None and len(restart.cfl) > 1:
-        block.working._store["_cfl_coarse_restart"] = restart.cfl[1:]
 
     P_ref = block.fluid.P_ref
     for patch, P_shape, P_last in zip(

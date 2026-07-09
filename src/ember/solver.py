@@ -373,7 +373,7 @@ def run(grid, conf):
        Placed after the body-force refresh but before the march so its residual
        read serves as the step's single full-field recompute, which
        :func:`scree_step` then reuses; ``show_cfl=False`` since the fixed-CFL march
-       never populates ``working.cfl``;
+       has no per-cell CFL field to report;
     2. march every block with the selected integrator (:func:`scree_step` or the
        RK :func:`advance_rk_stage_mg` sweep) -- writes ``conserved_nd`` in place
        without bumping the cache, so P/T stay frozen for the rest of the step;
