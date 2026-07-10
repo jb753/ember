@@ -456,8 +456,7 @@ def run(grid, conf):
        :meth:`~ember.convergence_history.ConvergenceHistory.format_message`).
        Placed after the body-force refresh but before the march so its residual
        read serves as the step's single full-field recompute, which
-       :func:`scree_step` then reuses; ``show_cfl=False`` since the fixed-CFL march
-       has no per-cell CFL field to report;
+       :func:`scree_step` then reuses;
     4. march every block with the selected integrator (:func:`scree_step` or the
        RK :func:`advance_rk_stage_mg` sweep) -- writes ``conserved_nd`` in place
        without bumping the cache, so P/T stay frozen for the rest of the step;
@@ -490,7 +489,7 @@ def run(grid, conf):
     # Initialise timesteps
     grid.update_timestep(rf=1.0, fac_visc=conf.fac_visc)
 
-    hist = ConvergenceHistory.from_grid(conf.n_step, grid)
+    hist = ConvergenceHistory.from_grid(conf.n_step, conf.n_step_log, grid)
 
     for i_step in range(conf.n_step):
         #
@@ -527,9 +526,7 @@ def run(grid, conf):
             hist.record_convergence(grid.get_convergence())
             logger.info(
                 "%s",
-                hist.format_message(
-                    i_finest=0, n_step=conf.n_step, n_levels=1, show_cfl=False
-                ),
+                hist.format_message(i_finest=0, n_step=conf.n_step, n_levels=1),
             )
 
         # Take a step with the selected integrator.  Both reuse the first

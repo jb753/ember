@@ -21,7 +21,8 @@ f32 = np.float32
 class ConvergenceHistory(StructuredData):
     """Simplified convergence history storage for flow monitoring.
 
-    Shape is (n_step,) - a simple 1D time series.
+    Shape is (n_log,) - a simple 1D time series, one entry per recorded log
+    step rather than one per time step.
 
     Stores mass flow rate and specific properties at inlet and outlet over time.
     """
@@ -56,11 +57,6 @@ class ConvergenceHistory(StructuredData):
         "drhoVr",
         "drhorVt",
         "drhoe",
-        "cfl_rho",
-        "cfl_rhoVx",
-        "cfl_rhoVr",
-        "cfl_rhorVt",
-        "cfl_rhoe",
         "i_step",
         "time",
         "mdot_target",
@@ -122,13 +118,15 @@ class ConvergenceHistory(StructuredData):
         out._set_metadata_by_key("A_out", f32(A_out))
 
     @classmethod
-    def from_grid(cls, n_step, grid):
+    def from_grid(cls, n_step, n_step_log, grid):
         """Initialize convergence history from grid.
 
         Parameters
         ----------
         n_step : int
-            Number of time steps to allocate
+            Number of time steps the solver will march
+        n_step_log : int
+            Number of steps between records; one row is allocated per record
         grid : Grid
             Grid object containing blocks with patches
 
@@ -137,8 +135,11 @@ class ConvergenceHistory(StructuredData):
         ConvergenceHistory
             Configured instance ready to record data
         """
-        # Create instance with 1D shape
-        out = cls(shape=(n_step,))
+        # The solver records when i_step % n_step_log == 0 over range(n_step),
+        # which fires ceil(n_step / n_step_log) times -- floor division would
+        # under-allocate whenever n_step is not a multiple of n_step_log.
+        n_log = -(-n_step // n_step_log)
+        out = cls(shape=(n_log,))
 
         # Reference scales and counts derived from the grid geometry/flow.
         cls._set_grid_metadata(out, grid)
@@ -303,9 +304,6 @@ class ConvergenceHistory(StructuredData):
         # inputs are already non-dimensional.
         mdot_ref = fluid.rhoV_ref * grid[0].L_ref ** 2
 
-        # NaN arrays for residuals/CFLs we cannot recover
-        nan5 = np.full(5, np.nan, dtype=f32)
-
         for i, blk in enumerate(step_blocks):
             # Navigate to this index via a temporary slice view
             view = out[i]
@@ -330,10 +328,6 @@ class ConvergenceHistory(StructuredData):
             view._set_data_by_keys(
                 ("drho", "drhoVx", "drhoVr", "drhorVt", "drhoe"),
                 np.array([blk["davg"], np.nan, np.nan, np.nan, np.nan], dtype=f32),
-            )
-            view._set_data_by_keys(
-                ("cfl_rho", "cfl_rhoVx", "cfl_rhoVr", "cfl_rhorVt", "cfl_rhoe"),
-                nan5,
             )
 
         return out
@@ -360,17 +354,13 @@ class ConvergenceHistory(StructuredData):
             with open(filename, "rb") as f:
                 return pickle.load(f)
 
-    def format_message(self, i_finest=None, n_step=None, n_levels=None, show_cfl=True):
+    def format_message(self, i_finest=None, n_step=None, n_levels=None):
         """Format convergence message for current log step.
 
         Parameters
         ----------
         i_finest, n_step, n_levels : int, optional
             When provided, a timing line is inserted after the step header.
-        show_cfl : bool, optional
-            Append the per-equation CFL line (default True). Set False for
-            fixed-CFL marches (e.g. the explicit solver loop) that never populate
-            ``now.cfl``.
 
         Returns
         -------
@@ -440,13 +430,7 @@ class ConvergenceHistory(StructuredData):
         res = now.residual
         out += f"  Resid : {res[0]:9.2e} {res[1]:9.2e} {res[2]:9.2e} {res[3]:9.2e} {res[4]:9.2e}\n"
 
-        # CFL line (skipped for fixed-CFL marches that never populate now.cfl)
-        if show_cfl:
-            cfl = now.cfl
-            out += f"  CFL   :  {cfl[0]:<8.2f} {cfl[1]:<8.2f} {cfl[2]:<8.2f} {cfl[3]:<8.2f} {cfl[4]:<8.2f}"
-
-        # Drop any trailing newline so callers (logger) own line separation; with
-        # show_cfl the CFL line already ends without one, so this is a no-op there.
+        # Drop the trailing newline so callers (logger) own line separation.
         return out.rstrip("\n")
 
     def format_timing(self, i_step, i_finest, n_step, n_levels):
@@ -596,13 +580,6 @@ class ConvergenceHistory(StructuredData):
     def A_out(self):
         """Total outlet area [m^2]."""
         return self._get_metadata_by_key("A_out")
-
-    @property
-    def cfl(self):
-        """CFL numbers for conserved variables [shape (..., 5)]."""
-        return self._get_data_by_keys(
-            ("cfl_rho", "cfl_rhoVx", "cfl_rhoVr", "cfl_rhorVt", "cfl_rhoe")
-        )
 
     @property
     def dP_D(self):
