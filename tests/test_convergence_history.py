@@ -34,11 +34,7 @@ def hist_with_throttle():
     """Create a minimal ConvergenceHistory for testing throttle recording."""
     # Create a small history directly (not from_grid, to avoid grid setup complications)
     hist = ConvergenceHistory(shape=(10,))
-    hist._set_metadata_by_key("n_block", 1)
     hist._set_metadata_by_key("n_node", 100)
-    hist._set_metadata_by_key("A_in", np.float32(0.5))
-    hist._set_metadata_by_key("A_out", np.float32(0.5))
-    hist._set_metadata_by_key("is_rotating", False)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
@@ -176,14 +172,14 @@ def test_from_ts3_metadata(ts3_hist):
 def test_from_ts3_mdot_finite(ts3_hist):
     """mdot_in and mdot_out are finite for all recorded steps."""
     n = ts3_hist.i_log + 1
-    assert np.all(np.isfinite(ts3_hist.mdot_in[:n]))
-    assert np.all(np.isfinite(ts3_hist.mdot_out[:n]))
+    assert np.all(np.isfinite(ts3_hist.mdot_nd[:n, 0]))
+    assert np.all(np.isfinite(ts3_hist.mdot_nd[:n, -1]))
 
 
 def test_from_ts3_first_step_mdot(ts3_hist):
     """First-step mass flows match the log file values."""
-    assert ts3_hist.mdot_in[0] == pytest.approx(1.38360, rel=1e-4)
-    assert ts3_hist.mdot_out[0] == pytest.approx(1.38339, rel=1e-4)
+    assert ts3_hist.mdot_nd[0, 0] == pytest.approx(1.38360, rel=1e-4)
+    assert ts3_hist.mdot_nd[0, -1] == pytest.approx(1.38339, rel=1e-4)
 
 
 def test_from_ts3_residual_drho_finite(ts3_hist):
@@ -193,10 +189,12 @@ def test_from_ts3_residual_drho_finite(ts3_hist):
 
 
 def test_from_ts3_ho_s_finite(ts3_hist):
-    """ho_in, ho_out, s_in, s_out are finite for all steps."""
+    """Inlet and outlet stagnation enthalpy and entropy are finite for all steps."""
     n = ts3_hist.i_log + 1
-    for attr in ("ho_in", "ho_out", "s_in", "s_out"):
-        assert np.all(np.isfinite(getattr(ts3_hist, attr)[:n])), attr
+    for name in ("ho_nd", "s_nd"):
+        stations = getattr(ts3_hist, name)[:n]
+        assert np.all(np.isfinite(stations[:, 0])), f"{name} inlet"
+        assert np.all(np.isfinite(stations[:, -1])), f"{name} outlet"
 
 
 def test_from_ts3_zeta_positive(ts3_hist):
@@ -243,8 +241,8 @@ def test_read_cnv_roundtrip_mdot():
         orig.write_cnv(f.name)
         reloaded = ConvergenceHistory.read_cnv(f.name)
     n = orig.i_log + 1
-    assert np.array_equal(reloaded.mdot_in[:n], orig.mdot_in[:n])
-    assert np.array_equal(reloaded.mdot_out[:n], orig.mdot_out[:n])
+    assert np.array_equal(reloaded.mdot_nd[:n, 0], orig.mdot_nd[:n, 0])
+    assert np.array_equal(reloaded.mdot_nd[:n, -1], orig.mdot_nd[:n, -1])
 
 
 def test_read_cnv_roundtrip_residual():
@@ -258,7 +256,7 @@ def test_read_cnv_roundtrip_residual():
 
 
 def test_read_cnv_roundtrip_metadata():
-    """Round-trip preserves grid metadata (node count, areas)."""
+    """Round-trip preserves grid metadata (node count)."""
     orig = ConvergenceHistory.read_cnv(_DATA / "duct.cnv")
     with tempfile.NamedTemporaryFile(suffix=".cnv") as f:
         orig.write_cnv(f.name)
@@ -266,7 +264,6 @@ def test_read_cnv_roundtrip_metadata():
     assert reloaded._get_metadata_by_key("n_node") == orig._get_metadata_by_key(
         "n_node"
     )
-    assert reloaded._get_metadata_by_key("A_in") == orig._get_metadata_by_key("A_in")
 
 
 def test_read_cnv_compressed_roundtrip():
@@ -355,11 +352,7 @@ def test_to_json_x_matches_steps(hist_with_throttle, tmp_path):
 def _make_hist_with_row_flows(n_row, steps=3):
     """ConvergenceHistory with n_row rows and row flow data recorded."""
     hist = ConvergenceHistory(shape=(10,))
-    hist._set_metadata_by_key("n_block", 1)
     hist._set_metadata_by_key("n_node", 100)
-    hist._set_metadata_by_key("A_in", np.float32(0.5))
-    hist._set_metadata_by_key("A_out", np.float32(0.5))
-    hist._set_metadata_by_key("is_rotating", False)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
@@ -400,11 +393,7 @@ def test_err_mdot_row_shape_two_rows():
 def test_err_mdot_row_values():
     """err_mdot_row computes (dn - up) / avg correctly."""
     hist = ConvergenceHistory(shape=(10,))
-    hist._set_metadata_by_key("n_block", 1)
     hist._set_metadata_by_key("n_node", 100)
-    hist._set_metadata_by_key("A_in", np.float32(0.5))
-    hist._set_metadata_by_key("A_out", np.float32(0.5))
-    hist._set_metadata_by_key("is_rotating", False)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
@@ -428,11 +417,7 @@ def test_err_mdot_row_values():
 def test_err_mdot_row_no_metadata_returns_nan():
     """err_mdot_row returns NaN array when n_row metadata is absent."""
     hist = ConvergenceHistory(shape=(10,))
-    hist._set_metadata_by_key("n_block", 1)
     hist._set_metadata_by_key("n_node", 100)
-    hist._set_metadata_by_key("A_in", np.float32(0.5))
-    hist._set_metadata_by_key("A_out", np.float32(0.5))
-    hist._set_metadata_by_key("is_rotating", False)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
