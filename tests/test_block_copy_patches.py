@@ -25,7 +25,9 @@ def simple_block():
     r = np.linspace(0.5, 1.5, 5)
     t = np.linspace(0, 0.1, 5)
     xrt = np.stack(np.meshgrid(x, r, t, indexing="ij"), axis=-1)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
     block.set_fluid(fluid)

@@ -81,7 +81,9 @@ def simple_block():
 
     # Set up simple coordinates
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set up fluid
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -107,12 +109,16 @@ def multi_block_grid():
     # Block 1
     block1 = ember.block.Block(shape=shape)
     xrt1 = util.linmesh3([0.0, 0.5], [0.5, 1.0], [0.0, 0.1], shape)
-    block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+    block1.set_x(xrt1[..., 0])
+    block1.set_r(xrt1[..., 1])
+    block1.set_t(xrt1[..., 2])
 
     # Block 2
     block2 = ember.block.Block(shape=shape)
     xrt2 = util.linmesh3([0.5, 1.0], [0.5, 1.0], [0.0, 0.1], shape)
-    block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+    block2.set_x(xrt2[..., 0])
+    block2.set_r(xrt2[..., 1])
+    block2.set_t(xrt2[..., 2])
 
     # Set up fluid for both blocks
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -533,7 +539,9 @@ class TestUnstructuredTriangulatedProperty:
         block = ember.block.Block(shape=shape)
 
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         block.set_fluid(fluid)
@@ -584,11 +592,15 @@ class TestUnstructuredTriangulatedProperty:
 
         block1 = ember.block.Block(shape=shape)
         xrt1 = util.linmesh3([0.0, 0.5], [0.5, 1.0], [0.0, 0.1], shape)
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
 
         block2 = ember.block.Block(shape=shape)
         xrt2 = util.linmesh3([0.5, 1.0], [0.5, 1.0], [0.0, 0.1], shape)
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         # Set up fluid for both blocks
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -636,7 +648,9 @@ class TestUnstructuredPerformance:
         block = ember.block.Block(shape=shape)
 
         xrt = util.linmesh3([0.0, 2.0], [0.5, 2.5], [0.0, 0.4], shape)
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         block.set_fluid(fluid)
@@ -878,7 +892,9 @@ def periodic_block():
     block = ember.block.Block(shape=shape)
 
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, pitch], shape)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
@@ -1078,7 +1094,9 @@ class TestInterpolateToStructured:
 
         xrt = util.linmesh3([0.0, 1.0], [1.0, 2.0], [0.0, pitch], shape)
         x, r = xrt[..., 0], xrt[..., 1]
-        block.set_x(x).set_r(r).set_t(xrt[..., 2])
+        block.set_x(x)
+        block.set_r(r)
+        block.set_t(xrt[..., 2])
         block.set_fluid(
             ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         )
@@ -1145,7 +1163,9 @@ class TestInterpolateToStructured:
             block = ember.block.Block(shape=shape)
             xrt = util.linmesh3([0.0, 1.0], [1.0, 2.0], [0.0, pitch], shape)
             x, r, th = xrt[..., 0], xrt[..., 1], xrt[..., 2]
-            block.set_x(x).set_r(r).set_t(th)
+            block.set_x(x)
+            block.set_r(r)
+            block.set_t(th)
             block.set_fluid(
                 ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
             )
@@ -1197,7 +1217,9 @@ class TestInterpolateToStructured:
 
         xrt = util.linmesh3([0.0, 1.0], [1.0, 2.0], [0.0, pitch], shape)
         x, r, th = xrt[..., 0], xrt[..., 1], xrt[..., 2]
-        block.set_x(x).set_r(r).set_t(th)
+        block.set_x(x)
+        block.set_r(r)
+        block.set_t(th)
         block.set_fluid(
             ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         )
@@ -1278,7 +1300,9 @@ class TestTriangulate:
 
         # Set up coordinates
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.0], (*shape, 1))[..., 0, :]
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Set up fluid and conserved variables
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -1311,7 +1335,9 @@ class TestTriangulate:
 
         # Set coordinates
         xrt = util.linmesh3([0.0, 2.0], [1.0, 2.0], [0.0, 0.0], (*shape, 1))[..., 0, :]
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Set fluid
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -1350,7 +1376,9 @@ class TestTriangulate:
         block = ember.block.Block(shape=shape)
 
         xrt = util.linmesh3([0.0, 1.0], [0.1, 1.0], [0.0, 0.0], (*shape, 1))[..., 0, :]
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         block.set_fluid(fluid)
@@ -1383,7 +1411,9 @@ class TestTriangulate:
         block = ember.block.Block(shape=shape)
 
         xrt = util.linmesh3([0.0, 4.0], [1.0, 3.0], [0.1, 0.1], (*shape, 1))[..., 0, :]
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         block.set_fluid(fluid)
@@ -1417,7 +1447,9 @@ class TestTriangulate:
         block = ember.block.Block(shape=shape)
 
         xrt = util.linmesh3([0.0, 1.0], [0.1, 1.0], [0.0, 0.0], (*shape, 1))[..., 0, :]
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         block.set_fluid(fluid)
@@ -1437,7 +1469,9 @@ class TestTriangulate:
         block = ember.block.Block(shape=shape)
 
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.0], (*shape, 1))[..., 0, :]
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         block.set_fluid(fluid)
@@ -1499,7 +1533,9 @@ class TestTriangulate:
             xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.0], (*input_shape, 1))[
                 ..., 0, :
             ]
-            block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+            block.set_x(xrt[..., 0])
+            block.set_r(xrt[..., 1])
+            block.set_t(xrt[..., 2])
 
             fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
             block.set_fluid(fluid)

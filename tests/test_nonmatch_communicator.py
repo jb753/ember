@@ -37,12 +37,16 @@ def grid_with_nonmatch_patches():
     b1 = ember.block.Block(shape=shape1)
     L = 0.1
     xrt1 = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape1)
-    b1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+    b1.set_x(xrt1[..., 0])
+    b1.set_r(xrt1[..., 1])
+    b1.set_t(xrt1[..., 2])
 
     # Block 2 - fine, identical geometry shifted in x
     b2 = ember.block.Block(shape=shape2)
     xrt2 = util.linmesh3((L, 2 * L), (0.5, 1.0), (0.0, np.pi / 4), shape2)
-    b2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+    b2.set_x(xrt2[..., 0])
+    b2.set_r(xrt2[..., 1])
+    b2.set_t(xrt2[..., 2])
 
     # Add non-matching patches on adjacent faces
     b1.patches.append(NonMatchPatch(i=-1))  # i=5 face
@@ -142,10 +146,12 @@ def test_nonmatch_linear_field_interpolation():
     xrt_coarse = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape_coarse)
     xrt_fine = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape_fine)
 
-    b_coarse.set_x(xrt_coarse[..., 0]).set_r(xrt_coarse[..., 1]).set_t(
-        xrt_coarse[..., 2]
-    )
-    b_fine.set_x(xrt_fine[..., 0]).set_r(xrt_fine[..., 1]).set_t(xrt_fine[..., 2])
+    b_coarse.set_x(xrt_coarse[..., 0])
+    b_coarse.set_r(xrt_coarse[..., 1])
+    b_coarse.set_t(xrt_coarse[..., 2])
+    b_fine.set_x(xrt_fine[..., 0])
+    b_fine.set_r(xrt_fine[..., 1])
+    b_fine.set_t(xrt_fine[..., 2])
 
     # Set a linear field on both blocks
     # Q = r + 2*theta (linear in physical space)
@@ -214,8 +220,12 @@ def test_nonmatch_bidirectional_averaging():
     xrt1 = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape1)
     xrt2 = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape2)
 
-    b1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    b2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+    b1.set_x(xrt1[..., 0])
+    b1.set_r(xrt1[..., 1])
+    b1.set_t(xrt1[..., 2])
+    b2.set_x(xrt2[..., 0])
+    b2.set_r(xrt2[..., 1])
+    b2.set_t(xrt2[..., 2])
 
     # Set distinct constant values
     Q1 = np.ones((*shape1, 5), dtype=np.float32) * 1.0
@@ -262,8 +272,12 @@ def test_nonmatch_converges_to_average():
     xrt1 = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape1)
     xrt2 = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape2)
 
-    b1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    b2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+    b1.set_x(xrt1[..., 0])
+    b1.set_r(xrt1[..., 1])
+    b1.set_t(xrt1[..., 2])
+    b2.set_x(xrt2[..., 0])
+    b2.set_r(xrt2[..., 1])
+    b2.set_t(xrt2[..., 2])
 
     # Set distinct constant values
     Q1_initial = np.ones((*shape1, 5), dtype=np.float32) * 3.0
@@ -313,10 +327,12 @@ def test_nonmatch_different_resolutions():
     xrt_coarse = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape_coarse)
     xrt_fine = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape_fine)
 
-    b_coarse.set_x(xrt_coarse[..., 0]).set_r(xrt_coarse[..., 1]).set_t(
-        xrt_coarse[..., 2]
-    )
-    b_fine.set_x(xrt_fine[..., 0]).set_r(xrt_fine[..., 1]).set_t(xrt_fine[..., 2])
+    b_coarse.set_x(xrt_coarse[..., 0])
+    b_coarse.set_r(xrt_coarse[..., 1])
+    b_coarse.set_t(xrt_coarse[..., 2])
+    b_fine.set_x(xrt_fine[..., 0])
+    b_fine.set_r(xrt_fine[..., 1])
+    b_fine.set_t(xrt_fine[..., 2])
 
     # Set smooth field on both blocks (same field, different resolutions)
     r_coarse = xrt_coarse[..., 1]
@@ -373,8 +389,12 @@ def test_nonmatch_conserved_variable_count():
     xrt1 = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape1)
     xrt2 = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape2)
 
-    b1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-    b2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+    b1.set_x(xrt1[..., 0])
+    b1.set_r(xrt1[..., 1])
+    b1.set_t(xrt1[..., 2])
+    b2.set_x(xrt2[..., 0])
+    b2.set_r(xrt2[..., 1])
+    b2.set_t(xrt2[..., 2])
 
     # Set different values for each conserved variable on block 1
     Q1 = np.zeros((*shape1, 5), dtype=np.float32)
@@ -440,18 +460,18 @@ def test_nonmatch_vs_periodic_identical_meshes():
     # Same geometry for all blocks
     xrt = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape)
 
-    b1_periodic.set_x(xrt[..., 0].copy()).set_r(xrt[..., 1].copy()).set_t(
-        xrt[..., 2].copy()
-    )
-    b2_periodic.set_x(xrt[..., 0].copy()).set_r(xrt[..., 1].copy()).set_t(
-        xrt[..., 2].copy()
-    )
-    b1_nonmatch.set_x(xrt[..., 0].copy()).set_r(xrt[..., 1].copy()).set_t(
-        xrt[..., 2].copy()
-    )
-    b2_nonmatch.set_x(xrt[..., 0].copy()).set_r(xrt[..., 1].copy()).set_t(
-        xrt[..., 2].copy()
-    )
+    b1_periodic.set_x(xrt[..., 0].copy())
+    b1_periodic.set_r(xrt[..., 1].copy())
+    b1_periodic.set_t(xrt[..., 2].copy())
+    b2_periodic.set_x(xrt[..., 0].copy())
+    b2_periodic.set_r(xrt[..., 1].copy())
+    b2_periodic.set_t(xrt[..., 2].copy())
+    b1_nonmatch.set_x(xrt[..., 0].copy())
+    b1_nonmatch.set_r(xrt[..., 1].copy())
+    b1_nonmatch.set_t(xrt[..., 2].copy())
+    b2_nonmatch.set_x(xrt[..., 0].copy())
+    b2_nonmatch.set_r(xrt[..., 1].copy())
+    b2_nonmatch.set_t(xrt[..., 2].copy())
 
     # Set initial conserved variables (different on each block)
     # Use a non-trivial field to test interpolation

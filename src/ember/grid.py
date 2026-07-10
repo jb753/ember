@@ -1,14 +1,114 @@
-"""Grid collection for managing multiple Block objects with connectivity analysis.
+"""Collection of connected blocks forming a complete flow domain.
 
-This module provides the Grid class which serves as the top-level container for multi-block
-structured CFD simulations. The Grid manages collections of Block objects with support for
-label-based access, automatic connectivity detection between blocks, and methods for computing
-domain-wide flow statistics. Key features include spatial indexing using KD-trees for efficient
-neighbor finding, detection and tracking of periodic and mixing-plane patch pairs, computation
-of circumferentially-averaged flow properties, and utilities for extracting boundary flows at
-inlets and outlets. The connectivity property provides detailed inter-block topology information
-essential for implementing multi-block boundary conditions, while the averaging capabilities
-enable efficient turbomachinery performance analysis across blade rows.
+This module defines the :class:`Grid`, the top-level container for a
+multi-block structured simulation. A grid is an ordered collection of
+:class:`~ember.block.Block` objects together with the topology that connects
+them. A :class:`Grid` stores no flow field of its own: every coordinate and
+conserved quantity lives on the constituent blocks.
+Therefore the solution is read from one block at a time as in ``grid[0].P``.
+
+
+Construction and labelled access
+================================
+
+Like a list, blocks can be added to a grid at construction or a later time::
+
+    from ember.block import Block
+    from ember.grid import Grid
+
+    grid = Grid([Block(shape=(10, 11, 10))])
+    rotor = Block(shape=(20, 20, 20))
+    rotor.set_label("rotor")
+    grid.append(rotor)
+
+The grid then behaves as a standard Python collection: it supports iteration,
+:func:`len`, membership testing, and the usual mutating operations
+(:meth:`Grid.append`, :meth:`Grid.extend`, :meth:`Grid.insert`,
+:meth:`Grid.remove`, :meth:`Grid.pop`, :meth:`Grid.clear`). Indexing accepts
+either an integer position or a label string, and membership testing accepts
+either a block or a label. :attr:`Grid.labels` lists the labels in order, with
+``None`` for any unlabelled block::
+
+    len(grid)                 # 2
+    grid[1] is grid["rotor"]  # True -- refers to same block
+    "rotor" in grid           # True -- membership by label
+    rotor in grid             # True -- membership by block
+    grid.labels               # [None, 'rotor'] -- None if unlabelled
+
+
+Connectivity
+============
+
+What distinguishes a :class:`Grid` from a plain list of blocks is the topology it
+derives from the blocks' boundary patches, as found in :attr:`~ember.block.Block.patches`.
+
+:attr:`Grid.patches` presents every patch on every block as one flat, read-only
+sequence, filterable by patch type (``grid.patches.inlet``,
+``grid.patches.periodic``, and so on). It is a view: patches are still owned by
+the block they sit on, and are added and removed there.
+
+:attr:`Grid.connectivity` manages communicators that exchange data across
+the seams between blocks, one per patch type, reached as
+``grid.connectivity.periodic`` and likewise ``mixing``, ``nonmatch``, ``cusp``.
+
+A communicator pairs its patches -- matching each to its partner on a
+neighbouring block -- the first time it is used, and caches the result for subsequent usages. Pairing
+is therefore automatic, and driven by the exchange itself, e.g. a call to
+:meth:`Grid.apply_bconds`.
+
+Changing grid topology -- adding or removing a block or a patch -- may break the
+indexing describing pairing, and unfortunately the cache does not detect this.
+In these situations, the cache must be flushed by hand::
+
+    grid.append(another_block)
+    grid.connectivity.clear()  # drop the stale pairs
+
+The next communicator exchange will then pair the new topology from scratch.
+
+The pairings can also be inspected directly, by calling ``pair()`` on the whole
+manager or on one patch type. It returns a dict keyed by the ``(bid, pid)``
+identifier of each patch, indexing like ``grid[bid].patches[pid]``.
+The  values are the corresponding ``(bid, pid)`` of the patch it matches
+and the geometric transform between the two. Both halves of a pair appear as
+keys, so the mapping can be followed from either side::
+
+    pairs = grid.connectivity.periodic.pair()
+    # block 0 patch 0 is paired with block 1 patch 0, and vice versa
+    pairs[(0, 0)]  # ((1, 0), transform)
+    pairs[(1, 0)]  # ((0, 0), transform)
+
+Blocks joined to one another by periodic patches make up a single blade row.
+Rows are separated from one another by mixing patches, and
+:attr:`Grid.rows` groups the blocks accordingly, ordering the rows from inlet to
+outlet; :attr:`Grid.n_row` is their count. The first row's upstream face is the
+domain inlet and the last row's downstream face is the domain outlet. Both
+properties pair the periodic patches for themselves.
+
+Driving a solver
+================
+
+Many of the grid methods, such as :meth:`Grid.update_residual` and
+:meth:`Grid.apply_bconds`, form the inner loop of a time-marching solver. They
+are documented in :mod:`ember.solver`, and should be used with care.
+
+During time marching,
+:meth:`Grid.get_convergence` returns a :class:`ConvergenceStep` of
+residual and station monitors for the current step, which
+:class:`~ember.convergence_history.ConvergenceHistory` accumulates into a time
+series. :meth:`Grid.check_nan` raises :class:`DivergenceError` if the flow field
+has blown up.
+
+File formats
+============
+
+A grid can be read from and written to three formats. The reading methods are
+constructors, returning a new :class:`Grid`.
+
+* EMB -- :meth:`Grid.read_emb`, :meth:`Grid.write_emb`. Our native format: a pickle of the grid with its blocks, patches, and  labels, optionally gzip-compressed. Being a pickle of the objects themselves, it is the format   that preserves a grid most completely.
+
+* Plot3D -- :meth:`Grid.read_plot3d`, :meth:`Grid.write_plot3d`. The standard multi-block structured interchange format, carrying coordinates only. Boundary patches are stored alongside it in a separate FieldView  boundary file, which may be read and written with the Plot3D file  or on its own via :meth:`Grid.write_fvbnd`.
+
+* TS3 -- :meth:`Grid.read_ts3`, :meth:`Grid.write_ts3`. The HDF5-based format of the Turbostream 3 solver, carrying geometry  and flow field.
 """
 
 from ember.collections import _LabelledList, GridPatchCollection
@@ -17,10 +117,10 @@ import ember.block_util
 import ember.fortran
 from ember.block_restart import apply_restart
 import numpy as np
-import collections
 import itertools
 import pickle
 import gzip
+from dataclasses import dataclass
 from ember import util
 import ember.block
 from ember.patch import RotatingPatch
@@ -29,56 +129,11 @@ import ember.mixing_communicator
 import ember.nonmatch_communicator
 
 
-Convergence = collections.namedtuple(
-    "Convergence",
-    "residual mdot ho s mdot_target mdot_throttle P_throttle dP_P dP_I dP_D",
-    defaults=(0.0,) * 6,  # throttle fields; get_convergence always sets them
-)
-
-
-class SolverDivergedError(RuntimeError):
-    """Raised when a block's conserved field contains a NaN.
-
-    A dedicated type lets a solver loop catch divergence precisely and exit
-    cleanly (leaving the invalid field in place for debugging) while genuinely
-    unexpected errors still propagate. See :meth:`Grid.check_nan`.
-    """
-
-
 class Grid(_LabelledList):
-    """Collection of Block objects with pythonic iterable and collection interface.
+    """An ordered, labelled collection of connected blocks.
 
-    Provides a convenient way to manage multiple Block objects with support for:
-    - Standard collection operations (add, remove, extend, etc.)
-    - Pythonic iteration and indexing (including by label)
-    - Block labeling with uniqueness validation
-    - Serialization support
-
-    Examples
-    --------
-    >>> from ember.block import Block
-    >>> from ember.grid import Grid
-    >>>
-    >>> # Create a grid and add blocks
-    >>> grid = Grid()
-    >>> block1 = Block(shape=(10, 10, 10))
-    >>> block2 = Block(shape=(20, 20, 20))
-    >>>
-    >>> # Add blocks with labels
-    >>> grid.add(block1, label="inlet_block")
-    >>> grid.add(block2, label="outlet_block")
-    >>>
-    >>> # Access by index or label
-    >>> first_block = grid[0]
-    >>> inlet_block = grid["inlet_block"]
-    >>>
-    >>> # Iterate over blocks
-    >>> for block in grid:
-    >>>     print(f"Block shape: {block.shape}")
-    >>>
-    >>> # Check membership
-    >>> assert "inlet_block" in grid
-    >>> assert len(grid) == 2
+    See the :mod:`ember.grid` module documentation for the collection
+    interface, the topology derived from block patches, and the file formats.
     """
 
     def __init__(self, blocks=None):
@@ -280,8 +335,20 @@ class Grid(_LabelledList):
 
         # Phase 1: Coarse alignment using bounding boxes
         bbox_input = util.bounding_box(xyz)
-        flat = self.flat()
-        bbox_grid = util.bounding_box(np.stack([flat.x, flat.y, flat.z], axis=-1))
+        # Reduce each block to its own eight corners before taking the bounding
+        # box of those, rather than materialising every node of the grid at
+        # once: the corners already carry the per-axis extremes, so the box of
+        # the corners is the box of the nodes.
+        bbox_grid = util.bounding_box(
+            np.concatenate(
+                [
+                    util.bounding_box(
+                        np.stack([b.x.ravel(), b.y.ravel(), b.z.ravel()], axis=-1)
+                    )
+                    for b in self
+                ]
+            )
+        )
 
         # Test all combinations on bounding box vertices
         transform_errors = []
@@ -551,7 +618,6 @@ class Grid(_LabelledList):
         """
         for block in self:
             block.set_fluid(fluid_obj)
-        return self
 
     def set_L_ref(self, L_ref):
         """Set reference length scale on all blocks, preserving dimensional geometry and flow field.
@@ -569,7 +635,6 @@ class Grid(_LabelledList):
         """
         for block in self:
             block.set_L_ref(L_ref)
-        return self
 
     def set_primitive_cart_unstr(self, xyz, primitive_cart):
         r"""Set primitive variables from Cartesian unstructured data.
@@ -650,9 +715,9 @@ class Grid(_LabelledList):
                 primitive_pol[ind, :].reshape(block.shape + (5,)).astype(np.float32)
             )
             block.set_P_rho(primitive_block[..., 4], primitive_block[..., 0])
-            block.set_Vx(primitive_block[..., 1]).set_Vr(
-                primitive_block[..., 2]
-            ).set_Vt(primitive_block[..., 3])
+            block.set_Vx(primitive_block[..., 1])
+            block.set_Vr(primitive_block[..., 2])
+            block.set_Vt(primitive_block[..., 3])
 
     def get_convergence(self):
         """Grid-representative convergence monitors at one step, non-dimensional.
@@ -662,22 +727,16 @@ class Grid(_LabelledList):
 
         Returns
         -------
-        Convergence
-            Namedtuple ``(residual, mdot, ho, s, mdot_target, mdot_throttle,
-            P_throttle, dP_P, dP_I, dP_D)``. ``residual`` is the block-mean
-            ``|residual_nd|`` per conserved variable, shape ``(5,)``. ``mdot``,
-            ``ho``, ``s`` are shape ``(2*n_row,)`` station vectors at each row's
-            upstream then downstream face, inlet to outlet
-            (``[row0_up, row0_dn, row1_up, row1_dn, ...]``), all
-            non-dimensionalised by the fluid reference scales. The remaining
-            scalar fields are the outlet PID throttle state from
-            :meth:`ember.outlet.OutletPatch.get_throttle_stats`.
+        ConvergenceStep
+            Residual and station monitors for this step, with the outlet PID
+            throttle state taken from
+            :meth:`ember.outlet.OutletPatch.get_throttle_stats`. See
+            :class:`ConvergenceStep` for the meaning of each field.
 
-        The ``rhorVt`` (angular-momentum) residual is divided per block by
-        ``block.r_mid_nd`` so its reported magnitude is a tangential-momentum
-        scale comparable to the ``rhoVx``/``rhoVr`` residuals. This rescaling is
-        for monitoring only; ``residual_nd`` itself (which drives the RK sweep)
-        is untouched.
+        Notes
+        -----
+        ``residual_nd`` itself (which drives the RK sweep) is untouched by the
+        ``rhorVt`` rescaling applied to the reported residual.
         """
 
         def _block_residual(b):
@@ -697,7 +756,7 @@ class Grid(_LabelledList):
                 mdot.append(m)
                 ho.append(h)
                 s.append(se)
-        return Convergence(
+        return ConvergenceStep(
             residual=residual,
             mdot=np.array(mdot),
             ho=np.array(ho),
@@ -730,17 +789,12 @@ class Grid(_LabelledList):
         cached array, so its ``flags.writeable`` is toggled around the in-place
         kernel write (mirrors :meth:`update_sources`).
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             avg = block.conserved_avg_nd
             avg.flags.writeable = True
             ember.fortran.accumulate_avg(block.conserved_nd, avg, n_step_avg)
             avg.flags.writeable = False
-        return self
 
     def apply_bconds(self):
         """Apply all boundary conditions across the grid once.
@@ -754,10 +808,6 @@ class Grid(_LabelledList):
         and mixing communicators lazily via :attr:`connectivity`; subsequent
         calls reuse the cached communicators until ``connectivity.clear()``.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         # Refresh mixing-plane targets from the current cross-plane state before
         # the mixing patches read them in their apply step below.
@@ -773,7 +823,6 @@ class Grid(_LabelledList):
 
         # Close the point-matched periodic seams last.
         self.connectivity.periodic.apply()
-        return self
 
     def apply_guess_meridional(self, block_guess, refine_factor=1):
         """Apply meridional flow field guess using curvilinear interpolation.
@@ -896,7 +945,9 @@ class Grid(_LabelledList):
                 Vm = Vx * lx + Vr * lr  # signed projection onto i-gridline
                 Vx_snapped = np.where(mask, Vm * lx, Vx)
                 Vr_snapped = np.where(mask, Vm * lr, Vr)
-                block.set_Vx(Vx_snapped).set_Vr(Vr_snapped).set_Vt(block.Vt)
+                block.set_Vx(Vx_snapped)
+                block.set_Vr(Vr_snapped)
+                block.set_Vt(block.Vt)
 
                 # --- Tangential snap: preserve |Vt|, sign from lrt ---
                 Vt = block.Vt.copy()
@@ -1011,7 +1062,9 @@ class Grid(_LabelledList):
                 Vx_snapped = np.where(mask, V_i * lx, Vx)
                 Vr_snapped = np.where(mask, V_i * lr, Vr)
                 Vt_snapped = np.where(mask, V_i * lrt, Vt)
-                block.set_Vx(Vx_snapped).set_Vr(Vr_snapped).set_Vt(Vt_snapped)
+                block.set_Vx(Vx_snapped)
+                block.set_Vr(Vr_snapped)
+                block.set_Vt(Vt_snapped)
 
             block.set_mu_turb(np.full((ni, nj, nk), mu_mean))
 
@@ -1028,14 +1081,9 @@ class Grid(_LabelledList):
         restarts : list of BlockRestart
             One BlockRestart per block in this Grid.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block, restart in zip(self, restarts):
             apply_restart(block, restart)
-        return self
 
     def apply_rotation(self, row_types, Omega):
         """Apply rotation settings to blocks based on row types.
@@ -1141,14 +1189,14 @@ class Grid(_LabelledList):
 
         Raises
         ------
-        SolverDivergedError
+        DivergenceError
             If any block contains a NaN, naming the first such block (index and
             label). The grid is left untouched so the invalid field can be
             inspected.
         """
         for iblock, block in enumerate(self):
             if np.isnan(block.conserved_nd[..., 0]).any():
-                raise SolverDivergedError(
+                raise DivergenceError(
                     f"NaN in conserved_nd density of block {iblock} ({block.label!r})"
                 )
 
@@ -1175,10 +1223,6 @@ class Grid(_LabelledList):
         so any subsequent averaging window starts clean. Owns the
         ``flags.writeable`` toggle on the read-only average buffer.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             block.conserved_nd[...] = block.conserved_avg_nd
@@ -1187,19 +1231,6 @@ class Grid(_LabelledList):
             avg.flags.writeable = True
             avg.fill(0.0)
             avg.flags.writeable = False
-        return self
-
-    def flat(self):
-        """Return concatenated flattened view of all blocks.
-
-        Returns
-        -------
-        Block
-            Single block containing concatenated flat data from all blocks
-        """
-        from ember.block_util import concatenate
-
-        return concatenate(*[block.flat() for block in self])
 
     def interp_from(self, src):
         """Interpolate solution from src Grid onto this one, block by block.
@@ -1209,14 +1240,9 @@ class Grid(_LabelledList):
         src : Grid
             Source Grid providing the solution.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for tgt_block, src_block in zip(self, src):
             ember.block_util.interp_from(tgt_block, src_block)
-        return self
 
     def resample(self, factors):
         """Resample all blocks, returning a new Grid at the new resolution."""
@@ -1243,7 +1269,6 @@ class Grid(_LabelledList):
                 sf2=sf2,
                 xs=block.scratch[..., 0],
             )
-        return self
 
     def update_bconds(self, freeze=False):
         """Refresh boundary-condition targets across the grid once.
@@ -1260,10 +1285,6 @@ class Grid(_LabelledList):
         still run so backflow density relaxation stays anchored to the current
         step.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         if not freeze:
             self.connectivity.mixing.exchange()
@@ -1277,7 +1298,6 @@ class Grid(_LabelledList):
                 patch.update_soln()
                 if not freeze:
                     patch.update_target()
-        return self
 
     def update_cached_conserved(self):
         """Refresh conserved-dependent caches on every block.
@@ -1285,27 +1305,44 @@ class Grid(_LabelledList):
         Fans :meth:`~ember.block.Block.update_cached_conserved` out across the grid, forcing
         each block's cached properties keyed on the conserved variables to
         recompute on next access. Needed after writing ``conserved_nd`` directly
-        (bypassing the setters), e.g. the explicit scree march.
+        (bypassing the setters), e.g. the explicit time march.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             block.update_cached_conserved()
-        return self
 
-    def update_filter(self, delta_filt, cfl):
+    def update_filter(self, cfl, delta_filt):
+        """Evolve the SFD low-pass filter one step on every block.
+
+        First-order exponential moving average of each block's cell-centred
+        conserved state toward its current cell state, with per-cell timestep
+        ``dt = cfl * dt_vol * vol``. ``cfl`` may be a per-cell/per-equation
+        array of shape ``(ni-1, nj-1, nk-1, 5)`` or a single scalar; the rank
+        selects the matching kernel. ``delta_filt`` is the filter time constant.
+
+        Must run after the CFL and ``dt_vol`` for the step are current. This is
+        the lone per-step writer of the read-only ``conserved_filt_nd`` buffer
+        (the restart apply is the only other writer), so it owns the
+        ``flags.writeable`` toggle (mirrors the timestep writers).
+
+        """
+        kernel = (
+            ember.fortran.update_filter_scalar
+            if np.ndim(cfl) == 0
+            else ember.fortran.update_filter_array
+        )
         for block in self:
-            ember.fortran.update_filter_scalar(
-                cons_filt=block.conserved_filt_nd,
+            cons_filt = block.conserved_filt_nd
+            cons_filt.flags.writeable = True
+            kernel(
+                cons_filt=cons_filt,
                 cons_cell=block.conserved_cell_nd,
                 cfl=cfl,
                 dt_vol=block.dt_vol_nd,
                 vol=block.vol_nd,
                 delta_filt=delta_filt,
             )
+            cons_filt.flags.writeable = False
 
     def update_residual(self, dampin=None, sf=0.0):
         """Rebuild the unintegrated net-flow residual on every block.
@@ -1341,10 +1378,6 @@ class Grid(_LabelledList):
             ``set_residual`` has finished using it as ``flow_i`` and the march
             reuses it only afterwards.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             i_cusp_start, i_cusp_end = block.i_cusp
@@ -1406,7 +1439,6 @@ class Grid(_LabelledList):
                     nk=nk,
                 )
             block.residual_nd.flags.writeable = False
-        return self
 
     def update_sources(self, inviscid, gain_filt):
         """Zero and rebuild the body force on every block of this grid level.
@@ -1431,10 +1463,6 @@ class Grid(_LabelledList):
             Selective-frequency-damping gain; the SFD force is added only when
             nonzero.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         # F_body_nd is a read-only cached buffer. Unlock it for the assembly below
         # and re-lock at the end, so consumers (the residual kernels) only ever
@@ -1544,8 +1572,6 @@ class Grid(_LabelledList):
         for block in self:
             block.F_body_nd.flags.writeable = False
 
-        return self
-
     def update_timestep(self, rf, fac_visc=1.0):
         """Recompute the volumetric time step on every block.
 
@@ -1568,10 +1594,6 @@ class Grid(_LabelledList):
         tolerates the same cfl as the inviscid one; ``1.0`` leaves the bare
         directional radius untouched.
 
-        Returns
-        -------
-        Grid
-            self, for method chaining.
         """
         for block in self:
             block.dt_vol_nd.flags.writeable = True
@@ -1584,13 +1606,16 @@ class Grid(_LabelledList):
                 dai=block.dAi_nd,
                 daj=block.dAj_nd,
                 dak=block.dAk_nd,
+                # Produced by the viscous pass (set_tau_q_soa, via
+                # update_sources), so it is still zero on a grid that has not
+                # yet marched -- tolerate it uninitialised. Zero mu_turb makes
+                # lam_diff vanish and dt_vol fall back to the convective limit.
                 mu_turb=block._get_data_by_keys(("mu_turb",), raise_uninit=False),
                 vol=block.vol_nd,
                 rf=rf,
                 fac_visc=fac_visc,
             )
             block.dt_vol_nd.flags.writeable = False
-        return self
 
     def write_emb(self, filename, compress=False):
         """Write grid to EMB binary format file.
@@ -1734,7 +1759,7 @@ class Grid(_LabelledList):
         >>> grid = Grid([block1, block2])  # Single row
         >>> grid.n_row  # Returns 1
         >>>
-        >>> grid_multi = Grid([stator_blocks, rotor_blocks])  # Two rows
+        >>> grid_multi = Grid([stator_block, rotor_block])  # Two rows
         >>> grid_multi.n_row  # Returns 2
         """
         return len(self.rows)
@@ -2201,3 +2226,65 @@ class GridConnectivityManager:
         return self._connectivity(PeriodicPatch)
 
     # end periodic
+
+
+# eq=False: the array fields would make a generated __eq__ return an array,
+# raising on truth-testing. Identity comparison is all this type needs.
+@dataclass(frozen=True, eq=False)
+class ConvergenceStep:
+    """Grid-wide convergence monitors at a single time step, non-dimensional.
+
+    Produced by :meth:`Grid.get_convergence` and consumed by
+    :meth:`ember.convergence_history.ConvergenceHistory.record_convergence`,
+    which unpacks the station vectors into one scalar column per station.
+
+    Station vectors are ordered inlet to outlet, each blade row contributing
+    its upstream then downstream face
+    (``[row0_up, row0_dn, row1_up, row1_dn, ...]``), so they have length
+    ``2 * n_row``.
+    """
+
+    residual: np.ndarray
+    """Block-mean ``|residual_nd|`` per conserved variable, shape ``(5,)``,
+    ordered ``(rho, rhoVx, rhoVr, rhorVt, rhoe)``. The ``rhorVt`` entry is
+    divided per block by ``block.r_mid_nd`` so its magnitude is comparable to
+    the ``rhoVx``/``rhoVr`` residuals; this rescaling is for monitoring only."""
+
+    mdot: np.ndarray
+    """Station mass flow rates, shape ``(2 * n_row,)``, non-dimensionalised by
+    the fluid mass-flux scale."""
+
+    ho: np.ndarray
+    """Station stagnation enthalpies, shape ``(2 * n_row,)``,
+    non-dimensionalised by ``u_ref``."""
+
+    s: np.ndarray
+    """Station specific entropies, shape ``(2 * n_row,)``,
+    non-dimensionalised by ``Rgas_ref``."""
+
+    mdot_target: float = 0.0
+    """Outlet throttle mass flow setpoint [kg/s]; zero when throttle inactive."""
+
+    mdot_throttle: float = 0.0
+    """Mass flow measured at the outlet patch on its last target update [kg/s]."""
+
+    P_throttle: float = 0.0
+    """Total PID pressure correction applied at the outlet [Pa]."""
+
+    dP_P: float = 0.0
+    """Proportional contribution to :attr:`P_throttle` [Pa]."""
+
+    dP_I: float = 0.0
+    """Integral contribution to :attr:`P_throttle` [Pa]."""
+
+    dP_D: float = 0.0
+    """Derivative contribution to :attr:`P_throttle` [Pa]."""
+
+
+class DivergenceError(RuntimeError):
+    """Raised when a block's conserved field contains a NaN.
+
+    A dedicated type lets a solver loop catch divergence precisely and exit
+    cleanly (leaving the invalid field in place for debugging) while genuinely
+    unexpected errors still propagate. See :meth:`Grid.check_nan`.
+    """

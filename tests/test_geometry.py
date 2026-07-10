@@ -5,9 +5,6 @@ Tests geometric calculations for structured grids in polar coordinates including
 Test cases:
 - test_box: Discretisation of a cube
 - test_cylinder: Cylindrical geometry validation
-- test_dl_min: Minimum grid spacing calculations
-- test_dl_min_stretched_grid: Minimum spacing on stretched grids
-- test_dl_min_cylindrical: Minimum spacing in cylindrical coordinates
 - test_get_dA_tri_basic_functionality: Basic triangulated area calculations
 - test_get_dA_tri_input_validation: Input validation for triangulated areas
 - test_get_dA_tri_integration: Integration tests for triangulated areas
@@ -209,139 +206,6 @@ def test_cylinder():
     assert (errk < atolA).all()
 
 
-def test_dl_min():
-    """Test get_dl_min calculation for minimum length scale."""
-    print("Testing get_dl_min calculation...")
-
-    # Simple cube test case
-    ni, nj, nk = 5, 6, 7
-    L = 0.1
-
-    # Create a regular cube grid
-    xv = np.linspace(0, L, ni)
-    yv = np.linspace(0, L, nj)
-    zv = np.linspace(0, L, nk)
-    x, y, z = np.stack(np.meshgrid(xv, yv, zv, indexing="ij"))
-
-    # Convert to polar coordinates
-    r = np.sqrt(y**2 + z**2)
-    t = np.arctan2(z, y)
-    xrt = np.stack((x, r, t), axis=-1)
-
-    # Calculate face areas and volume
-    dAi = ember.geometry.get_dAi(xrt)
-    dAj = ember.geometry.get_dAj(xrt)
-    dAk = ember.geometry.get_dAk(xrt)
-    vol = ember.geometry.get_vol(xrt, dAi, dAj, dAk)
-
-    # Calculate minimum length scale
-    dl_min = ember.geometry.get_dl_min(dAi, dAj, dAk, vol)
-
-    # For a regular cubic grid, expected length scale is approximately grid spacing
-    expected_dl = L / max(ni - 1, nj - 1, nk - 1)
-
-    # Check shape
-    assert dl_min.shape == (ni - 1, nj - 1, nk - 1), (
-        f"Shape mismatch: {dl_min.shape} != {(ni - 1, nj - 1, nk - 1)}"
-    )
-
-    # Check that all values are positive
-    assert (dl_min > 0).all(), "All length scales should be positive"
-
-    # Check that values are reasonable (within order of magnitude of grid spacing)
-    assert np.all(dl_min > 0.1 * expected_dl), "Length scales too small"
-    assert np.all(dl_min < 10 * expected_dl), "Length scales too large"
-
-    print(f"  Expected dl ~= {expected_dl:.3e}")
-    print(f"  Actual dl range: [{dl_min.min():.3e}, {dl_min.max():.3e}]")
-    print(f"  Mean dl: {dl_min.mean():.3e}")
-
-
-def test_dl_min_stretched_grid():
-    """Test get_dl_min with a stretched grid to verify minimum selection."""
-    print("Testing get_dl_min with stretched grid...")
-
-    # Create a stretched grid - fine in x, coarse in y and z
-    ni, nj, nk = 11, 3, 3
-    Lx, Ly, Lz = 0.1, 1.0, 1.0
-
-    xv = np.linspace(0, Lx, ni)
-    yv = np.linspace(0, Ly, nj)
-    zv = np.linspace(0, Lz, nk)
-    x, y, z = np.stack(np.meshgrid(xv, yv, zv, indexing="ij"))
-
-    # Convert to polar coordinates
-    r = np.sqrt(y**2 + z**2)
-    t = np.arctan2(z, y)
-    xrt = np.stack((x, r, t), axis=-1)
-
-    # Calculate geometric properties
-    dAi = ember.geometry.get_dAi(xrt)
-    dAj = ember.geometry.get_dAj(xrt)
-    dAk = ember.geometry.get_dAk(xrt)
-    vol = ember.geometry.get_vol(xrt, dAi, dAj, dAk)
-
-    # Calculate minimum length scale
-    dl_min = ember.geometry.get_dl_min(dAi, dAj, dAk, vol)
-
-    # Expected minimum length scale should be dominated by finest direction (x)
-    expected_min_dl = Lx / (ni - 1)
-
-    # Check that dl_min is close to the finest grid spacing
-    assert np.allclose(dl_min, expected_min_dl, rtol=0.5), (
-        f"Length scale should be close to finest spacing: {dl_min.mean():.3e} vs {expected_min_dl:.3e}"
-    )
-
-    print(f"  Expected minimum dl ~= {expected_min_dl:.3e}")
-    print(f"  Actual dl range: [{dl_min.min():.3e}, {dl_min.max():.3e}]")
-
-
-def test_dl_min_cylindrical():
-    """Test get_dl_min for cylindrical geometry."""
-    print("Testing get_dl_min for cylindrical geometry...")
-
-    # Cylindrical geometry parameters
-    L = 0.1
-    rm = 10.0
-    dr = 0.1
-    r1 = rm - dr / 2.0
-    r2 = rm + dr / 2.0
-
-    ni, nj, nk = 10, 5, 8
-    pitch = 2.0 * np.pi * dr / rm
-
-    xv = np.linspace(0, L, ni)
-    rv = np.linspace(r1, r2, nj)
-    tv = np.linspace(0.0, pitch, nk)
-
-    xrt = util.meshgrid3(xv, rv, tv)
-
-    # Calculate geometric properties
-    dAi = ember.geometry.get_dAi(xrt)
-    dAj = ember.geometry.get_dAj(xrt)
-    dAk = ember.geometry.get_dAk(xrt)
-    vol = ember.geometry.get_vol(xrt, dAi, dAj, dAk)
-
-    # Calculate minimum length scale
-    dl_min = ember.geometry.get_dl_min(dAi, dAj, dAk, vol)
-
-    # Check basic properties
-    assert dl_min.shape == (ni - 1, nj - 1, nk - 1), f"Shape mismatch: {dl_min.shape}"
-    assert (dl_min > 0).all(), "All length scales should be positive"
-
-    # For cylindrical geometry, expect reasonable values
-    grid_spacings = [L / (ni - 1), dr / (nj - 1), rm * pitch / (nk - 1)]
-    min_spacing = min(grid_spacings)
-
-    assert np.all(dl_min > 0.01 * min_spacing), "Length scales unexpectedly small"
-    assert np.all(dl_min < 10 * max(grid_spacings)), "Length scales unexpectedly large"
-
-    print(
-        f"  Grid spacings: dx={grid_spacings[0]:.3e}, dr={grid_spacings[1]:.3e}, rdt={grid_spacings[2]:.3e}"
-    )
-    print(f"  dl_min range: [{dl_min.min():.3e}, {dl_min.max():.3e}]")
-
-
 def test_get_dA_tri_basic_functionality():
     """Test basic functionality of get_dA_tri with known triangle areas."""
     print("Testing get_dA_tri basic functionality...")
@@ -439,7 +303,9 @@ def test_get_dA_tri_integration():
 
     # Set up coordinates
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.0], (*shape, 1))[..., 0, :]
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set fluid and conserved variables
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -508,7 +374,9 @@ def test_geometry_dA_tri_property():
     block_2d = Block(shape=shape_2d)
 
     xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.0], (*shape_2d, 1))[..., 0, :]
-    block_2d.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block_2d.set_x(xrt[..., 0])
+    block_2d.set_r(xrt[..., 1])
+    block_2d.set_t(xrt[..., 2])
 
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_2d.set_fluid(fluid)
@@ -570,7 +438,9 @@ def test_geometry_dA_dispatch():
     x = np.linspace(0, 1, ni)[:, None] * np.ones((1, nj))
     r = np.linspace(0.1, 1, nj)[None, :] * np.ones((ni, 1))
     t = np.zeros((ni, nj))
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Test quadrilateral dispatch (default)
     assert not block.triangulated, "Block should default to non-triangulated"
@@ -592,18 +462,26 @@ def test_structured_vs_triangulated_total_area():
     # Use the same block setup as the mix_out test
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(2e5, 400.0)
-    block.set_Vx(100.0).set_Vr(60.0).set_Vt(30.0).set_label("beans")
+    block.set_Vx(100.0)
+    block.set_Vr(60.0)
+    block.set_Vt(30.0)
+    block.set_label("beans")
 
     block_structured = block[0]
 
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_structured.set_fluid(fluid)
     block_structured.set_P_T(1e5, 300.0)
-    block_structured.set_Vx(100.0).set_Vr(20.0).set_Vt(10.0)
+    block_structured.set_Vx(100.0)
+    block_structured.set_Vr(20.0)
+    block_structured.set_Vt(10.0)
 
     # Calculate structured total area
     area_structured = np.sum(block_structured.dA_quad, axis=(0, 1))
@@ -639,18 +517,26 @@ def test_structured_vs_triangulated_flux():
     # Use the same block setup as the mix_out test
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(2e5, 400.0)
-    block.set_Vx(100.0).set_Vr(60.0).set_Vt(30.0).set_label("beans")
+    block.set_Vx(100.0)
+    block.set_Vr(60.0)
+    block.set_Vt(30.0)
+    block.set_label("beans")
 
     block_structured = block[0]
 
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_structured.set_fluid(fluid)
     block_structured.set_P_T(1e5, 300.0)
-    block_structured.set_Vx(100.0).set_Vr(20.0).set_Vt(10.0)
+    block_structured.set_Vx(100.0)
+    block_structured.set_Vr(20.0)
+    block_structured.set_Vt(10.0)
 
     # Calculate structured conserved flows
     flow_structured = average.flow_conserved(block_structured)
@@ -877,13 +763,16 @@ def test_radial_momentum_flux_pressure():
     # Create 3D block with only axial velocity (Vr=0)
     shape = (5, 5, 5)
     xrt = util.linmesh3((0.0, 0.1), (0.5, 1.0), (0.0, 0.1), shape)
-    block_3d = (
-        Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-    )
+    block_3d = Block(shape=shape)
+    block_3d.set_x(xrt[..., 0])
+    block_3d.set_r(xrt[..., 1])
+    block_3d.set_t(xrt[..., 2])
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_3d.set_fluid(fluid)
     block_3d.set_P_T(1e5, 300.0)
-    block_3d.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)  # Vr = 0
+    block_3d.set_Vx(100.0)
+    block_3d.set_Vr(0.0)
+    block_3d.set_Vt(0.0)
 
     # Take 2D cut
     block_2d = block_3d[2]  # Middle slice
@@ -936,9 +825,6 @@ def test_radial_momentum_flux_pressure():
 if __name__ == "__main__":
     test_box()
     test_cylinder()
-    test_dl_min()
-    test_dl_min_stretched_grid()
-    test_dl_min_cylindrical()
     test_cell_to_node_quasi_1d()
     test_cell_to_node_quasi_1d_edge_cases()
     try:
@@ -1145,3 +1031,86 @@ class TestComputeParametricCoords:
         # Different number of points but same parametric domain
         assert uv_coarse.shape == (ni, nj_coarse, nk_coarse, 2)
         assert uv_fine.shape == (ni, nj_fine, nk_fine, 2)
+
+
+def _warped_grid(jitter, theta_offset=0.0, seed=2):
+    """Swirled, radially stretched grid with a fixed random node perturbation.
+
+    The perturbation is drawn from a fixed seed so that varying ``theta_offset``
+    rigidly rotates one and the same grid, rather than producing a new one.
+    """
+    ni, nj, nk = 5, 5, 5
+    i = np.linspace(0, 1, ni)[:, None, None]
+    j = np.linspace(0, 1, nj)[None, :, None]
+    k = np.linspace(0, 1, nk)[None, None, :]
+
+    xrt = np.zeros((ni, nj, nk, 3))
+    xrt[..., 0], xrt[..., 1], xrt[..., 2] = np.broadcast_arrays(
+        1.0 * i + 0 * j + 0 * k, 1.5 + 0.8 * j, 0.4 * k + 0.2 * i * j
+    )
+    xrt = xrt + jitter * np.random.default_rng(seed).normal(size=xrt.shape)
+    xrt[..., 2] += theta_offset
+    return np.asfortranarray(xrt)
+
+
+def _face_areas(xrt):
+    return (
+        ember.geometry.get_dAi(xrt),
+        ember.geometry.get_dAj(xrt),
+        ember.geometry.get_dAk(xrt),
+    )
+
+
+@pytest.mark.parametrize("jitter", [0.0, 0.01, 0.05])
+@pytest.mark.parametrize("theta_offset", [np.pi / 2, np.pi, 2.0 * np.pi])
+def test_dA_invariant_to_theta_origin(jitter, theta_offset):
+    """Face areas do not depend on where theta = 0 is placed.
+
+    Each face measures theta from its own centre, so a rigid rotation of the
+    whole grid must leave every area vector unchanged.
+    """
+    ref = _face_areas(_warped_grid(jitter))
+    got = _face_areas(_warped_grid(jitter, theta_offset))
+
+    for dA_ref, dA_got in zip(ref, got):
+        scale = np.abs(dA_ref).max()
+        assert np.abs(dA_got - dA_ref).max() < 1e-12 * scale
+
+
+@pytest.mark.parametrize("jitter", [0.0, 0.01, 0.05])
+@pytest.mark.parametrize("theta_offset", [np.pi / 2, np.pi, 2.0 * np.pi])
+def test_vol_invariant_to_theta_origin(jitter, theta_offset):
+    """Cell volumes do not depend on where theta = 0 is placed.
+
+    The angular origin is arbitrary, so rigidly rotating the grid must not
+    change any cell volume.  This requires the vector field in the divergence
+    theorem to share one angular origin across the six faces of a cell; using a
+    global theta instead leaves warped cells origin-dependent.
+    """
+    xrt_ref = _warped_grid(jitter)
+    xrt_got = _warped_grid(jitter, theta_offset)
+
+    vol_ref = ember.geometry.get_vol(xrt_ref, *_face_areas(xrt_ref))
+    vol_got = ember.geometry.get_vol(xrt_got, *_face_areas(xrt_got))
+
+    assert np.abs(vol_got - vol_ref).max() < 1e-12 * np.abs(vol_ref).max()
+
+
+def test_vol_annular_sector_exact_at_offset_theta():
+    """Volume of an annular sector is exact regardless of the angular origin."""
+    n = 3
+    ones = np.ones((n, n, n))
+    x = np.linspace(0.0, 1.0, n)[:, None, None] * ones
+    r = np.linspace(1.0, 2.0, n)[None, :, None] * ones
+    dtheta = 0.4
+
+    # dV = dx * dtheta * (r_out^2 - r_in^2) / 2
+    r_in, r_out = r[0, :-1, 0], r[0, 1:, 0]
+    expected = 0.5 * (dtheta / (n - 1)) * (r_out**2 - r_in**2) / 2.0
+    expected = np.broadcast_to(expected[None, :, None], (n - 1, n - 1, n - 1))
+
+    for theta_offset in (0.0, 3.0, 2.0 * np.pi):
+        t = np.linspace(0.0, dtheta, n)[None, None, :] * ones + theta_offset
+        xrt = np.asfortranarray(np.stack([x, r, t], axis=-1))
+        vol = ember.geometry.get_vol(xrt, *_face_areas(xrt))
+        np.testing.assert_allclose(vol, expected, rtol=1e-12)

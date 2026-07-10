@@ -27,7 +27,9 @@ def grid_with_periodic_patches():
     b1 = ember.block.Block(shape=shape)
     L = 0.1
     xrt = util.linmesh3((0.0, L), (0.5, 1.0), (0.0, np.pi / 4), shape)
-    b1.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b1.set_x(xrt[..., 0])
+    b1.set_r(xrt[..., 1])
+    b1.set_t(xrt[..., 2])
 
     # Block 2 - identical geometry shifted in x
     b2 = b1.copy()
@@ -125,14 +127,19 @@ def _test_single_perm_flip(perm, flip):
     b1 = ember.block.Block(shape=shape)
     L = 0.1
     xrt1 = util.linmesh3([0.0, L], [0.9, 1.0], [0.0, 0.1], shape)
-    b1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+    b1.set_x(xrt1[..., 0])
+    b1.set_r(xrt1[..., 1])
+    b1.set_t(xrt1[..., 2])
     b1.set_fluid(fluid)
     b1.set_conserved(np.random.rand(*shape, 5) + 1)
 
     # Second block is shifted in x is perm/flip
     xrt2 = util.apply_perm_flip(xrt1, perm, flip)
     b2 = b1.copy()
-    b2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2]).set_x(b2.x + L)
+    b2.set_x(xrt2[..., 0])
+    b2.set_r(xrt2[..., 1])
+    b2.set_t(xrt2[..., 2])
+    b2.set_x(b2.x + L)
     b2.set_conserved(np.random.rand(*shape, 5) + 2)
 
     dim_i_new = perm.index(0)

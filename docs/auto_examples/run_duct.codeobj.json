@@ -1,0 +1,884 @@
+{
+ "CASES": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "tuple"
+  }
+ ],
+ "ER": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "LENGTH_RATIO": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "MA_BULK": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "NI": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "NJ": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "NK": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "int"
+  }
+ ],
+ "PO": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "R_MID": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "R_MID_RATIO": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "SIDE": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "TO": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  }
+ ],
+ "add_thermodynamic_ramp": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "add_velocity_noise": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "build_case": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "ember.block.Block": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Block"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.struct",
+   "module_short": "ember.struct",
+   "name": "StructuredData"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "StructuredData"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.block",
+   "module_short": "ember.block",
+   "name": "Block"
+  }
+ ],
+ "ember.fluid.PerfectFluid": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "PerfectFluid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "_Fluid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_Fluid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.fluid",
+   "module_short": "ember.fluid",
+   "name": "PerfectFluid"
+  }
+ ],
+ "ember.grid.Grid": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.collections",
+   "module_short": "ember.collections",
+   "name": "_LabelledList"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_LabelledList"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid"
+  }
+ ],
+ "ember.patch.InletPatch": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.inlet",
+   "module_short": "ember.inlet",
+   "name": "InletPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "InletPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.basepatch",
+   "module_short": "ember.basepatch",
+   "name": "RevolutionPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "RevolutionPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.basepatch",
+   "module_short": "ember.basepatch",
+   "name": "Patch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Patch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.patch",
+   "module_short": "ember.patch",
+   "name": "InletPatch"
+  }
+ ],
+ "ember.patch.OutletPatch": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.outlet",
+   "module_short": "ember.outlet",
+   "name": "OutletPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "OutletPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.basepatch",
+   "module_short": "ember.basepatch",
+   "name": "RevolutionPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "RevolutionPatch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.basepatch",
+   "module_short": "ember.basepatch",
+   "name": "Patch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Patch"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.patch",
+   "module_short": "ember.patch",
+   "name": "OutletPatch"
+  }
+ ],
+ "ember.set_iter.set_ho_s_Ma_Alpha_Beta": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.set_iter",
+   "module_short": "ember.set_iter",
+   "name": "set_ho_s_Ma_Alpha_Beta"
+  }
+ ],
+ "ember.solver.SolverConfig": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember.solver",
+   "module_short": "ember.solver",
+   "name": "SolverConfig"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "SolverConfig"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.solver",
+   "module_short": "ember.solver",
+   "name": "SolverConfig"
+  }
+ ],
+ "ember.solver.run": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.solver",
+   "module_short": "ember.solver",
+   "name": "run"
+  }
+ ],
+ "grid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid"
+  }
+ ],
+ "grid.calculate_wdist": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid.calculate_wdist"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid.calculate_wdist"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.collections",
+   "module_short": "ember.collections",
+   "name": "_LabelledList.calculate_wdist"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_LabelledList.calculate_wdist"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.calculate_wdist"
+  }
+ ],
+ "grid.set_L_ref": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid.set_L_ref"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid.set_L_ref"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.collections",
+   "module_short": "ember.collections",
+   "name": "_LabelledList.set_L_ref"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_LabelledList.set_L_ref"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_L_ref"
+  }
+ ],
+ "grid.set_fluid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.grid",
+   "module_short": "ember.grid",
+   "name": "Grid.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "Grid.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.collections",
+   "module_short": "ember.collections",
+   "name": "_LabelledList.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember",
+   "module_short": "ember",
+   "name": "_LabelledList.set_fluid"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "abc",
+   "module_short": "abc",
+   "name": "ABC.set_fluid"
+  }
+ ],
+ "make_block": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "make_grid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "np.abs": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ufunc"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "abs"
+  }
+ ],
+ "np.asarray": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "asarray"
+  }
+ ],
+ "np.float32": [
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "floating"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "inexact"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "number"
+  },
+  {
+   "is_class": true,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "generic"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "float32"
+  }
+ ],
+ "np.inf": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "inf"
+  }
+ ],
+ "np.isfinite": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "ufunc"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "isfinite"
+  }
+ ],
+ "np.linspace": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "linspace"
+  }
+ ],
+ "np.meshgrid": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "meshgrid"
+  }
+ ],
+ "np.pi": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "float"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "pi"
+  }
+ ],
+ "np.random.default_rng": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "_cython_3_2_8",
+   "module_short": "_cython_3_2_8",
+   "name": "cython_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy.random",
+   "module_short": "numpy.random",
+   "name": "default_rng"
+  }
+ ],
+ "np.stack": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "_ArrayFunctionDispatcher"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "numpy",
+   "module_short": "numpy",
+   "name": "stack"
+  }
+ ],
+ "plot_history": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "plot_mesh": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "plot_mesh_k": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "plt.show": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.pyplot",
+   "module_short": "matplotlib.pyplot",
+   "name": "show"
+  }
+ ],
+ "plt.subplots": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "matplotlib.pyplot",
+   "module_short": "matplotlib.pyplot",
+   "name": "subplots"
+  }
+ ],
+ "results": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "list"
+  }
+ ],
+ "set_boundary_conditions": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "solve": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  }
+ ],
+ "time.perf_counter": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "builtin_function_or_method"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "time",
+   "module_short": "time",
+   "name": "perf_counter"
+  }
+ ],
+ "util.cluster_symmetric": [
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "builtins",
+   "module_short": "builtins",
+   "name": "function"
+  },
+  {
+   "is_class": false,
+   "is_explicit": false,
+   "module": "ember.util",
+   "module_short": "ember.util",
+   "name": "cluster_symmetric"
+  }
+ ]
+}

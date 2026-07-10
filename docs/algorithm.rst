@@ -216,8 +216,8 @@ Entry point
 -----------
 
 .. note::
-   This page describes the legacy ``ember.run`` solver loop, removed in
-   favour of the simpler constant-CFL march in ``ember.scree.loop``
-   (see ``ember.scree.ScreeConfig`` for its configuration). Retained
+   This page describes a legacy solver loop, since removed in favour of the
+   simpler constant-CFL march in ``ember.solver.run`` (see
+   ``ember.solver.SolverConfig`` for its configuration). Retained
    for background on the algorithm ideas (CFL adaptation, full multigrid)
    that the current solver does not (yet) reimplement.

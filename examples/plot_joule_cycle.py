@@ -44,7 +44,8 @@ Theta = 5.0  # Turbine-inlet to compressor-inlet temperature ratio, T3 / T1
 # the isentropic efficiencies relate the real enthalpy rise/drop to the ideal
 # one.
 
-block = ember.block.Block(shape=(4,)).set_fluid(fluid)
+block = ember.block.Block(shape=(4,))
+block.set_fluid(fluid)
 
 # (1) Compressor inlet, atmospheric conditions
 P1 = 1e5
@@ -94,7 +95,8 @@ print(f"Cycle thermal efficiency: {eta_cycle:.3f}")
 # :class:`~ember.block.Block`, sweeping entropy at fixed pressure.
 
 ni = 50
-lines = ember.block.Block(shape=(2, ni)).set_fluid(fluid)
+lines = ember.block.Block(shape=(2, ni))
+lines.set_fluid(fluid)
 s_min, s_max = block.s.min(), block.s.max()
 Ds = 0.1 * (s_max - s_min)
 s = np.linspace(s_min - Ds, s_max + Ds, ni)

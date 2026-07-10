@@ -44,7 +44,6 @@ class RotatingPatch(Patch):
         if Omega_arr.ndim > 0:
             raise ValueError("Omega must be a scalar, not an array")
         self._Omega = np.float32(Omega)
-        return self
 
     def set_rpm(self, rpm):
         r"""Set the wall angular velocity from revolutions per minute.
@@ -56,7 +55,7 @@ class RotatingPatch(Patch):
         rpm : float
             Rotational speed [rev/min].
         """
-        return self.set_Omega(rpm * 2.0 * np.pi / 60.0)
+        self.set_Omega(rpm * 2.0 * np.pi / 60.0)
 
     @property
     def Omega(self):

@@ -306,7 +306,6 @@ class Patch(ABC):
     def set_label(self, label):
         """Set patch label."""
         self._label = label
-        return self
 
     def get_ijk_face(self, perm=(0, 1, 2), flip=()):
         """Block indices for faces on the patch.
@@ -409,8 +408,6 @@ class Patch(ABC):
             self._block_view = block[self.slice]
             self._block_view_offset_1 = block[self._get_offset_slice(1)]
             self._block_view_offset_2 = block[self._get_offset_slice(2)]
-
-        return self
 
     def check_match(self, other, rtol=1e-6):
         """Check if this patch matches another patch for pairing purposes.
@@ -723,7 +720,7 @@ class RevolutionPatch(Patch):
         super().attach_to_block(block)
 
         if self._block_ref is None:
-            return self
+            return
 
         # Determine if we are a surface of revolution
         # and set span and pitch dimensions accordingly
@@ -828,13 +825,13 @@ class RevolutionPatch(Patch):
             self._block_avg.set_fluid(block.fluid)
         except ValueError:
             pass
-        self._block_avg.set_x(x_avg).set_r(r_avg).set_t(t_avg)
+        self._block_avg.set_x(x_avg)
+        self._block_avg.set_r(r_avg)
+        self._block_avg.set_t(t_avg)
         # self._block_avg.set_conserved(util.zeros((nspan, 5)))
 
         # Scratch buffer for 2x2 rotation matvec output
         self._rot_buf = util.empty(self._block_view.shape + (2,))
-
-        return self
 
     def resolve_from_interface(self):
         """Rotate block_view momentum in-place from (norm, span) to (x, r) coordinates.

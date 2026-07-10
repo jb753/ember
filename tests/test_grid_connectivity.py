@@ -51,8 +51,12 @@ class TestGridConnectivityBasics:
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1)
 
-        self.block1.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-        self.block2.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block1.set_x(xrt[..., 0])
+        self.block1.set_r(xrt[..., 1])
+        self.block1.set_t(xrt[..., 2])
+        self.block2.set_x(xrt[..., 0])
+        self.block2.set_r(xrt[..., 1])
+        self.block2.set_t(xrt[..., 2])
 
     def test_grid_connectivity_instantiation(self):
         """Test that GridConnectivity can be created."""
@@ -99,8 +103,12 @@ class TestPeriodicConnectivity:
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1)
 
-        self.block1.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-        self.block2.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block1.set_x(xrt[..., 0])
+        self.block1.set_r(xrt[..., 1])
+        self.block1.set_t(xrt[..., 2])
+        self.block2.set_x(xrt[..., 0])
+        self.block2.set_r(xrt[..., 1])
+        self.block2.set_t(xrt[..., 2])
 
     def test_single_periodic_connection(self):
         """Test connectivity with one pair of matching periodic patches."""
@@ -183,7 +191,9 @@ class TestPeriodicConnectivity:
         t = np.linspace(0, 2 * np.pi, 8)
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1)
-        block3.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block3.set_x(xrt[..., 0])
+        block3.set_r(xrt[..., 1])
+        block3.set_t(xrt[..., 2])
 
         # Add matching patches to all three blocks
         patch1 = PeriodicPatch(i=0, j=(2, 4), k=(3, 5), label="p1")
@@ -250,8 +260,12 @@ class TestGridConnectivityUpdate:
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1)
 
-        self.block1.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-        self.block2.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block1.set_x(xrt[..., 0])
+        self.block1.set_r(xrt[..., 1])
+        self.block1.set_t(xrt[..., 2])
+        self.block2.set_x(xrt[..., 0])
+        self.block2.set_r(xrt[..., 1])
+        self.block2.set_t(xrt[..., 2])
 
     def test_pairing_is_cached(self):
         """pair() is cached; topology changes are only seen after clear()."""
@@ -392,8 +406,12 @@ class TestGridConnectivityIntegration:
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1)
 
-        block1.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-        block2.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block1.set_x(xrt[..., 0])
+        block1.set_r(xrt[..., 1])
+        block1.set_t(xrt[..., 2])
+        block2.set_x(xrt[..., 0])
+        block2.set_r(xrt[..., 1])
+        block2.set_t(xrt[..., 2])
 
         patch1 = PeriodicPatch(i=0, j=(1, 3), k=(1, 3), label="p1")
         patch2 = PeriodicPatch(i=0, j=(1, 3), k=(1, 3), label="p2")
@@ -427,7 +445,9 @@ class TestGridMixingConnectivity:
         t1 = np.linspace(0.0, 2 * np.pi, 12)
         xv1, rv1, tv1 = np.meshgrid(x1, r1, t1, indexing="ij")
         xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        self.block1.set_x(xrt1[..., 0])
+        self.block1.set_r(xrt1[..., 1])
+        self.block1.set_t(xrt1[..., 2])
 
         # Set up coordinates for block2 (same x,r but different theta resolution)
         x2 = np.linspace(0.0, 1.0, 5)
@@ -435,7 +455,9 @@ class TestGridMixingConnectivity:
         t2 = np.linspace(0.0, 2 * np.pi, 16)  # Different theta resolution
         xv2, rv2, tv2 = np.meshgrid(x2, r2, t2, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        self.block2.set_x(xrt2[..., 0])
+        self.block2.set_r(xrt2[..., 1])
+        self.block2.set_t(xrt2[..., 2])
 
         # Create grid
         self.grid = Grid()
@@ -469,12 +491,16 @@ class TestGridMixingConnectivity:
         # Block1 coordinates
         xv1, rv1, tv1 = np.meshgrid(x, r, t1, indexing="ij")
         xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        self.block1.set_x(xrt1[..., 0])
+        self.block1.set_r(xrt1[..., 1])
+        self.block1.set_t(xrt1[..., 2])
 
         # Block2 coordinates (same x,r)
         xv2, rv2, tv2 = np.meshgrid(x, r, t2, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        self.block2.set_x(xrt2[..., 0])
+        self.block2.set_r(xrt2[..., 1])
+        self.block2.set_t(xrt2[..., 2])
 
         # Add matching mixing patches at block boundaries
         patch1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))  # End boundary of block1
@@ -517,11 +543,15 @@ class TestGridMixingConnectivity:
         # Set same x,r coordinates
         xv1, rv1, tv1 = np.meshgrid(x, r, t1, indexing="ij")
         xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        self.block1.set_x(xrt1[..., 0])
+        self.block1.set_r(xrt1[..., 1])
+        self.block1.set_t(xrt1[..., 2])
 
         xv2, rv2, tv2 = np.meshgrid(x, r, t2, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        self.block2.set_x(xrt2[..., 0])
+        self.block2.set_r(xrt2[..., 1])
+        self.block2.set_t(xrt2[..., 2])
 
         # Add matching mixing patches
         patch1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))
@@ -550,11 +580,15 @@ class TestGridMixingConnectivity:
 
         xv1, rv1, tv1 = np.meshgrid(x, r, t1, indexing="ij")
         xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        self.block1.set_x(xrt1[..., 0])
+        self.block1.set_r(xrt1[..., 1])
+        self.block1.set_t(xrt1[..., 2])
 
         xv2, rv2, tv2 = np.meshgrid(x, r, t2, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        self.block2.set_x(xrt2[..., 0])
+        self.block2.set_r(xrt2[..., 1])
+        self.block2.set_t(xrt2[..., 2])
 
         # Create patches with same x,r but different k ranges/sizes
         patch1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))  # 5 theta points
@@ -616,11 +650,15 @@ class TestGridMixingConnectivity:
 
         xv1, rv1, tv1 = np.meshgrid(x, r, t1, indexing="ij")
         xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        self.block1.set_x(xrt1[..., 0])
+        self.block1.set_r(xrt1[..., 1])
+        self.block1.set_t(xrt1[..., 2])
 
         xv2, rv2, tv2 = np.meshgrid(x, r, t2, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        self.block2.set_x(xrt2[..., 0])
+        self.block2.set_r(xrt2[..., 1])
+        self.block2.set_t(xrt2[..., 2])
 
         # Add mixing patches
         mixing1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))

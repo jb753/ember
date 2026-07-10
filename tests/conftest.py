@@ -116,7 +116,9 @@ def _make_block(shape):
     x = np.linspace(0.0, 1.0, nj).reshape(1, -1, 1) * np.ones(shape)
     r = np.ones(shape) * 0.5
     t = np.linspace(0.0, 0.2, nk).reshape(1, 1, -1) * np.ones(shape)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
     block.set_P_T(101325.0, 300.0)
     return block
 

@@ -37,7 +37,9 @@ class TestNonMatchPatchCheckMatch:
         t1 = np.linspace(0.0, 2 * np.pi, 30)
         xv1, rv1, tv1 = np.meshgrid(x1, r1, t1, indexing="ij")
         xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        self.block1.set_x(xrt1[..., 0])
+        self.block1.set_r(xrt1[..., 1])
+        self.block1.set_t(xrt1[..., 2])
 
         # Set up coordinates for block2 (same x,r but different theta resolution)
         x2 = np.linspace(0.0, 1.0, 8)
@@ -45,7 +47,9 @@ class TestNonMatchPatchCheckMatch:
         t2 = np.linspace(0.0, 2 * np.pi, 25)  # Different theta resolution
         xv2, rv2, tv2 = np.meshgrid(x2, r2, t2, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        self.block2.set_x(xrt2[..., 0])
+        self.block2.set_r(xrt2[..., 1])
+        self.block2.set_t(xrt2[..., 2])
 
     def test_nonmatch_patch_identical_match(self):
         """Test that identical NonMatchPatches match."""
@@ -124,14 +128,18 @@ class TestNonMatchPatchCheckMatch:
         t = np.linspace(0.0, 2 * np.pi, 10)
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt1 = np.stack([xv, rv, tv], axis=-1)
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
 
         # Block 2: same geometry but with dimensions in different order
         block2 = ember.block.Block(shape=(8, 6, 10))
         # Swap x and r dimensions
         xv2, rv2, tv2 = np.meshgrid(r, x, t, indexing="ij")
         xrt2 = np.stack([rv2, xv2, tv2], axis=-1)  # Note: swapped r and x
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         # Patches at corresponding locations
         patch1 = NonMatchPatch(i=0, j=(2, 5), k=(3, 7))
@@ -153,14 +161,18 @@ class TestNonMatchPatchCheckMatch:
         t = np.linspace(0.0, 2 * np.pi, 10)
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt1 = np.stack([xv, rv, tv], axis=-1)
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
 
         # Block 2: same coordinates but with j-dimension flipped
         block2 = ember.block.Block(shape=(6, 8, 10))
         r_flipped = np.flip(r)
         xv2, rv2, tv2 = np.meshgrid(x, r_flipped, t, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         # Create patches that would match if we flip the j-dimension
         patch1 = NonMatchPatch(i=0, j=(2, 5), k=(3, 7))
@@ -235,18 +247,18 @@ class TestNonMatchPatchCheckMatch:
         t_coarse = np.linspace(0.0, 2 * np.pi, 6)
         xv_c, rv_c, tv_c = np.meshgrid(x_coarse, r_coarse, t_coarse, indexing="ij")
         xrt_coarse = np.stack([xv_c, rv_c, tv_c], axis=-1)
-        block_coarse.set_x(xrt_coarse[..., 0]).set_r(xrt_coarse[..., 1]).set_t(
-            xrt_coarse[..., 2]
-        )
+        block_coarse.set_x(xrt_coarse[..., 0])
+        block_coarse.set_r(xrt_coarse[..., 1])
+        block_coarse.set_t(xrt_coarse[..., 2])
 
         x_fine = np.linspace(0.0, 1.0, 20)
         r_fine = np.linspace(0.5, 1.5, 25)
         t_fine = np.linspace(0.0, 2 * np.pi, 30)
         xv_f, rv_f, tv_f = np.meshgrid(x_fine, r_fine, t_fine, indexing="ij")
         xrt_fine = np.stack([xv_f, rv_f, tv_f], axis=-1)
-        block_fine.set_x(xrt_fine[..., 0]).set_r(xrt_fine[..., 1]).set_t(
-            xrt_fine[..., 2]
-        )
+        block_fine.set_x(xrt_fine[..., 0])
+        block_fine.set_r(xrt_fine[..., 1])
+        block_fine.set_t(xrt_fine[..., 2])
 
         # Full face patches
         patch_coarse = NonMatchPatch(i=0)
@@ -271,13 +283,17 @@ class TestNonMatchPatchCheckMatch:
         t = np.linspace(0.0, np.pi, 5)
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt1 = np.stack([xv, rv, tv], axis=-1)
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
 
         # Block2: slightly shifted in x
         x2 = x + 0.001  # Small shift
         xv2, rv2, tv2 = np.meshgrid(x2, r, t, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         patch1 = NonMatchPatch(i=0)
         patch2 = NonMatchPatch(i=0)

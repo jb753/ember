@@ -108,7 +108,9 @@ def _make_patch_collection():
     """Return a BlockPatchCollection attached to a fully initialised 50x50x50 block."""
     b = ember.block.Block(shape=(50, 50, 50))
     x, y, z = np.mgrid[0:50, 0:50, 0:50].astype(float) + 1.0
-    b.set_x(x).set_r(y).set_t(z)
+    b.set_x(x)
+    b.set_r(y)
+    b.set_t(z)
     return b.patches
 
 
@@ -1290,7 +1292,9 @@ def _create_test_block_3d():
     x = np.linspace(0.0, 1.0, shape[1]).reshape(1, -1, 1) * np.ones(shape)
     r = np.ones(shape) * 0.5
     t = np.linspace(0, 0.2, shape[2]).reshape(1, 1, -1) * np.ones(shape)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
     block.set_P_T(101325.0, 300.0)
     return block
 
@@ -1369,9 +1373,9 @@ def test_block_flat_removes_patches():
     block_3d = Block(shape=(5, 4, 3))
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
     block_3d.set_fluid(fluid)
-    block_3d.set_x(np.random.rand(5, 4, 3)).set_r(np.ones((5, 4, 3))).set_t(
-        np.random.rand(5, 4, 3)
-    )
+    block_3d.set_x(np.random.rand(5, 4, 3))
+    block_3d.set_r(np.ones((5, 4, 3)))
+    block_3d.set_t(np.random.rand(5, 4, 3))
     block_3d.set_P_T(101325.0, 300.0)
 
     # Add some patches (use PeriodicPatch since geometry is not a surface of revolution)
@@ -2588,7 +2592,9 @@ class TestBasePatchCheckMatch:
         t = np.linspace(0.0, 2 * np.pi, 30)
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1)
-        self.block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block.set_x(xrt[..., 0])
+        self.block.set_r(xrt[..., 1])
+        self.block.set_t(xrt[..., 2])
 
 
 class TestPeriodicPatchCheckMatch:
@@ -2604,7 +2610,9 @@ class TestPeriodicPatchCheckMatch:
         t = np.linspace(0.0, 2 * np.pi, 30)
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1)
-        self.block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block.set_x(xrt[..., 0])
+        self.block.set_r(xrt[..., 1])
+        self.block.set_t(xrt[..., 2])
 
     def test_periodic_patch_identical_match(self):
         """Test that identical PeriodicPatches match."""
@@ -2670,7 +2678,9 @@ class TestPatchGetCenter:
         t = np.linspace(0, np.pi, 8)
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1)
-        self.block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block.set_x(xrt[..., 0])
+        self.block.set_r(xrt[..., 1])
+        self.block.set_t(xrt[..., 2])
 
     def test_xrt_centre_shape_and_bounds(self):
         """Test that xrt_centre returns expected shape and reasonable values."""
@@ -2714,7 +2724,9 @@ class TestSubclassMatchingFlexibility:
         t = np.linspace(0.0, 2 * np.pi, 30)
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1)
-        self.block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        self.block.set_x(xrt[..., 0])
+        self.block.set_r(xrt[..., 1])
+        self.block.set_t(xrt[..., 2])
 
     def test_custom_patch_type_different_matching(self):
         """Demonstrate how a custom patch type could implement different matching."""
@@ -2776,7 +2788,9 @@ class TestMixingPatchCheckMatch:
         t1 = np.linspace(0.0, 2 * np.pi, 30)
         xv1, rv1, tv1 = np.meshgrid(x1, r1, t1, indexing="ij")
         xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        self.block1.set_x(xrt1[..., 0])
+        self.block1.set_r(xrt1[..., 1])
+        self.block1.set_t(xrt1[..., 2])
 
         # Set up coordinates for block2 (same x,r but different theta resolution)
         x2 = np.linspace(0.0, 1.0, 10)
@@ -2784,7 +2798,9 @@ class TestMixingPatchCheckMatch:
         t2 = np.linspace(0.0, 2 * np.pi, 40)  # Different theta resolution
         xv2, rv2, tv2 = np.meshgrid(x2, r2, t2, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        self.block2.set_x(xrt2[..., 0])
+        self.block2.set_r(xrt2[..., 1])
+        self.block2.set_t(xrt2[..., 2])
 
     def test_mixing_patch_identical_match(self):
         """Test that identical MixingPatches match."""
@@ -2846,14 +2862,18 @@ class TestMixingPatchCheckMatch:
         t = np.linspace(0.0, 2 * np.pi, 10)
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt1 = np.stack([xv, rv, tv], axis=-1)
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
 
         # Block 2: same coordinates but with j-dimension flipped
         block2 = ember.block.Block(shape=(6, 8, 10))
         r_flipped = np.flip(r)  # Flip the r coordinate array
         xv2, rv2, tv2 = np.meshgrid(x, r_flipped, t, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         # Create patches that would match if we flip the j-dimension
         patch1 = MixingPatch(i=0, j=(2, 5), k=(3, 7))
@@ -2923,9 +2943,9 @@ class TestMixingPatchCheckMatch:
         t = np.linspace(0.0, 2 * np.pi, 30)
         xv, rv, tv = np.meshgrid(x, r_wide, t, indexing="ij")
         xrt_wide = np.stack([xv, rv, tv], axis=-1)
-        block_wide.set_x(xrt_wide[..., 0]).set_r(xrt_wide[..., 1]).set_t(
-            xrt_wide[..., 2]
-        )
+        block_wide.set_x(xrt_wide[..., 0])
+        block_wide.set_r(xrt_wide[..., 1])
+        block_wide.set_t(xrt_wide[..., 2])
 
         patch1 = MixingPatch(i=0, j=(5, 15), k=(10, 20))
         patch2 = MixingPatch(i=0, j=(5, 15), k=(10, 20))
@@ -2968,7 +2988,9 @@ class TestMixingPatchSpanwiseMatching:
         t1 = np.linspace(0.0, 2 * np.pi, 30)
         xv1, rv1, tv1 = np.meshgrid(x1, r1, t1, indexing="ij")
         xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        self.block1.set_x(xrt1[..., 0])
+        self.block1.set_r(xrt1[..., 1])
+        self.block1.set_t(xrt1[..., 2])
 
         # Set up coordinates for block2 (same x but different r,t resolution)
         x2 = np.linspace(0.0, 1.0, 10)  # Same x coordinates
@@ -2976,7 +2998,9 @@ class TestMixingPatchSpanwiseMatching:
         t2 = np.linspace(0.0, 2 * np.pi, 40)  # Different theta resolution
         xv2, rv2, tv2 = np.meshgrid(x2, r2, t2, indexing="ij")
         xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        self.block2.set_x(xrt2[..., 0])
+        self.block2.set_r(xrt2[..., 1])
+        self.block2.set_t(xrt2[..., 2])
 
     def test_flexible_matching_different_pitchwise(self):
         """Test matching patches with different pitchwise resolutions."""
@@ -3040,28 +3064,23 @@ Test cases:
 - test_set_Po_To_Alpha_Beta_all_at_once: Setting all inlet parameters at once
 - test_set_Po_To_Alpha_Beta_arrays_broadcast: Setting arrays that broadcast correctly
 - test_set_Po_To_Alpha_Beta_broadcast_failure: Broadcast validation failure
-- test_set_Po_To_Alpha_Beta_returns_self: Method chaining for inlet setters
 - test_set_Po_To_Alpha_Beta_validation_errors: Validation errors for inlet parameters
 - test_calc_raw_raises_without_block: Accessing stagnation properties without proper block raises error
 - test_calc_raw_computes_properties: Compute rhoo, ho, s from Po, To
 - test_calc_raw_with_arrays: Array-valued Po, To work correctly
 - test_set_P_scalar: Setting scalar pressure for outlet
 - test_set_P_conversion: Type conversion to float32
-- test_set_P_returns_self: Method chaining for outlet setters
 - test_set_P_array_raises_error: Array validation for scalar parameters
 - test_set_P_validation_errors: Validation errors for outlet pressure
 - test_set_Omega_scalar: Setting scalar angular velocity
 - test_set_Omega_conversion: Type conversion for rotating patch
-- test_set_Omega_returns_self: Method chaining for rotating setters
 - test_set_Omega_array_raises_error: Array validation for rotating parameters
 - test_set_rpm_scalar: Setting RPM for rotating patch
 - test_set_rpm_conversion: RPM to angular velocity conversion
-- test_set_rpm_returns_self: Method chaining for RPM setters
 - test_set_cool_single_values: Setting individual cooling parameters
 - test_set_cool_all_at_once: Setting all cooling parameters at once
 - test_set_cool_type_conversion: Type conversion for cooling parameters
 - test_set_cool_default_angle_def: Default angle definition behavior
-- test_set_cool_returns_self: Method chaining for cooling setters
 - test_set_cool_array_raises_error: Array validation for cooling parameters
 - test_inlet_patch_init: InletPatch initialization
 - test_outlet_patch_init: OutletPatch initialization
@@ -3160,13 +3179,6 @@ class TestInletPatch:
                 To=np.array([300.0, 310.0, 320.0])
             )  # Shape (3,) won't broadcast
 
-    def test_set_Po_To_Alpha_Beta_returns_self(self, block_10):
-        """Test that set_Po_To_Alpha_Beta returns self for chaining."""
-        patch = InletPatch(i=0)
-        patch.attach_to_block(block_10)
-        result = patch.set_Po_To_Alpha_Beta(Po=101325.0)
-        assert result is patch
-
     def test_set_Po_To_Alpha_Beta_validation_errors(self, block_10):
         """Test validation errors for Po and To."""
         patch = InletPatch(i=0)
@@ -3252,7 +3264,9 @@ class TestInletPatch:
         block = ember.block.Block(shape=shape)
         block.set_fluid(fluid)
         _xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-        block.set_x(_xrt[..., 0]).set_r(_xrt[..., 1]).set_t(_xrt[..., 2])
+        block.set_x(_xrt[..., 0])
+        block.set_r(_xrt[..., 1])
+        block.set_t(_xrt[..., 2])
 
         Po, To, Alpha, Beta = 1e5, 300.0, 15.0, 5.0
         s = fluid.get_s(*fluid.set_P_T(Po, To))
@@ -3325,12 +3339,6 @@ class TestOutletPatch:
         patch = OutletPatch(i=0)
         patch.set_P(50000.0)
         assert patch.P == np.float32(50000.0)
-
-    def test_set_P_returns_self(self):
-        """Test that set_P returns self for chaining."""
-        patch = OutletPatch(i=0)
-        result = patch.set_P(50000.0)
-        assert result is patch
 
     def test_throttle_and_nonscalar_P_mutually_exclusive(self):
         """Non-scalar P and throttle control are mutually exclusive."""
@@ -3445,12 +3453,6 @@ class TestRotatingPatch:
         assert patch.Omega == np.float32(100.0)
         assert isinstance(patch.Omega, np.float32)
 
-    def test_set_Omega_returns_self(self):
-        """Test that set_Omega returns self for chaining."""
-        patch = RotatingPatch(i=0)
-        result = patch.set_Omega(100.0)
-        assert result is patch
-
     def test_set_Omega_array_raises_error(self):
         """Test that passing arrays to scalar parameter raises error."""
         patch = RotatingPatch(i=0)
@@ -3471,12 +3473,6 @@ class TestRotatingPatch:
         expected_omega = 1000.0 * 2.0 * np.pi / 60.0
         assert patch.Omega == np.float32(expected_omega)
         assert isinstance(patch.Omega, np.float32)
-
-    def test_set_rpm_returns_self(self):
-        """Test that set_rpm returns self for chaining."""
-        patch = RotatingPatch(i=0)
-        result = patch.set_rpm(1000.0)
-        assert result is patch
 
 
 class TestRotatingPatchCopy:
@@ -3645,12 +3641,6 @@ class TestCoolingPatch:
         patch = CoolingPatch(i=0)
         assert patch.angle_def == 1
 
-    def test_set_cool_returns_self(self):
-        """Test that set_cool returns self for chaining."""
-        patch = CoolingPatch(i=0)
-        result = patch.set_cool(type=1)
-        assert result is patch
-
     def test_set_cool_array_raises_error(self):
         """Test that passing arrays to scalar parameters raises error."""
         patch = CoolingPatch(i=0)
@@ -3758,10 +3748,14 @@ class TestPatchSurfaceOfRevolution:
             [np.broadcast_to(x, shape), r, np.broadcast_to(t, shape)], axis=-1
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         # Patch on i=0 face, so const_dim=0, varying dims are j and k
         patch = InletPatch(i=0)
@@ -3791,10 +3785,14 @@ class TestPatchSurfaceOfRevolution:
             axis=-1,
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -3822,10 +3820,14 @@ class TestPatchSurfaceOfRevolution:
             axis=-1,
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -3859,10 +3861,14 @@ class TestPatchSurfaceOfRevolution:
             axis=-1,
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -3885,10 +3891,14 @@ class TestPatchSurfaceOfRevolution:
             [np.broadcast_to(x, shape), r, np.broadcast_to(t, shape)], axis=-1
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -3912,7 +3922,9 @@ class TestPatchSurfaceOfRevolution:
         xrt = np.stack(
             [np.broadcast_to(x, shape), r, np.broadcast_to(t, shape)], axis=-1
         )
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
 
@@ -3935,7 +3947,9 @@ class TestPatchSurfaceOfRevolution:
         xrt = np.stack(
             [np.broadcast_to(x, shape), r, np.broadcast_to(t, shape)], axis=-1
         )
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
 
@@ -3967,7 +3981,9 @@ class TestPatchSurfaceOfRevolution:
         xrt = np.stack(
             [np.broadcast_to(x, shape), r, np.broadcast_to(t, shape)], axis=-1
         )
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
 
@@ -3998,7 +4014,9 @@ class TestPatchSurfaceOfRevolution:
         xrt = np.stack(
             [np.broadcast_to(x, shape), r, np.broadcast_to(t, shape)], axis=-1
         )
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         return block
 
     def test_set_block_avg_uniform_field(self):
@@ -4006,7 +4024,9 @@ class TestPatchSurfaceOfRevolution:
         shape = (10, 5, 7)
         block = self._make_sor_block(shape)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(50.0).set_Vr(10.0).set_Vt(20.0)
+        block.set_Vx(50.0)
+        block.set_Vr(10.0)
+        block.set_Vt(20.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4084,10 +4104,14 @@ class TestPatchNonSurfaceOfRevolution:
         t = np.linspace(0.0, 0.2, shape[2]).reshape(1, 1, -1)
         xrt = np.stack([x, r, np.broadcast_to(t, shape)], axis=-1)
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
         return block
 
     def test_revolution_patch_raises_on_attach(self):
@@ -4118,10 +4142,14 @@ class TestPatchNonSurfaceOfRevolution:
         t = np.linspace(0.0, 0.2, shape[2]).reshape(1, 1, -1)
         xrt = np.stack([x, r, np.broadcast_to(t, shape)], axis=-1)
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         # Should raise error on attach - no clear span or pitch
@@ -4147,10 +4175,14 @@ class TestPatchNonSurfaceOfRevolution:
             axis=-1,
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4184,10 +4216,14 @@ class TestPatchSpanFractionVector:
             axis=-1,
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4219,10 +4255,14 @@ class TestPatchSpanFractionVector:
             axis=-1,
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4250,10 +4290,14 @@ class TestPatchSpanFractionVector:
             axis=-1,
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4282,10 +4326,14 @@ class TestPatchSpanFractionVector:
             axis=-1,
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4310,10 +4358,14 @@ class TestPatchSpanFractionVector:
             [np.broadcast_to(x, shape), r, np.broadcast_to(t, shape)], axis=-1
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4339,10 +4391,14 @@ class TestPatchSpanFractionVector:
         t = np.linspace(0.0, 0.2, shape[2]).reshape(1, 1, -1)
         xrt = np.stack([x, r, np.broadcast_to(t, shape)], axis=-1)
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4376,10 +4432,14 @@ class TestPatchSpanFractionVector:
             axis=-1,
         )
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4409,10 +4469,14 @@ class TestPatchSpanFractionVector:
         t = np.linspace(0.0, 0.2, shape[2]).reshape(1, 1, -1)
         xrt = np.stack([x, r, np.broadcast_to(t, shape)], axis=-1)
 
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+        block.set_Vx(100.0)
+        block.set_Vr(0.0)
+        block.set_Vt(0.0)
 
         patch = InletPatch(i=0)
         patch.attach_to_block(block)
@@ -4449,7 +4513,9 @@ class TestMdot:
         xrt = np.stack(
             [np.broadcast_to(x, shape), r, np.broadcast_to(t, shape)], axis=-1
         )
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         return block
 
     def test_dA_shape(self):

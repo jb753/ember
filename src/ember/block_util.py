@@ -400,22 +400,11 @@ def interp_from(block, src):
         Source block providing the solution.
     """
 
-    src_has_cfl = "cfl" in src.working
-    logger.debug(
-        "interp_from: src %s -> block %s; src has cfl: %s",
-        src.shape,
-        block.shape,
-        src_has_cfl,
-    )
+    logger.debug("interp_from: src %s -> block %s", src.shape, block.shape)
 
     if block.shape == src.shape:
         block.set_conserved(src.conserved)
         block.set_mu_turb(src.mu_turb)
-        if src_has_cfl:
-            logger.debug("interp_from: shapes match, copying cfl directly")
-            block.working.cfl[...] = src.working.cfl
-        else:
-            logger.debug("interp_from: shapes match, no cfl on src — skipping cfl copy")
     else:
         import ember.fortran
 
@@ -440,24 +429,6 @@ def interp_from(block, src):
 
         block.set_conserved(data_out[..., :5])
         block.set_mu_turb(data_out[..., 5])
-
-        if src_has_cfl:
-            # cfl is cell-centred; convert node coords to cell-centre coords
-            # by averaging adjacent node pairs (dropping the last node per dim).
-            logger.debug(
-                "interp_from: shapes differ, interpolating cfl from src using cell-centre coords"
-            )
-            cell_coords = [(c[:-1] + c[1:]) * np.float32(0.5) for c in coords]
-            block.working.cfl[...] = ember.fortran.map_coordinates_3d(
-                src.working.cfl.astype(np.float32),
-                cell_coords[0],
-                cell_coords[1],
-                cell_coords[2],
-            )
-        else:
-            logger.debug(
-                "interp_from: shapes differ, no cfl on src — skipping cfl interpolation"
-            )
 
     assert np.all(np.isfinite(block.T)) and np.all(block.T > 0), (
         "Target block has non-finite or non-positive temperatures after interpolation"
@@ -494,7 +465,6 @@ def memory_usage(block):
             metadata_usage[key] = sys.getsizeof(val)
 
     # Cached properties in _store: tuple (version, result) entries from cached_array.
-    # Working arrays in block.working._store: bare result objects.
     cache_usage = {}
     for key, entry in block._store.items():
         result = entry[1]
@@ -502,11 +472,6 @@ def memory_usage(block):
             cache_usage[key] = result.nbytes
         else:
             cache_usage[key] = sys.getsizeof(result)
-    for key, entry in block.working._store.items():
-        if hasattr(entry, "nbytes"):
-            cache_usage[key] = entry.nbytes
-        else:
-            cache_usage[key] = sys.getsizeof(entry)
 
     return data_usage, metadata_usage, cache_usage
 

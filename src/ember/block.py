@@ -3,6 +3,85 @@ r"""Storage and manipulation of flow field data for a single structured grid blo
 This module defines the :class:`Block`, our fundamental data structure for representing flow fields on structured grids with any number of dimensions. The class stores coordinates and conserved quantities, and provides properties for derived quantities such as velocity, stagnation pressure, and Mach number. There is also a store for scalar metadata related to
 the entire field, such as reference frame angular velocity. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`.
 
+Initialisation
+==============
+
+The only required argument to the :class:`Block` constructor is the shape of the structured grid, which may be any number of dimensions::
+
+    from ember.block import Block
+    block = Block((ni, nj, nk, ...))  # an ND block
+
+To begin with, an array is allocated to store the raw data only. Storage
+for derived quantities is then allocated lazily on first access, and cached for
+subsequent calls to save memory. Data and metadata are stored after initialisation using :ref:`block-setters`, and the raw and derived quantities are accessed via attributes such as :attr:`Block.x`, :attr:`Block.P`, and :attr:`Block.Ma`.
+
+.. _block-setters:
+
+Setter methods
+==============
+
+All writes to a :class:`Block` go through a setter method, which validates the
+input, non-dimensionalises it (see :ref:`block-reference-scales`), and
+invalidates any cached derived quantities that depend on it. The setters are:
+
+Geometry:
+
+* :meth:`Block.set_x` -- axial coordinates
+* :meth:`Block.set_r` -- radial coordinates
+* :meth:`Block.set_t` -- circumferential coordinates
+* :meth:`Block.set_xrt` -- all three polar coordinates from one array
+* :meth:`Block.set_xyz` -- Cartesian coordinates, converted to polar on write
+* :meth:`Block.set_wdist` -- distance to the nearest wall
+
+Kinematics:
+
+* :meth:`Block.set_Vx` -- axial velocity
+* :meth:`Block.set_Vr` -- radial velocity
+* :meth:`Block.set_Vt` -- circumferential velocity
+* :meth:`Block.set_Vxrt` -- all three velocity components from one array
+* :meth:`Block.set_V_Alpha_Beta` -- velocity from speed, yaw angle, and pitch angle
+
+Thermodynamic state:
+
+By the two-property rule, each of these takes two independent properties and
+inverts the equation of state to recover density and internal energy, leaving
+the velocity field untouched. See :ref:`block-equations-of-state` for details.
+
+* :meth:`Block.set_P_T` -- static pressure and temperature
+* :meth:`Block.set_P_h` -- static pressure and enthalpy
+* :meth:`Block.set_P_s` -- static pressure and entropy
+* :meth:`Block.set_P_rho` -- static pressure and density
+* :meth:`Block.set_P_rho_nd` -- static pressure and density, non-dimensional
+* :meth:`Block.set_rho_u` -- density and internal energy
+* :meth:`Block.set_rho_s` -- density and entropy
+* :meth:`Block.set_T_s` -- temperature and entropy
+* :meth:`Block.set_h_s` -- enthalpy and entropy
+
+Combined:
+
+Five independent properties are enough to fully specify the flow field.
+
+* :meth:`Block.set_conserved` -- the conserved variables directly
+* :meth:`Block.set_rho_u_Vxrt_nd` -- density, internal energy, and velocity components, non-dimensional
+
+Metadata:
+
+Scalar properties of the field as a whole, rather than per-node data. The first
+two are exceptions: they rescale the raw data in place so that dimensional
+values are preserved when the reference scales change.
+
+* :meth:`Block.set_fluid` -- equation of state
+* :meth:`Block.set_L_ref` -- reference length scale
+* :meth:`Block.set_Omega` -- reference frame angular velocity
+* :meth:`Block.set_rpm` -- reference frame angular velocity, in rev/min
+* :meth:`Block.set_Nb` -- number of blades in the row containing this block
+* :meth:`Block.set_label` -- a string describing the block
+* :meth:`Block.set_triangulated` -- flag for triangulated cut data
+
+Miscellaneous:
+
+* :meth:`Block.set_mu_turb` -- turbulent viscosity
+
 
 Indexing and slicing
 ====================
@@ -46,21 +125,23 @@ Reduction over a spatial axis:
 * :meth:`Block.nanmean` -- as above, ignoring NaNs
 
 
+.. _block-equations-of-state:
+
 Equations of state
 ==================
 
 :class:`Block` does not implement an equation of state itself.  It stores only
 the conserved quantities at grid nodes and delegates every thermodynamic
 relation to a :mod:`ember.fluid` equation of state attached by
-:meth:`Block.set_fluid()`. The :class:`Block` works in terms of density and internal energy, and the :mod:`fluid` performs to and from other thermodynamic properties as needed.
+:meth:`Block.set_fluid()`. The :class:`Block` works in terms of density and internal energy, and the :mod:`fluid` performs calculations to convert from other thermodynamic properties as needed.
 
 Reading a thermodynamic property such as static pressure :attr:`Block.P` first extracts internal energy :attr:`Block.u` from the conserved quantities :attr:`Block.conserved` by subtracting kinetic energy.
-Then, density and internal energy are passed to :py:meth:`ember.fluid.PerfectFluid.get_P` which evaluates the equation of state to calculate pressure. Temperature, entropy, and so on follow this same pattern.
+Then, density and internal energy are passed to :py:meth:`ember.fluid.PerfectFluid.get_P` which evaluates the equation of state to calculate pressure. The result is stored in a cache array for repeated use, that is cleared if the underlying conserved data changes. Temperature, entropy, and so on follow this same pattern.
 
-Writing a thermodynamic state is the reverse of reading out a derived property, although by the two-property rule the set methods take two arguments.
+Writing a thermodynamic state is the reverse of reading out a derived property, although by the two-property rule the set methods must take two arguments.
 :py:meth:`Block.set_P_T` passes pressure
 and temperature to :py:meth:`ember.fluid.PerfectFluid.set_P_T`, which inverts the equation of state to find the corresponding density and internal energy.
-:class:`Block` then saves density directly, and updates the other conserved quantities to reflect the new thermodynamic state while preserving the velocity field.
+:class:`Block` then saves density directly, and updates total energy to reflect the new thermodynamic state while preserving the velocity field.
 
 This works even before any velocity has been set, because a new block starts
 with dummy initial values for density, radius, momenta, and energy.
@@ -74,7 +155,7 @@ Reference scales
 
 Block non-dimensionalisation follows the scheme described in
 :mod:`ember.fluid`; see :ref:`reference-scales`.
-Three raw scales are chosen by the user and passed to the working fluid constructor:
+Three base scales are chosen by the user and passed to the working fluid constructor:
 :math:`\rho_\mathrm{ref}`, :math:`V_\mathrm{ref}`, and :math:`R_\mathrm{ref}`.
 Three derived thermodynamic scales are then formed:
 :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2`,
@@ -87,14 +168,18 @@ Spatial coordinates are normalised by a separate reference length
 accessible as :py:attr:`Block.L_ref`.  It defaults to 1.0 and is
 independent of the fluid.
 
-At rest, a :class:`Block` stores the raw data in non-dimensional form,
-although the reference scales all default to unity. Furthermore, changes to the
-reference scales are handled by rescaling the raw data in place, so they do
-not affect the dimensional properties of the block. This means that
-the non-dimensional storage is completely transparent to the user.
+At rest, a :class:`Block` stores the raw data in non-dimensional form. Calls to, for example, :meth:`Block.set_P_T` and :meth:`Block.set_Vx` divide the dimensional input by the appropriate reference scale before storage.
+Calls to
+:meth:`Block.set_L_ref` and :meth:`Block.set_fluid` rescale the raw data in
+place to maintain the same dimensional values if the reference scales change.
+This keeps the non-dimensional storage completely transparent to the
+user.
+
+Non-dimensional versions of dimensional properties such as :attr:`Block.P_nd` and :attr:`Block.Vx_nd` have an `_nd` suffix to distinguish them from the dimensional versions. The same suffix also applies to setters which take non-dimensional inputs like :meth:`Block.set_P_rho_nd`.
 
 Examples
 ========
+
 Construct a scalar block, set coordinates, fluid, thermodynamic state,
 and velocity::
 
@@ -106,9 +191,13 @@ and velocity::
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
     b = Block()
     b.set_fluid(fluid)
-    b.set_x(0.0).set_r(0.75).set_t(0.0)
+    b.set_x(0.0)
+    b.set_r(0.75)
+    b.set_t(0.0)
     b.set_P_T(1e5, 300.0)
-    b.set_Vx(100.0).set_Vr(0.0).set_Vt(0.0)
+    b.set_Vx(100.0)
+    b.set_Vr(0.0)
+    b.set_Vt(0.0)
     print(b.P)   # 100000.0
     print(b.T)   # 300.0
     print(b.Ma)  # 0.28795615
@@ -130,16 +219,6 @@ Indexing and slicing return a view over a sub-region::
     b2.set_x(np.arange(6, dtype=float).reshape(3, 2) * 0.1)
     print(b2[0, :].x)  # [0.  0.1]
     print(b2[:, 1].x)  # [0.1 0.3 0.5]
-
-Setter methods return self and can be chained::
-
-    # example: chaining
-    from ember.block import Block
-    from ember.fluid import PerfectFluid
-
-    fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
-    b = Block().set_fluid(fluid).set_rho_u(1.1, 1e4)
-    print(b.T)  # 313.93036
 
 :py:meth:`Block.copy` decouples the backing array so mutations do not propagate::
 
@@ -164,83 +243,10 @@ from ember import util
 from ember.struct import cached_array, cached_object, derived_array, scratch_array
 from functools import wraps
 import ember.fortran
-from ember.block_util import memory_usage
 
 __all__ = [
     "Block",
-    "memory_usage",
 ]
-
-
-def _working(func):
-    """Decorator for lazy-allocated working arrays stored in self._store.
-
-    Only used by WorkingArrays. First access calls func(self, out=None) and
-    stashes the result in self._store; subsequent accesses return the same
-    object. Never invalidated by data changes.
-    """
-    func_key = func.__name__
-
-    @wraps(func)
-    def wrapper(self):
-        if func_key not in self._store:
-            self._store[func_key] = func(self, out=None)
-        return self._store[func_key]
-
-    return property(wrapper)
-
-
-class WorkingArrays:
-    """Lazy-allocated solver scratch arrays for a Block.
-
-    Accessed via ``block.working``. Arrays are allocated on first access and
-    reused for the lifetime of the solver run. Storage lives in ``self._store``
-    independently of ``Block._store`` (which holds cached_array and
-    cached_object entries).
-    """
-
-    __slots__ = ("block", "_store")
-
-    def __init__(self, block):
-        self.block = block
-        self._store = {}
-
-    def __contains__(self, key):
-        return key in self._store
-
-    @_working
-    def cfl(self, out):
-        """Courant-Friedrichs-Lewy number for per-equation time stepping.
-
-        Storage is allocated zeros on first access and modified in place.
-        Clear cache to deallocate.
-
-        Returns
-        -------
-        Array, shape (ni-1, nj-1, nk-1, 5)
-            Cell-centered CFL numbers for each conserved variable equation.
-
-        """
-        return util.allocate_or_reuse(out, self.block.shape_cell + (5,))
-
-    def clear(self, keep=()):
-        """Drop all entries except those whose names are in `keep`."""
-        for k in [k for k in self._store if k not in keep]:
-            del self._store[k]
-
-    @_working
-    def error(self, out):
-        """Error estimate array for adaptive time stepping.
-
-        Returns
-        -------
-        Array, shape (ni-1, nj-1, nk-1, 5)
-            Cell-centered error estimates for each conserved variable equation.
-        """
-        return util.allocate_or_reuse(out, self.block.shape_cell + (5,))
-
-    def get(self, key, default=None):
-        return self._store.get(key, default)
 
 
 class _MaskedBlock:
@@ -285,7 +291,6 @@ class _MaskedBlock:
             # The rollback writes raw data without bumping versions, so any
             # cache populated during the setter is now stale; drop it.
             block.clear_cache()
-            return self  # chain on the proxy
 
         return wrapper
 
@@ -294,7 +299,7 @@ class Block(ember.struct.StructuredData):
     def __init__(self, shape=()):
         """Allocate a structured grid block.
 
-        This is the primary data container for flow fields. It stores coordinates and conserved variables, and provides properties for derived variables such as velocity, pressure and Mach number. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`, and provides working arrays for solver computations at ``block.working``.
+        This is the primary data container for flow fields. It stores coordinates and conserved variables, and provides properties for derived variables such as velocity, pressure and Mach number. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`.
 
         The setters fall into two complementary families: thermodynamic setters
         (e.g. :py:meth:`set_P_T`, :py:meth:`set_rho_u`) set the density and
@@ -345,9 +350,6 @@ class Block(ember.struct.StructuredData):
         # Initialize cache storage for cached properties
         self._store = {}
 
-        # Initialize working arrays namespace
-        self.working = WorkingArrays(self)
-
         # If we are a single point, unset triangulated flag
         if self.ndim == 0:
             self.set_triangulated(False)
@@ -382,7 +384,6 @@ class Block(ember.struct.StructuredData):
         halfVsq_nd = 0.5 * (Vx_nd**2 + Vr_nd**2 + Vt_nd**2)
         e_nd = u_nd + halfVsq_nd
         self._set_data_by_keys(("rhoe",), rho_nd * e_nd, store_init=True)
-        return self
 
     def _get_face_wall_arrays(self, non_wall_patches=None):
         """Get face wall indicator arrays (iwall, jwall, kwall).
@@ -427,11 +428,6 @@ class Block(ember.struct.StructuredData):
                 kwall[*ijk_face.T] += 1
 
         return iwall, jwall, kwall
-
-    def _bare_copy(self):
-        out = super()._bare_copy()
-        out.working = WorkingArrays(out)
-        return out
 
     def _make_fluid_property(prop_name, doc, ref=None):
         """Factory for creating fluid property getters.
@@ -734,10 +730,6 @@ class Block(ember.struct.StructuredData):
         conserved : array-like, shape (..., 5)
             Dimensional conserved variables with components along the last axis. Each component must broadcast to block shape and be finite. Density must be >0.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
 
         if conserved.shape[-1] != 5:
@@ -757,7 +749,6 @@ class Block(ember.struct.StructuredData):
         conserved[..., 3] /= self._rhoV_ref * self.L_ref
         conserved[..., 4] /= self._rhoVsq_ref
         self._set_data_by_keys(keys, conserved)
-        return self
 
     def set_fluid(self, fluid_new):
         """Set equation of state preserving any existing flow field.
@@ -774,11 +765,6 @@ class Block(ember.struct.StructuredData):
         ----------
         fluid_new : Fluid
             New fluid / equation of state object.
-
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
 
         """
         has_old = "fluid" in self._metadata
@@ -830,8 +816,6 @@ class Block(ember.struct.StructuredData):
             for p in self.patches.outlet:
                 p._P_target_nd = None
 
-        return self
-
     def set_h_s(self, h, s):
         """Store enthalpy and entropy.
 
@@ -844,11 +828,6 @@ class Block(ember.struct.StructuredData):
         s : array-like
             Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
 
         if np.any(~np.isfinite(h)):
@@ -859,7 +838,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_h_s(h / self.fluid.u_ref, s / self.fluid.Rgas_ref)
         )
-        return self
 
     def set_L_ref(self, L_ref):
         """Set reference length scale preserving existing dimensional values.
@@ -879,11 +857,6 @@ class Block(ember.struct.StructuredData):
         ----------
         L_ref : float
             Reference length scale [m]. Should be scalar, positive, and finite.
-
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
 
         """
 
@@ -914,15 +887,12 @@ class Block(ember.struct.StructuredData):
         )
 
         self.clear_cache()
-        self.working.clear()
 
         for p in self.patches.inlet:
             p._target_nd = None
             p._Po_nd_target = None
         for p in self.patches.outlet:
             p._P_target_nd = None
-
-        return self
 
     def set_label(self, label):
         """Set a string label describing the block.
@@ -932,14 +902,8 @@ class Block(ember.struct.StructuredData):
         label : str
             Descriptive label for the block.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         self._set_metadata_by_key("label", label)
-        return self
 
     def set_mu_turb(self, mu_turb):
         """Store turbulent viscosity.
@@ -951,16 +915,10 @@ class Block(ember.struct.StructuredData):
         mu_turb : array-like
             Turbulent viscosity [kg/m/s]. Must be >=0 and finite, and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
         if np.any(mu_turb < 0) or np.any(~np.isfinite(mu_turb)):
             raise ValueError("mu_turb must be positive and finite.")
         self._set_data_by_keys(("mu_turb",), mu_turb)
-        return self
 
     def set_Nb(self, Nb):
         """Set number of blades in the row containing this block.
@@ -972,13 +930,8 @@ class Block(ember.struct.StructuredData):
         Nb : int
             Number of blades in the row containing this block [-].
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
         self._set_metadata_by_key("Nb", int(Nb))
-        return self
 
     def set_Omega(self, Omega):
         """Set reference frame angular velocity.
@@ -991,13 +944,8 @@ class Block(ember.struct.StructuredData):
         Omega : float
             Angular velocity of the rotating reference frame [rad/s].
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
         self._set_metadata_by_key("Omega", np.float32(Omega))
-        return self
 
     def set_P_h(self, P, h):
         """Store static pressure and enthalpy.
@@ -1012,11 +960,6 @@ class Block(ember.struct.StructuredData):
         h : array-like
             Specific static enthalpy [J/kg]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(P <= 0) or np.any(~np.isfinite(P)):
             raise ValueError("Pressure must be positive and finite.")
@@ -1026,7 +969,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_P_h(P / self.fluid.P_ref, h / self.fluid.u_ref)
         )
-        return self
 
     def set_P_rho(self, P, rho):
         """Store static pressure and density.
@@ -1041,18 +983,13 @@ class Block(ember.struct.StructuredData):
         rho : array-like
             Density [kg/m^3]. Must be positive, finite, and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(P <= 0) or np.any(~np.isfinite(P)):
             raise ValueError("Pressure must be positive and finite.")
         if np.any(rho <= 0) or np.any(~np.isfinite(rho)):
             raise ValueError("Density must be positive and finite.")
 
-        return self.set_P_rho_nd(P / self.fluid.P_ref, rho / self.fluid.rho_ref)
+        self.set_P_rho_nd(P / self.fluid.P_ref, rho / self.fluid.rho_ref)
 
     def set_P_rho_nd(self, P_nd, rho_nd):
         """Store static pressure and density, nondimensional inputs.
@@ -1070,14 +1007,8 @@ class Block(ember.struct.StructuredData):
             Density normalised by ``fluid.rho_ref`` [--]. Should be positive and
             finite; no validation is performed.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         self._set_rho_u_nd(*self.fluid.set_P_rho(P_nd, rho_nd))
-        return self
 
     def set_P_s(self, P, s):
         """Store static pressure and entropy.
@@ -1092,11 +1023,6 @@ class Block(ember.struct.StructuredData):
         s : array-like
             Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(P <= 0) or np.any(~np.isfinite(P)):
             raise ValueError("Pressure must be positive and finite.")
@@ -1105,7 +1031,6 @@ class Block(ember.struct.StructuredData):
 
         rho_nd, u_nd = self.fluid.set_P_s(P / self.fluid.P_ref, s / self.fluid.Rgas_ref)
         self._set_rho_u_nd(rho_nd, u_nd)
-        return self
 
     def set_P_T(self, P, T):
         """Store static pressure and temperature.
@@ -1119,11 +1044,6 @@ class Block(ember.struct.StructuredData):
         T : array-like
             Temperature [K]. Must be positive, finite, and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
 
         if np.any(P <= 0) or np.any(~np.isfinite(P)):
@@ -1134,7 +1054,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_P_T(P / self.fluid.P_ref, T / self.fluid.T_ref)
         )
-        return self
 
     def set_r(self, r):
         """Store radial coordinates.
@@ -1143,11 +1062,6 @@ class Block(ember.struct.StructuredData):
         ----------
         r : array-like
             Radial coordinates [m]. Must be >0 and finite, and broadcast to block shape.
-
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
 
         """
 
@@ -1164,8 +1078,6 @@ class Block(ember.struct.StructuredData):
         self._set_data_by_keys(("rhorVt",), rhorVt_new, store_init=False)
         self._set_data_by_keys(("r",), r_nd)
 
-        return self
-
     def set_rho_s(self, rho, s):
         """Store density and entropy.
 
@@ -1179,11 +1091,6 @@ class Block(ember.struct.StructuredData):
         s : array-like
             Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(rho <= 0) or np.any(~np.isfinite(rho)):
             raise ValueError("Density must be positive and finite.")
@@ -1193,7 +1100,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_rho_s(rho / self.fluid.rho_ref, s / self.fluid.Rgas_ref)
         )
-        return self
 
     def set_rho_u(self, rho, u):
         """Store density and internal energy.
@@ -1208,11 +1114,6 @@ class Block(ember.struct.StructuredData):
         u : array-like
             Specific internal energy [J/kg]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
 
         if np.any(rho <= 0) or np.any(~np.isfinite(rho)):
@@ -1221,7 +1122,7 @@ class Block(ember.struct.StructuredData):
         if np.any(~np.isfinite(u)):
             raise ValueError("Internal energy must be finite.")
 
-        return self._set_rho_u_nd(rho / self.fluid.rho_ref, u / self._Vsq_ref)
+        self._set_rho_u_nd(rho / self.fluid.rho_ref, u / self._Vsq_ref)
 
     def set_rho_u_Vxrt_nd(self, rho_nd, u_nd, Vx_nd, Vr_nd, Vt_nd):
         r"""Write conserved variables from non-dimensional state and velocity.
@@ -1252,11 +1153,6 @@ class Block(ember.struct.StructuredData):
             Non-dimensional radial velocity. Must broadcast to block shape.
         Vt_nd : array-like
             Non-dimensional tangential velocity. Must broadcast to block shape.
-
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
 
         """
         r_nd = self._get_data_by_keys(("r",), raise_uninit=False)
@@ -1297,8 +1193,6 @@ class Block(ember.struct.StructuredData):
         for k in keys:
             self._versions[k] += 1
 
-        return self
-
     def set_rpm(self, rpm):
         """Set reference frame angular velocity in revolutions per minute.
 
@@ -1309,12 +1203,8 @@ class Block(ember.struct.StructuredData):
         rpm : float
             Angular velocity of the rotating reference frame [rpm].
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
-        return self.set_Omega(rpm * np.pi / 30.0)
+        self.set_Omega(rpm * np.pi / 30.0)
 
     def set_t(self, t):
         """Store circumferential coordinates.
@@ -1324,18 +1214,12 @@ class Block(ember.struct.StructuredData):
         t : array-like
             Circumferential coordinates [rad]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
-
         """
 
         if np.any(~np.isfinite(t)):
             raise ValueError("Circumferential coordinates must be finite.")
 
         self._set_data_by_keys(("t",), t)
-        return self
 
     def set_T_s(self, T, s):
         """Store temperature and entropy.
@@ -1350,11 +1234,6 @@ class Block(ember.struct.StructuredData):
         s : array-like
             Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         if np.any(T <= 0) or np.any(~np.isfinite(T)):
             raise ValueError("Temperature must be positive and finite.")
@@ -1364,7 +1243,6 @@ class Block(ember.struct.StructuredData):
         self._set_rho_u_nd(
             *self.fluid.set_T_s(T / self.fluid.T_ref, s / self.fluid.Rgas_ref)
         )
-        return self
 
     def set_triangulated(self, value):
         """Set whether the data represents a triangulated mesh.
@@ -1375,14 +1253,8 @@ class Block(ember.struct.StructuredData):
             True if the block holds triangulated (unstructured) data with shape
             ``(ntri, 3)``; False for a structured quadrilateral mesh.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
-
         """
         super().set_triangulated(value)
-        return self
 
     def set_V_Alpha_Beta(self, V, Alpha, Beta):
         r"""Set the velocity vector from speed, yaw angle, and pitch angle.
@@ -1391,32 +1263,27 @@ class Block(ember.struct.StructuredData):
 
         .. math::
 
-            \begin{align}
+            \begin{aligned}
             V_x      &= V \cos\beta\cos\alpha \\
             V_r      &= V \sin\beta\cos\alpha \\
             V_\theta &= V \sin\alpha
-            \end{align}
+            \end{aligned}
 
-        where :math:`\alpha` is the pitch angle and :math:`\beta` is the yaw
-        angle. Trigonometric identities are used to avoid the :math:`\tan(90°)`
-        singularity.
+        where :math:`\alpha` is the yaw angle and :math:`\beta` is the pitch
+        angle. Trigonometric identities are used to avoid the
+        :math:`\tan 90^\circ` singularity.
 
         Parameters
         ----------
         V : array-like
             Velocity magnitude [m/s]. Must broadcast to block shape.
         Alpha : array-like
-            Pitch angle :math:`\alpha` [deg]. Must broadcast to block shape.
+            Yaw angle :math:`\alpha` [deg]. Must broadcast to block shape.
         Beta : array-like
-            Yaw angle :math:`\beta` [deg]. Must broadcast to block shape.
-
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
+            Pitch angle :math:`\beta` [deg]. Must broadcast to block shape.
 
         """
-        # Use trigonometric identities to avoid tan(90°) singularity
+        # Use trigonometric identities to avoid tan(90 deg) singularity
         cosAlpha = np.cos(np.radians(Alpha))
         sinAlpha = np.sin(np.radians(Alpha))
         cosBeta = np.cos(np.radians(Beta))
@@ -1434,9 +1301,9 @@ class Block(ember.struct.StructuredData):
             * V[..., None]
         )
 
-        self.set_Vx(Vxrt[..., 0]).set_Vr(Vxrt[..., 1]).set_Vt(Vxrt[..., 2])
-
-        return self
+        self.set_Vx(Vxrt[..., 0])
+        self.set_Vr(Vxrt[..., 1])
+        self.set_Vt(Vxrt[..., 2])
 
     def set_Vr(self, Vr):
         """Store radial velocity.
@@ -1453,10 +1320,6 @@ class Block(ember.struct.StructuredData):
         ----------
         Vr : array-like
             Radial velocity [m/s]. Must be finite and broadcast to block shape.
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if np.any(~np.isfinite(Vr)):
@@ -1465,7 +1328,6 @@ class Block(ember.struct.StructuredData):
         rho_nd, u_nd = self._rho_nd_uninit, self._u_nd_uninit
         self._set_data_by_keys(("rhoVr",), rho_nd * Vr / self._V_ref)
         self._update_rhoe_nd(rho_nd, u_nd)
-        return self
 
     def set_Vt(self, Vt):
         """Store circumferential velocity.
@@ -1482,10 +1344,6 @@ class Block(ember.struct.StructuredData):
         ----------
         Vt : array-like
             Circumferential velocity [m/s]. Must be finite and broadcast to block shape.
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if np.any(~np.isfinite(Vt)):
@@ -1495,7 +1353,6 @@ class Block(ember.struct.StructuredData):
         r_nd = self._get_data_by_keys(("r",), raise_uninit=False)
         self._set_data_by_keys(("rhorVt",), rho_nd * r_nd * Vt / self._V_ref)
         self._update_rhoe_nd(rho_nd, u_nd)
-        return self
 
     def set_Vx(self, Vx):
         """Store axial velocity.
@@ -1512,10 +1369,6 @@ class Block(ember.struct.StructuredData):
         ----------
         Vx : array-like
             Axial velocity [m/s]. Must be finite and broadcast to block shape.
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if np.any(~np.isfinite(Vx)):
@@ -1524,8 +1377,6 @@ class Block(ember.struct.StructuredData):
         rho_nd, u_nd = self._rho_nd_uninit, self._u_nd_uninit
         self._set_data_by_keys(("rhoVx",), rho_nd * Vx / self._V_ref)
         self._update_rhoe_nd(rho_nd, u_nd)
-
-        return self
 
     def set_Vxrt(self, Vxrt):
         """Store polar velocity components from a single array.
@@ -1543,10 +1394,6 @@ class Block(ember.struct.StructuredData):
             Polar velocity components [m/s], with Vx, Vr, Vt along the last
             axis. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if Vxrt.shape[-1] != 3:
@@ -1562,7 +1409,6 @@ class Block(ember.struct.StructuredData):
         self._set_data_by_keys(("rhoVr",), rho_nd * Vr / self._V_ref)
         self._set_data_by_keys(("rhorVt",), rho_nd * r_nd * Vt / self._V_ref)
         self._update_rhoe_nd(rho_nd, u_nd)
-        return self
 
     def set_wdist(self, wdist):
         """Store distance to nearest wall.
@@ -1575,15 +1421,10 @@ class Block(ember.struct.StructuredData):
             Distance to nearest viscous wall [m]. Must be >=0 and finite,
             and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
         if np.any(wdist < 0) or np.any(~np.isfinite(wdist)):
             raise ValueError("wdist must be positive and finite.")
         self._set_data_by_keys(("wdist",), wdist / self.L_ref)
-        return self
 
     def set_x(self, x):
         """Store axial coordinates.
@@ -1593,15 +1434,10 @@ class Block(ember.struct.StructuredData):
         x : array-like
             Axial coordinates [m]. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
         if np.any(~np.isfinite(x)):
             raise ValueError("Axial coordinates must be finite.")
         self._set_data_by_keys(("x",), x / self.L_ref)
-        return self
 
     def set_xrt(self, xrt):
         """Store polar coordinates from a single array.
@@ -1612,18 +1448,15 @@ class Block(ember.struct.StructuredData):
             Polar coordinates, with x [m], r [m], t [rad] along the last axis.
             Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self: Block
-            To allow method chaining.
         """
 
         if xrt.shape[-1] != 3:
             raise ValueError(f"Expected xrt shape (..., 3), but got {xrt.shape}")
 
         x, r, t = xrt[..., 0], xrt[..., 1], xrt[..., 2]
-        self.set_x(x).set_r(r).set_t(t)
-        return self
+        self.set_x(x)
+        self.set_r(r)
+        self.set_t(t)
 
     def set_xyz(self, xyz):
         """Store Cartesian coordinates.
@@ -1641,10 +1474,6 @@ class Block(ember.struct.StructuredData):
         xyz : array-like, shape (..., 3)
             Cartesian coordinates [m], with x, y, z along the last axis. Must be finite and broadcast to block shape.
 
-        Returns
-        -------
-        self : Block
-            To allow method chaining.
         """
 
         if xyz.shape[-1] != 3:
@@ -1657,8 +1486,9 @@ class Block(ember.struct.StructuredData):
         # ember uses z = -r * sin(t), so t = arctan2(-z, y)
         r = np.sqrt(y**2 + z**2)
         t = np.arctan2(-z, y)
-        self.set_x(x).set_r(r).set_t(t)
-        return self
+        self.set_x(x)
+        self.set_r(r)
+        self.set_t(t)
 
     def copy(self, keep_patches=True):
         """Return an independent copy of this block.
@@ -1705,9 +1535,8 @@ class Block(ember.struct.StructuredData):
     def flat(self):
         """Flatten all axes into a single axis, returning a view rather than a copy.
 
-        On top of the base flattening, this copies the metadata dict and replaces
-        the patches with an empty :class:`~ember.collections.BlockPatchCollection`,
-        since spatial patches have no meaning on a 1D flattened layout.
+        This copies the metadata dict and but clears patches,
+        since 2D spatial patches have no meaning on a 1D flattened layout.
 
         Returns
         -------
@@ -1731,10 +1560,10 @@ class Block(ember.struct.StructuredData):
         (including the velocity field preserved by thermodynamic setters) is
         untouched.
 
-        Any setter is supported, and calls chain. The proxy snapshots this
-        block's backing array on each setter call, so to keep the copy cheap on
-        a large block, narrow it first with a basic-index slice -- a slice is a
-        view, so writes still propagate to the parent::
+        Any setter is supported. The proxy snapshots this block's backing array
+        on each setter call, so to keep the copy cheap on a large block, narrow
+        it first with a basic-index slice -- a slice is a view, so writes still
+        propagate to the parent::
 
             block[0].masked(mask).set_P_T(1e5, 600.0)
 
@@ -1759,9 +1588,15 @@ class Block(ember.struct.StructuredData):
             import numpy as np
 
             fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
-            b = Block((4,)).set_fluid(fluid)
-            b.set_x(0.0).set_r(1.0).set_t(0.0)
-            b.set_P_T(1e5, 300.0).set_Vx(5.0).set_Vr(0.0).set_Vt(0.0)
+            b = Block((4,))
+            b.set_fluid(fluid)
+            b.set_x(0.0)
+            b.set_r(1.0)
+            b.set_t(0.0)
+            b.set_P_T(1e5, 300.0)
+            b.set_Vx(5.0)
+            b.set_Vr(0.0)
+            b.set_Vt(0.0)
             b.masked(np.array([True, False, True, False])).set_P_T(1e5, 600.0)
             print(b.T)   # [600. 300. 600. 300.]
             print(b.Vx)  # [5. 5. 5. 5.]
@@ -1777,45 +1612,12 @@ class Block(ember.struct.StructuredData):
         :attr:`conserved_nd` directly, as that bypasses the usual cache
         invalidation that happens in the setter methods.
 
+        Unlike :meth:`clear_cache`, this does not clear cached geometry
+        such as :attr:`vol_nd`.
+
         """
         for k in ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"):
             self._versions[k] += 1
-
-    def update_filter(self, cfl, delta):
-        """Evolve the SFD low-pass filter :attr:`conserved_filt_nd` one step.
-
-        First-order exponential moving average of the cell-centred conserved
-        state toward the current cell state, with per-cell timestep
-        ``dt = cfl * dt_vol * vol``. ``cfl`` may be the per-cell/per-equation
-        ``working.cfl`` array or a single scalar; the rank selects the matching
-        kernel. ``delta`` is the filter time constant.
-
-        Must run after the CFL and ``dt_vol`` for the step are current. This is
-        the lone per-step writer of the read-only ``conserved_filt_nd`` buffer
-        (the restart apply is the only other writer), so it owns the
-        ``flags.writeable`` toggle (mirrors the timestep writers).
-        """
-        cons_filt = self.conserved_filt_nd
-        cons_filt.flags.writeable = True
-        if np.ndim(cfl) == 0:
-            ember.fortran.update_filter_scalar(
-                cons_filt=cons_filt,
-                cons_cell=self.conserved_cell_nd,
-                cfl=cfl,
-                dt_vol=self.dt_vol_nd,
-                vol=self.vol_nd,
-                delta_filt=delta,
-            )
-        else:
-            ember.fortran.update_filter_array(
-                cons_filt=cons_filt,
-                cons_cell=self.conserved_cell_nd,
-                cfl=cfl,
-                dt_vol=self.dt_vol_nd,
-                vol=self.vol_nd,
-                delta_filt=delta,
-            )
-        cons_filt.flags.writeable = False
 
     @derived_array
     def a(self):
@@ -1829,13 +1631,7 @@ class Block(ember.struct.StructuredData):
 
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def a_nd(self, out):
-        r"""Nondimensional acoustic speed :math:`a/V_\mathrm{ref}` [-], nodal array.
-
-        Cached on the conserved variables (same keys as :attr:`_u_nd_uninit`, its
-        only real dependency via ``u``) so the reusable buffer is passed to
-        ``get_a`` as ``out`` and recomputed in place each stage rather than
-        allocating a fresh array on the per-stage CFL/timestep path.
-        """
+        r"""Nondimensional acoustic speed :math:`a/V_\mathrm{ref}` [-], nodal array."""
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_a(self._rho_nd_uninit, self.u_nd, out=out)
 
@@ -2107,27 +1903,6 @@ class Block(ember.struct.StructuredData):
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_dhdrho_P(self._rho_nd_uninit, self.u_nd, out=out)
 
-    @derived_array
-    def dl_min(self):
-        r"""Minimum cell length :math:`\delta l_\mathrm{min}` [m], cell array.
-
-        See :attr:`dl_min_nd` for the nondimensional form and the geometry reference.
-        """
-        return self.dl_min_nd * self.L_ref
-
-    @cached_array("x", "r", "t")
-    def dl_min_nd(self, out):
-        r"""Minimum nondimensional cell length :math:`\delta l_\mathrm{min} / L_\mathrm{ref}` [-].
-
-        See :ref:`minimum-length-scale` for the calculation.
-        """
-        assert self.ndim == 3, (
-            "dl_min_nd is only defined for a three-dimensional block."
-        )
-        return ember.geometry.get_dl_min(
-            self.dAi_nd, self.dAj_nd, self.dAk_nd, self.vol_nd, out=out
-        )
-
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def dsdP_rho_nd(self, out):
         r"""Nondimensional derivative of entropy wrt. pressure at constant density :math:`(\partial s/\partial p)_\rho \, p_\mathrm{ref} / R_\mathrm{ref}` [-]."""
@@ -2164,22 +1939,6 @@ class Block(ember.struct.StructuredData):
         r"""Nondimensional derivative of internal energy wrt. density at constant pressure :math:`(\partial u/\partial \rho)_p \, \rho_\mathrm{ref} / V_\mathrm{ref}^2` [-]."""
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_dudrho_P(self._rho_nd_uninit, self.u_nd, out=out)
-
-    @cached_array("x", "r", "t")
-    def ell(self, out):
-        r"""Anisotropic smoothing length-scale ratios, nodal array of shape `(ni, nj, nk, 3)`.
-
-        See :ref:`smoothing-length-scales` for the calculation.
-        """
-        assert self.ndim == 3, "ell is only defined for a three-dimensional block."
-
-        node_ratios = ember.geometry.get_ell(self.vol, self.dAi, self.dAj, self.dAk)
-
-        if out is not None:
-            out[...] = node_ratios
-            return out
-
-        return node_ratios
 
     @cached_array()
     def F_body_nd(self, out):
@@ -2590,8 +2349,8 @@ class Block(ember.struct.StructuredData):
 
             conserved_nd += cfl * dt_vol_nd * residual_nd
 
-        At steady state the residual tends to zero. See ``scree.advance`` and
-        ``scree.advance_rk_stage_mg`` for the integrators that consume it.
+        At steady state the residual tends to zero. See ``solver.scree_step`` and
+        ``solver.advance_rk_stage_mg`` for the integrators that consume it.
         """
         return util.allocate_or_reuse(out, self.shape_cell + (5,))
 
@@ -2684,8 +2443,8 @@ class Block(ember.struct.StructuredData):
         - viscous face-flux scratch (slots 0-3) in
           :meth:`ember.grid.Grid.update_sources`;
         - inviscid ``flow`` buffer (all 5 slots) in :attr:`residual_nd`, and the
-          per-step increment buffer in ``scree.scree_step`` /
-          ``scree.advance_rk_stage_mg``.
+          per-step increment buffer in ``solver.scree_step`` /
+          ``solver.advance_rk_stage_mg``.
 
         Because nothing persists, each consumer owns the whole buffer for the
         duration of its own call and may treat it as freshly-allocated private
@@ -2722,17 +2481,17 @@ class Block(ember.struct.StructuredData):
         Counterpart to :attr:`scratch`: a buffer that DOES carry meaning between
         kernel calls. UNLIKE :attr:`scratch` its value must survive across calls,
         so no consumer may treat it as throwaway. It is sized to the nodal shape
-        and serves two mutually exclusive scree integrators (selected by
-        ``ScreeConfig.n_stage``):
+        and serves two mutually exclusive integrators (selected by
+        ``SolverConfig.n_stage``):
 
         - Denton lagged march (``n_stage == 0``): holds the ``(dF/dt)_{n-1}`` term
-          of the scree extrapolation (``scree.advance``) -- written at the end of
+          of the scree extrapolation (``solver.scree_step``) -- written at the end of
           one step and read at the start of the next. That term is cell-shaped, so
-          ``advance`` takes a leading ``(ni-1, nj-1, nk-1, 5)`` F-order view of
+          ``scree_step`` takes a leading ``(ni-1, nj-1, nk-1, 5)`` F-order view of
           this buffer (zero copy) and feeds it to ``scree_advance``.
         - Jameson RK march (``n_stage >= 1``): holds the nodal conserved snapshot
           ``U^(0)`` taken at the start of each step; every stage marches off it
-          (``scree.advance_rk_stage_mg``).
+          (``solver.advance_rk_stage_mg``).
 
         Uses the :func:`scratch_array` mechanism (allocated once, never
         invalidated, left writeable for the ``intent(inout)`` kernel write).
@@ -2810,11 +2569,13 @@ class Block(ember.struct.StructuredData):
 
         Because it carries no state between passes, the flat buffer doubles as
         the coarse block-sum accumulator and separable-prolong scratch in
-        ``scree.advance_rk_stage_mg`` (see that function's docstring), where the
-        (i,j,k) layout inside is irrelevant -- only the element count matters.
-        Each borrower (a viscous pass, or one RK-stage multigrid call) owns the
-        whole buffer for its own duration and may treat it as freshly-allocated
-        private memory; two borrowers never overlap in time.
+        ``solver.advance_rk_stage_mg`` (see that function's docstring) and,
+        likewise, in ``solver.scree_step``'s multigrid path (``n_levels >= 1``,
+        calling ``ember.fortran.scree_advance_mg``), where the (i,j,k) layout
+        inside is irrelevant -- only the element count matters. Each borrower
+        (a viscous pass, or one scree/RK-stage multigrid call) owns the whole
+        buffer for its own duration and may treat it as freshly-allocated
+        private memory; borrowers never overlap in time.
 
         DO NOT alias a second array onto this storage and pass both into the
         same kernel call that already takes this buffer (as scratch or as the

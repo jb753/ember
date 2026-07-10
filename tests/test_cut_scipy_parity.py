@@ -98,7 +98,9 @@ def test_full_pipeline_matches_scipy_on_linear_field():
     block = ember.block.Block(shape=shape)
     xrt = util.linmesh3([0.0, 1.0], [1.0, 2.0], [0.0, pitch], shape)
     x, r = xrt[..., 0], xrt[..., 1]
-    block.set_x(x).set_r(r).set_t(xrt[..., 2])
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(xrt[..., 2])
     block.set_fluid(ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72))
     coeffs = [
         (1.0, 0.5, 0.3),

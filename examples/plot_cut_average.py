@@ -37,7 +37,8 @@ from ember import util
 
 fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
 
-block = ember.block.Block(shape=(8, 9, 10)).set_fluid(fluid)
+block = ember.block.Block(shape=(8, 9, 10))
+block.set_fluid(fluid)
 block.set_xrt(util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), block.shape))
 
 block.set_Vr(0.0)

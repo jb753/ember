@@ -29,8 +29,20 @@ doc/_build/
 doc/_static/
 docs/_build/
 
-# sphinx-gallery generated output
-docs/auto_examples/
+# sphinx-gallery generated output. plot_*.py examples are cheap and always
+# regenerated, so their output stays ignored. run_*.py examples are expensive
+# (see examples/README.txt) -- their generated output is committed so RTD and
+# other clean-clone builds reuse it via sphinx-gallery's md5 cache instead of
+# re-running the example; run `make docs-full` and `git add` the results
+# after changing a run_*.py example.
+docs/auto_examples/*
+!docs/auto_examples/run_*
+!docs/auto_examples/images
+docs/auto_examples/images/*
+!docs/auto_examples/images/sphx_glr_run_*.png
+!docs/auto_examples/images/thumb
+docs/auto_examples/images/thumb/*
+!docs/auto_examples/images/thumb/sphx_glr_run_*.png
 docs/sg_execution_times.rst
 
 *.pkl

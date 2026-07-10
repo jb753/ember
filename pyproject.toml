@@ -6,6 +6,15 @@ readme = "README.md"
 authors = [
     { name = "James Brind", email = "jb753@cam.ac.uk" }
 ]
+license = "GPL-3.0-or-later"
+license-files = ["COPYING"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Fortran",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 # Follows SPEC 0's Python support window: https://scientific-python.org/specs/spec-0000/
 requires-python = ">=3.12"
 dependencies = [
@@ -14,6 +23,11 @@ dependencies = [
     "pykdtree~=1.4.3",
     "pyyaml~=6.0.3",
 ]
+
+[project.urls]
+Homepage = "https://ember-cfd.org"
+Documentation = "https://ember-cfd.org"
+Source = "https://github.com/jb753/ember"
 
 [tool.uv]
 managed = true
@@ -27,7 +41,8 @@ filterwarnings = [
 ]
 
 [build-system]
-requires = ["setuptools>=68,<90", "setuptools-scm>=8", "wheel>=0.40", "numpy~=2.5.0", "meson>=1.1.0", "ninja>=1.10"]
+# setuptools>=77 for PEP 639 license expression and license-files support
+requires = ["setuptools>=77,<90", "setuptools-scm>=8", "wheel>=0.40", "numpy~=2.5.0", "meson>=1.1.0", "ninja>=1.10"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]

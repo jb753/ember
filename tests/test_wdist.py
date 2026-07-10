@@ -77,7 +77,9 @@ def block():
     shape = (5, 4, 4)
     xrt = util.linmesh3([0.0, 0.1], [0.95, 1.05], [0.0, 0.1], shape)
     b = ember.block.Block(shape=shape)
-    b.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
     return b
 
 

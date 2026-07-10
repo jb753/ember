@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from ember.convergence_history import ConvergenceHistory
 from ember.fluid import PerfectFluid
-from ember.grid import Convergence
+from ember.grid import ConvergenceStep
 
 _DATA = Path(__file__).parent / "data"
 
@@ -17,8 +17,8 @@ _FLUID = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
 
 
 def _throttle_conv(mdot_target, mdot_throttle, P_throttle):
-    """A Convergence carrying only throttle state (flow monitors left NaN)."""
-    return Convergence(
+    """A ConvergenceStep carrying only throttle state (flow monitors left NaN)."""
+    return ConvergenceStep(
         residual=np.full(5, np.nan, np.float32),
         mdot=np.full(2, np.nan, np.float32),
         ho=np.full(2, np.nan, np.float32),
@@ -34,28 +34,21 @@ def hist_with_throttle():
     """Create a minimal ConvergenceHistory for testing throttle recording."""
     # Create a small history directly (not from_grid, to avoid grid setup complications)
     hist = ConvergenceHistory(shape=(10,))
-    hist._set_metadata_by_key("n_block", 1)
     hist._set_metadata_by_key("n_node", 100)
-    hist._set_metadata_by_key("A_in", np.float32(0.5))
-    hist._set_metadata_by_key("A_out", np.float32(0.5))
-    hist._set_metadata_by_key("is_rotating", False)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
     # Mark all data keys as initialized
     for k in hist._data_keys:
         hist._versions[k] += 1
-    hist.record_step(0)
     return hist
 
 
 def test_throttle_shape(hist_with_throttle):
     """Test throttle compound property shape."""
     hist = hist_with_throttle
-    # Record a few more steps
-    for i in range(1, 3):
-        hist.record_step(i)
-        hist.record_convergence(_throttle_conv(1.0, 0.95, 101325.0))
+    for i in range(3):
+        hist.record_convergence(i, _throttle_conv(1.0, 0.95, 101325.0))
     # throttle shape should be (n_steps_allocated, 3)
     throttle = hist.throttle
     assert throttle.shape[1] == 3, f"Expected second dimension 3, got {throttle.shape}"
@@ -67,7 +60,7 @@ def test_throttle_shape(hist_with_throttle):
 def test_record_throttle_inactive(hist_with_throttle):
     """Test that Throt line is absent when mdot_target=0."""
     hist = hist_with_throttle
-    hist.record_convergence(_throttle_conv(0.0, 0.5, 101325.0))
+    hist.record_convergence(0, _throttle_conv(0.0, 0.5, 101325.0))
     msg = hist.format_message()
     assert "Throt" not in msg, "Throt line should not appear when mdot_target=0"
 
@@ -75,7 +68,7 @@ def test_record_throttle_inactive(hist_with_throttle):
 def test_record_throttle_active(hist_with_throttle):
     """Test that Throt line appears when mdot_target > 0."""
     hist = hist_with_throttle
-    hist.record_convergence(_throttle_conv(1.0, 0.95, 101325.0))
+    hist.record_convergence(0, _throttle_conv(1.0, 0.95, 101325.0))
     msg = hist.format_message()
     assert "Throt" in msg, "Throt line should appear when mdot_target > 0"
     assert "mdot=0.9500/1.0000 kg/s" in msg
@@ -86,7 +79,7 @@ def test_record_throttle_err_sign(hist_with_throttle):
     hist = hist_with_throttle
     mdot_target = 1.0
     mdot_throttle = 0.9  # 10% below target
-    hist.record_convergence(_throttle_conv(mdot_target, mdot_throttle, 101325.0))
+    hist.record_convergence(0, _throttle_conv(mdot_target, mdot_throttle, 101325.0))
     msg = hist.format_message()
     expected_err = (mdot_throttle - mdot_target) / mdot_target  # -0.1
     assert f"err={expected_err:+.3f}" in msg, f"Error sign incorrect in message: {msg}"
@@ -96,7 +89,7 @@ def test_record_throttle_err_sign(hist_with_throttle):
 def test_record_throttle_nan_passthrough(hist_with_throttle):
     """Test that NaN values are stored and don't crash format_message."""
     hist = hist_with_throttle
-    hist.record_convergence(_throttle_conv(1.0, np.nan, np.nan))
+    hist.record_convergence(0, _throttle_conv(1.0, np.nan, np.nan))
     msg = hist.format_message()
     # Should not crash and should still contain Thr line
     assert "Thr" in msg
@@ -126,9 +119,12 @@ def _make_duct_grid():
     shape = (4, 4, 4)
     block = Block(shape=shape)
     xrt = ember.util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     block.set_fluid(fluid)
-    block.set_rpm(0.0).set_Nb(1)
+    block.set_rpm(0.0)
+    block.set_Nb(1)
     block.set_P_T(np.full(shape, 1.0e5), np.full(shape, 300.0))
     block.set_Vxrt(
         np.stack([np.full(shape, 100.0), np.zeros(shape), np.zeros(shape)], axis=-1)
@@ -176,14 +172,14 @@ def test_from_ts3_metadata(ts3_hist):
 def test_from_ts3_mdot_finite(ts3_hist):
     """mdot_in and mdot_out are finite for all recorded steps."""
     n = ts3_hist.i_log + 1
-    assert np.all(np.isfinite(ts3_hist.mdot_in[:n]))
-    assert np.all(np.isfinite(ts3_hist.mdot_out[:n]))
+    assert np.all(np.isfinite(ts3_hist.mdot_nd[:n, 0]))
+    assert np.all(np.isfinite(ts3_hist.mdot_nd[:n, -1]))
 
 
 def test_from_ts3_first_step_mdot(ts3_hist):
     """First-step mass flows match the log file values."""
-    assert ts3_hist.mdot_in[0] == pytest.approx(1.38360, rel=1e-4)
-    assert ts3_hist.mdot_out[0] == pytest.approx(1.38339, rel=1e-4)
+    assert ts3_hist.mdot_nd[0, 0] == pytest.approx(1.38360, rel=1e-4)
+    assert ts3_hist.mdot_nd[0, -1] == pytest.approx(1.38339, rel=1e-4)
 
 
 def test_from_ts3_residual_drho_finite(ts3_hist):
@@ -193,10 +189,12 @@ def test_from_ts3_residual_drho_finite(ts3_hist):
 
 
 def test_from_ts3_ho_s_finite(ts3_hist):
-    """ho_in, ho_out, s_in, s_out are finite for all steps."""
+    """Inlet and outlet stagnation enthalpy and entropy are finite for all steps."""
     n = ts3_hist.i_log + 1
-    for attr in ("ho_in", "ho_out", "s_in", "s_out"):
-        assert np.all(np.isfinite(getattr(ts3_hist, attr)[:n])), attr
+    for name in ("ho_nd", "s_nd"):
+        stations = getattr(ts3_hist, name)[:n]
+        assert np.all(np.isfinite(stations[:, 0])), f"{name} inlet"
+        assert np.all(np.isfinite(stations[:, -1])), f"{name} outlet"
 
 
 def test_from_ts3_zeta_positive(ts3_hist):
@@ -243,8 +241,8 @@ def test_read_cnv_roundtrip_mdot():
         orig.write_cnv(f.name)
         reloaded = ConvergenceHistory.read_cnv(f.name)
     n = orig.i_log + 1
-    assert np.array_equal(reloaded.mdot_in[:n], orig.mdot_in[:n])
-    assert np.array_equal(reloaded.mdot_out[:n], orig.mdot_out[:n])
+    assert np.array_equal(reloaded.mdot_nd[:n, 0], orig.mdot_nd[:n, 0])
+    assert np.array_equal(reloaded.mdot_nd[:n, -1], orig.mdot_nd[:n, -1])
 
 
 def test_read_cnv_roundtrip_residual():
@@ -258,7 +256,7 @@ def test_read_cnv_roundtrip_residual():
 
 
 def test_read_cnv_roundtrip_metadata():
-    """Round-trip preserves grid metadata (node count, areas)."""
+    """Round-trip preserves grid metadata (node count)."""
     orig = ConvergenceHistory.read_cnv(_DATA / "duct.cnv")
     with tempfile.NamedTemporaryFile(suffix=".cnv") as f:
         orig.write_cnv(f.name)
@@ -266,7 +264,6 @@ def test_read_cnv_roundtrip_metadata():
     assert reloaded._get_metadata_by_key("n_node") == orig._get_metadata_by_key(
         "n_node"
     )
-    assert reloaded._get_metadata_by_key("A_in") == orig._get_metadata_by_key("A_in")
 
 
 def test_read_cnv_compressed_roundtrip():
@@ -288,12 +285,13 @@ def test_to_json_creates_files(hist_with_throttle, tmp_path):
 
     hist = hist_with_throttle
     hist.record_convergence(
-        Convergence(
+        0,
+        ConvergenceStep(
             residual=np.full(5, 1e-3, dtype=np.float32),
             mdot=np.array([1.0, 1.0], dtype=np.float32),
             ho=np.array([300000.0, 300000.0], dtype=np.float32),
             s=np.array([1000.0, 1010.0], dtype=np.float32),
-        )
+        ),
     )
     hist.to_json(str(tmp_path))
     for name in ("convergence_err_mdot", "convergence_work", "convergence_loss"):
@@ -306,12 +304,13 @@ def test_to_json_format(hist_with_throttle, tmp_path):
 
     hist = hist_with_throttle
     hist.record_convergence(
-        Convergence(
+        0,
+        ConvergenceStep(
             residual=np.full(5, 1e-3, dtype=np.float32),
             mdot=np.array([1.0, 1.0], dtype=np.float32),
             ho=np.array([300000.0, 300000.0], dtype=np.float32),
             s=np.array([1000.0, 1010.0], dtype=np.float32),
-        )
+        ),
     )
     hist.to_json(str(tmp_path))
     n = hist.i_log + 1
@@ -327,16 +326,16 @@ def test_to_json_x_matches_steps(hist_with_throttle, tmp_path):
     import json
 
     hist = hist_with_throttle
-    for i in range(1, 4):
-        hist.record_step(i * 10)
-    hist.record_convergence(
-        Convergence(
-            residual=np.full(5, 1e-3, dtype=np.float32),
-            mdot=np.array([1.0, 1.0], dtype=np.float32),
-            ho=np.array([300000.0, 300000.0], dtype=np.float32),
-            s=np.array([1000.0, 1010.0], dtype=np.float32),
+    for i in range(4):
+        hist.record_convergence(
+            i * 10,
+            ConvergenceStep(
+                residual=np.full(5, 1e-3, dtype=np.float32),
+                mdot=np.array([1.0, 1.0], dtype=np.float32),
+                ho=np.array([300000.0, 300000.0], dtype=np.float32),
+                s=np.array([1000.0, 1010.0], dtype=np.float32),
+            ),
         )
-    )
     hist.to_json(str(tmp_path))
     n = hist.i_log + 1
     rows = json.loads((tmp_path / "convergence_err_mdot.json").read_text())
@@ -353,11 +352,7 @@ def test_to_json_x_matches_steps(hist_with_throttle, tmp_path):
 def _make_hist_with_row_flows(n_row, steps=3):
     """ConvergenceHistory with n_row rows and row flow data recorded."""
     hist = ConvergenceHistory(shape=(10,))
-    hist._set_metadata_by_key("n_block", 1)
     hist._set_metadata_by_key("n_node", 100)
-    hist._set_metadata_by_key("A_in", np.float32(0.5))
-    hist._set_metadata_by_key("A_out", np.float32(0.5))
-    hist._set_metadata_by_key("is_rotating", False)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
@@ -365,18 +360,18 @@ def _make_hist_with_row_flows(n_row, steps=3):
     for k in hist._data_keys:
         hist._versions[k] += 1
     for i in range(steps):
-        hist.record_step(i)
         mdot_rows = [
             (10.0 + i * 0.1 * (r + 1), 9.8 + i * 0.1 * (r + 1)) for r in range(n_row)
         ]
         mdot = np.array([v for pair in mdot_rows for v in pair], dtype=np.float32)
         hist.record_convergence(
-            Convergence(
+            i,
+            ConvergenceStep(
                 residual=np.full(5, np.nan, dtype=np.float32),
                 mdot=mdot,
                 ho=np.zeros(len(mdot), dtype=np.float32),
                 s=np.zeros(len(mdot), dtype=np.float32),
-            )
+            ),
         )
     return hist
 
@@ -398,25 +393,21 @@ def test_err_mdot_row_shape_two_rows():
 def test_err_mdot_row_values():
     """err_mdot_row computes (dn - up) / avg correctly."""
     hist = ConvergenceHistory(shape=(10,))
-    hist._set_metadata_by_key("n_block", 1)
     hist._set_metadata_by_key("n_node", 100)
-    hist._set_metadata_by_key("A_in", np.float32(0.5))
-    hist._set_metadata_by_key("A_out", np.float32(0.5))
-    hist._set_metadata_by_key("is_rotating", False)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
     hist._set_metadata_by_key("n_row", 1)
     for k in hist._data_keys:
         hist._versions[k] += 1
-    hist.record_step(0)
     hist.record_convergence(
-        Convergence(
+        0,
+        ConvergenceStep(
             residual=np.full(5, np.nan, dtype=np.float32),
             mdot=np.array([10.0, 9.0], dtype=np.float32),
             ho=np.zeros(2, dtype=np.float32),
             s=np.zeros(2, dtype=np.float32),
-        )
+        ),
     )
     err = hist.err_mdot_row
     expected = (9.0 - 10.0) / ((10.0 + 9.0) / 2.0)
@@ -426,17 +417,88 @@ def test_err_mdot_row_values():
 def test_err_mdot_row_no_metadata_returns_nan():
     """err_mdot_row returns NaN array when n_row metadata is absent."""
     hist = ConvergenceHistory(shape=(10,))
-    hist._set_metadata_by_key("n_block", 1)
     hist._set_metadata_by_key("n_node", 100)
-    hist._set_metadata_by_key("A_in", np.float32(0.5))
-    hist._set_metadata_by_key("A_out", np.float32(0.5))
-    hist._set_metadata_by_key("is_rotating", False)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
     for k in hist._data_keys:
         hist._versions[k] += 1
-    hist.record_step(0)
+    hist.record_convergence(0, _conv())
     err = hist.err_mdot_row
     assert err.shape[1] == 0
     assert np.all(np.isnan(err))
+
+
+def _conv():
+    """A ConvergenceStep with every flow monitor finite."""
+    return ConvergenceStep(
+        residual=np.full(5, 1e-3, dtype=np.float32),
+        mdot=np.array([1.0, 1.0], dtype=np.float32),
+        ho=np.array([300000.0, 300000.0], dtype=np.float32),
+        s=np.array([1000.0, 1010.0], dtype=np.float32),
+    )
+
+
+def _record(hist, i_step):
+    """Log one step carrying a full set of finite flow monitors."""
+    hist.record_convergence(i_step, _conv())
+
+
+def test_trim_drops_unfilled_records(hist_with_throttle):
+    """A part-filled history trims to the steps actually logged."""
+    hist = hist_with_throttle
+    for i in range(4):
+        _record(hist, i * 10)
+
+    assert hist.shape == (10,)
+    assert np.isnan(hist.i_step[4:]).all()  # tail never written
+
+    trimmed = hist.trim()
+
+    assert trimmed.shape == (4,)
+    assert trimmed.i_log == 3
+    assert trimmed.i_log + 1 == trimmed.shape[0]  # the invariant trim preserves
+    np.testing.assert_array_equal(trimmed.i_step, [0.0, 10.0, 20.0, 30.0])
+    assert np.isfinite(trimmed.i_step).all()
+    assert np.isfinite(trimmed.err_mdot).all()
+    assert np.isfinite(trimmed.zeta).all()
+
+
+def test_trim_of_full_history_preserves_every_record(hist_with_throttle):
+    """A march that ran to completion loses no data, and keeps its shape."""
+    hist = hist_with_throttle
+    for i in range(10):
+        _record(hist, i * 10)
+    assert hist.i_log == 9  # every allocated row filled
+
+    trimmed = hist.trim()
+
+    assert trimmed.shape == hist.shape
+    assert trimmed.i_log == hist.i_log
+    np.testing.assert_array_equal(trimmed.i_step, hist.i_step)
+    np.testing.assert_array_equal(trimmed.residual, hist.residual)
+    np.testing.assert_array_equal(trimmed.err_mdot, hist.err_mdot)
+    np.testing.assert_array_equal(trimmed.zeta, hist.zeta)
+
+
+def test_trim_returns_independent_copy(hist_with_throttle):
+    """trim never aliases the original, so the full allocation can be dropped."""
+    hist = hist_with_throttle
+    for i in range(10):
+        _record(hist, i * 10)  # fill it, the case where a view is most tempting
+
+    trimmed = hist.trim()
+
+    assert trimmed is not hist
+    assert not np.shares_memory(trimmed._data, hist._data)
+    assert trimmed._metadata is not hist._metadata
+
+    trimmed._set_metadata_by_key("i_log", 0)
+    assert hist.i_log == 9
+
+
+def test_trim_preserves_diverged_flag(hist_with_throttle):
+    """The diverged flag survives the trim it exists to justify."""
+    hist = hist_with_throttle
+    hist.diverged = True
+    assert hist.trim().diverged is True

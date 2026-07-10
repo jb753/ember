@@ -43,15 +43,18 @@ def test_block_2d():
     # Create 3D block first
     shape = (5, 4, 6)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
-    block_3d = (
-        Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-    )
+    block_3d = Block(shape=shape)
+    block_3d.set_x(xrt[..., 0])
+    block_3d.set_r(xrt[..., 1])
+    block_3d.set_t(xrt[..., 2])
 
     # Set up fluid and flow state
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_3d.set_fluid(fluid)
     block_3d.set_P_T(1e5, 300.0)
-    block_3d.set_Vx(10.0).set_Vr(0.0).set_Vt(0.0)  # Flow in x-direction
+    block_3d.set_Vx(10.0)
+    block_3d.set_Vr(0.0)
+    block_3d.set_Vt(0.0)
 
     # Take a 2D cut at constant x (normal to flow direction)
     # This creates a cut with flow through the plane
@@ -75,7 +78,9 @@ def create_test_block():
     t = np.zeros_like(x)  # Constant theta
 
     block = Block(shape=(ni, nj))
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     return block
 
@@ -211,7 +216,9 @@ def test_mass_average_varying_flow(test_block_2d):
 
     # Create varying velocity field - higher velocity at higher r (radial variation)
     Vx_varying = 10.0 + 50.0 * (block.r - np.min(block.r)) / np.ptp(block.r)
-    block.set_Vx(Vx_varying).set_Vr(0.0).set_Vt(0.0)
+    block.set_Vx(Vx_varying)
+    block.set_Vr(0.0)
+    block.set_Vt(0.0)
 
     # Scalar field that varies with r
     nodal_scalar = 1.0 + 2.0 * (block.r - np.min(block.r)) / np.ptp(block.r)
@@ -244,13 +251,17 @@ def test_mass_average_zero_net_mass_flux():
     t = np.zeros_like(x)  # Constant theta
 
     block = Block(shape=(ni, nj))
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
 
     # Set up fluid and flow state
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(1e5, 300.0)
-    block.set_Vx(10.0).set_Vr(0.0).set_Vt(0.0)
+    block.set_Vx(10.0)
+    block.set_Vr(0.0)
+    block.set_Vt(0.0)
 
     # Create a uniform scalar field
     nodal_scalar = np.ones(block.shape, dtype=np.float32)
@@ -371,7 +382,9 @@ def test_total_area_triangulated():
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_2d.set_fluid(fluid)
     block_2d.set_P_T(1e5, 300.0)
-    block_2d.set_Vx(10.0).set_Vr(0.0).set_Vt(0.0)
+    block_2d.set_Vx(10.0)
+    block_2d.set_Vr(0.0)
+    block_2d.set_Vt(0.0)
 
     # Create triangulated block
     tri_block = triangulate_to_unstructured(block_2d)
@@ -388,7 +401,10 @@ def test_mix_out_structured():
 
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.01, 0.0), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(2e5, 400.0)
@@ -432,18 +448,26 @@ def test_mix_out_triangulated_vs_structured():
 
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(2e5, 400.0)
-    block.set_Vx(100.0).set_Vr(60.0).set_Vt(30.0).set_label("beans")
+    block.set_Vx(100.0)
+    block.set_Vr(60.0)
+    block.set_Vt(30.0)
+    block.set_label("beans")
 
     block_structured = block[0]
 
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_structured.set_fluid(fluid)
     block_structured.set_P_T(1e5, 300.0)
-    block_structured.set_Vx(100.0).set_Vr(20.0).set_Vt(10.0)
+    block_structured.set_Vx(100.0)
+    block_structured.set_Vr(20.0)
+    block_structured.set_Vt(10.0)
 
     # Mix out structured version
     print("Mixing out structured block...")
@@ -473,11 +497,16 @@ def test_mix_out_triangulated_vs_structured():
 def test_mix_super():
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(2e5, 400.0)
-    block.set_Vx(500.0).set_Vr(0.0).set_Vt(0.0)
+    block.set_Vx(500.0)
+    block.set_Vr(0.0)
+    block.set_Vt(0.0)
     assert (block.Ma > 1.0).all()
 
     cut = block[0]
@@ -489,11 +518,16 @@ def _low_mach_axial_cut(Vt=0.0):
     """Build a uniform low-Mach (Ma~0.1) cut for area-ratio tests."""
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(2e5, 400.0)
-    block.set_Vx(40.0).set_Vr(0.0).set_Vt(Vt)
+    block.set_Vx(40.0)
+    block.set_Vr(0.0)
+    block.set_Vt(Vt)
     return block[0]
 
 
@@ -573,11 +607,16 @@ def test_mix_out_area_ratio_choke_raises():
 def test_mix_radial():
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block.set_fluid(fluid)
     block.set_P_T(2e5, 400.0)
-    block.set_Vx(300.0).set_Vr(0.0).set_Vt(0.0)
+    block.set_Vx(300.0)
+    block.set_Vr(0.0)
+    block.set_Vt(0.0)
 
     cut = block[:, 0, :]
     assert np.ptp(cut.r) < 1e-6, "Cut should be radial with constant r"
@@ -588,7 +627,9 @@ def test_mix_radial():
             mix.conserved[i], cut.conserved[..., i], atol=atol[i]
         )
 
-    block.set_Vx(0.0).set_Vr(-100.0).set_Vt(0.0)
+    block.set_Vx(0.0)
+    block.set_Vr(-100.0)
+    block.set_Vt(0.0)
 
     cut = block[:, 0, :]
     assert np.ptp(cut.r) < 1e-6, "Cut should be radial with constant r"
@@ -599,7 +640,9 @@ def test_mix_radial():
             mix.conserved[i], cut.conserved[..., i], atol=atol[i]
         )
 
-    block.set_Vx(0.0).set_Vr(300.0).set_Vt(0.0)
+    block.set_Vx(0.0)
+    block.set_Vr(300.0)
+    block.set_Vt(0.0)
 
     cut = block[:, 0, :]
     assert np.ptp(cut.r) < 1e-6, "Cut should be radial with constant r"
@@ -620,7 +663,10 @@ def test_mix_out_k_axis_flip_invariance():
     # Create a 3D block with non-uniform flow
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 2 * np.pi), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set up fluid and non-uniform flow state
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -638,7 +684,9 @@ def test_mix_out_k_axis_flip_invariance():
     Vx = 100.0 + 20.0 * np.sin(2 * np.pi * block.t)
     Vr = 10.0 * np.cos(2 * np.pi * block.x / 0.1)
     Vt = 5.0 * np.sin(2 * np.pi * block.r)
-    block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
 
     # Take a 2D cut at constant x
     block_cut = block[3]
@@ -729,7 +777,10 @@ def test_mix_out_k_axis_flip_invariance_negative_vt():
     # Create a 3D block
     shape = (7, 8, 9)
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 2 * np.pi), shape)
-    block = Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
 
     # Set up fluid and flow state with negative Vt
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -746,7 +797,9 @@ def test_mix_out_k_axis_flip_invariance_negative_vt():
     Vx = 120.0 + 15.0 * np.cos(2 * np.pi * block.t)
     Vr = 8.0 * np.sin(2 * np.pi * block.x / 0.1)
     Vt = -50.0 + 10.0 * np.sin(2 * np.pi * block.r)  # Negative Vt
-    block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
 
     # Verify Vt is indeed negative on average
     assert np.mean(Vt) < 0, "Test should have negative average Vt"
@@ -841,13 +894,16 @@ def test_mix_out_reference_invariance():
     xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
 
     # --- Baseline: default references (L_ref=1, rho_ref=1, V_ref=1) ---
-    block_base = (
-        Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-    )
+    block_base = Block(shape=shape)
+    block_base.set_x(xrt[..., 0])
+    block_base.set_r(xrt[..., 1])
+    block_base.set_t(xrt[..., 2])
     fluid_base = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     block_base.set_fluid(fluid_base)
     block_base.set_P_T(2e5, 400.0)
-    block_base.set_Vx(100.0).set_Vr(20.0).set_Vt(10.0)
+    block_base.set_Vx(100.0)
+    block_base.set_Vr(20.0)
+    block_base.set_Vt(10.0)
     cut_base = block_base[0]
     mixed_base = average.mix_out(cut_base)
 
@@ -858,9 +914,10 @@ def test_mix_out_reference_invariance():
     T_dtm = 800.0  # High enough that ho = cp*(T - T_dtm/gamma) + V^2/2 < 0
     P_dtm = 2e5
 
-    block_ref = (
-        Block(shape=shape).set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
-    )
+    block_ref = Block(shape=shape)
+    block_ref.set_x(xrt[..., 0])
+    block_ref.set_r(xrt[..., 1])
+    block_ref.set_t(xrt[..., 2])
     fluid_ref = ember.fluid.PerfectFluid(
         cp=1005.0,
         gamma=1.4,
@@ -873,7 +930,9 @@ def test_mix_out_reference_invariance():
     )
     block_ref.set_fluid(fluid_ref)
     block_ref.set_P_T(2e5, 400.0)
-    block_ref.set_Vx(100.0).set_Vr(20.0).set_Vt(10.0)
+    block_ref.set_Vx(100.0)
+    block_ref.set_Vr(20.0)
+    block_ref.set_Vt(10.0)
     block_ref.set_L_ref(L_ref)
     cut_ref = block_ref[0]
 

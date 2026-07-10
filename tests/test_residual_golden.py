@@ -42,7 +42,9 @@ def _build_grid():
     block = ember.block.Block(shape=SHAPE)
     block.set_Nb(NB)
     xrt = util.linmesh3((0.0, 0.15), (0.5, 0.9), (0.0, pitch), SHAPE)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     block.set_fluid(PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72))
     block.set_P_T(101325.0, 300.0)
 
@@ -57,7 +59,9 @@ def _build_grid():
     ).astype(np.float32)
     Vr = (5.0 * np.cos(2.0 * np.pi * t / pitch)).astype(np.float32)
     Vt = (40.0 + 15.0 * np.sin(2.0 * np.pi * x / float(x.max()))).astype(np.float32)
-    block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
 
     # Nonzero rotation so the rotating-frame logic (relative tangential velocity
     # in the mass flux, rothalpy in the energy flux) is exercised.

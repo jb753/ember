@@ -1090,7 +1090,10 @@ def resolve_to_interface(block, chi):
     Vn = -sin_chi * Vx_old + cos_chi * Vr_old
 
     # Update block velocities: Vm->Vx, Vn->Vr, Vt unchanged
-    return block.set_Vx(Vm).set_Vr(Vn).set_Vt(Vt)
+    block.set_Vx(Vm)
+    block.set_Vr(Vn)
+    block.set_Vt(Vt)
+    return block
 
 
 def resolve_from_interface(block, chi):
@@ -1126,7 +1129,10 @@ def resolve_from_interface(block, chi):
     Vr = sin_chi * Vm + cos_chi * Vn
 
     # Update block velocities
-    return block.set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
+    return block
 
 
 def perm_flip_to_dirs(perm, flip, const_dim):
@@ -1677,6 +1683,58 @@ def cluster(ni, ER, dmax):
 
     # Ensure exact endpoints (should already be correct now)
     x[0] = 0.0
+    x[-1] = 1.0
+
+    return x
+
+
+def cluster_symmetric(n, ER, dmax=1.0):
+    """Generate geometrically spaced points from 0 to 1, dense at both ends.
+
+    Where :func:`cluster` expands away from a single end, this mirrors a
+    half-width :func:`cluster` vector about the centreline, so the spacing
+    grows at expansion ratio ``ER`` away from *both* endpoints and is coarsest
+    in the middle. Unlike :func:`cosine_cluster`, which is also symmetric, the
+    growth rate is controlled rather than fixed by the distribution.
+
+    Parameters
+    ----------
+    n : int
+        Number of points to generate. Must be odd and >= 3, so that the two
+        mirrored halves share their midpoint.
+    ER : float
+        Expansion ratio for geometric spacing (must be > 0).
+    dmax : float
+        Maximum allowed spacing in the returned vector (must be > 0).
+
+    Returns
+    -------
+    Array, shape (n,)
+        Vector from 0 to 1 with spacing clustered at both ends, dtype=float32.
+
+    Examples
+    --------
+    >>> z = cluster_symmetric(9, 1.2, 1.0)
+    >>> z[0], z[-1]  # exact endpoints
+    (0.0, 1.0)
+    >>> np.allclose(z + z[::-1], 1.0)  # symmetric about 0.5
+    True
+
+    >>> # Uniform spacing when ER=1.0
+    >>> np.allclose(cluster_symmetric(5, 1.0, 1.0), np.linspace(0, 1, 5))
+    True
+    """
+    if n < 3 or n % 2 == 0:
+        raise ValueError(f"n must be odd and >= 3 to mirror a half-width, got {n}")
+
+    # The half-vector spans 0 to 1 and is then scaled onto 0 to 0.5, so a cap
+    # of dmax on the result corresponds to 2*dmax on the half.
+    half = cluster((n + 1) // 2, ER, 2.0 * dmax)
+    x = np.concatenate([0.5 * half, 1.0 - 0.5 * half[-2::-1]]).astype(f32)
+
+    # Guard the endpoints and midpoint against round-off in the mirror
+    x[0] = 0.0
+    x[n // 2] = 0.5
     x[-1] = 1.0
 
     return x

@@ -77,8 +77,6 @@ class CuspPatch(Patch):
                 f"{lim[1, 0]}:{lim[1, 1]} for block j size {block_shape[1]}."
             )
 
-        return self
-
     def check_match(self, other, rtol=1e-6):
         """Check if this CuspPatch matches another for pairing purposes.
 

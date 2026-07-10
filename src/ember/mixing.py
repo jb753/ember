@@ -271,8 +271,6 @@ class MixingPatch(RevolutionPatch):
         if self._target is not None and self._target.shape != target_shape:
             self._target = None
 
-        return self
-
     def check_match(self, other, rtol=1e-5):
         """Check if this MixingPatch matches another for pairing purposes.
 

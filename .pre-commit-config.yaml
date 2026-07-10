@@ -58,6 +58,12 @@ repos:
         files: ^(docs/.*|src/ember/.*\.py)$
         pass_filenames: false
 
+      - id: no-claude-in-commit-msg
+        name: no Claude in commit message
+        entry: tools/check_no_claude_commit_msg.sh
+        language: script
+        stages: [commit-msg]
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.8
     hooks:

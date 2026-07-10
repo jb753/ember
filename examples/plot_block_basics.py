@@ -33,11 +33,15 @@ block = ember.block.Block()
 print(f"Default shape: {block.shape}")
 
 # Set individual coordinates
-block.set_x(0.5).set_r(1.0).set_t(0.0)
+block.set_x(0.5)
+block.set_r(1.0)
+block.set_t(0.0)
 print(f"Coordinates (x, r, t): {block.xrt}")
 
 # Set velocity components and read back derived angles
-block.set_Vx(100.0).set_Vr(0.0).set_Vt(50.0)
+block.set_Vx(100.0)
+block.set_Vr(0.0)
+block.set_Vt(50.0)
 print(f"Yaw Alpha = {block.Alpha:.1f} deg, pitch Beta = {block.Beta:.1f} deg")
 
 # Double the velocity vector, setting from array
@@ -49,18 +53,21 @@ print(f"Doubled velocity vector: {block.Vxrt}")
 # -------------------
 #
 # A block needs a fluid before any thermodynamic property can be evaluated. The
-# state is then fixed two properties at a time (the two-property rule). Setters
-# return ``self``, so calls can be chained.
+# state is then fixed two properties at a time (the two-property rule).
 
 # Define a perfect gas
 fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.71)
 
 # Read back denstiy and enthalpy from a (P, T) pair.
-block.set_fluid(fluid).set_P_T(1e5, 300.0)
+block.set_fluid(fluid)
+block.set_P_T(1e5, 300.0)
 print(f"Density {block.rho:.3f} kg/m^3, enthalpy {block.h:.0f} J/kg")
 
-# A different property pair, in a single chained expression.
-T = ember.block.Block().set_fluid(fluid).set_rho_u(1.1, 1e4).T
+# A different property pair.
+block2 = ember.block.Block()
+block2.set_fluid(fluid)
+block2.set_rho_u(1.1, 1e4)
+T = block2.T
 print(f"Temperature from (rho, u): {T:.1f} K")
 
 # %%
@@ -83,7 +90,11 @@ except ValueError:
     print("Reading Vx before set_Vx raises ValueError")
 
 # Velocity alone gives flow angles, but geometry is still unset.
-swirl = ember.block.Block().set_r(1.0).set_Vx(100.0).set_Vr(0.0).set_Vt(50.0)
+swirl = ember.block.Block()
+swirl.set_r(1.0)
+swirl.set_Vx(100.0)
+swirl.set_Vr(0.0)
+swirl.set_Vt(50.0)
 print(f"Alpha = {swirl.Alpha:.1f} deg, Beta = {swirl.Beta:.1f} deg")
 try:
     swirl.x
@@ -91,7 +102,9 @@ except ValueError:
     print("Reading x before set_x raises ValueError")
 
 # Thermodynamic state alone gives density, but geometry is still unset.
-state = ember.block.Block().set_fluid(fluid).set_P_T(1e5, 300.0)
+state = ember.block.Block()
+state.set_fluid(fluid)
+state.set_P_T(1e5, 300.0)
 print(f"Density = {state.rho:.3f} kg/m^3")
 try:
     state.x
@@ -106,8 +119,12 @@ except ValueError:
 # fluid from :meth:`~ember.fluid.PerfectFluid.change_datum`. Pressure and
 # temperature are unaffected; only enthalpy and entropy shift.
 
-datum = ember.block.Block().set_fluid(fluid)
-datum.set_P_T(1.2e5, 350.0).set_Vx(0.0).set_Vr(0.0).set_Vt(0.0)
+datum = ember.block.Block()
+datum.set_fluid(fluid)
+datum.set_P_T(1.2e5, 350.0)
+datum.set_Vx(0.0)
+datum.set_Vr(0.0)
+datum.set_Vt(0.0)
 print(
     f"Original datum: P = {datum.P:.0f} Pa, T = {datum.T:.0f} K\n"
     f"                h = {datum.h:.0f} J/kg, s = {datum.s:.1f} J/kg/K"
@@ -132,8 +149,13 @@ print(
 # If we set reference scales matched to the flow, the raw values sit near unity,
 # which keeps the backing array well-conditioned, while the dimensional values are unchanged.
 
-cons = ember.block.Block().set_fluid(fluid).set_r(1.0)
-cons.set_P_T(1e5, 300.0).set_Vx(150.0).set_Vr(0.0).set_Vt(60.0)
+cons = ember.block.Block()
+cons.set_fluid(fluid)
+cons.set_r(1.0)
+cons.set_P_T(1e5, 300.0)
+cons.set_Vx(150.0)
+cons.set_Vr(0.0)
+cons.set_Vt(60.0)
 print("With unit reference scales:")
 print(f"  conserved    = {cons.conserved}")
 print(f"  conserved_nd = {cons.conserved_nd}")  # Same as dimensional
@@ -157,8 +179,13 @@ print(f"  conserved_nd = {cons.conserved_nd}")  # Raw backing array near unity
 # stagnation pressure or the static pressure. Quantities suffixed ``_rel`` are
 # evaluated in the rotating frame.
 
-rotor = ember.block.Block().set_fluid(fluid).set_r(1.0)
-rotor.set_P_T(1e5, 300.0).set_Vx(0.0).set_Vr(0.0).set_Vt(100.0)
+rotor = ember.block.Block()
+rotor.set_fluid(fluid)
+rotor.set_r(1.0)
+rotor.set_P_T(1e5, 300.0)
+rotor.set_Vx(0.0)
+rotor.set_Vr(0.0)
+rotor.set_Vt(100.0)
 print("At rest:")
 print(f"  Vt = {rotor.Vt:.1f} m/s, Vt_rel = {rotor.Vt_rel:.1f} m/s")
 print(f"  Po = {rotor.Po:.0f} Pa, Po_rel = {rotor.Po_rel:.0f} Pa")
@@ -176,7 +203,8 @@ print(f"  Po = {rotor.Po:.0f} Pa, Po_rel = {rotor.Po_rel:.0f} Pa")
 # broadcast to the block shape, so a scalar fills the whole block and a 1-D
 # array fills along one axis.
 
-field = ember.block.Block(shape=(5, 6, 5)).set_fluid(fluid)
+field = ember.block.Block(shape=(5, 6, 5))
+field.set_fluid(fluid)
 field.set_x(1.0)  # Scalar broadcasts everywhere
 field.set_r(np.linspace(1.0, 2.0, field.ni))  # Varies along the first axis
 print(f"Block shape {field.shape}, r spans {field.r.min()}--{field.r.max()}")
@@ -205,8 +233,10 @@ print(f"grid[0, :].x = {grid[0, :].x}, grid[:, 1].x = {grid[:, 1].x}")
 # ``copy`` makes an independent block; ``transpose``, ``flat`` and ``reshape``
 # rearrange the axes (as views where possible).
 
-original = ember.block.Block().set_xrt(np.array([2.0, 3.0, 4.0]))
-modified = original.copy().set_x(-6.0)
+original = ember.block.Block()
+original.set_xrt(np.array([2.0, 3.0, 4.0]))
+modified = original.copy()
+modified.set_x(-6.0)
 print(f"copy is independent: original.x = {original.x}, modified.x = {modified.x}")
 
 shaped = ember.block.Block(shape=(4, 3))
@@ -235,7 +265,8 @@ print(
 # :math:`\Omega r` from the absolute swirl.
 
 r_hub, r_cas = 0.4, 0.5
-profile = ember.block.Block(shape=(101,)).set_fluid(fluid)
+profile = ember.block.Block(shape=(101,))
+profile.set_fluid(fluid)
 r = np.linspace(r_hub, r_cas, profile.ni)
 profile.set_r(r)
 

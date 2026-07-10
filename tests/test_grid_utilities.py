@@ -19,7 +19,6 @@ Test cases:
 - test_grid_check_passes_valid_grid: Valid grid validation passing
 - test_conserved_round_trip: Round trip conserved variables conversion
 - test_primitive_round_trip: Round trip primitive variables conversion
-- test_grid_flat_removes_patches: Grid.flat() patch removal on multi-block grids
 - test_identity_transformation: Identity transformation detection in _align_cartesian
 - test_permutation_only: Coordinate permutation detection
 - test_sign_flips_only: Coordinate sign flip detection
@@ -37,8 +36,18 @@ import numpy as np
 import pytest
 from ember.grid import Grid
 from ember.block import Block
+from ember.block_util import concatenate
 from ember.patch import InletPatch, MixingPatch, OutletPatch, PeriodicPatch
 from ember import util
+
+
+def _flatten(grid):
+    """Concatenate every block of `grid` into one flat Block.
+
+    The unstructured setters take a point cloud in this order, so the round-trip
+    and alignment tests below build their inputs with it.
+    """
+    return concatenate(*[block.flat() for block in grid])
 
 
 class TestGridProperties:
@@ -53,8 +62,12 @@ class TestGridProperties:
         xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (3, 3, 3))
         xrt2 = util.linmesh3([1.0, 2.0], [0.5, 1.5], [0.0, 1.0], (2, 2, 2))
 
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         grid = Grid([block1, block2])
 
@@ -77,7 +90,9 @@ class TestGridProperties:
         # Test 1: Single block case
         block1 = Block(shape=(3, 3, 3))
         xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (3, 3, 3))
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
 
         grid = Grid([block1])
         rows = grid.rows
@@ -106,8 +121,12 @@ class TestGridProperties:
 
         xrt2 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (2, 2, 2))
         xrt3 = util.linmesh3([1.0, 2.0], [0.5, 1.5], [0.0, 1.0], (2, 2, 2))
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
-        block3.set_x(xrt3[..., 0]).set_r(xrt3[..., 1]).set_t(xrt3[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
+        block3.set_x(xrt3[..., 0])
+        block3.set_r(xrt3[..., 1])
+        block3.set_t(xrt3[..., 2])
 
         grid2 = Grid([block2, block3])
         rows2 = grid2.rows
@@ -151,7 +170,9 @@ def _make_row(x_start, x_end, L, shape=(5, 5, 5)):
         [x_start, x_end], [r1, r1 + L_row], [-pitch / 2, pitch / 2], shape
     )
     block = Block(shape=shape)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     block.set_Nb(Nb)
     block.patches.extend([PeriodicPatch(k=0), PeriodicPatch(k=-1)])
     return block
@@ -221,8 +242,12 @@ class TestGridGetRRef:
         # Block 2: r from 1.0 to 2.0
         xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.0, 1.0], (2, 3, 2))
 
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         grid = Grid([block1, block2])
 
@@ -291,7 +316,9 @@ class TestGridFVBNDDelegation:
         # Create a grid with patches
         block = Block(shape=(4, 3, 2))
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (4, 3, 2))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Add patches
         inlet_patch = InletPatch(i=0, j=(1, 2), k=(0, 1), label="inlet")
@@ -322,7 +349,9 @@ class TestGridFVBNDDelegation:
         """Test parameter mapping from region_id to iregion."""
         block = Block(shape=(2, 2, 2))
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 1.0], (2, 2, 2))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         inlet_patch = InletPatch(i=0, j=(0, 1), k=(0, 1), label="test_inlet")
         block.patches.append(inlet_patch)
@@ -352,7 +381,9 @@ class TestGridFVBNDErrorHandling:
         # Create a grid with one block
         block = Block(shape=(2, 2, 2))
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 1.0], (2, 2, 2))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         grid = Grid([block])
 
         # The error occurs in FVBND parsing when block_id >= len(grid)
@@ -376,8 +407,12 @@ class TestGridRepr:
         xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 1.0], (2, 2, 2))
         xrt2 = util.linmesh3([1.0, 2.0], [0.5, 1.0], [0.0, 1.0], (3, 3, 3))
 
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         # Set labels on blocks
         block1.set_label("first_block")
@@ -397,7 +432,9 @@ class TestGridRepr:
         """Test Grid.__repr__ when grid has no labeled blocks."""
         block = Block(shape=(2, 2, 2))
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 1.0], (2, 2, 2))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         grid = Grid([block])
 
@@ -417,7 +454,9 @@ class TestGridConnectivityEdgeCases:
         # Create a grid with only one periodic patch
         block = Block(shape=(3, 3, 3))
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (3, 3, 3))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Add only one periodic patch (no possible match)
         periodic_patch = PeriodicPatch(i=0, j=(1, 2), k=(1, 2), label="lonely_patch")
@@ -438,7 +477,9 @@ class TestGridConnectivityEdgeCases:
         # Create a grid with no patches
         block = Block(shape=(2, 2, 2))
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 1.0], (2, 2, 2))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         grid = Grid([block])
         connectivity = grid.connectivity.periodic
@@ -466,7 +507,9 @@ class TestGridIntegration:
 
         x, r, t = np.meshgrid(x_vals, r_vals, t_vals, indexing="ij")
         xrt = np.stack([x, r, t], axis=-1)
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         block.set_label("rotor_blade")
 
         grid = Grid([block])
@@ -499,20 +542,24 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create target 3D block
         shape_3d = (3, 3, 3)
         block_3d = Block(shape=shape_3d)
         xrt_3d = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_3d)
-        block_3d.set_x(xrt_3d[..., 0]).set_r(xrt_3d[..., 1]).set_t(xrt_3d[..., 2])
+        block_3d.set_x(xrt_3d[..., 0])
+        block_3d.set_r(xrt_3d[..., 1])
+        block_3d.set_t(xrt_3d[..., 2])
 
         # Apply guess
         grid = Grid([block_3d])
@@ -536,14 +583,16 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create multiple target blocks
         blocks = []
@@ -551,7 +600,9 @@ class TestApplyGuessMeridional:
             shape_3d = (3, 3, 3)
             block = Block(shape=shape_3d)
             xrt = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_3d)
-            block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+            block.set_x(xrt[..., 0])
+            block.set_r(xrt[..., 1])
+            block.set_t(xrt[..., 2])
             blocks.append(block)
 
         # Apply guess
@@ -571,23 +622,25 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_Omega(100.0)
         block_guess.set_Nb(13)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create target block
         block_target = Block(shape=(3, 3, 3))
         xrt_target = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], (3, 3, 3))
-        block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target.set_x(xrt_target[..., 0])
+        block_target.set_r(xrt_target[..., 1])
+        block_target.set_t(xrt_target[..., 2])
 
         # Apply guess
         grid = Grid([block_target])
@@ -604,9 +657,9 @@ class TestApplyGuessMeridional:
         shape = (5, 1, 1)
         block_guess = Block(shape=shape)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
@@ -616,13 +669,15 @@ class TestApplyGuessMeridional:
         rho_guess = np.tile(rho_profile[:, np.newaxis, np.newaxis], shape[1:])
         block_guess.set_rho_u(rho_guess, 100000.0 * np.ones(shape))
 
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create target block with identical coordinates
         block_target = Block(shape=shape)
-        block_target.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_target.set_x(xrt_guess[..., 0])
+        block_target.set_r(xrt_guess[..., 1])
+        block_target.set_t(xrt_guess[..., 2])
 
         # Apply guess
         grid = Grid([block_target])
@@ -639,9 +694,9 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
@@ -657,9 +712,9 @@ class TestApplyGuessMeridional:
 
         # Create target block with same x-r coordinates
         block_target = Block(shape=shape_guess)
-        block_target.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_target.set_x(xrt_guess[..., 0])
+        block_target.set_r(xrt_guess[..., 1])
+        block_target.set_t(xrt_guess[..., 2])
 
         # Apply guess
         grid = Grid([block_target])
@@ -684,23 +739,25 @@ class TestApplyGuessMeridional:
         shape_guess = (3, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         # Use non-trivial molecular viscosity so it's clear the method is working
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=2.5e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create target block
         shape_target = (4, 3, 3)
         block_target = Block(shape=shape_target)
         xrt_target = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_target)
-        block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target.set_x(xrt_target[..., 0])
+        block_target.set_r(xrt_target[..., 1])
+        block_target.set_t(xrt_target[..., 2])
 
         # Apply guess
         grid = Grid([block_target])
@@ -717,23 +774,25 @@ class TestApplyGuessMeridional:
         shape_guess = (3, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_rho_u(
             1.2 * np.ones(shape_guess), 100000.0 * np.ones(shape_guess)
         )
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create target block
         block_target = Block(shape=(3, 3, 3))
         xrt_target = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], (3, 3, 3))
-        block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target.set_x(xrt_target[..., 0])
+        block_target.set_r(xrt_target[..., 1])
+        block_target.set_t(xrt_target[..., 2])
 
         grid = Grid([block_target])
         grid.apply_guess_meridional(block_guess.squeeze())
@@ -748,14 +807,16 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Test different target block shapes
         target_shapes = [(3, 3, 3), (4, 4, 4), (6, 2, 2)]
@@ -763,9 +824,9 @@ class TestApplyGuessMeridional:
         for shape in target_shapes:
             block_target = Block(shape=shape)
             xrt_target = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape)
-            block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-                xrt_target[..., 2]
-            )
+            block_target.set_x(xrt_target[..., 0])
+            block_target.set_r(xrt_target[..., 1])
+            block_target.set_t(xrt_target[..., 2])
 
             grid = Grid([block_target])
             grid.apply_guess_meridional(block_guess.squeeze())
@@ -782,21 +843,23 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create target block
         block_target = Block(shape=(3, 3, 3))
         xrt_target = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], (3, 3, 3))
-        block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target.set_x(xrt_target[..., 0])
+        block_target.set_r(xrt_target[..., 1])
+        block_target.set_t(xrt_target[..., 2])
 
         # Apply guess
         grid = Grid([block_target])
@@ -815,22 +878,24 @@ class TestApplyGuessMeridional:
         shape_guess = (3, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create two target blocks with identical coordinates
         blocks = []
         for _ in range(2):
             block = Block(shape=shape_guess)
-            block.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-                xrt_guess[..., 2]
-            )
+            block.set_x(xrt_guess[..., 0])
+            block.set_r(xrt_guess[..., 1])
+            block.set_t(xrt_guess[..., 2])
             blocks.append(block)
 
         # Apply guess
@@ -850,21 +915,23 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create target block
         block_target = Block(shape=(3, 3, 3))
         xrt_target = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], (3, 3, 3))
-        block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target.set_x(xrt_target[..., 0])
+        block_target.set_r(xrt_target[..., 1])
+        block_target.set_t(xrt_target[..., 2])
 
         # Apply with default refine_factor (implicit=1)
         grid = Grid([block_target])
@@ -873,9 +940,9 @@ class TestApplyGuessMeridional:
 
         # Apply with explicit refine_factor=1
         block_target2 = Block(shape=(3, 3, 3))
-        block_target2.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target2.set_x(xrt_target[..., 0])
+        block_target2.set_r(xrt_target[..., 1])
+        block_target2.set_t(xrt_target[..., 2])
         grid2 = Grid([block_target2])
         grid2.apply_guess_meridional(block_guess.squeeze(), refine_factor=1)
         rho_explicit = block_target2.rho.copy()
@@ -891,9 +958,9 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
@@ -902,15 +969,17 @@ class TestApplyGuessMeridional:
         rho_profile = np.linspace(1.0, 2.0, shape_guess[0])
         rho_guess = np.tile(rho_profile[:, np.newaxis, np.newaxis], shape_guess[1:])
         block_guess.set_rho_u(rho_guess, 100000.0 * np.ones(shape_guess))
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create fine target block
         shape_target = (7, 3, 3)
         block_target = Block(shape=shape_target)
         xrt_target = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_target)
-        block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target.set_x(xrt_target[..., 0])
+        block_target.set_r(xrt_target[..., 1])
+        block_target.set_t(xrt_target[..., 2])
 
         # Apply without refinement
         grid_unrefined = Grid([block_target])
@@ -919,9 +988,9 @@ class TestApplyGuessMeridional:
 
         # Apply with refinement
         block_target2 = Block(shape=shape_target)
-        block_target2.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target2.set_x(xrt_target[..., 0])
+        block_target2.set_r(xrt_target[..., 1])
+        block_target2.set_t(xrt_target[..., 2])
         grid_refined = Grid([block_target2])
         grid_refined.apply_guess_meridional(block_guess.squeeze(), refine_factor=2)
         rho_refined = block_target2.rho.copy()
@@ -953,14 +1022,16 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Save original shape
         original_shape = block_guess.shape
@@ -969,9 +1040,9 @@ class TestApplyGuessMeridional:
         # Create target and apply with refinement
         block_target = Block(shape=(7, 3, 3))
         xrt_target = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], (7, 3, 3))
-        block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target.set_x(xrt_target[..., 0])
+        block_target.set_r(xrt_target[..., 1])
+        block_target.set_t(xrt_target[..., 2])
 
         grid = Grid([block_target])
         grid.apply_guess_meridional(block_guess.squeeze(), refine_factor=2)
@@ -988,21 +1059,23 @@ class TestApplyGuessMeridional:
         shape_guess = (3, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
         block_guess.set_P_T(101325.0, 300.0)
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create target
         block_target = Block(shape=(3, 3, 3))
         xrt_target = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], (3, 3, 3))
-        block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-            xrt_target[..., 2]
-        )
+        block_target.set_x(xrt_target[..., 0])
+        block_target.set_r(xrt_target[..., 1])
+        block_target.set_t(xrt_target[..., 2])
 
         # Should work now - 1D blocks can be refined
         grid = Grid([block_target])
@@ -1019,9 +1092,9 @@ class TestApplyGuessMeridional:
         shape_guess = (5, 1, 1)
         block_guess = Block(shape=shape_guess)
         xrt_guess = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 0.1], shape_guess)
-        block_guess.set_x(xrt_guess[..., 0]).set_r(xrt_guess[..., 1]).set_t(
-            xrt_guess[..., 2]
-        )
+        block_guess.set_x(xrt_guess[..., 0])
+        block_guess.set_r(xrt_guess[..., 1])
+        block_guess.set_t(xrt_guess[..., 2])
 
         fluid = PerfectFluid(cp=1004.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
         block_guess.set_fluid(fluid)
@@ -1030,7 +1103,9 @@ class TestApplyGuessMeridional:
         rho_profile = np.linspace(1.0, 2.0, shape_guess[0])
         rho_guess = np.tile(rho_profile[:, np.newaxis, np.newaxis], shape_guess[1:])
         block_guess.set_rho_u(rho_guess, 100000.0 * np.ones(shape_guess))
-        block_guess.set_Vx(50.0).set_Vr(5.0).set_Vt(0.0)
+        block_guess.set_Vx(50.0)
+        block_guess.set_Vr(5.0)
+        block_guess.set_Vt(0.0)
 
         # Create target with intermediate resolution
         shape_target = (7, 3, 3)
@@ -1042,9 +1117,9 @@ class TestApplyGuessMeridional:
         errors = []
         for refine_factor in [1, 2]:
             block_target = Block(shape=shape_target)
-            block_target.set_x(xrt_target[..., 0]).set_r(xrt_target[..., 1]).set_t(
-                xrt_target[..., 2]
-            )
+            block_target.set_x(xrt_target[..., 0])
+            block_target.set_r(xrt_target[..., 1])
+            block_target.set_t(xrt_target[..., 2])
             grid = Grid([block_target])
             grid.apply_guess_meridional(
                 block_guess.squeeze(), refine_factor=refine_factor
@@ -1110,14 +1185,16 @@ class TestGridCartesianUnstructured:
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
 
         block1 = Block(shape=(ni, nj, nk))
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2]).set_fluid(
-            fluid
-        )
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
+        block1.set_fluid(fluid)
 
         block2 = Block(shape=(ni, nj, nk))
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2]).set_fluid(
-            fluid
-        )
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
+        block2.set_fluid(fluid)
 
         return Grid([block1, block2])
 
@@ -1134,7 +1211,7 @@ class TestGridCartesianUnstructured:
             block.set_conserved(conserved_original[ib])
 
         # Step 2: Extract polar data and convert to Cartesian
-        flat_grid = test_grid.flat()
+        flat_grid = _flatten(test_grid)
 
         # Convert coordinates and velocities to Cartesian with transformation
         xyz_cart, Vxyz_cart = util.pol_to_cart(
@@ -1178,11 +1255,14 @@ class TestGridCartesianUnstructured:
             Vx = (100.0 * np.random.rand(*block.shape)).astype(np.float32)
             Vr = (100.0 * np.random.rand(*block.shape)).astype(np.float32)
             Vt = (100.0 * np.random.rand(*block.shape)).astype(np.float32)
-            block.set_P_rho(P, rho).set_Vx(Vx).set_Vr(Vr).set_Vt(Vt)
+            block.set_P_rho(P, rho)
+            block.set_Vx(Vx)
+            block.set_Vr(Vr)
+            block.set_Vt(Vt)
             conserved_original[ib] = block.conserved.copy()
 
         # Step 2: Extract polar data and convert to Cartesian
-        flat_grid = test_grid.flat()
+        flat_grid = _flatten(test_grid)
 
         # Convert coordinates and velocities to Cartesian with transformation
         xyz_cart, Vxyz_cart = util.pol_to_cart(
@@ -1217,50 +1297,6 @@ class TestGridCartesianUnstructured:
                 )
 
 
-def test_grid_flat_removes_patches():
-    """Test that grid.flat() properly handles patches on multi-block grids."""
-    from ember.fluid import PerfectFluid
-
-    # Create two blocks with patches
-    shape = (3, 3, 3)
-    fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
-
-    block1 = Block(shape=shape)
-    x = np.ones((3, 3, 3), dtype=np.float32)
-    r = np.ones((3, 3, 3), dtype=np.float32) * 1.5
-    t = np.ones((3, 3, 3), dtype=np.float32)
-    block1.set_x(x).set_r(r).set_t(t)
-    block1.set_fluid(fluid)
-    block1.set_P_rho(1e5, 1.2)
-    block1.set_Vx(0.0).set_Vr(0.0).set_Vt(0.0)
-
-    # Add patches to first block (use non-revolution types since geometry is not SoR)
-    block1.patches.append(PeriodicPatch(k=0))
-    block1.patches.append(PeriodicPatch(i=0))
-
-    # Create second block with different patch
-    block2 = Block(shape=shape)
-    block2.set_x(x).set_r(r).set_t(t)
-    block2.set_fluid(fluid)
-    block2.set_P_rho(1e5, 1.2)
-    block2.set_Vx(0.0).set_Vr(0.0).set_Vt(0.0)
-    block2.patches.append(PeriodicPatch(i=-1))
-
-    assert len(block1.patches) == 2
-    assert len(block2.patches) == 1
-
-    # Create grid and flatten
-    grid = Grid([block1, block2])
-    flat_block = grid.flat()
-
-    # Should have combined all nodes from both blocks
-    assert flat_block.shape == (54,)  # 2 blocks * 27 nodes each = 54
-    assert np.all(np.isfinite(flat_block.conserved))
-
-    # Flattened block should have no patches (patches don't make sense on 1D data)
-    assert len(flat_block.patches) == 0
-
-
 class TestAlignCartesian:
     """Tests for Grid._align_cartesian method."""
 
@@ -1291,20 +1327,22 @@ class TestAlignCartesian:
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
 
         block1 = Block(shape=(ni, nj, nk))
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2]).set_fluid(
-            fluid
-        )
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
+        block1.set_fluid(fluid)
 
         block2 = Block(shape=(ni, nj, nk))
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2]).set_fluid(
-            fluid
-        )
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
+        block2.set_fluid(fluid)
 
         return Grid([block1, block2])
 
     def test_identity_transformation(self, align_test_grid):
         """Test that identity transformation is detected correctly."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_input = np.stack([_f.x, _f.y, _f.z], axis=-1)
 
         perm, signs, block_indices = align_test_grid._align_cartesian(xyz_input)
@@ -1327,7 +1365,7 @@ class TestAlignCartesian:
     )
     def test_permutation_only(self, align_test_grid, perm):
         """Test coordinate permutations without sign flips."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_original = np.stack([_f.x, _f.y, _f.z], axis=-1)
         xyz_input = xyz_original[:, list(perm)]
 
@@ -1355,7 +1393,7 @@ class TestAlignCartesian:
     )
     def test_sign_flips_only(self, align_test_grid, signs):
         """Test coordinate sign flips without permutations."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_original = np.stack([_f.x, _f.y, _f.z], axis=-1)
         xyz_input = xyz_original * np.array(signs)
 
@@ -1368,7 +1406,7 @@ class TestAlignCartesian:
 
     def test_combined_transformation(self, align_test_grid):
         """Test combination of permutation and sign flips."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_original = np.stack([_f.x, _f.y, _f.z], axis=-1)
         perm = (2, 0, 1)  # z, x, y
         signs = (-1, 1, -1)
@@ -1415,7 +1453,7 @@ class TestAlignCartesian:
 
     def test_block_indices_structure(self, align_test_grid):
         """Test that block indices have correct structure and values."""
-        _f = align_test_grid.flat()
+        _f = _flatten(align_test_grid)
         xyz_input = np.stack([_f.x, _f.y, _f.z], axis=-1)
 
         perm, signs, block_indices = align_test_grid._align_cartesian(xyz_input)
@@ -1690,7 +1728,9 @@ class TestPitchwiseRepeat:
         xrt = util.linmesh3(
             [0, L], [rmid - 0.05, rmid + 0.05], [0, pitch_original], shape
         )
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Set Nb to match our pitch
         block.set_Nb(int(2 * np.pi / pitch_original))  # Should be 12
@@ -1701,7 +1741,9 @@ class TestPitchwiseRepeat:
         fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0).set_Vr(50.0).set_Vt(25.0)
+        block.set_Vx(100.0)
+        block.set_Vr(50.0)
+        block.set_Vt(25.0)
 
         return block
 
@@ -1991,12 +2033,16 @@ def _make_quasi3d_guess(ni=5, nj=3, P_lo=110000.0, P_hi=90000.0, mu_turb=1e-4):
     x_3d = np.broadcast_to(x[:, None, None], (ni, nj, 2)).copy()
     r_3d = np.broadcast_to(r[None, :, None], (ni, nj, 2)).copy()
     t_3d = np.stack([np.zeros((ni, nj)), np.full((ni, nj), 1e-4)], axis=-1)
-    b.set_x(x_3d).set_r(r_3d).set_t(t_3d)
+    b.set_x(x_3d)
+    b.set_r(r_3d)
+    b.set_t(t_3d)
 
     P_3d = np.stack([np.full((ni, nj), P_lo), np.full((ni, nj), P_hi)], axis=-1)
     T = 300.0
     b.set_P_T(P_3d, T)
-    b.set_Vx(50.0).set_Vr(0.0).set_Vt(0.0)
+    b.set_Vx(50.0)
+    b.set_Vr(0.0)
+    b.set_Vt(0.0)
     b.set_mu_turb(np.full((ni, nj, 2), mu_turb))
     return b
 
@@ -2010,7 +2056,9 @@ def _make_target_block(ni=5, nj=3, nk=7):
     r_3d = np.broadcast_to(r[None, :, None], (ni, nj, nk)).copy()
     t_3d = np.broadcast_to(t[None, None, :], (ni, nj, nk)).copy()
     b = Block(shape=(ni, nj, nk))
-    b.set_x(x_3d).set_r(r_3d).set_t(t_3d)
+    b.set_x(x_3d)
+    b.set_r(r_3d)
+    b.set_t(t_3d)
     return b
 
 
@@ -2026,11 +2074,13 @@ class TestApplyGuessQuasi3D:
         from ember.fluid import PerfectFluid
 
         bad.set_fluid(PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72))
-        bad.set_x(np.ones((5, 3, 3))).set_r(np.ones((5, 3, 3)) * 0.5).set_t(
-            np.linspace(0, 1, 3)[None, None, :] * np.ones((5, 3, 3))
-        )
+        bad.set_x(np.ones((5, 3, 3)))
+        bad.set_r(np.ones((5, 3, 3)) * 0.5)
+        bad.set_t(np.linspace(0, 1, 3)[None, None, :] * np.ones((5, 3, 3)))
         bad.set_P_T(101325.0, 300.0)
-        bad.set_Vx(50.0).set_Vr(0.0).set_Vt(0.0)
+        bad.set_Vx(50.0)
+        bad.set_Vr(0.0)
+        bad.set_Vt(0.0)
         bad.set_mu_turb(np.ones((5, 3, 3)) * 1e-4)
 
         with pytest.raises(ValueError, match="shape"):

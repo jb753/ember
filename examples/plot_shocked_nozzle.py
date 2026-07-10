@@ -80,12 +80,15 @@ def axial_velocity(V):
 def solve_isentrope(Ma, s, relax=0.5):
     """Converge an isentropic Block flow field to a prescribed Mach number."""
     n = Ma.size
-    block = ember.block.Block(shape=(n,)).set_fluid(fluid)
-    block.set_h_s(ho * np.ones(n), s).set_Vxrt(axial_velocity(np.zeros(n)))
+    block = ember.block.Block(shape=(n,))
+    block.set_fluid(fluid)
+    block.set_h_s(ho * np.ones(n), s)
+    block.set_Vxrt(axial_velocity(np.zeros(n)))
     for _ in range(500):
         V_prev = block.V
         V = V_prev + relax * (Ma * block.a - V_prev)  # Drive velocity from Mach
-        block.set_h_s(ho - 0.5 * V**2, s).set_Vxrt(axial_velocity(V))
+        block.set_h_s(ho - 0.5 * V**2, s)
+        block.set_Vxrt(axial_velocity(V))
         if np.max(np.abs(V - V_prev)) < 1e-4:
             break
     return block

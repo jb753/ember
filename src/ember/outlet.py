@@ -154,7 +154,6 @@ class OutletPatch(RevolutionPatch):
             "radial_equilibrium": bool(radial_equilibrium),
             "rf": float(rf),
         }
-        return self
 
     def set_backflow(self, ho, s, Vr, Vt):
         """Enable reversed-flow handling at the outlet.
@@ -196,7 +195,6 @@ class OutletPatch(RevolutionPatch):
             dtype=np.float32,
         )
         self._backflow_enabled = True
-        return self
 
     def set_P(self, P):
         r"""Set the prescribed outlet static pressure :math:`p_\mathrm{out}`.
@@ -231,7 +229,6 @@ class OutletPatch(RevolutionPatch):
             self._dP_D = np.float32(0.0)
         self._P_raw = P_arr
         self._P_target_nd = None
-        return self
 
     def set_throttle(self, mdot_target, K_pid):
         r"""Set the mass flow target and PID gains for throttle control.

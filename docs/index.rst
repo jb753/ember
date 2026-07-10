@@ -10,16 +10,11 @@ Developed by `James Brind <https://jamesbrind.uk/>`_ at the `Whittle Laboratory 
    :caption: Getting started
 
    install
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Examples
-
    auto_examples/index
 
 .. toctree::
    :maxdepth: 2
-   :caption: API Reference
+   :caption: Reference manual
 
    coordinate_system
    api/fluid
@@ -29,6 +24,7 @@ Developed by `James Brind <https://jamesbrind.uk/>`_ at the `Whittle Laboratory 
    api/average
    api/cut
    algorithm
+   api/solver
    solver_configuration
    api/convergence_history
    references

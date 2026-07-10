@@ -36,7 +36,9 @@ def _build_periodic_block():
     block = ember.block.Block(shape=shape)
     block.set_Nb(Nb)
     xrt = util.linmesh3((0.0, 0.1), (0.5, 1.0), (0.0, pitch), shape)
-    block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
     block.set_fluid(PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72))
     block.set_P_T(101325.0, 300.0)
     # Laminar: zero wall distance => zero mixing length (no turbulent viscosity).

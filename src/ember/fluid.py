@@ -1,25 +1,25 @@
 r"""Working fluid interface and equation of state implementations.
 
 This module defines an interface for computing thermodynamic properties of
-working fluids enabling manipulations, of flow fields independent of the underlying equations
-of state. The
-abstraction cleanly separates thermodynamic relations from the flow solver,
-allowing easy extension to real gas models or tabulated properties.
+working fluids enabling manipulations of flow fields independent of the
+underlying equations of state. The abstraction cleanly separates thermodynamic
+relations from the flow solver, allowing easy extension to real gas models or
+tabulated properties.
 
 Currently, the only implementation of the interface is :class:`PerfectFluid` for ideal gases with
 constant specific heats.
 
 A fluid instance is immutable and only stores intrinsic fluid properties that never change, such
 as specific heats for a perfect gas, or the fluid species for a real
-fluid. These must passed into the constructor on initialisation.
+fluid. These must passed into the constructor on initialisation. Storage of the actual flow solution is the responsibility of a :class:`~ember.block.Block`.
 
 Get and set methods
 ===================
 
-The chosen basic state variables are density and internal energy, :math:`(\rho, u)`, because these are the most natural in a conservative computational fluid dynamics solver. An equation of state must provide two types of methods: `get_?` and `set_?_?`.
+The basic state variables are density and internal energy, :math:`(\rho, u)`, because these are the most natural in a conservative computational fluid dynamics solver. An equation of state must provide two types of methods: `get_?` and `set_?_?`.
 
 - `set_x_y(x,y)`: Take thermodynamic properties :math:`(x, y)` and return :math:`(\rho, u)`.
-- `get_z(rho, u, out=None)`: Take :math:`(rho, u)` and return thermodynamic property :math:`z`.
+- `get_z(rho, u, out=None)`: Take :math:`(\rho, u)` and return thermodynamic property :math:`z`.
 
 All methods support both scalar and array inputs, where the inputs must be broadcastable against each other. The output will have the broadcasted shape. Constructor inputs are cast to single-precision floats, and outputs will remain single-precision if all inputs are single-precision. Supplying an `out` keyword argument to `get_?` methods allows the output to be written into a pre-allocated array, following NumPy conventions, which may improve performance by avoiding temporary array allocations.
 
@@ -28,14 +28,19 @@ All methods support both scalar and array inputs, where the inputs must be broad
 Datum state
 ===========
 
-Only changes in internal energy, enthalpy, and entropy are physically meaningful, therefore we have the freedom to set the physical state at which these properties are zero to improve numerics and reduce precision errors due to subtracting two large floats. We define a thermodynamic datum :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})` is where :math:`u = s = 0`
-simultaneously. Enthalpy at the datum is not zero because of the pressure term in :math:`h = u + p/\rho`.
+Only changes in internal energy, enthalpy, and entropy are physically
+meaningful, therefore we have the freedom to set the physical state at which
+these properties are zero to improve numerics and reduce precision errors due
+to subtracting two large floats. We define a thermodynamic datum
+:math:`(p_\mathrm{dtm}, T_\mathrm{dtm})` where :math:`u = s = 0`
+simultaneously. Enthalpy at the datum is not zero because of the pressure term
+in :math:`h = u + p/\rho`.
 
-It is possible to shift the datum state of a fluid instance using the `change_datum` method, which returns a new instance with the same properties but shifted datum. The current datum is accessible via the :attr:`~PerfectFluid.P_dtm` and :attr:`~PerfectFluid.T_dtm` attributes. So the following code simply returns an identical copy of the original `fluid` instance:
+It is possible to shift the datum state of a :class:`PerfectFluid` instance
+using :meth:`PerfectFluid.change_datum`, which returns a new instance with the
+same properties but shifted datum. The current datum is accessible via
+:attr:`~PerfectFluid.P_dtm` and :attr:`~PerfectFluid.T_dtm` attributes.
 
-.. code:: python
-
-    fluid.change_datum(fluid.P_dtm, fluid.T_dtm)
 
 .. _reference-scales:
 
@@ -46,21 +51,22 @@ The constructors for fluid instances take optional reference scales for non-dime
 
 The user specifies:
 
-- :math:`\rho_\mathrm{ref}\,`: density [kg/m\ :sup:`3`]
-- :math:`V_\mathrm{ref}\,`: velocity [m/s]
-- :math:`R_\mathrm{ref}\,`: gas constant [J/kg/K]
+- :math:`\rho_\mathrm{ref}\,`: density [kg/m\ :sup:`3`], :attr:`~PerfectFluid.rho_ref`
+- :math:`V_\mathrm{ref}\,`: velocity [m/s], :attr:`~PerfectFluid.V_ref`
+- :math:`R_\mathrm{ref}\,`: gas constant [J/kg/K], :attr:`~PerfectFluid.Rgas_ref`
 
 and the class forms the following derived reference scales:
 
-- :math:`p_\mathrm{ref} = \rho V_\mathrm{ref}^2\,`: dynamic pressure [Pa]
-- :math:`u_\mathrm{ref} = V_\mathrm{ref}^2\,`: specific energy [J/kg]
-- :math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\,`: temperature [K].
+- :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\,`: dynamic pressure [Pa], :attr:`~PerfectFluid.P_ref`
+- :math:`u_\mathrm{ref} = V_\mathrm{ref}^2\,`: specific energy [J/kg], :attr:`~PerfectFluid.u_ref`
+- :math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\,`: temperature [K], :attr:`~PerfectFluid.T_ref`
+- :math:`(\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}\,`: mass flux [kg/m\ :sup:`2`/s], :attr:`~PerfectFluid.rhoV_ref`
 
 Equations of state are unchanged when all quantities are scaled consistently. For example, taking the ideal gas law :math:`p = \rho R T` and dividing through by the reference pressure :math:`\rho_\mathrm{ref} V_\mathrm{ref}^2` gives
 
 .. math:: \frac{p}{\rho_\mathrm{ref} V_\mathrm{ref}^2} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{V_\mathrm{ref}^2 / R_\mathrm{ref}} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{T_\mathrm{ref}}
 
-Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of [m].
+Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters.
 
 We can get a new instance with different reference scales using the :meth:`PerfectFluid.change_ref` method.
 

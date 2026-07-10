@@ -36,5 +36,8 @@ ci ::
 docs ::
 	uv run sphinx-build -W -b html docs docs/_build/html
 
+docs-full ::
+	uv run sphinx-build -W -b html -D sphinx_gallery_conf.filename_pattern='.*\.py' docs docs/_build/html
+
 docs-clean ::
 	rm -rf docs/_build

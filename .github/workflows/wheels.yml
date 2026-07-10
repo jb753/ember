@@ -77,6 +77,9 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: wheelhouse/
+          # Re-running a tag must not fail here just because TestPyPI already
+          # holds that version; publish-pypi is gated on this job succeeding.
+          skip-existing: true
 
       - name: Install from TestPyPI
         run: |
@@ -91,3 +94,20 @@ jobs:
       - name: Smoke test the installed package
         run: |
           testpypi-venv/bin/python -c "from ember.fortran import set_residual; print('OK')"
+
+  publish-pypi:
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: wheelhouse
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wheelhouse/

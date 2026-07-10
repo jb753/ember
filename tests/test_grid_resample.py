@@ -35,9 +35,13 @@ def _make_state_block(shape, P=101325.0, T=300.0, Vx=50.0, mu_turb=1e-4):
     x = np.linspace(0.0, 1.0, ni).reshape(-1, 1, 1) * np.ones(shape)
     r = np.linspace(0.5, 1.0, nj).reshape(1, -1, 1) * np.ones(shape)
     t = np.linspace(0.0, 0.1, nk).reshape(1, 1, -1) * np.ones(shape)
-    block.set_x(x).set_r(r).set_t(t)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(t)
     block.set_P_T(P, T)
-    block.set_Vx(Vx).set_Vr(0.0).set_Vt(0.0)
+    block.set_Vx(Vx)
+    block.set_Vr(0.0)
+    block.set_Vt(0.0)
     block.set_mu_turb(mu_turb * np.ones(shape))
     return block
 
@@ -50,7 +54,9 @@ class TestGridResample:
         # Create a simple 3x3x3 block
         block = Block(shape=(3, 3, 3))
         xrt = util.linmesh3([0.0, 2.0], [1.0, 3.0], [0.0, 1.0], (3, 3, 3))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Create grid
         grid = Grid([block])
@@ -88,8 +94,12 @@ class TestGridResample:
         xrt1 = util.linmesh3([0.0, 1.0], [1.0, 2.0], [0.0, 0.5], (4, 3, 2))
         xrt2 = util.linmesh3([1.0, 2.0], [2.0, 3.0], [0.1, 0.6], (3, 4, 3))
 
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         # Create grid
         grid = Grid([block1, block2])
@@ -115,7 +125,9 @@ class TestGridResample:
         # Create block with patches
         block = Block(shape=(5, 4, 3))
         xrt = util.linmesh3([0.0, 2.0], [1.0, 2.0], [0.0, 1.0], (5, 4, 3))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Add patches
         inlet_patch = InletPatch(i=0, j=(1, 2), k=(0, 1), label="inlet")
@@ -150,7 +162,9 @@ class TestGridResample:
         """Test resampling with scalar factor applied to all dimensions."""
         block = Block(shape=(4, 4, 4))
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (4, 4, 4))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         grid = Grid([block])
 
@@ -168,7 +182,9 @@ class TestGridResample:
         """Test resampling with different factors per dimension."""
         block = Block(shape=(6, 4, 3))
         xrt = util.linmesh3([0.0, 2.0], [0.5, 1.5], [0.0, 0.5], (6, 4, 3))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         grid = Grid([block])
         original_shape = grid[0].shape
@@ -198,7 +214,9 @@ class TestGridResample:
         """Test that resampling preserves block metadata."""
         block = Block(shape=(3, 3, 3))
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (3, 3, 3))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Add some metadata
         block._metadata["test_key"] = "test_value"
@@ -217,7 +235,9 @@ class TestGridResample:
         """Test that resample returns a grid that supports method chaining."""
         block = Block(shape=(3, 3, 3))
         xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (3, 3, 3))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         grid = Grid([block])
 
@@ -231,7 +251,9 @@ class TestGridResample:
         """Test that resample returns a new Grid and does not mutate the original."""
         block = Block(shape=(4, 3, 2))
         xrt = util.linmesh3([0.0, 2.0], [1.0, 3.0], [0.0, 1.0], (4, 3, 2))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         grid = Grid([block])
         original_shape = grid[0].shape
@@ -254,8 +276,12 @@ class TestGridResample:
         xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (3, 3, 3))
         xrt2 = util.linmesh3([1.0, 2.0], [0.5, 1.5], [0.0, 1.0], (3, 3, 3))
 
-        block1.set_x(xrt1[..., 0]).set_r(xrt1[..., 1]).set_t(xrt1[..., 2])
-        block2.set_x(xrt2[..., 0]).set_r(xrt2[..., 1]).set_t(xrt2[..., 2])
+        block1.set_x(xrt1[..., 0])
+        block1.set_r(xrt1[..., 1])
+        block1.set_t(xrt1[..., 2])
+        block2.set_x(xrt2[..., 0])
+        block2.set_r(xrt2[..., 1])
+        block2.set_t(xrt2[..., 2])
 
         # Create grid
         grid = Grid([block1, block2])
@@ -285,7 +311,9 @@ class TestGridResampleValues:
         """Corner coordinates must be exactly preserved after resampling."""
         block = Block(shape=(5, 4, 3))
         xrt = util.linmesh3([0.0, 4.0], [1.0, 4.0], [0.0, 2.0], (5, 4, 3))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         grid = Grid([block])
 
         resampled = grid.resample(2.0)
@@ -305,7 +333,9 @@ class TestGridResampleValues:
         ni, nj, nk = 5, 5, 5
         block = Block(shape=(ni, nj, nk))
         xrt = util.linmesh3([0.0, 1.0], [2.0, 3.0], [10.0, 20.0], (ni, nj, nk))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         grid = Grid([block])
 
         resampled = grid.resample(2.0)
@@ -332,7 +362,9 @@ class TestGridResampleValues:
         ni, nj, nk = 9, 9, 9
         block = Block(shape=(ni, nj, nk))
         xrt = util.linmesh3([0.0, 8.0], [1.0, 9.0], [0.0, 8.0], (ni, nj, nk))
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         grid = Grid([block])
 
         resampled = grid.resample(0.5)
@@ -367,7 +399,9 @@ class TestGridResampleValues:
         t = k_idx[None, None, :] / (nk - 1) * np.ones((ni, nj, 1))
 
         xrt = np.stack([x, r, t], axis=-1).astype(np.float32)
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
         grid = Grid([block])
 
         resampled = grid.resample(2.0)
@@ -403,7 +437,9 @@ class TestGridResampleIntegration:
 
         x, r, t = np.meshgrid(x_vals, r_vals, t_vals, indexing="ij")
         xrt = np.stack([x, r, t], axis=-1)
-        block.set_x(xrt[..., 0]).set_r(xrt[..., 1]).set_t(xrt[..., 2])
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
 
         # Add typical turbomachinery patches
         inlet = InletPatch(i=0, j=(1, -2), k=(1, -2), label="inlet")
@@ -462,7 +498,9 @@ class TestGridInterpFrom:
         x = np.linspace(0.0, 1.0, ni).reshape(-1, 1, 1) * np.ones((4, 4, 4))
         r = np.linspace(0.5, 1.0, nj).reshape(1, -1, 1) * np.ones((4, 4, 4))
         t = np.linspace(0.0, 0.1, nk).reshape(1, 1, -1) * np.ones((4, 4, 4))
-        tgt.set_x(x).set_r(r).set_t(t)
+        tgt.set_x(x)
+        tgt.set_r(r)
+        tgt.set_t(t)
         tgt.set_P_T(101325.0, 300.0)
         tgt.set_mu_turb(np.ones((4, 4, 4)) * 1e-4)
 
@@ -509,13 +547,17 @@ class TestGridInterpFrom:
         x = np.linspace(0.0, 1.0, ni).reshape(-1, 1, 1) * np.ones((ni, nj, nk))
         r = np.linspace(0.5, 1.0, nj).reshape(1, -1, 1) * np.ones((ni, nj, nk))
         t = np.linspace(0.0, 0.1, nk).reshape(1, 1, -1) * np.ones((ni, nj, nk))
-        src.set_x(x).set_r(r).set_t(t)
+        src.set_x(x)
+        src.set_r(r)
+        src.set_t(t)
 
         # Linear axial velocity field: Vx varies linearly with i-index
         i_frac = np.linspace(0.0, 1.0, ni).reshape(-1, 1, 1) * np.ones((ni, nj, nk))
         Vx_src = 50.0 + 100.0 * i_frac
         src.set_P_T(101325.0, 300.0)
-        src.set_Vx(Vx_src).set_Vr(np.zeros((ni, nj, nk))).set_Vt(np.zeros((ni, nj, nk)))
+        src.set_Vx(Vx_src)
+        src.set_Vr(np.zeros((ni, nj, nk)))
+        src.set_Vt(np.zeros((ni, nj, nk)))
         src.set_mu_turb(np.zeros((ni, nj, nk)))
 
         ni2, nj2, nk2 = 9, 5, 5
@@ -524,7 +566,9 @@ class TestGridInterpFrom:
         x2 = np.linspace(0.0, 1.0, ni2).reshape(-1, 1, 1) * np.ones((ni2, nj2, nk2))
         r2 = np.linspace(0.5, 1.0, nj2).reshape(1, -1, 1) * np.ones((ni2, nj2, nk2))
         t2 = np.linspace(0.0, 0.1, nk2).reshape(1, 1, -1) * np.ones((ni2, nj2, nk2))
-        tgt.set_x(x2).set_r(r2).set_t(t2)
+        tgt.set_x(x2)
+        tgt.set_r(r2)
+        tgt.set_t(t2)
         tgt.set_P_T(101325.0, 300.0)
         tgt.set_mu_turb(np.zeros((ni2, nj2, nk2)))
 
@@ -581,12 +625,14 @@ class TestGridInterpFrom:
         x = np.linspace(0.0, 1.0, ni).reshape(-1, 1, 1) * np.ones((ni, nj, nk))
         r = np.linspace(0.5, 1.0, nj).reshape(1, -1, 1) * np.ones((ni, nj, nk))
         t = np.linspace(0.0, 0.1, nk).reshape(1, 1, -1) * np.ones((ni, nj, nk))
-        src.set_x(x).set_r(r).set_t(t)
+        src.set_x(x)
+        src.set_r(r)
+        src.set_t(t)
         j_frac = np.linspace(0.0, 1.0, nj).reshape(1, -1, 1) * np.ones((ni, nj, nk))
         src.set_P_T(101325.0, 300.0)
-        src.set_Vx(50.0 + 100.0 * j_frac).set_Vr(np.zeros((ni, nj, nk))).set_Vt(
-            np.zeros((ni, nj, nk))
-        )
+        src.set_Vx(50.0 + 100.0 * j_frac)
+        src.set_Vr(np.zeros((ni, nj, nk)))
+        src.set_Vt(np.zeros((ni, nj, nk)))
         src.set_mu_turb(np.zeros((ni, nj, nk)))
         src.patches.append(InletPatch(i=0, j=(1, 3), k=(0, -1)))
 
@@ -598,7 +644,9 @@ class TestGridInterpFrom:
         x2 = np.linspace(0.0, 1.0, ni2).reshape(-1, 1, 1) * np.ones((ni2, nj2, nk2))
         r2 = np.linspace(0.5, 1.0, nj2).reshape(1, -1, 1) * np.ones((ni2, nj2, nk2))
         t2 = np.linspace(0.0, 0.1, nk2).reshape(1, 1, -1) * np.ones((ni2, nj2, nk2))
-        tgt.set_x(x2).set_r(r2).set_t(t2)
+        tgt.set_x(x2)
+        tgt.set_r(r2)
+        tgt.set_t(t2)
         tgt.set_P_T(101325.0, 300.0)
         tgt.set_mu_turb(np.zeros((ni2, nj2, nk2)))
         tgt.patches.append(InletPatch(i=0, j=(2, 6), k=(0, -1)))
@@ -610,61 +658,12 @@ class TestGridInterpFrom:
         # tgt j=6 should exactly match src j=3
         np.testing.assert_allclose(tgt.Vx[:, 6, :], src.Vx[:, 3, :], atol=1e-3)
 
-    def test_returns_self(self):
-        """interp_from returns self for method chaining."""
-        src = _make_state_block((4, 4, 4))
-        tgt_grid = Grid([_make_state_block((4, 4, 4))])
-        result = tgt_grid.interp_from(Grid([src]))
-        assert result is tgt_grid
-
-    def test_same_shape_cfl_copied(self):
-        """Same-shape interp_from copies cfl when present on src."""
-        src = _make_state_block((4, 4, 4))
-        cfl_vals = (
-            np.random.default_rng(0)
-            .uniform(0.1, 2.0, src.working.cfl.shape)
-            .astype(np.float32)
-        )
-        src.working.cfl[...] = cfl_vals
-
-        tgt = _make_state_block((4, 4, 4))
-        Grid([tgt]).interp_from(Grid([src]))
-
-        np.testing.assert_array_equal(tgt.working.cfl, cfl_vals)
-
-    def test_same_shape_no_cfl_not_allocated(self):
-        """Same-shape interp_from does not allocate cfl on tgt when src has none."""
-        src = _make_state_block((4, 4, 4))
-        tgt = _make_state_block((4, 4, 4))
-        Grid([tgt]).interp_from(Grid([src]))
-
-        assert "cfl" not in tgt._store
-
-    def test_upsample_cfl_uniform(self):
-        """Upsampling a uniform cfl field gives the same value everywhere."""
-        src = _make_state_block((3, 3, 3))
-        cfl_val = 0.75
-        src.working.cfl[...] = cfl_val
-
-        tgt = _make_state_block((6, 6, 6))
-        Grid([tgt]).interp_from(Grid([src]))
-
-        np.testing.assert_allclose(tgt.working.cfl, cfl_val, rtol=1e-5)
-
-    def test_upsample_cfl_not_allocated_when_src_absent(self):
-        """Upsampling does not allocate cfl on tgt when src has none."""
-        src = _make_state_block((3, 3, 3))
-        tgt = _make_state_block((6, 6, 6))
-        Grid([tgt]).interp_from(Grid([src]))
-
-        assert "cfl" not in tgt._store
-
 
 class TestGridApplyGuessRestart:
     """Tests for Grid.apply_guess_restart method.
 
     apply_guess_restart takes a list of BlockRestart objects, transfers only
-    conserved variables (no mu_turb, no cfl), and interpolates in uniform
+    conserved variables (no mu_turb), and interpolates in uniform
     index space (no critical-index awareness).
     """
 
@@ -731,13 +730,6 @@ class TestGridApplyGuessRestart:
 
         np.testing.assert_array_equal(tgt.mu_turb, mu_before)
 
-    def test_returns_self(self):
-        """apply_guess_restart returns self for method chaining."""
-        src = _make_state_block((4, 4, 4))
-        tgt_grid = Grid([_make_state_block((4, 4, 4))])
-        result = tgt_grid.apply_guess_restart([BlockRestart(src.conserved)])
-        assert result is tgt_grid
-
     def test_get_restart_round_trip(self):
         """apply_restart(b2, make_restart(Grid([b1]))[0]) reproduces b1's conserved state."""
         src = _make_state_block((4, 4, 4), P=2e5, T=350.0, Vx=100.0)
@@ -774,13 +766,6 @@ class TestBlockRestartImmutability:
         arr[0, 0, 0, 0] = 99.0
         assert r.conserved[0, 0, 0, 0] == 0.0
 
-    def test_cfl_is_frozen(self):
-        cfl = np.zeros((1, 1, 1, 5))
-        r = BlockRestart(np.zeros((2, 2, 2, 5)), cfl=(cfl,))
-        assert r.cfl[0] is not cfl
-        with pytest.raises(ValueError):
-            r.cfl[0][0, 0, 0, 0] = 1.0
-
     def test_outlet_and_mixing_are_frozen(self):
         a = np.ones((2, 2, 2))
         b = np.ones((1, 2, 1, 5))
@@ -811,65 +796,6 @@ def _mixing_block_with_target(shape, P=2e5, T=350.0):
     mixing.attach_to_block(block)
     mixing.set_target()
     return block, mixing
-
-
-class TestRestartCfl:
-    """cfl field round-trip via BlockRestart."""
-
-    def test_cfl_present_round_trip(self):
-        src = _make_state_block((4, 4, 4))
-        src.working.cfl[...] = 0.42
-        tgt = _make_state_block((4, 4, 4))
-
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-
-        np.testing.assert_allclose(tgt.working.cfl, src.working.cfl)
-
-    def test_cfl_absent_not_allocated(self):
-        src = _make_state_block((4, 4, 4))
-        assert "cfl" not in src._store
-        tgt = _make_state_block((4, 4, 4))
-
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-
-        assert "cfl" not in tgt._store
-
-    def test_cfl_upsample_uniform(self):
-        src = _make_state_block((4, 4, 4))
-        src.working.cfl[...] = 0.7
-        tgt = _make_state_block((6, 6, 6))
-
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-
-        np.testing.assert_allclose(tgt.working.cfl, np.zeros(tgt.working.cfl.shape))
-
-    def test_coarse_cfl_in_snapshot_tuple(self):
-        """make_restart picks up coarse CFL stashed by finalise; cfl[1] matches coarse."""
-        fine = _make_state_block((4, 4, 4))
-        fine.working.cfl[...] = 0.5
-        coarse_cfl = np.full((3, 3, 3, 5), 0.25, dtype=np.float32)
-        fine.working._store["_cfl_coarse_restart"] = (coarse_cfl,)
-
-        restarts = make_restart(Grid([fine]))
-
-        assert len(restarts[0].cfl) == 2
-        np.testing.assert_allclose(restarts[0].cfl[0], fine.working.cfl)
-        np.testing.assert_allclose(restarts[0].cfl[1], coarse_cfl)
-
-    def test_apply_restart_stashes_coarse_cfl(self):
-        """apply_restart stores cfl[1:] in block.working['_cfl_coarse_restart']."""
-        fine = _make_state_block((4, 4, 4))
-        fine.working.cfl[...] = 0.5
-        coarse_cfl = np.full((3, 3, 3, 5), 0.25, dtype=np.float32)
-        fine.working._store["_cfl_coarse_restart"] = (coarse_cfl,)
-
-        restart = make_restart(Grid([fine]))[0]
-        tgt = _make_state_block((4, 4, 4))
-        apply_restart(tgt, restart)
-
-        stashed = tgt.working.get("_cfl_coarse_restart")
-        assert len(stashed) == 1
-        np.testing.assert_allclose(stashed[0], coarse_cfl)
 
 
 class TestRestartOutlet:
@@ -974,9 +900,13 @@ class TestRestartMixing:
         src.set_fluid(src_fluid)
         tgt.set_fluid(tgt_fluid)
         src.set_P_T(2e5, 350.0)
-        src.set_Vx(50.0).set_Vr(0.0).set_Vt(0.0)
+        src.set_Vx(50.0)
+        src.set_Vr(0.0)
+        src.set_Vt(0.0)
         tgt.set_P_T(2e5, 350.0)
-        tgt.set_Vx(50.0).set_Vr(0.0).set_Vt(0.0)
+        tgt.set_Vx(50.0)
+        tgt.set_Vr(0.0)
+        tgt.set_Vt(0.0)
         # Re-set _target on both since underlying refs changed.
         src_mix.set_target()
         tgt_mix.set_target()

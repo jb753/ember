@@ -17,7 +17,7 @@ import ember.block
 import ember.grid
 import ember.fluid
 import ember.patch
-import ember.scree
+import ember.solver
 import ember.set_iter
 from ember import util
 
@@ -58,6 +58,15 @@ def build_grid(ncell):
 
     ni = ncell // (nj * nk)
     ni = ((ni - 1 + 4) // 8) * 8 + 1
+
+    # Below this the duct is too short to march: a handful of streamwise cells
+    # gives the inlet and outlet patches no interior between them, and ni=1
+    # (ncell < nj*nk) yields zero cells, which the Fortran kernels reject.
+    if ni < 25:
+        raise ValueError(
+            f"ncell={ncell} gives only ni={ni} streamwise nodes "
+            f"(nj={nj}, nk={nk}); need ni >= 25, i.e. ncell >= {25 * nj * nk}"
+        )
 
     xrt = util.linmesh3(
         [0.0, length], [r_low, r_high], [-0.5 * pitch, 0.5 * pitch], (ni, nj, nk)
@@ -145,7 +154,7 @@ def run(args):
         f"fac_mgrid={args.fac_mgrid}, sf_resid={args.sf_resid}, n_step={args.n_step}"
     )
 
-    conf = ember.scree.ScreeConfig(
+    conf = ember.solver.SolverConfig(
         n_step=args.n_step,
         n_step_log=100,
         n_step_avg=1,
@@ -159,29 +168,19 @@ def run(args):
 
     try:
         t0 = time.perf_counter()
-        hist = ember.scree.loop(grid, conf)
+        hist = ember.solver.run(grid, conf)
         wall = time.perf_counter() - t0
     except (RuntimeError, FloatingPointError) as exc:
         print(f"Diverged ({type(exc).__name__}: {exc})")
         sys.exit(1)
 
-    # ember.scree.loop catches a NaN blow-up internally (Grid.check_nan) and
-    # just breaks its step loop early rather than re-raising, so a diverged
-    # run does not necessarily surface as an exception here. It also always
-    # calls grid.finalise_average() on the way out -- even after an early
-    # break, when accumulate_avg never ran -- which overwrites conserved_nd
-    # with a never-populated (zero) average buffer, so a post-hoc NaN check on
-    # conserved_nd is a dead end too (and wall-clock time is unreliable: an
-    # early bail-out finishes fast, but so does a small/cheap grid). Instead,
-    # compare how many convergence records the run actually logged against how
-    # many a full n_step march would have produced at the n_step_log cadence
-    # fixed above -- a short count means the step loop broke early.
-    expected_n = (args.n_step - 1) // conf.n_step_log + 1
-    n = hist.i_log + 1
-    if n < expected_n:
-        print(f"Diverged (only {n}/{expected_n} convergence records logged)")
+    # ember.solver.run catches a NaN blow-up internally (Grid.check_nan) and
+    # breaks its step loop early rather than re-raising, so a diverged run does
+    # not surface as an exception here.
+    if hist.diverged:
+        print(f"Diverged (after {hist.i_log + 1} convergence records)")
         sys.exit(1)
-    i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
+    i_step = hist.i_step
     per_node_step = wall / args.n_step / n_nodes * 1e6
     print(f"{wall:.3f}s  {per_node_step:.3f} us/node/step")
 
@@ -195,24 +194,18 @@ def run(args):
 
     fig, (ax_res, ax_err, ax_s) = plt.subplots(3, 1, figsize=(7.5, 9.5), sharex=True)
 
-    drhoe = np.abs(np.asarray(hist.residual, dtype=float)[:n, 4])
-    m = np.isfinite(drhoe) & (drhoe > 0)
-    ax_res.semilogy(i_step[m], drhoe[m], marker=".", ms=3, lw=1.0)
+    ax_res.semilogy(i_step, hist.residual[:, 4], marker=".", ms=3, lw=1.0)
     ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
     ax_res.set_title("Energy residual (semilog)")
     ax_res.grid(True, which="both", alpha=0.3)
 
-    err = np.asarray(hist.err_mdot, dtype=float)[:n]
-    me = np.isfinite(err)
     ax_err.axhline(0.0, color="0.6", lw=0.8)
-    ax_err.plot(i_step[me], err[me], marker=".", ms=3, lw=1.0)
+    ax_err.plot(i_step, hist.err_mdot, marker=".", ms=3, lw=1.0)
     ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
     ax_err.set_title("Mass flow error")
     ax_err.grid(True, alpha=0.3)
 
-    zeta = np.asarray(hist.zeta, dtype=float)[:n]
-    mz = np.isfinite(zeta)
-    ax_s.plot(i_step[mz], zeta[mz], marker=".", ms=3, lw=1.0)
+    ax_s.plot(i_step, hist.zeta, marker=".", ms=3, lw=1.0)
     ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
     ax_s.set_title("Entropy rise")
     ax_s.set_xlabel("i_step")
