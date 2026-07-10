@@ -1,9 +1,10 @@
 #!/usr/bin/env -S uv run
-"""Inviscid square-duct baseline: configurable CFL / MG / IRS run.
+"""Square-duct baseline: configurable CFL / MG / IRS run.
 
 Runs the square-duct case and reports convergence (energy residual, mass flow
-error, entropy rise). With --plot writes a 3-panel figure to
-scripts/baseline_cfl3_mg.pdf.
+error, entropy rise). The case itself is assembled by
+``ember.cases.build_duct_grid``; this script is a thin CLI wrapper that drives
+it and the solver. With --plot writes a 3-panel figure to the given path.
 """
 
 import argparse
@@ -11,141 +12,23 @@ import logging
 import sys
 import time
 
-import numpy as np
-
-import ember.block
-import ember.grid
-import ember.fluid
-import ember.patch
+from ember.cases import build_duct_grid
 import ember.solver
-import ember.set_iter
-from ember import util
 
 logging.disable(logging.CRITICAL)  # silence per-step convergence logging
 
-# ---------------------------------------------------------------------------
-# Fixed IC perturbation parameters
-# ---------------------------------------------------------------------------
-HO_FRAC = 0.01  # ho raised by 1% of local dynamic enthalpy
-S_FRAC = 0.01  # s raised by entropy equivalent of that offset
-PERTURB_VX = 0.01
-PERTURB_SEED = 0
-
-
-def build_grid(ncell):
-    """Assemble the inviscid square-duct grid."""
-    side = 0.1
-    r_mid_ratio = 5.0
-    length_ratio = 3.0
-    ER = 1.05
-    nj = 65
-    nk = 57
-    Ma_bulk = 0.3
-    Po = 1e5
-    To = 300.0
-
-    r_mid = r_mid_ratio * side
-    r_low = r_mid - 0.5 * side
-    r_high = r_mid + 0.5 * side
-    length = length_ratio * side
-
-    n_half = (nj + 1) // 2
-    eta_half = util.cluster(n_half, ER, 1.0)
-    ds_mid = 0.5 * side * float(eta_half[-1] - eta_half[-2])
-
-    Nb = round(2.0 * np.pi * r_mid / (nk * ds_mid)) * 2
-    pitch = 2.0 * np.pi / Nb
-
-    ni = ncell // (nj * nk)
-    ni = ((ni - 1 + 4) // 8) * 8 + 1
-
-    # Below this the duct is too short to march: a handful of streamwise cells
-    # gives the inlet and outlet patches no interior between them, and ni=1
-    # (ncell < nj*nk) yields zero cells, which the Fortran kernels reject.
-    if ni < 25:
-        raise ValueError(
-            f"ncell={ncell} gives only ni={ni} streamwise nodes "
-            f"(nj={nj}, nk={nk}); need ni >= 25, i.e. ncell >= {25 * nj * nk}"
-        )
-
-    xrt = util.linmesh3(
-        [0.0, length], [r_low, r_high], [-0.5 * pitch, 0.5 * pitch], (ni, nj, nk)
-    )
-    block = ember.block.Block(shape=(ni, nj, nk))
-    block.set_xrt(xrt)
-    block.set_Nb(Nb)
-
-    fluid = ember.fluid.PerfectFluid(
-        cp=1005.0, gamma=1.4, mu=1.0e-3, Pr=0.72, T_dtm=400.0
-    )
-    block.set_fluid(fluid)
-
-    rho_o, e_o = fluid.set_P_T(Po, To)
-    ho = fluid.get_h(rho_o, e_o)
-    so = fluid.get_s(rho_o, e_o)
-    a_o = fluid.get_a(rho_o, e_o)
-    Vbar = Ma_bulk * a_o
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho, so, Ma_bulk, 0.0, 0.0)
-
-    U = Vbar / np.inf
-    Omega = U / r_mid
-    block.set_Omega(Omega)
-    block.set_Vt(Omega * block.r)
-
-    block.patches["inlet"] = ember.patch.InletPatch(i=0)
-    block.patches["outlet"] = ember.patch.OutletPatch(i=-1)
-
-    Po_in = block.Po[0].mean()
-    To_in = block.To[0].mean()
-    Alpha_in = block.Alpha[0].mean()
-    P_out = block.P[-1].mean()
-    T_out = block.T[-1].mean()
-    block.patches["inlet"].set_Po_To_Alpha_Beta(Po_in, To_in, Alpha_in, 0.0)
-    block.patches["outlet"].set_P(P_out)
-    block.patches["outlet"].set_backflow(ho, so, 0.0, 0.0)
-
-    rng = np.random.default_rng(PERTURB_SEED)
-    Vx = block.Vx
-    block.set_Vx(
-        Vx * (1.0 + PERTURB_VX * rng.standard_normal(Vx.shape)).astype(Vx.dtype)
-    )
-
-    grid = ember.grid.Grid([block])
-    grid.set_L_ref(side)
-    grid.set_fluid(
-        fluid.change_datum(P_out, T_out).change_ref(rho_o, Vbar, block.Rgas.mean())
-    )
-    grid.calculate_wdist()
-    return grid
-
-
-def build_grid_ic(ncell):
-    """build_grid, then add the deterministic ho/entropy perturbation and a
-    linear +1% streamwise Vx ramp."""
-    grid = build_grid(ncell)
-    block = grid[0]
-
-    V = np.asarray(block.V)
-    ho = np.asarray(block.ho)
-    s = np.asarray(block.s)
-    T = np.asarray(block.T)
-    h_static = ho - 0.5 * V**2
-
-    dh = HO_FRAC * 0.5 * V**2
-    ds = S_FRAC * 0.5 * V**2 / T
-    block.set_h_s(h_static + dh, s + ds)  # velocity preserved
-
-    # Linear +1% ramp in Vx: inlet unchanged, outlet +1%.
-    # set_Vx keeps the static (rho, e) state fixed and rewrites momentum + energy.
-    Vx = np.asarray(block.Vx)
-    ni = Vx.shape[0]
-    ramp = np.linspace(1.0, 1.01, ni, dtype=Vx.dtype)
-    block.set_Vx(Vx * ramp[:, None, None])
-    return grid
-
 
 def run(args):
-    grid = build_grid_ic(args.ncell)
+    grid = build_duct_grid(
+        args.ncell,
+        cluster=args.cluster,
+        ER=args.ER,
+        perturb_vx=args.perturb_vx,
+        perturb_seed=args.perturb_seed,
+        ho_frac=args.ho_frac,
+        s_frac=args.s_frac,
+        vx_ramp=args.vx_ramp,
+    )
     b = grid[0]
     n_nodes = b.ni * b.nj * b.nk
     print(f"Grid = {b.ni} x {b.nj} x {b.nk}  ({n_nodes} nodes)")
@@ -157,6 +40,7 @@ def run(args):
     conf = ember.solver.SolverConfig(
         n_step=args.n_step,
         n_step_log=100,
+        n_step_source=args.n_step_source,
         n_step_avg=1,
         cfl=args.cfl,
         n_stage=args.n_stage,
@@ -235,8 +119,33 @@ def main():
     p.add_argument(
         "--sf-resid", type=float, default=0.0, help="IRS residual smoothing factor"
     )
+    p.add_argument(
+        "--n-step-source",
+        type=int,
+        default=1,
+        help="Refresh viscous source terms every N steps",
+    )
     p.add_argument("--ncell", type=int, default=int(1e6), help="Target cell count")
     p.add_argument("--inviscid", action="store_true", help="Disable viscous terms")
+    p.add_argument(
+        "--cluster",
+        action="store_true",
+        help="Cluster the cross-stream mesh towards the walls (default: uniform)",
+    )
+    p.add_argument(
+        "--ER", type=float, default=1.05, help="Wall-clustering expansion ratio"
+    )
+    p.add_argument(
+        "--perturb-vx", type=float, default=0.01, help="Axial-velocity ripple amplitude"
+    )
+    p.add_argument("--perturb-seed", type=int, default=0, help="Velocity-ripple seed")
+    p.add_argument(
+        "--ho-frac", type=float, default=0.01, help="Stagnation-enthalpy IC offset"
+    )
+    p.add_argument("--s-frac", type=float, default=0.01, help="Entropy IC offset")
+    p.add_argument(
+        "--vx-ramp", type=float, default=0.01, help="Streamwise Vx ramp (outlet vs inlet)"
+    )
     p.add_argument("--plot", metavar="PATH", help="Write 3-panel figure to this path")
     run(p.parse_args())
 

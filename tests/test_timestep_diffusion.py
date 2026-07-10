@@ -2,9 +2,11 @@
 
 ``Grid.update_timestep`` (via ``set_timestep_spectral``) sets the unscaled
 volumetric timestep to ``1 / max(lam_conv, lam_diff)`` where ``lam_conv`` is the
-existing convective spectral-radius sum and ``lam_diff =
-(mu_turb/rho)*sum_d||dA_d||^2/vol`` is a directional turbulent-diffusion spectral
-radius over the same per-cell face areas. These tests pin the two regimes:
+convective spectral radius (max over the three directions) and ``lam_diff =
+(mu_turb/rho)*max_d||dA_d||^2/vol`` is a directional turbulent-diffusion spectral
+radius over the same per-cell face areas (both convective and diffusion radii
+take the max over the three directions, not the sum). These tests pin the two
+regimes:
 
   * inviscid / no turbulence (``mu_turb = 0``): the diffusion radius vanishes and
     the timestep reduces exactly to the convective value; and
@@ -77,14 +79,14 @@ def test_viscous_timestep_matches_max_of_spectral_radii():
     dt_visc = block.dt_vol_nd
 
     # Closed-form diffusion radius from the same cell-centred fields the kernel
-    # uses: sum over directions of |S_d|^2, each S_d the mean of the two opposing
+    # uses: max over directions of |S_d|^2, each S_d the mean of the two opposing
     # face-area vectors, then the max-of-radii timestep.
     rho = block.conserved_cell_nd[..., 0]
     vol = block.vol_nd
     Si = 0.5 * (block.dAi_nd[:, :-1] + block.dAi_nd[:, 1:])
     Sj = 0.5 * (block.dAj_nd[:, :, :-1] + block.dAj_nd[:, :, 1:])
     Sk = 0.5 * (block.dAk_nd[:, :, :, :-1] + block.dAk_nd[:, :, :, 1:])
-    s2 = (Si**2).sum(0) + (Sj**2).sum(0) + (Sk**2).sum(0)
+    s2 = np.maximum.reduce([(Si**2).sum(0), (Sj**2).sum(0), (Sk**2).sum(0)])
     lam_diff = mu_turb * s2 / (rho * vol)
     expected = 1.0 / np.maximum(lam_conv, lam_diff)
 
@@ -94,3 +96,65 @@ def test_viscous_timestep_matches_max_of_spectral_radii():
     # somewhere for a viscosity this large.
     assert np.all(dt_visc <= dt_conv * (1.0 + 1e-6))
     assert np.any(dt_visc < dt_conv)
+
+
+def _avg_cell(x):
+    """8-node corner average to cell centres, matching the kernel's avg_cell."""
+    return 0.125 * (
+        x[:-1, :-1, :-1] + x[1:, :-1, :-1] + x[:-1, 1:, :-1] + x[1:, 1:, :-1]
+        + x[:-1, :-1, 1:] + x[1:, :-1, 1:] + x[:-1, 1:, 1:] + x[1:, 1:, 1:]
+    )
+
+
+def test_convective_timestep_matches_naive_directional_max():
+    """Inviscid dt_vol equals a naive max-of-directional-radii reference.
+
+    With the max normalisation, ``set_timestep_spectral`` sets
+    ``dt_vol = 1 / max_d(|V.S_d| + a||S_d||)`` over the three directions (with
+    ``mu_turb = 0``). This reimplements that formula directly in NumPy from the
+    block's cell-centred nondimensional fields on a uniform grid and checks the
+    Fortran kernel reproduces it -- and, crucially, that it is the *max* and not
+    the Blazek *sum* of the directional radii.
+    """
+    grid = _build_grid()
+    block = grid[0]
+
+    grid.update_timestep(rf=1.0)  # mu_turb = 0 init -> convective only
+    dt = np.asarray(block.dt_vol_nd)
+
+    a = _avg_cell(np.asarray(block.a_nd))
+    r = _avg_cell(np.asarray(block.r_nd))
+    cons = np.asarray(block.conserved_cell_nd)
+    rho = cons[..., 0]
+    Vx = cons[..., 1] / rho
+    Vr = cons[..., 2] / rho
+    Vt = cons[..., 3] / (rho * r)
+    Vt_rel = Vt - float(block.Omega_nd) * r
+
+    # Per-direction spectral radius from the mean of the two opposing face-area
+    # vectors, exactly as the kernel builds S_d.
+    dAi, dAj, dAk = (
+        np.asarray(block.dAi_nd),
+        np.asarray(block.dAj_nd),
+        np.asarray(block.dAk_nd),
+    )
+    Si = 0.5 * (dAi[:, :-1] + dAi[:, 1:])
+    Sj = 0.5 * (dAj[:, :, :-1] + dAj[:, :, 1:])
+    Sk = 0.5 * (dAk[:, :, :, :-1] + dAk[:, :, :, 1:])
+
+    def lam(S):
+        Sx, Sr, St = S
+        return np.abs(Vx * Sx + Vr * Sr + Vt_rel * St) + a * np.sqrt(
+            Sx**2 + Sr**2 + St**2
+        )
+
+    lam_i, lam_j, lam_k = lam(Si), lam(Sj), lam(Sk)
+    lam_max = np.maximum(np.maximum(lam_i, lam_j), lam_k)
+    np.testing.assert_allclose(dt, 1.0 / lam_max, rtol=1e-5)
+
+    # Pin that it is the max and NOT the sum: on this grid the directional sum is
+    # strictly larger somewhere, so the summed timestep would be detectably
+    # smaller -- guards against a regression to the Blazek sum-of-radii form.
+    lam_sum = lam_i + lam_j + lam_k
+    assert np.any(lam_sum > lam_max * (1.0 + 1e-3))
+    assert not np.allclose(dt, 1.0 / lam_sum, rtol=1e-3)

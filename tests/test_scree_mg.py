@@ -376,7 +376,10 @@ def test_scree_mg_converges_faster_than_plain_scree(duct_grid_builder):
         n_step=n_step,
         n_step_log=10,
         n_step_avg=1,
-        cfl=0.4,
+        # cfl in true-Courant units after the max-of-directional-radii timestep
+        # normalisation (~0.17 here reproduces the physical step the old
+        # sum-normalised cfl=0.4 gave, comfortably below the ~0.577 scree limit).
+        cfl=0.17,
         n_stage=0,
         inviscid=True,
     )

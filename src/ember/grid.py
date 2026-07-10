@@ -1575,15 +1575,16 @@ class Grid(_LabelledList):
     def update_timestep(self, rf, fac_visc=1.0):
         """Recompute the volumetric time step on every block.
 
-        Uses the JST/Blazek multidimensional definition
-        ``dt_vol = 1 / max(lam_conv, lam_diff)``, where ``lam_conv`` sums the
-        convective spectral radii ``Lambda_d = |V_rel . dA_d| + a*||dA_d||`` over
-        the three directions and ``lam_diff = fac_visc *
-        (mu_turb/rho)*sum_d||dA_d||^2/vol`` is the turbulent-diffusion radius over
-        the same faces (:func:`set_timestep_spectral`). Building both from the
-        directional face areas makes the stable CFL aspect-ratio-independent
-        (pinned near ``2*sqrt(2)`` for the 4-stage RK march) for the viscous limit
-        too.
+        Uses a max-of-directional-radii variant of the JST/Blazek definition
+        ``dt_vol = 1 / max(lam_conv, lam_diff)``, where ``lam_conv`` is the
+        largest of the convective spectral radii
+        ``Lambda_d = |V_rel . dA_d| + a*||dA_d||`` over the three directions and
+        ``lam_diff = fac_visc * (mu_turb/rho)*max_d||dA_d||^2/vol`` is the
+        turbulent-diffusion radius over the same faces
+        (:func:`set_timestep_spectral`). Taking the max of the directional radii
+        (rather than Blazek's sum) makes the CFL number the true 1D Courant limit
+        (~``2*sqrt(2)`` for the 4-stage RK march) while staying
+        aspect-ratio-independent for the viscous limit too.
 
         ``rf`` is the relaxation factor blending the new ``dt_vol`` with the
         existing buffer as ``rf*new + (1-rf)*old`` (pass ``rf=1.0`` for a fresh

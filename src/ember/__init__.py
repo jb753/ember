@@ -28,6 +28,7 @@ __all__ = [
     "patch",
     "cut",
     "average",
+    "cases",
 ]
 
 __version__ = importlib.metadata.version("ember-cfd")
