@@ -33,10 +33,13 @@ def _make_inputs(ni, nj, nk, seed):
     dt_vol = np.asfortranarray(
         (0.5 + rng.random((ni - 1, nj - 1, nk - 1))).astype(np.float32)
     )
+    vol = np.asfortranarray(
+        (0.5 + rng.random((ni - 1, nj - 1, nk - 1))).astype(np.float32)
+    )
     snapshot = np.asfortranarray(
         rng.standard_normal((ni, nj, nk, NP)).astype(np.float32)
     )
-    return residual, dt_vol, snapshot
+    return residual, dt_vol, vol, snapshot
 
 
 def _make_scratch(ni, nj, nk, n_levels):
@@ -44,9 +47,10 @@ def _make_scratch(ni, nj, nk, n_levels):
     nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
     tmp = np.asfortranarray(np.zeros((ni - 1, nj - 1, nk - 1, NP), dtype=np.float32))
     corr = np.asfortranarray(np.zeros((nc1i, nc1j, nc1k, NP), dtype=np.float32))
+    dtblk = np.asfortranarray(np.zeros((nc1i, nc1j, nc1k), dtype=np.float32))
     aplane = np.asfortranarray(np.zeros((ni - 1, nc1j), dtype=np.float32))
     bb = np.asfortranarray(np.zeros((ni - 1, nj - 1, nc1k, NP), dtype=np.float32))
-    return tmp, corr, aplane, bb
+    return tmp, corr, dtblk, aplane, bb
 
 
 def _mg_irs_scratch_sizes(ni, nj, nk, n_levels):
@@ -65,20 +69,22 @@ def _mg_irs_scratch_sizes(ni, nj, nk, n_levels):
     return n_res, n_tri
 
 
-def _run(kernel, residual, dt_vol, snapshot, ni, nj, nk, n_levels, sf_irs=None):
+def _run(kernel, residual, dt_vol, vol, snapshot, ni, nj, nk, n_levels, sf_irs=None):
     cons = np.asfortranarray(snapshot.copy())
-    tmp, corr, aplane, bb = _make_scratch(ni, nj, nk, n_levels)
+    tmp, corr, dtblk, aplane, bb = _make_scratch(ni, nj, nk, n_levels)
     kwargs = dict(
         cons=cons,
         snapshot=snapshot,
         residual=residual,
         dt_vol=dt_vol,
+        vol=vol,
         alpha=1.0,
         cfl=0.4,
         fmgrid=0.2,
         n_levels=n_levels,
         tmp=tmp,
         corr=corr,
+        dtblk=dtblk,
         aplane=aplane,
         bb=bb,
     )
@@ -102,12 +108,13 @@ N_LEVELS = 3
 
 def test_sf_irs_zero_matches_production_opt():
     """sf_irs=0 is an exact no-op, so _irs must match _opt bit-for-bit."""
-    residual, dt_vol, snapshot = _make_inputs(NI, NJ, NK, seed=0)
+    residual, dt_vol, vol, snapshot = _make_inputs(NI, NJ, NK, seed=0)
 
     cons_opt = _run(
         ember.fortran.advance_rk_stage_mg_fused_opt,
         residual,
         dt_vol,
+        vol,
         snapshot,
         NI,
         NJ,
@@ -118,6 +125,7 @@ def test_sf_irs_zero_matches_production_opt():
         ember.fortran.advance_rk_stage_mg_fused_irs,
         residual,
         dt_vol,
+        vol,
         snapshot,
         NI,
         NJ,
@@ -134,12 +142,13 @@ def test_sf_irs_zero_matches_production_opt():
 
 def test_sf_irs_positive_changes_result():
     """A positive sf_irs must actually alter the coarse correction vs _opt."""
-    residual, dt_vol, snapshot = _make_inputs(NI, NJ, NK, seed=1)
+    residual, dt_vol, vol, snapshot = _make_inputs(NI, NJ, NK, seed=1)
 
     cons_opt = _run(
         ember.fortran.advance_rk_stage_mg_fused_opt,
         residual,
         dt_vol,
+        vol,
         snapshot,
         NI,
         NJ,
@@ -150,6 +159,7 @@ def test_sf_irs_positive_changes_result():
         ember.fortran.advance_rk_stage_mg_fused_irs,
         residual,
         dt_vol,
+        vol,
         snapshot,
         NI,
         NJ,
@@ -182,6 +192,9 @@ def test_sf_irs_damps_checkerboard_coarse_correction():
     dt_vol = np.asfortranarray(
         (0.5 + rng.random((ni - 1, nj - 1, nk - 1))).astype(np.float32)
     )
+    vol = np.asfortranarray(
+        (0.5 + rng.random((ni - 1, nj - 1, nk - 1))).astype(np.float32)
+    )
     snapshot = np.asfortranarray(
         rng.standard_normal((ni, nj, nk, NP)).astype(np.float32)
     )
@@ -190,6 +203,7 @@ def test_sf_irs_damps_checkerboard_coarse_correction():
         ember.fortran.advance_rk_stage_mg_fused_opt,
         residual,
         dt_vol,
+        vol,
         snapshot,
         ni,
         nj,
@@ -200,6 +214,7 @@ def test_sf_irs_damps_checkerboard_coarse_correction():
         ember.fortran.advance_rk_stage_mg_fused_irs,
         residual,
         dt_vol,
+        vol,
         snapshot,
         ni,
         nj,

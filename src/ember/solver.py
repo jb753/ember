@@ -124,7 +124,9 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
     ``l = 1..n_levels`` the coarse block has ``b = 2**l`` and
     ``coef_l = cfl*fac_mgrid/b**2 * 2**-(l-1)`` -- :func:`advance_rk_stage_mg`'s
     formula with ``alpha=1``, since scree takes one full-weight step per call
-    rather than a partial RK sub-stage.
+    rather than a partial RK sub-stage. The coarse timestep multiplying
+    ``coef_l`` is the volume-weighted mean of ``dt_vol`` over the block, not
+    ``dt_vol`` at the block's centre cell (see :func:`advance_rk_stage_mg`).
 
     ``block.store`` is the persistent previous-step residual buffer
     (``(dF/dt)_{n-1}``); the kernel reads it then overwrites it with the
@@ -132,11 +134,11 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
     borrowed from ``block.scratch`` as a cell-shaped, zero-copy view of the
     leading elements -- nothing outside the kernel reads it, so only its
     element count matters, not its indexing. When ``n_levels >= 1``, the
-    coarse block-sum accumulator (``corr``) and separable-prolong scratch
-    (``aplane``, ``bb``) are carved from ``block.tau_q_halo`` -- dead outside
-    the viscous pass at this point in the step, exactly as for
-    :func:`advance_rk_stage_mg` -- so no per-step allocation is needed for
-    either integrator.
+    coarse block-sum accumulator (``corr``), the coarse timestep (``dtblk``)
+    and separable-prolong scratch (``aplane``, ``bb``) are carved from
+    ``block.tau_q_halo`` -- dead outside the viscous pass at this point in the
+    step, exactly as for :func:`advance_rk_stage_mg` -- so no per-step
+    allocation is needed for either integrator.
 
     Smoothing is not applied here -- the caller runs :meth:`~ember.grid.Grid.smooth` once on
     the post-step state, shared with the RK path.
@@ -161,22 +163,25 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
             # aplane, bb, corr are carved from tau_q_halo -- dead outside the
             # viscous pass (already completed and consumed before this call),
             # same reuse as advance_rk_stage_mg's coarse scratch.
-            aplane, bb, corr = util.carve_view(
+            aplane, bb, corr, dtblk = util.carve_view(
                 block.tau_q_halo,
                 (ni - 1, nc1j),
                 (ni - 1, nj - 1, nc1k, 5),
                 (nc1i, nc1j, nc1k, 5),
+                (nc1i, nc1j, nc1k),
             )
             ember.fortran.scree_advance_mg(
                 cons=block.conserved_nd,
                 residual=block.residual_nd,
                 store=store_cell,
                 dt_vol=block.dt_vol_nd,
+                vol=block.vol_nd,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
                 n_levels=n_levels,
                 tmp=tmp,
                 corr=corr,
+                dtblk=dtblk,
                 aplane=aplane,
                 bb=bb,
             )
@@ -230,6 +235,15 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     ``coef_l = alpha*cfl*fac_mgrid/b**2 * 2**-(l-1)``. The ``2**-(l-1)`` damps
     successively coarser levels: level 1 (finest coarse, ``b=2``) carries the
     full ``fac_mgrid``, level 2 ``fac_mgrid/2``, level 3 ``fac_mgrid/4``, and so on.
+
+    ``dt_coarse_l`` is the volume-weighted mean of ``dt_vol`` over the coarse
+    block, ``sum(dt_vol*vol)/sum(vol)``, which is why the kernels take
+    ``block.vol_nd``. This mirrors multall's ``STEP1 =
+    CFL*FBLK*PERPMIN/VSOUND/VOLB``: our ``dt_vol*vol`` is the per-cell
+    ``perp/(a+V)`` that multall sums into ``PERPMIN``, and the ``1/b**2`` stays
+    in ``coef_l``. Sampling ``dt_vol`` at the block's centre cell instead --
+    what this used to do -- is wrong by the local clustering ratio on a
+    stretched mesh. On a uniform mesh the two agree identically.
     Scaling the block push by the same ``alpha`` as the fine term keeps the stage
     consistent; the final stage (``alpha=1``) therefore lands the full-weight
     coarse correction, matching Denton, while earlier stages damp it like the
@@ -247,12 +261,21 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     ``block.scratch`` is borrowed as the cell-shaped increment workspace (nodal,
     free between kernel calls); the coarse block-sum accumulator (``corr``,
     sized to the finest coarse level with coarser levels using only its leading
-    corner) and the separable-prolong scratch (``aplane``, ``bb``) are all
+    corner), the coarse timestep (``dtblk``, same sizing) and the
+    separable-prolong scratch (``aplane``, ``bb``) are all
     carved from ``block.tau_q_halo`` at non-overlapping offsets -- dead outside
     the viscous pass and a distinct buffer from ``scratch``, so they survive
     alongside the increment within the call. The scatter reads the snapshot
     from ``block.store`` and writes ``conserved_nd`` directly (frozen pressure,
     bypasses the P/T cache).
+
+    ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is
+    recomputed once per stage even though ``dt_vol`` only changes once per step.
+    That redundancy is deliberate: confining ``dtblk``'s live range to a single
+    kernel call is what makes it safe to borrow ``tau_q_halo``, which
+    :meth:`~ember.grid.Grid.update_residual` clobbers between stages. The
+    pre-pass costs under 1.15 fine-cell passes of two multiply-adds per level,
+    against a full residual evaluation already paid every stage.
 
     No boundary masking is applied here: ``grid.apply_bconds`` re-imposes the
     inlet/outlet/mixing/cusp targets between stages and at the next step top, so
@@ -287,11 +310,12 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
             # viscous pass and a distinct buffer from block.scratch, so they
             # survive alongside tmp within the call.
             n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels)
-            aplane, bb, corr, coarse_res_buf, tri_work_buf = util.carve_view(
+            aplane, bb, corr, dtblk, coarse_res_buf, tri_work_buf = util.carve_view(
                 block.tau_q_halo,
                 (ni - 1, nc1j),
                 (ni - 1, nj - 1, nc1k, 5),
                 (nc1i, nc1j, nc1k, 5),
+                (nc1i, nc1j, nc1k),
                 (n_res,),
                 (n_tri,),
             )
@@ -300,6 +324,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
                 snapshot=block.store,
                 residual=block.residual_nd,
                 dt_vol=block.dt_vol_nd,
+                vol=block.vol_nd,
                 alpha=alpha,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
@@ -307,6 +332,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
                 n_levels=n_levels,
                 tmp=tmp,
                 corr=corr,
+                dtblk=dtblk,
                 aplane=aplane,
                 bb=bb,
                 coarse_res_buf=coarse_res_buf,
@@ -318,23 +344,26 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
             # the viscous pass (the caller rebuilt the residual, tau_q_halo's
             # other borrower, before this call) and a distinct buffer from
             # block.scratch, so they survive alongside tmp within the call.
-            aplane, bb, corr = util.carve_view(
+            aplane, bb, corr, dtblk = util.carve_view(
                 block.tau_q_halo,
                 (ni - 1, nc1j),
                 (ni - 1, nj - 1, nc1k, 5),
                 (nc1i, nc1j, nc1k, 5),
+                (nc1i, nc1j, nc1k),
             )
             ember.fortran.advance_rk_stage_mg_fused_opt(
                 cons=block.conserved_nd,
                 snapshot=block.store,
                 residual=block.residual_nd,
                 dt_vol=block.dt_vol_nd,
+                vol=block.vol_nd,
                 alpha=alpha,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
                 n_levels=n_levels,
                 tmp=tmp,
                 corr=corr,
+                dtblk=dtblk,
                 aplane=aplane,
                 bb=bb,
             )

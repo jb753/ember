@@ -48,11 +48,14 @@ def _make_inputs(ni, nj, nk, seed):
     dt_vol = np.asfortranarray(
         (0.5 + rng.random((ni - 1, nj - 1, nk - 1))).astype(np.float32)
     )
+    vol = np.asfortranarray(
+        (0.5 + rng.random((ni - 1, nj - 1, nk - 1))).astype(np.float32)
+    )
     store = np.asfortranarray(
         rng.standard_normal((ni - 1, nj - 1, nk - 1, NP)).astype(np.float32)
     )
     cons = np.asfortranarray(rng.standard_normal((ni, nj, nk, NP)).astype(np.float32))
-    return residual, dt_vol, store, cons
+    return residual, dt_vol, vol, store, cons
 
 
 def _make_scratch(ni, nj, nk):
@@ -60,15 +63,16 @@ def _make_scratch(ni, nj, nk):
     nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
     tmp = np.asfortranarray(np.zeros((ni - 1, nj - 1, nk - 1, NP), dtype=np.float32))
     corr = np.asfortranarray(np.zeros((nc1i, nc1j, nc1k, NP), dtype=np.float32))
+    dtblk = np.asfortranarray(np.zeros((nc1i, nc1j, nc1k), dtype=np.float32))
     aplane = np.asfortranarray(np.zeros((ni - 1, nc1j), dtype=np.float32))
     bb = np.asfortranarray(np.zeros((ni - 1, nj - 1, nc1k, NP), dtype=np.float32))
-    return tmp, corr, aplane, bb
+    return tmp, corr, dtblk, aplane, bb
 
 
 def _run_plain(residual, dt_vol, store, cons, ni, nj, nk):
     cons_out = np.asfortranarray(cons.copy())
     store_out = np.asfortranarray(store.copy())
-    tmp, _, _, _ = _make_scratch(ni, nj, nk)
+    tmp = _make_scratch(ni, nj, nk)[0]
     ember.fortran.scree_advance(
         cons=cons_out,
         residual=residual,
@@ -80,20 +84,24 @@ def _run_plain(residual, dt_vol, store, cons, ni, nj, nk):
     return cons_out, store_out
 
 
-def _run_mg(residual, dt_vol, store, cons, ni, nj, nk, n_levels, fmgrid=FAC_MGRID):
+def _run_mg(
+    residual, dt_vol, vol, store, cons, ni, nj, nk, n_levels, fmgrid=FAC_MGRID
+):
     cons_out = np.asfortranarray(cons.copy())
     store_out = np.asfortranarray(store.copy())
-    tmp, corr, aplane, bb = _make_scratch(ni, nj, nk)
+    tmp, corr, dtblk, aplane, bb = _make_scratch(ni, nj, nk)
     ember.fortran.scree_advance_mg(
         cons=cons_out,
         residual=residual,
         store=store_out,
         dt_vol=dt_vol,
+        vol=vol,
         cfl=CFL,
         fmgrid=fmgrid,
         n_levels=n_levels,
         tmp=tmp,
         corr=corr,
+        dtblk=dtblk,
         aplane=aplane,
         bb=bb,
     )
@@ -102,10 +110,12 @@ def _run_mg(residual, dt_vol, store, cons, ni, nj, nk, n_levels, fmgrid=FAC_MGRI
 
 def test_n_levels_zero_matches_scree_advance():
     """n_levels=0 must reproduce scree_advance (the standalone fine-term branch)."""
-    residual, dt_vol, store, cons = _make_inputs(NI, NJ, NK, seed=0)
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=0)
 
     cons_plain, store_plain = _run_plain(residual, dt_vol, store, cons, NI, NJ, NK)
-    cons_mg, store_mg = _run_mg(residual, dt_vol, store, cons, NI, NJ, NK, n_levels=0)
+    cons_mg, store_mg = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=0
+    )
 
     np.testing.assert_allclose(cons_plain, cons_mg, rtol=1e-6, atol=1e-7)
     np.testing.assert_allclose(store_plain, store_mg, rtol=1e-6, atol=1e-7)
@@ -113,11 +123,11 @@ def test_n_levels_zero_matches_scree_advance():
 
 def test_fac_mgrid_zero_matches_scree_advance():
     """fac_mgrid=0 with n_levels>0 must also reproduce scree_advance (coef=0)."""
-    residual, dt_vol, store, cons = _make_inputs(NI, NJ, NK, seed=1)
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=1)
 
     cons_plain, store_plain = _run_plain(residual, dt_vol, store, cons, NI, NJ, NK)
     cons_mg, store_mg = _run_mg(
-        residual, dt_vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, fmgrid=0.0
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, fmgrid=0.0
     )
 
     np.testing.assert_allclose(cons_plain, cons_mg, rtol=1e-6, atol=1e-7)
@@ -126,21 +136,88 @@ def test_fac_mgrid_zero_matches_scree_advance():
 
 def test_fac_mgrid_positive_changes_result():
     """A positive fac_mgrid must actually alter the result vs plain scree_advance."""
-    residual, dt_vol, store, cons = _make_inputs(NI, NJ, NK, seed=2)
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=2)
 
     cons_plain, _ = _run_plain(residual, dt_vol, store, cons, NI, NJ, NK)
-    cons_mg, _ = _run_mg(residual, dt_vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS)
+    cons_mg, _ = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
 
     assert not np.array_equal(cons_plain, cons_mg)
 
 
 def test_store_roll_happens_once():
     """store must equal residual exactly after the call, for any n_levels."""
-    residual, dt_vol, store, cons = _make_inputs(NI, NJ, NK, seed=3)
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=3)
 
-    _, store_mg = _run_mg(residual, dt_vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS)
+    _, store_mg = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
 
     np.testing.assert_array_equal(store_mg, residual)
+
+
+def test_uniform_dt_vol_is_independent_of_vol():
+    """The coarse dt is a weighted mean of dt_vol, so a uniform dt_vol must
+    give back that constant whatever the volume distribution.
+
+    This is the invariant that makes the block-average a no-op on a uniform
+    mesh, where multall's PERPMIN/VOLB reduces to dt_vol/b**2 exactly.
+
+    Not bit-exact: sum(c*vol)/sum(vol) recovers c only up to float32
+    accumulation error, which grows with block size (~2 ULP over the 512-cell
+    sum of the coarsest level, b=8).
+    """
+    residual, _, vol, store, cons = _make_inputs(NI, NJ, NK, seed=6)
+    dt_vol = np.asfortranarray(np.full((NI - 1, NJ - 1, NK - 1), 0.7, dtype=np.float32))
+    vol_other = np.asfortranarray(vol[::-1, ::-1, ::-1].copy())
+
+    cons_a, _ = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
+    cons_b, _ = _run_mg(
+        residual, dt_vol, vol_other, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
+
+    np.testing.assert_allclose(cons_a, cons_b, rtol=1e-5, atol=1e-6)
+
+
+def test_coarse_dt_is_scale_invariant_in_vol():
+    """sum(dt_vol*vol)/sum(vol) normalises, so scaling vol must not move the result.
+
+    Tolerance as for test_uniform_dt_vol_is_independent_of_vol: the scaled sums
+    round differently in float32.
+    """
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=7)
+    vol_scaled = np.asfortranarray((vol * 3.0).astype(np.float32))
+
+    cons_a, _ = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
+    cons_b, _ = _run_mg(
+        residual, dt_vol, vol_scaled, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
+
+    np.testing.assert_allclose(cons_a, cons_b, rtol=1e-5, atol=1e-6)
+
+
+def test_vol_weighting_affects_nonuniform_dt_vol():
+    """With dt_vol varying, the volume weights must actually enter the coarse dt.
+
+    Guards against the kernel ignoring vol and falling back to an unweighted
+    mean (or the old centre-cell sample).
+    """
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=8)
+    vol_uniform = np.asfortranarray(np.ones_like(vol))
+
+    cons_weighted, _ = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
+    cons_unweighted, _ = _run_mg(
+        residual, dt_vol, vol_uniform, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
+
+    assert not np.array_equal(cons_weighted, cons_unweighted)
 
 
 def _make_block(shape):

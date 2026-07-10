@@ -942,8 +942,8 @@ class TestPatchRelaxationFactor:
     """Inlet/mixing patches carry their own relaxation factor."""
 
     def test_inlet_rf_default(self):
-        """InletPatch.rf defaults to 1.0."""
-        assert InletPatch(i=0).rf == 1.0
+        """InletPatch.rf defaults to 0.2."""
+        assert InletPatch(i=0).rf == 0.2
 
     def test_inlet_rf_settable_and_copied(self):
         """rf is settable and preserved across a patch copy."""
