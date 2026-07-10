@@ -4,6 +4,8 @@ on:
   push:
     branches: [master]
   pull_request:
+  # Called by wheels.yml so a release tag cannot publish past a red CI.
+  workflow_call:
 
 jobs:
   test:

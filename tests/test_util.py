@@ -1547,9 +1547,6 @@ def test_negative_angle_handling():
 
 def test_consistency_with_block_properties():
     """Test that utility functions are consistent with block flow angle properties."""
-    import ember.fluid
-    import ember.block
-
     # Create a test block with known flow field from scratch
     fluid = ember.fluid.PerfectFluid(gamma=1.4, cp=1005.0, mu=1.8e-5, Pr=0.72)
 
@@ -1609,8 +1606,6 @@ def test_consistency_with_block_properties():
 
 def test_consistency_with_rotating_block():
     """Test consistency with rotating block (rotor) properties."""
-    import ember.fluid
-    import ember.block
 
     # Create a rotating block from scratch
     fluid = ember.fluid.PerfectFluid(gamma=1.4, cp=1005.0, mu=1.8e-5, Pr=0.72)
@@ -1674,8 +1669,6 @@ def test_consistency_with_rotating_block():
 
 def test_tangential_velocity_consistency():
     """Test that V,Alpha gives Vt and V_rel,Alpha_rel gives Vt_rel as calculated by block."""
-    import ember.fluid
-    import ember.block
 
     # Create a test block with known flow field from scratch
     fluid = ember.fluid.PerfectFluid(gamma=1.4, cp=1005.0, mu=1.8e-5, Pr=0.72)

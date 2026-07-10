@@ -29,6 +29,14 @@ Homepage = "https://ember-cfd.org"
 Documentation = "https://ember-cfd.org"
 Source = "https://github.com/jb753/ember"
 
+[tool.setuptools]
+# The only non-Python files under src/ember are the _fortran/*.f90 sources.
+# They are inputs to the build, not runtime data: the compiled extension is
+# what gets imported. Left on, include-package-data combines with
+# setuptools-scm's git file finder to sweep them into every wheel. The sdist
+# still carries them, as it is built from the tracked file list regardless.
+include-package-data = false
+
 [tool.uv]
 managed = true
 
