@@ -443,3 +443,80 @@ def test_err_mdot_row_no_metadata_returns_nan():
     err = hist.err_mdot_row
     assert err.shape[1] == 0
     assert np.all(np.isnan(err))
+
+
+def _conv():
+    """A ConvergenceStep with every flow monitor finite."""
+    return ConvergenceStep(
+        residual=np.full(5, 1e-3, dtype=np.float32),
+        mdot=np.array([1.0, 1.0], dtype=np.float32),
+        ho=np.array([300000.0, 300000.0], dtype=np.float32),
+        s=np.array([1000.0, 1010.0], dtype=np.float32),
+    )
+
+
+def _record(hist, i_step):
+    """Log one step carrying a full set of finite flow monitors."""
+    hist.record_step(i_step)
+    hist.record_convergence(_conv())
+
+
+def test_trim_drops_unfilled_records(hist_with_throttle):
+    """A part-filled history trims to the steps actually logged."""
+    hist = hist_with_throttle  # already recorded step 0
+    hist.record_convergence(_conv())  # backfill its monitors
+    for i in range(1, 4):
+        _record(hist, i * 10)
+
+    assert hist.shape == (10,)
+    assert np.isnan(hist.i_step[4:]).all()  # tail never written
+
+    trimmed = hist.trim()
+
+    assert trimmed.shape == (4,)
+    assert trimmed.i_log == 3
+    assert trimmed.i_log + 1 == trimmed.shape[0]  # the invariant trim preserves
+    np.testing.assert_array_equal(trimmed.i_step, [0.0, 10.0, 20.0, 30.0])
+    assert np.isfinite(trimmed.i_step).all()
+    assert np.isfinite(trimmed.err_mdot).all()
+    assert np.isfinite(trimmed.zeta).all()
+
+
+def test_trim_of_full_history_preserves_every_record(hist_with_throttle):
+    """A march that ran to completion loses no data, and keeps its shape."""
+    hist = hist_with_throttle  # already recorded step 0
+    for i in range(1, 10):
+        _record(hist, i * 10)
+    assert hist.i_log == 9  # every allocated row filled
+
+    trimmed = hist.trim()
+
+    assert trimmed.shape == hist.shape
+    assert trimmed.i_log == hist.i_log
+    np.testing.assert_array_equal(trimmed.i_step, hist.i_step)
+    np.testing.assert_array_equal(trimmed.residual, hist.residual)
+    np.testing.assert_array_equal(trimmed.err_mdot, hist.err_mdot)
+    np.testing.assert_array_equal(trimmed.zeta, hist.zeta)
+
+
+def test_trim_returns_independent_copy(hist_with_throttle):
+    """trim never aliases the original, so the full allocation can be dropped."""
+    hist = hist_with_throttle
+    for i in range(1, 10):
+        _record(hist, i * 10)  # fill it, the case where a view is most tempting
+
+    trimmed = hist.trim()
+
+    assert trimmed is not hist
+    assert not np.shares_memory(trimmed._data, hist._data)
+    assert trimmed._metadata is not hist._metadata
+
+    trimmed._set_metadata_by_key("i_log", 0)
+    assert hist.i_log == 9
+
+
+def test_trim_preserves_diverged_flag(hist_with_throttle):
+    """The diverged flag survives the trim it exists to justify."""
+    hist = hist_with_throttle
+    hist.diverged = True
+    assert hist.trim().diverged is True

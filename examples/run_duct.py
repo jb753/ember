@@ -203,13 +203,16 @@ def plot_mesh_k(block, k=0):
 
 
 def solve(grid, n_stage, cfl, sf_resid, fac_mgrid):
-    """March the flow field and return the history with its logged step count.
+    """March the flow field and return the trimmed convergence history.
 
     ``n_stage=0`` selects Denton's basic scree march, and ``n_stage>=1`` a
     Jameson multi-stage Runge-Kutta step. ``sf_resid`` is the implicit
     residual smoothing factor, which relaxes the explicit stability limit and
     so admits a larger ``cfl``. ``fac_mgrid`` scales the two-level multigrid
     correction and is tuned separately per scheme.
+
+    The history is trimmed to the steps actually logged, so a march that
+    diverged part-way carries no trailing unfilled records.
     """
     n_step = 500
     conf = ember.solver.SolverConfig(
@@ -226,9 +229,7 @@ def solve(grid, n_stage, cfl, sf_resid, fac_mgrid):
     tic = time.perf_counter()
     hist = ember.solver.run(grid, conf)
     wall = time.perf_counter() - tic
-
-    n = hist.i_log + 1
-    i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
+    hist = hist.trim()
 
     # A diverged march breaks out of the step loop early, so the step count it
     # actually reached is unknown to within one logging interval. Quoting a
@@ -238,7 +239,7 @@ def solve(grid, n_stage, cfl, sf_resid, fac_mgrid):
         f"fac_mgrid={fac_mgrid}: {wall:.1f} s"
     )
     if hist.diverged:
-        print(f"{tag}, DIVERGED after >={int(i_step[-1])} of {n_step} steps")
+        print(f"{tag}, DIVERGED after >={int(hist.i_step[-1])} of {n_step} steps")
     else:
         block = grid[0]
         n_node = block.ni * block.nj * block.nk
@@ -247,7 +248,7 @@ def solve(grid, n_stage, cfl, sf_resid, fac_mgrid):
             f"{wall / n_step / n_node * 1e6:.3f} us/node/step"
         )
 
-    return hist, n, i_step
+    return hist
 
 
 def build_case():
@@ -291,18 +292,12 @@ def plot_history(results):
     fig, (ax_res, ax_err, ax_s) = plt.subplots(3, 1, figsize=(7.5, 9.5), sharex=True)
     ax_err.axhline(0.0, color="0.6", lw=0.8)
 
-    for label, hist, n, i_step in results:
-        drhoe = np.abs(np.asarray(hist.residual, dtype=float)[:n, 4])
-        m = np.isfinite(drhoe) & (drhoe > 0)
-        ax_res.semilogy(i_step[m], drhoe[m], marker=".", ms=3, lw=1.0, label=label)
-
-        err = np.asarray(hist.err_mdot, dtype=float)[:n]
-        me = np.isfinite(err)
-        ax_err.plot(i_step[me], err[me], marker=".", ms=3, lw=1.0, label=label)
-
-        zeta = np.asarray(hist.zeta, dtype=float)[:n]
-        mz = np.isfinite(zeta)
-        ax_s.plot(i_step[mz], zeta[mz], marker=".", ms=3, lw=1.0, label=label)
+    for label, hist in results:
+        i_step = hist.i_step
+        drhoe = hist.residual[:, 4]
+        ax_res.semilogy(i_step, drhoe, marker=".", ms=3, lw=1.0, label=label)
+        ax_err.plot(i_step, hist.err_mdot, marker=".", ms=3, lw=1.0, label=label)
+        ax_s.plot(i_step, hist.zeta, marker=".", ms=3, lw=1.0, label=label)
 
     ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
     ax_res.set_title("Energy residual (semilog)")
@@ -341,5 +336,5 @@ plot_mesh_k(grid[0])
 # %%
 # Now march the flow field once per scheme and plot how each converges.
 
-results = [(label, *solve(build_case(), **kwargs)) for label, kwargs in CASES]
+results = [(label, solve(build_case(), **kwargs)) for label, kwargs in CASES]
 plot_history(results)

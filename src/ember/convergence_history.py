@@ -557,6 +557,28 @@ class ConvergenceHistory(StructuredData):
             with open(os.path.join(directory, f"{name}.json"), "w") as f:
                 json.dump(rows, f)
 
+    def trim(self):
+        """Copy of the records actually written, dropping the unfilled rows.
+
+        :meth:`from_grid` allocates enough rows for the requested step count
+        and leaves them NaN until :meth:`record_step` fills them, so a march
+        that broke early on divergence leaves a NaN tail past ``i_log``. The
+        result holds ``i_log + 1`` rows, the only length at which ``i_log``
+        stays consistent with the number of records, and it can be plotted or
+        reduced without masking the tail out first.
+
+        The copy is independent of the original, which is also what makes the
+        result safe to keep once the full allocation is dropped. It has no
+        spare rows, so :meth:`record_step` cannot be called on it: trim once
+        the march is over.
+
+        Returns
+        -------
+        ConvergenceHistory
+            A new history containing only the logged steps.
+        """
+        return self[: self.i_log + 1].copy()
+
     def write_cnv(self, filename, compress=False):
         """Write convergence history to CNV binary format file.
 
@@ -726,7 +748,24 @@ class ConvergenceHistory(StructuredData):
 
     @property
     def residual(self):
-        """Residuals for conserved variables [shape (..., 5)]."""
+        r"""Residuals for conserved variables [shape (..., 5)].
+
+        Each entry is a block mean of :math:`|\mathtt{residual\_nd}|` for one
+        conserved variable (see :meth:`ember.grid.Grid.get_convergence`), so
+        the values are non-negative by construction.
+
+        In a real march they are also strictly positive, and callers may plot
+        them on a log axis without masking. A mean of non-negative floats is
+        zero only if every cell residual is exactly zero, since the sum is
+        never smaller than its largest term and so cannot underflow. Float32
+        round-off in the flux balance and boundary conditions keeps a converged
+        residual at a floor many orders of magnitude above the smallest normal
+        float, rather than descending to zero: a uniform inviscid duct marched
+        to a standstill still reports ``~2.6e-6``.
+
+        The exception is a history rebuilt by :meth:`from_ts3`, which recovers
+        only the density residual from the log and leaves the other four NaN.
+        """
         return self._get_data_by_keys(("drho", "drhoVx", "drhoVr", "drhorVt", "drhoe"))
 
     @property

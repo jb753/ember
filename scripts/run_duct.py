@@ -180,8 +180,8 @@ def run(args):
     if hist.diverged:
         print(f"Diverged (after {hist.i_log + 1} convergence records)")
         sys.exit(1)
-    n = hist.i_log + 1
-    i_step = np.asarray([hist.i_step[i] for i in range(n)], dtype=float)
+    hist = hist.trim()
+    i_step = hist.i_step
     per_node_step = wall / args.n_step / n_nodes * 1e6
     print(f"{wall:.3f}s  {per_node_step:.3f} us/node/step")
 
@@ -195,24 +195,18 @@ def run(args):
 
     fig, (ax_res, ax_err, ax_s) = plt.subplots(3, 1, figsize=(7.5, 9.5), sharex=True)
 
-    drhoe = np.abs(np.asarray(hist.residual, dtype=float)[:n, 4])
-    m = np.isfinite(drhoe) & (drhoe > 0)
-    ax_res.semilogy(i_step[m], drhoe[m], marker=".", ms=3, lw=1.0)
+    ax_res.semilogy(i_step, hist.residual[:, 4], marker=".", ms=3, lw=1.0)
     ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
     ax_res.set_title("Energy residual (semilog)")
     ax_res.grid(True, which="both", alpha=0.3)
 
-    err = np.asarray(hist.err_mdot, dtype=float)[:n]
-    me = np.isfinite(err)
     ax_err.axhline(0.0, color="0.6", lw=0.8)
-    ax_err.plot(i_step[me], err[me], marker=".", ms=3, lw=1.0)
+    ax_err.plot(i_step, hist.err_mdot, marker=".", ms=3, lw=1.0)
     ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
     ax_err.set_title("Mass flow error")
     ax_err.grid(True, alpha=0.3)
 
-    zeta = np.asarray(hist.zeta, dtype=float)[:n]
-    mz = np.isfinite(zeta)
-    ax_s.plot(i_step[mz], zeta[mz], marker=".", ms=3, lw=1.0)
+    ax_s.plot(i_step, hist.zeta, marker=".", ms=3, lw=1.0)
     ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
     ax_s.set_title("Entropy rise")
     ax_s.set_xlabel("i_step")
