@@ -77,6 +77,9 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: wheelhouse/
+          # Re-running a tag must not fail here just because TestPyPI already
+          # holds that version; publish-pypi is gated on this job succeeding.
+          skip-existing: true
 
       - name: Install from TestPyPI
         run: |
