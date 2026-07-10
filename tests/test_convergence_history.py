@@ -45,17 +45,14 @@ def hist_with_throttle():
     # Mark all data keys as initialized
     for k in hist._data_keys:
         hist._versions[k] += 1
-    hist.record_step(0)
     return hist
 
 
 def test_throttle_shape(hist_with_throttle):
     """Test throttle compound property shape."""
     hist = hist_with_throttle
-    # Record a few more steps
-    for i in range(1, 3):
-        hist.record_step(i)
-        hist.record_convergence(_throttle_conv(1.0, 0.95, 101325.0))
+    for i in range(3):
+        hist.record_convergence(i, _throttle_conv(1.0, 0.95, 101325.0))
     # throttle shape should be (n_steps_allocated, 3)
     throttle = hist.throttle
     assert throttle.shape[1] == 3, f"Expected second dimension 3, got {throttle.shape}"
@@ -67,7 +64,7 @@ def test_throttle_shape(hist_with_throttle):
 def test_record_throttle_inactive(hist_with_throttle):
     """Test that Throt line is absent when mdot_target=0."""
     hist = hist_with_throttle
-    hist.record_convergence(_throttle_conv(0.0, 0.5, 101325.0))
+    hist.record_convergence(0, _throttle_conv(0.0, 0.5, 101325.0))
     msg = hist.format_message()
     assert "Throt" not in msg, "Throt line should not appear when mdot_target=0"
 
@@ -75,7 +72,7 @@ def test_record_throttle_inactive(hist_with_throttle):
 def test_record_throttle_active(hist_with_throttle):
     """Test that Throt line appears when mdot_target > 0."""
     hist = hist_with_throttle
-    hist.record_convergence(_throttle_conv(1.0, 0.95, 101325.0))
+    hist.record_convergence(0, _throttle_conv(1.0, 0.95, 101325.0))
     msg = hist.format_message()
     assert "Throt" in msg, "Throt line should appear when mdot_target > 0"
     assert "mdot=0.9500/1.0000 kg/s" in msg
@@ -86,7 +83,7 @@ def test_record_throttle_err_sign(hist_with_throttle):
     hist = hist_with_throttle
     mdot_target = 1.0
     mdot_throttle = 0.9  # 10% below target
-    hist.record_convergence(_throttle_conv(mdot_target, mdot_throttle, 101325.0))
+    hist.record_convergence(0, _throttle_conv(mdot_target, mdot_throttle, 101325.0))
     msg = hist.format_message()
     expected_err = (mdot_throttle - mdot_target) / mdot_target  # -0.1
     assert f"err={expected_err:+.3f}" in msg, f"Error sign incorrect in message: {msg}"
@@ -96,7 +93,7 @@ def test_record_throttle_err_sign(hist_with_throttle):
 def test_record_throttle_nan_passthrough(hist_with_throttle):
     """Test that NaN values are stored and don't crash format_message."""
     hist = hist_with_throttle
-    hist.record_convergence(_throttle_conv(1.0, np.nan, np.nan))
+    hist.record_convergence(0, _throttle_conv(1.0, np.nan, np.nan))
     msg = hist.format_message()
     # Should not crash and should still contain Thr line
     assert "Thr" in msg
@@ -291,12 +288,13 @@ def test_to_json_creates_files(hist_with_throttle, tmp_path):
 
     hist = hist_with_throttle
     hist.record_convergence(
+        0,
         ConvergenceStep(
             residual=np.full(5, 1e-3, dtype=np.float32),
             mdot=np.array([1.0, 1.0], dtype=np.float32),
             ho=np.array([300000.0, 300000.0], dtype=np.float32),
             s=np.array([1000.0, 1010.0], dtype=np.float32),
-        )
+        ),
     )
     hist.to_json(str(tmp_path))
     for name in ("convergence_err_mdot", "convergence_work", "convergence_loss"):
@@ -309,12 +307,13 @@ def test_to_json_format(hist_with_throttle, tmp_path):
 
     hist = hist_with_throttle
     hist.record_convergence(
+        0,
         ConvergenceStep(
             residual=np.full(5, 1e-3, dtype=np.float32),
             mdot=np.array([1.0, 1.0], dtype=np.float32),
             ho=np.array([300000.0, 300000.0], dtype=np.float32),
             s=np.array([1000.0, 1010.0], dtype=np.float32),
-        )
+        ),
     )
     hist.to_json(str(tmp_path))
     n = hist.i_log + 1
@@ -330,16 +329,16 @@ def test_to_json_x_matches_steps(hist_with_throttle, tmp_path):
     import json
 
     hist = hist_with_throttle
-    for i in range(1, 4):
-        hist.record_step(i * 10)
-    hist.record_convergence(
-        ConvergenceStep(
-            residual=np.full(5, 1e-3, dtype=np.float32),
-            mdot=np.array([1.0, 1.0], dtype=np.float32),
-            ho=np.array([300000.0, 300000.0], dtype=np.float32),
-            s=np.array([1000.0, 1010.0], dtype=np.float32),
+    for i in range(4):
+        hist.record_convergence(
+            i * 10,
+            ConvergenceStep(
+                residual=np.full(5, 1e-3, dtype=np.float32),
+                mdot=np.array([1.0, 1.0], dtype=np.float32),
+                ho=np.array([300000.0, 300000.0], dtype=np.float32),
+                s=np.array([1000.0, 1010.0], dtype=np.float32),
+            ),
         )
-    )
     hist.to_json(str(tmp_path))
     n = hist.i_log + 1
     rows = json.loads((tmp_path / "convergence_err_mdot.json").read_text())
@@ -368,18 +367,18 @@ def _make_hist_with_row_flows(n_row, steps=3):
     for k in hist._data_keys:
         hist._versions[k] += 1
     for i in range(steps):
-        hist.record_step(i)
         mdot_rows = [
             (10.0 + i * 0.1 * (r + 1), 9.8 + i * 0.1 * (r + 1)) for r in range(n_row)
         ]
         mdot = np.array([v for pair in mdot_rows for v in pair], dtype=np.float32)
         hist.record_convergence(
+            i,
             ConvergenceStep(
                 residual=np.full(5, np.nan, dtype=np.float32),
                 mdot=mdot,
                 ho=np.zeros(len(mdot), dtype=np.float32),
                 s=np.zeros(len(mdot), dtype=np.float32),
-            )
+            ),
         )
     return hist
 
@@ -412,14 +411,14 @@ def test_err_mdot_row_values():
     hist._set_metadata_by_key("n_row", 1)
     for k in hist._data_keys:
         hist._versions[k] += 1
-    hist.record_step(0)
     hist.record_convergence(
+        0,
         ConvergenceStep(
             residual=np.full(5, np.nan, dtype=np.float32),
             mdot=np.array([10.0, 9.0], dtype=np.float32),
             ho=np.zeros(2, dtype=np.float32),
             s=np.zeros(2, dtype=np.float32),
-        )
+        ),
     )
     err = hist.err_mdot_row
     expected = (9.0 - 10.0) / ((10.0 + 9.0) / 2.0)
@@ -439,7 +438,7 @@ def test_err_mdot_row_no_metadata_returns_nan():
     hist._set_metadata_by_key("i_log", -1)
     for k in hist._data_keys:
         hist._versions[k] += 1
-    hist.record_step(0)
+    hist.record_convergence(0, _conv())
     err = hist.err_mdot_row
     assert err.shape[1] == 0
     assert np.all(np.isnan(err))
@@ -457,15 +456,13 @@ def _conv():
 
 def _record(hist, i_step):
     """Log one step carrying a full set of finite flow monitors."""
-    hist.record_step(i_step)
-    hist.record_convergence(_conv())
+    hist.record_convergence(i_step, _conv())
 
 
 def test_trim_drops_unfilled_records(hist_with_throttle):
     """A part-filled history trims to the steps actually logged."""
-    hist = hist_with_throttle  # already recorded step 0
-    hist.record_convergence(_conv())  # backfill its monitors
-    for i in range(1, 4):
+    hist = hist_with_throttle
+    for i in range(4):
         _record(hist, i * 10)
 
     assert hist.shape == (10,)
@@ -484,8 +481,8 @@ def test_trim_drops_unfilled_records(hist_with_throttle):
 
 def test_trim_of_full_history_preserves_every_record(hist_with_throttle):
     """A march that ran to completion loses no data, and keeps its shape."""
-    hist = hist_with_throttle  # already recorded step 0
-    for i in range(1, 10):
+    hist = hist_with_throttle
+    for i in range(10):
         _record(hist, i * 10)
     assert hist.i_log == 9  # every allocated row filled
 
@@ -502,7 +499,7 @@ def test_trim_of_full_history_preserves_every_record(hist_with_throttle):
 def test_trim_returns_independent_copy(hist_with_throttle):
     """trim never aliases the original, so the full allocation can be dropped."""
     hist = hist_with_throttle
-    for i in range(1, 10):
+    for i in range(10):
         _record(hist, i * 10)  # fill it, the case where a view is most tempting
 
     trimmed = hist.trim()

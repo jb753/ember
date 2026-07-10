@@ -1,7 +1,59 @@
-"""Convergence history tracking for the time-stepping loop.
+r"""Convergence history recorded by the time-marching loop.
 
-Stores a 1D time-series of stagnation conditions, residuals, and CFL numbers
-at inlet and outlet for convergence monitoring and post-processing.
+This module defines :class:`ConvergenceHistory`, a 1D time series of flow
+monitors that :func:`ember.solver.run` fills as it marches. It holds one row per
+*logged* step, carrying the residuals, and the mass flow, stagnation enthalpy
+and entropy at each row station. The residuals are whole-field block
+means; only the mass flow, enthalpy, and entropy are per-station quantities.
+
+A history is *returned to you* by :func:`ember.solver.run`; it is not something
+you build directly. :meth:`ConvergenceHistory.from_grid`,
+:meth:`ConvergenceHistory.record_convergence` exist for the solver to call, and
+are of no use outside it.
+
+Reading a history
+=================
+
+Run a simulation, then read the monitors as plain numpy arrays::
+
+    hist = ember.solver.run(grid, conf)
+
+    hist.i_step            # solver step index of each row
+    hist.residual[:, 4]    # energy residual, drhoe
+    hist.err_mdot          # mass flow conservation error
+    hist.zeta              # entropy rise, s_out - s_in
+
+Every property returns a single-precision float32 array of length ``i_log +
+1``, indexed by log row.
+
+The residuals, enthalpy and entropy are stored non-dimensionally on the fluid reference
+scales as described in :ref:`reference-scales`.
+
+Storage
+=======
+
+:meth:`ConvergenceHistory.from_grid` allocates ``ceil(n_step / n_step_log)``
+rows up front and fills them with NaN, where ``n_step`` is the total number of
+steps requested and ``n_step_log`` is the logging interval. At each log step,
+:func:`ember.solver.run()` calls :meth:`ConvergenceHistory.record_convergence`
+to fill one row. A march that runs to completion fills every row; one that
+diverges breaks from the loop early before logging an invalid value, sets sets
+:attr:`ConvergenceHistory.diverged`, and trims the history to drop the
+preallocated NaN for steps that were never reached. This means that we can
+always assume that history arrays are finite and valid for plotting or
+reduction, without having to mask out NaN values.
+
+Reading from a file
+===================
+
+Two methods exist to read a history from disk:
+
+* :meth:`ConvergenceHistory.from_ts3` -- recovers ``i_step``, ``time``, and the
+  station monitors from a Turbostream 3 log file, but only the density
+  residual. The other  four residual columns and the throttle state stay NaN.
+* :meth:`ConvergenceHistory.read_cnv` -- unpickles a history written by
+  :meth:`ConvergenceHistory.write_cnv`
+
 """
 
 import gzip
@@ -19,12 +71,47 @@ f32 = np.float32
 
 
 class ConvergenceHistory(StructuredData):
-    """Simplified convergence history storage for flow monitoring.
+    """A 1D time series of flow monitors, one row per logged step.
 
-    Shape is (n_log,) - a simple 1D time series, one entry per recorded log
-    step rather than one per time step.
+    Shape is ``(n_log,)``: one entry per *recorded* log step, not one per time
+    step, the solver recording every ``n_step_log`` steps. See the module
+    documentation above for how a history is produced, stored, and trimmed, and
+    for the reference scales the station monitors are stored on.
 
-    Stores mass flow rate and specific properties at inlet and outlet over time.
+    Every monitor below is an array indexed by log row, of length ``i_log + 1``
+    once the history has been trimmed.
+
+    Whole-field monitors:
+
+    * :attr:`residual` -- block-mean ``|residual_nd|`` per conserved variable
+    * :attr:`err_mdot` -- mass flow conservation error, inlet to outlet
+    * :attr:`err_mdot_row` -- the same, resolved per blade row
+    * :attr:`psi` -- stagnation enthalpy rise, ``ho_out - ho_in``
+    * :attr:`zeta` -- entropy rise, ``s_out - s_in``
+    * :attr:`tpnps` -- wall-clock time per node per step
+
+    Through-flow stations:
+
+    Each blade row contributes an upstream and a downstream face, ordered inlet
+    to outlet as ``[row0_up, row0_dn, row1_up, row1_dn]``. The ``_in`` and
+    ``_out`` variants select the first and last station.
+
+    * :attr:`mdot`, :attr:`mdot_in`, :attr:`mdot_out`
+    * :attr:`ho`, :attr:`ho_in`, :attr:`ho_out`
+    * :attr:`s`, :attr:`s_in`, :attr:`s_out`
+
+    Throttle state, when an outlet is running a PID throttle:
+
+    * :attr:`throttle`, :attr:`mdot_target`, :attr:`mdot_throttle`,
+      :attr:`P_throttle`
+
+    Bookkeeping:
+
+    * :attr:`i_step` -- solver step index of each row
+    * :attr:`time` -- elapsed wall-clock time
+    * :attr:`i_log` -- index of the last written row
+    * :attr:`diverged` -- True if the march blew up
+    * :attr:`now` -- view of the row currently being written
     """
 
     _TIME_SCALE = 1e-3  # seconds per stored unit (i.e. milliseconds)
@@ -33,12 +120,8 @@ class ConvergenceHistory(StructuredData):
     # observed a divergence, so `diverged` reads False without being set.
     _defaults = {"diverged": False}
 
-    # Through-flow stations: each blade row contributes an upstream and a
-    # downstream face, ordered inlet->outlet as
-    # [row0_up, row0_dn, row1_up, row1_dn, ...]. Width 4 covers n_row <= 2.
-    # mdot/ho/s are stored *non-dimensional* (fluid reference scales, the same
-    # convention as Block.residual_nd): mdot by the mass-flux scale, ho by
-    # u_ref, s by Rgas_ref.
+    # Station ordering and reference scales are documented in the module
+    # docstring. Width 4 covers n_row <= 2.
     _data_keys = (
         "mdot_st0",
         "mdot_st1",
@@ -154,7 +237,7 @@ class ConvergenceHistory(StructuredData):
             "_time_start", np.array(_time.perf_counter(), dtype=np.float64)
         )
 
-        # Initialize log index to -1 (will be incremented to 0 on first record_step)
+        # Initialize log index to -1 (incremented to 0 by the first record_convergence)
         out._set_metadata_by_key("i_log", -1)
 
         rows = grid.rows
@@ -477,11 +560,18 @@ class ConvergenceHistory(StructuredData):
             f"  Elapsed/Remaining={elapsed_min:.1f}/{remaining_ms / 60e3:.1f} min"
         )
 
-    def record_convergence(self, conv):
-        """Record the per-step convergence monitors at the current log step.
+    def record_convergence(self, i_step, conv):
+        """Append one fully populated row, holding solver step ``i_step``.
+
+        Advances :attr:`i_log` onto the next allocated row and writes every
+        column of it: the step index, the elapsed wall-clock time, and the
+        monitors carried by ``conv``. A row is never left half-written, so the
+        only NaN a reader can meet is an untouched row past ``i_log``.
 
         Parameters
         ----------
+        i_step : int
+            Index of the solver step being recorded.
         conv : ember.grid.ConvergenceStep
             One step's monitors, from :meth:`ember.grid.Grid.get_convergence`.
             The ``mdot``, ``ho`` and ``s`` station vectors are unpacked into one
@@ -493,44 +583,28 @@ class ConvergenceHistory(StructuredData):
             raise NotImplementedError(
                 f"Station tracking supports n_row <= 2 (<= 4 stations), got {n}"
             )
-        self.now._set_data_by_keys(
-            ("drho", "drhoVx", "drhoVr", "drhorVt", "drhoe"), conv.residual
-        )
-        self.now._set_data_by_keys(tuple(f"mdot_st{i}" for i in range(n)), conv.mdot)
-        self.now._set_data_by_keys(tuple(f"ho_st{i}" for i in range(n)), conv.ho)
-        self.now._set_data_by_keys(tuple(f"s_st{i}" for i in range(n)), conv.s)
-        self.now._set_data_by_keys(("mdot_target",), conv.mdot_target)
-        self.now._set_data_by_keys(("mdot_throttle",), conv.mdot_throttle)
-        self.now._set_data_by_keys(("P_throttle",), conv.P_throttle)
-        self.now._set_data_by_keys(("dP_P",), conv.dP_P)
-        self.now._set_data_by_keys(("dP_I",), conv.dP_I)
-        self.now._set_data_by_keys(("dP_D",), conv.dP_D)
 
-    def record_step(self, i_step):
-        """Record a new step in the history.
+        # Advance onto the next allocated row, then fill every column of it.
+        self._set_metadata_by_key("i_log", self._get_metadata_by_key("i_log") + 1)
+        now = self.now
 
-        Parameters
-        ----------
-        i_step : int
-            The step index to record
-
-        Returns
-        -------
-        int
-            The log index where this step was recorded
-        """
-        # Increment log index
-        i_log = self._get_metadata_by_key("i_log") + 1
-        self._set_metadata_by_key("i_log", i_log)
-
-        # Record the step index and time at current position
-        self.now._set_data_by_keys(("i_step",), i_step)
+        now._set_data_by_keys(("i_step",), i_step)
         t_start = self._get_metadata_by_key("_time_start")  # float64 array
         t_raw_f64 = np.float64(_time.perf_counter()) - t_start  # subtraction in f64
-        time_now = f32(t_raw_f64 / self._TIME_SCALE)  # cast to f32 after scaling
-        self.now._set_data_by_keys(("time",), time_now)
+        now._set_data_by_keys(("time",), f32(t_raw_f64 / self._TIME_SCALE))
 
-        return i_log
+        now._set_data_by_keys(
+            ("drho", "drhoVx", "drhoVr", "drhorVt", "drhoe"), conv.residual
+        )
+        now._set_data_by_keys(tuple(f"mdot_st{i}" for i in range(n)), conv.mdot)
+        now._set_data_by_keys(tuple(f"ho_st{i}" for i in range(n)), conv.ho)
+        now._set_data_by_keys(tuple(f"s_st{i}" for i in range(n)), conv.s)
+        now._set_data_by_keys(("mdot_target",), conv.mdot_target)
+        now._set_data_by_keys(("mdot_throttle",), conv.mdot_throttle)
+        now._set_data_by_keys(("P_throttle",), conv.P_throttle)
+        now._set_data_by_keys(("dP_P",), conv.dP_P)
+        now._set_data_by_keys(("dP_I",), conv.dP_I)
+        now._set_data_by_keys(("dP_D",), conv.dP_D)
 
     def to_json(self, directory="."):
         """Write convergence history to three JSON files in directory.
@@ -561,16 +635,16 @@ class ConvergenceHistory(StructuredData):
         """Copy of the records actually written, dropping the unfilled rows.
 
         :meth:`from_grid` allocates enough rows for the requested step count
-        and leaves them NaN until :meth:`record_step` fills them, so a march
-        that broke early on divergence leaves a NaN tail past ``i_log``. The
-        result holds ``i_log + 1`` rows, the only length at which ``i_log``
+        and leaves them NaN until :meth:`record_convergence` fills them, so a
+        march that broke early on divergence leaves a NaN tail past ``i_log``.
+        The result holds ``i_log + 1`` rows, the only length at which ``i_log``
         stays consistent with the number of records, and it can be plotted or
         reduced without masking the tail out first.
 
         The copy is independent of the original, which is also what makes the
         result safe to keep once the full allocation is dropped. It has no
-        spare rows, so :meth:`record_step` cannot be called on it: trim once
-        the march is over.
+        spare rows, so :meth:`record_convergence` cannot be called on it: trim
+        once the march is over.
 
         Returns
         -------

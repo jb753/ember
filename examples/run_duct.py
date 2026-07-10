@@ -203,16 +203,13 @@ def plot_mesh_k(block, k=0):
 
 
 def solve(grid, n_stage, cfl, sf_resid, fac_mgrid):
-    """March the flow field and return the trimmed convergence history.
+    """March the flow field and return the convergence history.
 
     ``n_stage=0`` selects Denton's basic scree march, and ``n_stage>=1`` a
     Jameson multi-stage Runge-Kutta step. ``sf_resid`` is the implicit
     residual smoothing factor, which relaxes the explicit stability limit and
     so admits a larger ``cfl``. ``fac_mgrid`` scales the two-level multigrid
     correction and is tuned separately per scheme.
-
-    The history is trimmed to the steps actually logged, so a march that
-    diverged part-way carries no trailing unfilled records.
     """
     n_step = 500
     conf = ember.solver.SolverConfig(
@@ -229,7 +226,6 @@ def solve(grid, n_stage, cfl, sf_resid, fac_mgrid):
     tic = time.perf_counter()
     hist = ember.solver.run(grid, conf)
     wall = time.perf_counter() - tic
-    hist = hist.trim()
 
     # A diverged march breaks out of the step loop early, so the step count it
     # actually reached is unknown to within one logging interval. Quoting a

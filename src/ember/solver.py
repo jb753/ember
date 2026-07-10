@@ -476,7 +476,9 @@ def run(grid, conf):
     Returns
     -------
     ConvergenceHistory
-        The recorded history. If the march blew up, the step loop breaks early,
+        The recorded history, already trimmed to the steps it logged, so every
+        row holds data and no ``isfinite`` masking is needed. If the march blew
+        up, the step loop breaks early,
         :attr:`~ember.convergence_history.ConvergenceHistory.diverged` is True, and ``grid`` keeps the
         invalid field for inspection (the pseudotime average is not finalised,
         since it would overwrite ``conserved_nd`` with a buffer that
@@ -522,8 +524,7 @@ def run(grid, conf):
 
         # Convergence logging of the pre-march state
         if i_step % conf.n_step_log == 0:
-            hist.record_step(i_step)
-            hist.record_convergence(grid.get_convergence())
+            hist.record_convergence(i_step, grid.get_convergence())
             logger.info(
                 "%s",
                 hist.format_message(i_finest=0, n_step=conf.n_step, n_levels=1),
@@ -549,4 +550,7 @@ def run(grid, conf):
     if not hist.diverged:
         grid.finalise_average()
 
-    return hist
+    # A completed march logs on every one of the ceil(n_step / n_step_log) rows
+    # that from_grid allocated, so this only bites when the loop broke early:
+    # the caller never sees the unwritten NaN tail a divergence leaves behind.
+    return hist.trim()

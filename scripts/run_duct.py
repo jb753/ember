@@ -180,7 +180,6 @@ def run(args):
     if hist.diverged:
         print(f"Diverged (after {hist.i_log + 1} convergence records)")
         sys.exit(1)
-    hist = hist.trim()
     i_step = hist.i_step
     per_node_step = wall / args.n_step / n_nodes * 1e6
     print(f"{wall:.3f}s  {per_node_step:.3f} us/node/step")

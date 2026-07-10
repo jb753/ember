@@ -405,5 +405,48 @@ def test_scree_mg_converges_faster_than_plain_scree(duct_grid_builder):
     assert resid_mg < resid_plain
 
 
+def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
+    """A blown-up march hands back only the rows it logged, all of them finite."""
+    grid = duct_grid_builder()
+
+    # Reversed flow is expected once the march blows up, so give the outlet a
+    # backflow state; without it the patch raises before check_nan can fire.
+    block = grid[0]
+    fluid = block.fluid
+    rho_o, e_o = fluid.set_P_T(1.0e5, 300.0)
+    grid.patches.outlet[0].set_backflow(
+        fluid.get_h(rho_o, e_o), fluid.get_s(rho_o, e_o), 0.0, 0.0
+    )
+
+    n_step, n_step_log = 20, 2
+    n_alloc = -(-n_step // n_step_log)  # what from_grid would have allocated
+    conf = ember.solver.SolverConfig(
+        n_step=n_step,
+        n_step_log=n_step_log,
+        n_step_avg=1,
+        cfl=50.0,  # far past the stability limit, so this must blow up
+        n_stage=0,
+        n_levels=2,
+        fac_mgrid=0.4,
+        sf_resid=0.0,
+        inviscid=False,
+    )
+
+    # A field on its way to NaN drives temperature negative, so the entropy
+    # log() legitimately goes invalid before check_nan trips. The suite turns
+    # warnings into errors, so scope that to the march itself.
+    with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
+        hist = ember.solver.run(grid, conf)
+
+    assert hist.diverged
+    assert hist.shape[0] < n_alloc  # the unwritten tail is gone
+    assert hist.i_log + 1 == hist.shape[0]  # and i_log still agrees with it
+
+    # Nothing for a caller to mask: every row that survived holds real data.
+    for name in ("i_step", "err_mdot", "zeta"):
+        assert np.isfinite(np.asarray(getattr(hist, name), dtype=float)).all(), name
+    assert np.isfinite(np.asarray(hist.residual, dtype=float)).all()
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
