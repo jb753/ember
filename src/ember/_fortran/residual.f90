@@ -675,7 +675,8 @@ subroutine smooth_residual_tri(dU, sf, work, ni, nj, nk)
     integer, intent(in) :: ni, nj, nk
     real, intent(in)    :: sf
     real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    real, intent(inout) :: work(2*((ni-1) + (nj-1) + (nk-1)))
+    ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
+    real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
 
     integer :: i, j, k, m, nci, ncj, nck
     integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
@@ -825,7 +826,8 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
     integer, intent(in) :: ni, nj, nk
     real, intent(in)    :: sf
     real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    real, intent(inout) :: work(2*((ni-1) + (nj-1) + (nk-1)))
+    ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
+    real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
 
     integer :: i, j, k, m, nci, ncj, nck
     integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
