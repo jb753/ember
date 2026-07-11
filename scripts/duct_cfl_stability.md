@@ -150,11 +150,15 @@ downward.
 
 ### Results
 
-| `fac_mgrid` | max converging CFL | fails to converge at |
-|-------------|--------------------|----------------------|
-| 0.0 | 5.625 | 5.750 |
-| 0.2 | 4.625 | 4.750 |
-| 0.4 | 3.875 | 4.000 |
+Run at two grid sizes to check mesh dependence. The 250k column uses the
+settings table above; the 500k column doubles the streamwise resolution (grid
+137 x 65 x 57, 507 585 nodes, `--ncell 500000`), everything else identical.
+
+| `fac_mgrid` | max conv. CFL (250k) | fails at | max conv. CFL (500k) | fails at |
+|-------------|----------------------|----------|----------------------|----------|
+| 0.0 | 5.625 | 5.750 | 5.500 | 5.625 |
+| 0.2 | 4.625 | 4.750 | 4.625 | 4.750 |
+| 0.4 | 3.875 | 4.000 | 3.875 | 4.000 |
 
 Enabling coarse-grid correction *lowers* the max converging CFL on this case,
 monotonically: 5.625 -> 4.625 -> 3.875 as `fac_mgrid` goes 0.0 -> 0.2 -> 0.4, a
@@ -163,11 +167,21 @@ correction is destabilising rather than accelerating. (The `fac_mgrid=0.0` leg
 at `n_levels=2` matches the coarse-correction-off baseline, as expected: a zero
 weight makes the MG depth almost irrelevant.)
 
+The limits are essentially **grid-independent**: doubling the streamwise cell
+count leaves 0.2 and 0.4 unchanged and moves 0.0 by a single `tol`-step
+(5.625 -> 5.500), so the numbers reflect the scheme rather than the mesh.
+
 ### Reproduce
 ```
+# 250k-cell case (run_duct default ncell)
 scripts/duct_cfl_descend.sh --tol 0.1 \
     --fac-mgrid 0.0 --fac-mgrid 0.2 --fac-mgrid 0.4 \
     -- --n-levels 2 --n-step 500
+
+# 500k-cell case (mesh-dependence check)
+scripts/duct_cfl_descend.sh --tol 0.1 \
+    --fac-mgrid 0.0 --fac-mgrid 0.2 --fac-mgrid 0.4 \
+    -- --n-levels 2 --n-step 500 --ncell 500000
 ```
 
 ## Theory basis
