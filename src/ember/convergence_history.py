@@ -590,6 +590,67 @@ class ConvergenceHistory(StructuredData):
         now._set_data_by_keys(("dP_I",), conv.dP_I)
         now._set_data_by_keys(("dP_D",), conv.dP_D)
 
+    def check_convergence(self, decay=0.0, slope=0.0, cfl=1.0):
+        r"""True when every enabled convergence criterion is met.
+
+        Three independent signals reduce the history to a single verdict, and
+        the result is their logical AND. Each criterion is disabled by passing
+        its no-op threshold, so a bare :meth:`check_convergence` checks
+        divergence alone.
+
+        * **Divergence** reads :attr:`diverged` only; it never touches the
+          residual. A diverged march is never converged.
+        * **Decay** and **slope** read the energy residual ``drhoe`` (column 4
+          of :attr:`residual`), the strictest conserved-variable residual and
+          the one that lags in a stalled march, over the ``i_log + 1`` written
+          records.
+
+        Parameters
+        ----------
+        decay : float, optional
+            Required fall of the residual from its peak over the whole march, in
+            decades: converged needs ``log10(r.max() / r[-1]) >= decay``. The
+            default ``0`` disables the check (0 decades of fall is always met).
+        slope : float, optional
+            Maximum allowed magnitude of the residual slope, in decades of
+            residual per unit pseudo-time, where pseudo-time is ``i_step * cfl``.
+            Fitted over the last 20% of records so it reflects the recent tail
+            rather than the startup transient. Converged needs
+            ``abs(d log10(r) / d(i_step * cfl)) <= slope``. The default ``0``
+            disables the check.
+        cfl : float, optional
+            CFL number used to march, scaling the pseudo-time step so the slope
+            is comparable across runs with different step sizes. Only affects
+            the ``slope`` criterion.
+
+        Returns
+        -------
+        bool
+        """
+        # Divergence: always checked, cannot be disabled. Reads the flag only.
+        if self.diverged:
+            return False
+
+        n = self.i_log + 1
+        r = self.residual[:n, 4]  # energy residual, drhoe
+
+        # Decay: decades fallen from the peak residual over the whole calc.
+        if decay > 0.0 and np.log10(r.max() / r[-1]) < decay:
+            return False
+
+        # Slope: decades of residual per unit pseudo-time (i_step scaled by
+        # cfl), fitted over the final fifth of the march.
+        if slope > 0.0:
+            if n < 2:
+                return False  # need >= 2 records to fit a line
+            n_fit = max(2, -(-n // 5))  # ceil(n / 5), at least 2 records
+            t = self.i_step[n - n_fit : n] * cfl
+            m = np.polyfit(t, np.log10(r[n - n_fit :]), 1)[0]
+            if abs(m) > slope:
+                return False
+
+        return True
+
     def to_json(self, directory="."):
         """Write convergence history to three JSON files in directory.
 

@@ -12,6 +12,8 @@ import logging
 import sys
 import time
 
+import numpy as np
+
 from ember.cases import build_duct_grid
 import ember.solver
 
@@ -67,6 +69,13 @@ def run(args):
     per_node_step = wall / args.n_step / n_nodes * 1e6
     print(f"{wall:.3f}s  {per_node_step:.3f} us/node/step")
 
+    # Convergence verdict: require the energy residual to fall 2 decades from
+    # its peak; the slope criterion is disabled (slope=0).
+    res_e = hist.residual[:, 4]
+    decades = float(np.log10(res_e.max() / res_e[-1]))
+    converged = hist.check_convergence(decay=2.0)
+    print(f"Converged={converged}  (energy residual fell {decades:.2f} decades)")
+
     if not args.plot:
         return
 
@@ -106,9 +115,9 @@ def run(args):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--n-step", type=int, default=100)
+    p.add_argument("--n-step", type=int, default=1000)
     p.add_argument("--n-stage", type=int, default=4)
-    p.add_argument("--cfl", type=float, default=3.0)
+    p.add_argument("--cfl", type=float, default=2.5)
     p.add_argument(
         "--n-levels", type=int, default=0, help="MG coarse levels (0 = no MG)"
     )
@@ -118,7 +127,7 @@ def main():
     p.add_argument(
         "--sf-resid", type=float, default=0.0, help="IRS residual smoothing factor"
     )
-    p.add_argument("--ncell", type=int, default=int(1e6), help="Target cell count")
+    p.add_argument("--ncell", type=int, default=250000, help="Target cell count")
     p.add_argument("--inviscid", action="store_true", help="Disable viscous terms")
     p.add_argument(
         "--cluster",
