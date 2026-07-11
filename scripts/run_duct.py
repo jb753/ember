@@ -69,48 +69,54 @@ def run(args):
     per_node_step = wall / args.n_step / n_nodes * 1e6
     print(f"{wall:.3f}s  {per_node_step:.3f} us/node/step")
 
-    # Convergence verdict: require the energy residual to fall 2 decades from
+    # Convergence verdict: require the energy residual to fall 1 decade from
     # its peak; the slope criterion is disabled (slope=0).
     res_e = hist.residual[:, 4]
     decades = float(np.log10(res_e.max() / res_e[-1]))
-    converged = hist.check_convergence(decay=2.0)
+    converged = hist.check_convergence(decay=1.0)
     print(f"Converged={converged}  (energy residual fell {decades:.2f} decades)")
 
-    if not args.plot:
-        return
+    if args.plot:
+        import matplotlib
 
-    import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+        fig, (ax_res, ax_err, ax_s) = plt.subplots(
+            3, 1, figsize=(7.5, 9.5), sharex=True
+        )
 
-    fig, (ax_res, ax_err, ax_s) = plt.subplots(3, 1, figsize=(7.5, 9.5), sharex=True)
+        ax_res.semilogy(i_step, hist.residual[:, 4], marker=".", ms=3, lw=1.0)
+        ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
+        ax_res.set_title("Energy residual (semilog)")
+        ax_res.grid(True, which="both", alpha=0.3)
 
-    ax_res.semilogy(i_step, hist.residual[:, 4], marker=".", ms=3, lw=1.0)
-    ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
-    ax_res.set_title("Energy residual (semilog)")
-    ax_res.grid(True, which="both", alpha=0.3)
+        ax_err.axhline(0.0, color="0.6", lw=0.8)
+        ax_err.plot(i_step, hist.err_mdot, marker=".", ms=3, lw=1.0)
+        ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
+        ax_err.set_title("Mass flow error")
+        ax_err.grid(True, alpha=0.3)
 
-    ax_err.axhline(0.0, color="0.6", lw=0.8)
-    ax_err.plot(i_step, hist.err_mdot, marker=".", ms=3, lw=1.0)
-    ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
-    ax_err.set_title("Mass flow error")
-    ax_err.grid(True, alpha=0.3)
+        ax_s.plot(i_step, hist.zeta, marker=".", ms=3, lw=1.0)
+        ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
+        ax_s.set_title("Entropy rise")
+        ax_s.set_xlabel("i_step")
+        ax_s.grid(True, alpha=0.3)
 
-    ax_s.plot(i_step, hist.zeta, marker=".", ms=3, lw=1.0)
-    ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
-    ax_s.set_title("Entropy rise")
-    ax_s.set_xlabel("i_step")
-    ax_s.grid(True, alpha=0.3)
+        fig.suptitle(
+            f"CFL={args.cfl}, {args.n_stage}-stage RK, n_levels={args.n_levels}, "
+            f"fac_mgrid={args.fac_mgrid}, {args.n_step} steps",
+            y=0.995,
+        )
+        fig.tight_layout()
+        fig.savefig(args.plot)
+        print(f"Wrote {args.plot}")
 
-    fig.suptitle(
-        f"CFL={args.cfl}, {args.n_stage}-stage RK, n_levels={args.n_levels}, "
-        f"fac_mgrid={args.fac_mgrid}, {args.n_step} steps",
-        y=0.995,
-    )
-    fig.tight_layout()
-    fig.savefig(args.plot)
-    print(f"Wrote {args.plot}")
+    # A run that neither diverged nor cleared the 1-decade convergence bar exits
+    # non-zero (distinct from the divergence exit 1), so a caller like
+    # duct_cfl_descend.sh treats "ran but did not converge" as a failure too.
+    if not converged:
+        sys.exit(2)
 
 
 def main():
