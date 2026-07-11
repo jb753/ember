@@ -48,9 +48,6 @@ class SolverConfig:
     n_step_log: int = 10
     """Number of steps between convergence log messages."""
 
-    n_step_source: int = 1
-    """Number of steps between source term refreshes."""
-
     n_step_avg: int = 1
     """Number of steps to average over."""
 
@@ -509,12 +506,15 @@ def run(grid, conf):
             hist.diverged = True
             break
 
-        # Refresh source terms on the n_step_source cadence -- the viscous pass
-        # is the expensive part -- but recompute the timestep every step so
-        # dt_vol tracks the flow through fast transients. A lagged dt_vol is
-        # sized for an already-stale state and overshoots the stability limit
-        # during a cold start; the timestep refresh itself is cheap.
-        if i_step % conf.n_step_source == 0:
+        # Refresh source terms every step for the multi-stage RK march, which
+        # re-evaluates the residual each substep and needs current sources; the
+        # scree march reuses one residual per step, so lag the expensive viscous
+        # pass to every fifth step there. Recompute the timestep every step
+        # regardless so dt_vol tracks the flow through fast transients: a lagged
+        # dt_vol is sized for an already-stale state and overshoots the
+        # stability limit during a cold start, and the timestep refresh is cheap.
+        n_step_source = 5 if conf.n_stage == 0 else 1
+        if i_step % n_step_source == 0:
             # grid.update_filter(conf.delta_filt)
             grid.update_sources(conf.inviscid, conf.gain_filt)
         grid.update_timestep(rf=0.2, fac_visc=conf.fac_visc)

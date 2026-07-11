@@ -40,7 +40,6 @@ def run(args):
     conf = ember.solver.SolverConfig(
         n_step=args.n_step,
         n_step_log=100,
-        n_step_source=args.n_step_source,
         n_step_avg=1,
         cfl=args.cfl,
         n_stage=args.n_stage,
@@ -118,12 +117,6 @@ def main():
     )
     p.add_argument(
         "--sf-resid", type=float, default=0.0, help="IRS residual smoothing factor"
-    )
-    p.add_argument(
-        "--n-step-source",
-        type=int,
-        default=1,
-        help="Refresh viscous source terms every N steps",
     )
     p.add_argument("--ncell", type=int, default=int(1e6), help="Target cell count")
     p.add_argument("--inviscid", action="store_true", help="Disable viscous terms")
