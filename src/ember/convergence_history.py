@@ -420,13 +420,14 @@ class ConvergenceHistory(StructuredData):
             with open(filename, "rb") as f:
                 return pickle.load(f)
 
-    def format_message(self, i_finest=None, n_step=None, n_levels=None):
+    def format_message(self, n_step=None):
         """Format convergence message for current log step.
 
         Parameters
         ----------
-        i_finest, n_step, n_levels : int, optional
-            When provided, a timing line is inserted after the step header.
+        n_step : int, optional
+            Total steps in this march. When given, a timing line (tpnps,
+            elapsed, estimated remaining) is inserted after the step header.
 
         Returns
         -------
@@ -436,11 +437,10 @@ class ConvergenceHistory(StructuredData):
         now = self.now
         i_step = int(now.i_step)
 
-        level_str = f" Level {i_finest}" if i_finest is not None else ""
-        out = f"Step {i_step:4d}{level_str}:\n"
+        out = f"Step {i_step:4d}:\n"
 
-        if i_finest is not None and n_step is not None and n_levels is not None:
-            out += self.format_timing(i_step, i_finest, n_step, n_levels) + "\n"
+        if n_step is not None:
+            out += self.format_timing(i_step, n_step) + "\n"
 
         # Second line: stagnation conditions. ho/s are stored non-dimensional
         # (by u_ref / Rgas_ref), which is exactly what set_h_s expects.
@@ -500,47 +500,32 @@ class ConvergenceHistory(StructuredData):
         # Drop the trailing newline so callers (logger) own line separation.
         return out.rstrip("\n")
 
-    def format_timing(self, i_step, i_finest, n_step, n_levels):
-        """Format timing line: tpnps at current level, elapsed, and estimated remaining.
+    def format_timing(self, i_step, n_step):
+        """Format timing line: tpnps, elapsed, and estimated remaining.
 
         Parameters
         ----------
         i_step : int
-            Current global step index
-        i_finest : int
-            Index of the finest currently active grid level (0 = finest)
+            Current step index within this march.
         n_step : int
-            Steps per FMG phase (conf.n_step); equals total steps when no FMG
-        n_levels : int
-            Total number of multigrid levels (conf.n_levels)
+            Total steps in this march.
         """
-        # self.tpnps divides wall time by n_node (finest grid count), so it
-        # gives us/finest-node/step regardless of which level is actually active.
-        # True tpnps at the current coarse level = tpnps_stored * 8^i_finest
-        # because the current level has n_node/8^i_finest nodes.
-        tpnps_stored = self.tpnps
-        if np.isnan(tpnps_stored):
+        # tpnps already divides wall time by this history's own grid node count
+        # (from_grid stores n_node = grid.size), so it is the true per-node cost
+        # of the grid being marched. Under FMG each level keeps its own history,
+        # so no cross-level rescaling is needed here.
+        tpnps = self.tpnps
+        if np.isnan(tpnps):
             return "  Timing: insufficient data"
 
-        tpnps_level = tpnps_stored * (8**i_finest)
-
         elapsed_ms = float(self.now.time) * self._TIME_SCALE * 1e3
-
-        # Estimate remaining time using tpnps_level (true cost at current level)
-        # and n_node_current. Future phases at finer level i cost 8^(i_finest-i)
-        # times more per step than the current level.
-        n_node_current = self.n_node / (8**i_finest)
-        steps_left = n_step - (i_step % n_step) - 1
-        equiv = float(steps_left)
-        for i in range(i_finest - 1, -1, -1):
-            equiv += n_step * (8 ** (i_finest - i))
-        remaining_ms = equiv * tpnps_level * n_node_current / 1e3
-
+        steps_left = n_step - i_step - 1
+        remaining_ms = steps_left * tpnps * self.n_node / 1e3
         elapsed_min = elapsed_ms / 60e3
 
         return (
             f"  Timing:"
-            f"  tpnps={tpnps_level:.3f} µs"
+            f"  tpnps={tpnps:.3f} µs"
             f"  Elapsed/Remaining={elapsed_min:.1f}/{remaining_ms / 60e3:.1f} min"
         )
 

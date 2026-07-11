@@ -29,7 +29,7 @@ exactly one full-field P recompute per step; everything else reuses the cache.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import ember
 from ember import util
@@ -527,7 +527,7 @@ def run(grid, conf):
             hist.record_convergence(i_step, grid.get_convergence())
             logger.info(
                 "%s",
-                hist.format_message(i_finest=0, n_step=conf.n_step, n_levels=1),
+                hist.format_message(n_step=conf.n_step),
             )
 
         # Take a step with the selected integrator.  Both reuse the first
@@ -554,3 +554,65 @@ def run(grid, conf):
     # that from_grid allocated, so this only bites when the loop broke early:
     # the caller never sees the unwritten NaN tail a divergence leaves behind.
     return hist.trim()
+
+
+def run_fmg(grid, conf):
+    """Full-multigrid startup: solve coarse-to-fine, prolonging each guess.
+
+    ``conf.n_levels`` is the single grid-hierarchy depth. With ``n_levels == 0``
+    this is exactly :func:`run(grid, conf) <run>`. Otherwise it builds
+    ``n_levels`` grids successively halved by :meth:`~ember.grid.Grid.resample`
+    at factor ``0.5``, solves the coarsest, and
+    :meth:`~ember.grid.Grid.interp_from`'s the solution up onto each finer grid
+    as its initial guess. Sequencing level ``i`` (``0`` = coarsest) is marched
+    with in-step Denton block-sum multigrid depth ``i`` -- the same grid
+    hierarchy ``n_levels`` already names -- so the coarsest runs plain and the
+    finest runs at full ``n_levels``, identical to :func:`run` on the finest.
+
+    The single validation ``_validate_mg(grid, n_levels)`` is sufficient for the
+    whole chain: level ``i`` holds ``N / 2**(n_levels - i)`` cells per dimension
+    and its depth-``i`` march needs those divisible by ``2**i``, which reduces to
+    ``N`` (the finest cell count) divisible by ``2**n_levels`` at every level.
+    That divisibility also keeps every ``resample(0.5)`` node-coincident with the
+    finer grid (an exact subset of its nodes), so the coarse coordinates are the
+    true geometry, not interpolated.
+
+    Every level runs the same ``conf`` apart from ``n_levels`` (fixed
+    ``n_step`` per level). ``grid`` is the finest level and is mutated in place
+    to carry the final solution, matching :func:`run`.
+
+    Parameters
+    ----------
+    grid : Grid
+        Finest grid, already carrying its initial guess. Mutated in place.
+    conf : SolverConfig
+        Solver configuration; ``conf.n_levels`` sets the hierarchy depth.
+
+    Returns
+    -------
+    list of ConvergenceHistory
+        Per-level histories, coarsest first, finest last.
+    """
+    _validate_mg(grid, conf.n_levels)
+    if conf.n_levels <= 0:
+        return [run(grid, conf)]
+
+    # Build finest -> coarsest, then reverse. resample carries the already-set
+    # fine guess down, so the coarsest starts from the coarsened cold start.
+    chain = [grid]
+    for _ in range(conf.n_levels):
+        chain.append(chain[-1].resample(0.5))
+    chain.reverse()  # chain[-1] is the original `grid`
+
+    histories = []
+    for i, level_grid in enumerate(chain):  # i == in-step MG depth for this mesh
+        if i > 0:
+            level_grid.interp_from(chain[i - 1])  # prolong previous solution
+        logger.info(
+            "FMG level %d/%d, shape(s) %s",
+            i,
+            conf.n_levels,
+            [block.shape for block in level_grid],
+        )
+        histories.append(run(level_grid, replace(conf, n_levels=i)))
+    return histories
