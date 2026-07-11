@@ -1358,19 +1358,27 @@ def resample(factor, vector, i_crit=None):
         seg_cells[order[:deficit]] += 1
     elif deficit < 0:
         # Trim from segments with smallest remainder, but never below 1.
+        # Sweep repeatedly: a single pass removes at most one cell per
+        # segment, so when the surplus exceeds the number of trimmable
+        # segments it must keep sweeping the large segments down. A sweep
+        # that trims nothing means every segment is already at 1 -- the
+        # target genuinely cannot be met without collapsing a segment.
         order = np.argsort(remainder, kind="stable")
-        for idx in order:
-            if deficit == 0:
-                break
-            if seg_cells[idx] > 1:
-                seg_cells[idx] -= 1
-                deficit += 1
-        if deficit != 0:
-            raise ValueError(
-                f"resample: cannot allocate {total_cells} cells across "
-                f"{len(spans)} segments without collapsing a segment "
-                f"(spans={spans.tolist()}, factor={factor})"
-            )
+        while deficit != 0:
+            trimmed = False
+            for idx in order:
+                if deficit == 0:
+                    break
+                if seg_cells[idx] > 1:
+                    seg_cells[idx] -= 1
+                    deficit += 1
+                    trimmed = True
+            if not trimmed:
+                raise ValueError(
+                    f"resample: cannot allocate {total_cells} cells across "
+                    f"{len(spans)} segments without collapsing a segment "
+                    f"(spans={spans.tolist()}, factor={factor})"
+                )
 
     # Generate fractional indices for each segment
     fractional_indices = []
