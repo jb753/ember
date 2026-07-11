@@ -1190,15 +1190,41 @@ class Grid(_LabelledList):
         Raises
         ------
         DivergenceError
-            If any block contains a NaN, naming the first such block (index and
-            label). The grid is left untouched so the invalid field can be
-            inspected.
+            If any block contains a NaN. The message names the first such block
+            (index and label), the ``(i, j, k)`` node bounding box of the NaN
+            region, and which of the six boundary faces it touches -- enough to
+            tell a boundary-seeded blow-up from an interior one. The grid is left
+            untouched so the invalid field can be inspected.
         """
         for iblock, block in enumerate(self):
-            if np.isnan(block.conserved_nd[..., 0]).any():
-                raise DivergenceError(
-                    f"NaN in conserved_nd density of block {iblock} ({block.label!r})"
-                )
+            nan_mask = np.isnan(block.conserved_nd[..., 0])
+            if not nan_mask.any():
+                continue
+            ni, nj, nk = block.ni, block.nj, block.nk
+            ii, jj, kk = np.nonzero(nan_mask)
+            box = (
+                f"i[{ii.min()}:{ii.max()}]/{ni - 1} "
+                f"j[{jj.min()}:{jj.max()}]/{nj - 1} "
+                f"k[{kk.min()}:{kk.max()}]/{nk - 1}"
+            )
+            faces = []
+            if ii.min() == 0:
+                faces.append("i-lo")
+            if ii.max() == ni - 1:
+                faces.append("i-hi")
+            if jj.min() == 0:
+                faces.append("j-lo")
+            if jj.max() == nj - 1:
+                faces.append("j-hi")
+            if kk.min() == 0:
+                faces.append("k-lo")
+            if kk.max() == nk - 1:
+                faces.append("k-hi")
+            touch = ", ".join(faces) if faces else "interior only"
+            raise DivergenceError(
+                f"NaN in conserved_nd density of block {iblock} ({block.label!r}): "
+                f"{nan_mask.sum()} node(s), bbox {box}, touches [{touch}]"
+            )
 
     def copy(self, keep_patches=True):
         """Create a deep copy of the grid with copied blocks.
