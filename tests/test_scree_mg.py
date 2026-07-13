@@ -108,6 +108,36 @@ def _run_mg(
     return cons_out, store_out
 
 
+def _run_mg_irs(
+    residual, dt_vol, vol, store, cons, ni, nj, nk, n_levels, sf_irs, fmgrid=FAC_MGRID
+):
+    cons_out = np.asfortranarray(cons.copy())
+    store_out = np.asfortranarray(store.copy())
+    tmp, corr, dtblk, aplane, bb = _make_scratch(ni, nj, nk)
+    n_res, n_tri = ember.solver._mg_irs_scratch_sizes(ni, nj, nk, n_levels)
+    coarse_res_buf = np.asfortranarray(np.zeros(n_res, dtype=np.float32))
+    tri_work_buf = np.asfortranarray(np.zeros(n_tri, dtype=np.float32))
+    ember.fortran.scree_advance_mg_irs(
+        cons=cons_out,
+        residual=residual,
+        store=store_out,
+        dt_vol=dt_vol,
+        vol=vol,
+        cfl=CFL,
+        fmgrid=fmgrid,
+        sf_irs=sf_irs,
+        n_levels=n_levels,
+        tmp=tmp,
+        corr=corr,
+        dtblk=dtblk,
+        aplane=aplane,
+        bb=bb,
+        coarse_res_buf=coarse_res_buf,
+        tri_work_buf=tri_work_buf,
+    )
+    return cons_out, store_out
+
+
 def test_n_levels_zero_matches_scree_advance():
     """n_levels=0 must reproduce scree_advance (the standalone fine-term branch)."""
     residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=0)
@@ -220,6 +250,53 @@ def test_vol_weighting_affects_nonuniform_dt_vol():
     assert not np.array_equal(cons_weighted, cons_unweighted)
 
 
+def test_irs_sf_zero_matches_mg():
+    """sf_irs=0 makes smooth_residual_tri a no-op, so scree_advance_mg_irs must
+    reproduce scree_advance_mg.
+
+    Not bit-exact: the smoothing branch is skipped (smooth_residual_tri's own
+    sf<=0 guard), but the coarse scale is split across a buffer round-trip
+    rather than fused inline, so float rounding order (FMA contraction) can
+    differ by ~1 ULP -- same tolerance as the RK _irs/_opt no-op test.
+    """
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=10)
+
+    cons_mg, store_mg = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
+    cons_irs, store_irs = _run_mg_irs(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.0
+    )
+
+    np.testing.assert_allclose(cons_mg, cons_irs, rtol=1e-5, atol=1e-6)
+    np.testing.assert_array_equal(store_mg, store_irs)
+
+
+def test_irs_positive_changes_result():
+    """A positive sf_irs must actually alter the coarse correction vs scree_advance_mg."""
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=11)
+
+    cons_mg, _ = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS
+    )
+    cons_irs, _ = _run_mg_irs(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.5
+    )
+
+    assert not np.array_equal(cons_mg, cons_irs)
+
+
+def test_irs_store_roll_happens_once():
+    """The IRS path must still roll store <- residual exactly once per cell."""
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=12)
+
+    _, store_irs = _run_mg_irs(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.5
+    )
+
+    np.testing.assert_array_equal(store_irs, residual)
+
+
 def _make_block(shape):
     """Minimal block for exercising ember.solver.scree_step directly.
 
@@ -303,6 +380,55 @@ def test_scree_step_default_unchanged():
     cons_explicit = grid_explicit[0].conserved_nd.copy()
 
     np.testing.assert_array_equal(cons_default, cons_explicit)
+
+
+def test_scree_step_sf_irs_wiring():
+    """ember.solver.scree_step routes to the IRS kernel only when sf_irs>0.
+
+    sf_irs=0 (the default) must reproduce the plain scree_advance_mg path
+    byte-for-byte (a different kernel is selected, so it is literally
+    untouched); sf_irs>0 must route through scree_advance_mg_irs instead and
+    change the coarse correction.
+    """
+    ni, nj, nk = 17, 17, 17  # 16 cells, divisible by 2**2
+    n_levels = 2
+    rng = np.random.default_rng(9)
+    residual_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
+    dt_vol_data = 0.5 + rng.random((ni - 1, nj - 1, nk - 1))
+    store_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
+
+    def _build():
+        block = _make_block((ni, nj, nk))
+        block.residual_nd.flags.writeable = True
+        block.residual_nd[...] = residual_data
+        block.residual_nd.flags.writeable = False
+        block.dt_vol_nd.flags.writeable = True
+        block.dt_vol_nd[...] = dt_vol_data
+        block.dt_vol_nd.flags.writeable = False
+        store_cell = util.carve_view(block.store, (ni - 1, nj - 1, nk - 1, NP))
+        store_cell[...] = store_data
+        return ember.grid.Grid([block])
+
+    grid_no_irs = _build()
+    ember.solver.scree_step(grid_no_irs, cfl=CFL, fac_mgrid=0.2, n_levels=n_levels)
+    cons_no_irs = grid_no_irs[0].conserved_nd.copy()
+
+    grid_zero = _build()
+    ember.solver.scree_step(
+        grid_zero, cfl=CFL, fac_mgrid=0.2, n_levels=n_levels, sf_irs=0.0
+    )
+    cons_zero = grid_zero[0].conserved_nd.copy()
+
+    # sf_irs=0 selects scree_advance_mg, so it is byte-identical to omitting it.
+    np.testing.assert_array_equal(cons_no_irs, cons_zero)
+
+    grid_irs = _build()
+    ember.solver.scree_step(
+        grid_irs, cfl=CFL, fac_mgrid=0.2, n_levels=n_levels, sf_irs=0.6
+    )
+    cons_irs = grid_irs[0].conserved_nd.copy()
+
+    assert not np.array_equal(cons_no_irs, cons_irs)
 
 
 def test_validate_mg_still_triggers_for_scree():

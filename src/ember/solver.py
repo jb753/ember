@@ -71,10 +71,12 @@ class SolverConfig:
     viscous limit to recover the inviscid stable CFL."""
 
     sf_resid: float = 0.0
-    """Implicit residual smoothing factor. Only affects the RK path's coarse
-    multigrid correction (:func:`advance_rk_stage_mg`'s ``sf_irs``); scree
-    (``n_stage == 0``) does not yet have an IRS-smoothed multigrid variant,
-    so this is inert whenever ``n_stage == 0``."""
+    """Implicit residual smoothing factor. Applied to the fine residual by
+    :meth:`~ember.grid.Grid.update_residual` (``sf``) and, on both integrators,
+    to the coarse block-restricted residual of the multigrid correction
+    (:func:`advance_rk_stage_mg`'s ``sf_irs`` for RK, :func:`scree_step`'s
+    ``sf_irs`` for scree). The coarse smoothing needs ``n_levels > 0`` to have
+    any effect."""
 
     gain_filt: float = 0.0
     """Selective frequency damping gain."""
@@ -94,7 +96,7 @@ class SolverConfig:
     (:func:`scree_step` and :func:`rk_step`)."""
 
 
-def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
+def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
     """Advance `block` one scree step in place.
 
     Assumes ``block.dt_vol_nd`` is populated and the block's cached
@@ -137,6 +139,20 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
     step, exactly as for :func:`advance_rk_stage_mg` -- so no per-step
     allocation is needed for either integrator.
 
+    ``sf_irs`` (0 disables it, the default) applies implicit residual smoothing
+    (Jameson IRS) to the coarse block-restricted residual at every level, the
+    scree counterpart of :func:`advance_rk_stage_mg`'s ``sf_irs`` and driven by
+    the same ``SolverConfig.sf_resid`` value (see :func:`rk_step`). It selects
+    the ``scree_advance_mg_irs`` kernel instead of ``scree_advance_mg``; since
+    that kernel's smoothing is an exact no-op when ``sf_irs <= 0``, it is only
+    chosen when ``sf_irs > 0`` and ``n_levels > 0``, keeping the default path
+    byte-identical. The extra per-level scratch (``coarse_res_buf``,
+    ``tri_work_buf``, sized by :func:`_mg_irs_scratch_sizes`) is likewise carved
+    from ``block.tau_q_halo``, so no per-step allocation is needed. The fine
+    term is not smoothed here: it already carries the fine residual smoothed by
+    the caller's :meth:`~ember.grid.Grid.update_residual` ``sf``, exactly as for
+    the RK path.
+
     Smoothing is not applied here -- the caller runs :meth:`~ember.grid.Grid.smooth` once on
     the post-step state, shared with the RK path.
     """
@@ -155,7 +171,41 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
         # block.scratch as its flow_i workspace, so it must be fully materialised
         # before scree_advance(_mg) reuses scratch as tmp -- passing it as an
         # argument guarantees that ordering.
-        if n_levels > 0:
+        if n_levels > 0 and sf_irs > 0.0:
+            nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
+            # aplane, bb, corr and the coarse-IRS scratch (coarse_res_buf,
+            # tri_work_buf) are all carved from tau_q_halo -- dead outside the
+            # viscous pass (already completed and consumed before this call),
+            # same reuse as advance_rk_stage_mg_fused_irs's coarse scratch.
+            n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels)
+            aplane, bb, corr, dtblk, coarse_res_buf, tri_work_buf = util.carve_view(
+                block.tau_q_halo,
+                (ni - 1, nc1j),
+                (ni - 1, nj - 1, nc1k, 5),
+                (nc1i, nc1j, nc1k, 5),
+                (nc1i, nc1j, nc1k),
+                (n_res,),
+                (n_tri,),
+            )
+            ember.fortran.scree_advance_mg_irs(
+                cons=block.conserved_nd,
+                residual=block.residual_nd,
+                store=store_cell,
+                dt_vol=block.dt_vol_nd,
+                vol=block.vol_nd,
+                cfl=cfl,
+                fmgrid=fac_mgrid,
+                sf_irs=sf_irs,
+                n_levels=n_levels,
+                tmp=tmp,
+                corr=corr,
+                dtblk=dtblk,
+                aplane=aplane,
+                bb=bb,
+                coarse_res_buf=coarse_res_buf,
+                tri_work_buf=tri_work_buf,
+            )
+        elif n_levels > 0:
             nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
             # aplane, bb, corr are carved from tau_q_halo -- dead outside the
             # viscous pass (already completed and consumed before this call),
@@ -533,7 +583,7 @@ def run(grid, conf):
         # Take a step with the selected integrator.  Both reuse the first
         # residual evaluated above, RK then recalculates each substep
         if conf.n_stage == 0:
-            scree_step(grid, conf.cfl, conf.fac_mgrid, conf.n_levels)
+            scree_step(grid, conf.cfl, conf.fac_mgrid, conf.n_levels, conf.sf_resid)
         else:
             rk_step(grid, conf)
 
