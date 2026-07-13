@@ -80,12 +80,17 @@ if ! [[ $JOBS =~ ^[1-9][0-9]*$ ]]; then
     echo "--jobs must be a positive integer (got: $JOBS)" >&2; exit 1
 fi
 
-# Default matrix: the three schemes of interest, each crossed with {0,0.2,0.4}.
-#   n_stage=0 sf_resid=0  (no smoothing, single-stage)
+# Default matrix: the full n_stage={0,4} x sf_resid={0,1} cross, each crossed
+# with fac_mgrid {0,0.2,0.4} below (12 cases). Both schemes now have a
+# coarse-level IRS multigrid variant, so sf_resid=1 is swept for scree as well
+# as RK.
+#   n_stage=0 sf_resid=0  (scree, no smoothing)
+#   n_stage=0 sf_resid=1  (scree + coarse IRS)
 #   n_stage=4 sf_resid=0  (RK4, no smoothing)
 #   n_stage=4 sf_resid=1  (RK4 + IRS)
+# Run at run_duct.py's default n_step=2000 (see EXTRA_ARGS note above).
 if [[ ${#SCHEMES[@]} -eq 0 ]]; then
-    SCHEMES=("0:0.0" "4:0.0" "4:1.0")
+    SCHEMES=("0:0.0" "0:1.0" "4:0.0" "4:1.0")
 fi
 if [[ ${#FAC_MGRIDS[@]} -eq 0 ]]; then
     FAC_MGRIDS=(0.0 0.2 0.4)
