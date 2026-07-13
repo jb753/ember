@@ -636,6 +636,60 @@ class ConvergenceHistory(StructuredData):
 
         return True
 
+    def find_settling_record(self, tol=0.01):
+        r"""Record index at which the entropy rise :attr:`zeta` has settled.
+
+        Complements :meth:`check_convergence`: where that reduces the *residual*
+        history to a converged/not verdict, this locates when the *solution
+        output* stopped moving. It returns the record index at which
+        :attr:`zeta` has come within a fraction ``tol`` of its total change and
+        stays there for the rest of the march.
+
+        The asymptote is estimated as the mean of ``zeta`` over the final fifth
+        of records (the same last-20% window :meth:`check_convergence` fits its
+        slope over), and the band is ``tol`` of the total swing
+        ``abs(zeta[0] - target)`` about it. The settling record is the one
+        *after* the last record still outside that band -- keying on the last
+        exit rather than the first entry makes it robust to any overshoot that
+        dips through the band and back out. Because the asymptote is the tail
+        mean, the result is only physically meaningful once the march has
+        actually levelled out (e.g. a run :meth:`check_convergence` accepts).
+
+        The return is a *record index* into the history arrays, not a solver
+        step number, so both the step it settled at and the wall-clock time to
+        get there are one indexing away::
+
+            idx  = hist.find_settling_record()
+            step = int(hist.i_step[idx])                  # solver step
+            wall = float(hist.time[idx] - hist.time[0])   # ms to settle
+
+        (``hist.time[0]`` is the one-iteration startup offset, not zero, so
+        subtract it for elapsed march time.)
+
+        Parameters
+        ----------
+        tol : float, optional
+            Settling band half-width, as a fraction of the total ``zeta`` swing.
+            Default ``0.01`` (1%).
+
+        Returns
+        -------
+        int
+            Record index of the settling point. Falls back to ``0`` when
+            ``zeta`` is within the band from the start, or is flat (zero swing).
+        """
+        n = self.i_log + 1
+        zeta = self.zeta[:n]
+        n_tail = max(1, -(-n // 5))  # ceil(n / 5), the final fifth, at least 1
+        target = zeta[n - n_tail :].mean()  # asymptote estimate
+        band = tol * abs(zeta[0] - target)  # tol of the total swing
+        outside = np.abs(zeta - target) > band
+        if band > 0 and outside.any():
+            # Record after the last one still outside; clamp in case the tail
+            # itself never settles (then report the last record).
+            return int(min(np.nonzero(outside)[0][-1] + 1, n - 1))
+        return 0
+
     def to_json(self, directory="."):
         """Write convergence history to three JSON files in directory.
 

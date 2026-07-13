@@ -41,7 +41,7 @@ def run(args):
 
     conf = ember.solver.SolverConfig(
         n_step=args.n_step,
-        n_step_log=100,
+        n_step_log=args.n_step_log,
         n_step_avg=1,
         cfl=args.cfl,
         n_stage=args.n_stage,
@@ -76,6 +76,21 @@ def run(args):
     converged = hist.check_convergence(decay=1.0)
     print(f"Converged={converged}  (energy residual fell {decades:.2f} decades)")
 
+    # Settling: where the entropy rise zeta stopped moving (within 1% of its
+    # total swing), a "solution output settled" marker distinct from the
+    # residual-decade bar above. wall time subtracts time[0], the startup offset.
+    idx = hist.find_settling_record()
+    settle_step = int(i_step[idx])
+    settle_ms = float(hist.time[idx] - hist.time[0])
+    print(
+        f"zeta settled to <1% of range by step {settle_step} of {args.n_step} "
+        f"({settle_ms:.0f} ms)"
+    )
+
+    if args.write_hist:
+        hist.write_cnv(args.write_hist)
+        print(f"Wrote {args.write_hist}")
+
     if args.plot:
         import matplotlib
 
@@ -98,10 +113,18 @@ def run(args):
         ax_err.grid(True, alpha=0.3)
 
         ax_s.plot(i_step, hist.zeta, marker=".", ms=3, lw=1.0)
+        ax_s.axvline(
+            settle_step,
+            color="C3",
+            lw=1.0,
+            ls="--",
+            label=f"settled (step {settle_step})",
+        )
         ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
         ax_s.set_title("Entropy rise")
         ax_s.set_xlabel("i_step")
         ax_s.grid(True, alpha=0.3)
+        ax_s.legend()
 
         fig.suptitle(
             f"CFL={args.cfl}, {args.n_stage}-stage RK, n_levels={args.n_levels}, "
@@ -122,6 +145,12 @@ def run(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--n-step", type=int, default=1000)
+    p.add_argument(
+        "--n-step-log",
+        type=int,
+        default=100,
+        help="Steps between convergence records (sets settling-step resolution)",
+    )
     p.add_argument("--n-stage", type=int, default=4)
     p.add_argument("--cfl", type=float, default=2.5)
     p.add_argument(
@@ -155,6 +184,12 @@ def main():
         "--vx-ramp", type=float, default=0.01, help="Streamwise Vx ramp (outlet vs inlet)"
     )
     p.add_argument("--plot", metavar="PATH", help="Write 3-panel figure to this path")
+    p.add_argument(
+        "--write-hist",
+        metavar="CNVFILE",
+        help="Write the convergence history to this CNV file (read back with "
+        "ConvergenceHistory.read_cnv)",
+    )
     run(p.parse_args())
 
 

@@ -504,6 +504,57 @@ def test_trim_preserves_diverged_flag(hist_with_throttle):
     assert hist.trim().diverged is True
 
 
+def _hist_with_zeta(zeta_series, n_step_log=100):
+    """A fully-logged history whose entropy rise follows ``zeta_series``.
+
+    zeta = s_out - s_in, so hold the inlet entropy at 0 and drive the outlet
+    with the requested series. i_step advances by ``n_step_log`` per record.
+    """
+    n = len(zeta_series)
+    hist = ConvergenceHistory(shape=(n,))
+    hist._set_metadata_by_key("n_node", 100)
+    hist._set_metadata_by_key("fluid", _FLUID)
+    hist._set_metadata_by_key("_time_start", 0.0)
+    hist._set_metadata_by_key("i_log", -1)
+    for k in hist._data_keys:
+        hist._versions[k] += 1
+    for i, z in enumerate(zeta_series):
+        hist.record_convergence(
+            i * n_step_log,
+            ConvergenceStep(
+                residual=np.full(5, 1.0, dtype=np.float32),
+                mdot=np.array([1.0, 1.0], dtype=np.float32),
+                ho=np.zeros(2, dtype=np.float32),
+                s=np.array([0.0, z], dtype=np.float32),
+            ),
+        )
+    return hist
+
+
+def test_find_settling_record_ramp_then_plateau():
+    """Settling record is the first plateau step once zeta stops climbing."""
+    # Rise 0..5 then flat: tail-mean target = 5, band = 0.01*5. The last record
+    # outside the band is the last "4" at index 4, so settling lands at index 5.
+    hist = _hist_with_zeta([0, 1, 2, 3, 4, 5, 5, 5, 5, 5])
+    idx = hist.find_settling_record()
+    assert idx == 5
+    assert int(hist.i_step[idx]) == 500
+
+
+def test_find_settling_record_flat_returns_zero():
+    """A flat zeta has zero swing (degenerate band) and settles from the start."""
+    hist = _hist_with_zeta([3, 3, 3, 3, 3])
+    assert hist.find_settling_record() == 0
+
+
+def test_find_settling_record_overshoot_uses_last_exit():
+    """An overshoot that dips into the band and back out settles at the last exit."""
+    # zeta touches the target (5) at index 1, overshoots to 10 at index 2, then
+    # settles. First-entry would wrongly report index 1; last-exit reports 3.
+    hist = _hist_with_zeta([0, 5, 10, 5, 5, 5])
+    assert hist.find_settling_record() == 3
+
+
 # ---------------------------------------------------------------------------
 # check_convergence
 # ---------------------------------------------------------------------------
