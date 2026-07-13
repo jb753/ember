@@ -144,7 +144,7 @@ def run(args):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--n-step", type=int, default=1000)
+    p.add_argument("--n-step", type=int, default=2000)
     p.add_argument(
         "--n-step-log",
         type=int,

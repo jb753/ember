@@ -54,7 +54,7 @@ set -uo pipefail
 
 CFL_START=12.0
 DCFL=1.0
-TOL=0.25
+TOL=0.1
 SCHEMES=()
 FAC_MGRIDS=()
 EXTRA_ARGS=()
