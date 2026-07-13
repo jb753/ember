@@ -155,7 +155,17 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
 
     Smoothing is not applied here -- the caller runs :meth:`~ember.grid.Grid.smooth` once on
     the post-step state, shared with the RK path.
+
+    Multigrid is dispatched only when it has both levels *and* nonzero strength:
+    ``fac_mgrid == 0`` scales every coarse correction to identically zero, so
+    routing to the plain ``scree_advance`` kernel avoids paying the full
+    restrict/prolong per level for a guaranteed-zero contribution (and makes
+    ``sf_irs`` inert too). This matches ``n_levels == 0`` to floating-point
+    rounding -- the coarse path contributes nothing either way.
     """
+
+    # fac_mgrid == 0 makes the coarse loop a no-op; collapse to no-MG dispatch.
+    n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
 
     for block in grid:
         ni, nj, nk = block.shape
@@ -171,13 +181,13 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
         # block.scratch as its flow_i workspace, so it must be fully materialised
         # before scree_advance(_mg) reuses scratch as tmp -- passing it as an
         # argument guarantees that ordering.
-        if n_levels > 0 and sf_irs > 0.0:
+        if n_levels_eff > 0 and sf_irs > 0.0:
             nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
             # aplane, bb, corr and the coarse-IRS scratch (coarse_res_buf,
             # tri_work_buf) are all carved from tau_q_halo -- dead outside the
             # viscous pass (already completed and consumed before this call),
             # same reuse as advance_rk_stage_mg_fused_irs's coarse scratch.
-            n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels)
+            n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels_eff)
             aplane, bb, corr, dtblk, coarse_res_buf, tri_work_buf = util.carve_view(
                 block.tau_q_halo,
                 (ni - 1, nc1j),
@@ -196,7 +206,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
                 cfl=cfl,
                 fmgrid=fac_mgrid,
                 sf_irs=sf_irs,
-                n_levels=n_levels,
+                n_levels=n_levels_eff,
                 tmp=tmp,
                 corr=corr,
                 dtblk=dtblk,
@@ -205,7 +215,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
                 coarse_res_buf=coarse_res_buf,
                 tri_work_buf=tri_work_buf,
             )
-        elif n_levels > 0:
+        elif n_levels_eff > 0:
             nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
             # aplane, bb, corr are carved from tau_q_halo -- dead outside the
             # viscous pass (already completed and consumed before this call),
@@ -225,7 +235,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
                 vol=block.vol_nd,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
-                n_levels=n_levels,
+                n_levels=n_levels_eff,
                 tmp=tmp,
                 corr=corr,
                 dtblk=dtblk,
@@ -345,18 +355,25 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     Assumes ``block.dt_vol_nd`` and ``block.residual_nd`` are populated and the
     caller refreshes P/T, boundary conditions and the residual between stages.
     Requires :func:`_validate_mg` to have passed.
+
+    ``fac_mgrid == 0`` scales every coarse correction to identically zero, so it
+    collapses to the plain-RK ``_opt`` fast path (``n_levels`` passed as 0, empty
+    coarse loop) rather than running restrict/prolong for a guaranteed-zero push
+    -- and makes ``sf_irs`` inert, exactly as in :func:`scree_step`.
     """
+    # fac_mgrid == 0 makes the coarse loop a no-op; collapse to no-MG dispatch.
+    n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
     for block in grid:
         ni, nj, nk = block.shape
         nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
         tmp = util.carve_view(block.scratch, (ni - 1, nj - 1, nk - 1, 5))
-        if sf_irs > 0.0 and n_levels > 0:
+        if sf_irs > 0.0 and n_levels_eff > 0:
             # The prolong scratch (aplane, bb), the coarse block-sum
             # accumulator (corr), and the coarse-IRS scratch (coarse_res_buf,
             # tri_work_buf) are all carved from tau_q_halo -- dead outside the
             # viscous pass and a distinct buffer from block.scratch, so they
             # survive alongside tmp within the call.
-            n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels)
+            n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels_eff)
             aplane, bb, corr, dtblk, coarse_res_buf, tri_work_buf = util.carve_view(
                 block.tau_q_halo,
                 (ni - 1, nc1j),
@@ -376,7 +393,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
                 cfl=cfl,
                 fmgrid=fac_mgrid,
                 sf_irs=sf_irs,
-                n_levels=n_levels,
+                n_levels=n_levels_eff,
                 tmp=tmp,
                 corr=corr,
                 dtblk=dtblk,
@@ -407,7 +424,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
                 alpha=alpha,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
-                n_levels=n_levels,
+                n_levels=n_levels_eff,
                 tmp=tmp,
                 corr=corr,
                 dtblk=dtblk,

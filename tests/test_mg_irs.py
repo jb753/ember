@@ -297,5 +297,49 @@ def test_advance_rk_stage_mg_sf_irs_wiring():
     assert not np.array_equal(cons_default, cons_irs)
 
 
+def test_advance_rk_stage_mg_fac_mgrid_zero_skips_coarse():
+    """fac_mgrid=0 with n_levels>0 must collapse to the plain-RK path.
+
+    The coarse correction scales by fac_mgrid, so fac_mgrid=0 contributes
+    nothing; the dispatch should route to the n_levels=0 fast path, giving a
+    result byte-identical to passing n_levels=0 -- even with sf_irs>0, which is
+    inert then.
+    """
+    ni, nj, nk = 17, 17, 17
+    n_levels = 2
+    rng = np.random.default_rng(31)
+    residual_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
+    dt_vol_data = 0.5 + rng.random((ni - 1, nj - 1, nk - 1))
+
+    def _build():
+        block = _make_block((ni, nj, nk))
+        block.residual_nd.flags.writeable = True
+        block.residual_nd[...] = residual_data
+        block.residual_nd.flags.writeable = False
+        block.dt_vol_nd.flags.writeable = True
+        block.dt_vol_nd[...] = dt_vol_data
+        block.dt_vol_nd.flags.writeable = False
+        block.store[...] = block.conserved_nd
+        return ember.grid.Grid([block])
+
+    grid_off = _build()
+    ember.solver.advance_rk_stage_mg(
+        grid_off, alpha=1.0, cfl=0.4, fac_mgrid=0.2, n_levels=0
+    )
+    cons_off = grid_off[0].conserved_nd.copy()
+
+    grid_zero_strength = _build()
+    ember.solver.advance_rk_stage_mg(
+        grid_zero_strength, alpha=1.0, cfl=0.4, fac_mgrid=0.0, n_levels=n_levels
+    )
+    np.testing.assert_array_equal(cons_off, grid_zero_strength[0].conserved_nd)
+
+    grid_zero_irs = _build()
+    ember.solver.advance_rk_stage_mg(
+        grid_zero_irs, alpha=1.0, cfl=0.4, fac_mgrid=0.0, n_levels=n_levels, sf_irs=0.6
+    )
+    np.testing.assert_array_equal(cons_off, grid_zero_irs[0].conserved_nd)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

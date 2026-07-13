@@ -431,6 +431,47 @@ def test_scree_step_sf_irs_wiring():
     assert not np.array_equal(cons_no_irs, cons_irs)
 
 
+def test_scree_step_fac_mgrid_zero_skips_coarse():
+    """fac_mgrid=0 with n_levels>0 must collapse to the plain scree_advance path.
+
+    The coarse correction scales by fac_mgrid, so fac_mgrid=0 contributes
+    nothing; the dispatch should route to the plain no-MG kernel, giving a
+    result byte-identical to passing n_levels=0 -- even with sf_irs>0, inert then.
+    """
+    ni, nj, nk = 17, 17, 17
+    n_levels = 2
+    rng = np.random.default_rng(14)
+    residual_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
+    dt_vol_data = 0.5 + rng.random((ni - 1, nj - 1, nk - 1))
+    store_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
+
+    def _build():
+        block = _make_block((ni, nj, nk))
+        block.residual_nd.flags.writeable = True
+        block.residual_nd[...] = residual_data
+        block.residual_nd.flags.writeable = False
+        block.dt_vol_nd.flags.writeable = True
+        block.dt_vol_nd[...] = dt_vol_data
+        block.dt_vol_nd.flags.writeable = False
+        store_cell = util.carve_view(block.store, (ni - 1, nj - 1, nk - 1, NP))
+        store_cell[...] = store_data
+        return ember.grid.Grid([block])
+
+    grid_off = _build()
+    ember.solver.scree_step(grid_off, cfl=CFL, fac_mgrid=0.0, n_levels=0)
+    cons_off = grid_off[0].conserved_nd.copy()
+
+    grid_zero_strength = _build()
+    ember.solver.scree_step(grid_zero_strength, cfl=CFL, fac_mgrid=0.0, n_levels=n_levels)
+    np.testing.assert_array_equal(cons_off, grid_zero_strength[0].conserved_nd)
+
+    grid_zero_irs = _build()
+    ember.solver.scree_step(
+        grid_zero_irs, cfl=CFL, fac_mgrid=0.0, n_levels=n_levels, sf_irs=0.5
+    )
+    np.testing.assert_array_equal(cons_off, grid_zero_irs[0].conserved_nd)
+
+
 def test_validate_mg_still_triggers_for_scree():
     """_validate_mg gates n_levels for scree the same way it does for RK."""
     ni, nj, nk = 10, 10, 10  # 9 cells, not divisible by 2**2
