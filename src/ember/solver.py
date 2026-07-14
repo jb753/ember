@@ -112,8 +112,8 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
     stay frozen. This path is untouched by ``fac_mgrid``/``n_levels`` and
     reproduces every existing caller byte-for-byte.
 
-    With ``n_levels >= 1``, ``scree_advance_mg`` additionally injects a Denton
-    block-sum multigrid correction at ``n_levels`` coarse levels, exactly like
+    With ``n_levels >= 1``, ``scree_advance_mg_fused`` additionally injects a
+    Denton block-sum multigrid correction at ``n_levels`` coarse levels, like
     :func:`advance_rk_stage_mg`'s coarse path but for the scree fine term.
     Every level -- fine and coarse -- restricts/uses the same Denton-lagged
     quantity ``(2*residual - store)``, not plain ``residual``: this was
@@ -142,16 +142,18 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
     ``sf_irs`` (0 disables it, the default) applies implicit residual smoothing
     (Jameson IRS) to the coarse block-restricted residual at every level, the
     scree counterpart of :func:`advance_rk_stage_mg`'s ``sf_irs`` and driven by
-    the same ``SolverConfig.sf_resid`` value (see :func:`rk_step`). It selects
-    the ``scree_advance_mg_irs`` kernel instead of ``scree_advance_mg``; since
-    that kernel's smoothing is an exact no-op when ``sf_irs <= 0``, it is only
-    chosen when ``sf_irs > 0`` and ``n_levels > 0``, keeping the default path
-    byte-identical. The extra per-level scratch (``coarse_res_buf``,
-    ``tri_work_buf``, sized by :func:`_mg_irs_scratch_sizes`) is likewise carved
-    from ``block.tau_q_halo``, so no per-step allocation is needed. The fine
-    term is not smoothed here: it already carries the fine residual smoothed by
-    the caller's :meth:`~ember.grid.Grid.update_residual` ``sf``, exactly as for
-    the RK path.
+    the same ``SolverConfig.sf_resid`` value (see :func:`rk_step`). ``sf_irs > 0``
+    dispatches the ``scree_advance_mg_fused`` kernel; ``sf_irs == 0`` (the
+    default) dispatches ``scree_advance_mg_fused_noirs``, which enters no
+    smoothing code at all. The two share ``mg_hier2_core`` and differ only in the
+    coarse-residual smoother handed to it (``smooth_residual_tri`` vs the
+    ``mg_smooth_noop`` do-nothing), so the branch lives here on the Python side --
+    there is no ``sf_irs`` test inside the Fortran engine. Its scratch (sized by
+    :func:`_mg_hier2_scratch_sizes`, carved by :func:`_mg_hier2_carve`) is taken
+    from ``block.tau_q_halo``, so no per-step allocation is needed. The fine term
+    is not smoothed here: it already carries the fine residual smoothed by the
+    caller's :meth:`~ember.grid.Grid.update_residual` ``sf``, exactly as for the
+    RK path.
 
     Smoothing is not applied here -- the caller runs :meth:`~ember.grid.Grid.smooth` once on
     the post-step state, shared with the RK path.
@@ -181,23 +183,20 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
         # block.scratch as its flow_i workspace, so it must be fully materialised
         # before scree_advance(_mg) reuses scratch as tmp -- passing it as an
         # argument guarantees that ordering.
-        if n_levels_eff > 0 and sf_irs > 0.0:
-            nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
-            # aplane, bb, corr and the coarse-IRS scratch (coarse_res_buf,
-            # tri_work_buf) are all carved from tau_q_halo -- dead outside the
-            # viscous pass (already completed and consumed before this call),
-            # same reuse as advance_rk_stage_mg_fused_irs's coarse scratch.
-            n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels_eff)
-            aplane, bb, corr, dtblk, coarse_res_buf, tri_work_buf = util.carve_view(
-                block.tau_q_halo,
-                (ni - 1, nc1j),
-                (ni - 1, nj - 1, nc1k, 5),
-                (nc1i, nc1j, nc1k, 5),
-                (nc1i, nc1j, nc1k),
-                (n_res,),
-                (n_tri,),
+        if n_levels_eff > 0:
+            # Hierarchical-restriction + cascaded-prolongation Denton MG (see
+            # scree_advance_mg_fused). sf_irs > 0 selects the coarse-IRS kernel;
+            # sf_irs == 0 selects the plain _noirs kernel, which enters no
+            # smoothing code at all (no Fortran-side IRS branch -- the two share
+            # mg_hier2_core and differ only in the smoother passed). Scratch is
+            # carved from tau_q_halo, dead outside the viscous pass (already
+            # completed and consumed before this call), same reuse as the RK path.
+            kernel = (
+                ember.fortran.scree_advance_mg_fused
+                if sf_irs > 0.0
+                else ember.fortran.scree_advance_mg_fused_noirs
             )
-            ember.fortran.scree_advance_mg_irs(
+            kernel(
                 cons=block.conserved_nd,
                 residual=block.residual_nd,
                 store=store_cell,
@@ -208,39 +207,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 tmp=tmp,
-                corr=corr,
-                dtblk=dtblk,
-                aplane=aplane,
-                bb=bb,
-                coarse_res_buf=coarse_res_buf,
-                tri_work_buf=tri_work_buf,
-            )
-        elif n_levels_eff > 0:
-            nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
-            # aplane, bb, corr are carved from tau_q_halo -- dead outside the
-            # viscous pass (already completed and consumed before this call),
-            # same reuse as advance_rk_stage_mg's coarse scratch.
-            aplane, bb, corr, dtblk = util.carve_view(
-                block.tau_q_halo,
-                (ni - 1, nc1j),
-                (ni - 1, nj - 1, nc1k, 5),
-                (nc1i, nc1j, nc1k, 5),
-                (nc1i, nc1j, nc1k),
-            )
-            ember.fortran.scree_advance_mg(
-                cons=block.conserved_nd,
-                residual=block.residual_nd,
-                store=store_cell,
-                dt_vol=block.dt_vol_nd,
-                vol=block.vol_nd,
-                cfl=cfl,
-                fmgrid=fac_mgrid,
-                n_levels=n_levels_eff,
-                tmp=tmp,
-                corr=corr,
-                dtblk=dtblk,
-                aplane=aplane,
-                bb=bb,
+                **_mg_hier2_carve(block, ni, nj, nk, n_levels_eff),
             )
         else:
             ember.fortran.scree_advance(
@@ -253,22 +220,65 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
             )
 
 
-def _mg_irs_scratch_sizes(ni, nj, nk, n_levels, np=5):
-    """Element counts for advance_rk_stage_mg_fused_irs's flat packed scratch.
+def _mg_hier2_scratch_sizes(ni, nj, nk, n_levels, np=5):
+    """Element counts for the hier2 kernels' flat packed scratch.
 
-    coarse_res_buf/tri_work_buf hold each level's slice back-to-back (level 1
-    -- the largest, b=2 -- first, each successive level 8x smaller), so this
-    is just the sum of per-level element counts. The caller carves buffers of
-    exactly this size once per call (from ``block.tau_q_halo``, never
-    reallocated) -- see :func:`advance_rk_stage_mg`.
+    ``n_corr`` sizes ``corr_all``, which holds every coarse level's scaled
+    correction back-to-back (coarsest level first, where the cascade seeds) --
+    the sum of per-level element counts. ``cres``/``triw`` are reused per level
+    rather than packed, so they only need the largest (level-1) slice: ``n_res``
+    is that coarse residual size and ``n_tri`` its IRS Thomas-coefficient size.
+    All three are carved once per call from ``block.tau_q_halo``, never
+    reallocated -- see :func:`advance_rk_stage_mg` and :func:`scree_step`.
     """
-    n_res = n_tri = 0
+    n_corr = 0
     for lvl in range(1, n_levels + 1):
         b = 2**lvl
-        nib, njb, nkb = (ni - 1) // b, (nj - 1) // b, (nk - 1) // b
-        n_res += nib * njb * nkb * np
-        n_tri += 2 * (nib + njb + nkb)
-    return n_res, n_tri
+        n_corr += ((ni - 1) // b) * ((nj - 1) // b) * ((nk - 1) // b) * np
+    nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
+    n_res = nc1i * nc1j * nc1k * np if n_levels > 0 else 0
+    n_tri = 2 * (nc1i + nc1j + nc1k) if n_levels > 0 else 0
+    return n_corr, n_res, n_tri
+
+
+def _mg_hier2_carve(block, ni, nj, nk, n_levels_eff):
+    """Carve the hier2 kernels' scratch from ``block.tau_q_halo`` (dead outside
+    the viscous pass, which has completed and been consumed before this call, so
+    it is free private memory here). Returns the argument dict shared by both the
+    RK and scree fused kernels.
+    """
+    nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
+    n_corr, n_res, n_tri = _mg_hier2_scratch_sizes(ni, nj, nk, n_levels_eff)
+    acc_sz = nc1i * nc1j * nc1k * 5
+    aplane, bb, dtblk, rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw = (
+        util.carve_view(
+            block.tau_q_halo,
+            (ni - 1, nc1j),
+            (ni - 1, nj - 1, nc1k, 5),
+            (nc1i, nc1j, nc1k),
+            (nc1i, nc1j, nc1k, 5),
+            (nc1i, nc1j, nc1k),
+            (nc1i, nc1j, nc1k),
+            (n_corr,),
+            (acc_sz,),
+            (acc_sz,),
+            (n_res,),
+            (n_tri,),
+        )
+    )
+    return dict(
+        dtblk=dtblk,
+        aplane=aplane,
+        bb=bb,
+        rawbuf=rawbuf,
+        sdt=sdt,
+        sv=sv,
+        corr_all=corr_all,
+        acc0=acc0,
+        acc1=acc1,
+        cres=cres,
+        triw=triw,
+    )
 
 
 def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
@@ -304,27 +314,28 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     Scaling the block push by the same ``alpha`` as the fine term keeps the stage
     consistent; the final stage (``alpha=1``) therefore lands the full-weight
     coarse correction, matching Denton, while earlier stages damp it like the
-    fine residual. There is **no coarse-correction smoothing**, and prolongation
-    is **trilinear interpolation** (inlined into the fused kernel below).
+    fine residual. Prolongation is **trilinear interpolation**, cascaded coarsest
+    -> finest through factor-2 hops (inlined into the fused kernel below).
 
     The whole per-block body -- fine term, all coarse levels, and the final
-    scatter -- runs in one fused Fortran kernel
-    (``advance_rk_stage_mg_fused_opt``), with no per-level
-    Python crossings or numpy temporaries. That variant restructures the coarse
-    path for speed (~2x on the coarse levels at production sizes): restrict is a
-    coarse-cell register reduction folding in the zero+scale passes, and the
-    trilinear prolong is done as separable 1-D interpolations (a cached per-kb
-    plane instead of an 8-way gather), with the fine term folded into level 1.
+    scatter -- runs in one fused Fortran kernel (``advance_rk_stage_mg_fused``, a
+    thin wrapper over the shared ``mg_hier2_core``), with no per-level Python
+    crossings or numpy temporaries. Restriction is **hierarchical**: only level 1
+    reads the fine grid, coarser levels reduce the running accumulators
+    (``rawbuf`` for the residual, ``sdt``/``sv`` for the volume-weighted dt),
+    cutting restriction reads from ``n_levels x N`` to ~``1.14 x N``. Prolongation
+    is **cascaded**: the packed per-level corrections (``corr_all``) accumulate
+    coarsest -> finest through the ``acc0``/``acc1`` ping-pong, so only the final
+    factor-2 hop writes the fine grid (fused with the fine term).
     ``block.scratch`` is borrowed as the cell-shaped increment workspace (nodal,
-    free between kernel calls); the coarse block-sum accumulator (``corr``,
-    sized to the finest coarse level with coarser levels using only its leading
-    corner), the coarse timestep (``dtblk``, same sizing) and the
-    separable-prolong scratch (``aplane``, ``bb``) are all
-    carved from ``block.tau_q_halo`` at non-overlapping offsets -- dead outside
-    the viscous pass and a distinct buffer from ``scratch``, so they survive
-    alongside the increment within the call. The scatter reads the snapshot
-    from ``block.store`` and writes ``conserved_nd`` directly (frozen pressure,
-    bypasses the P/T cache).
+    free between kernel calls); the coarse timestep (``dtblk``), the restriction
+    accumulators, ``corr_all``/``acc0``/``acc1``, the separable-prolong scratch
+    (``aplane``, ``bb``) and the coarse-IRS buffers (``cres``, ``triw``) are all
+    carved from ``block.tau_q_halo`` at non-overlapping offsets (see
+    :func:`_mg_hier2_carve`) -- dead outside the viscous pass and a distinct
+    buffer from ``scratch``, so they survive alongside the increment within the
+    call. The scatter reads the snapshot from ``block.store`` and writes
+    ``conserved_nd`` directly (frozen pressure, bypasses the P/T cache).
 
     ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is
     recomputed once per stage even though ``dt_vol`` only changes once per step.
@@ -343,94 +354,55 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     smoothing (Jameson IRS) to the coarse block-restricted residual at every
     level, exactly like the fine-grid smoothing ``Grid.update_residual``
     already applies via its ``sf`` argument -- both are driven by the same
-    ``SolverConfig.sf_resid`` value (see :func:`rk_step`). This selects the
-    experimental ``advance_rk_stage_mg_fused_irs`` kernel
-    instead of ``_opt``; ``sf_irs=0`` makes its smoothing step an exact no-op
-    (see the kernel's docstring), so it is only selected when ``sf_irs > 0``,
-    keeping the default (no coarse IRS) path byte-identical to before. The
-    extra per-level scratch it needs (``coarse_res_buf``, ``tri_work_buf``,
-    sized by :func:`_mg_irs_scratch_sizes`) is likewise carved from
-    ``block.tau_q_halo`` -- caller-owned, no per-call allocation.
+    ``SolverConfig.sf_resid`` value (see :func:`rk_step`). ``sf_irs > 0``
+    dispatches ``advance_rk_stage_mg_fused``; ``sf_irs == 0`` (the default)
+    dispatches ``advance_rk_stage_mg_fused_noirs``, which enters no smoothing
+    code at all. The two share ``mg_hier2_core`` and differ only in the
+    coarse-residual smoother passed to it, so the choice is a Python-side branch
+    with no ``sf_irs`` test inside the engine (the fine term is never smoothed
+    here -- it already carries the fine residual the caller smoothed). The
+    per-level scratch it needs (``cres``, ``triw``) is carved by
+    :func:`_mg_hier2_carve` from ``block.tau_q_halo`` -- caller-owned, no
+    per-call allocation.
 
     Assumes ``block.dt_vol_nd`` and ``block.residual_nd`` are populated and the
     caller refreshes P/T, boundary conditions and the residual between stages.
     Requires :func:`_validate_mg` to have passed.
 
     ``fac_mgrid == 0`` scales every coarse correction to identically zero, so it
-    collapses to the plain-RK ``_opt`` fast path (``n_levels`` passed as 0, empty
-    coarse loop) rather than running restrict/prolong for a guaranteed-zero push
-    -- and makes ``sf_irs`` inert, exactly as in :func:`scree_step`.
+    collapses to the plain-RK fast path (``n_levels`` passed as 0, empty coarse
+    loop) rather than running restrict/prolong for a guaranteed-zero push -- and
+    makes ``sf_irs`` inert, exactly as in :func:`scree_step`.
     """
     # fac_mgrid == 0 makes the coarse loop a no-op; collapse to no-MG dispatch.
     n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
     for block in grid:
         ni, nj, nk = block.shape
-        nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
         tmp = util.carve_view(block.scratch, (ni - 1, nj - 1, nk - 1, 5))
-        if sf_irs > 0.0 and n_levels_eff > 0:
-            # The prolong scratch (aplane, bb), the coarse block-sum
-            # accumulator (corr), and the coarse-IRS scratch (coarse_res_buf,
-            # tri_work_buf) are all carved from tau_q_halo -- dead outside the
-            # viscous pass and a distinct buffer from block.scratch, so they
-            # survive alongside tmp within the call.
-            n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels_eff)
-            aplane, bb, corr, dtblk, coarse_res_buf, tri_work_buf = util.carve_view(
-                block.tau_q_halo,
-                (ni - 1, nc1j),
-                (ni - 1, nj - 1, nc1k, 5),
-                (nc1i, nc1j, nc1k, 5),
-                (nc1i, nc1j, nc1k),
-                (n_res,),
-                (n_tri,),
-            )
-            ember.fortran.advance_rk_stage_mg_fused_irs(
-                cons=block.conserved_nd,
-                snapshot=block.store,
-                residual=block.residual_nd,
-                dt_vol=block.dt_vol_nd,
-                vol=block.vol_nd,
-                alpha=alpha,
-                cfl=cfl,
-                fmgrid=fac_mgrid,
-                sf_irs=sf_irs,
-                n_levels=n_levels_eff,
-                tmp=tmp,
-                corr=corr,
-                dtblk=dtblk,
-                aplane=aplane,
-                bb=bb,
-                coarse_res_buf=coarse_res_buf,
-                tri_work_buf=tri_work_buf,
-            )
-        else:
-            # The prolong scratch (aplane, bb) and the coarse block-sum
-            # accumulator (corr) are all carved from tau_q_halo -- dead outside
-            # the viscous pass (the caller rebuilt the residual, tau_q_halo's
-            # other borrower, before this call) and a distinct buffer from
-            # block.scratch, so they survive alongside tmp within the call.
-            aplane, bb, corr, dtblk = util.carve_view(
-                block.tau_q_halo,
-                (ni - 1, nc1j),
-                (ni - 1, nj - 1, nc1k, 5),
-                (nc1i, nc1j, nc1k, 5),
-                (nc1i, nc1j, nc1k),
-            )
-            ember.fortran.advance_rk_stage_mg_fused_opt(
-                cons=block.conserved_nd,
-                snapshot=block.store,
-                residual=block.residual_nd,
-                dt_vol=block.dt_vol_nd,
-                vol=block.vol_nd,
-                alpha=alpha,
-                cfl=cfl,
-                fmgrid=fac_mgrid,
-                n_levels=n_levels_eff,
-                tmp=tmp,
-                corr=corr,
-                dtblk=dtblk,
-                aplane=aplane,
-                bb=bb,
-            )
+        # sf_irs > 0 selects the coarse-IRS kernel; otherwise the plain _noirs
+        # kernel, which enters no smoothing code (the two share
+        # advance_rk_stage_mg_fused's mg_hier2_core body and differ only in the
+        # smoother passed -- no Fortran-side IRS branch). With n_levels_eff == 0
+        # the coarse loop is empty, so either kernel is the plain fine-term stage.
+        kernel = (
+            ember.fortran.advance_rk_stage_mg_fused
+            if sf_irs > 0.0
+            else ember.fortran.advance_rk_stage_mg_fused_noirs
+        )
+        kernel(
+            cons=block.conserved_nd,
+            snapshot=block.store,
+            residual=block.residual_nd,
+            dt_vol=block.dt_vol_nd,
+            vol=block.vol_nd,
+            alpha=alpha,
+            cfl=cfl,
+            fmgrid=fac_mgrid,
+            sf_irs=sf_irs,
+            n_levels=n_levels_eff,
+            tmp=tmp,
+            **_mg_hier2_carve(block, ni, nj, nk, n_levels_eff),
+        )
 
 
 @util.profile

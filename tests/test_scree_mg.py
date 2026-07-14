@@ -1,10 +1,10 @@
-"""Tests for ``scree_advance_mg``, the Denton block-sum multigrid variant of
-``scree_advance`` for the scree ("n_stage == 0") explicit time-march.
+"""Tests for ``scree_advance_mg_fused``, the Denton block-sum multigrid variant
+of ``scree_advance`` for the scree ("n_stage == 0") explicit time-march.
 
 Correctness contract:
 
 - ``n_levels == 0`` must reproduce ``scree_advance`` (no coarse levels at
-  all -- the standalone fine-term branch is a verbatim copy).
+  all -- the shared engine's fine-term branch).
 - ``fac_mgrid == 0`` with ``n_levels > 0`` must also reproduce
   ``scree_advance`` (coarse coefficient is exactly zero, so every coarse
   level's correction and prolong contribute nothing).
@@ -15,6 +15,8 @@ Correctness contract:
   multall's ``TSTEP`` reference (``~/multall-open-20.9.f:6457-6532``), which
   sums its own lagged ``STORE`` into the multigrid block accumulators, not
   the raw flux imbalance.
+- ``sf_irs > 0`` applies coarse-level IRS and changes the result; ``sf_irs
+  == 0`` is an exact no-op.
 """
 
 import numpy as np
@@ -40,7 +42,7 @@ N_LEVELS = 3
 
 
 def _make_inputs(ni, nj, nk, seed):
-    """Build Fortran-ordered inputs for one scree_advance(_mg) call."""
+    """Build Fortran-ordered inputs for one scree_advance(_mg_fused) call."""
     rng = np.random.default_rng(seed)
     residual = np.asfortranarray(
         rng.standard_normal((ni - 1, nj - 1, nk - 1, NP)).astype(np.float32)
@@ -58,21 +60,10 @@ def _make_inputs(ni, nj, nk, seed):
     return residual, dt_vol, vol, store, cons
 
 
-def _make_scratch(ni, nj, nk):
-    """Buffers matching the carve_view shapes used in ember.solver.scree_step."""
-    nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
-    tmp = np.asfortranarray(np.zeros((ni - 1, nj - 1, nk - 1, NP), dtype=np.float32))
-    corr = np.asfortranarray(np.zeros((nc1i, nc1j, nc1k, NP), dtype=np.float32))
-    dtblk = np.asfortranarray(np.zeros((nc1i, nc1j, nc1k), dtype=np.float32))
-    aplane = np.asfortranarray(np.zeros((ni - 1, nc1j), dtype=np.float32))
-    bb = np.asfortranarray(np.zeros((ni - 1, nj - 1, nc1k, NP), dtype=np.float32))
-    return tmp, corr, dtblk, aplane, bb
-
-
 def _run_plain(residual, dt_vol, store, cons, ni, nj, nk):
     cons_out = np.asfortranarray(cons.copy())
     store_out = np.asfortranarray(store.copy())
-    tmp = _make_scratch(ni, nj, nk)[0]
+    tmp = np.asfortranarray(np.zeros((ni - 1, nj - 1, nk - 1, NP), dtype=np.float32))
     ember.fortran.scree_advance(
         cons=cons_out,
         residual=residual,
@@ -85,39 +76,28 @@ def _run_plain(residual, dt_vol, store, cons, ni, nj, nk):
 
 
 def _run_mg(
-    residual, dt_vol, vol, store, cons, ni, nj, nk, n_levels, fmgrid=FAC_MGRID
+    residual, dt_vol, vol, store, cons, ni, nj, nk, n_levels,
+    fmgrid=FAC_MGRID, sf_irs=0.0, kernel=None,
 ):
+    """Call the scree MG kernel with freshly zeroed scratch (the size args are
+    inferred by f2py from the array shapes, exactly as ember.solver does).
+
+    ``kernel`` selects the entry point (default ``scree_advance_mg_fused``, the
+    IRS variant); pass ``scree_advance_mg_fused_noirs`` for the plain variant.
+    Both take the identical signature.
+    """
+    if kernel is None:
+        kernel = ember.fortran.scree_advance_mg_fused
     cons_out = np.asfortranarray(cons.copy())
     store_out = np.asfortranarray(store.copy())
-    tmp, corr, dtblk, aplane, bb = _make_scratch(ni, nj, nk)
-    ember.fortran.scree_advance_mg(
-        cons=cons_out,
-        residual=residual,
-        store=store_out,
-        dt_vol=dt_vol,
-        vol=vol,
-        cfl=CFL,
-        fmgrid=fmgrid,
-        n_levels=n_levels,
-        tmp=tmp,
-        corr=corr,
-        dtblk=dtblk,
-        aplane=aplane,
-        bb=bb,
-    )
-    return cons_out, store_out
+    nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
+    n_corr, n_res, n_tri = ember.solver._mg_hier2_scratch_sizes(ni, nj, nk, n_levels)
+    acc_sz = nc1i * nc1j * nc1k * NP
 
+    def Z(*shape):
+        return np.asfortranarray(np.zeros(shape, dtype=np.float32))
 
-def _run_mg_irs(
-    residual, dt_vol, vol, store, cons, ni, nj, nk, n_levels, sf_irs, fmgrid=FAC_MGRID
-):
-    cons_out = np.asfortranarray(cons.copy())
-    store_out = np.asfortranarray(store.copy())
-    tmp, corr, dtblk, aplane, bb = _make_scratch(ni, nj, nk)
-    n_res, n_tri = ember.solver._mg_irs_scratch_sizes(ni, nj, nk, n_levels)
-    coarse_res_buf = np.asfortranarray(np.zeros(n_res, dtype=np.float32))
-    tri_work_buf = np.asfortranarray(np.zeros(n_tri, dtype=np.float32))
-    ember.fortran.scree_advance_mg_irs(
+    kernel(
         cons=cons_out,
         residual=residual,
         store=store_out,
@@ -127,19 +107,24 @@ def _run_mg_irs(
         fmgrid=fmgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
-        tmp=tmp,
-        corr=corr,
-        dtblk=dtblk,
-        aplane=aplane,
-        bb=bb,
-        coarse_res_buf=coarse_res_buf,
-        tri_work_buf=tri_work_buf,
+        tmp=Z(ni - 1, nj - 1, nk - 1, NP),
+        dtblk=Z(nc1i, nc1j, nc1k),
+        aplane=Z(ni - 1, nc1j),
+        bb=Z(ni - 1, nj - 1, nc1k, NP),
+        rawbuf=Z(nc1i, nc1j, nc1k, NP),
+        sdt=Z(nc1i, nc1j, nc1k),
+        sv=Z(nc1i, nc1j, nc1k),
+        corr_all=Z(n_corr),
+        acc0=Z(acc_sz),
+        acc1=Z(acc_sz),
+        cres=Z(n_res),
+        triw=Z(n_tri),
     )
     return cons_out, store_out
 
 
 def test_n_levels_zero_matches_scree_advance():
-    """n_levels=0 must reproduce scree_advance (the standalone fine-term branch)."""
+    """n_levels=0 must reproduce scree_advance (the shared fine-term branch)."""
     residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=0)
 
     cons_plain, store_plain = _run_plain(residual, dt_vol, store, cons, NI, NJ, NK)
@@ -250,47 +235,45 @@ def test_vol_weighting_affects_nonuniform_dt_vol():
     assert not np.array_equal(cons_weighted, cons_unweighted)
 
 
-def test_irs_sf_zero_matches_mg():
-    """sf_irs=0 makes smooth_residual_tri a no-op, so scree_advance_mg_irs must
-    reproduce scree_advance_mg.
-
-    Not bit-exact: the smoothing branch is skipped (smooth_residual_tri's own
-    sf<=0 guard), but the coarse scale is split across a buffer round-trip
-    rather than fused inline, so float rounding order (FMA contraction) can
-    differ by ~1 ULP -- same tolerance as the RK _irs/_opt no-op test.
-    """
-    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=10)
-
-    cons_mg, store_mg = _run_mg(
-        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS
-    )
-    cons_irs, store_irs = _run_mg_irs(
-        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.0
-    )
-
-    np.testing.assert_allclose(cons_mg, cons_irs, rtol=1e-5, atol=1e-6)
-    np.testing.assert_array_equal(store_mg, store_irs)
-
-
 def test_irs_positive_changes_result():
-    """A positive sf_irs must actually alter the coarse correction vs scree_advance_mg."""
+    """A positive sf_irs must alter the coarse correction vs sf_irs=0."""
     residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=11)
 
     cons_mg, _ = _run_mg(
         residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS
     )
-    cons_irs, _ = _run_mg_irs(
+    cons_irs, _ = _run_mg(
         residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.5
     )
 
     assert not np.array_equal(cons_mg, cons_irs)
 
 
+def test_noirs_kernel_matches_fused_at_sf_zero():
+    """scree_advance_mg_fused_noirs must reproduce scree_advance_mg_fused with
+    sf_irs=0 byte-for-byte. The two share mg_hier2_core and differ only in the
+    smoother passed (mg_smooth_noop vs smooth_residual_tri, whose sf_irs<=0 guard
+    is itself a no-op), so the plain kernel is the exact non-IRS engine that
+    solver.scree_step dispatches to when sf_irs==0."""
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=21)
+
+    cons_irs, store_irs = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.0
+    )
+    cons_no, store_no = _run_mg(
+        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.0,
+        kernel=ember.fortran.scree_advance_mg_fused_noirs,
+    )
+
+    np.testing.assert_array_equal(cons_irs, cons_no)
+    np.testing.assert_array_equal(store_irs, store_no)
+
+
 def test_irs_store_roll_happens_once():
     """The IRS path must still roll store <- residual exactly once per cell."""
     residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=12)
 
-    _, store_irs = _run_mg_irs(
+    _, store_irs = _run_mg(
         residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.5
     )
 
@@ -383,12 +366,10 @@ def test_scree_step_default_unchanged():
 
 
 def test_scree_step_sf_irs_wiring():
-    """ember.solver.scree_step routes to the IRS kernel only when sf_irs>0.
+    """ember.solver.scree_step threads sf_irs through to the fused kernel.
 
-    sf_irs=0 (the default) must reproduce the plain scree_advance_mg path
-    byte-for-byte (a different kernel is selected, so it is literally
-    untouched); sf_irs>0 must route through scree_advance_mg_irs instead and
-    change the coarse correction.
+    sf_irs=0 (the default) must reproduce omitting it byte-for-byte (the coarse
+    smoothing is an exact no-op); sf_irs>0 must change the coarse correction.
     """
     ni, nj, nk = 17, 17, 17  # 16 cells, divisible by 2**2
     n_levels = 2
@@ -419,7 +400,7 @@ def test_scree_step_sf_irs_wiring():
     )
     cons_zero = grid_zero[0].conserved_nd.copy()
 
-    # sf_irs=0 selects scree_advance_mg, so it is byte-identical to omitting it.
+    # sf_irs=0 is an exact no-op, so byte-identical to omitting it.
     np.testing.assert_array_equal(cons_no_irs, cons_zero)
 
     grid_irs = _build()

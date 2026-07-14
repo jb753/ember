@@ -2571,7 +2571,7 @@ class Block(ember.struct.StructuredData):
         the coarse block-sum accumulator and separable-prolong scratch in
         ``solver.advance_rk_stage_mg`` (see that function's docstring) and,
         likewise, in ``solver.scree_step``'s multigrid path (``n_levels >= 1``,
-        calling ``ember.fortran.scree_advance_mg``), where the (i,j,k) layout
+        calling ``ember.fortran.scree_advance_mg_fused``), where the (i,j,k) layout
         inside is irrelevant -- only the element count matters. Each borrower
         (a viscous pass, or one scree/RK-stage multigrid call) owns the whole
         buffer for its own duration and may treat it as freshly-allocated
