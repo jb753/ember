@@ -2488,7 +2488,8 @@ class Block(ember.struct.StructuredData):
           of the scree extrapolation (``solver.scree_step``) -- written at the end of
           one step and read at the start of the next. That term is cell-shaped, so
           ``scree_step`` takes a leading ``(ni-1, nj-1, nk-1, 5)`` F-order view of
-          this buffer (zero copy) and feeds it to ``scree_advance``.
+          this buffer (zero copy) and feeds it to the scree kernels (which also
+          form the extrapolated ``q = 2*residual - store`` in place in it).
         - Jameson RK march (``n_stage >= 1``): holds the nodal conserved snapshot
           ``U^(0)`` taken at the start of each step; every stage marches off it
           (``solver.advance_rk_stage_mg``).
@@ -2571,7 +2572,7 @@ class Block(ember.struct.StructuredData):
         the coarse block-sum accumulator and separable-prolong scratch in
         ``solver.advance_rk_stage_mg`` (see that function's docstring) and,
         likewise, in ``solver.scree_step``'s multigrid path (``n_levels >= 1``,
-        calling ``ember.fortran.scree_advance_mg_fused``), where the (i,j,k) layout
+        calling ``ember.fortran.scree_mg_irs``/``scree_mg_noirs``), where the (i,j,k) layout
         inside is irrelevant -- only the element count matters. Each borrower
         (a viscous pass, or one scree/RK-stage multigrid call) owns the whole
         buffer for its own duration and may treat it as freshly-allocated

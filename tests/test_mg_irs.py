@@ -1,12 +1,12 @@
 """Tests for coarse-level implicit residual smoothing (IRS) in the RK multigrid
-kernel ``advance_rk_stage_mg_fused`` (shared engine ``mg_hier2_core``).
+kernels ``rk_mg_irs`` / ``rk_mg_noirs`` (shared engine ``mg_coarse_correction``).
 
 Correctness contract:
 
-- ``sf_irs == 0`` makes the coarse smoothing an exact no-op
-  (``smooth_residual_tri``'s own guard).
+- ``rk_mg_noirs`` reproduces ``rk_mg_irs`` at ``sf_irs == 0`` byte-for-byte
+  (``smooth_residual_tri``'s own guard makes the IRS kernel a no-op there too).
 - ``sf_irs > 0`` must actually change the result relative to ``sf_irs == 0``
-  (proves the branch is wired in) and damp a high-frequency (checkerboard)
+  (proves the smoother is wired in) and damp a high-frequency (checkerboard)
   component of the coarse correction, mirroring
   ``tests/test_residual_smoothing.py``.
 """
@@ -24,7 +24,7 @@ NP = 5
 
 
 def _make_inputs(ni, nj, nk, seed):
-    """Build Fortran-ordered inputs for one advance_rk_stage_mg_fused call."""
+    """Build Fortran-ordered inputs for one rk_mg_irs / rk_mg_noirs call."""
     rng = np.random.default_rng(seed)
     residual = np.asfortranarray(
         rng.standard_normal((ni - 1, nj - 1, nk - 1, NP)).astype(np.float32)
@@ -42,18 +42,19 @@ def _make_inputs(ni, nj, nk, seed):
 
 
 def _run(residual, dt_vol, vol, snapshot, ni, nj, nk, n_levels, sf_irs=0.0,
-         kernel=None):
+         kernel=None, fmgrid=0.2):
     """Call the RK MG kernel with freshly zeroed scratch (the size args are
     inferred by f2py from the array shapes, exactly as ember.solver does).
 
-    ``kernel`` selects the entry point (default ``advance_rk_stage_mg_fused``,
-    the IRS variant); pass ``advance_rk_stage_mg_fused_noirs`` for the plain
-    variant. Both take the identical signature."""
+    ``kernel`` selects the entry point (default ``rk_mg_irs``, the IRS variant);
+    pass ``rk_mg_noirs`` for the plain variant. Both take the identical signature.
+    Requires ``n_levels >= 1`` (the engine has no fine-only path; that is
+    ``rk_plain``)."""
     if kernel is None:
-        kernel = ember.fortran.advance_rk_stage_mg_fused
+        kernel = ember.fortran.rk_mg_irs
     cons = np.asfortranarray(snapshot.copy())
     nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
-    n_corr, n_res, n_tri = ember.solver._mg_hier2_scratch_sizes(ni, nj, nk, n_levels)
+    n_corr, n_res, n_tri = ember.solver._mg_coarse_scratch_sizes(ni, nj, nk, n_levels)
     acc_sz = nc1i * nc1j * nc1k * NP
 
     def Z(*shape):
@@ -67,7 +68,7 @@ def _run(residual, dt_vol, vol, snapshot, ni, nj, nk, n_levels, sf_irs=0.0,
         vol=vol,
         alpha=1.0,
         cfl=0.4,
-        fmgrid=0.2,
+        fmgrid=fmgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
         tmp=Z(ni - 1, nj - 1, nk - 1, NP),
@@ -103,18 +104,38 @@ def test_sf_irs_positive_changes_result():
 
 
 def test_noirs_kernel_matches_fused_at_sf_zero():
-    """advance_rk_stage_mg_fused_noirs must reproduce advance_rk_stage_mg_fused
-    with sf_irs=0 byte-for-byte. The two share mg_hier2_core and differ only in
-    the smoother passed, so the plain kernel is the exact non-IRS engine that
-    solver.advance_rk_stage_mg dispatches to when sf_irs==0."""
+    """rk_mg_noirs must reproduce rk_mg_irs with sf_irs=0 byte-for-byte. The two
+    share mg_coarse_correction and differ only in the smoother passed, so the
+    plain kernel is the exact non-IRS engine that solver.advance_rk_stage_mg
+    dispatches to when sf_irs==0."""
     residual, dt_vol, vol, snapshot = _make_inputs(NI, NJ, NK, seed=5)
 
     cons_irs = _run(residual, dt_vol, vol, snapshot, NI, NJ, NK, N_LEVELS)
     cons_no = _run(
         residual, dt_vol, vol, snapshot, NI, NJ, NK, N_LEVELS,
-        kernel=ember.fortran.advance_rk_stage_mg_fused_noirs,
+        kernel=ember.fortran.rk_mg_noirs,
     )
     np.testing.assert_array_equal(cons_irs, cons_no)
+
+
+def test_rk_plain_matches_mg_at_fac_mgrid_zero():
+    """The multigrid-off kernel rk_plain must reproduce rk_mg_noirs with
+    fac_mgrid=0 byte-for-byte: the coarse coefficient is exactly zero, so the
+    prolonged correction adds exactly 0.0 to the fused fine term (q = residual,
+    so no float32 re-rounding of the fine quantity, unlike the scree scheme)."""
+    residual, dt_vol, vol, snapshot = _make_inputs(NI, NJ, NK, seed=9)
+
+    cons_mg = _run(
+        residual, dt_vol, vol, snapshot, NI, NJ, NK, N_LEVELS, fmgrid=0.0,
+        kernel=ember.fortran.rk_mg_noirs,
+    )
+    cons_plain = np.asfortranarray(snapshot.copy())
+    tmp = np.asfortranarray(np.zeros((NI - 1, NJ - 1, NK - 1, NP), dtype=np.float32))
+    ember.fortran.rk_plain(
+        cons=cons_plain, snapshot=snapshot, residual=residual, dt_vol=dt_vol,
+        alpha=1.0, cfl=0.4, tmp=tmp,
+    )
+    np.testing.assert_array_equal(cons_plain, cons_mg)
 
 
 def test_sf_irs_damps_checkerboard_coarse_correction():
@@ -225,10 +246,10 @@ def test_advance_rk_stage_mg_sf_irs_wiring():
 
 
 def test_advance_rk_stage_mg_fac_mgrid_zero_skips_coarse():
-    """fac_mgrid=0 with n_levels>0 must collapse to the plain-RK path.
+    """fac_mgrid=0 with n_levels>0 must collapse to the plain-RK path (rk_plain).
 
     The coarse correction scales by fac_mgrid, so fac_mgrid=0 contributes
-    nothing; the dispatch should route to the n_levels=0 fast path, giving a
+    nothing; the dispatch sets n_levels_eff=0 and routes to rk_plain, giving a
     result byte-identical to passing n_levels=0 -- even with sf_irs>0, which is
     inert then.
     """

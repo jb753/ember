@@ -1,58 +1,22 @@
-! Denton "scree" explicit time-march step, fused into one kernel.
+! Explicit time-march step kernels (Denton "scree" and Jameson RK), with
+! optional block-sum multigrid and coarse-level implicit residual smoothing.
 !
-! Builds the lagged-residual extrapolation (Denton 2017, Eq 4 with F1=2, F2=-1,
-! F3=0), scales it to a per-volume conserved-variable increment, rolls the
-! residual history, and scatters the cell-centred increment onto the nodes.
+! The whole scheme x multigrid x IRS space is served by six branch-free wrappers
+! over one shared, scheme-agnostic engine (mg_coarse_correction) and a set of
+! branch-free building blocks. No configuration is decided by a runtime `if`
+! inside a kernel: the scheme is fixed by which fine quantity `q` the wrapper
+! forms and which scatter tail it calls; multigrid on/off is which wrapper the
+! caller picks (mg-off wrappers never touch the coarse engine); IRS on/off is the
+! `smoother` dummy-procedure argument (smooth_residual_tri vs mg_smooth_noop).
+! See the banner above mg_coarse_correction for the algorithm and the wrapper
+! grid.
 !
-! Equivalent to the former NumPy advance():
-!   tmp   = (2*residual - store) * cfl * dt_vol   ! extrapolated, scaled change
-!   store = residual                              ! roll history for next step
-!   cons += cell_to_node(tmp)                     ! distribute onto nodal cons
-!
-! store carries (dF/dt)_{n-1} in on entry and leaves with (dF/dt)_n; it is the
-! caller's persistent per-step buffer (Block.store). tmp is throwaway workspace
-! borrowed from Block.scratch -- nothing outside the kernel reads it, so only its
-! element count matters, not its indexing.
-!
-! Written as explicit scalar loops (no array-section expressions) so the build's
-! -Warray-temporaries -Werror flags pass with no compiler-generated temporary;
-! this is also why tmp is passed in rather than declared as a local automatic.
-!
-subroutine scree_advance(cons, residual, store, dt_vol, cfl, tmp, ni, nj, nk, np)
-
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk, np
-    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
-    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: cfl
-    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)  ! in: (dF/dt)_{n-1}; out: (dF/dt)_n
-    real, intent(inout) :: cons(ni, nj, nk, np)         ! nodal conserved vars, accumulated in place
-    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)    ! borrowed scratch workspace
-
-    integer :: i, j, k, ip
-
-    do ip = 1, np
-        do k = 1, nk-1
-            do j = 1, nj-1
-                do i = 1, ni-1
-                    ! Read the old history (store) before overwriting it.
-                    tmp(i,j,k,ip) = (2e0*residual(i,j,k,ip) - store(i,j,k,ip)) &
-                                    * cfl * dt_vol(i,j,k)
-                    store(i,j,k,ip) = residual(i,j,k,ip)
-                end do
-            end do
-        end do
-    end do
-
-    ! Accumulate the cell-centred increment onto the nodal conserved variables.
-    ! cell_to_node aliases its node array as both input and output, so this is an
-    ! in-place += (frozen pressure: bypasses the P/T cache, as before).
-    call cell_to_node(tmp, cons, ni, nj, nk, np)
-
-end subroutine scree_advance
-
-
+! All loops are explicit scalar loops (no array-section expressions) so the
+! build's -Warray-temporaries -Werror flags pass with no compiler-generated
+! temporary; this is also why scratch (tmp, coarse buffers) is passed in rather
+! than declared as a local automatic. cell_to_node reuses its node array as both
+! input and output (frozen pressure: the increment bypasses the P/T cache), so
+! the scree scatter is an in-place +=.
 
 
 ! Bracketing coarse-cell indices (lo, hi) and upper-neighbour weight for every
@@ -92,36 +56,6 @@ subroutine mg_prolong_weights(n_fine, b, n_coarse, lo, hi, w)
 end subroutine mg_prolong_weights
 
 
-! ============================================================================
-! Hierarchical-restriction + cascaded-prolongation block-sum multigrid.
-!
-! One shared engine (mg_hier2_core) drives all four production MG kernels via
-! thin wrappers, in two schemes (denton) x two smoothers (IRS / plain):
-!   advance_rk_stage_mg_fused[_noirs] -- Jameson RK stage   (denton=.false., scale=alpha*cfl)
-!   scree_advance_mg_fused[_noirs]    -- Denton scree march (denton=.true.,  scale=cfl)
-! The coarse-residual smoother is a dummy-procedure argument, so IRS is NOT
-! branched on inside the engine: the _noirs wrappers pass mg_smooth_noop (no
-! smoothing code entered), the plain wrappers pass smooth_residual_tri (Jameson
-! IRS with strength sf_irs). solver.py selects the wrapper on sf_resid.
-!
-! Restriction is HIERARCHICAL: a level-l block-sum equals eight level-(l-1)
-! block-sums (the block-sum is associative), so only level 1 reads the fine
-! grid; coarser levels reduce the small running accumulators -- rawbuf for the
-! residual sum, sdt/sv for the volume-weighted dt. In-place reduction is safe
-! because, with blocks visited in ascending order, an output cell maps to source
-! cells whose every index is >= its own and no later block reads it.
-!
-! Prolongation is CASCADED: the per-level scaled corrections (packed coarsest
-! first in corr_all) accumulate coarsest -> finest through factor-2 hops, so only
-! the final hop writes the fine grid (fused with the fine term). This is a
-! genuine operator change from a direct factor-b prolong -- cascaded factor-2
-! trilinear interpolations are not equal to it.
-!
-! q is the scheme's fine quantity, computed inline (no full-grid buffer): plain
-! residual for RK, the Denton-extrapolated 2*residual - store for scree.
-! ============================================================================
-
-
 ! Copy n contiguous reals (sequence-associated cascade plumbing).
 subroutine mg_copy(src, dst, n)
     implicit none
@@ -136,8 +70,8 @@ end subroutine mg_copy
 
 
 ! No-op coarse-residual smoother: the plain (non-IRS) kernels pass this to
-! mg_hier2_core so the smoothing step is structurally absent (no sf_irs<=0 test,
-! no tri_coeffs call), rather than relying on smooth_residual_tri's internal
+! mg_coarse_correction so the smoothing step is structurally absent (no sf_irs<=0
+! test, no tri_coeffs call), rather than relying on smooth_residual_tri's internal
 ! guard. Signature matches smooth_residual_tri so either can be handed to the
 ! shared engine's `smoother` dummy argument.
 subroutine mg_smooth_noop(dU, sf, work, ni, nj, nk)
@@ -243,17 +177,17 @@ end subroutine mg_prolong2x_acc
 
 
 ! Final cascade hop onto the fine grid, fused with the fine term in one write:
-!   tmp = scale*dt_vol*q + interp_2x(src),   q = 2*residual-store if denton else residual.
-subroutine mg_prolong2x_fine(src, nci, ncj, nck, tmp, scale, dt_vol, &
-        residual, store, denton, ni, nj, nk, np, aplane, bb, nc1j, nc1k)
+!   tmp = scale*dt_vol*q + interp_2x(src)
+! q is the scheme's fine quantity (residual for RK, 2*residual-store for scree),
+! formed by the wrapper -- this block is scheme-agnostic (no denton branch).
+subroutine mg_prolong2x_fine(src, nci, ncj, nck, tmp, scale, dt_vol, q, &
+        ni, nj, nk, np, aplane, bb, nc1j, nc1k)
     implicit none
     integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np, nc1j, nc1k
-    logical, intent(in) :: denton
     real, intent(in)    :: src(nci, ncj, nck, np)
     real, intent(in)    :: scale
     real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
-    real, intent(in)    :: residual(ni-1, nj-1, nk-1, np)
-    real, intent(in)    :: store(ni-1, nj-1, nk-1, np)
+    real, intent(in)    :: q(ni-1, nj-1, nk-1, np)
     real, intent(out)   :: tmp(ni-1, nj-1, nk-1, np)
     real, intent(inout) :: aplane(ni-1, nc1j)
     real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
@@ -283,39 +217,125 @@ subroutine mg_prolong2x_fine(src, nci, ncj, nck, tmp, scale, dt_vol, &
         end do
     end do
 
-    if (denton) then
-        do ip = 1, np
-            do k = 1, nk-1
-                do j = 1, nj-1
-                    do i = 1, ni-1
-                        ft = scale * dt_vol(i,j,k) &
-                             * (2e0*residual(i,j,k,ip) - store(i,j,k,ip))
-                        tmp(i,j,k,ip) = ft + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
-                                           + bb(i,j,kh(k),ip)*wk(k)
-                    end do
+    do ip = 1, np
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    ft = scale * dt_vol(i,j,k) * q(i,j,k,ip)
+                    tmp(i,j,k,ip) = ft + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
+                                       + bb(i,j,kh(k),ip)*wk(k)
                 end do
             end do
         end do
-    else
-        do ip = 1, np
-            do k = 1, nk-1
-                do j = 1, nj-1
-                    do i = 1, ni-1
-                        ft = scale * dt_vol(i,j,k) * residual(i,j,k,ip)
-                        tmp(i,j,k,ip) = ft + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
-                                           + bb(i,j,kh(k),ip)*wk(k)
-                    end do
-                end do
-            end do
-        end do
-    end if
+    end do
 end subroutine mg_prolong2x_fine
 
 
-! Shared engine (see the section header). Writes tmp = fine term + cascaded
-! coarse correction; the caller does the nodal scatter (and, for scree, the
-! store roll). n_levels == 0 collapses to the fine term alone.
-subroutine mg_hier2_core(residual, store, denton, dt_vol, vol, scale, fmgrid, &
+! Scheme-agnostic fine term (the multigrid-off increment):  tmp = scale*dt_vol*q.
+! Grouping (scale*dt_vol)*q matches the fused fine term in mg_prolong2x_fine, so
+! an mg-off march is byte-identical to an mg-on march whose coarse correction is
+! exactly zero (fmgrid == 0).
+subroutine fine_term(q, dt_vol, scale, tmp, ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: q(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: scale
+    real, intent(out)   :: tmp(ni-1, nj-1, nk-1, np)
+    integer :: i, j, k, ip
+    do ip = 1, np
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    tmp(i,j,k,ip) = scale * dt_vol(i,j,k) * q(i,j,k,ip)
+                end do
+            end do
+        end do
+    end do
+end subroutine fine_term
+
+
+! Form the Denton fine quantity in place in the history buffer:
+!   store <- 2*residual - store
+! The pre-roll store (dF/dt)_{n-1} is read once here and overwritten with the
+! extrapolated q = 2*residual - store, which the engine/fine-term then consume as
+! the scree fine quantity. The post-march scree_roll_and_scatter overwrites store
+! again with residual, so no separate q buffer is needed. RK skips this and passes
+! residual directly as q.
+subroutine scree_form_q(store, residual, ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)
+    integer :: i, j, k, ip
+    do ip = 1, np
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    store(i,j,k,ip) = 2e0*residual(i,j,k,ip) - store(i,j,k,ip)
+                end do
+            end do
+        end do
+    end do
+end subroutine scree_form_q
+
+
+! Roll the Denton history (store = residual) and frozen-pressure accumulate the
+! increment onto cons. Shared post-march tail of the scree wrappers; called only
+! after the engine/fine-term has consumed q from store.
+subroutine scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    integer :: i, j, k, ip
+    do ip = 1, np
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    store(i,j,k,ip) = residual(i,j,k,ip)
+                end do
+            end do
+        end do
+    end do
+    call cell_to_node(tmp, cons, ni, nj, nk, np)
+end subroutine scree_roll_and_scatter
+
+
+! ============================================================================
+! Hierarchical-restriction + cascaded-prolongation block-sum multigrid engine.
+!
+! Scheme-agnostic: operates on a single pre-formed fine quantity `q` (residual
+! for RK, 2*residual-store for scree), so it carries no `denton` branch. Called
+! only by the mg-*on* wrappers, so n_levels >= 1 always (no n_levels==0 path).
+! IRS is the `smoother` dummy-procedure argument: smooth_residual_tri (Jameson
+! IRS) or mg_smooth_noop (none) -- no `if (sf_irs)` anywhere in here.
+!
+! The six production kernels, all branch-free straight-line compositions:
+!   scree_plain     rk_plain      fine_term + scatter          (multigrid off)
+!   scree_mg_noirs  rk_mg_noirs   engine(mg_smooth_noop) + scatter
+!   scree_mg_irs    rk_mg_irs     engine(smooth_residual_tri) + scatter
+! scree wrappers form q in store (scree_form_q) and roll+frozen-scatter
+! (scree_roll_and_scatter); rk wrappers pass residual as q and scatter off the
+! sub-stage snapshot (cell_to_node_generic).
+!
+! Restriction is HIERARCHICAL: a level-l block-sum equals eight level-(l-1)
+! block-sums (the block-sum is associative), so only level 1 reads the fine grid;
+! coarser levels reduce the small running accumulators -- rawbuf for the residual
+! sum, sdt/sv for the volume-weighted dt. Level 1 is loop-peeled (it alone reads
+! the fine grid), so the level loop has no `if (lvl==1)`. In-place reduction is
+! safe because, with blocks visited in ascending order, an output cell maps to
+! source cells whose every index is >= its own and no later block reads it.
+!
+! Prolongation is CASCADED: the per-level scaled corrections (packed coarsest
+! first in corr_all) accumulate coarsest -> finest through factor-2 hops, so only
+! the final hop writes the fine grid (fused with the fine term). This is a
+! genuine operator change from a direct factor-b prolong -- cascaded factor-2
+! trilinear interpolations are not equal to it.
+! ============================================================================
+subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, &
         sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, smoother, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
@@ -323,12 +343,10 @@ subroutine mg_hier2_core(residual, store, denton, dt_vol, vol, scale, fmgrid, &
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
     integer, intent(in) :: n_corr, n_res, n_tri
-    logical, intent(in) :: denton
     ! Coarse-residual smoother, chosen by the caller (no IRS branch in here):
     ! smooth_residual_tri for the IRS kernels, mg_smooth_noop for the plain ones.
     external :: smoother
-    real, intent(in)    :: residual(ni-1, nj-1, nk-1, np)
-    real, intent(in)    :: store(ni-1, nj-1, nk-1, np)
+    real, intent(in)    :: q(ni-1, nj-1, nk-1, np)
     real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
     real, intent(in)    :: vol(ni-1, nj-1, nk-1)
     real, intent(in)    :: scale, fmgrid, sf_irs
@@ -345,38 +363,11 @@ subroutine mg_hier2_core(residual, store, denton, dt_vol, vol, scale, fmgrid, &
     real, intent(inout) :: cres(n_res)
     real, intent(inout) :: triw(n_tri)
 
-    integer :: i, j, k, ip, lvl, b, nib, njb, nkb, ib, jb, kb
+    integer :: ip, lvl, b, nib, njb, nkb, ib, jb, kb
     integer :: ii, jj, kk, slot, cnt
     real    :: coef, s, s_dt, s_v
     integer :: dib(n_levels), djb(n_levels), dkb(n_levels), offc(n_levels)
     integer :: nci, ncj, nck, cur_i, cur_j, cur_k, o
-
-    ! n_levels == 0: fine term only.
-    if (n_levels == 0) then
-        if (denton) then
-            do ip = 1, np
-                do k = 1, nk-1
-                    do j = 1, nj-1
-                        do i = 1, ni-1
-                            tmp(i,j,k,ip) = scale * dt_vol(i,j,k) &
-                                * (2e0*residual(i,j,k,ip) - store(i,j,k,ip))
-                        end do
-                    end do
-                end do
-            end do
-        else
-            do ip = 1, np
-                do k = 1, nk-1
-                    do j = 1, nj-1
-                        do i = 1, ni-1
-                            tmp(i,j,k,ip) = scale * dt_vol(i,j,k) * residual(i,j,k,ip)
-                        end do
-                    end do
-                end do
-            end do
-        end if
-        return
-    end if
 
     ! Coarsest-first packed geometry for corr_all (cascade seeds at slot 1).
     o = 0
@@ -389,8 +380,65 @@ subroutine mg_hier2_core(residual, store, denton, dt_vol, vol, scale, fmgrid, &
         o = o + dib(lvl)*djb(lvl)*dkb(lvl)*np
     end do
 
-    ! Phase 1: hierarchical restriction (+ optional IRS), stash corrections.
-    do lvl = 1, n_levels
+    ! ---- Phase 1, level 1 (peeled): the only level that reads the fine grid ----
+    lvl = 1
+    b   = 2
+    nib = (ni-1)/b
+    njb = (nj-1)/b
+    nkb = (nk-1)/b
+    coef = scale * fmgrid / real(b*b) * 2e0**(-(lvl-1))
+    slot = n_levels - lvl + 1
+    cnt  = nib*njb*nkb*np
+
+    ! dt restriction (volume-weighted mean) from the fine grid.
+    do kb = 1, nkb
+        do jb = 1, njb
+            do ib = 1, nib
+                s_dt = 0e0
+                s_v  = 0e0
+                do kk = 2*kb-1, 2*kb
+                    do jj = 2*jb-1, 2*jb
+                        do ii = 2*ib-1, 2*ib
+                            s_dt = s_dt + dt_vol(ii,jj,kk)*vol(ii,jj,kk)
+                            s_v  = s_v  + vol(ii,jj,kk)
+                        end do
+                    end do
+                end do
+                sdt(ib,jb,kb)   = s_dt
+                sv (ib,jb,kb)   = s_v
+                dtblk(ib,jb,kb) = s_dt / s_v
+            end do
+        end do
+    end do
+
+    ! residual (fine quantity q) restriction from the fine grid into rawbuf.
+    do ip = 1, np
+        do kb = 1, nkb
+            do jb = 1, njb
+                do ib = 1, nib
+                    s = 0e0
+                    do kk = 2*kb-1, 2*kb
+                        do jj = 2*jb-1, 2*jb
+                            do ii = 2*ib-1, 2*ib
+                                s = s + q(ii,jj,kk,ip)
+                            end do
+                        end do
+                    end do
+                    rawbuf(ib,jb,kb,ip) = s
+                end do
+            end do
+        end do
+    end do
+
+    ! gather -> smooth -> scale into this level's corr slot.
+    call mg_gather_corner(cres, rawbuf, nc1i, nc1j, nc1k, nib, njb, nkb, np)
+    call smoother(cres(1:cnt), sf_irs, &
+                  triw(1:2*(nib+njb+nkb)), nib+1, njb+1, nkb+1)
+    call mg_scale_corr(corr_all(offc(slot)+1), cres, dtblk, coef, &
+                       nc1i, nc1j, nc1k, nib, njb, nkb, np)
+
+    ! ---- Phase 1, levels 2..n_levels: reduce the coarse accumulators ----
+    do lvl = 2, n_levels
         b = 2**lvl
         nib = (ni-1)/b
         njb = (nj-1)/b
@@ -399,113 +447,46 @@ subroutine mg_hier2_core(residual, store, denton, dt_vol, vol, scale, fmgrid, &
         slot = n_levels - lvl + 1
         cnt  = nib*njb*nkb*np
 
-        ! dt restriction (volume-weighted mean), hierarchical in place.
-        if (lvl == 1) then
+        ! dt reduction (accumulator, hierarchical in place).
+        do kb = 1, nkb
+            do jb = 1, njb
+                do ib = 1, nib
+                    s_dt = 0e0
+                    s_v  = 0e0
+                    do kk = 2*kb-1, 2*kb
+                        do jj = 2*jb-1, 2*jb
+                            do ii = 2*ib-1, 2*ib
+                                s_dt = s_dt + sdt(ii,jj,kk)
+                                s_v  = s_v  + sv (ii,jj,kk)
+                            end do
+                        end do
+                    end do
+                    sdt(ib,jb,kb)   = s_dt
+                    sv (ib,jb,kb)   = s_v
+                    dtblk(ib,jb,kb) = s_dt / s_v
+                end do
+            end do
+        end do
+
+        ! residual reduction (accumulator, hierarchical in place).
+        do ip = 1, np
             do kb = 1, nkb
                 do jb = 1, njb
                     do ib = 1, nib
-                        s_dt = 0e0
-                        s_v  = 0e0
+                        s = 0e0
                         do kk = 2*kb-1, 2*kb
                             do jj = 2*jb-1, 2*jb
                                 do ii = 2*ib-1, 2*ib
-                                    s_dt = s_dt + dt_vol(ii,jj,kk)*vol(ii,jj,kk)
-                                    s_v  = s_v  + vol(ii,jj,kk)
+                                    s = s + rawbuf(ii,jj,kk,ip)
                                 end do
                             end do
                         end do
-                        sdt(ib,jb,kb)   = s_dt
-                        sv (ib,jb,kb)   = s_v
-                        dtblk(ib,jb,kb) = s_dt / s_v
+                        rawbuf(ib,jb,kb,ip) = s
                     end do
                 end do
             end do
-        else
-            do kb = 1, nkb
-                do jb = 1, njb
-                    do ib = 1, nib
-                        s_dt = 0e0
-                        s_v  = 0e0
-                        do kk = 2*kb-1, 2*kb
-                            do jj = 2*jb-1, 2*jb
-                                do ii = 2*ib-1, 2*ib
-                                    s_dt = s_dt + sdt(ii,jj,kk)
-                                    s_v  = s_v  + sv (ii,jj,kk)
-                                end do
-                            end do
-                        end do
-                        sdt(ib,jb,kb)   = s_dt
-                        sv (ib,jb,kb)   = s_v
-                        dtblk(ib,jb,kb) = s_dt / s_v
-                    end do
-                end do
-            end do
-        end if
+        end do
 
-        ! residual restriction, hierarchical in place into rawbuf.
-        if (lvl == 1) then
-            if (denton) then
-                do ip = 1, np
-                    do kb = 1, nkb
-                        do jb = 1, njb
-                            do ib = 1, nib
-                                s = 0e0
-                                do kk = 2*kb-1, 2*kb
-                                    do jj = 2*jb-1, 2*jb
-                                        do ii = 2*ib-1, 2*ib
-                                            s = s + (2e0*residual(ii,jj,kk,ip) &
-                                                     - store(ii,jj,kk,ip))
-                                        end do
-                                    end do
-                                end do
-                                rawbuf(ib,jb,kb,ip) = s
-                            end do
-                        end do
-                    end do
-                end do
-            else
-                do ip = 1, np
-                    do kb = 1, nkb
-                        do jb = 1, njb
-                            do ib = 1, nib
-                                s = 0e0
-                                do kk = 2*kb-1, 2*kb
-                                    do jj = 2*jb-1, 2*jb
-                                        do ii = 2*ib-1, 2*ib
-                                            s = s + residual(ii,jj,kk,ip)
-                                        end do
-                                    end do
-                                end do
-                                rawbuf(ib,jb,kb,ip) = s
-                            end do
-                        end do
-                    end do
-                end do
-            end if
-        else
-            do ip = 1, np
-                do kb = 1, nkb
-                    do jb = 1, njb
-                        do ib = 1, nib
-                            s = 0e0
-                            do kk = 2*kb-1, 2*kb
-                                do jj = 2*jb-1, 2*jb
-                                    do ii = 2*ib-1, 2*ib
-                                        s = s + rawbuf(ii,jj,kk,ip)
-                                    end do
-                                end do
-                            end do
-                            rawbuf(ib,jb,kb,ip) = s
-                        end do
-                    end do
-                end do
-            end do
-        end if
-
-        ! gather -> smooth -> scale into this level's corr slot. smoother is the
-        ! caller-selected coarse-residual smoother: smooth_residual_tri for the
-        ! IRS kernels (its own sf_irs<=0 guard makes it a no-op), or mg_smooth_noop
-        ! for the plain kernels (no smoothing code entered at all).
         call mg_gather_corner(cres, rawbuf, nc1i, nc1j, nc1k, nib, njb, nkb, np)
         call smoother(cres(1:cnt), sf_irs, &
                       triw(1:2*(nib+njb+nkb)), nib+1, njb+1, nkb+1)
@@ -532,139 +513,39 @@ subroutine mg_hier2_core(residual, store, denton, dt_vol, vol, scale, fmgrid, &
         cur_k = dkb(lvl)
     end do
     call mg_prolong2x_fine(acc0, cur_i, cur_j, cur_k, tmp, scale, dt_vol, &
-                           residual, store, denton, ni, nj, nk, np, aplane, bb, &
-                           nc1j, nc1k)
-end subroutine mg_hier2_core
+                           q, ni, nj, nk, np, aplane, bb, nc1j, nc1k)
+end subroutine mg_coarse_correction
 
 
-! Jameson RK stage with hierarchical-restriction + cascaded-prolongation block-
-! sum multigrid. denton=.false.: the fine quantity is the plain residual. store
-! is unused (residual is passed for it); snapshot is the RK sub-stage base.
-!
-! Two f2py entry points share the whole body via mg_hier2_core, differing only
-! in the coarse-residual smoother they hand it: _fused smooths (IRS), _noirs does
-! not. The caller (solver.advance_rk_stage_mg) selects between them on sf_irs, so
-! the plain path enters no smoothing code at all -- there is no IRS branch in the
-! Fortran engine.
-subroutine advance_rk_stage_mg_fused(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, &
-        rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-
-    implicit none
-    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
-    integer, intent(in) :: n_corr, n_res, n_tri
-    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
-    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: alpha, cfl, fmgrid, sf_irs
-    real,    intent(in) :: snapshot(ni, nj, nk, np)
-    real, intent(inout) :: cons(ni, nj, nk, np)
-    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
-    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
-    real, intent(inout) :: aplane(ni-1, nc1j)
-    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
-    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
-    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
-    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
-    real, intent(inout) :: corr_all(n_corr)
-    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
-    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
-    real, intent(inout) :: cres(n_res)
-    real, intent(inout) :: triw(n_tri)
-    external :: smooth_residual_tri
-
-    call mg_hier2_core(residual, residual, .false., dt_vol, vol, alpha*cfl, &
-                       fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, &
-                       rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
-                       smooth_residual_tri, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-
-    ! cons = snapshot + cell_to_node(tmp). Distinct in/out (snapshot vs cons).
-    call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
-end subroutine advance_rk_stage_mg_fused
+! ============================================================================
+! The six production kernels. Each is a branch-free straight-line composition of
+! the blocks above; configuration is resolved by which blocks are called and
+! which smoother is passed, never by a runtime `if`.
+! ============================================================================
 
 
-! Plain (non-IRS) counterpart of advance_rk_stage_mg_fused: identical body via
-! mg_hier2_core, but the coarse residual is not smoothed (mg_smooth_noop). triw
-! is passed through (the shared carve still provides it) but never read.
-subroutine advance_rk_stage_mg_fused_noirs(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, &
-        rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-
-    implicit none
-    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
-    integer, intent(in) :: n_corr, n_res, n_tri
-    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
-    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: alpha, cfl, fmgrid, sf_irs
-    real,    intent(in) :: snapshot(ni, nj, nk, np)
-    real, intent(inout) :: cons(ni, nj, nk, np)
-    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
-    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
-    real, intent(inout) :: aplane(ni-1, nc1j)
-    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
-    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
-    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
-    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
-    real, intent(inout) :: corr_all(n_corr)
-    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
-    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
-    real, intent(inout) :: cres(n_res)
-    real, intent(inout) :: triw(n_tri)
-    external :: mg_smooth_noop
-
-    call mg_hier2_core(residual, residual, .false., dt_vol, vol, alpha*cfl, &
-                       fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, &
-                       rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
-                       mg_smooth_noop, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-
-    ! cons = snapshot + cell_to_node(tmp). Distinct in/out (snapshot vs cons).
-    call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
-end subroutine advance_rk_stage_mg_fused_noirs
-
-
-! Roll the Denton history (store = residual) and frozen-pressure accumulate the
-! increment onto cons. Shared post-core tail of both scree MG kernels; called
-! only after mg_hier2_core has read every level's pre-roll store.
-subroutine scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+! scree, multigrid off: form q, fine term only, roll history and frozen-scatter.
+subroutine scree_plain(cons, residual, store, dt_vol, cfl, tmp, ni, nj, nk, np)
     implicit none
     integer, intent(in) :: ni, nj, nk, np
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: cfl
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)  ! in: (dF/dt)_{n-1}; out: (dF/dt)_n
     real, intent(inout) :: cons(ni, nj, nk, np)
-    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)
     real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
-    integer :: i, j, k, ip
-    do ip = 1, np
-        do k = 1, nk-1
-            do j = 1, nj-1
-                do i = 1, ni-1
-                    store(i,j,k,ip) = residual(i,j,k,ip)
-                end do
-            end do
-        end do
-    end do
-    call cell_to_node(tmp, cons, ni, nj, nk, np)
-end subroutine scree_roll_and_scatter
+
+    call scree_form_q(store, residual, ni, nj, nk, np)
+    call fine_term(store, dt_vol, cfl, tmp, ni, nj, nk, np)
+    call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+end subroutine scree_plain
 
 
-! Denton "scree" march with hierarchical-restriction + cascaded-prolongation
-! block-sum multigrid. denton=.true.: the fine quantity is the Denton-
-! extrapolated 2*residual - store, used for both the coarse restriction and the
-! fine term. Rolls the history (store = residual) after the core has read every
-! level's pre-roll store, then accumulates onto cons with frozen pressure.
-!
-! Like the RK kernel, two f2py entry points share the body via mg_hier2_core and
-! differ only in the smoother: _fused smooths the coarse residual (IRS), _noirs
-! does not. solver.scree_step picks between them on sf_irs.
-subroutine scree_advance_mg_fused(cons, residual, store, dt_vol, vol, cfl, &
+! scree, multigrid on, coarse-level IRS.
+subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
         fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
     integer, intent(in) :: n_corr, n_res, n_tri
@@ -688,24 +569,20 @@ subroutine scree_advance_mg_fused(cons, residual, store, dt_vol, vol, cfl, &
     real, intent(inout) :: triw(n_tri)
     external :: smooth_residual_tri
 
-    call mg_hier2_core(residual, store, .true., dt_vol, vol, cfl, fmgrid, &
-                       sf_irs, n_levels, tmp, dtblk, aplane, bb, &
-                       rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
-                       smooth_residual_tri, &
+    call scree_form_q(store, residual, ni, nj, nk, np)
+    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, sf_irs, n_levels, &
+                       tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-
     call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
-end subroutine scree_advance_mg_fused
+end subroutine scree_mg_irs
 
 
-! Plain (non-IRS) counterpart of scree_advance_mg_fused: identical body via
-! mg_hier2_core, but the coarse residual is not smoothed (mg_smooth_noop). triw
-! is passed through (the shared carve still provides it) but never read.
-subroutine scree_advance_mg_fused_noirs(cons, residual, store, dt_vol, vol, cfl, &
+! scree, multigrid on, no smoothing.
+subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
         fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
     integer, intent(in) :: n_corr, n_res, n_tri
@@ -729,11 +606,100 @@ subroutine scree_advance_mg_fused_noirs(cons, residual, store, dt_vol, vol, cfl,
     real, intent(inout) :: triw(n_tri)
     external :: mg_smooth_noop
 
-    call mg_hier2_core(residual, store, .true., dt_vol, vol, cfl, fmgrid, &
-                       sf_irs, n_levels, tmp, dtblk, aplane, bb, &
-                       rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
-                       mg_smooth_noop, &
+    call scree_form_q(store, residual, ni, nj, nk, np)
+    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, sf_irs, n_levels, &
+                       tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-
     call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
-end subroutine scree_advance_mg_fused_noirs
+end subroutine scree_mg_noirs
+
+
+! RK stage, multigrid off: fine term only (q = residual), scatter off snapshot.
+subroutine rk_plain(cons, snapshot, residual, dt_vol, alpha, cfl, tmp, &
+        ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: alpha, cfl
+    real,    intent(in) :: snapshot(ni, nj, nk, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+
+    call fine_term(residual, dt_vol, alpha*cfl, tmp, ni, nj, nk, np)
+    ! cons = snapshot + cell_to_node(tmp). Distinct in/out (snapshot vs cons).
+    call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
+end subroutine rk_plain
+
+
+! RK stage, multigrid on, coarse-level IRS. q = residual (passed directly).
+subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
+        alpha, cfl, fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, &
+        rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: alpha, cfl, fmgrid, sf_irs
+    real,    intent(in) :: snapshot(ni, nj, nk, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: aplane(ni-1, nc1j)
+    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: smooth_residual_tri
+
+    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, sf_irs, &
+                       n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
+end subroutine rk_mg_irs
+
+
+! RK stage, multigrid on, no smoothing. q = residual (passed directly).
+subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
+        alpha, cfl, fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, &
+        rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: alpha, cfl, fmgrid, sf_irs
+    real,    intent(in) :: snapshot(ni, nj, nk, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: aplane(ni-1, nc1j)
+    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: mg_smooth_noop
+
+    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, sf_irs, &
+                       n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
+end subroutine rk_mg_noirs
