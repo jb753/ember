@@ -12,14 +12,16 @@ for rapid prototyping while maintaining computational efficiency for production 
 import os
 import importlib.metadata
 
-# Set default OpenMP thread limit before importing Fortran extensions
-# The Fortran code uses OpenMP for parallel loops. Based on profiling, performance
-# peaks at 4-5 threads on typical workstations due to memory bandwidth limitations.
-# Beyond this, overhead from thread management outweighs benefits from parallelization.
+# Set default OpenMP thread limit before importing Fortran extensions.
+# The Fortran code uses OpenMP for parallel loops. Default to single-threaded so
+# that many independent runs (e.g. a parametric sweep) can be packed onto cores
+# without oversubscription -- each process pins to one thread, and wall-time
+# measurements stay contention-free. On a memory-bandwidth-bound workload a
+# single run peaks at only ~4-5 threads anyway.
 # Users can override this default by setting OMP_NUM_THREADS in their environment
 # before importing ember, e.g.: OMP_NUM_THREADS=8 python script.py
 if "OMP_NUM_THREADS" not in os.environ:
-    os.environ["OMP_NUM_THREADS"] = "5"
+    os.environ["OMP_NUM_THREADS"] = "1"
 
 __all__ = [
     "fluid",
