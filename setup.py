@@ -20,7 +20,12 @@ GFORTRAN_DEBUG = False
 # Override with EMBER_MARCH (e.g. "-march=native -mtune=native") for perf
 # runs tuned to a specific machine, without having to repeat every other flag.
 GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
-GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -fipa-pta -floop-nest-optimize -fvect-cost-model=unlimited -Wall -Werror -Warray-temporaries -Wfatal-errors"
+# -fipa-pta deliberately omitted: verified a no-op on the current whole-program
+# build (identical .text section with/without it, GCC 14.2), but in an isolated
+# single-file compile it suppressed AVX2 vectorization of the residual face-flux
+# loops (~20% slower), with no offsetting benefit found anywhere. Re-check if the
+# toolchain or the _fortran/ file set changes substantially.
+GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -Wall -Werror -Warray-temporaries -Wfatal-errors"
 GFORTRAN_DEBUG_FLAGS = "-O0 -g -fcheck=all -fbounds-check -fbacktrace -Wall -Werror -Warray-temporaries -Wfatal-errors"
 # Intel flags: close equivalents of gfortran flags
 INTEL_FLAGS = "-O3 -xHost -ipo -no-prec-div -fp-model fast=2 -funroll-loops -inline-forceinline -inline-factor=10000 -fast-transcendentals"
