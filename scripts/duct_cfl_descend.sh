@@ -2,10 +2,12 @@
 # Finds the maximum CFL at which scripts/run_duct.py CONVERGES -- energy
 # residual down >= 1 decade -- across a matrix of scheme settings. Each case is
 # a (n_stage, sf_resid) scheme crossed with a fac_mgrid (coarse-level correction
-# fraction). The swept knobs, cfl, a fixed n_levels=2, and n_step_log=50 (finer
-# than run_duct's default 100, for settling-step resolution) are passed to
-# run_duct.py; everything else (n_step, ncell) is left at run_duct.py's own
-# defaults.
+# fraction). The swept knobs, cfl, and a fixed n_levels=2 are passed to
+# run_duct.py, along with a per-scheme run length / log cadence: scree
+# (n_stage=0) runs longer (n_step=4000) at n_step_log=50, while RK4 (n_stage=4)
+# runs n_step=2000 but logs finer (n_step_log=25). Both better run_duct's
+# default log cadence of 100 for settling-step resolution.
+# Everything else (ncell, ...) is left at run_duct.py's own defaults.
 # run_duct.py is the sole source of truth: it exits 1 if the run diverges, exit
 # 2 if it runs but does not clear the 1-decade convergence bar, and exit 0 only
 # when it converges. This script keys on that exit code (0 vs non-zero); it
@@ -21,10 +23,17 @@
 #
 # Search strategy (descent only, never bisection): hold the highest CFL known
 # NOT to converge and try to step DOWN by --dcfl. If that step lands on a
-# converging CFL it overshot the top of the converging band, so reject it and
-# HALVE --dcfl; if it still does not converge, commit the step and keep the same
-# dcfl. The current CFL therefore only ever moves downward, converging on the
-# threshold from above with an ever-finer step, and we stop once dcfl <= --tol.
+# converging CFL it overshot the top of the converging band, so reject it,
+# record it as the best-known converging CFL (lo), and HALVE --dcfl; if it
+# still does not converge, commit the step and keep the same dcfl. The current
+# CFL therefore only ever moves downward, converging on the threshold from
+# above with an ever-finer step. We stop the FIRST time a converging trial is
+# found whose step size (dcfl at that trial) is already <= --tol -- not merely
+# once dcfl has been halved below --tol -- because the gap between the reported
+# lo and the untested cfl above it equals exactly that trial's step size. This
+# guarantees the true threshold lies in [lo, lo + tol], i.e. lo is correct to
+# within +-tol. (Checking dcfl <= tol only after halving, as an earlier version
+# did, under-guarantees accuracy to within +-2*tol.)
 # There is no lo/hi bracket and no midpoint averaging. Assumes a single upper
 # threshold: above it the run either diverges or stalls short of 1 decade,
 # below it (down to the band's lower edge) it converges. A diverging run exits
@@ -39,7 +48,8 @@
 # (n_stage, sf_resid) pairs. --fac-mgrid may be given multiple times to override
 # the default {0.0, 0.2, 0.4}. Every scheme is crossed with every fac_mgrid.
 # --jobs N runs up to N of the (scheme x fac_mgrid) cases concurrently (default
-# 1 = serial); the cases are independent so this is a pure speed-up. The descent
+# 0 = unlimited, all cases at once); the cases are independent so this is a pure
+# speed-up. The descent
 # WITHIN a case stays serial -- each trial CFL depends on the previous exit code
 # -- so N never exceeds the number of cases usefully. Result summary lines are
 # collected and printed in matrix order after all cases finish (so parallel runs
@@ -54,12 +64,12 @@ set -uo pipefail
 
 CFL_START=12.0
 DCFL=1.0
-TOL=0.1
+TOL=0.049
 SCHEMES=()
 FAC_MGRIDS=()
 EXTRA_ARGS=()
 DRY_RUN=0
-JOBS=1
+JOBS=0
 SETTLE_LINE=""  # set by converges(); read by find_limit after a converging run
 
 while [[ $# -gt 0 ]]; do
@@ -76,8 +86,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if ! [[ $JOBS =~ ^[1-9][0-9]*$ ]]; then
-    echo "--jobs must be a positive integer (got: $JOBS)" >&2; exit 1
+if ! [[ $JOBS =~ ^[0-9]+$ ]]; then
+    echo "--jobs must be a non-negative integer, or 0 for unlimited (got: $JOBS)" >&2; exit 1
 fi
 
 # Default matrix: the full n_stage={0,4} x sf_resid={0,1} cross, each crossed
@@ -88,7 +98,8 @@ fi
 #   n_stage=0 sf_resid=1  (scree + coarse IRS)
 #   n_stage=4 sf_resid=0  (RK4, no smoothing)
 #   n_stage=4 sf_resid=1  (RK4 + IRS)
-# Run at run_duct.py's default n_step=2000 (see EXTRA_ARGS note above).
+# Scree runs at n_step=4000, RK4 at n_step=2000 (see the per-scheme note in
+# converges() and the EXTRA_ARGS note above).
 if [[ ${#SCHEMES[@]} -eq 0 ]]; then
     SCHEMES=("0:0.0" "0:1.0" "4:0.0" "4:1.0")
 fi
@@ -115,14 +126,26 @@ converges() {
     # Tee run_duct's combined output so the trace still streams live to stderr
     # while a copy is kept to read the settling line from. pipefail (set above)
     # makes PIPESTATUS[0] -- run_duct's own exit code -- the value we key on,
-    # not tee's. n_step_log=50 halves the settling-step quantisation vs the
-    # run_duct default of 100.
+    # not tee's.
+    #
+    # Per-scheme run length / log cadence: scree (n_stage=0) is far slower to
+    # settle, so it gets a longer run (n_step=4000 vs run_duct's default 2000).
+    # RK4 (n_stage=4) settles in a few hundred steps, so it gets a finer log
+    # cadence (n_step_log=25) for better settling-step resolution; scree keeps
+    # n_step_log=50 (both halve or better the run_duct default of 100). These
+    # come before EXTRA_ARGS, so a "-- --n-step ..." override still wins.
+    local sched=()
+    if [[ $n_stage -eq 0 ]]; then
+        sched=(--n-step 4000 --n-step-log 50)
+    else
+        sched=(--n-step 2000 --n-step-log 25)
+    fi
     local tmpf rc
     tmpf=$(mktemp)
     uv run "$SCRIPT_DIR/run_duct.py" \
         --cfl "$cfl" --fac-mgrid "$fac_mgrid" \
         --n-stage "$n_stage" --sf-resid "$sf_resid" \
-        --n-levels 2 --n-step-log 50 \
+        --n-levels 2 "${sched[@]}" \
         "${EXTRA_ARGS[@]}" 2>&1 | tee "$tmpf" >&2
     rc=${PIPESTATUS[0]}
     SETTLE_LINE=$(grep -E 'zeta settled' "$tmpf" || true)
@@ -138,6 +161,14 @@ find_limit() {
     local fac_mgrid="$1" n_stage="$2" sf_resid="$3" datfile="$4"
     local tag="n_stage=$n_stage sf_resid=$sf_resid fac_mgrid=$fac_mgrid"
 
+    # Per-scheme threshold tolerance: scree (n_stage=0) has a much lower and
+    # more tightly-spaced CFL band than RK4, so resolve its threshold twice as
+    # finely by halving TOL. RK4 keeps the full TOL.
+    local tol=$TOL
+    if [[ $n_stage -eq 0 ]]; then
+        tol=$(echo "scale=6; $TOL / 2" | bc -l)
+    fi
+
     echo "=== $tag ===" >&2
 
     # We approach the threshold from above, so CFL_START must not converge.
@@ -150,17 +181,32 @@ find_limit() {
     # settle holds the "zeta settled ..." line of the most recent converging run,
     # which -- because CFL only descends and lo tracks the highest converging
     # trial -- is the settling behaviour at lo once the loop ends.
+    # Termination guarantee: cfl is always known NOT to converge and lo (once
+    # set) is always known TO converge, so the true threshold always lies in
+    # [lo, cfl). Each time a trial converges, the gap cfl-lo equals exactly
+    # that trial's dcfl. We stop the instant that gap is <= TOL -- i.e. right
+    # after a converging trial whose dcfl is already <= TOL, checked BEFORE
+    # halving -- so lo is guaranteed correct to within +-TOL. Stopping only
+    # once dcfl has already been halved below TOL (checking at the top of the
+    # loop) would under-guarantee accuracy to +-2*TOL, since the gap at that
+    # point reflects the pre-halving step size.
     local cfl=$CFL_START dcfl=$DCFL lo="" trial settle=""
-    while (( $(echo "$dcfl > $TOL" | bc -l) )); do
+    while true; do
         trial=$(echo "scale=6; $cfl - $dcfl" | bc -l)
         if (( $(echo "$trial <= 0" | bc -l) )); then
             dcfl=$(echo "scale=6; $dcfl / 2" | bc -l)  # can't step below zero
+            if (( $(echo "$dcfl <= $tol" | bc -l) )); then
+                break  # give up: no converging CFL will be found at this resolution
+            fi
             continue
         fi
         echo "--- $tag: trying CFL=$trial (dcfl=$dcfl) ---" >&2
         if converges "$trial" "$fac_mgrid" "$n_stage" "$sf_resid"; then
             lo=$trial                                   # overshoot: shrink step
             settle=$SETTLE_LINE                         # settling at this (so far max) CFL
+            if (( $(echo "$dcfl <= $tol" | bc -l) )); then
+                break  # this trial's step size already meets +-tol: done
+            fi
             dcfl=$(echo "scale=6; $dcfl / 2" | bc -l)
         else
             cfl=$trial                                  # still not converging: commit
@@ -183,7 +229,7 @@ find_limit() {
         sec=$(echo "scale=1; $ms / 1000" | bc -l)
     fi
     echo "$tag: max converging CFL ~= $lo, settles (zeta <1%) by step $step in ${sec}s" \
-         "(does not converge at $cfl), tol=$TOL"
+         "(does not converge at $cfl), tol=$tol"
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
         "$n_stage" "$sf_resid" "$fac_mgrid" "$lo" "$step" "$sec" >"$datfile"
 }
@@ -206,8 +252,10 @@ for scheme in "${SCHEMES[@]}"; do
     sf_resid=${scheme##*:}
     for fac_mgrid in "${FAC_MGRIDS[@]}"; do
         # Throttle to JOBS concurrent cases; wait -n frees a slot as soon as any
-        # running case finishes.
-        while (( $(jobs -rp | wc -l) >= JOBS )); do wait -n; done
+        # running case finishes. JOBS=0 means unlimited: never throttle.
+        if (( JOBS > 0 )); then
+            while (( $(jobs -rp | wc -l) >= JOBS )); do wait -n; done
+        fi
         find_limit "$fac_mgrid" "$n_stage" "$sf_resid" "$RESULT_DIR/$idx.dat" \
             >"$RESULT_DIR/$idx.out" &
         idx=$((idx + 1))

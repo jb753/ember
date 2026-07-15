@@ -32,7 +32,7 @@ from ember.cases import build_duct_grid
 # to relax back to the boundary-condition-consistent state. ``ncell`` sets the
 # target cell count; the value below yields a ``121 x 65 x 57`` block.
 
-NCELL = 450_000
+NCELL = 250_000
 
 
 # %%
@@ -198,5 +198,7 @@ plot_mesh_k(grid[0])
 # %%
 # Now march the flow field once per scheme and plot how each converges.
 
-results = [(label, solve(build_duct_grid(ncell=NCELL), **kwargs)) for label, kwargs in CASES]
+results = [
+    (label, solve(build_duct_grid(ncell=NCELL), **kwargs)) for label, kwargs in CASES
+]
 plot_history(results)

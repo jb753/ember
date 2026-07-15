@@ -11,6 +11,9 @@ sf_resid, with lines shaded by fac_mgrid within a family:
   normalised to the scree sf_resid=0 fac_mgrid=0.4 baseline.
 
 Every trace marks its settling record (ConvergenceHistory.find_settling_record).
+With --settle-threshold, the settling record is instead the first step where
+zeta crosses above the given absolute value -- a simpler alternative to the
+tol swing-band method.
 """
 import argparse
 import glob
@@ -36,7 +39,35 @@ def _shade(hex_color, factor):
     return (r * factor, g * factor, b * factor)
 
 
-def load_cases(cnv_dir, tol):
+def _find_settle_record(hist, tol, settle_threshold):
+    """Settling point: (lo, hi, frac).
+
+    lo/hi are the record indices bracketing the settling point and frac in
+    [0, 1] locates it between them (0 = exactly at lo). For the tol-band
+    method the settling point falls exactly on a record, so lo == hi and
+    frac == 0. For the threshold method, zeta crosses the threshold somewhere
+    between two log records, so frac linearly interpolates that crossing --
+    used both for the reported wall time and for placing the marker dot.
+    """
+    if settle_threshold is None:
+        idx = hist.find_settling_record(tol=tol)
+        return idx, idx, 0.0
+
+    n = hist.i_log + 1
+    zeta = hist.zeta[:n]
+    above = np.nonzero(zeta >= settle_threshold)[0]
+    if not above.size:
+        return n - 1, n - 1, 0.0
+    idx = int(above[0])
+    if idx == 0:
+        return idx, idx, 0.0
+
+    lo, hi = idx - 1, idx
+    frac = (settle_threshold - zeta[lo]) / (zeta[hi] - zeta[lo])
+    return lo, hi, frac
+
+
+def load_cases(cnv_dir, tol, settle_threshold=None):
     paths = sorted(glob.glob(os.path.join(cnv_dir, "*.cnv")))
     if not paths:
         sys.exit(f"no .cnv files found in {cnv_dir}")
@@ -47,7 +78,9 @@ def load_cases(cnv_dir, tol):
         if not m:
             continue
         hist = ConvergenceHistory.read_cnv(path)
-        idx = hist.find_settling_record(tol=tol)
+        lo, hi, frac = _find_settle_record(hist, tol, settle_threshold)
+        settle_ms = float(hist.time[lo] + frac * (hist.time[hi] - hist.time[lo])
+                           - hist.time[0])
         cases.append({
             "n_stage": m["n_stage"],
             "sf_resid": m["sf_resid"],
@@ -56,15 +89,19 @@ def load_cases(cnv_dir, tol):
                       f"fm{float(m['fac_mgrid']):g}"),
             "color": _shade(BASE_COLOR[m["n_stage"]], SHADES[m["fac_mgrid"]]),
             "hist": hist,
-            "settle_idx": idx,
-            "settle_ms": float(hist.time[idx] - hist.time[0]),
+            "settle_lo": lo,
+            "settle_hi": hi,
+            "settle_frac": frac,
+            "settle_ms": settle_ms,
         })
     cases.sort(key=lambda c: c["label"])
     return cases
 
 
-def _mark_settle(ax, hist, idx, y, color):
-    ax.plot(hist.i_step[idx], y[idx], "o", color=color, markeredgecolor="white",
+def _mark_settle(ax, hist, lo, hi, frac, y, color):
+    x = hist.i_step[lo] + frac * (hist.i_step[hi] - hist.i_step[lo])
+    yv = y[lo] + frac * (y[hi] - y[lo])
+    ax.plot(x, yv, "o", color=color, markeredgecolor="white",
             markersize=6, zorder=3)
 
 
@@ -91,12 +128,12 @@ def _plot_matrix(cases, y_of, ylabel, title, semilogy, out):
 
     for c in cases:
         hist = c["hist"]
-        idx = c["settle_idx"]
         y = y_of(hist)
         ax = ax_of[(c["n_stage"], c["sf_resid"])]
         plot_fn = ax.semilogy if semilogy else ax.plot
         plot_fn(hist.i_step, y, color=c["color"], label=c["label"])
-        _mark_settle(ax, hist, idx, y, c["color"])
+        _mark_settle(ax, hist, c["settle_lo"], c["settle_hi"], c["settle_frac"],
+                     y, c["color"])
 
     for (n_stage, sf_resid), ax in ax_of.items():
         if n_stage == "4":
@@ -133,7 +170,7 @@ def plot_mdot_err(cases, out):
                  semilogy=False, out=out)
 
 
-def plot_speedup(cases, out, tol):
+def plot_speedup(cases, out, tol, settle_threshold):
     base = next((c for c in cases if c["n_stage"] == "0"
                  and float(c["sf_resid"]) == 0.0
                  and float(c["fac_mgrid"]) == 0.4), None)
@@ -155,8 +192,10 @@ def plot_speedup(cases, out, tol):
     ax.set_yticklabels([c["label"] for c in rows])
     ax.invert_yaxis()
     ax.axvline(1.0, color="0.4", linewidth=1, linestyle="--")
-    ax.set_xlabel("Speedup vs scree sf_resid=0 fac_mgrid=0.4 (settle time, "
-                   f"tol={tol:g})")
+    method = (f"zeta>={settle_threshold:g}" if settle_threshold is not None
+              else f"tol={tol:g}")
+    ax.set_xlabel(f"Speedup vs scree sf_resid=0 fac_mgrid=0.4 (settle time, "
+                   f"{method})")
     ax.set_title("duct_cfl_timing: settle-time speedup by scheme")
     for yi, s in zip(y, speedups):
         ax.text(s + 0.02, yi, f"{s:.2f}x", va="center", fontsize=9)
@@ -181,13 +220,18 @@ def main():
     ap.add_argument("--tol", type=float, default=0.05,
                      help="find_settling_record band, as a fraction of "
                           "zeta's swing (default 0.05)")
+    ap.add_argument("--settle-threshold", type=float, default=None,
+                     help="If set, mark the settling record as the first "
+                          "step where zeta crosses above this absolute "
+                          "value, instead of the --tol swing-band method "
+                          "(e.g. 0.006)")
     args = ap.parse_args()
 
-    cases = load_cases(args.cnv_dir, args.tol)
+    cases = load_cases(args.cnv_dir, args.tol, args.settle_threshold)
     plot_zeta(cases, args.out_zeta)
     plot_residual(cases, args.out_residual)
     plot_mdot_err(cases, args.out_mdot_err)
-    plot_speedup(cases, args.out_speedup, args.tol)
+    plot_speedup(cases, args.out_speedup, args.tol, args.settle_threshold)
 
 
 if __name__ == "__main__":
