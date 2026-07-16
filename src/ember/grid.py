@@ -129,11 +129,11 @@ import ember.mixing_communicator
 import ember.nonmatch_communicator
 
 
-# k-slab depth for the tiled set_visc_force kernel: cell planes per slab, so
-# that a slab's tau/q planes stay cache-resident across all three face
-# directions. Clamped per block to nk-1. Value chosen by benchmark sweep (see
-# docs/dev/viscous_kernels.md).
-_KB_VISC = 8
+# k-slab depth for the tiled kernels (set_visc_force, set_residual): cell
+# planes per slab, so that a slab's input planes stay cache-resident across
+# all three face directions. Clamped per block to nk-1. Value chosen by
+# benchmark sweep (see docs/dev/viscous_kernels.md).
+_KB_SLAB = 8
 
 
 class Grid(_LabelledList):
@@ -1415,12 +1415,13 @@ class Grid(_LabelledList):
         for block in self:
             i_cusp_start, i_cusp_end = block.i_cusp
             ni, nj, nk = block.shape
-            # Two transient flow-scratch buffers for the fused residual: scratch
-            # (5 slots) for the i-face flows, and tau_q_halo (10 slots) for the
-            # j/k-face flows. tau_q_halo is shape (ni+1,nj+1,nk+1,10); the kernel
-            # only needs ni*nj*nk*10 contiguous floats, so borrow a zero-copy
-            # F-order view of the leading block.
-            flow_jk = util.carve_view(block.tau_q_halo, (ni, nj, nk, 10))
+            # Two transient slab-sized flow-scratch buffers for the k-tiled
+            # fused residual: scratch (5 slots, kb planes) for the i-face
+            # flows, and tau_q_halo (10 slots, kb+1 planes) for the j/k-face
+            # flows -- both zero-copy F-order views of the leading block.
+            kb = min(_KB_SLAB, nk - 1)
+            flow_i = util.carve_view(block.scratch, (ni, nj, kb, 5))
+            flow_jk = util.carve_view(block.tau_q_halo, (ni, nj, kb + 1, 10))
             block.residual_nd.flags.writeable = True
             ember.fortran.set_residual(
                 cons=block.conserved_nd,
@@ -1438,11 +1439,12 @@ class Grid(_LabelledList):
                 vt=block.Vt_nd,
                 vt_rel=block.Vt_rel_nd,
                 ho=block.ho_nd,
-                flow_i=block.scratch,
+                flow_i=flow_i,
                 flow_jk=flow_jk,
                 **block.ijk_wall_conv,
                 i_cusp_start=i_cusp_start,
                 i_cusp_end=i_cusp_end,
+                kb=kb,
                 ni=ni,
                 nj=nj,
                 nk=nk,
@@ -1563,7 +1565,7 @@ class Grid(_LabelledList):
                 # planes, borrowed zero-copy from the leading block.scratch
                 # storage (5 nodal slots, so kb+1 <= nk always fits).
                 ni, nj, nk = block.shape
-                kb = min(_KB_VISC, nk - 1)
+                kb = min(_KB_SLAB, nk - 1)
                 flow_scratch = util.carve_view(block.scratch, (ni, nj, kb + 1, 4))
                 ember.fortran.set_visc_force(
                     cons=block.conserved_nd,

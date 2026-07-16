@@ -458,3 +458,82 @@ spill).
 - The rolling-buffer fusion of section 3.4 was deliberately deferred: with the
   slab scratch already L2-resident, its remaining upside is small and it would
   complicate the i-direction SIMD. Revisit only with a fresh A/B.
+
+---
+
+## 6. Same treatment for `set_residual` (the fused inviscid residual)
+
+`set_residual` (`residual.f90`), which backs `residual_nd` and runs per RK
+stage per level, had the same disease at larger scale: three full-volume face
+passes each re-streaming ~10 nodal fields, plus fifteen slots of full-volume
+flow scratch (`flow_i` 5 + `flow_jk` 10) round-tripped into the fused dU
+accumulate. Measured pre-tiling: 27.5 ns/cell cache-resident rising to 43.3 at
+96^3.
+
+### 6.1 Design (mirrors section 5)
+
+- Slab sweep over `kb` cell planes inside `set_residual`; the three face-flow
+  helpers gained slab/face-range arguments and write slab-local planes; the
+  fused dU accumulate runs per slab. Scratch shrinks to `flow_i(ni,nj,kb,5)`
+  (carved from `block.scratch`) and `flow_jk(ni,nj,kb+1,10)` (carved from
+  `tau_q_halo`).
+- k-face carry: each slab leaves its top k-face plane in `flow_jk` slot kb+1,
+  components 6:10 -- untouched by the next slab's i/j phases, which write
+  `flow_i` and components 1:5 only -- and the next slab copies it to slot 1.
+- Cusp seam: `correct_cusp_kface` (which averaged/rebuilt the seam flux planes
+  before accumulation) became `correct_cusp_kface_du`, a deferred O(surface)
+  pass that recomputes the raw wall-masked seam fluxes from the nodal fields
+  and adds corrected-minus-raw deltas to dU. Exact recompute for the same
+  reason as `kface_flow` (nothing mutates the nodal inputs); nk=2 with a cusp
+  is unsupported, as in the viscous kernel.
+- One shared slab-depth knob: `_KB_VISC` was renamed `ember.grid._KB_SLAB` and
+  drives both tiled kernels.
+
+Correctness: `test_residual_kb_consistent` asserts bitwise-identical dU for
+`kb in {1,2,3}` vs the single-slab reference. The residual golden was
+**regenerated** -- justified, not to "make it pass": the old and new kernels
+compiled standalone at -O0 (strict FP, no reassociation possible) produce
+**bitwise identical** dU for every kb, proving the source arithmetic is
+unchanged; the golden shift is -Ofast codegen only (different FMA/vectorization
+choices on the reshaped loops), 1 ulp of the flux scale (max rel 1.5e-7),
+tripping one near-cancelling interior cell's region-scaled atol by 1.5x.
+
+### 6.2 A/B results
+
+Same protocol and machine as section 5.2; repeat tiled run within ~1 ns/cell.
+
+`set_residual`, median ns/cell:
+
+| size | baseline | kb=1 | kb=2 | kb=4 | kb=8 | kb=16 | 1 slab |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 48x32x32  | 24.1 | 25.7 | 24.9 | 24.6 | 24.3 | 23.9 | 24.6 |
+| 64x48x48  | 31.0 | 30.2 | 26.8 | 26.0 | 26.0 | 26.7 | 30.4 |
+| 80x64x64  | 40.1 | 32.9 | 31.8 | 31.4 | 31.3 | 31.9 | 38.7 |
+| 96x96x96  | 43.6 | 32.2 | 31.2 | 30.8 | 31.3 | 33.6 | 42.5 |
+| 128x96x96 | 39.7 | 28.0 | 27.4 | 27.0 | 27.7 | 31.5 | 38.4 |
+
+`update_residual` end to end tracks the kernel within ~1 ns/cell (the slab
+carve overhead is negligible).
+
+### 6.3 Reading
+
+- **-22% to -32% at L3-spilling sizes; neutral at cache-resident sizes**
+  (48x32x32: 24.3 vs 24.1 at kb=8 -- within noise). Unlike the viscous kernel
+  there is no small-size win, because the baseline's flow scratch was already
+  reused per direction; the entire gain here is the traffic cut, and it
+  appears exactly where the working set spills, as designed.
+- The single-slab column reproduces the baseline (38.4 vs 39.7 at the largest
+  size) -- the restructure itself costs nothing; the win is all blocking.
+- **kb choice**: the residual optimum is kb=4, the viscous optimum kb=8, but
+  each is within ~2-3% of the other's optimum at every size, so the shared
+  `_KB_SLAB = 8` stands. Not worth splitting the knob.
+- Since `set_residual` runs every RK stage, this feeds straight into
+  wall-clock per iteration at production block sizes.
+
+### 6.4 Build-hygiene gotcha found on the way
+
+Running `gfortran -fsyntax-only src/ember/_fortran/<file>.f90` from the repo
+root drops `<module>.mod` files there; a later `make compile` syntax check can
+then resolve `use` against the stale module and fail (or worse, pass wrongly)
+after the source is reverted/changed. Delete stray `*.mod` from the repo root
+before builds, or run syntax checks in a temp directory.

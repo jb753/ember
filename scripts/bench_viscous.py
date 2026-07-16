@@ -39,9 +39,14 @@ from ember import util  # noqa: E402
 from ember.fluid import PerfectFluid  # noqa: E402
 from ember.periodic import PeriodicPatch  # noqa: E402
 
-# The tiled kernel takes kb / a slab-sized flow_scratch; the baseline takes a
-# full-volume flow_scratch and no kb.
+# The tiled kernels take kb / slab-sized flow scratch; the baselines take
+# full-volume flow scratch and no kb. Detected per kernel so the same script
+# runs on both sides of a git-stash A/B.
 TILED = "kb" in ember.fortran.set_visc_force.__doc__
+TILED_RESID = "kb" in ember.fortran.set_residual.__doc__
+# Production slab-depth knob (renamed _KB_VISC -> _KB_SLAB when set_residual
+# was tiled).
+KB_ATTR = "_KB_SLAB" if hasattr(ember.grid, "_KB_SLAB") else "_KB_VISC"
 
 SIZES = [(48, 32, 32), (64, 48, 48), (80, 64, 64), (96, 96, 96), (128, 96, 96)]
 KBS = [1, 2, 4, 8, 16]
@@ -166,6 +171,51 @@ def make_phase2_call(block, kb):
     return call
 
 
+def make_residual_call(block, kb):
+    """Closure for one production-path set_residual call at slab depth kb."""
+    ni, nj, nk = block.shape
+    if TILED_RESID:
+        flow_i = util.carve_view(block.scratch, (ni, nj, kb, 5))
+        flow_jk = util.carve_view(block.tau_q_halo, (ni, nj, kb + 1, 10))
+        extra = {"flow_i": flow_i, "flow_jk": flow_jk, "kb": kb}
+    else:
+        flow_jk = util.carve_view(block.tau_q_halo, (ni, nj, nk, 10))
+        extra = {"flow_i": block.scratch, "flow_jk": flow_jk}
+    # update_residual leaves residual_nd locked read-only; unlock before
+    # taking the du view (the view keeps its own writeable flag).
+    block.residual_nd.flags.writeable = True
+    du = block.residual_nd
+    i_cusp_start, i_cusp_end = block.i_cusp
+
+    def call():
+        ember.fortran.set_residual(
+            cons=block.conserved_nd,
+            p=block.P_nd,
+            p_offset=block.P_offset_nd,
+            r=block.r_nd,
+            omega=block.Omega_nd,
+            dai=block.dAi_nd,
+            daj=block.dAj_nd,
+            dak=block.dAk_nd,
+            du=du,
+            f_body=block.F_body_nd,
+            vx=block.Vx_nd,
+            vr=block.Vr_nd,
+            vt=block.Vt_nd,
+            vt_rel=block.Vt_rel_nd,
+            ho=block.ho_nd,
+            **extra,
+            **block.ijk_wall_conv,
+            i_cusp_start=i_cusp_start,
+            i_cusp_end=i_cusp_end,
+            ni=ni,
+            nj=nj,
+            nk=nk,
+        )
+
+    return call
+
+
 def time_variants(variants, reps, warmup=3):
     """Round-robin timing of {name: callable}; returns {name: [dt_ns, ...]}."""
     for call in variants.values():
@@ -213,6 +263,7 @@ def main():
 
         # Warm the field caches (first update_sources builds them all).
         grid.update_sources(inviscid=False, gain_filt=0.0)
+        grid.update_residual()
 
         # Phase 1: no kb dependence.
         timings = time_variants({"-": lambda: phase1_call(block)}, reps)
@@ -229,7 +280,7 @@ def main():
         # End to end, production path; kb via the module constant.
         def make_e2e(kb):
             def call():
-                ember.grid._KB_VISC = kb
+                setattr(ember.grid, KB_ATTR, kb)
                 grid.update_sources(inviscid=False, gain_filt=0.0)
             return call
 
@@ -238,6 +289,34 @@ def main():
         }
         timings = time_variants(variants, max(3, reps // 2))
         report(rows, args.label, size, cells, "update_sources", timings)
+
+        # Inviscid residual kernel: kb sweep (tiled) or single unblocked
+        # variant (baseline).
+        kbs_r = [kb for kb in KBS if kb <= nk - 1] if TILED_RESID else [nk - 1]
+        if TILED_RESID and (nk - 1) not in kbs_r:
+            kbs_r.append(nk - 1)  # single-slab reference
+        variants = (
+            {str(kb): make_residual_call(block, kb) for kb in kbs_r}
+            if TILED_RESID
+            else {"-": make_residual_call(block, nk - 1)}
+        )
+        timings = time_variants(variants, reps)
+        report(rows, args.label, size, cells, "set_residual", timings)
+
+        # update_residual end to end (no IRS / damping), production path.
+        def make_e2e_resid(kb):
+            def call():
+                setattr(ember.grid, KB_ATTR, kb)
+                grid.update_residual()
+            return call
+
+        variants = (
+            {str(kb): make_e2e_resid(kb) for kb in kbs_r}
+            if TILED_RESID
+            else {"-": lambda: grid.update_residual()}
+        )
+        timings = time_variants(variants, max(3, reps // 2))
+        report(rows, args.label, size, cells, "update_residual", timings)
         sys.stdout.flush()
 
     if args.csv:

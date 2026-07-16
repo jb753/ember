@@ -97,7 +97,7 @@ def _fvisc_x(block, comm):
     # Second viscous phase: face fluxes from tau/q, accumulated into F_body_nd.
     i_cusp_start, i_cusp_end = block.i_cusp
     ni, nj, nk = block.shape
-    kb = min(8, nk - 1)  # mirrors the ember.grid._KB_VISC production clamp
+    kb = min(8, nk - 1)  # mirrors the ember.grid._KB_SLAB production clamp
     flow_scratch = util.carve_view(block.scratch, (ni, nj, kb + 1, 4))
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,

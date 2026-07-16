@@ -129,6 +129,31 @@ def test_residual_matches_golden(region):
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=atol)
 
 
+@pytest.mark.parametrize("kb", [1, 2, 3])
+def test_residual_kb_consistent(kb):
+    """The k-slab depth of the tiled kernels must not change the residual.
+
+    Compare each kb against the single-slab kb = nk-1 reference, which
+    degenerates to the unblocked sweep. The per-cell arithmetic is identical
+    for every kb (only the staging of the face flows differs, and the i-loop
+    trip counts the vectorizer sees are unchanged), so the comparison is
+    exact -- any difference is a slab bookkeeping bug (carry plane, short
+    last slab, boundary-plane slab selection). kb=3 exercises a short last
+    slab (nk-1 = 8 = 3+3+2). _KB_SLAB also drives the tiled viscous kernels
+    inside update_sources, so both tiled paths are covered.
+    """
+    nk = SHAPE[2]
+    orig = ember.grid._KB_SLAB
+    try:
+        ember.grid._KB_SLAB = nk - 1
+        ref = _assemble()
+        ember.grid._KB_SLAB = kb
+        out = _assemble()
+    finally:
+        ember.grid._KB_SLAB = orig
+    np.testing.assert_array_equal(out, ref)
+
+
 if __name__ == "__main__":
     residual = _assemble()
     GOLDEN_FILE.parent.mkdir(parents=True, exist_ok=True)
