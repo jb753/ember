@@ -9,9 +9,10 @@ A/B protocol per docs/dev/viscous_kernels.md section 4:
     over many reps, kb variants interleaved round-robin to cancel drift;
   * sweep block sizes across the cache boundary and report ns/cell per size.
 
-Works against both the tiled kernel (kb argument, slab-sized flow_scratch)
-and the pre-tiling baseline (full-volume flow_scratch), detected from the
-f2py signature, so the same script serves both sides of a git-stash A/B.
+Works against the fused kernel (kb argument, rolling planes/rows scratch),
+the tiled kernel (kb argument, slab-sized flow_scratch) and the pre-tiling
+baseline (full-volume flow_scratch), detected from the f2py signature, so the
+same script serves both sides of a git-stash A/B.
 
 Usage:
 
@@ -43,6 +44,7 @@ from ember.periodic import PeriodicPatch  # noqa: E402
 # full-volume flow scratch and no kb. Detected per kernel so the same script
 # runs on both sides of a git-stash A/B.
 TILED = "kb" in ember.fortran.set_visc_force.__doc__
+FUSED = "planes" in ember.fortran.set_visc_force.__doc__
 TILED_RESID = "kb" in ember.fortran.set_residual.__doc__
 # Production slab-depth knob (renamed _KB_VISC -> _KB_SLAB when set_residual
 # was tiled).
@@ -132,7 +134,12 @@ def make_phase2_call(block, kb):
     """Closure for one production-path set_visc_force call at slab depth kb."""
     ni, nj, nk = block.shape
     halo = block.tau_q_halo
-    if TILED:
+    if FUSED:
+        planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
+        assert planes.flags["F_CONTIGUOUS"] and rows.flags["F_CONTIGUOUS"]
+        assert not planes.flags["OWNDATA"] and not rows.flags["OWNDATA"]
+        extra = {"planes": planes, "rows": rows, "kb": kb}
+    elif TILED:
         flow_scratch = util.carve_view(block.scratch, (ni, nj, kb + 1, 4))
         assert flow_scratch.flags["F_CONTIGUOUS"]
         assert not flow_scratch.flags["OWNDATA"]

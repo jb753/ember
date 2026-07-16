@@ -210,7 +210,7 @@ def _run_phase2(kb=None):
     ni, nj, nk = block.shape
     if kb is None:
         kb = min(8, nk - 1)
-    flow_scratch = util.carve_view(block.scratch, (ni, nj, kb + 1, 4))
+    planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
         vol=block.vol_nd,
@@ -226,7 +226,8 @@ def _run_phase2(kb=None):
         vt=block.Vt_rel_nd,
         tau_cell=tau_cell,
         q_cell=q_cell,
-        flow_scratch=flow_scratch,
+        planes=planes,
+        rows=rows,
         kb=kb,
         **block.ijk_wall_visc,
         **block.Omega_wall_nd,

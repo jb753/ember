@@ -10,7 +10,9 @@ be representative of production.
 
 **Status: the k-slab blocking of section 3 is implemented and measured; see
 section 5 for the design as built and the A/B results (set_visc_force -30% to
--36%, update_sources -13% to -20%, production `kb = 8`).**
+-36%, update_sources -13% to -20%, production `kb = 8`). Section 6 applies
+the same tiling to `set_residual`; section 7 adds the rolling-buffer fusion
+of section 3.4 on top (a further -8% to -16% on set_visc_force).**
 
 ---
 
@@ -537,3 +539,98 @@ root drops `<module>.mod` files there; a later `make compile` syntax check can
 then resolve `use` against the stale module and fail (or worse, pass wrongly)
 after the source is reverted/changed. Delete stray `*.mod` from the repo root
 before builds, or run syntax checks in a temp directory.
+
+---
+
+## 7. Implemented: rolling-buffer fusion for `set_visc_force` (section 3.4)
+
+The fusion deferred in section 5.3 was revisited (July 2026) with a fresh A/B
+per the section 4 protocol, and **adopted**: the expected "small upside"
+turned out to be a solid -8% to -16% on `set_visc_force` at the production
+`kb = 8`, -4% to -7% end to end.
+
+### 7.1 Design as built
+
+The k-slab sweep is unchanged (kb knob, wall injections, cusp recompute
+correction, zeroing, negation); only the staging of face fluxes moved from
+the slab-sized `flow_scratch(ni,nj,kb+1,4)` into rolling buffers, with every
+face-loop body kept verbatim (i remains the innermost SIMD axis):
+
+- **i-direction**: one face row `rows(ni,4, slot 1)` per `(j,k)`; the
+  `i=2`/`i=ni-1` wall injections apply to the row; the row is differenced
+  into `fvisc` immediately (assignment, as before).
+- **j-direction**: an alternating face-row pair (rows slots 2/3); face row j
+  is computed, wall-injected if it is the `j=2`/`j=nj-1` face, then cell row
+  `j-1` accumulates the difference and the slots swap.
+- **k-direction**: an alternating face-plane pair `planes(ni,nj,4,2)`; same
+  rolling pattern per face plane. The inter-slab carry copy of section 5.1
+  **dissolves**: the plane pair persists across the slab boundary (the
+  intervening i/j phases touch only rows), so the previous slab's top plane
+  is simply still there.
+
+Scratch shrinks from `(kb+1)` full planes to 2 planes + 3 rows, carved
+together zero-copy by `util.carve_view(block.scratch, (ni,nj,4,2), (ni,4,3))`
+(fits `block.scratch`'s 5 nodal slots for `nk >= 3`, or `nk = 2` with
+`nj >= 6`; the carve raises if not).
+
+Correctness: the whole suite passes with **no golden regeneration** -- the
+fusion only re-orders when each face flux is staged and consumed, not any
+per-cell arithmetic -- and `test_set_visc_force_kb_consistent` still passes
+bitwise (kb now changes only the direction-interleaving order).
+
+### 7.2 A/B results
+
+Same protocol and machine as section 5.2 (`make compile` both sides, baseline
+= pre-fusion HEAD via `git stash`, `-march=haswell`, single thread pinned,
+median ns/cell, kb variants interleaved). Baseline column is the tiled kernel
+at its production `kb = 8`.
+
+`set_visc_force`, median ns/cell:
+
+| size | tiled kb=8 | kb=1 | kb=2 | kb=4 | kb=8 | kb=16 | 1 slab |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 48x32x32  | 29.8 | 25.5 | 25.4 | 25.3 | 25.1 | 25.0 | 25.0 |
+| 64x48x48  | 26.6 | 23.0 | 22.8 | 22.7 | 22.6 | 22.6 | 22.5 |
+| 80x64x64  | 30.6 | 28.3 | 27.8 | 27.5 | 27.3 | 27.3 | 31.6 |
+| 96x96x96  | 30.5 | 29.0 | 28.3 | 28.0 | 27.9 | 28.3 | 34.8 |
+| 128x96x96 | 29.2 | 27.7 | 27.1 | 26.9 | 26.9 | 27.7 | 34.4 |
+
+`update_sources` end to end (the decision variable), median ns/cell:
+
+| size | tiled kb=8 | kb=1 | kb=2 | kb=4 | kb=8 | kb=16 | 1 slab |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 48x32x32  | 68.7 | 64.3 | 64.1 | 64.0 | 63.9 | 63.8 | 63.7 |
+| 64x48x48  | 65.5 | 61.3 | 61.6 | 61.2 | 61.0 | 61.3 | 61.1 |
+| 80x64x64  | 73.2 | 71.2 | 70.5 | 70.1 | 69.9 | 70.0 | 74.6 |
+| 96x96x96  | 72.1 | 70.4 | 69.7 | 69.4 | 69.3 | 69.6 | 76.1 |
+| 128x96x96 | 69.3 | 67.4 | 66.8 | 66.5 | 66.6 | 67.4 | 74.2 |
+
+`set_tau_q_soa` is unchanged within noise (untouched).
+
+**Cross-build noise gauge.** The residual kernel was identical in both
+builds, so its A/B delta measures run-to-run + codegen drift: up to
+~2.9 ns/cell, systematic per size (e.g. -2.8 at 48x32x32, +1.9 at 80x64x64 --
+whole-program LTO re-inlines around the changed viscous file). The fusion win
+exceeds this co-measured drift at every size, and at 80x64x64 wins *against*
+a +1.9 unfavourable drift; only at 128x96x96 could drift account for up to
+half the end-to-end delta.
+
+### 7.3 Reading
+
+- The fusion removes the slab scratch write+read round-trip; since that
+  scratch was already L2-resident, the win is mostly the ~8 floats/cell/
+  direction of L2 traffic plus the removed carry copy -- worth more than
+  section 5.3 guessed. The feared i-SIMD complication did not materialise:
+  the face-loop bodies are verbatim and still vectorize.
+- **kb sensitivity is now nearly flat** (kb=1 within ~2% of kb=8 everywhere):
+  with no slab scratch, kb only paces how the three directions interleave
+  over the tau/q planes. The blocking still matters at L3-spilling sizes
+  (1-slab column: 34.4 vs 26.9 at 128x96x96) -- fusion did not replace
+  tiling, it composed with it, exactly as section 3.4 predicted. `_KB_SLAB
+  = 8` stands.
+- At cache-resident sizes the 1-slab column now matches kb=8 (25.0 / 22.5):
+  the small-size win of section 5.3(a) -- compact reused scratch -- is fully
+  captured by the rolling buffers alone.
+- Follow-on candidate: the same fusion applies to `set_residual`'s
+  `flow_i`/`flow_jk` slab scratch (section 6); that is a separate change and
+  needs its own A/B.

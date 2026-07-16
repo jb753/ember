@@ -1561,12 +1561,16 @@ class Grid(_LabelledList):
                 tau_cell = halo[..., 0:6]
                 q_cell = halo[..., 6:9]
                 i_cusp_start, i_cusp_end = block.i_cusp
-                # Slab-sized flow scratch for the k-tiled kernel: kb+1 face
-                # planes, borrowed zero-copy from the leading block.scratch
-                # storage (5 nodal slots, so kb+1 <= nk always fits).
+                # Rolling face-flow buffers for the fused k-tiled kernel: a
+                # plane pair for the k-direction and three rows (one i, two
+                # alternating j), borrowed zero-copy from the leading
+                # block.scratch storage (5 nodal slots: fits for nk >= 3, or
+                # nk == 2 with nj >= 6; carve_view raises otherwise).
                 ni, nj, nk = block.shape
                 kb = min(_KB_SLAB, nk - 1)
-                flow_scratch = util.carve_view(block.scratch, (ni, nj, kb + 1, 4))
+                planes, rows = util.carve_view(
+                    block.scratch, (ni, nj, 4, 2), (ni, 4, 3)
+                )
                 ember.fortran.set_visc_force(
                     cons=block.conserved_nd,
                     vol=block.vol_nd,
@@ -1582,7 +1586,8 @@ class Grid(_LabelledList):
                     vt=block.Vt_rel_nd,
                     tau_cell=tau_cell,
                     q_cell=q_cell,
-                    flow_scratch=flow_scratch,
+                    planes=planes,
+                    rows=rows,
                     kb=kb,
                     **block.ijk_wall_visc,
                     **block.Omega_wall_nd,

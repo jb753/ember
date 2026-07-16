@@ -98,7 +98,7 @@ def _fvisc_x(block, comm):
     i_cusp_start, i_cusp_end = block.i_cusp
     ni, nj, nk = block.shape
     kb = min(8, nk - 1)  # mirrors the ember.grid._KB_SLAB production clamp
-    flow_scratch = util.carve_view(block.scratch, (ni, nj, kb + 1, 4))
+    planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
         vol=block.vol_nd,
@@ -114,7 +114,8 @@ def _fvisc_x(block, comm):
         vt=block.Vt_rel_nd,
         tau_cell=tau_cell,
         q_cell=q_cell,
-        flow_scratch=flow_scratch,
+        planes=planes,
+        rows=rows,
         kb=kb,
         **block.ijk_wall_visc,
         **block.Omega_wall_nd,
