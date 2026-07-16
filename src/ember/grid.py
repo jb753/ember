@@ -1408,20 +1408,25 @@ class Grid(_LabelledList):
             convergence) it does not change the steady-state solution. Per-block
             only: block/periodic interfaces are treated as zero-gradient. Borrows
             ``block.scratch`` as its work buffer -- free at this point, since
-            ``set_residual`` has finished using it as ``flow_i`` and the march
-            reuses it only afterwards.
+            ``set_residual`` stages its face flows in ``tau_q_halo`` and the
+            march reuses ``scratch`` only afterwards.
 
         """
         for block in self:
             i_cusp_start, i_cusp_end = block.i_cusp
             ni, nj, nk = block.shape
-            # Two transient slab-sized flow-scratch buffers for the k-tiled
-            # fused residual: scratch (5 slots, kb planes) for the i-face
-            # flows, and tau_q_halo (10 slots, kb+1 planes) for the j/k-face
-            # flows -- both zero-copy F-order views of the leading block.
+            # Rolling face-flow buffers for the fused k-tiled residual: a
+            # k-face plane pair and three rows (one i, two alternating j),
+            # borrowed zero-copy from the leading block.tau_q_halo storage.
+            # planes takes one padding j-row exactly when its component
+            # stride ni*nj*4 bytes would be a whole page multiple, so the
+            # k-accumulate's component streams never 4K-alias (see
+            # set_residual; the pad measurably hurts blocks it cannot help).
             kb = min(_KB_SLAB, nk - 1)
-            flow_i = util.carve_view(block.scratch, (ni, nj, kb, 5))
-            flow_jk = util.carve_view(block.tau_q_halo, (ni, nj, kb + 1, 10))
+            njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
+            planes, rows = util.carve_view(
+                block.tau_q_halo, (ni, njp, 5, 2), (ni, 5, 3)
+            )
             block.residual_nd.flags.writeable = True
             ember.fortran.set_residual(
                 cons=block.conserved_nd,
@@ -1439,12 +1444,13 @@ class Grid(_LabelledList):
                 vt=block.Vt_nd,
                 vt_rel=block.Vt_rel_nd,
                 ho=block.ho_nd,
-                flow_i=flow_i,
-                flow_jk=flow_jk,
+                planes=planes,
+                rows=rows,
                 **block.ijk_wall_conv,
                 i_cusp_start=i_cusp_start,
                 i_cusp_end=i_cusp_end,
                 kb=kb,
+                njp=njp,
                 ni=ni,
                 nj=nj,
                 nk=nk,
@@ -1453,8 +1459,8 @@ class Grid(_LabelledList):
                 # Exact factored-tridiagonal IRS (Jameson ADI): a direct solve.
                 # Scratch is just the Thomas coefficients, 2*(nci+ncj+nck) floats;
                 # carve a 1D leading view of block.scratch (nodal (ni,nj,nk,5),
-                # vastly oversized). Free here: set_residual has released it
-                # (flow_i) and the march reuses it only after this returns.
+                # vastly oversized). Free here: set_residual does not touch it
+                # and the march reuses it only after this returns.
                 nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
                 ember.fortran.smooth_residual_tri_tiled(
                     du=block.residual_nd,

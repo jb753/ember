@@ -12,7 +12,10 @@ be representative of production.
 section 5 for the design as built and the A/B results (set_visc_force -30% to
 -36%, update_sources -13% to -20%, production `kb = 8`). Section 6 applies
 the same tiling to `set_residual`; section 7 adds the rolling-buffer fusion
-of section 3.4 on top (a further -8% to -16% on set_visc_force).**
+of section 3.4 on top (a further -8% to -16% on set_visc_force); the same
+fusion for `set_residual` was first tried bitwise-exactly and rejected
+(section 8), then landed as a slab-tiled port under a bounded float32
+tolerance with a conditional anti-aliasing pad (section 9, -3% to -12%).**
 
 ---
 
@@ -361,12 +364,28 @@ Follow this protocol.
   accepting the bounded sign flip, keeps the compute cost representative -- just
   be consistent between baseline and candidate.
 
-### 4.6 Optional: read the vectorizer report as a hint only
+### 4.6 The vectorizer report: use the link-stage one
 
-`gfortran <production flags minus -flto> -fopt-info-vec-all=report.txt -c
-viscous.f90` shows which loops vectorize, useful for spotting a regression like
-the lost face-loop SIMD. But it is per-file and pre-IPA; treat it as a lead to
-confirm with a real end-to-end benchmark, never as the result itself.
+`EMBER_OPT_REPORT=<path> make compile` writes the vectorization report
+(`-fopt-info-vec-all`) of the **real production build** to `<path>`. The
+flag is injected at link time (`setup.py` appends it to `LDFLAGS`), where
+GCC's LTO backend does the whole-program codegen -- so this report describes
+the code that actually runs, post-IPA, with cross-file inlining applied.
+Expect only the innermost (i) loops to vectorize; "missed" entries on outer
+j/k/m loops are normal.
+
+Two report sources to distrust:
+
+- a standalone `gfortran <flags minus -flto> -fopt-info-vec-all=r.txt -c
+  file.f90` is per-file and pre-IPA -- a hint only (this is what inverted the
+  section 2 result);
+- a compile-stage report from the LTO build itself (e.g. via
+  `-ffat-lto-objects`) describes the *discarded* per-TU codegen and can flag
+  spurious misses (observed: "no vectype" complaints on loops that the link
+  stage vectorizes cleanly at 32 bytes).
+
+In all cases the report is a lead to confirm with a real end-to-end
+benchmark, never the result itself.
 
 ---
 
@@ -633,4 +652,165 @@ half the end-to-end delta.
   captured by the rolling buffers alone.
 - Follow-on candidate: the same fusion applies to `set_residual`'s
   `flow_i`/`flow_jk` slab scratch (section 6); that is a separate change and
-  needs its own A/B.
+  needs its own A/B. **Tried and rejected -- see section 8.**
+
+---
+
+## 8. Tried and rejected: rolling-buffer fusion for `set_residual`
+
+The section 7 fusion was ported to `set_residual` (July 2026), passed every
+correctness gate, won at four of five sizes -- and was **reverted** because it
+regressed ~10% at the largest size, failing the no-regression adoption rule.
+Recorded here per the section 2 precedent: negative results get written up.
+
+### 8.1 Design tried
+
+`set_residual` differs from the viscous kernel in that dU is written once by
+a single fused expression (i, j, k face differences + f_body, fixed term
+order). Preserving that arithmetic bitwise forces all six face flows per cell
+to coexist, which leads to a **fully fused single sweep** rather than
+per-direction rolling: per cell plane k, a rolling k-face plane pair
+`planes(ni,nj,5,2)`; per cell row j, an i-face row and a rolling j-face row
+pair `rows(ni,5,3)`; dU assembled per row with the identical expression. The
+three slab-based face-flow helpers became row/plane-granularity helpers
+(`iface_flow_row`, `jface_flow_row`, `kface_flow_plane`, accum/put bodies
+verbatim). A cell plane touches only nodal planes k..k+1, so the sweep
+streams every nodal input once by construction -- **full fusion subsumes the
+k-slab tiling**, and the `kb` argument left the kernel entirely.
+
+Correctness: whole suite green. The residual golden tripped exactly as in
+section 6 (one near-cancelling interior cell, 1 ulp at the flux scale, 1.49x
+its region atol); the -O0 strict-FP standalone proof (old vs new kernel over
+five shapes including ni=2 / nj=2 / nk=2 boundaries and the cusp path) was
+**bitwise identical**, so the shift was again -Ofast codegen only and the
+golden was regenerated during the trial (and restored on revert).
+
+### 8.2 A/B results and the rejection
+
+Same protocol and machine as 5.2/7.2; baseline = tiled `set_residual` at HEAD
+via `git stash`. This time the **viscous kernel was identical in both
+builds** and serves as the noise gauge: its cross-build delta was at most
+0.5 ns/cell, so the deltas below are real.
+
+`set_residual`, median ns/cell (tiled at production kb=8 vs fused):
+
+| size | tiled kb=8 | fused | delta |
+| --- | --- | --- | --- |
+| 48x32x32  | 24.5 | 23.3 | -4.7% |
+| 64x48x48  | 26.4 | 23.6 | -10.6% |
+| 80x64x64  | 30.9 | 30.5 | -1.4% |
+| 96x96x96  | 32.2 | 30.7 | -4.7% |
+| 128x96x96 | 27.5 | 30.3 | **+9.9%** |
+
+`update_residual` end to end tracks the kernel within ~0.5 ns/cell.
+
+The regression at 128x96x96 is +2.7 ns/cell against a 0.2 ns/cell gauge --
+unambiguous. The adoption rule (win above noise, regress nowhere) fails, so
+the kernel change was reverted; the tiled section 6 kernel remains
+production.
+
+### 8.3 Reading
+
+- The tiled baseline is anomalously strong at 128x96x96 (27.5, faster than
+  its own 31-32 at 80x64x64 / 96^3 -- visible already in the section 6
+  tables), while the fused kernel is flat (30.3 vs 30.7). The regression is
+  as much "the staged version exploits this size unusually well" (clean
+  ni=128 vector runs and line-aligned streaming through simple full-volume
+  loops) as it is a fusion cost.
+- The fused sweep's plane pair (`10*ni*nj*4` bytes, ~1 MB at 128x96) spills
+  L2, and the pa plane is re-read a full cell-plane's nodal traffic after it
+  was written; but 96^3 spills too and still won, so L2 residency alone does
+  not explain the flip.
+- Possible rescue: tile the sweep over j-panels so the rolling plane pair
+  stays cache-sized at any plane dimension, restoring the small-size wins
+  without the large-plane exposure. Untried -- would need its own A/B against
+  both the tiled kernel and this fused variant.
+- The full patch (kernel, callers, tests, bench support) is preserved in the
+  repo stash: `git stash list` -- "set_residual rolling fusion (rejected)".
+
+Contrast with section 7: the same idea won cleanly for `set_visc_force`
+because there the accumulate is per-direction (rolling preserves arithmetic
+direction-by-direction, tiling is retained and composes), whereas here full
+fusion had to replace tiling and gave up the slab structure that the large
+size apparently rewards. **Superseded by section 9**, which recovers the
+slab structure by relaxing the bitwise constraint.
+
+---
+
+## 9. Implemented: slab-tiled rolling fusion for `set_residual` (relaxed tolerance)
+
+Section 8's failure was forced by the bitwise constraint: the staged kernel's
+single seven-term dU expression demanded an all-directions sweep, which cost
+the slab tiling. Relaxing to a bounded float32 tolerance (July 2026) allows
+the **section 7 viscous structure to port verbatim**: per-direction
+accumulation (`dU = i-diff + f_body; += j-diff; += k-diff`), each direction
+fused through rolling buffers (section 8's row/plane helpers reused as-is),
+all inside the kb-slab sweep. The inter-slab k-plane carry is automatic, as
+in the viscous kernel. `_KB_SLAB` drives both kernels again.
+
+### 9.1 Tolerance and correctness
+
+Only the final per-cell sum is reassociated (three partial sums instead of
+one expression); every face-flow value is computed by identical arithmetic.
+Quantified at -O0 (strict FP) old vs new over five shapes including
+ni/nj/nk = 2 boundaries and the cusp: ~51% of dU values differ, with maximum
+difference **1.2 ulp of the flux scale** (max rel 2.3e-5). The residual
+golden was regenerated on that bounded-ulp argument (the bitwise -O0 proof of
+section 6/8 does not apply to a deliberate reassociation).
+`test_residual_kb_consistent` remains **bitwise** across kb, as for the
+viscous kernel. The link-stage vectorization report
+(`EMBER_OPT_REPORT`, section 4.6) confirms every hot inner loop -- the three
+face-flow helpers and the three accumulates -- vectorizes at 32 bytes.
+
+### 9.2 The ni=128 anomaly and the anti-aliasing pad
+
+The first A/B won -4 to -8% at three sizes but regressed +2-3% at
+128x96x96. An extended ladder (160x96x96, 128x128x128, 192x128x128)
+localized the deficit to **power-of-two ni**, not size: ni=160/192 won up to
+-12% while both ni=128 sizes lost. Root cause: with `ni*nj*4` bytes an exact
+page multiple (128x96x4 = 48 KB), the k-accumulate's ten concurrent
+component streams (5 components x plane pair) 4K-alias into the same L1
+sets. The same mechanism makes **every** residual variant -- the tiled
+baseline included -- allocation-sensitive at ni=128: across processes the
+baseline itself wobbled 27.5-30.2 ns/cell there while the co-measured
+viscous gauge held to a few tenths. (Earlier readings of the baseline as
+"anomalously good at 128x96x96" were partly this lottery.)
+
+Fix: one padding j-row in the plane buffer, applied **conditionally** --
+`njp = nj+1` iff `ni*nj` is a multiple of 1024 -- because an unconditional
+pad measurably hurt (~+5%) the small blocks it cannot help. `njp` is a
+runtime argument; the pad is arithmetic-neutral (the extra row is never
+touched).
+
+### 9.3 A/B results (conditional pad vs tiled kb=8, median ns/cell)
+
+Same protocol; the identical viscous kernel is the cross-build gauge.
+
+| size | tiled | port+cond-pad | delta | note |
+| --- | --- | --- | --- | --- |
+| 48x32x32    | 24.8 | 24.0 | -3.5% | pad inactive |
+| 64x48x48    | 26.3 | 24.0 | -8.5% | |
+| 80x64x64    | 31.3 | 30.3 | -3.1% | |
+| 96x96x96    | 31.9 | 30.4 | -4.6% | |
+| 128x96x96   | 28.2/30.2 | 28.7/29.6 | +1.6%/-1.9% | tie within the lottery band |
+| 160x96x96   | 30.5 | 26.8 | -12.0% | |
+| 128x128x128 | 31.7 | 29.6 | -6.9% | ~-5% gauge-corrected |
+| 192x128x128 | 38.6 | 31.6 | -18.2% | ~-12% gauge-corrected (gauge drifted -2.6) |
+
+`update_residual` end to end tracks the kernel within ~1 ns/cell. Wins at
+eight of nine configs; the ninth (128x96x96) flips sign between processes
+inside its own +-2.5 ns/cell alignment band -- no reproducible regression.
+
+### 9.4 Notes
+
+- **kb**: near-flat 4-16 at most sizes, but kb=16 degrades at large planes
+  and the biggest size prefers kb=4 (36.4 vs 38.2 at 192x128x128 pre-pad).
+  `_KB_SLAB = 8` retained; revisit only if production blocks grow past ~1M
+  cells.
+- **Benchmarking gotcha for the protocol of section 4**: at power-of-two ni,
+  per-process heap layout swings residual-kernel timings by +-2-3 ns/cell
+  (and even the viscous kernel by ~2.6 at 192x128x128). Never conclude from
+  a single process at such sizes; use the co-measured unchanged-kernel gauge
+  and repeat runs.
+- The section 8 full-fusion variant remains in the repo stash for reference;
+  this port supersedes it.

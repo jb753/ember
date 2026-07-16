@@ -2599,11 +2599,12 @@ class Block(ember.struct.StructuredData):
             neighbour exchange.
         """
         ni, nj, nk = self.shape
-        # 10 slots, not 9: the viscous pass uses slots 0-8 (tau/q), but the
-        # buffer is also borrowed transiently as the j/k-face flow scratch for
-        # the fused inviscid residual (set_residual), which needs 10 contiguous
-        # ni*nj*nk blocks. 10*(ni+1)(nj+1)(nk+1) >= 10*ni*nj*nk for every grid,
-        # so this width covers both borrowers.
+        # 10 slots, not 9: the viscous pass uses slots 0-8 (tau/q); the spare
+        # capacity is kept for the transient borrowers, carved from this
+        # storage while it is dead outside the viscous pass -- the fused
+        # inviscid residual's rolling flow buffers (set_residual, a small
+        # leading span) and the multigrid coarse-correction scratch
+        # (solver._mg_coarse_carve).
         return util.allocate_or_reuse(out, (ni + 1, nj + 1, nk + 1, 10))
 
     @derived_array

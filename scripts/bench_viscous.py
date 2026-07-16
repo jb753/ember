@@ -46,6 +46,7 @@ from ember.periodic import PeriodicPatch  # noqa: E402
 TILED = "kb" in ember.fortran.set_visc_force.__doc__
 FUSED = "planes" in ember.fortran.set_visc_force.__doc__
 TILED_RESID = "kb" in ember.fortran.set_residual.__doc__
+FUSED_RESID = "planes" in ember.fortran.set_residual.__doc__
 # Production slab-depth knob (renamed _KB_VISC -> _KB_SLAB when set_residual
 # was tiled).
 KB_ATTR = "_KB_SLAB" if hasattr(ember.grid, "_KB_SLAB") else "_KB_VISC"
@@ -179,9 +180,22 @@ def make_phase2_call(block, kb):
 
 
 def make_residual_call(block, kb):
-    """Closure for one production-path set_residual call at slab depth kb."""
+    """Closure for one production-path set_residual call at slab depth kb.
+
+    kb is ignored by the fused kernel (no slab depth); the caller's variant
+    loop collapses to one entry there.
+    """
     ni, nj, nk = block.shape
-    if TILED_RESID:
+    if FUSED_RESID:
+        # Conditional anti-aliasing pad, mirroring Grid.update_residual.
+        njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
+        planes, rows = util.carve_view(
+            block.tau_q_halo, (ni, njp, 5, 2), (ni, 5, 3)
+        )
+        assert planes.flags["F_CONTIGUOUS"] and rows.flags["F_CONTIGUOUS"]
+        assert not planes.flags["OWNDATA"] and not rows.flags["OWNDATA"]
+        extra = {"planes": planes, "rows": rows, "kb": kb, "njp": njp}
+    elif TILED_RESID:
         flow_i = util.carve_view(block.scratch, (ni, nj, kb, 5))
         flow_jk = util.carve_view(block.tau_q_halo, (ni, nj, kb + 1, 10))
         extra = {"flow_i": flow_i, "flow_jk": flow_jk, "kb": kb}

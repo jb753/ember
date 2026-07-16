@@ -180,10 +180,11 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
         tmp = util.carve_view(block.scratch, cell_shape)
         store_cell = util.carve_view(block.store, cell_shape)
         # residual_nd is read here (a cache hit from the loop's get_convergence, or
-        # a fresh evaluation) BEFORE the kernel runs. residual_nd itself uses
-        # block.scratch as its flow_i workspace, so it must be fully materialised
-        # before the scree kernel reuses scratch as tmp -- passing it as an
-        # argument guarantees that ordering.
+        # a fresh evaluation) BEFORE the kernel runs. Evaluating residual_nd
+        # borrows block.scratch (IRS work) and tau_q_halo (rolling flow
+        # buffers), both reused as scratch by the kernels below, so it must be
+        # fully materialised first -- passing it as an argument guarantees
+        # that ordering.
         if n_levels_eff > 0:
             # Multigrid-on scree wrappers over the scheme-agnostic engine
             # (mg_coarse_correction). sf_irs > 0 selects the coarse-IRS kernel;
