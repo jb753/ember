@@ -25,7 +25,6 @@ Developed by `James Brind <https://jamesbrind.uk/>`_ at the `Whittle Laboratory 
    api/cut
    algorithm
    api/solver
-   solver_configuration
    api/convergence_history
    references
 

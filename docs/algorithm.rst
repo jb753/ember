@@ -1,223 +1,260 @@
 Navier--Stokes algorithm
 ========================
 
-ember integrates the compressible Navier--Stokes equations in time using an
-explicit Runge--Kutta scheme accelerated by geometric multigrid. The
+ember integrates the compressible Navier--Stokes equations to a steady state
+using an explicit pseudo-time march accelerated by in-place multigrid. The
 discretisation is finite-volume in space on structured, multi-block,
 curvilinear grids; cell-centred residuals are distributed back to nodal
 conserved variables. This page describes the solver loop driven by
-``ember.run.loop`` and the configuration parameters in
-``SolverConfig`` that control each stage.
+:func:`ember.solver.run` and the configuration parameters in
+:class:`ember.solver.SolverConfig` that control each stage.
 
 Overview of one time step
 -------------------------
 
-A single time step on the finest active grid consists of:
+:func:`ember.solver.run` follows a *lagged-pressure* ordering, so each step
+pays for exactly one full-field pressure/temperature evaluation:
 
-1. **Pre-step**: apply periodic and mixing-plane communications, average
-   cusp nodes, recompute body forces (polar source and viscous stresses),
-   and update boundary-patch targets.
-2. **Runge--Kutta sweep**: four substages of a low-storage RK integrator,
-   each evaluating fluxes, integrating the residual, and distributing the
-   change to nodes.
-3. **Post-step**: scale the error estimate, adapt the CFL field, refresh
-   the volumetric timestep, and check for NaNs.
-4. **Multigrid leg**: on the down leg, restrict residuals to coarser
-   grids; on the up leg, prolongate corrections back to the finest level.
-5. **Smoothing**: apply JST artificial dissipation to damp high-frequency
-   content introduced by prolongation.
+1. **Cache flush**: invalidate the cached pressure/temperature so the residual
+   sees a fresh full-field evaluation from the conserved state the previous
+   step wrote in place.
+2. **Boundary refresh**: update boundary-patch targets (throttle, radial
+   equilibrium, mixing-plane exchange) and impose the boundary conditions.
+3. **NaN check**: abort the run early (recording ``ConvergenceHistory.diverged``)
+   if the conserved state has gone non-finite.
+4. **Sources**: rebuild the body-force buffer -- every step when using the
+   Runge--Kutta integrator (``SolverConfig.n_stage >= 1``), every fifth step
+   when using the scree march (``n_stage == 0``, which only evaluates the
+   residual once per step and so can tolerate a lagged viscous pass).
+   ``dt_vol`` is relaxed every step regardless, since a stale timestep can
+   overshoot the stability limit during a transient.
+5. **Residual**: build the unintegrated net-flow residual, with optional
+   implicit residual smoothing (``SolverConfig.sf_resid``) and a change
+   limiter (``SolverConfig.dampin``).
+6. **Convergence logging**: every ``SolverConfig.n_step_log`` steps, record and
+   print a :class:`~ember.convergence_history.ConvergenceHistory` row from
+   this residual.
+7. **March**: advance the solution with the selected integrator -- Denton's
+   scree march or Jameson multi-stage Runge--Kutta (see below) -- optionally
+   accelerated by in-place multigrid.
+8. **Smoothing**: apply a constant-coefficient artificial-dissipation blend to
+   the post-march conserved state.
+9. **Pseudotime averaging**: over the final ``SolverConfig.n_step_avg`` steps,
+   accumulate the conserved state into a running average, which replaces the
+   instantaneous state once the run completes.
 
-.. _runge-kutta:
+There is no separate CFL-adaptation phase: CFL is a single constant scalar
+for the whole run (see below), not a per-cell field recomputed each step.
 
-Runge--Kutta integrator
------------------------
+.. _march-schemes:
 
-The solver uses a four-stage, low-storage Runge--Kutta scheme with
-hard-coded coefficients ``A_RK`` and ``B_RK``. At each substage:
+Time integrators
+-----------------
 
-- the residual is integrated into the cell-centred error buffer, weighted
-  by the previous stage's ``A`` coefficient;
-- the accumulated cell change is distributed to surrounding nodes with
-  weight ``B``.
+``SolverConfig.n_stage`` selects one of two integrators, applied to every
+block each step:
 
-After the final substage the cell error is scaled by ``B_RK[-1]`` and
-absolute-valued to give the per-step error estimate used by CFL
-adaptation.
+**Scree march** (``n_stage == 0``, the default) -- :func:`ember.solver.scree_step`
+implements Denton's basic second-order-accurate march (Denton 2017, Eq. 4)::
 
-.. _cfl-adaptation:
+    F_{n+1} = F_n + [2*(dF/dt)_n - (dF/dt)_{n-1}] * dt
 
-CFL adaptation
---------------
+The extrapolated quantity ``q = 2*residual - store`` is formed from the
+current residual and the previous step's residual (held in ``block.store``),
+scaled by ``CFL * dt_vol``, and scattered straight onto the conserved state --
+bypassing the normal setters so the pressure/temperature cache stays frozen
+through the step (Denton-style "smooth with the old pressure").
 
-ember runs with a *spatially varying* CFL field rather than a single
-global number. After each step, the cell-wise error estimate is compared
-against a relative tolerance ``SolverConfig.rtol``, and
-the CFL number in each cell is adjusted to keep the local error near
-tolerance.
+**Jameson multi-stage Runge--Kutta** (``n_stage >= 1``) -- :func:`ember.solver.rk_step`
+snapshots the step-start conserved state, then runs ``n_stage`` substages of
+:func:`ember.solver.advance_rk_stage_mg` with stage coefficients
+``alpha_k = 1 / (n_stage - k)``. Only the last substage skips rebuilding the
+residual, since nothing consumes it again before the next step's top-of-loop
+rebuild.
 
-Relevant configuration:
+Both integrators share the multigrid acceleration described below and the
+constant-coefficient smoothing step; they differ only in the march formula and
+in how many times per step the residual is rebuilt. The
+:doc:`run_duct example <auto_examples/run_duct>` compares concrete tunings for
+the same case: ``scree, CFL=0.4``; plain ``RK4, CFL=4.0``; and
+``RK4 + implicit residual smoothing (sf_resid=1.0), CFL=8.0`` -- all with two
+multigrid levels (``n_levels=2, fac_mgrid=0.4``).
 
-- ``SolverConfig.cfl_min``,
-  ``SolverConfig.cfl_max`` --- bounds on the adapted
-  CFL field.
-- ``SolverConfig.cfl_bnd_max`` --- separate, tighter
-  cap applied at boundary cells.
-- ``SolverConfig.rtol`` --- target relative error per
-  step driving the adaptation.
-- ``SolverConfig.delta_filt``,
-  ``SolverConfig.gain_filt`` --- low-pass filter
-  applied to the conserved-variable reference state that the error is
-  measured against.
-- ``SolverConfig.fac_restart`` --- when restarting,
-  scales the seed CFL field by this factor before clipping to
-  ``cfl_min``; set to 0 to disable reuse of a prior CFL guess.
+.. _cfl:
 
-The volumetric timestep ``dt_vol`` is refreshed every 50 steps from the
-current solution; CFL is then used to scale ``dt_vol`` into the actual
-step taken in each cell.
+CFL number
+----------
 
-.. _artificial-dissipation:
+CFL is a single constant, ``SolverConfig.cfl`` (default 0.4), applied
+uniformly to every cell for the entire run -- there is no per-cell adaptive
+CFL field and no tolerance-driven backoff inside the solver. A larger CFL
+converges faster but risks divergence; implicit residual smoothing
+(``SolverConfig.sf_resid``) damps high-frequency residual content and so
+tolerates a substantially higher CFL for a given scheme (see the example
+above).
 
-Artificial dissipation (smoothing)
-----------------------------------
+A suitable constant CFL for a given case, scheme, and ``sf_resid``/``fac_mgrid``
+combination is not chosen by the solver -- it is found offline with
+``scripts/duct_cfl_descend.sh``, a developer tuning harness that repeatedly
+reruns a case at descending trial CFL values (halving the step on each
+convergent trial) to bracket the largest CFL that still converges. This is a
+sweep tool built on top of the solver, not part of the solver's runtime
+algorithm.
 
-A JST-style blend of second- and fourth-difference operators is applied
-to the conserved variables after each step to suppress odd--even
-decoupling and shock oscillations.
+.. _smoothing:
 
-- ``SolverConfig.sf2P``,
-  ``SolverConfig.sf2T`` --- coefficients on the
-  second-difference (shock-sensing) term. The nodal curvature sensor is
-  evaluated separately on pressure and on temperature, and the active
-  second-difference coefficient is the elementwise maximum of the two,
-  ``max(sf2P * sensor_P, sf2T * sensor_T)``. The temperature term catches
-  contact discontinuities (constant pressure, jump in temperature) that a
-  pressure-only sensor misses (Swanson, Radespiel & Turkel, AIAA-97-1945).
-- ``SolverConfig.sf4`` --- coefficient on the
-  background fourth-difference term.
-- ``SolverConfig.sf2_min`` --- floor on the second-
-  difference coefficient, useful for stabilising strongly distorted
-  meshes.
-- ``SolverConfig.fac_mg_smooth`` --- per-level scaling
-  applied as ``fac_mg_smooth ** i_level`` on coarse grids.
+Smoothing
+---------
 
-.. _multigrid-cycle:
+A constant-coefficient blend of second- and fourth-difference operators
+(:meth:`ember.grid.Grid.smooth`) is applied to the conserved variables after
+each step to suppress odd--even decoupling and high-frequency content
+introduced by the march and multigrid corrections.
 
-Multigrid cycle
----------------
+- ``SolverConfig.sf4``, ``SolverConfig.sf2`` -- coefficients on the
+  fourth- and second-difference terms, each scaled by the run's ``cfl`` at the
+  call site (``grid.smooth(sf4 * cfl, sf2 * cfl)``).
 
-ember supports both a fixed multigrid cycle and a full-multigrid (FMG)
-startup schedule.
+Unlike the sensor-driven JST smoother this solver used previously, the
+current smoother has **no shock sensor and no pressure/temperature
+dependence** -- it never touches the pressure cache, so it is safe to run on
+the frozen post-march state. (The old adaptive, curvature-sensor smoother
+still exists in ``src/ember/_fortran/smooth_v2.f90`` but is no longer called
+from the solver; it is exercised only by its unit tests.)
 
-**Grid hierarchy.** The solver builds
-``SolverConfig.n_levels`` grids by successive
-factor-of-two coarsening from the input fine grid. Cell counts on the
-fine grid must satisfy ``(n_i - 1) % 2 == 0`` along every axis so that
-restriction is exact, and coarse blocks must retain at least 5 nodes per
-direction.
+.. _multigrid:
 
-**Down leg.** Starting from the currently finest active level, the
-solution is advanced, then the nodal solution is restricted to the next
-coarser grid via pure subsampling (every other node). The coarse
-``f_body`` buffer is loaded with the difference between fine and coarse
-net flow so that the coarse march is driven by the fine-grid residual.
+Multigrid
+---------
 
-**Up leg.** Coarse corrections are prolongated back down the grid
-hierarchy, scaled by
-``SolverConfig.fac_mgrid``. Setting ``fac_mgrid = 0``
-disables multigrid altogether (single-grid mode). No level is
-re-advanced on the way up, so the cycle is a sawtooth rather than a
-full V-cycle.
+**In-step Denton block-sum multigrid.** Unlike a classical restrict/prolong
+V-cycle across separate coarse grids, multigrid here is computed in place
+within a single march call over one grid: coarse block-sum corrections are
+folded directly into the fine-grid increment before it is scattered onto the
+conserved state. It is controlled by ``SolverConfig.n_levels`` (number of
+coarse levels; 0 disables multigrid) and ``SolverConfig.fac_mgrid`` (scaling
+on the coarse correction; 0 also disables it). Cell counts on each block must
+be an exact multiple of the coarsest block size ``2**n_levels`` in every
+direction (checked by ``ember.solver._validate_mg`` before the run starts).
 
-**Full multigrid.**
-``SolverConfig.full_mgrid`` enables a startup schedule
-in which only the coarsest level is active for the first
-``SolverConfig.n_step`` steps; the next finer level is
-then initialised by trilinear interpolation from the coarser solution
-and the active range expands by one level. After ``n_levels`` phases
-all levels are active and the run continues with the full grid
-hierarchy.
+Both integrators route their per-block march through the same
+scheme-agnostic Fortran engine, ``mg_coarse_correction`` in
+``src/ember/_fortran/scree.f90``, operating on a single pre-formed fine
+quantity ``q`` (``residual`` for RK, ``2*residual - store`` for scree). Around
+it, six branch-free kernels dispatch on scheme and on whether multigrid /
+implicit residual smoothing are active:
 
-``SolverConfig.i_level_stop`` truncates the FMG
-schedule before reaching the finest level, which is useful when the
-finest grid is too expensive to converge but a coarse-level solution is
-sufficient for postprocessing or as a restart seed. At end of run, the
-remaining finer levels are cascade-initialised from the stop level so
-that a full-resolution state is still produced.
+======================== ============================== ==============================
+Multigrid                RK                             Scree
+======================== ============================== ==============================
+off (fine term only)     ``rk_plain``                   ``scree_plain``
+on, no coarse smoothing  ``rk_mg_noirs``                ``scree_mg_noirs``
+on, coarse IRS           ``rk_mg_irs``                  ``scree_mg_irs``
+======================== ============================== ==============================
+
+The choice between the ``_noirs``/``_irs`` pair is made in Python
+(``sf_resid > 0`` selects IRS); the Fortran engine itself carries no
+conditional on it. For coarse level ``l = 1..n_levels`` (block size
+``b = 2**l``), the correction is scaled by
+``coef_l = alpha * cfl * fac_mgrid / b**2 * 2**-(l-1)``, damping successively
+coarser levels (``alpha = 1`` for scree, the RK substage weight for RK). The
+coarse timestep is the volume-weighted mean of ``dt_vol`` over each coarse
+block, not the value at the block's centre cell, which would be biased on a
+stretched mesh.
+
+Restriction is **hierarchical**: only the finest coarse level reads the fine
+grid directly; each coarser level reduces the previous level's running
+accumulators, since an eight-way block-sum is associative. Prolongation is
+**cascaded**: per-level scaled corrections accumulate coarsest-to-finest
+through factor-2 trilinear interpolation hops, so only the final hop writes
+the fine grid (fused with the fine-term scatter). All multigrid scratch is
+carved from buffers that are dead at that point in the step (chiefly
+``block.tau_q_halo``), so no per-step allocation is needed.
+
+``SolverConfig.sf_resid`` also drives implicit residual smoothing (Jameson
+IRS) on the fine-grid residual itself, via ``Grid.update_residual``,
+independent of whether multigrid is enabled.
+
+**Full multigrid startup.** :func:`ember.solver.run_fmg` runs the same solver
+coarse-to-fine as a startup schedule, rather than within a single step. It
+builds ``SolverConfig.n_levels`` progressively-halved grids
+(:meth:`ember.grid.Grid.resample`), solves the coarsest first, then
+prolongs each converged solution onto the next finer grid as its initial
+guess (:meth:`ember.grid.Grid.interp_from`) and calls :func:`ember.solver.run`
+again with the in-step multigrid depth set to that level's index -- so the
+coarsest level runs with no in-step multigrid and the finest runs at the full
+requested ``n_levels``, identical to calling :func:`~ember.solver.run` directly
+on the finest grid. With ``n_levels <= 0`` it reduces to a single call to
+:func:`~ember.solver.run`.
 
 .. _body-forces:
 
 Body forces and viscous model
------------------------------
+------------------------------
 
-The cell-centred ``f_body`` buffer accumulates all source terms before
-they are added to the convective residual:
+The cell-centred body-force buffer (``block.F_body_nd``) accumulates all
+source terms before they are added to the residual, rebuilt by
+:meth:`ember.grid.Grid.update_sources`:
 
-- A polar (axisymmetric) source term to balance the cylindrical
-  coordinate metric.
 - Viscous shear stresses and heat flux, computed unless
-  ``SolverConfig.inviscid`` is set.
+  ``SolverConfig.inviscid`` is set. The viscous pass is phased across the
+  whole grid (tau/q on every block, then a periodic-seam halo exchange, then
+  face-flux accumulation) so block-to-block periodic interfaces stay
+  consistent.
+- A polar (axisymmetric) source term to balance the cylindrical coordinate
+  metric.
+- An optional selective-frequency-damping (SFD) force when
+  ``SolverConfig.gain_filt`` is nonzero.
 
-Relevant configuration:
-
-- ``SolverConfig.Pr_turb`` --- turbulent Prandtl
-  number used to convert turbulent viscosity into heat flux.
-
-The mixing-length turbulent viscosity is driven by the relative-frame
-(rotating block frame) vorticity magnitude, with no absolute-frame
-``+2*Omega`` correction.
+The mixing-length turbulent viscosity uses a fixed turbulent Prandtl number
+of 1.0 and is evaluated from the absolute-frame vorticity magnitude.
+``SolverConfig.fac_visc`` multiplies the turbulent-diffusion timestep radius
+independently of this, tightening the viscous stability limit to recover the
+inviscid stable CFL where needed.
 
 .. _boundary-coupling:
 
 Boundary patches and inter-block coupling
------------------------------------------
+------------------------------------------
 
-Inlet, outlet, and mixing-plane patches all use first-order relaxation
-to drive their state towards a target each step. The relaxation factors
-are configurable:
+Inlet, outlet, and mixing-plane patches each relax their own state towards a
+target every step, with their own relaxation factor rather than a single
+solver-wide setting:
 
-- ``SolverConfig.rf_inlet_rho`` --- interior density
-  relaxation factor used to stabilise the boundary condition at low Mach
-  number. Applied to all nodes on
-  :class:`~ember.inlet.InletPatch`, to nodes where flow enters the
-  block on a :class:`~ember.mixing.MixingPatch`, and to backflow nodes
-  with reversed flow re-entering the domain on
-  :class:`~ember.outlet.OutletPatch`.
-- ``SolverConfig.rf_mix`` --- separate relaxation
-  factor applied inside
-  :class:`~ember.mixing_communicator.MixingCommunicator` for the
-  mixing-plane target exchange between adjacent blocks.
+- :class:`~ember.inlet.InletPatch` relaxes its interior pressure datum with
+  ``rf = 0.2`` by default.
+- :class:`~ember.mixing.MixingPatch` relaxes similarly, with ``rf = 1.0`` by
+  default (no relaxation).
+- :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
+  mixing-plane target exchanged between adjacent blocks with a separate
+  ``rf_mix`` (default 0.1).
+- :class:`~ember.outlet.OutletPatch` takes its own relaxation factor via
+  ``set_adjustment(rf=...)``.
 
-Periodic and mixing-plane communicators are built once per level during
-solver setup and exchanged at the top of every step.
+:meth:`ember.grid.Grid.update_bconds` advances the slowly-varying boundary
+targets once per step (mixing-plane exchange, inlet pressure snapshot,
+outlet PID/spanwise target); :meth:`ember.grid.Grid.apply_bconds` then
+imposes the full set of physical boundary conditions and closes periodic
+seams every time it is called, including between Runge--Kutta substages.
 
 .. _logging-and-averaging:
 
 Logging, averaging, and convergence history
--------------------------------------------
+---------------------------------------------
 
 Convergence diagnostics are recorded into a
 :class:`~ember.convergence_history.ConvergenceHistory` every
-``SolverConfig.n_step_log`` steps: mean residual,
-mean CFL, mass flow / stagnation enthalpy / entropy at row interfaces,
-and outlet throttle state.
+``SolverConfig.n_step_log`` steps: mean residual, mass flow / stagnation
+enthalpy / entropy at row interfaces, and outlet throttle state
+(:meth:`ember.grid.Grid.get_convergence`).
 
-Time averaging of the conserved variables starts
-``SolverConfig.n_step_avg`` steps before the end of
-the run (see ``SolverConfig.i_step_avg``), so that
-averaging always overlaps the final, fully-converged full-hierarchy phase
-regardless of FMG activity. On completion, the time-averaged state
-replaces the instantaneous state on the finest grid.
+Pseudotime averaging of the conserved variables accumulates over the final
+``SolverConfig.n_step_avg`` steps of the run
+(:meth:`ember.grid.Grid.accumulate_avg`). On completion, the time-averaged
+state replaces the instantaneous state
+(:meth:`ember.grid.Grid.finalise_average`) -- skipped if the run diverged, so
+the invalid field is preserved for inspection rather than overwritten by a
+partially-accumulated average.
 
-The full set of configuration parameters is documented separately in
-:doc:`solver_configuration`.
-
-Entry point
------------
-
-.. note::
-   This page describes a legacy solver loop, since removed in favour of the
-   simpler constant-CFL march in ``ember.solver.run`` (see
-   ``ember.solver.SolverConfig`` for its configuration). Retained
-   for background on the algorithm ideas (CFL adaptation, full multigrid)
-   that the current solver does not (yet) reimplement.
+The full set of configuration parameters, and the Python entry points
+referenced throughout this page, are documented in :doc:`api/solver`.
