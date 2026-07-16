@@ -185,8 +185,12 @@ def _synthetic_tau_q(shape):
     return tau, q
 
 
-def _run_phase2():
-    """Call ``set_visc_force`` on a synthetic tau/q; return the fvisc output."""
+def _run_phase2(kb=None):
+    """Call ``set_visc_force`` on a synthetic tau/q; return the fvisc output.
+
+    ``kb`` is the k-slab depth of the tiled kernel; ``None`` mirrors the
+    production clamp in :meth:`ember.grid.Grid.update_sources`.
+    """
     block = _build_block()
 
     halo = block.tau_q_halo
@@ -203,6 +207,10 @@ def _run_phase2():
     fbody.fill(0.0)
 
     i_cusp_start, i_cusp_end = block.i_cusp
+    ni, nj, nk = block.shape
+    if kb is None:
+        kb = min(8, nk - 1)
+    flow_scratch = util.carve_view(block.scratch, (ni, nj, kb + 1, 4))
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
         vol=block.vol_nd,
@@ -218,7 +226,8 @@ def _run_phase2():
         vt=block.Vt_rel_nd,
         tau_cell=tau_cell,
         q_cell=q_cell,
-        flow_scratch=block.scratch[..., 0:4],
+        flow_scratch=flow_scratch,
+        kb=kb,
         **block.ijk_wall_visc,
         **block.Omega_wall_nd,
         i_cusp_start=i_cusp_start,
@@ -276,6 +285,23 @@ def test_set_visc_force_matches_golden(region):
     golden = np.load(GOLDEN_FILE)["fvisc"]
     sl = REGIONS[region]
     _assert_matches_golden(fvisc[sl], golden[sl])
+
+
+@pytest.mark.parametrize("kb", [1, 2, 3])
+def test_set_visc_force_kb_consistent(kb):
+    """The k-slab depth must not change the result.
+
+    Compare each kb against the single-slab kb = nk-1 reference, which
+    degenerates to the unblocked sweep. The per-cell arithmetic is identical
+    for every kb (only staging of the face flows differs, and the i-loop trip
+    counts the vectorizer sees are unchanged), so the comparison is exact --
+    any difference is a slab bookkeeping bug (carry plane, short last slab,
+    wall-injection slab selection). kb=3 exercises a short last slab
+    (nk-1 = 8 = 3+3+2).
+    """
+    ref = _run_phase2(kb=SHAPE[2] - 1)
+    out = _run_phase2(kb=kb)
+    np.testing.assert_array_equal(out, ref)
 
 
 if __name__ == "__main__":

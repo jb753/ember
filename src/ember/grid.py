@@ -129,6 +129,13 @@ import ember.mixing_communicator
 import ember.nonmatch_communicator
 
 
+# k-slab depth for the tiled set_visc_force kernel: cell planes per slab, so
+# that a slab's tau/q planes stay cache-resident across all three face
+# directions. Clamped per block to nk-1. Value chosen by benchmark sweep (see
+# docs/dev/viscous_kernels.md).
+_KB_VISC = 8
+
+
 class Grid(_LabelledList):
     """An ordered, labelled collection of connected blocks.
 
@@ -1552,6 +1559,12 @@ class Grid(_LabelledList):
                 tau_cell = halo[..., 0:6]
                 q_cell = halo[..., 6:9]
                 i_cusp_start, i_cusp_end = block.i_cusp
+                # Slab-sized flow scratch for the k-tiled kernel: kb+1 face
+                # planes, borrowed zero-copy from the leading block.scratch
+                # storage (5 nodal slots, so kb+1 <= nk always fits).
+                ni, nj, nk = block.shape
+                kb = min(_KB_VISC, nk - 1)
+                flow_scratch = util.carve_view(block.scratch, (ni, nj, kb + 1, 4))
                 ember.fortran.set_visc_force(
                     cons=block.conserved_nd,
                     vol=block.vol_nd,
@@ -1567,7 +1580,8 @@ class Grid(_LabelledList):
                     vt=block.Vt_rel_nd,
                     tau_cell=tau_cell,
                     q_cell=q_cell,
-                    flow_scratch=block.scratch[..., 0:4],
+                    flow_scratch=flow_scratch,
+                    kb=kb,
                     **block.ijk_wall_visc,
                     **block.Omega_wall_nd,
                     i_cusp_start=i_cusp_start,
