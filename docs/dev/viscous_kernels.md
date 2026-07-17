@@ -1235,8 +1235,10 @@ The two IRS wrappers `rk_mg_irs` (`scree.f90:637`) and `scree_mg_irs`
 lines, plus banner comments). Nothing else moves: both smoothers have the
 identical `(dU, sf, work, ni, nj, nk)` signature and the same `2*(nib+njb+nkb)`
 Thomas-work sizing the engine already carves, so the caller-side scratch
-(`_mg_coarse_carve`, `solver.py:430`) is untouched. `smooth_residual_tri` stays
-in the tree as the reference implementation.
+(`_mg_coarse_carve`, `solver.py:430`) is untouched. (`smooth_residual_tri` was
+kept as the reference implementation at the time; it was later removed as
+production-dead once the tiled variant took over -- recover from git history if
+needed.)
 
 Correctness is **bitwise-identical, no golden regeneration**: the tiled i-solve
 does the same per-line Thomas recurrence in the same i-order, only the lane

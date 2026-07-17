@@ -1,6 +1,6 @@
 ! Blended 4th and 2nd order smoothing with constant, isotropic factors.
 !
-! Like smooth3d but with no shock sensor, no CFL scaling, and no L weighting.
+! A shock-sensor-free smoother: no shock sensor, no CFL scaling, no L weighting.
 ! sf2 and sf4 are independent: sf2 drives 2nd-order smoothing and sf4 drives
 ! 4th-order smoothing with no coupling between them.
 !

@@ -1,57 +1,42 @@
-"""A/B benchmark for the coarse-grid IRS smoother in the RK multigrid path.
+"""A/B benchmark for the RK multigrid stage (docs/dev/viscous_kernels.md 14-15).
 
-Background (docs/dev/viscous_kernels.md section 14): the coarse-level implicit
-residual smoothing in ``rk_mg_irs``/``scree_mg_irs`` (``scree.f90``, via the
-shared ``mg_coarse_correction`` engine) was handed the untiled
-``smooth_residual_tri`` smoother, whose i-direction Thomas solve is a scalar
-recurrence along the unit-stride axis (the link-stage ``-fopt-info-vec`` report
-shows it as "no vectype"). The fine grid already uses the transpose-tiled
-``smooth_residual_tri_tiled`` (identical maths, i-solve vectorised over BJ=8
-lanes). This benchmark measures swapping the coarse path to the tiled variant.
+Times the whole per-block RK multigrid stage through the real production call
+path ``solver.advance_rk_stage_mg`` (which carves the coarse scratch via
+``solver._mg_coarse_carve`` and dispatches the Fortran kernels), in three
+variants:
 
-It times, through the real production call path, two things:
+  * ``irs``   -- ``sf_irs > 0``  -> ``rk_mg_irs``   (coarse IRS smoothing on);
+  * ``noirs`` -- ``sf_irs = 0``  -> ``rk_mg_noirs`` (smoothing off);
+  * ``plain`` -- ``fac_mgrid = 0`` -> ``rk_plain``  (multigrid off).
 
-1. **Full RK stage** (``solver.advance_rk_stage_mg``, which carves the coarse
-   scratch via ``solver._mg_coarse_carve`` and dispatches the Fortran kernel):
-     * ``irs``   -- ``sf_irs > 0`` -> ``rk_mg_irs`` (the CHANGED kernel);
-     * ``noirs`` -- ``sf_irs = 0`` -> ``rk_mg_noirs`` (UNCHANGED by the swap:
-       the co-measured cross-build drift gauge, per the doc's gauge method).
-   Report ``irs`` deltas gauge-corrected against ``noirs`` at the same size/rep.
-
-2. **Isolated coarse smoother** (within a single build, both f2py entries always
-   exist): ``smooth_residual_tri`` vs ``smooth_residual_tri_tiled`` at the actual
-   coarse-level shapes the MG restriction produces (level 1/2/3 = fine/2, /4, /8),
-   so the i-solve tiling win is visible without the rest of the stage.
+For an A/B of a change that touches the multigrid kernels, co-measure whichever
+variant the change leaves *unchanged* as the cross-build drift gauge and report
+deltas gauge-corrected against it (e.g. the section-15 scatter fusion touched
+both irs and noirs, so ``plain`` is the gauge).
 
 Protocol mirrors ``scripts/bench_viscous.py`` and viscous_kernels.md section 4:
 one pinned core, ``OMP_NUM_THREADS=1``, warmup, round-robin interleave, median +
-min ns/cell. A/B: ``make compile`` each side of a ``git stash`` of the scree.f90
-swap; the ``noirs`` column is the drift gauge. Sizes are NODE dims; cell dims
-(node-1) must be divisible by ``2**n_levels`` (=8 for n_levels=3) so multigrid
-divides evenly (``solver._validate_mg``).
+min ns/cell. A/B: ``make compile`` each side of the change. Sizes are NODE dims;
+cell dims (node-1) must be divisible by ``2**n_levels`` (=8 for n_levels=3) so
+multigrid divides evenly (``solver._validate_mg``).
 
 Run:  uv run python scripts/mg_irs_bench.py [--label L] [--csv F] [--reps N]
 """
 
 import argparse
 import os
-import statistics
-import time
 
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.sched_setaffinity(0, {int(os.environ.get("BENCH_CPU", "2"))})
 
 import numpy as np  # noqa: E402
 
-import ember.fortran  # noqa: E402
-import ember.grid  # noqa: E402
-from ember import solver, util  # noqa: E402
+from ember import solver  # noqa: E402
 
 # Reuse the real single-block grid fixture and the timing/report/CSV helpers
 # from the viscous bench rather than duplicating them.
 from bench_viscous import build_grid, report, time_variants  # noqa: E402
 
-NP = 5
 # Node dims; cell dims (node-1) divisible by 8 for n_levels=3.
 SIZES = [(49, 33, 33), (65, 49, 49), (81, 65, 65), (97, 97, 97), (129, 97, 97)]
 N_LEVELS = 3
@@ -98,33 +83,6 @@ def make_stage_call(grid, sf_irs, fac_mgrid=FAC_MGRID):
     return call
 
 
-def make_smoother_call(kernel, nci, ncj, nck, seed):
-    """Closure: one coarse-shape IRS smooth on a fresh random dU each call.
-
-    dU is rebuilt per call (cheap vs the solve) so repeated calls do not smooth
-    an already-smoothed field into a degenerate one; the arithmetic cost per call
-    is identical across reps. work sizes the Thomas coefficients only.
-    """
-    rng = np.random.default_rng(seed)
-    base = rng.standard_normal((nci, ncj, nck, NP)).astype(np.float32)
-    dU = np.asfortranarray(base.copy())
-    work = np.zeros(2 * (nci + ncj + nck), dtype=np.float32)
-
-    def call():
-        dU[...] = base
-        kernel(du=dU, sf=SF_IRS, work=work, ni=nci + 1, nj=ncj + 1, nk=nck + 1)
-
-    return call
-
-
-def coarse_shapes(ni, nj, nk, n_levels):
-    """(nci, ncj, nck) coarse cell dims for each MG level (fine/2, /4, ...)."""
-    return [
-        ((ni - 1) // (2**l), (nj - 1) // (2**l), (nk - 1) // (2**l))
-        for l in range(1, n_levels + 1)
-    ]
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--label", default="run", help="A/B side label (base|cand)")
@@ -155,19 +113,6 @@ def main():
         reps = args.reps or max(30, int(0.5e9 / (cells * 40)))
         report(rows, args.label, size, cells, "rk_stage",
                time_variants(stage_variants, reps))
-
-        # --- Isolated coarse smoother at each MG level's shape. ---
-        for lvl, (nci, ncj, nck) in enumerate(coarse_shapes(ni, nj, nk, N_LEVELS), 1):
-            ccells = nci * ncj * nck
-            sm_variants = {
-                "untiled": make_smoother_call(
-                    ember.fortran.smooth_residual_tri, nci, ncj, nck, seed=lvl),
-                "tiled": make_smoother_call(
-                    ember.fortran.smooth_residual_tri_tiled, nci, ncj, nck, seed=lvl),
-            }
-            sreps = args.reps or max(50, int(0.3e9 / (ccells * 30)))
-            report(rows, args.label, (nci, ncj, nck), ccells,
-                   f"smooth_l{lvl}", time_variants(sm_variants, sreps))
 
     if args.csv:
         new = not os.path.exists(args.csv)

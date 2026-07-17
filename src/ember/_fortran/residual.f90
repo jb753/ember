@@ -661,316 +661,33 @@ end subroutine damp_residual
 
 
 ! =====================================================================
-! Implicit residual smoothing (Jameson IRS) -- production Jacobi version.
+! Implicit residual smoothing (Jameson IRS) -- EXACT factored tridiagonal
+! (ADI), with the i-direction solve transpose-tiled so it vectorises.
 !
-! Solves the same system as smooth_residual_gs, (1 - sf*grad^2) R* = R,
-! but by n_smooth JACOBI sweeps (each cell reads the PREVIOUS iterate,
-! never the current one), so the operator is order-independent and
-! symmetric, and -- crucially -- the sweep has no loop-carried
-! dependency and vectorises. Both schemes converge to the same R* as
-! n_smooth -> inf; at finite sweeps Jacobi damps somewhat less per sweep.
-!
-! The hot loop is branch-free and divide-free:
-!   * Halo padding. The iterate buffers carry a one-cell zero halo, so a
-!     missing face neighbour contributes 0 with no per-cell test. The
-!     Neumann boundary (reduced neighbour count) is absorbed into inv.
-!   * Precomputed reciprocal. inv(i,j,k) = 1/(1 + sf*navail) is built once
-!     (navail = 6 interior, less on the shell), turning the per-cell divide
-!     into a multiply.
-!
-! Constant fields are preserved exactly, linear fields in the interior,
-! and IRS(0) = 0 so the converged solution is unchanged. Operates in
-! place on dU. work is the caller's (ni-1,nj-1,nk-1,5) buffer, used to
-! hold the fixed RHS R across the sweeps.
-!
-! NOTE: the padded ping-pong buffers a,b and inv are allocated per call.
-! If this shows up in profiling, hoist them into a persistent per-block
-! workspace (cf. block.scratch / util.allocate_or_reuse).
-! =====================================================================
-subroutine smooth_residual(dU, sf, n_smooth, work, ni, nj, nk)
-
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk, n_smooth
-    real, intent(in)    :: sf
-    real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    real, intent(inout) :: work(ni-1, nj-1, nk-1, 5)
-
-    integer :: i, j, k, m, it, nci, ncj, nck
-    real :: navail
-    real, allocatable :: a(:,:,:,:), b(:,:,:,:), t(:,:,:,:), inv(:,:,:)
-
-    if (n_smooth <= 0 .or. sf <= 0.0e0) return
-
-    nci = ni-1
-    ncj = nj-1
-    nck = nk-1
-    if (nci < 1 .or. ncj < 1 .or. nck < 1) return
-
-    ! Fixed RHS R for every sweep.
-    work = dU
-
-    ! Halo-padded iterate buffers: index 0 and nc+1 planes stay zero forever
-    ! (only the interior 1..nc is ever written), so boundary reads need no test.
-    allocate(a(0:nci+1, 0:ncj+1, 0:nck+1, 5))
-    allocate(b(0:nci+1, 0:ncj+1, 0:nck+1, 5))
-    allocate(inv(nci, ncj, nck))
-    a = 0.0e0
-    b = 0.0e0
-
-    do m = 1, 5
-    do k = 1, nck
-    do j = 1, ncj
-    do i = 1, nci
-        a(i,j,k,m) = dU(i,j,k,m)
-    end do
-    end do
-    end do
-    end do
-
-    ! Reciprocal denominator, built once: navail = 6 interior, one less per
-    ! boundary face. Branches here are fine -- one-time O(N) pass, not hot.
-    do k = 1, nck
-    do j = 1, ncj
-    do i = 1, nci
-        navail = 6.0e0
-        if (i == 1)   navail = navail - 1.0e0
-        if (i == nci) navail = navail - 1.0e0
-        if (j == 1)   navail = navail - 1.0e0
-        if (j == ncj) navail = navail - 1.0e0
-        if (k == 1)   navail = navail - 1.0e0
-        if (k == nck) navail = navail - 1.0e0
-        inv(i,j,k) = 1.0e0 / (1.0e0 + sf*navail)
-    end do
-    end do
-    end do
-
-    do it = 1, n_smooth
-        ! b <- Jacobi(a): branch-free, divide-free, vectorises over i.
-        do m = 1, 5
-        do k = 1, nck
-        do j = 1, ncj
-        do i = 1, nci
-            b(i,j,k,m) = (work(i,j,k,m) + sf*( &
-                a(i-1,j,k,m) + a(i+1,j,k,m) + &
-                a(i,j-1,k,m) + a(i,j+1,k,m) + &
-                a(i,j,k-1,m) + a(i,j,k+1,m))) * inv(i,j,k)
-        end do
-        end do
-        end do
-        end do
-        ! Ping-pong a <-> b via descriptor moves (no data copy). Halos of both
-        ! stay zero throughout, so boundary reads remain branch-free.
-        call move_alloc(a, t)
-        call move_alloc(b, a)
-        call move_alloc(t, b)
-    end do
-
-    ! Latest iterate is in a's interior -> copy back to dU.
-    do m = 1, 5
-    do k = 1, nck
-    do j = 1, ncj
-    do i = 1, nci
-        dU(i,j,k,m) = a(i,j,k,m)
-    end do
-    end do
-    end do
-    end do
-
-    deallocate(a, b, inv)
-
-end subroutine smooth_residual
-
-
-! =====================================================================
-! Implicit residual smoothing (Jameson IRS) -- EXACT factored tridiagonal.
-!
-! The unfactored operator (1 - sf*grad^2) that smooth_residual/_gs invert
-! iteratively is replaced by the ADI-style factored product
-!
+! The unfactored operator (1 - sf*grad^2) is applied as the ADI-style
+! factored product
 !   (1 - sf*d2_i) (1 - sf*d2_j) (1 - sf*d2_k) R* = R
-!
 ! where d2_d is the 1D second difference along direction d with zero-
-! gradient (Neumann) ends -- exactly the boundary rule the Jacobi/GS
-! smoothers use (missing neighbour dropped, diagonal reduced). Because the
-! three 1D operators act on orthogonal index directions they commute, so
-! the factored inverse is applied as three successive EXACT tridiagonal
-! (Thomas) solves, one per direction, in place on dU. No sweep count: each
-! direction is solved to the last bit in O(n) per line, so this realises
-! the full sf-dependent damping that finite Jacobi sweeps only approach.
+! gradient (Neumann) ends. The three orthogonal 1D operators commute, so
+! the inverse is three successive EXACT tridiagonal (Thomas) solves, one
+! per direction, in place on dU -- no sweep count, each direction solved to
+! the last bit in O(n) per line. The matrix is identical for every line in
+! a given direction (a=c=-sf, b=1+2sf interior, b=1+sf at the ends), so its
+! Thomas factors cp(.) and reciprocal pivots minv(.) are built ONCE per
+! direction by tri_coeffs and reused for all lines. Constant fields are
+! preserved exactly and IRS(0)=0, so the converged solution is unchanged.
 !
-! The tridiagonal matrix is identical for every line in a given direction
-! (constant coefficients a=c=-sf, b=1+2sf interior, b=1+sf at the two ends),
-! so its Thomas factors cp(.) and the reciprocal pivots minv(.) are built
-! ONCE per direction by tri_coeffs and reused for all lines. The hot solve
-! loops are then completely branch-free and divide-free:
-!   * i-solve: recurrence runs along the stride-1 index (cache-streamed).
-!   * j/k-solve: recurrence runs along j (resp. k) while the innermost loop
-!     runs over the stride-1 i index, so each recurrence step is a vector
-!     op over i.
+! The j- and k-solves run their recurrence along j (resp. k) with the
+! innermost loop over the stride-1 i index, so they vectorise as-is. The
+! i-solve recurrence runs along the unit-stride axis and cannot vectorise
+! directly, so a BJ-wide block of j-lines is transposed into a small
+! (BJ,nci) pad; the recurrence's innermost loop then runs over the BJ
+! contiguous, independent lanes -- vectorises and hides the FMA-latency
+! chain -- and the tile is scattered back.
 !
-! Constant fields are preserved exactly (each 1D factor maps a constant to
-! itself), and IRS(0)=0, so the converged solution is unchanged. The
-! factored operator differs from the unfactored one only by O(sf^2) cross
-! terms; on the highest mode it damps by 1/(1+4sf)^3 (vs 1/(1+2*d*sf) for
-! the true d-dimensional Laplacian) -- i.e. more aggressively per unit sf.
-!
-! Scratch: the Thomas solve is in place on dU, so the only workspace is the
-! per-direction factors cp(.) and minv(.). work is a 1D buffer holding all
-! six vectors back-to-back and must be at least 2*((ni-1)+(nj-1)+(nk-1))
-! elements -- e.g. carve a leading slice of block.scratch (nodal (ni,nj,nk,5),
-! vastly oversized) with util.carve_view; nothing is allocated here.
-! =====================================================================
-subroutine smooth_residual_tri(dU, sf, work, ni, nj, nk)
-
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk
-    real, intent(in)    :: sf
-    real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
-    real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
-
-    integer :: i, j, k, m, nci, ncj, nck
-    integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
-    real    :: cc, mm
-
-    if (sf <= 0.0e0) return
-
-    nci = ni-1
-    ncj = nj-1
-    nck = nk-1
-    if (nci < 1 .or. ncj < 1 .or. nck < 1) return
-
-    ! Base offsets of the six coefficient vectors packed into work:
-    ! [cpi | minvi | cpj | minvj | cpk | minvk], lengths nci,nci,ncj,ncj,nck,nck.
-    bcpi = 0
-    bmii = nci
-    bcpj = 2*nci
-    bmij = 2*nci + ncj
-    bcpk = 2*nci + 2*ncj
-    bmik = 2*nci + 2*ncj + nck
-    call tri_coeffs(sf, nci, work(bcpi+1:bcpi+nci), work(bmii+1:bmii+nci))
-    call tri_coeffs(sf, ncj, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj))
-    call tri_coeffs(sf, nck, work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck))
-
-    ! ---- i-direction: recurrence along the stride-1 index (nci >= 2) ----
-    if (nci >= 2) then
-        do m = 1, 5
-        do k = 1, nck
-        do j = 1, ncj
-            dU(1,j,k,m) = dU(1,j,k,m) * work(bmii+1)
-            do i = 2, nci
-                dU(i,j,k,m) = (dU(i,j,k,m) + sf*dU(i-1,j,k,m)) * work(bmii+i)
-            end do
-            do i = nci-1, 1, -1
-                dU(i,j,k,m) = dU(i,j,k,m) - work(bcpi+i)*dU(i+1,j,k,m)
-            end do
-        end do
-        end do
-        end do
-    end if
-
-    ! ---- j-direction: recurrence along j, innermost vector loop over i.
-    ! The per-plane factors are loop-invariant over i, so hoist to scalars. ----
-    if (ncj >= 2) then
-        do m = 1, 5
-        do k = 1, nck
-            mm = work(bmij+1)
-            do i = 1, nci
-                dU(i,1,k,m) = dU(i,1,k,m) * mm
-            end do
-            do j = 2, ncj
-                mm = work(bmij+j)
-                do i = 1, nci
-                    dU(i,j,k,m) = (dU(i,j,k,m) + sf*dU(i,j-1,k,m)) * mm
-                end do
-            end do
-            do j = ncj-1, 1, -1
-                cc = work(bcpj+j)
-                do i = 1, nci
-                    dU(i,j,k,m) = dU(i,j,k,m) - cc*dU(i,j+1,k,m)
-                end do
-            end do
-        end do
-        end do
-    end if
-
-    ! ---- k-direction: recurrence along k, innermost vector loop over i ----
-    if (nck >= 2) then
-        do m = 1, 5
-            mm = work(bmik+1)
-            do j = 1, ncj
-            do i = 1, nci
-                dU(i,j,1,m) = dU(i,j,1,m) * mm
-            end do
-            end do
-            do k = 2, nck
-                mm = work(bmik+k)
-                do j = 1, ncj
-                do i = 1, nci
-                    dU(i,j,k,m) = (dU(i,j,k,m) + sf*dU(i,j,k-1,m)) * mm
-                end do
-                end do
-            end do
-            do k = nck-1, 1, -1
-                cc = work(bcpk+k)
-                do j = 1, ncj
-                do i = 1, nci
-                    dU(i,j,k,m) = dU(i,j,k,m) - cc*dU(i,j,k+1,m)
-                end do
-                end do
-            end do
-        end do
-    end if
-
-contains
-
-    ! Thomas forward-sweep factors for the constant-coefficient Neumann
-    ! tridiagonal along a line of length n: a = c = -sf, b = 1+2sf interior,
-    ! b = 1+sf at the two ends. Returns cp (eliminated super-diagonal) and
-    ! minv = 1/pivot, so a line solve is:
-    !   x(1)   = d(1)*minv(1)
-    !   x(i)   = (d(i) + sf*x(i-1))*minv(i)          i = 2..n   (forward)
-    !   x(i)   = x(i) - cp(i)*x(i+1)                 i = n-1..1 (back-sub)
-    ! An n=1 line has no neighbours -> operator is the identity (minv=1).
-    subroutine tri_coeffs(e, n, cp, minv)
-        implicit none
-        real, intent(in)     :: e
-        integer, intent(in)  :: n
-        real, intent(out)    :: cp(n), minv(n)
-        integer :: ii
-
-        if (n == 1) then
-            minv(1) = 1.0e0
-            cp(1)   = 0.0e0
-            return
-        end if
-
-        ! Row 1: b = 1 + sf (single neighbour), c = -sf.
-        minv(1) = 1.0e0 / (1.0e0 + e)
-        cp(1)   = -e * minv(1)
-        do ii = 2, n-1
-            minv(ii) = 1.0e0 / ((1.0e0 + 2.0e0*e) + e*cp(ii-1))
-            cp(ii)   = -e * minv(ii)
-        end do
-        ! Row n: b = 1 + sf (single neighbour), c = 0.
-        minv(n) = 1.0e0 / ((1.0e0 + e) + e*cp(n-1))
-        cp(n)   = 0.0e0
-    end subroutine tri_coeffs
-
-end subroutine smooth_residual_tri
-
-! =====================================================================
-! Transpose-tiled variant of smooth_residual_tri. Identical maths and
-! results; only the i-direction solve differs. In smooth_residual_tri the
-! i-solve recurrence runs along the unit-stride axis, so it cannot
-! vectorise (the compiler reports the j/k solves vectorised but not this
-! one). Here a BJ-wide tile of j-lines is transposed into a small (BJ,nci)
-! scratch pad so the recurrence's innermost loop runs over the contiguous
-! BJ lanes -- independent lines, so it both vectorises and exposes ILP to
-! hide the FMA-latency chain -- then the tile is scattered back. The j and
-! k solves are unchanged (they already vectorise over stride-1 i).
+! Scratch: the Thomas solve is in place on dU; work is a 1D buffer holding
+! the six coefficient vectors back-to-back, >= 2*((ni-1)+(nj-1)+(nk-1))
+! elements (e.g. a leading slice of block.scratch via util.carve_view).
 ! =====================================================================
 subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
 
