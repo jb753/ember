@@ -128,7 +128,7 @@ field :math:`\mathbf{F} = (x,\, r/2,\, r\theta)`, for which
 The angle :math:`\theta` in :math:`\mathbf{F}` is measured from the mean angle
 of the eight corner nodes of the cell. Although the origin of :math:`\theta` is
 arbitrary, this choice reduces round-off error and guarantees that the volume
-is independent of circumferential shifts of the cell. 
+is independent of circumferential shifts of the cell.
 
 The volume of a cell is
 
