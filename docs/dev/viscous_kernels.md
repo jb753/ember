@@ -27,7 +27,15 @@ Section 12 records two further candidates in the same family; the first
 (fusing the i- and j-direction sweeps into one dU write) is implemented
 and measured in section 13 (`set_residual` -7% to -12% gauge-corrected,
 no regression, no golden regeneration), the second (precomputing per-node
-`pm`/`mf` once) remains untried.**
+`pm`/`mf` once) remains untried.
+Section 14 moves to the RK multigrid path: the coarse-level IRS smoother in
+`rk_mg_irs`/`scree_mg_irs` was handed the untiled `smooth_residual_tri`,
+whose i-direction Thomas solve the link-stage vectorization report shows as
+scalar; swapping it for the already-existing `smooth_residual_tri_tiled`
+(the fine-grid smoother) vectorizes the coarse i-solve and wins -20% to -27%
+on the isolated coarse smoother at the dominant level and -1.6% to -6.8%
+gauge-corrected on the full RK stage, bitwise-identical, no golden
+regeneration.**
 
 ---
 
@@ -1172,3 +1180,131 @@ regression survives at any size in either repeat.
   settled before attempting it.
 - Raw data: `scripts/bench_ijfuse_ab.csv`, labels `base_r1`/`base_r2`
   (pre-fusion HEAD) and `cand_r1`/`cand_r2` (i+j fused).
+
+---
+
+## 14. Implemented: vectorize the coarse-grid IRS i-solve in the RK/MG path
+
+Sections 5-13 tuned the two `update_sources`/`update_residual` kernels. The
+same measure-first method applies to the **RK multigrid** path
+(`solver.advance_rk_stage_mg` -> `rk_mg_irs`/`rk_mg_noirs` in `scree.f90`,
+over the shared `mg_coarse_correction` engine). This change (July 2026) was
+found from the compiler vectorization report and **adopted**: it wins -20% to
+-27% on the isolated coarse smoother at the dominant level and -1.6% to -6.8%
+gauge-corrected on the full RK stage, bitwise-identical, no golden change.
+
+### 14.1 The finding, from the link-stage report
+
+The coarse-level IRS (Jameson ADI, exact factored tridiagonal
+`smooth_residual_tri`, `residual.f90:824`) is applied per multigrid level to
+the block-restricted coarse residual, passed to `mg_coarse_correction` as the
+`smoother` dummy procedure (`scree.f90`). Its three per-direction Thomas solves
+have very different SIMD fates: the j- and k-solves run the recurrence along j
+(resp. k) with the innermost loop over the stride-1 `i`, so they vectorize; the
+**i-solve runs the recurrence along the unit-stride axis itself, so it cannot
+vectorize**. The link-stage `EMBER_OPT_REPORT` build (section 4.6) confirms it
+directly -- on the inlined coarse copies operating on `cres`:
+
+```
+residual.f90:864: missed: not vectorized: no vectype for stmt: ... cres_47 ...
+residual.f90:867: missed: not vectorized: no vectype for stmt: ... cres_47 ...   (forward + back-sub)
+residual.f90:880/885/891: optimized: loop vectorized using 32 byte vectors        (j-solve)
+residual.f90:904/911:     optimized: loop vectorized using 32 byte vectors        (k-solve)
+```
+
+A transpose-tiled variant that fixes exactly this **already exists** --
+`smooth_residual_tri_tiled` (`residual.f90:975`), identical maths, i-solve run
+over a BJ=8-wide transposed tile of j-lines so the innermost loop is over the
+independent lanes -- and is **already the production fine-grid smoother**
+(`Grid.update_residual`, `grid.py:1464`). But the coarse MG-IRS path was never
+switched to it. The report shows the tiled i-solve lanes vectorizing at 32
+bytes (`residual.f90:1026/1031/1037/1042`).
+
+### 14.2 The change and correctness
+
+The two IRS wrappers `rk_mg_irs` (`scree.f90:637`) and `scree_mg_irs`
+(`scree.f90:545`) now pass `smooth_residual_tri_tiled` to the engine instead of
+`smooth_residual_tri` (the `external` decl and the call argument in each; four
+lines, plus banner comments). Nothing else moves: both smoothers have the
+identical `(dU, sf, work, ni, nj, nk)` signature and the same `2*(nib+njb+nkb)`
+Thomas-work sizing the engine already carves, so the caller-side scratch
+(`_mg_coarse_carve`, `solver.py:430`) is untouched. `smooth_residual_tri` stays
+in the tree as the reference implementation.
+
+Correctness is **bitwise-identical, no golden regeneration**: the tiled i-solve
+does the same per-line Thomas recurrence in the same i-order, only the lane
+grouping differs, so every coarse residual value is unchanged to the bit.
+Verified: the after-swap link report shows the scalar `cres` i-solve instances
+**gone** (replaced by the 32-byte-vectorized tiled lanes); `test_mg_irs`,
+`test_scree_mg`, `test_residual_smoothing` and the full suite pass
+(1414 passed, 1 skipped), with the residual/scree-mg goldens holding **without
+regeneration**.
+
+### 14.3 A/B results
+
+Protocol per section 4: `make compile` both sides via `git stash` of the
+`scree.f90` swap (the fine-grid `smooth_residual_tri_tiled` call is unchanged
+on both sides), single core pinned, `OMP_NUM_THREADS=1`, warmup then median
+ns/cell with variants interleaved round-robin, two repeat processes (r1/r2).
+Harness: the rewritten `scripts/mg_irs_bench.py` (the old one referenced
+removed f2py names and used mean-time; it now drives the real
+`advance_rk_stage_mg` path and mirrors `bench_viscous.py`'s rigor). Sizes are
+node dims; cell dims (node-1) are divisible by 8 for `n_levels = 3`.
+
+**Isolated coarse smoother** (`smooth_residual_tri` vs `smooth_residual_tri_tiled`
+called directly at each MG level's coarse shape -- a within-build comparison,
+both f2py entries exist on both sides), median ns/coarse-cell:
+
+| fine (nodes) | level 1 (fine/2)        | level 2 (fine/4)       | level 3 (fine/8)      |
+| --- | --- | --- | --- |
+| 49x33x33   | 22.96 -> 18.30  (-20.3%) | 23.17 -> 21.78 (-6.0%)  | 46.10 -> 53.55 (+16.1%) |
+| 65x49x49   | 27.04 -> 19.83  (-26.7%) | 23.42 -> 22.60 (-3.5%)  | 27.56 -> 34.10 (+23.7%) |
+| 81x65x65   | 30.00 -> 22.71  (-24.3%) | 20.24 -> 17.47 (-13.7%) | 26.26 -> 25.51 (-2.8%)  |
+| 97x97x97   | 29.57 -> 22.54  (-23.8%) | 25.16 -> 19.94 (-20.7%) | 21.77 -> 22.60 (+3.8%)  |
+| 129x97x97  | 31.07 -> 24.52  (-21.1%) | 27.96 -> 20.27 (-27.5%) | 23.34 -> 22.51 (-3.6%)  |
+
+Level 1 -- the largest coarse grid, carrying the full `fac_mgrid` weight and 8x
+the cells of level 2 -- is a solid **-20% to -27%** everywhere; level 2 mostly
+wins; level 3 (a handful of coarse cells, ~1/64 the level-1 count) is noise and
+sometimes loses to the transpose overhead, but its cost is negligible.
+
+**Full RK stage** (`advance_rk_stage_mg`, `sf_irs = 0.5` -> `rk_mg_irs`, the
+changed kernel), gauge-corrected against the co-measured `rk_mg_noirs`
+(`sf_irs = 0`, structurally unchanged by the swap), median ns/cell:
+
+| size (nodes) | base irs r1/r2 | cand irs r1/r2 | gauge-corr r1/r2 |
+| --- | --- | --- | --- |
+| 49x33x33   | 22.85 / 22.46 | 21.64 / 22.04 | -2.6% / -2.0% |
+| 65x49x49   | 21.90 / 21.87 | 21.93 / 22.38 | -4.3% / -6.8% |
+| 81x65x65   | 29.07 / 28.65 | 27.85 / 29.25 | -4.0% / -4.7% |
+| 97x97x97   | 33.98 / 32.81 | 35.11 / 36.32 | -3.0% / -2.0% |
+| 129x97x97  | 32.33 / 33.46 | 33.71 / 30.04 | -3.7% / -1.6% |
+
+The **gauge is load-bearing here**: raw `irs` deltas span -10% to +11% because
+the unchanged `rk_mg_noirs` gauge itself drifted up to +-12% between the two
+builds (whole-program LTO re-inlining around the changed `scree.f90`, plus the
+pow2-plane heap-layout lottery of section 9.4 at ni=97/129) -- exactly the
+cross-build drift section 7.2 documents. Gauge-corrected (candidate `irs` delta
+minus the co-measured `noirs` delta at the same size/rep), every cell in both
+repeats is a clean **-1.6% to -6.8%** win with no regression.
+
+### 14.4 Reading
+
+- The full-stage win (-1.6% to -6.8%) is smaller than the isolated-smoother win
+  (-20% to -27%) because the RK stage also does restriction, cascaded
+  prolongation and the fused scatter -- all unchanged -- and only the i-solve
+  (one of three directions) was scalar. The smoothing is a real fraction of the
+  stage, so vectorizing its slowest third is worth a few percent end to end,
+  for free.
+- This was pure oversight recovery: the fix already existed and was in
+  production on the fine grid; only the coarse dispatch lagged. The vectorization
+  report is what surfaced it -- the coarse smoother's scalar i-solve is invisible
+  in a timing number alone.
+- No cache-cliff crossover: the win is compute-side (SIMD on the recurrence
+  lanes), so it holds across the size ladder rather than appearing only past L3.
+- Build note: gfortran 13.3's `-Werror=line-truncation` rejects one pre-existing
+  133-char line in `viscous.f90:759` (over the 132-col free-form limit); wrapped
+  onto a continuation line (arithmetically identical) so the whole file set
+  builds under the production flags. Unrelated to the optimization.
+- Raw data: `scripts/bench_mgirs_ab.csv`, labels `base_r1`/`base_r2` (untiled
+  coarse smoother) and `cand_r1`/`cand_r2` (tiled).

@@ -7,7 +7,7 @@
 ! inside a kernel: the scheme is fixed by which fine quantity `q` the wrapper
 ! forms and which scatter tail it calls; multigrid on/off is which wrapper the
 ! caller picks (mg-off wrappers never touch the coarse engine); IRS on/off is the
-! `smoother` dummy-procedure argument (smooth_residual_tri vs mg_smooth_noop).
+! `smoother` dummy-procedure argument (smooth_residual_tri_tiled vs mg_smooth_noop).
 ! See the banner above mg_coarse_correction for the algorithm and the wrapper
 ! grid.
 !
@@ -310,13 +310,13 @@ end subroutine scree_roll_and_scatter
 ! Scheme-agnostic: operates on a single pre-formed fine quantity `q` (residual
 ! for RK, 2*residual-store for scree), so it carries no `denton` branch. Called
 ! only by the mg-*on* wrappers, so n_levels >= 1 always (no n_levels==0 path).
-! IRS is the `smoother` dummy-procedure argument: smooth_residual_tri (Jameson
-! IRS) or mg_smooth_noop (none) -- no `if (sf_irs)` anywhere in here.
+! IRS is the `smoother` dummy-procedure argument: smooth_residual_tri_tiled
+! (Jameson IRS) or mg_smooth_noop (none) -- no `if (sf_irs)` anywhere in here.
 !
 ! The six production kernels, all branch-free straight-line compositions:
 !   scree_plain     rk_plain      fine_term + scatter          (multigrid off)
 !   scree_mg_noirs  rk_mg_noirs   engine(mg_smooth_noop) + scatter
-!   scree_mg_irs    rk_mg_irs     engine(smooth_residual_tri) + scatter
+!   scree_mg_irs    rk_mg_irs     engine(smooth_residual_tri_tiled) + scatter
 ! scree wrappers form q in store (scree_form_q) and roll+frozen-scatter
 ! (scree_roll_and_scatter); rk wrappers pass residual as q and scatter off the
 ! sub-stage snapshot (cell_to_node_generic).
@@ -344,7 +344,7 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, &
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
     integer, intent(in) :: n_corr, n_res, n_tri
     ! Coarse-residual smoother, chosen by the caller (no IRS branch in here):
-    ! smooth_residual_tri for the IRS kernels, mg_smooth_noop for the plain ones.
+    ! smooth_residual_tri_tiled for the IRS kernels, mg_smooth_noop for the plain ones.
     external :: smoother
     real, intent(in)    :: q(ni-1, nj-1, nk-1, np)
     real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
@@ -567,12 +567,12 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
     real, intent(inout) :: cres(n_res)
     real, intent(inout) :: triw(n_tri)
-    external :: smooth_residual_tri
+    external :: smooth_residual_tri_tiled
 
     call scree_form_q(store, residual, ni, nj, nk, np)
     call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, sf_irs, n_levels, &
                        tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
-                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri, &
+                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
 end subroutine scree_mg_irs
@@ -659,11 +659,11 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
     real, intent(inout) :: cres(n_res)
     real, intent(inout) :: triw(n_tri)
-    external :: smooth_residual_tri
+    external :: smooth_residual_tri_tiled
 
     call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, sf_irs, &
                        n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
-                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri, &
+                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
 end subroutine rk_mg_irs
