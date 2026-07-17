@@ -15,7 +15,10 @@ the same tiling to `set_residual`; section 7 adds the rolling-buffer fusion
 of section 3.4 on top (a further -8% to -16% on set_visc_force); the same
 fusion for `set_residual` was first tried bitwise-exactly and rejected
 (section 8), then landed as a slab-tiled port under a bounded float32
-tolerance with a conditional anti-aliasing pad (section 9, -3% to -12%).**
+tolerance with a conditional anti-aliasing pad (section 9, -3% to -12%).
+A second-level j-panel tile on top of the k-slabs was tried and rejected
+(section 10): panels lose 2-5% at small/mid sizes and gain at most ~1% at
+the largest, so the slab-tiled section 9 kernel remains production.**
 
 ---
 
@@ -54,12 +57,19 @@ Key features:
   `visc_lim = 3000*mu`), and `q` (`lambda = mu*cp/Pr_lam + mu_turb*cp/Pr_turb`).
 - **Vectorization.** The vector axis is `i` (the contiguous dim-1, the SIMD
   lane). Stage 1 vectorizes over `i` (32-byte AVX2 under the production flags).
-  Stage 2 does **not** loop-vectorize: it carries a `sqrt` (vorticity magnitude)
-  and a `min` (the mixing-length clamp) and scatters 9 component stores, so GCC
-  falls back to weak per-iteration SLP. This was investigated (see section 2);
-  fusing the two stages or splitting the row temps into rank-1 arrays does not
-  help, and fusing measurably regresses because it drags the vectorized Stage-1
-  work into the un-vectorizable Stage-2 loop.
+  Stage 2 does **not** loop-vectorize, and falls back to weak per-iteration
+  SLP. The `sqrt` (vorticity magnitude) and `min` (mixing-length clamp) are
+  **not** the cause -- both have native AVX2 vector forms under `-Ofast`, and
+  a real-build probe (July 2026) with both eliminated failed identically. The
+  vectorizer reports "no vectype" on the first row-temp read; the trigger
+  survives making the row temps dummy arguments, dropping
+  `-floop-nest-optimize`, and stripping the loop to a minimal
+  read-gVx/store-tau skeleton, so the root cause (a data-ref analysis
+  failure, exact ingredient unisolated) is subtler than any one statement.
+  Earlier experiments also showed fusing the two stages or splitting the row
+  temps into rank-1 arrays does not help, and fusing measurably regresses
+  because it drags the vectorized Stage-1 work into the un-vectorizable
+  Stage-2 loop.
 - **Frame.** `Vt` is the block-relative tangential velocity; the strain rate is
   frame-invariant and the mixing-length vorticity is taken directly in the
   relative frame (no absolute-frame `+2*Omega` correction). `Pr_turb` is fixed at
@@ -814,3 +824,82 @@ inside its own +-2.5 ns/cell alignment band -- no reproducible regression.
   and repeat runs.
 - The section 8 full-fusion variant remains in the repo stash for reference;
   this port supersedes it.
+
+---
+
+## 10. Tried and rejected: second-level j-panel tile for `set_residual`
+
+The remaining untiled lever in `set_residual` after section 9 was the plane
+dimension itself: the per-slab working set (nodal panel ~`10*ni*nj*(kb+1)`,
+dU slab, plane pair) scales with the full `ni*nj` plane, and two section 9
+observations hinted it mattered -- kb=16 degrades at large planes, and the
+largest size preferred kb=4. Section 8.3 had already proposed the fix:
+tile j into panels so the active set scales with `ni*jbw` instead. Tried
+(July 2026) and **rejected**: panels lose or tie everywhere, with the only
+gain ~1% at the very largest size.
+
+### 10.1 Design tried
+
+A `jbw`-wide j-panel loop wrapped around the k-slab sweep (panel outer,
+slab inner); per panel the sweep is the unmodified section 9 slab sweep
+restricted to cell rows `j0..j1`: `kface_flow_plane` gained a j-range, the
+j-direction's rolling pair starts at face `j0` (an interior panel-boundary
+face row is computed twice, once per adjoining panel -- same cost shape as
+the per-k `j=1` row), and the k-plane carry works per panel because pa/pb
+reset at each panel start. Per-cell arithmetic and accumulation order are
+unchanged for any jbw, so the kernel is **bitwise identical** across jbw
+(verified by a `test_residual_jb_consistent` sweep; goldens passed without
+regeneration), and `jbw = nj-1` degenerates exactly to the section 9
+kernel. That degeneracy made the A/B within-build: baseline (`jfull`) and
+candidate panel widths interleaved round-robin in one process, no
+cross-build gauge needed. `jfull` also reproduced the section 9.3 numbers
+within noise at every size, confirming the restructure itself is free.
+
+### 10.2 A/B results and the rejection
+
+Same protocol and machine; two full repeat processes (r1/r2 below, the
+pow2-ni lottery shifts whole columns by 1-2 ns/cell but never the
+within-run ordering). `set_residual` at production kb=8, median ns/cell:
+
+| size | jfull | j8 | j16 | j32 | j64 |
+| --- | --- | --- | --- | --- | --- |
+| 48x32x32    | 23.7/23.0 | 26.4/25.7 | 24.9/24.2 | - | - |
+| 64x48x48    | 24.0/24.2 | 25.8/26.1 | 24.9/25.2 | 24.6/24.9 | - |
+| 80x64x64    | 29.3/29.2 | 29.4/29.4 | 30.3/30.3 | 30.8/30.7 | - |
+| 96x96x96    | 30.3/30.2 | 30.8/30.8 | 31.0/30.9 | 31.5/31.5 | 31.2/31.1 |
+| 128x96x96   | 30.1/28.2 | 31.6/30.3 | 31.9/30.3 | 31.4/29.7 | 30.9/29.1 |
+| 160x96x96   | 26.0/26.6 | 27.8/28.9 | 27.5/28.2 | 26.9/27.7 | 26.6/27.3 |
+| 128x128x128 | 29.4/29.1 | 32.6/32.0 | 31.7/31.4 | 30.6/30.4 | 29.9/29.6 |
+| 192x128x128 | 31.4/30.5 | 33.3/32.6 | 32.2/31.4 | 31.4/30.6 | 31.0/30.2 |
+
+`update_residual` end to end tracks the kernel within ~1 ns/cell. kb
+crosses (kb=4 and kb=16 at j16) were also measured: both sit at or above
+the kb=8 column at every size, so panels do not move the slab-depth
+optimum either -- `_KB_SLAB = 8` stands.
+
+Full width wins or ties at seven of eight sizes; the trend is monotone
+(wider panels always better). The lone exception, 192x128x128, shows a
+consistent ~0.3 ns/cell (~1%) j64 edge in both processes -- but the same
+j64 loses 1.7-2.7% at four other sizes, failing the adoption rule (win
+above noise, regress nowhere).
+
+### 10.3 Reading
+
+- The hypothesis was wrong at its root: the slab-tiled kernel already
+  fetches everything from DRAM ~once, so panel tiling can only convert
+  L3-resident re-touches (the three per-direction dU read-modify-writes
+  and nodal re-reads within a slab) into L2-resident ones -- and on this
+  Haswell that L3 traffic is evidently not the bottleneck.
+- The panel costs are real and visible: one extra j-face row recompute per
+  panel boundary per k (~`1/jbw` of the j-face work, matching the observed
+  j8 penalty), plus j-restricted sweeps chopping the long contiguous
+  plane walks the hardware prefetchers ride into `ni*jbw` chunks across
+  ten-plus concurrent streams.
+- The section 9.4 large-plane kb sensitivity is better read as slab
+  working set vs L3 capacity, and its remedy -- if production blocks ever
+  grow past ~1M cells -- is simply a smaller kb at large planes, not a
+  second tiling dimension.
+- The patch (kernel, caller knob `_JB_PANEL`, jb-consistency test, bench
+  jbw sweep) is preserved in the repo stash: `git stash list` --
+  "set_residual j-panel tiling (rejected)". Raw data:
+  `scripts/bench_panelres_ab.csv` (labels panel-r1/panel-r2).
