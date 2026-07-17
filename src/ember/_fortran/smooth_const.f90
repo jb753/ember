@@ -8,466 +8,200 @@
 ! 4th-order difference is used instead of falling back to 2nd order, so the
 ! stencil leaves any cubic polynomial exactly unchanged everywhere.
 !
-! Boundary-loops version: the interior loop (i=3..ni-2, j=3..nj-2, k=3..nk-2)
-! is branch-free, with boundary slabs handled in separate loops.
+! Separable rolling-plane version. The smoother is a sum of three independent
+! 1-D operators applied to the *original* field, so the work is done as a
+! forward sweep over k-planes, each plane assembled in three vectorising passes:
 !
-! Partition (each point covered exactly once):
-!   i-slabs: i=1,2 and i=ni-1,ni (all j,k)
-!   j-slabs: j=1,2 and j=nj-1,nj (i interior, all k)
-!   k-slabs: k=1,2 and k=nk-1,nk (i,j interior)
-!   interior: i=3..ni-2, j=3..nj-2, k=3..nk-2 (branch-free)
+!   PASS K  base + k-operator     -> xs(:,:,slot)      (do j, do i)
+!   PASS I  += i-operator         (i interior do i; i=1,2,ni-1,ni branch-free)
+!   PASS J  += j-operator         (j interior/biased, all do i)
 !
-! xs must be a pre-allocated (ni,nj,nk) work array (intent inout).
+! Because each output plane reads only the *input* field, results are written
+! back into x in place with a two-plane lag (the interior k-stencil reaches
+! k +/- 2): after plane k is assembled, input plane k-2 has had its last reader,
+! so x(:,:,k-2) is overwritten from the rolling buffer. The high-k biased
+! stencils (k=nk-1,nk) reach back to plane nk-4, so the top five planes are held
+! in the buffer and flushed after the sweep instead of rolled. This removes the
+! full-volume xs work array and the separate x = xs copyback of the earlier
+! all-at-once version: x is streamed once in and once out per component.
+!
+! Results match the earlier version to a bounded float32 tolerance (the three
+! directional contributions are summed as three partial sums rather than one
+! expression, a legal -Ofast reassociation); it is not bitwise identical.
+!
+! xs is a pre-allocated (ni,nj,kr) rolling buffer (intent inout), kr>=min(6,nk)
+! planes; the caller carves it zero-copy from the block scratch.
 ! Requires ni,nj,nk >= 5.
 !
 subroutine smooth3d_const( &
         x, &        ! Array to smooth (ni,nj,nk,np)
         sf4, sf2, & ! 4th and 2nd order smoothing factors
-        xs, &       ! Work array (ni,nj,nk), overwritten each component
-        ni, nj, nk, np &
+        xs, &       ! Rolling plane buffer (ni,nj,kr)
+        ni, nj, nk, np, kr &
     )
 
-    integer, intent(in) :: ni, nj, nk, np
+    integer, intent(in) :: ni, nj, nk, np, kr
     real,    intent(in) :: sf4, sf2
     real, intent(inout) :: x(ni, nj, nk, np)
-    real, intent(inout) :: xs(ni, nj, nk)
+    real, intent(inout) :: xs(ni, nj, kr)
 
-    real :: sum_sf
-    real :: xs2_i, xs2_j, xs2_k
-    real :: xs4_i, xs4_j, xs4_k
-    real :: d4i, d4j, d4k
-    integer :: i, j, k, ip
+    real, parameter :: c16 = 1e0 / 6e0
+
+    real :: sum_sf, base
+    real :: d4, s2, s4
+    integer :: i, j, k, ip, slot, ps
 
     if (ni < 5 .or. nj < 5 .or. nk < 5) then
         stop 'smooth3d_const: ni,nj,nk must be >= 5'
     end if
+    if (kr < min(6, nk)) then
+        stop 'smooth3d_const: xs must have >= min(6,nk) planes'
+    end if
 
     sum_sf = 3e0 * (sf2 + sf4)
+    base = 1e0 - sum_sf
 
     do ip = 1, np
 
-        ! ----------------------------------------------------------------
-        ! Interior: i=3..ni-2, j=3..nj-2, k=3..nk-2   zero branches
-        ! ----------------------------------------------------------------
-        do k = 3, nk-2
-            do j = 3, nj-2
+        do k = 1, nk
+
+            slot = mod(k - 1, kr) + 1
+
+            ! ============================================================
+            ! PASS K: base + k-direction operator into the plane buffer
+            ! (k-mode branch is outside the i,j loops, so the bodies are
+            !  branch-free and vectorise over i).
+            ! ============================================================
+            if (k == 1) then
+                do j = 1, nj
+                    do i = 1, ni
+                        d4 = (x(i,j,1,ip) - 4e0*x(i,j,2,ip) + 6e0*x(i,j,3,ip) &
+                            - 4e0*x(i,j,4,ip) + x(i,j,5,ip)) * c16
+                        xs(i,j,slot) = base*x(i,j,1,ip) &
+                            + sf2*(2e0*x(i,j,2,ip) - x(i,j,3,ip)) &
+                            + sf4*(x(i,j,1,ip) - d4)
+                    end do
+                end do
+            else if (k == 2) then
+                do j = 1, nj
+                    do i = 1, ni
+                        d4 = (x(i,j,1,ip) - 4e0*x(i,j,2,ip) + 6e0*x(i,j,3,ip) &
+                            - 4e0*x(i,j,4,ip) + x(i,j,5,ip)) * c16
+                        xs(i,j,slot) = base*x(i,j,2,ip) &
+                            + sf2*((x(i,j,1,ip) + x(i,j,3,ip)) * 0.5e0) &
+                            + sf4*(x(i,j,2,ip) - d4)
+                    end do
+                end do
+            else if (k == nk-1) then
+                do j = 1, nj
+                    do i = 1, ni
+                        d4 = (x(i,j,nk-4,ip) - 4e0*x(i,j,nk-3,ip) + 6e0*x(i,j,nk-2,ip) &
+                            - 4e0*x(i,j,nk-1,ip) + x(i,j,nk,ip)) * c16
+                        xs(i,j,slot) = base*x(i,j,nk-1,ip) &
+                            + sf2*((x(i,j,nk-2,ip) + x(i,j,nk,ip)) * 0.5e0) &
+                            + sf4*(x(i,j,nk-1,ip) - d4)
+                    end do
+                end do
+            else if (k == nk) then
+                do j = 1, nj
+                    do i = 1, ni
+                        d4 = (x(i,j,nk-4,ip) - 4e0*x(i,j,nk-3,ip) + 6e0*x(i,j,nk-2,ip) &
+                            - 4e0*x(i,j,nk-1,ip) + x(i,j,nk,ip)) * c16
+                        xs(i,j,slot) = base*x(i,j,nk,ip) &
+                            + sf2*(2e0*x(i,j,nk-1,ip) - x(i,j,nk-2,ip)) &
+                            + sf4*(x(i,j,nk,ip) - d4)
+                    end do
+                end do
+            else
+                do j = 1, nj
+                    do i = 1, ni
+                        s2 = (x(i,j,k-1,ip) + x(i,j,k+1,ip)) * 0.5e0
+                        s4 = (-x(i,j,k-2,ip) + 4e0*x(i,j,k-1,ip) &
+                            + 4e0*x(i,j,k+1,ip) - x(i,j,k+2,ip)) * c16
+                        xs(i,j,slot) = base*x(i,j,k,ip) + sf2*s2 + sf4*s4
+                    end do
+                end do
+            end if
+
+            ! ============================================================
+            ! PASS I: add the i-direction operator (reads plane k only).
+            ! i interior vectorises; i=1,2,ni-1,ni are 4 branch-free columns.
+            ! ============================================================
+            do j = 1, nj
                 do i = 3, ni-2
+                    s2 = (x(i-1,j,k,ip) + x(i+1,j,k,ip)) * 0.5e0
+                    s4 = (-x(i-2,j,k,ip) + 4e0*x(i-1,j,k,ip) &
+                        + 4e0*x(i+1,j,k,ip) - x(i+2,j,k,ip)) * c16
+                    xs(i,j,slot) = xs(i,j,slot) + sf2*s2 + sf4*s4
+                end do
+                d4 = (x(1,j,k,ip) - 4e0*x(2,j,k,ip) + 6e0*x(3,j,k,ip) &
+                    - 4e0*x(4,j,k,ip) + x(5,j,k,ip)) * c16
+                xs(1,j,slot) = xs(1,j,slot) &
+                    + sf2*(2e0*x(2,j,k,ip) - x(3,j,k,ip)) + sf4*(x(1,j,k,ip) - d4)
+                xs(2,j,slot) = xs(2,j,slot) &
+                    + sf2*((x(1,j,k,ip) + x(3,j,k,ip)) * 0.5e0) + sf4*(x(2,j,k,ip) - d4)
+                d4 = (x(ni-4,j,k,ip) - 4e0*x(ni-3,j,k,ip) + 6e0*x(ni-2,j,k,ip) &
+                    - 4e0*x(ni-1,j,k,ip) + x(ni,j,k,ip)) * c16
+                xs(ni-1,j,slot) = xs(ni-1,j,slot) &
+                    + sf2*((x(ni-2,j,k,ip) + x(ni,j,k,ip)) * 0.5e0) + sf4*(x(ni-1,j,k,ip) - d4)
+                xs(ni,j,slot) = xs(ni,j,slot) &
+                    + sf2*(2e0*x(ni-1,j,k,ip) - x(ni-2,j,k,ip)) + sf4*(x(ni,j,k,ip) - d4)
+            end do
 
-                    xs2_i = (x(i-1,j,k,ip) + x(i+1,j,k,ip)) * 0.5e0
-                    xs4_i = (-x(i-2,j,k,ip) + 4e0*x(i-1,j,k,ip) &
-                            + 4e0*x(i+1,j,k,ip) - x(i+2,j,k,ip)) * (1e0/6e0)
-
-                    xs2_j = (x(i,j-1,k,ip) + x(i,j+1,k,ip)) * 0.5e0
-                    xs4_j = (-x(i,j-2,k,ip) + 4e0*x(i,j-1,k,ip) &
-                            + 4e0*x(i,j+1,k,ip) - x(i,j+2,k,ip)) * (1e0/6e0)
-
-                    xs2_k = (x(i,j,k-1,ip) + x(i,j,k+1,ip)) * 0.5e0
-                    xs4_k = (-x(i,j,k-2,ip) + 4e0*x(i,j,k-1,ip) &
-                            + 4e0*x(i,j,k+1,ip) - x(i,j,k+2,ip)) * (1e0/6e0)
-
-                    xs(i,j,k) = (1e0 - sum_sf) * x(i,j,k,ip) &
-                              + sf2 * (xs2_i + xs2_j + xs2_k) &
-                              + sf4 * (xs4_i + xs4_j + xs4_k)
+            ! ============================================================
+            ! PASS J: add the j-direction operator (reads plane k only).
+            ! All bodies vectorise over i; the j-mode branch is outside do i.
+            ! ============================================================
+            do i = 1, ni
+                d4 = (x(i,1,k,ip) - 4e0*x(i,2,k,ip) + 6e0*x(i,3,k,ip) &
+                    - 4e0*x(i,4,k,ip) + x(i,5,k,ip)) * c16
+                xs(i,1,slot) = xs(i,1,slot) &
+                    + sf2*(2e0*x(i,2,k,ip) - x(i,3,k,ip)) + sf4*(x(i,1,k,ip) - d4)
+            end do
+            do i = 1, ni
+                d4 = (x(i,1,k,ip) - 4e0*x(i,2,k,ip) + 6e0*x(i,3,k,ip) &
+                    - 4e0*x(i,4,k,ip) + x(i,5,k,ip)) * c16
+                xs(i,2,slot) = xs(i,2,slot) &
+                    + sf2*((x(i,1,k,ip) + x(i,3,k,ip)) * 0.5e0) + sf4*(x(i,2,k,ip) - d4)
+            end do
+            do j = 3, nj-2
+                do i = 1, ni
+                    s2 = (x(i,j-1,k,ip) + x(i,j+1,k,ip)) * 0.5e0
+                    s4 = (-x(i,j-2,k,ip) + 4e0*x(i,j-1,k,ip) &
+                        + 4e0*x(i,j+1,k,ip) - x(i,j+2,k,ip)) * c16
+                    xs(i,j,slot) = xs(i,j,slot) + sf2*s2 + sf4*s4
                 end do
             end do
-        end do
-
-        ! ----------------------------------------------------------------
-        ! Low k-slab: k=1,2; i=3..ni-2, j=3..nj-2
-        ! d4k is the same for k=1 and k=2 (forward biased from k=1)
-        ! ----------------------------------------------------------------
-        do j = 3, nj-2
-            do i = 3, ni-2
-                xs2_i = (x(i-1,j,1,ip) + x(i+1,j,1,ip)) * 0.5e0
-                xs4_i = (-x(i-2,j,1,ip) + 4e0*x(i-1,j,1,ip) &
-                        + 4e0*x(i+1,j,1,ip) - x(i+2,j,1,ip)) * (1e0/6e0)
-                xs2_j = (x(i,j-1,1,ip) + x(i,j+1,1,ip)) * 0.5e0
-                xs4_j = (-x(i,j-2,1,ip) + 4e0*x(i,j-1,1,ip) &
-                        + 4e0*x(i,j+1,1,ip) - x(i,j+2,1,ip)) * (1e0/6e0)
-                xs2_k = 2e0*x(i,j,2,ip) - x(i,j,3,ip)
-                d4k   = (x(i,j,1,ip) - 4e0*x(i,j,2,ip) + 6e0*x(i,j,3,ip) &
-                       - 4e0*x(i,j,4,ip) + x(i,j,5,ip)) * (1e0/6e0)
-                xs4_k = x(i,j,1,ip) - d4k
-                xs(i,j,1) = (1e0 - sum_sf) * x(i,j,1,ip) &
-                          + sf2 * (xs2_i + xs2_j + xs2_k) &
-                          + sf4 * (xs4_i + xs4_j + xs4_k)
-
-                ! k=2 reuses d4k and the same i,j stencils
-                xs2_i = (x(i-1,j,2,ip) + x(i+1,j,2,ip)) * 0.5e0
-                xs4_i = (-x(i-2,j,2,ip) + 4e0*x(i-1,j,2,ip) &
-                        + 4e0*x(i+1,j,2,ip) - x(i+2,j,2,ip)) * (1e0/6e0)
-                xs2_j = (x(i,j-1,2,ip) + x(i,j+1,2,ip)) * 0.5e0
-                xs4_j = (-x(i,j-2,2,ip) + 4e0*x(i,j-1,2,ip) &
-                        + 4e0*x(i,j+1,2,ip) - x(i,j+2,2,ip)) * (1e0/6e0)
-                xs2_k = (x(i,j,1,ip) + x(i,j,3,ip)) * 0.5e0
-                xs4_k = x(i,j,2,ip) - d4k
-                xs(i,j,2) = (1e0 - sum_sf) * x(i,j,2,ip) &
-                          + sf2 * (xs2_i + xs2_j + xs2_k) &
-                          + sf4 * (xs4_i + xs4_j + xs4_k)
+            do i = 1, ni
+                d4 = (x(i,nj-4,k,ip) - 4e0*x(i,nj-3,k,ip) + 6e0*x(i,nj-2,k,ip) &
+                    - 4e0*x(i,nj-1,k,ip) + x(i,nj,k,ip)) * c16
+                xs(i,nj-1,slot) = xs(i,nj-1,slot) &
+                    + sf2*((x(i,nj-2,k,ip) + x(i,nj,k,ip)) * 0.5e0) + sf4*(x(i,nj-1,k,ip) - d4)
             end do
-        end do
-
-        ! ----------------------------------------------------------------
-        ! High k-slab: k=nk-1,nk; i=3..ni-2, j=3..nj-2
-        ! d4k backward biased from k=nk
-        ! ----------------------------------------------------------------
-        do j = 3, nj-2
-            do i = 3, ni-2
-                ! k=nk-1
-                xs2_i = (x(i-1,j,nk-1,ip) + x(i+1,j,nk-1,ip)) * 0.5e0
-                xs4_i = (-x(i-2,j,nk-1,ip) + 4e0*x(i-1,j,nk-1,ip) &
-                        + 4e0*x(i+1,j,nk-1,ip) - x(i+2,j,nk-1,ip)) * (1e0/6e0)
-                xs2_j = (x(i,j-1,nk-1,ip) + x(i,j+1,nk-1,ip)) * 0.5e0
-                xs4_j = (-x(i,j-2,nk-1,ip) + 4e0*x(i,j-1,nk-1,ip) &
-                        + 4e0*x(i,j+1,nk-1,ip) - x(i,j+2,nk-1,ip)) * (1e0/6e0)
-                xs2_k = (x(i,j,nk-2,ip) + x(i,j,nk,ip)) * 0.5e0
-                d4k   = (x(i,j,nk-4,ip) - 4e0*x(i,j,nk-3,ip) + 6e0*x(i,j,nk-2,ip) &
-                       - 4e0*x(i,j,nk-1,ip) + x(i,j,nk,ip)) * (1e0/6e0)
-                xs4_k = x(i,j,nk-1,ip) - d4k
-                xs(i,j,nk-1) = (1e0 - sum_sf) * x(i,j,nk-1,ip) &
-                             + sf2 * (xs2_i + xs2_j + xs2_k) &
-                             + sf4 * (xs4_i + xs4_j + xs4_k)
-
-                ! k=nk reuses d4k
-                xs2_i = (x(i-1,j,nk,ip) + x(i+1,j,nk,ip)) * 0.5e0
-                xs4_i = (-x(i-2,j,nk,ip) + 4e0*x(i-1,j,nk,ip) &
-                        + 4e0*x(i+1,j,nk,ip) - x(i+2,j,nk,ip)) * (1e0/6e0)
-                xs2_j = (x(i,j-1,nk,ip) + x(i,j+1,nk,ip)) * 0.5e0
-                xs4_j = (-x(i,j-2,nk,ip) + 4e0*x(i,j-1,nk,ip) &
-                        + 4e0*x(i,j+1,nk,ip) - x(i,j+2,nk,ip)) * (1e0/6e0)
-                xs2_k = 2e0*x(i,j,nk-1,ip) - x(i,j,nk-2,ip)
-                xs4_k = x(i,j,nk,ip) - d4k
-                xs(i,j,nk) = (1e0 - sum_sf) * x(i,j,nk,ip) &
-                           + sf2 * (xs2_i + xs2_j + xs2_k) &
-                           + sf4 * (xs4_i + xs4_j + xs4_k)
+            do i = 1, ni
+                d4 = (x(i,nj-4,k,ip) - 4e0*x(i,nj-3,k,ip) + 6e0*x(i,nj-2,k,ip) &
+                    - 4e0*x(i,nj-1,k,ip) + x(i,nj,k,ip)) * c16
+                xs(i,nj,slot) = xs(i,nj,slot) &
+                    + sf2*(2e0*x(i,nj-1,k,ip) - x(i,nj-2,k,ip)) + sf4*(x(i,nj,k,ip) - d4)
             end do
+
+            ! ============================================================
+            ! Lagged in-place writeback: plane k-2 is now dead for every
+            ! remaining interior stencil. Planes nk-4..nk are held (the high-k
+            ! biased stencils still read them) and flushed after the sweep.
+            ! ============================================================
+            if (k-2 >= 1 .and. k-2 <= nk-5) then
+                ps = mod(k-3, kr) + 1
+                x(:,:,k-2,ip) = xs(:,:,ps)
+            end if
+
         end do
 
-        ! ----------------------------------------------------------------
-        ! Low j-slab: j=1,2; i=3..ni-2; all k
-        ! d4j forward biased from j=1, shared between j=1 and j=2
-        ! k-stencil branches still needed here
-        ! ----------------------------------------------------------------
-        do k = 1, nk
-            ! k-direction stencils (with boundary branches)
-            do i = 3, ni-2
-                xs2_i = (x(i-1,1,k,ip) + x(i+1,1,k,ip)) * 0.5e0
-                xs4_i = (-x(i-2,1,k,ip) + 4e0*x(i-1,1,k,ip) &
-                        + 4e0*x(i+1,1,k,ip) - x(i+2,1,k,ip)) * (1e0/6e0)
-                xs2_j = 2e0*x(i,2,k,ip) - x(i,3,k,ip)
-                d4j   = (x(i,1,k,ip) - 4e0*x(i,2,k,ip) + 6e0*x(i,3,k,ip) &
-                       - 4e0*x(i,4,k,ip) + x(i,5,k,ip)) * (1e0/6e0)
-                xs4_j = x(i,1,k,ip) - d4j
-                if (k == 1) then
-                    xs2_k = 2e0*x(i,1,2,ip) - x(i,1,3,ip)
-                    xs4_k = x(i,1,1,ip) - (x(i,1,1,ip) - 4e0*x(i,1,2,ip) + 6e0*x(i,1,3,ip) &
-                                         - 4e0*x(i,1,4,ip) + x(i,1,5,ip)) * (1e0/6e0)
-                else if (k == nk) then
-                    xs2_k = 2e0*x(i,1,nk-1,ip) - x(i,1,nk-2,ip)
-                    xs4_k = x(i,1,nk,ip) - (x(i,1,nk-4,ip) - 4e0*x(i,1,nk-3,ip) + 6e0*x(i,1,nk-2,ip) &
-                                           - 4e0*x(i,1,nk-1,ip) + x(i,1,nk,ip)) * (1e0/6e0)
-                else if (k <= 2) then
-                    xs2_k = (x(i,1,k-1,ip) + x(i,1,k+1,ip)) * 0.5e0
-                    xs4_k = x(i,1,k,ip) - (x(i,1,1,ip) - 4e0*x(i,1,2,ip) + 6e0*x(i,1,3,ip) &
-                                         - 4e0*x(i,1,4,ip) + x(i,1,5,ip)) * (1e0/6e0)
-                else if (k >= nk-1) then
-                    xs2_k = (x(i,1,k-1,ip) + x(i,1,k+1,ip)) * 0.5e0
-                    xs4_k = x(i,1,k,ip) - (x(i,1,nk-4,ip) - 4e0*x(i,1,nk-3,ip) + 6e0*x(i,1,nk-2,ip) &
-                                         - 4e0*x(i,1,nk-1,ip) + x(i,1,nk,ip)) * (1e0/6e0)
-                else
-                    xs2_k = (x(i,1,k-1,ip) + x(i,1,k+1,ip)) * 0.5e0
-                    xs4_k = (-x(i,1,k-2,ip) + 4e0*x(i,1,k-1,ip) &
-                            + 4e0*x(i,1,k+1,ip) - x(i,1,k+2,ip)) * (1e0/6e0)
-                end if
-                xs(i,1,k) = (1e0 - sum_sf) * x(i,1,k,ip) &
-                          + sf2 * (xs2_i + xs2_j + xs2_k) &
-                          + sf4 * (xs4_i + xs4_j + xs4_k)
-
-                ! j=2 reuses d4j and i-stencils
-                xs2_i = (x(i-1,2,k,ip) + x(i+1,2,k,ip)) * 0.5e0
-                xs4_i = (-x(i-2,2,k,ip) + 4e0*x(i-1,2,k,ip) &
-                        + 4e0*x(i+1,2,k,ip) - x(i+2,2,k,ip)) * (1e0/6e0)
-                xs2_j = (x(i,1,k,ip) + x(i,3,k,ip)) * 0.5e0
-                xs4_j = x(i,2,k,ip) - d4j
-                if (k == 1) then
-                    xs2_k = 2e0*x(i,2,2,ip) - x(i,2,3,ip)
-                    xs4_k = x(i,2,1,ip) - (x(i,2,1,ip) - 4e0*x(i,2,2,ip) + 6e0*x(i,2,3,ip) &
-                                         - 4e0*x(i,2,4,ip) + x(i,2,5,ip)) * (1e0/6e0)
-                else if (k == nk) then
-                    xs2_k = 2e0*x(i,2,nk-1,ip) - x(i,2,nk-2,ip)
-                    xs4_k = x(i,2,nk,ip) - (x(i,2,nk-4,ip) - 4e0*x(i,2,nk-3,ip) + 6e0*x(i,2,nk-2,ip) &
-                                           - 4e0*x(i,2,nk-1,ip) + x(i,2,nk,ip)) * (1e0/6e0)
-                else if (k <= 2) then
-                    xs2_k = (x(i,2,k-1,ip) + x(i,2,k+1,ip)) * 0.5e0
-                    xs4_k = x(i,2,k,ip) - (x(i,2,1,ip) - 4e0*x(i,2,2,ip) + 6e0*x(i,2,3,ip) &
-                                         - 4e0*x(i,2,4,ip) + x(i,2,5,ip)) * (1e0/6e0)
-                else if (k >= nk-1) then
-                    xs2_k = (x(i,2,k-1,ip) + x(i,2,k+1,ip)) * 0.5e0
-                    xs4_k = x(i,2,k,ip) - (x(i,2,nk-4,ip) - 4e0*x(i,2,nk-3,ip) + 6e0*x(i,2,nk-2,ip) &
-                                         - 4e0*x(i,2,nk-1,ip) + x(i,2,nk,ip)) * (1e0/6e0)
-                else
-                    xs2_k = (x(i,2,k-1,ip) + x(i,2,k+1,ip)) * 0.5e0
-                    xs4_k = (-x(i,2,k-2,ip) + 4e0*x(i,2,k-1,ip) &
-                            + 4e0*x(i,2,k+1,ip) - x(i,2,k+2,ip)) * (1e0/6e0)
-                end if
-                xs(i,2,k) = (1e0 - sum_sf) * x(i,2,k,ip) &
-                          + sf2 * (xs2_i + xs2_j + xs2_k) &
-                          + sf4 * (xs4_i + xs4_j + xs4_k)
-            end do
+        ! Flush the retained top planes (up to five) back into x.
+        do k = max(1, nk-4), nk
+            ps = mod(k-1, kr) + 1
+            x(:,:,k,ip) = xs(:,:,ps)
         end do
-
-        ! ----------------------------------------------------------------
-        ! High j-slab: j=nj-1,nj; i=3..ni-2; all k
-        ! d4j backward biased from j=nj
-        ! ----------------------------------------------------------------
-        do k = 1, nk
-            do i = 3, ni-2
-                ! j=nj-1
-                xs2_i = (x(i-1,nj-1,k,ip) + x(i+1,nj-1,k,ip)) * 0.5e0
-                xs4_i = (-x(i-2,nj-1,k,ip) + 4e0*x(i-1,nj-1,k,ip) &
-                        + 4e0*x(i+1,nj-1,k,ip) - x(i+2,nj-1,k,ip)) * (1e0/6e0)
-                xs2_j = (x(i,nj-2,k,ip) + x(i,nj,k,ip)) * 0.5e0
-                d4j   = (x(i,nj-4,k,ip) - 4e0*x(i,nj-3,k,ip) + 6e0*x(i,nj-2,k,ip) &
-                       - 4e0*x(i,nj-1,k,ip) + x(i,nj,k,ip)) * (1e0/6e0)
-                xs4_j = x(i,nj-1,k,ip) - d4j
-                if (k == 1) then
-                    xs2_k = 2e0*x(i,nj-1,2,ip) - x(i,nj-1,3,ip)
-                    xs4_k = x(i,nj-1,1,ip) - (x(i,nj-1,1,ip) - 4e0*x(i,nj-1,2,ip) + 6e0*x(i,nj-1,3,ip) &
-                                             - 4e0*x(i,nj-1,4,ip) + x(i,nj-1,5,ip)) * (1e0/6e0)
-                else if (k == nk) then
-                    xs2_k = 2e0*x(i,nj-1,nk-1,ip) - x(i,nj-1,nk-2,ip)
-                    xs4_k = x(i,nj-1,nk,ip) - (x(i,nj-1,nk-4,ip) - 4e0*x(i,nj-1,nk-3,ip) + 6e0*x(i,nj-1,nk-2,ip) &
-                                              - 4e0*x(i,nj-1,nk-1,ip) + x(i,nj-1,nk,ip)) * (1e0/6e0)
-                else if (k <= 2) then
-                    xs2_k = (x(i,nj-1,k-1,ip) + x(i,nj-1,k+1,ip)) * 0.5e0
-                    xs4_k = x(i,nj-1,k,ip) - (x(i,nj-1,1,ip) - 4e0*x(i,nj-1,2,ip) + 6e0*x(i,nj-1,3,ip) &
-                                             - 4e0*x(i,nj-1,4,ip) + x(i,nj-1,5,ip)) * (1e0/6e0)
-                else if (k >= nk-1) then
-                    xs2_k = (x(i,nj-1,k-1,ip) + x(i,nj-1,k+1,ip)) * 0.5e0
-                    xs4_k = x(i,nj-1,k,ip) - (x(i,nj-1,nk-4,ip) - 4e0*x(i,nj-1,nk-3,ip) + 6e0*x(i,nj-1,nk-2,ip) &
-                                             - 4e0*x(i,nj-1,nk-1,ip) + x(i,nj-1,nk,ip)) * (1e0/6e0)
-                else
-                    xs2_k = (x(i,nj-1,k-1,ip) + x(i,nj-1,k+1,ip)) * 0.5e0
-                    xs4_k = (-x(i,nj-1,k-2,ip) + 4e0*x(i,nj-1,k-1,ip) &
-                            + 4e0*x(i,nj-1,k+1,ip) - x(i,nj-1,k+2,ip)) * (1e0/6e0)
-                end if
-                xs(i,nj-1,k) = (1e0 - sum_sf) * x(i,nj-1,k,ip) &
-                             + sf2 * (xs2_i + xs2_j + xs2_k) &
-                             + sf4 * (xs4_i + xs4_j + xs4_k)
-
-                ! j=nj reuses d4j
-                xs2_i = (x(i-1,nj,k,ip) + x(i+1,nj,k,ip)) * 0.5e0
-                xs4_i = (-x(i-2,nj,k,ip) + 4e0*x(i-1,nj,k,ip) &
-                        + 4e0*x(i+1,nj,k,ip) - x(i+2,nj,k,ip)) * (1e0/6e0)
-                xs2_j = 2e0*x(i,nj-1,k,ip) - x(i,nj-2,k,ip)
-                xs4_j = x(i,nj,k,ip) - d4j
-                if (k == 1) then
-                    xs2_k = 2e0*x(i,nj,2,ip) - x(i,nj,3,ip)
-                    xs4_k = x(i,nj,1,ip) - (x(i,nj,1,ip) - 4e0*x(i,nj,2,ip) + 6e0*x(i,nj,3,ip) &
-                                          - 4e0*x(i,nj,4,ip) + x(i,nj,5,ip)) * (1e0/6e0)
-                else if (k == nk) then
-                    xs2_k = 2e0*x(i,nj,nk-1,ip) - x(i,nj,nk-2,ip)
-                    xs4_k = x(i,nj,nk,ip) - (x(i,nj,nk-4,ip) - 4e0*x(i,nj,nk-3,ip) + 6e0*x(i,nj,nk-2,ip) &
-                                           - 4e0*x(i,nj,nk-1,ip) + x(i,nj,nk,ip)) * (1e0/6e0)
-                else if (k <= 2) then
-                    xs2_k = (x(i,nj,k-1,ip) + x(i,nj,k+1,ip)) * 0.5e0
-                    xs4_k = x(i,nj,k,ip) - (x(i,nj,1,ip) - 4e0*x(i,nj,2,ip) + 6e0*x(i,nj,3,ip) &
-                                          - 4e0*x(i,nj,4,ip) + x(i,nj,5,ip)) * (1e0/6e0)
-                else if (k >= nk-1) then
-                    xs2_k = (x(i,nj,k-1,ip) + x(i,nj,k+1,ip)) * 0.5e0
-                    xs4_k = x(i,nj,k,ip) - (x(i,nj,nk-4,ip) - 4e0*x(i,nj,nk-3,ip) + 6e0*x(i,nj,nk-2,ip) &
-                                          - 4e0*x(i,nj,nk-1,ip) + x(i,nj,nk,ip)) * (1e0/6e0)
-                else
-                    xs2_k = (x(i,nj,k-1,ip) + x(i,nj,k+1,ip)) * 0.5e0
-                    xs4_k = (-x(i,nj,k-2,ip) + 4e0*x(i,nj,k-1,ip) &
-                            + 4e0*x(i,nj,k+1,ip) - x(i,nj,k+2,ip)) * (1e0/6e0)
-                end if
-                xs(i,nj,k) = (1e0 - sum_sf) * x(i,nj,k,ip) &
-                           + sf2 * (xs2_i + xs2_j + xs2_k) &
-                           + sf4 * (xs4_i + xs4_j + xs4_k)
-            end do
-        end do
-
-        ! ----------------------------------------------------------------
-        ! Low i-slab: i=1,2; all j,k
-        ! d4i forward biased from i=1, shared between i=1 and i=2
-        ! j and k branches still needed
-        ! ----------------------------------------------------------------
-        do k = 1, nk
-            do j = 1, nj
-                xs2_i = 2e0*x(2,j,k,ip) - x(3,j,k,ip)
-                d4i   = (x(1,j,k,ip) - 4e0*x(2,j,k,ip) + 6e0*x(3,j,k,ip) &
-                       - 4e0*x(4,j,k,ip) + x(5,j,k,ip)) * (1e0/6e0)
-                xs4_i = x(1,j,k,ip) - d4i
-
-                if (j <= 2) then
-                    xs2_j = 2e0*x(1,2,k,ip) - x(1,3,k,ip)
-                    xs4_j = x(1,j,k,ip) - (x(1,1,k,ip) - 4e0*x(1,2,k,ip) + 6e0*x(1,3,k,ip) &
-                                         - 4e0*x(1,4,k,ip) + x(1,5,k,ip)) * (1e0/6e0)
-                    if (j == 2) xs2_j = (x(1,1,k,ip) + x(1,3,k,ip)) * 0.5e0
-                else if (j >= nj-1) then
-                    xs2_j = 2e0*x(1,nj-1,k,ip) - x(1,nj-2,k,ip)
-                    xs4_j = x(1,j,k,ip) - (x(1,nj-4,k,ip) - 4e0*x(1,nj-3,k,ip) + 6e0*x(1,nj-2,k,ip) &
-                                         - 4e0*x(1,nj-1,k,ip) + x(1,nj,k,ip)) * (1e0/6e0)
-                    if (j == nj-1) xs2_j = (x(1,nj-2,k,ip) + x(1,nj,k,ip)) * 0.5e0
-                else
-                    xs2_j = (x(1,j-1,k,ip) + x(1,j+1,k,ip)) * 0.5e0
-                    xs4_j = (-x(1,j-2,k,ip) + 4e0*x(1,j-1,k,ip) &
-                            + 4e0*x(1,j+1,k,ip) - x(1,j+2,k,ip)) * (1e0/6e0)
-                end if
-
-                if (k <= 2) then
-                    xs2_k = 2e0*x(1,j,2,ip) - x(1,j,3,ip)
-                    xs4_k = x(1,j,k,ip) - (x(1,j,1,ip) - 4e0*x(1,j,2,ip) + 6e0*x(1,j,3,ip) &
-                                         - 4e0*x(1,j,4,ip) + x(1,j,5,ip)) * (1e0/6e0)
-                    if (k == 2) xs2_k = (x(1,j,1,ip) + x(1,j,3,ip)) * 0.5e0
-                else if (k >= nk-1) then
-                    xs2_k = 2e0*x(1,j,nk-1,ip) - x(1,j,nk-2,ip)
-                    xs4_k = x(1,j,k,ip) - (x(1,j,nk-4,ip) - 4e0*x(1,j,nk-3,ip) + 6e0*x(1,j,nk-2,ip) &
-                                         - 4e0*x(1,j,nk-1,ip) + x(1,j,nk,ip)) * (1e0/6e0)
-                    if (k == nk-1) xs2_k = (x(1,j,nk-2,ip) + x(1,j,nk,ip)) * 0.5e0
-                else
-                    xs2_k = (x(1,j,k-1,ip) + x(1,j,k+1,ip)) * 0.5e0
-                    xs4_k = (-x(1,j,k-2,ip) + 4e0*x(1,j,k-1,ip) &
-                            + 4e0*x(1,j,k+1,ip) - x(1,j,k+2,ip)) * (1e0/6e0)
-                end if
-
-                xs(1,j,k) = (1e0 - sum_sf) * x(1,j,k,ip) &
-                          + sf2 * (xs2_i + xs2_j + xs2_k) &
-                          + sf4 * (xs4_i + xs4_j + xs4_k)
-
-                ! i=2 reuses d4i
-                xs2_i = (x(1,j,k,ip) + x(3,j,k,ip)) * 0.5e0
-                xs4_i = x(2,j,k,ip) - d4i
-
-                if (j <= 2) then
-                    xs2_j = 2e0*x(2,2,k,ip) - x(2,3,k,ip)
-                    xs4_j = x(2,j,k,ip) - (x(2,1,k,ip) - 4e0*x(2,2,k,ip) + 6e0*x(2,3,k,ip) &
-                                         - 4e0*x(2,4,k,ip) + x(2,5,k,ip)) * (1e0/6e0)
-                    if (j == 2) xs2_j = (x(2,1,k,ip) + x(2,3,k,ip)) * 0.5e0
-                else if (j >= nj-1) then
-                    xs2_j = 2e0*x(2,nj-1,k,ip) - x(2,nj-2,k,ip)
-                    xs4_j = x(2,j,k,ip) - (x(2,nj-4,k,ip) - 4e0*x(2,nj-3,k,ip) + 6e0*x(2,nj-2,k,ip) &
-                                         - 4e0*x(2,nj-1,k,ip) + x(2,nj,k,ip)) * (1e0/6e0)
-                    if (j == nj-1) xs2_j = (x(2,nj-2,k,ip) + x(2,nj,k,ip)) * 0.5e0
-                else
-                    xs2_j = (x(2,j-1,k,ip) + x(2,j+1,k,ip)) * 0.5e0
-                    xs4_j = (-x(2,j-2,k,ip) + 4e0*x(2,j-1,k,ip) &
-                            + 4e0*x(2,j+1,k,ip) - x(2,j+2,k,ip)) * (1e0/6e0)
-                end if
-
-                if (k <= 2) then
-                    xs2_k = 2e0*x(2,j,2,ip) - x(2,j,3,ip)
-                    xs4_k = x(2,j,k,ip) - (x(2,j,1,ip) - 4e0*x(2,j,2,ip) + 6e0*x(2,j,3,ip) &
-                                         - 4e0*x(2,j,4,ip) + x(2,j,5,ip)) * (1e0/6e0)
-                    if (k == 2) xs2_k = (x(2,j,1,ip) + x(2,j,3,ip)) * 0.5e0
-                else if (k >= nk-1) then
-                    xs2_k = 2e0*x(2,j,nk-1,ip) - x(2,j,nk-2,ip)
-                    xs4_k = x(2,j,k,ip) - (x(2,j,nk-4,ip) - 4e0*x(2,j,nk-3,ip) + 6e0*x(2,j,nk-2,ip) &
-                                         - 4e0*x(2,j,nk-1,ip) + x(2,j,nk,ip)) * (1e0/6e0)
-                    if (k == nk-1) xs2_k = (x(2,j,nk-2,ip) + x(2,j,nk,ip)) * 0.5e0
-                else
-                    xs2_k = (x(2,j,k-1,ip) + x(2,j,k+1,ip)) * 0.5e0
-                    xs4_k = (-x(2,j,k-2,ip) + 4e0*x(2,j,k-1,ip) &
-                            + 4e0*x(2,j,k+1,ip) - x(2,j,k+2,ip)) * (1e0/6e0)
-                end if
-
-                xs(2,j,k) = (1e0 - sum_sf) * x(2,j,k,ip) &
-                          + sf2 * (xs2_i + xs2_j + xs2_k) &
-                          + sf4 * (xs4_i + xs4_j + xs4_k)
-            end do
-        end do
-
-        ! ----------------------------------------------------------------
-        ! High i-slab: i=ni-1,ni; all j,k
-        ! d4i backward biased from i=ni
-        ! ----------------------------------------------------------------
-        do k = 1, nk
-            do j = 1, nj
-                xs2_i = (x(ni-2,j,k,ip) + x(ni,j,k,ip)) * 0.5e0
-                d4i   = (x(ni-4,j,k,ip) - 4e0*x(ni-3,j,k,ip) + 6e0*x(ni-2,j,k,ip) &
-                       - 4e0*x(ni-1,j,k,ip) + x(ni,j,k,ip)) * (1e0/6e0)
-                xs4_i = x(ni-1,j,k,ip) - d4i
-
-                if (j <= 2) then
-                    xs2_j = 2e0*x(ni-1,2,k,ip) - x(ni-1,3,k,ip)
-                    xs4_j = x(ni-1,j,k,ip) - (x(ni-1,1,k,ip) - 4e0*x(ni-1,2,k,ip) + 6e0*x(ni-1,3,k,ip) &
-                                            - 4e0*x(ni-1,4,k,ip) + x(ni-1,5,k,ip)) * (1e0/6e0)
-                    if (j == 2) xs2_j = (x(ni-1,1,k,ip) + x(ni-1,3,k,ip)) * 0.5e0
-                else if (j >= nj-1) then
-                    xs2_j = 2e0*x(ni-1,nj-1,k,ip) - x(ni-1,nj-2,k,ip)
-                    xs4_j = x(ni-1,j,k,ip) - (x(ni-1,nj-4,k,ip) - 4e0*x(ni-1,nj-3,k,ip) + 6e0*x(ni-1,nj-2,k,ip) &
-                                            - 4e0*x(ni-1,nj-1,k,ip) + x(ni-1,nj,k,ip)) * (1e0/6e0)
-                    if (j == nj-1) xs2_j = (x(ni-1,nj-2,k,ip) + x(ni-1,nj,k,ip)) * 0.5e0
-                else
-                    xs2_j = (x(ni-1,j-1,k,ip) + x(ni-1,j+1,k,ip)) * 0.5e0
-                    xs4_j = (-x(ni-1,j-2,k,ip) + 4e0*x(ni-1,j-1,k,ip) &
-                            + 4e0*x(ni-1,j+1,k,ip) - x(ni-1,j+2,k,ip)) * (1e0/6e0)
-                end if
-
-                if (k <= 2) then
-                    xs2_k = 2e0*x(ni-1,j,2,ip) - x(ni-1,j,3,ip)
-                    xs4_k = x(ni-1,j,k,ip) - (x(ni-1,j,1,ip) - 4e0*x(ni-1,j,2,ip) + 6e0*x(ni-1,j,3,ip) &
-                                            - 4e0*x(ni-1,j,4,ip) + x(ni-1,j,5,ip)) * (1e0/6e0)
-                    if (k == 2) xs2_k = (x(ni-1,j,1,ip) + x(ni-1,j,3,ip)) * 0.5e0
-                else if (k >= nk-1) then
-                    xs2_k = 2e0*x(ni-1,j,nk-1,ip) - x(ni-1,j,nk-2,ip)
-                    xs4_k = x(ni-1,j,k,ip) - (x(ni-1,j,nk-4,ip) - 4e0*x(ni-1,j,nk-3,ip) + 6e0*x(ni-1,j,nk-2,ip) &
-                                            - 4e0*x(ni-1,j,nk-1,ip) + x(ni-1,j,nk,ip)) * (1e0/6e0)
-                    if (k == nk-1) xs2_k = (x(ni-1,j,nk-2,ip) + x(ni-1,j,nk,ip)) * 0.5e0
-                else
-                    xs2_k = (x(ni-1,j,k-1,ip) + x(ni-1,j,k+1,ip)) * 0.5e0
-                    xs4_k = (-x(ni-1,j,k-2,ip) + 4e0*x(ni-1,j,k-1,ip) &
-                            + 4e0*x(ni-1,j,k+1,ip) - x(ni-1,j,k+2,ip)) * (1e0/6e0)
-                end if
-
-                xs(ni-1,j,k) = (1e0 - sum_sf) * x(ni-1,j,k,ip) &
-                             + sf2 * (xs2_i + xs2_j + xs2_k) &
-                             + sf4 * (xs4_i + xs4_j + xs4_k)
-
-                ! i=ni reuses d4i
-                xs2_i = 2e0*x(ni-1,j,k,ip) - x(ni-2,j,k,ip)
-                xs4_i = x(ni,j,k,ip) - d4i
-
-                if (j <= 2) then
-                    xs2_j = 2e0*x(ni,2,k,ip) - x(ni,3,k,ip)
-                    xs4_j = x(ni,j,k,ip) - (x(ni,1,k,ip) - 4e0*x(ni,2,k,ip) + 6e0*x(ni,3,k,ip) &
-                                          - 4e0*x(ni,4,k,ip) + x(ni,5,k,ip)) * (1e0/6e0)
-                    if (j == 2) xs2_j = (x(ni,1,k,ip) + x(ni,3,k,ip)) * 0.5e0
-                else if (j >= nj-1) then
-                    xs2_j = 2e0*x(ni,nj-1,k,ip) - x(ni,nj-2,k,ip)
-                    xs4_j = x(ni,j,k,ip) - (x(ni,nj-4,k,ip) - 4e0*x(ni,nj-3,k,ip) + 6e0*x(ni,nj-2,k,ip) &
-                                          - 4e0*x(ni,nj-1,k,ip) + x(ni,nj,k,ip)) * (1e0/6e0)
-                    if (j == nj-1) xs2_j = (x(ni,nj-2,k,ip) + x(ni,nj,k,ip)) * 0.5e0
-                else
-                    xs2_j = (x(ni,j-1,k,ip) + x(ni,j+1,k,ip)) * 0.5e0
-                    xs4_j = (-x(ni,j-2,k,ip) + 4e0*x(ni,j-1,k,ip) &
-                            + 4e0*x(ni,j+1,k,ip) - x(ni,j+2,k,ip)) * (1e0/6e0)
-                end if
-
-                if (k <= 2) then
-                    xs2_k = 2e0*x(ni,j,2,ip) - x(ni,j,3,ip)
-                    xs4_k = x(ni,j,k,ip) - (x(ni,j,1,ip) - 4e0*x(ni,j,2,ip) + 6e0*x(ni,j,3,ip) &
-                                          - 4e0*x(ni,j,4,ip) + x(ni,j,5,ip)) * (1e0/6e0)
-                    if (k == 2) xs2_k = (x(ni,j,1,ip) + x(ni,j,3,ip)) * 0.5e0
-                else if (k >= nk-1) then
-                    xs2_k = 2e0*x(ni,j,nk-1,ip) - x(ni,j,nk-2,ip)
-                    xs4_k = x(ni,j,k,ip) - (x(ni,j,nk-4,ip) - 4e0*x(ni,j,nk-3,ip) + 6e0*x(ni,j,nk-2,ip) &
-                                          - 4e0*x(ni,j,nk-1,ip) + x(ni,j,nk,ip)) * (1e0/6e0)
-                    if (k == nk-1) xs2_k = (x(ni,j,nk-2,ip) + x(ni,j,nk,ip)) * 0.5e0
-                else
-                    xs2_k = (x(ni,j,k-1,ip) + x(ni,j,k+1,ip)) * 0.5e0
-                    xs4_k = (-x(ni,j,k-2,ip) + 4e0*x(ni,j,k-1,ip) &
-                            + 4e0*x(ni,j,k+1,ip) - x(ni,j,k+2,ip)) * (1e0/6e0)
-                end if
-
-                xs(ni,j,k) = (1e0 - sum_sf) * x(ni,j,k,ip) &
-                           + sf2 * (xs2_i + xs2_j + xs2_k) &
-                           + sf4 * (xs4_i + xs4_j + xs4_k)
-            end do
-        end do
-
-        x(:,:,:,ip) = xs
 
     end do
 
