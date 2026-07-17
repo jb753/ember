@@ -16,7 +16,7 @@ contains
     ! the caller can roll small buffers instead of staging full volumes.
 
     pure subroutine iface_flow_row(vx, vr, vt, ho, P, P_offset, r, &
-                                   cons, vt_rel, Omega, dA, &
+                                   cons, Omega, dA, &
                                    wall_lo, wall_hi, row, j, k, ni, nj, nk)
         ! Compute inviscid face flows on the ni i-faces of cell row (j,k);
         ! the i=1 / i=ni boundary faces are wall-masked by the scalars
@@ -27,7 +27,7 @@ contains
         real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
-        real, intent(in) :: cons(ni, nj, nk, 5), vt_rel(ni, nj, nk)
+        real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
         real, intent(in) :: dA(3, ni, nj-1, nk-1)
         real, intent(in) :: wall_lo, wall_hi
@@ -78,7 +78,7 @@ contains
             w = 0.25e0*wfac
             mf(1) = mf(1) + w*cons(i,j,k,2)
             mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*vt_rel(i,j,k)
+            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
         end subroutine accum
 
         pure subroutine put(row, i, pm, mf)
@@ -97,7 +97,7 @@ contains
 
 
     pure subroutine jface_flow_row(vx, vr, vt, ho, P, P_offset, r, &
-                                   cons, vt_rel, Omega, dA, &
+                                   cons, Omega, dA, &
                                    wall_lo, wall_hi, row, jf, k, ni, nj, nk)
         ! Compute inviscid face flows on the (ni-1) j-faces of face row jf at
         ! cell plane k; jf=1 / jf=nj are the wall-masked boundary rows.
@@ -108,7 +108,7 @@ contains
         real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
-        real, intent(in) :: cons(ni, nj, nk, 5), vt_rel(ni, nj, nk)
+        real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
         real, intent(in) :: dA(3, ni-1, nj, nk-1)
         real, intent(in) :: wall_lo(ni-1, nk-1)
@@ -166,7 +166,7 @@ contains
             w = 0.25e0*wfac
             mf(1) = mf(1) + w*cons(i,j,k,2)
             mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*vt_rel(i,j,k)
+            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
         end subroutine accum
 
         pure subroutine put(row, i, pm, mf)
@@ -185,7 +185,7 @@ contains
 
 
     pure subroutine kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, &
-                                     cons, vt_rel, Omega, dA, &
+                                     cons, Omega, dA, &
                                      wall_lo, wall_hi, plane, kf, njp, &
                                      ni, nj, nk)
         ! Compute inviscid face flows on the (ni-1)x(nj-1) k-face plane kf;
@@ -198,7 +198,7 @@ contains
         real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
-        real, intent(in) :: cons(ni, nj, nk, 5), vt_rel(ni, nj, nk)
+        real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
         real, intent(in) :: dA(3, ni-1, nj-1, nk)
         real, intent(in) :: wall_lo(ni-1, nj-1)
@@ -262,7 +262,7 @@ contains
             w = 0.25e0*wfac
             mf(1) = mf(1) + w*cons(i,j,k,2)
             mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*vt_rel(i,j,k)
+            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
         end subroutine accum
 
         pure subroutine put(plane, i, j, pm, mf)
@@ -281,7 +281,7 @@ contains
 
 
     subroutine correct_cusp_kface_du(vx, vr, vt, ho, P, P_offset, r, &
-                                     cons, vt_rel, Omega, dAk, &
+                                     cons, Omega, dAk, &
                                      wall_lo, wall_hi, dU, &
                                      i_cusp_start, i_cusp_end, ni, nj, nk)
         ! Correct the residual for the cusp k-face coupling (matching Multall).
@@ -308,7 +308,7 @@ contains
         real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
-        real, intent(in) :: cons(ni, nj, nk, 5), vt_rel(ni, nj, nk)
+        real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
         real, intent(in) :: dAk(3, ni-1, nj-1, nk)
         real, intent(in) :: wall_lo(ni-1, nj-1)
@@ -429,7 +429,7 @@ contains
             w = 0.25e0*wfac
             mf(1) = mf(1) + w*cons(i,j,k,2)
             mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*vt_rel(i,j,k)
+            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
         end subroutine accum
     end subroutine correct_cusp_kface_du
 
@@ -440,7 +440,9 @@ end module residual_helpers
 ! =====================================================================
 ! v3 unscaled residual: single pass over precomputed nodal primitives.
 ! Per-mass (perm) and mass-flux (mflux) factors are read directly from
-! cached nodal arrays (vx, vr, vt, vt_rel, ho) and assembled per face.
+! cached nodal arrays (vx, vr, vt, ho) and assembled per face; the
+! relative tangential velocity (Vt - Omega*r) is derived inline rather
+! than read from its own stored array (see accum() in each face helper).
 !
 ! k-slab cache blocking and rolling-buffer fusion
 ! -----------------------------------------------
@@ -474,7 +476,7 @@ subroutine set_residual( &
     r, Omega, dAi, dAj, dAk, &
     f_body, &
     dU, &
-    vx, vr, vt, vt_rel, ho, &
+    vx, vr, vt, ho, &
     planes, rows, &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
@@ -498,7 +500,6 @@ subroutine set_residual( &
     real, intent(in) :: vx(ni, nj, nk)
     real, intent(in) :: vr(ni, nj, nk)
     real, intent(in) :: vt(ni, nj, nk)
-    real, intent(in) :: vt_rel(ni, nj, nk)
     real, intent(in) :: ho(ni, nj, nk)
     real, intent(in) :: walli1(nj-1, nk-1)
     real, intent(in) :: wallni(nj-1, nk-1)
@@ -533,7 +534,7 @@ subroutine set_residual( &
     ! --- i-direction: faces i=1..ni, fused per (j,k) row ---
     do k = k0, k1
     do j = 1, nj-1
-        call iface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, vt_rel, &
+        call iface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
                             Omega, dAi, walli1(j,k), wallni(j,k), &
                             rows(:,:,1), j, k, ni, nj, nk)
         ! Accumulate the row (first direction: assignment, f_body folded in)
@@ -549,11 +550,11 @@ subroutine set_residual( &
     do k = k0, k1
         ja = 2
         jb = 3
-        call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, vt_rel, &
+        call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
                             Omega, dAj, wallj1, wallnj, rows(:,:,ja), &
                             1, k, ni, nj, nk)
         do j = 1, nj-1
-            call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, vt_rel, &
+            call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
                                 Omega, dAj, wallj1, wallnj, rows(:,:,jb), &
                                 j+1, k, ni, nj, nk)
             do m = 1, 5
@@ -580,7 +581,7 @@ subroutine set_residual( &
         kf0 = k0 + 1
     end if
     do k = kf0, k1+1
-        call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, vt_rel, &
+        call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
                               Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
                               k, njp, ni, nj, nk)
         ! Accumulate cell plane k-1 between faces k-1 (pa) and k (pb)
@@ -605,7 +606,7 @@ subroutine set_residual( &
     ! a deferred O(surface) correction to dU after the sweep. nk=2 (the two
     ! seam cells coincide) is not supported.
     if (i_cusp_start > 0 .and. nk > 2) then
-        call correct_cusp_kface_du(vx, vr, vt, ho, P, P_offset, r, cons, vt_rel, &
+        call correct_cusp_kface_du(vx, vr, vt, ho, P, P_offset, r, cons, &
                                    Omega, dAk, wallk1, wallnk, dU, &
                                    i_cusp_start, i_cusp_end, ni, nj, nk)
     end if

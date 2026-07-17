@@ -18,7 +18,14 @@ fusion for `set_residual` was first tried bitwise-exactly and rejected
 tolerance with a conditional anti-aliasing pad (section 9, -3% to -12%).
 A second-level j-panel tile on top of the k-slabs was tried and rejected
 (section 10): panels lose 2-5% at small/mid sizes and gain at most ~1% at
-the largest, so the slab-tiled section 9 kernel remains production.**
+the largest, so the slab-tiled section 9 kernel remains production.
+Section 11 drops `set_residual`'s separate `vt_rel` nodal array (derived
+inline from `vt`/`r`/`Omega` instead), cutting one field from the
+per-node footprint all three direction sweeps re-touch: implemented,
+gauge-corrected wins at every size (-0.4% to -14.5%), no regressions.
+Section 12 records two further, untried candidates in the same family
+(fusing the i/j sweeps; precomputing per-node `pm`/`mf` once) for future
+work.**
 
 ---
 
@@ -903,3 +910,156 @@ above noise, regress nowhere).
   jbw sweep) is preserved in the repo stash: `git stash list` --
   "set_residual j-panel tiling (rejected)". Raw data:
   `scripts/bench_panelres_ab.csv` (labels panel-r1/panel-r2).
+
+---
+
+## 11. Implemented: derive `vt_rel` inline in `set_residual` instead of a stored nodal array
+
+Section 10's reading was that the slab-tiled kernel already fetches every
+nodal field from DRAM ~once, so further *spatial* tiling had nothing left
+to cut. The remaining lever is *field count*: `set_residual` carried
+`vt_rel(ni,nj,nk)` as its own stored nodal array, used only in the
+mass-flux term `mf(3) = ... + w*cons(i,j,k,1)*vt_rel(i,j,k)`. But
+`vt_rel` is just `Vt - Omega*r` (`block.py:592-608`,
+`_Vt_rel_nd_uninit`), and `set_residual` already receives `vt`, `r`, and
+the per-block scalar `Omega` as separate arguments -- so the whole array
+is redundant and can be derived per node instead of streamed from its
+own buffer.
+
+### 11.1 Design
+
+`vt_rel` removed from all 5 places it appeared in `residual.f90`
+(`iface_flow_row`, `jface_flow_row`, `kface_flow_plane`,
+`correct_cusp_kface_du`, and `set_residual` itself, which threads it to
+the other four); every `accum()` now computes
+`mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))` inline.
+No tiling, kb bookkeeping, wall masking, or cusp logic touched. The two
+call sites (`Grid.update_residual` in `grid.py`, and
+`scripts/bench_viscous.py`'s `make_residual_call`) simply stop passing
+`vt_rel=block.Vt_rel_nd`; the Python-side `Vt_rel_nd` cached array itself
+is untouched and still backs the `set_visc_force`/`set_tau_q_soa` calls
+and the rothalpy calc in `block.py:502`, which still consume it.
+
+### 11.2 Correctness
+
+Not claimed bitwise: the old value came from two separate float32 numpy
+ops (`np.multiply` then `np.subtract`, no fusion); the new Fortran
+`vt(i,j,k) - Omega*r(i,j,k)` compiled under production `-Ofast` may
+legally FMA-fuse into a single fused-multiply-subtract with different
+rounding. Measured directly rather than assumed: `test_residual_matches_golden`
+**passed without regeneration**. Quantified anyway --
+max abs diff **0.0009766** against a field scale of 13420.06 (~0.6 ulp of
+the flux scale, smaller than section 6's 1 ulp and section 9's 1.2 ulp),
+369/1920 cells differ (19.2%), max relative diff among differing cells
+1.25e-4 -- comfortably inside the golden's existing `rtol=1e-4` /
+region-scaled `atol`. `test_residual_kb_consistent` (kb in {1,2,3} vs.
+kb=nk-1) passes unaffected, as expected since kb bookkeeping isn't
+touched. Full suite: 1414 passed, 1 skipped (pre-existing, unrelated).
+
+### 11.3 A/B results
+
+Protocol: `scripts/bench_viscous.py`, `make compile` both sides via
+`git stash`, single thread pinned, production `kb = 8`, median ns/cell.
+Two full repeat processes (r1/r2). This session's cross-build noise floor
+(the co-measured, **untouched** `set_visc_force`/`set_tau_q_soa` gauge)
+was unusually wide -- up to +-4.5% swing between r1 and r2, worse than
+the ~0.2-2.9 ns/cell bands in sections 8-10 -- so raw deltas are reported
+gauge-corrected (`set_residual` delta minus the co-measured `set_visc_force`
+delta at the same size/rep, cancelling common-mode drift):
+
+| size | r1 raw | r1 gauge | r1 corrected | r2 raw | r2 gauge | r2 corrected |
+| --- | --- | --- | --- | --- | --- | --- |
+| 48x32x32    | +0.09% | +0.47% | -0.37% | -3.01% | -0.58% | -2.44% |
+| 64x48x48    | -8.96% | +0.57% | -9.53% | +0.68% | +2.03% | -1.35% |
+| 80x64x64    | -5.23% | +1.21% | -6.45% | -3.32% | +0.04% | -3.35% |
+| 96x96x96    | -0.53% | +0.60% | -1.13% | -5.52% | +1.56% | -7.08% |
+| 128x96x96   | -1.24% | +3.06% | -4.30% | -15.43% | -0.96% | -14.47% |
+
+`update_residual` end to end tracks `set_residual` within ~1 ns/cell at
+every point (both reps). Every gauge-corrected cell in both repeats is a
+win (-0.4% to -14.5%); the one raw uncorrected uptick (r2, 64x48x48,
++0.68%) sits inside that run's own gauge noise (+2.03% at the same
+size/rep) and resolves to a win once corrected. No regression survives
+gauge correction at any size in either repeat.
+
+### 11.4 Reading
+
+- Unlike section 10's j-panel tile, this is not spatial tiling -- it
+  removes one field's worth of *redundant re-reads*: every interior node
+  is a corner of up to ~4 face calls per direction across the 3 direction
+  sweeps, so `vt_rel` was being fetched from its own buffer repeatedly
+  per slab. Deriving it from already-resident `vt`/`r` costs one multiply-
+  subtract per touch instead of one more array stream.
+- The win growing with size (largest at 128x96x96, the most L3-pressured
+  configuration) suggests at least part of the benefit is real L2/L3
+  traffic reduction, not purely redundant arithmetic -- partially
+  refining, not contradicting, section 10.3's "L3 traffic is not the
+  bottleneck" reading: that finding was specific to *adding* a second
+  tiling dimension, not to *removing* a field from the existing slab
+  window.
+- This composes for free with sections 6-10's tiling/fusion structure
+  (no kb, wall-masking, or cusp-correction interaction), so it stacks
+  with the current production kernel rather than competing with it.
+- Raw data: `scripts/bench_vtrel_ab.csv`, labels baseline/candidate (r1)
+  and baseline_r2/candidate_r2 (r2).
+
+---
+
+## 12. Untried: further per-node redundancy reduction in `set_residual`
+
+Section 11's result -- removing one field from the per-node data that all
+three direction sweeps re-touch produced real, size-scaling wins --
+suggests the remaining untried levers in this family are worth a proper
+A/B too, rather than further spatial tiling (section 10 closed that
+door). Two candidates, not yet implemented:
+
+### 12.1 Fuse the i- and j-direction sweeps into one pass
+
+Currently the i-direction and j-direction sweeps are two separate
+full-slab passes over `(j,k)`: the i-sweep assigns `dU` once, then the
+j-sweep is a wholly separate pass that re-reads and accumulates into it.
+Both already iterate row-by-row over the same `(j,k)` grid and don't
+depend on each other's rolling buffer (the i-direction needs no carry
+across j; the j-direction rolling pair only needs the previous j-face
+still resident), so they can be interleaved in a single loop body: for
+each `(j,k)`, call `iface_flow_row` and assign `dU`, then immediately
+call `jface_flow_row` for the next j-face and add its difference, while
+the row is still hot. This cuts `dU` from 3 touches per slab (write,
+RMW, RMW) to 2.
+
+Expected to be **arithmetically free**: same three-term accumulation
+(`dU = i-diff + f_body; += j-diff; += k-diff`), same summation order,
+just computed back to back instead of across two full-slab passes -- no
+new reassociation beyond what section 9 already accepted, so in
+principle no golden change at all (unlike section 11, which did shift
+the golden by a sub-ulp amount). Untried -- needs its own A/B against the
+section 9/11 baseline across the standard size ladder.
+
+### 12.2 Precompute per-node `pm`/`mf` once instead of per face
+
+`accum()` currently re-derives `pm(6)`/`mf(3)` from the raw nodal fields
+fresh at every face call. Each interior node is a corner of up to ~4 face
+calls per direction (trapezoidal face averaging shares corners between
+neighbouring faces), so across the three direction sweeps a node's
+`pm`/`mf` ingredients are recomputed roughly 4x per direction rather than
+once. A prepass over the slab's nodal window that computes and stores
+`pm`/`mf` once per node (9 values, `i` kept fastest-varying to preserve
+the section 2 SIMD lesson), with the three face helpers summing
+precomputed corners instead of recomputing them, would sum the same 4
+addends per face in the same order -- bitwise identical in principle,
+unlike section 11's inline derivation (no new floating-point operation
+order, just caching an already-computed value).
+
+Caveat carried over from when this idea was first raised: given section
+10's finding that L3/DRAM traffic wasn't the bottleneck for *spatial*
+tiling, this idea's benefit is more plausibly redundant *compute* (fewer
+multiply/subtract ops) and fewer distinct array streams during face
+assembly than raw DRAM bytes saved. Section 11's result -- a real,
+size-growing win from removing a field -- partially refines that
+picture and makes this more worth trying, but the compute-vs-memory-bound
+question should still be checked (e.g. `perf stat` port/IPC counters)
+before investing in the more invasive boundary-handling work this needs:
+interior nodes precomputed in bulk, wall-adjacent faces handled as an
+`O(surface)` correction pass, mirroring the pattern
+`correct_cusp_kface_du` already uses for the cusp seam. Untried -- needs
+its own A/B, and is more invasive than 12.1, so worth trying 12.1 first.

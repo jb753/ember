@@ -1442,7 +1442,6 @@ class Grid(_LabelledList):
                 vx=block.Vx_nd,
                 vr=block.Vr_nd,
                 vt=block.Vt_nd,
-                vt_rel=block.Vt_rel_nd,
                 ho=block.ho_nd,
                 planes=planes,
                 rows=rows,
