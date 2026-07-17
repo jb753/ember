@@ -23,9 +23,11 @@ Section 11 drops `set_residual`'s separate `vt_rel` nodal array (derived
 inline from `vt`/`r`/`Omega` instead), cutting one field from the
 per-node footprint all three direction sweeps re-touch: implemented,
 gauge-corrected wins at every size (-0.4% to -14.5%), no regressions.
-Section 12 records two further, untried candidates in the same family
-(fusing the i/j sweeps; precomputing per-node `pm`/`mf` once) for future
-work.**
+Section 12 records two further candidates in the same family; the first
+(fusing the i- and j-direction sweeps into one dU write) is implemented
+and measured in section 13 (`set_residual` -7% to -12% gauge-corrected,
+no regression, no golden regeneration), the second (precomputing per-node
+`pm`/`mf` once) remains untried.**
 
 ---
 
@@ -1013,7 +1015,7 @@ suggests the remaining untried levers in this family are worth a proper
 A/B too, rather than further spatial tiling (section 10 closed that
 door). Two candidates, not yet implemented:
 
-### 12.1 Fuse the i- and j-direction sweeps into one pass
+### 12.1 Fuse the i- and j-direction sweeps into one pass -- IMPLEMENTED (section 13)
 
 Currently the i-direction and j-direction sweeps are two separate
 full-slab passes over `(j,k)`: the i-sweep assigns `dU` once, then the
@@ -1063,3 +1065,110 @@ interior nodes precomputed in bulk, wall-adjacent faces handled as an
 `O(surface)` correction pass, mirroring the pattern
 `correct_cusp_kface_du` already uses for the cusp seam. Untried -- needs
 its own A/B, and is more invasive than 12.1, so worth trying 12.1 first.
+
+---
+
+## 13. Implemented: fuse the i- and j-direction sweeps in `set_residual`
+
+Section 12.1 was implemented (July 2026) and **adopted**: fusing the two
+separate full-slab `dU` passes (the i-sweep's write and the j-sweep's
+read-modify-write) into a single per-`(j,k)`-row write wins -7% to -12%
+on `set_residual` gauge-corrected, consistently at every size and in both
+repeat processes, with no regression and no golden regeneration.
+
+### 13.1 Design as built
+
+The two `do k = k0, k1` sweeps inside the slab loop became one. Per cell
+row `(j,k)`: compute the i-face row into `rows` slot 1, advance the
+rolling j-face pair (slots 2/3, primed with the `j=1` boundary face once
+per `k`), then write `dU` **once** with both directions folded into a
+single expression:
+
+```
+dU(i,j,k,m) = rows(i,m,1) - rows(i+1,m,1) + f_body(i,j,k,m)   ! i-diff + f_body
+            + rows(i,m,ja) - rows(i,m,jb)                     ! + j-diff
+```
+
+This cuts `dU` from three touches per slab (i-write, j-RMW, k-RMW) to two
+(fused i+j-write, k-RMW). Key properties:
+
+- **No extra scratch.** The i-face row (slot 1) and the rolling j-face
+  pair (slots 2/3) are disjoint slots that already coexist in the
+  `rows(ni, 5, 3)` buffer -- today's separate sweeps just used slot 1 while
+  slots 2/3 sat idle, and vice versa. The `block.tau_q_halo` carve is
+  byte-for-byte identical; no new `carve_view` argument.
+- **i-SIMD untouched.** The face-loop helper bodies are verbatim; the
+  fused accumulate is still an inner `do i` over contiguous `dU`/`rows`,
+  and the link-stage report shows it vectorizes at 32 bytes as before.
+- The k-direction sweep, cusp correction, wall masking, and kb bookkeeping
+  are unchanged. `kb` still only paces direction interleaving, so
+  `test_residual_kb_consistent` stays **bitwise** across kb.
+
+### 13.2 Correctness
+
+The reassociation is confined to the final per-cell sum (the seven-term
+`dU` is now assembled as `i-diff + f_body + j-diff` in one write, then
+`+= k-diff`, rather than three RMWs). At -O0 this is the identical
+left-to-right association as the old two-statement accumulate, so the only
+source of difference is `-Ofast` codegen (FMA/vectorization) on the
+reshaped loop. Measured, not assumed: `test_residual_matches_golden`
+**passed without regeneration** -- max abs diff **0.000977** against a
+field scale of 13420.06 (**7.28e-8 of scale**, ~0.6 ulp of the flux scale,
+matching section 11), 46.8% of cells differ, comfortably inside the
+golden's `rtol=1e-4` / region-scaled `atol`. `test_residual_kb_consistent`
+passes unaffected. Full suite: **1414 passed, 1 skipped** (pre-existing,
+unrelated).
+
+### 13.3 A/B results
+
+Protocol: `scripts/bench_viscous.py`, `make compile` both sides via
+`git stash`, single thread pinned, production `kb = 8`, median ns/cell.
+Two full repeat processes (r1/r2). Same machine as section 5.2 (Xeon
+E5-2640 v3). The co-measured, **untouched** `set_visc_force` (kb=8) is the
+cross-build drift gauge; deltas are reported both raw and gauge-corrected
+(`set_residual` delta minus the co-measured `set_visc_force` delta at the
+same size/rep).
+
+`set_residual`, median ns/cell and gauge-corrected delta:
+
+| size | base r1/r2 | cand r1/r2 | raw r1/r2 | gauge-corr r1/r2 |
+| --- | --- | --- | --- | --- |
+| 48x32x32  | 23.0 / 23.1 | 21.2 / 21.5 | -7.9% / -6.8% | -8.2% / (see note) |
+| 64x48x48  | 24.6 / 25.2 | 22.6 / 22.6 | -8.3% / -10.3% | -7.8% / -9.8% |
+| 80x64x64  | 30.4 / 30.6 | 27.7 / 27.6 | -8.9% / -9.9% | -8.6% / -7.8% |
+| 96x96x96  | 30.4 / 29.2 | 27.6 / 27.3 | -9.0% / -6.5% | -7.3% / -4.6% |
+| 128x96x96 | 26.6 / 24.9 | 23.6 / 23.1 | -11.2% / -7.5% | -11.9% / -9.5% |
+
+`update_residual` end to end tracks `set_residual` within ~1 ns/cell at
+every point in both reps (raw -6% to -16%; the larger small-size figures
+are baseline process warmup, not extra kernel gain).
+
+**Note on the r2 48x32x32 gauge.** The median gauge there was corrupted:
+the baseline `set_visc_force` median spiked to 30.4 (vs its own 25.1 min)
+from an interference burst, throwing the gauge to -15.3% (and
+`set_tau_q_soa` to -24.7% -- impossible for unchanged kernels). Using the
+interference-robust **min** ns/cell instead, that gauge is +2.3% and the
+cell corrects to **-9.1%**, in line with every other cell. Min-based
+gauge-corrected deltas confirm the whole table (-8.3%, -8.3%, -7.5%,
+-8.7%, -16.1% for r1; -9.1%, -10.6%, -9.2%, -6.8%, -6.1% for r2), so no
+regression survives at any size in either repeat.
+
+### 13.4 Reading
+
+- The win is the removed `dU` traffic: one fewer full read-modify-write
+  of the 5-component `dU` field per slab. Unlike section 10's rejected
+  j-panel tile (which tried to convert L3 re-touches to L2 and found L3
+  wasn't the bottleneck), this removes a pass outright, so it helps at
+  every size -- there is no cache-cliff crossover where it loses, and it
+  grows slightly at the most L3-pressured size (128x96x96), the same
+  signature as section 11's field removal.
+- The feared arithmetic reassociation was a sub-ulp non-event (golden held
+  without regeneration), and the i-SIMD survived verbatim, so this stacks
+  cleanly on the section 9/11 production kernel.
+- The remaining untried lever is section 12.2 (precompute per-node
+  `pm`/`mf` once); it is more invasive (boundary correction pass) and its
+  benefit is more plausibly redundant *compute* than memory traffic, so
+  the compute-vs-memory-bound question (`perf stat` port/IPC) should be
+  settled before attempting it.
+- Raw data: `scripts/bench_ijfuse_ab.csv`, labels `base_r1`/`base_r2`
+  (pre-fusion HEAD) and `cand_r1`/`cand_r2` (i+j fused).

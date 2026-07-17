@@ -451,18 +451,19 @@ end module residual_helpers
 ! across all three directions. Within a slab each direction fuses its
 ! face-flow computation with its dU accumulate through a rolling buffer,
 ! so no slab-sized flow scratch exists:
-!   - i-direction: one face row (rows slot 1) per (j,k), differenced in
-!     place (assignment, f_body folded in);
-!   - j-direction: an alternating face-row pair (rows slots 2/3);
+!   - i+j-directions: fused per (j,k) row into a single dU write -- the
+!     i-face row (rows slot 1) and the rolling j-face pair (rows slots
+!     2/3) are both consumed in one expression (i-diff + f_body + j-diff),
+!     cutting dU from three touches per slab (write, RMW, RMW) to two;
 !   - k-direction: an alternating face-plane pair (planes slots 1/2),
 !     persisting across the slab boundary (the intervening i/j phases
 !     touch only rows), so the shared face plane carries automatically.
 !
-! Unlike the staged version, dU accumulates direction by direction
-! (dU = i-diff + f_body; += j-diff; += k-diff) instead of one fused
-! seven-term expression: the per-face flow values are identical, but the
-! final sum is reassociated, so results differ from the staged kernel by
-! a few ulp on near-cancelling cells. This is a deliberate, bounded
+! Unlike the staged version, dU accumulates in two stages (the fused i+j
+! write dU = i-diff + f_body + j-diff, then += k-diff) instead of one
+! fused seven-term expression: the per-face flow values are identical, but
+! the final sum is reassociated, so results differ from the staged kernel
+! by a few ulp on near-cancelling cells. This is a deliberate, bounded
 ! float32 tolerance in exchange for keeping the slab tiling together
 ! with the rolling buffers (the bitwise-preserving alternative needed a
 ! single all-direction sweep, which measured slower at large planes).
@@ -531,35 +532,30 @@ subroutine set_residual( &
     do k0 = 1, nk-1, kb
     k1 = min(k0 + kb - 1, nk-1)
 
-    ! --- i-direction: faces i=1..ni, fused per (j,k) row ---
-    do k = k0, k1
-    do j = 1, nj-1
-        call iface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
-                            Omega, dAi, walli1(j,k), wallni(j,k), &
-                            rows(:,:,1), j, k, ni, nj, nk)
-        ! Accumulate the row (first direction: assignment, f_body folded in)
-        do m = 1, 5
-        do i = 1, ni-1
-            dU(i,j,k,m) = rows(i,m,1) - rows(i+1,m,1) + f_body(i,j,k,m)
-        end do
-        end do
-    end do
-    end do
-
-    ! --- j-direction: faces j=1..nj, fused with a rolling row pair ---
+    ! --- i+j directions fused per (j,k) row ---
+    ! For each cell row (j,k): compute the i-face row (slot 1) and advance
+    ! the rolling j-face pair (slots ja/jb), then write dU once with both
+    ! contributions folded in (i-diff + f_body + j-diff). This cuts dU from
+    ! three touches per slab (write, RMW, RMW) to two; the i-face slot and
+    ! the j-face pair are disjoint slots that already coexist in rows.
     do k = k0, k1
         ja = 2
         jb = 3
+        ! Prime the rolling j-face pair with the j=1 boundary face.
         call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
                             Omega, dAj, wallj1, wallnj, rows(:,:,ja), &
                             1, k, ni, nj, nk)
         do j = 1, nj-1
+            call iface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+                                Omega, dAi, walli1(j,k), wallni(j,k), &
+                                rows(:,:,1), j, k, ni, nj, nk)
             call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
                                 Omega, dAj, wallj1, wallnj, rows(:,:,jb), &
                                 j+1, k, ni, nj, nk)
             do m = 1, 5
             do i = 1, ni-1
-                dU(i,j,k,m) = dU(i,j,k,m) + rows(i,m,ja) - rows(i,m,jb)
+                dU(i,j,k,m) = rows(i,m,1) - rows(i+1,m,1) + f_body(i,j,k,m) &
+                            + rows(i,m,ja) - rows(i,m,jb)
             end do
             end do
             stmp = ja
