@@ -502,3 +502,149 @@ def test_trim_preserves_diverged_flag(hist_with_throttle):
     hist = hist_with_throttle
     hist.diverged = True
     assert hist.trim().diverged is True
+
+
+def _hist_with_zeta(zeta_series, n_step_log=100):
+    """A fully-logged history whose entropy rise follows ``zeta_series``.
+
+    zeta = s_out - s_in, so hold the inlet entropy at 0 and drive the outlet
+    with the requested series. i_step advances by ``n_step_log`` per record.
+    """
+    n = len(zeta_series)
+    hist = ConvergenceHistory(shape=(n,))
+    hist._set_metadata_by_key("n_node", 100)
+    hist._set_metadata_by_key("fluid", _FLUID)
+    hist._set_metadata_by_key("_time_start", 0.0)
+    hist._set_metadata_by_key("i_log", -1)
+    for k in hist._data_keys:
+        hist._versions[k] += 1
+    for i, z in enumerate(zeta_series):
+        hist.record_convergence(
+            i * n_step_log,
+            ConvergenceStep(
+                residual=np.full(5, 1.0, dtype=np.float32),
+                mdot=np.array([1.0, 1.0], dtype=np.float32),
+                ho=np.zeros(2, dtype=np.float32),
+                s=np.array([0.0, z], dtype=np.float32),
+            ),
+        )
+    return hist
+
+
+def test_find_settling_record_ramp_then_plateau():
+    """Settling record is the first plateau step once zeta stops climbing."""
+    # Rise 0..5 then flat: tail-mean target = 5, band = 0.01*5. The last record
+    # outside the band is the last "4" at index 4, so settling lands at index 5.
+    hist = _hist_with_zeta([0, 1, 2, 3, 4, 5, 5, 5, 5, 5])
+    idx = hist.find_settling_record()
+    assert idx == 5
+    assert int(hist.i_step[idx]) == 500
+
+
+def test_find_settling_record_flat_returns_zero():
+    """A flat zeta has zero swing (degenerate band) and settles from the start."""
+    hist = _hist_with_zeta([3, 3, 3, 3, 3])
+    assert hist.find_settling_record() == 0
+
+
+def test_find_settling_record_overshoot_uses_last_exit():
+    """An overshoot that dips into the band and back out settles at the last exit."""
+    # zeta touches the target (5) at index 1, overshoots to 10 at index 2, then
+    # settles. First-entry would wrongly report index 1; last-exit reports 3.
+    hist = _hist_with_zeta([0, 5, 10, 5, 5, 5])
+    assert hist.find_settling_record() == 3
+
+
+# ---------------------------------------------------------------------------
+# check_convergence
+# ---------------------------------------------------------------------------
+
+
+def _make_hist_with_energy_residual(res_energy, di_step=10):
+    """History whose energy residual (column 4) follows ``res_energy``.
+
+    The other four residual columns are held at a constant 1.0, so a check that
+    read the wrong column would see no decay and no slope.
+    """
+    res_energy = np.asarray(res_energy, dtype=np.float32)
+    n = len(res_energy)
+    hist = ConvergenceHistory(shape=(n,))
+    hist._set_metadata_by_key("n_node", 100)
+    hist._set_metadata_by_key("fluid", _FLUID)
+    hist._set_metadata_by_key("_time_start", 0.0)
+    hist._set_metadata_by_key("i_log", -1)
+    for k in hist._data_keys:
+        hist._versions[k] += 1
+    for i in range(n):
+        hist.record_convergence(
+            i * di_step,
+            ConvergenceStep(
+                residual=np.array(
+                    [1.0, 1.0, 1.0, 1.0, res_energy[i]], dtype=np.float32
+                ),
+                mdot=np.array([1.0, 1.0], dtype=np.float32),
+                ho=np.array([300000.0, 300000.0], dtype=np.float32),
+                s=np.array([1000.0, 1010.0], dtype=np.float32),
+            ),
+        )
+    return hist
+
+
+def test_check_convergence_no_args_reports_only_divergence():
+    """A bare check_convergence() is True unless the march diverged."""
+    hist = _make_hist_with_energy_residual(np.logspace(-2, -6, 20))
+    assert hist.check_convergence() is True
+    hist.diverged = True
+    assert hist.check_convergence() is False
+
+
+def test_check_convergence_diverged_ignores_residual():
+    """A diverged flag wins even when the residual would satisfy every check."""
+    hist = _make_hist_with_energy_residual(np.logspace(-2, -8, 20))
+    hist.diverged = True
+    # Thresholds the finite residual would easily pass, yet still False.
+    assert hist.check_convergence(decay=1.0, slope=1.0) is False
+
+
+def test_check_convergence_decay_decades():
+    """decay counts decades fallen from the peak energy residual."""
+    hist = _make_hist_with_energy_residual(np.logspace(-2, -6, 20))  # 4 decades
+    assert hist.check_convergence(decay=3.0) is True
+    assert hist.check_convergence(decay=5.0) is False
+
+
+def test_check_convergence_decay_reads_energy_column():
+    """decay looks at drhoe (column 4), not another residual."""
+    # Energy residual is flat; a wrong-column read would also see the flat 1.0
+    # columns and still report no decay, so instead give energy the only decay.
+    hist = _make_hist_with_energy_residual(np.logspace(-1, -7, 20))  # 6 decades
+    assert hist.check_convergence(decay=5.0) is True
+
+
+def test_check_convergence_slope_flat_tail_passes():
+    """A residual whose last fifth is flat has ~zero slope there."""
+    res = np.concatenate(
+        [np.logspace(-2, -6, 16), np.full(4, 1e-6)]
+    )  # falls, then flat
+    hist = _make_hist_with_energy_residual(res)
+    assert hist.check_convergence(slope=1e-3) is True
+
+
+def test_check_convergence_slope_falling_tail_fails():
+    """A residual still falling over its tail exceeds a small slope tolerance."""
+    hist = _make_hist_with_energy_residual(np.logspace(-2, -6, 20))
+    assert hist.check_convergence(slope=1e-3) is False
+
+
+def test_check_convergence_cfl_scales_slope():
+    """A larger cfl stretches pseudo-time, shrinking the slope magnitude."""
+    res = np.logspace(-2, -6, 20).astype(np.float32)
+    hist = _make_hist_with_energy_residual(res)
+    n = 20
+    n_fit = max(2, -(-n // 5))
+    i_tail = hist.i_step[n - n_fit : n]
+    m1 = abs(np.polyfit(i_tail, np.log10(res[n - n_fit :]), 1)[0])
+    # cfl=2 halves the slope; pick a threshold between m1/2 and m1.
+    thr = 0.75 * m1
+    assert hist.check_convergence(slope=thr, cfl=1.0) is False
+    assert hist.check_convergence(slope=thr, cfl=2.0) is True

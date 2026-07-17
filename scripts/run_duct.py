@@ -1,9 +1,10 @@
 #!/usr/bin/env -S uv run
-"""Inviscid square-duct baseline: configurable CFL / MG / IRS run.
+"""Square-duct baseline: configurable CFL / MG / IRS run.
 
 Runs the square-duct case and reports convergence (energy residual, mass flow
-error, entropy rise). With --plot writes a 3-panel figure to
-scripts/baseline_cfl3_mg.pdf.
+error, entropy rise). The case itself is assembled by
+``ember.cases.build_duct_grid``; this script is a thin CLI wrapper that drives
+it and the solver. With --plot writes a 3-panel figure to the given path.
 """
 
 import argparse
@@ -13,139 +14,23 @@ import time
 
 import numpy as np
 
-import ember.block
-import ember.grid
-import ember.fluid
-import ember.patch
+from ember.cases import build_duct_grid
 import ember.solver
-import ember.set_iter
-from ember import util
 
 logging.disable(logging.CRITICAL)  # silence per-step convergence logging
 
-# ---------------------------------------------------------------------------
-# Fixed IC perturbation parameters
-# ---------------------------------------------------------------------------
-HO_FRAC = 0.01  # ho raised by 1% of local dynamic enthalpy
-S_FRAC = 0.01  # s raised by entropy equivalent of that offset
-PERTURB_VX = 0.01
-PERTURB_SEED = 0
-
-
-def build_grid(ncell):
-    """Assemble the inviscid square-duct grid."""
-    side = 0.1
-    r_mid_ratio = 5.0
-    length_ratio = 3.0
-    ER = 1.05
-    nj = 65
-    nk = 57
-    Ma_bulk = 0.3
-    Po = 1e5
-    To = 300.0
-
-    r_mid = r_mid_ratio * side
-    r_low = r_mid - 0.5 * side
-    r_high = r_mid + 0.5 * side
-    length = length_ratio * side
-
-    n_half = (nj + 1) // 2
-    eta_half = util.cluster(n_half, ER, 1.0)
-    ds_mid = 0.5 * side * float(eta_half[-1] - eta_half[-2])
-
-    Nb = round(2.0 * np.pi * r_mid / (nk * ds_mid)) * 2
-    pitch = 2.0 * np.pi / Nb
-
-    ni = ncell // (nj * nk)
-    ni = ((ni - 1 + 4) // 8) * 8 + 1
-
-    # Below this the duct is too short to march: a handful of streamwise cells
-    # gives the inlet and outlet patches no interior between them, and ni=1
-    # (ncell < nj*nk) yields zero cells, which the Fortran kernels reject.
-    if ni < 25:
-        raise ValueError(
-            f"ncell={ncell} gives only ni={ni} streamwise nodes "
-            f"(nj={nj}, nk={nk}); need ni >= 25, i.e. ncell >= {25 * nj * nk}"
-        )
-
-    xrt = util.linmesh3(
-        [0.0, length], [r_low, r_high], [-0.5 * pitch, 0.5 * pitch], (ni, nj, nk)
-    )
-    block = ember.block.Block(shape=(ni, nj, nk))
-    block.set_xrt(xrt)
-    block.set_Nb(Nb)
-
-    fluid = ember.fluid.PerfectFluid(
-        cp=1005.0, gamma=1.4, mu=1.0e-3, Pr=0.72, T_dtm=400.0
-    )
-    block.set_fluid(fluid)
-
-    rho_o, e_o = fluid.set_P_T(Po, To)
-    ho = fluid.get_h(rho_o, e_o)
-    so = fluid.get_s(rho_o, e_o)
-    a_o = fluid.get_a(rho_o, e_o)
-    Vbar = Ma_bulk * a_o
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho, so, Ma_bulk, 0.0, 0.0)
-
-    U = Vbar / np.inf
-    Omega = U / r_mid
-    block.set_Omega(Omega)
-    block.set_Vt(Omega * block.r)
-
-    block.patches["inlet"] = ember.patch.InletPatch(i=0)
-    block.patches["outlet"] = ember.patch.OutletPatch(i=-1)
-
-    Po_in = block.Po[0].mean()
-    To_in = block.To[0].mean()
-    Alpha_in = block.Alpha[0].mean()
-    P_out = block.P[-1].mean()
-    T_out = block.T[-1].mean()
-    block.patches["inlet"].set_Po_To_Alpha_Beta(Po_in, To_in, Alpha_in, 0.0)
-    block.patches["outlet"].set_P(P_out)
-    block.patches["outlet"].set_backflow(ho, so, 0.0, 0.0)
-
-    rng = np.random.default_rng(PERTURB_SEED)
-    Vx = block.Vx
-    block.set_Vx(
-        Vx * (1.0 + PERTURB_VX * rng.standard_normal(Vx.shape)).astype(Vx.dtype)
-    )
-
-    grid = ember.grid.Grid([block])
-    grid.set_L_ref(side)
-    grid.set_fluid(
-        fluid.change_datum(P_out, T_out).change_ref(rho_o, Vbar, block.Rgas.mean())
-    )
-    grid.calculate_wdist()
-    return grid
-
-
-def build_grid_ic(ncell):
-    """build_grid, then add the deterministic ho/entropy perturbation and a
-    linear +1% streamwise Vx ramp."""
-    grid = build_grid(ncell)
-    block = grid[0]
-
-    V = np.asarray(block.V)
-    ho = np.asarray(block.ho)
-    s = np.asarray(block.s)
-    T = np.asarray(block.T)
-    h_static = ho - 0.5 * V**2
-
-    dh = HO_FRAC * 0.5 * V**2
-    ds = S_FRAC * 0.5 * V**2 / T
-    block.set_h_s(h_static + dh, s + ds)  # velocity preserved
-
-    # Linear +1% ramp in Vx: inlet unchanged, outlet +1%.
-    # set_Vx keeps the static (rho, e) state fixed and rewrites momentum + energy.
-    Vx = np.asarray(block.Vx)
-    ni = Vx.shape[0]
-    ramp = np.linspace(1.0, 1.01, ni, dtype=Vx.dtype)
-    block.set_Vx(Vx * ramp[:, None, None])
-    return grid
-
 
 def run(args):
-    grid = build_grid_ic(args.ncell)
+    grid = build_duct_grid(
+        args.ncell,
+        cluster=args.cluster,
+        ER=args.ER,
+        perturb_vx=args.perturb_vx,
+        perturb_seed=args.perturb_seed,
+        ho_frac=args.ho_frac,
+        s_frac=args.s_frac,
+        vx_ramp=args.vx_ramp,
+    )
     b = grid[0]
     n_nodes = b.ni * b.nj * b.nk
     print(f"Grid = {b.ni} x {b.nj} x {b.nk}  ({n_nodes} nodes)")
@@ -156,7 +41,7 @@ def run(args):
 
     conf = ember.solver.SolverConfig(
         n_step=args.n_step,
-        n_step_log=100,
+        n_step_log=args.n_step_log,
         n_step_avg=1,
         cfl=args.cfl,
         n_stage=args.n_stage,
@@ -184,48 +69,90 @@ def run(args):
     per_node_step = wall / args.n_step / n_nodes * 1e6
     print(f"{wall:.3f}s  {per_node_step:.3f} us/node/step")
 
-    if not args.plot:
-        return
+    # Convergence verdict: require the energy residual to fall 1 decade from
+    # its peak; the slope criterion is disabled (slope=0).
+    res_e = hist.residual[:, 4]
+    decades = float(np.log10(res_e.max() / res_e[-1]))
+    converged = hist.check_convergence(decay=1.0)
+    print(f"Converged={converged}  (energy residual fell {decades:.2f} decades)")
 
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    fig, (ax_res, ax_err, ax_s) = plt.subplots(3, 1, figsize=(7.5, 9.5), sharex=True)
-
-    ax_res.semilogy(i_step, hist.residual[:, 4], marker=".", ms=3, lw=1.0)
-    ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
-    ax_res.set_title("Energy residual (semilog)")
-    ax_res.grid(True, which="both", alpha=0.3)
-
-    ax_err.axhline(0.0, color="0.6", lw=0.8)
-    ax_err.plot(i_step, hist.err_mdot, marker=".", ms=3, lw=1.0)
-    ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
-    ax_err.set_title("Mass flow error")
-    ax_err.grid(True, alpha=0.3)
-
-    ax_s.plot(i_step, hist.zeta, marker=".", ms=3, lw=1.0)
-    ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
-    ax_s.set_title("Entropy rise")
-    ax_s.set_xlabel("i_step")
-    ax_s.grid(True, alpha=0.3)
-
-    fig.suptitle(
-        f"CFL={args.cfl}, {args.n_stage}-stage RK, n_levels={args.n_levels}, "
-        f"fac_mgrid={args.fac_mgrid}, {args.n_step} steps",
-        y=0.995,
+    # Settling: where the entropy rise zeta stopped moving (within 1% of its
+    # total swing), a "solution output settled" marker distinct from the
+    # residual-decade bar above. wall time subtracts time[0], the startup offset.
+    idx = hist.find_settling_record()
+    settle_step = int(i_step[idx])
+    settle_ms = float(hist.time[idx] - hist.time[0])
+    print(
+        f"zeta settled to <1% of range by step {settle_step} of {args.n_step} "
+        f"({settle_ms:.0f} ms)"
     )
-    fig.tight_layout()
-    fig.savefig(args.plot)
-    print(f"Wrote {args.plot}")
+
+    if args.write_hist:
+        hist.write_cnv(args.write_hist)
+        print(f"Wrote {args.write_hist}")
+
+    if args.plot:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        fig, (ax_res, ax_err, ax_s) = plt.subplots(
+            3, 1, figsize=(7.5, 9.5), sharex=True
+        )
+
+        ax_res.semilogy(i_step, hist.residual[:, 4], marker=".", ms=3, lw=1.0)
+        ax_res.set_ylabel(r"$|\Delta(\rho e)|$")
+        ax_res.set_title("Energy residual (semilog)")
+        ax_res.grid(True, which="both", alpha=0.3)
+
+        ax_err.axhline(0.0, color="0.6", lw=0.8)
+        ax_err.plot(i_step, hist.err_mdot, marker=".", ms=3, lw=1.0)
+        ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
+        ax_err.set_title("Mass flow error")
+        ax_err.grid(True, alpha=0.3)
+
+        ax_s.plot(i_step, hist.zeta, marker=".", ms=3, lw=1.0)
+        ax_s.axvline(
+            settle_step,
+            color="C3",
+            lw=1.0,
+            ls="--",
+            label=f"settled (step {settle_step})",
+        )
+        ax_s.set_ylabel(r"$\zeta = s_\mathrm{out} - s_\mathrm{in}$")
+        ax_s.set_title("Entropy rise")
+        ax_s.set_xlabel("i_step")
+        ax_s.grid(True, alpha=0.3)
+        ax_s.legend()
+
+        fig.suptitle(
+            f"CFL={args.cfl}, {args.n_stage}-stage RK, n_levels={args.n_levels}, "
+            f"fac_mgrid={args.fac_mgrid}, {args.n_step} steps",
+            y=0.995,
+        )
+        fig.tight_layout()
+        fig.savefig(args.plot)
+        print(f"Wrote {args.plot}")
+
+    # A run that neither diverged nor cleared the 1-decade convergence bar exits
+    # non-zero (distinct from the divergence exit 1), so a caller like
+    # duct_cfl_descend.sh treats "ran but did not converge" as a failure too.
+    if not converged:
+        sys.exit(2)
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--n-step", type=int, default=100)
+    p.add_argument("--n-step", type=int, default=2000)
+    p.add_argument(
+        "--n-step-log",
+        type=int,
+        default=100,
+        help="Steps between convergence records (sets settling-step resolution)",
+    )
     p.add_argument("--n-stage", type=int, default=4)
-    p.add_argument("--cfl", type=float, default=3.0)
+    p.add_argument("--cfl", type=float, default=2.5)
     p.add_argument(
         "--n-levels", type=int, default=0, help="MG coarse levels (0 = no MG)"
     )
@@ -235,9 +162,34 @@ def main():
     p.add_argument(
         "--sf-resid", type=float, default=0.0, help="IRS residual smoothing factor"
     )
-    p.add_argument("--ncell", type=int, default=int(1e6), help="Target cell count")
+    p.add_argument("--ncell", type=int, default=250000, help="Target cell count")
     p.add_argument("--inviscid", action="store_true", help="Disable viscous terms")
+    p.add_argument(
+        "--cluster",
+        action="store_true",
+        help="Cluster the cross-stream mesh towards the walls (default: uniform)",
+    )
+    p.add_argument(
+        "--ER", type=float, default=1.05, help="Wall-clustering expansion ratio"
+    )
+    p.add_argument(
+        "--perturb-vx", type=float, default=0.01, help="Axial-velocity ripple amplitude"
+    )
+    p.add_argument("--perturb-seed", type=int, default=0, help="Velocity-ripple seed")
+    p.add_argument(
+        "--ho-frac", type=float, default=0.01, help="Stagnation-enthalpy IC offset"
+    )
+    p.add_argument("--s-frac", type=float, default=0.01, help="Entropy IC offset")
+    p.add_argument(
+        "--vx-ramp", type=float, default=0.01, help="Streamwise Vx ramp (outlet vs inlet)"
+    )
     p.add_argument("--plot", metavar="PATH", help="Write 3-panel figure to this path")
+    p.add_argument(
+        "--write-hist",
+        metavar="CNVFILE",
+        help="Write the convergence history to this CNV file (read back with "
+        "ConvergenceHistory.read_cnv)",
+    )
     run(p.parse_args())
 
 

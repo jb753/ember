@@ -1,9 +1,15 @@
 ember
 =====
 
-**ember** — Enhanced Multi-block solvER for turbomachinery CFD.
+An 'Enhanced Multi-Block solvER' for turbomachinery computational fluid
+dynamics, written by `James Brind <https://jamesbrind.uk/>`_ at the `Whittle Laboratory <https://whittle.eng.cam.ac.uk/>`_, University of Cambridge.
+Solves the compressible Reynolds-averaged Navier-Stokes equations on
+multi-block structured meshes, using an evolution of the fast and robust Denton
+algorithms. Pre- and post-processing is handled through a numpy-like Python
+interface, while the heavy computations run through compiled Fortran for speed.
 
-Developed by `James Brind <https://jamesbrind.uk/>`_ at the `Whittle Laboratory <https://whittle.eng.cam.ac.uk/>`_, University of Cambridge.
+
+
 
 .. toctree::
    :maxdepth: 2
@@ -23,9 +29,7 @@ Developed by `James Brind <https://jamesbrind.uk/>`_ at the `Whittle Laboratory 
    api/patch
    api/average
    api/cut
-   algorithm
    api/solver
-   solver_configuration
    api/convergence_history
    references
 

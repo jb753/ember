@@ -39,19 +39,21 @@ subroutine apply_sfd_force( &
 end subroutine apply_sfd_force
 
 
-! Compute unscaled volumetric timestep using the JST/Blazek multidimensional
-! definition (alternative to set_timestep, for benchmarking).
+! Compute unscaled volumetric timestep from directional convective/diffusion
+! spectral radii. A variant of the JST/Blazek multidimensional definition:
+! Blazek SUMS the directional radii; here we take the MAX so the CFL number
+! stays the true 1D Courant limit (see below).
 !
 ! Calculates dt_vol = 1 / max(lam_conv, lam_diff). The convective radius is
 !
-!   lam_conv = sum_d Lambda_d,   Lambda_d = |V_rel . dA_d| + a * ||dA_d||
+!   lam_conv = max_d Lambda_d,   Lambda_d = |V_rel . dA_d| + a * ||dA_d||
 !
 ! the convective spectral radius across direction d (dA_d the per-cell average of
 ! the two opposing face-area vectors, V_rel the relative-frame velocity matching
 ! the flux convention mf = (rho*Vx, rho*Vr, rho*Vt_rel)). The turbulent-diffusion
 ! radius shares those same face areas,
 !
-!   lam_diff = fac_visc * (mu_turb/rho) * sum_d ||dA_d||^2 / vol,
+!   lam_diff = fac_visc * (mu_turb/rho) * max_d ||dA_d||^2 / vol,
 !
 ! so both limits carry the same directional aspect-ratio weighting and a single
 ! cfl scales them consistently; mu_turb = 0 recovers the pure convective step.
@@ -59,11 +61,17 @@ end subroutine apply_sfd_force
 ! viscous march tolerates the same cfl as the inviscid one, since the viscous
 ! fluxes shrink the RK stability margin beyond what the bare radius accounts for.
 !
-! Contrast with set_timestep's dt_vol = dl_min/((a+V_rel)*vol), which uses only
-! the single smallest edge: that makes the stable CFL swing with cell aspect
-! ratio, whereas the sum-of-spectral-radii form pins it near 2*sqrt(2) for the
-! 4-stage RK scheme regardless of aspect ratio. Same dt_vol units (time/volume)
-! and same rf blend, so it is a drop-in replacement in update_timestep.
+! Normalising on the largest single-direction radius max_d Lambda_d (rather than
+! the Blazek sum sum_d Lambda_d) makes the CFL number sigma recover the true 1D
+! Courant limit -- ~2*sqrt(2) for the 4-stage RK march, ~1/sqrt(3) for scree --
+! because with the solver's smoothing the binding mode is the stiffest grid
+! direction, not the multidimensional corner mode the sum bounds. It stays
+! aspect-ratio-aware (auto-selects the stiffest direction), unlike set_timestep's
+! dl_min/((a+V_rel)*vol) which pairs the smallest edge with a single mismatched
+! (a+V). Note max is LESS conservative than the sum: it relies on the smoothing
+! keeping the corner modes subcritical, so keep the empirical cfl sweep as the
+! stability backstop. Same dt_vol units (time/volume) and same rf blend, so it is
+! a drop-in replacement in update_timestep.
 !
 subroutine set_timestep_spectral( &
         dt_vol, &
@@ -164,16 +172,19 @@ subroutine set_timestep_spectral( &
         s2_k = Sx*Sx + Sr*Sr + St*St
         lam_k = abs(Vx*Sx + Vr*Sr + Vt_rel*St) + a_cell * sqrt(s2_k)
 
-        ! Convective + turbulent-diffusion spectral radii; larger radius wins
-        ! (= smaller time scale). The diffusion radius is the directional sum
-        ! (mu_turb/rho) * (|S_i|^2+|S_j|^2+|S_k|^2) / vol, built from the same
-        ! per-face areas as lam_conv so the aspect-ratio weighting matches and a
-        ! single cfl scales both limits consistently (contrast the old isotropic
-        ! mu_turb*vol/(rho*dl_min^2), which kept only the stiffest direction).
-        ! mu_turb stays in the numerator, so mu_turb = 0 reduces exactly to the
-        ! convective form with no branch or division risk.
-        lam_conv = lam_i + lam_j + lam_k
-        lam_diff = fac_visc * mu_turb(i, j, k) * (s2_i + s2_j + s2_k) &
+        ! Convective radius = largest single-direction radius (max, not the
+        ! Blazek sum) so the CFL number tracks the true 1D Courant limit; the
+        ! larger of it and the turbulent-diffusion radius wins (= smaller time
+        ! scale). The diffusion radius is likewise the largest single-direction
+        ! radius (mu_turb/rho) * max(|S_i|^2,|S_j|^2,|S_k|^2) / vol, built from
+        ! the same per-face areas as lam_conv so the aspect-ratio weighting
+        ! matches and a single cfl scales both limits consistently (contrast the
+        ! old isotropic mu_turb*vol/(rho*dl_min^2), whose length scale did not
+        ! track the stiffest face direction). mu_turb stays in the numerator, so
+        ! mu_turb = 0 reduces exactly to the convective form with no branch or
+        ! division risk.
+        lam_conv = max(lam_i, lam_j, lam_k)
+        lam_diff = fac_visc * mu_turb(i, j, k) * max(s2_i, s2_j, s2_k) &
                    / (rho_cell * vol(i, j, k))
         dt_vol_new = 1.0e0 / max(lam_conv, lam_diff)
         dt_vol(i, j, k) = rf * dt_vol_new + (1.0e0 - rf) * dt_vol(i, j, k)

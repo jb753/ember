@@ -129,6 +129,13 @@ import ember.mixing_communicator
 import ember.nonmatch_communicator
 
 
+# k-slab depth for the tiled kernels (set_visc_force, set_residual): cell
+# planes per slab, so that a slab's input planes stay cache-resident across
+# all three face directions. Clamped per block to nk-1. Value chosen by
+# benchmark sweep (see docs/dev/viscous_kernels.md).
+_KB_SLAB = 8
+
+
 class Grid(_LabelledList):
     """An ordered, labelled collection of connected blocks.
 
@@ -1190,15 +1197,41 @@ class Grid(_LabelledList):
         Raises
         ------
         DivergenceError
-            If any block contains a NaN, naming the first such block (index and
-            label). The grid is left untouched so the invalid field can be
-            inspected.
+            If any block contains a NaN. The message names the first such block
+            (index and label), the ``(i, j, k)`` node bounding box of the NaN
+            region, and which of the six boundary faces it touches -- enough to
+            tell a boundary-seeded blow-up from an interior one. The grid is left
+            untouched so the invalid field can be inspected.
         """
         for iblock, block in enumerate(self):
-            if np.isnan(block.conserved_nd[..., 0]).any():
-                raise DivergenceError(
-                    f"NaN in conserved_nd density of block {iblock} ({block.label!r})"
-                )
+            nan_mask = np.isnan(block.conserved_nd[..., 0])
+            if not nan_mask.any():
+                continue
+            ni, nj, nk = block.ni, block.nj, block.nk
+            ii, jj, kk = np.nonzero(nan_mask)
+            box = (
+                f"i[{ii.min()}:{ii.max()}]/{ni - 1} "
+                f"j[{jj.min()}:{jj.max()}]/{nj - 1} "
+                f"k[{kk.min()}:{kk.max()}]/{nk - 1}"
+            )
+            faces = []
+            if ii.min() == 0:
+                faces.append("i-lo")
+            if ii.max() == ni - 1:
+                faces.append("i-hi")
+            if jj.min() == 0:
+                faces.append("j-lo")
+            if jj.max() == nj - 1:
+                faces.append("j-hi")
+            if kk.min() == 0:
+                faces.append("k-lo")
+            if kk.max() == nk - 1:
+                faces.append("k-hi")
+            touch = ", ".join(faces) if faces else "interior only"
+            raise DivergenceError(
+                f"NaN in conserved_nd density of block {iblock} ({block.label!r}): "
+                f"{nan_mask.sum()} node(s), bbox {box}, touches [{touch}]"
+            )
 
     def copy(self, keep_patches=True):
         """Create a deep copy of the grid with copied blocks.
@@ -1375,19 +1408,25 @@ class Grid(_LabelledList):
             convergence) it does not change the steady-state solution. Per-block
             only: block/periodic interfaces are treated as zero-gradient. Borrows
             ``block.scratch`` as its work buffer -- free at this point, since
-            ``set_residual`` has finished using it as ``flow_i`` and the march
-            reuses it only afterwards.
+            ``set_residual`` stages its face flows in ``tau_q_halo`` and the
+            march reuses ``scratch`` only afterwards.
 
         """
         for block in self:
             i_cusp_start, i_cusp_end = block.i_cusp
             ni, nj, nk = block.shape
-            # Two transient flow-scratch buffers for the fused residual: scratch
-            # (5 slots) for the i-face flows, and tau_q_halo (10 slots) for the
-            # j/k-face flows. tau_q_halo is shape (ni+1,nj+1,nk+1,10); the kernel
-            # only needs ni*nj*nk*10 contiguous floats, so borrow a zero-copy
-            # F-order view of the leading block.
-            flow_jk = util.carve_view(block.tau_q_halo, (ni, nj, nk, 10))
+            # Rolling face-flow buffers for the fused k-tiled residual: a
+            # k-face plane pair and three rows (one i, two alternating j),
+            # borrowed zero-copy from the leading block.tau_q_halo storage.
+            # planes takes one padding j-row exactly when its component
+            # stride ni*nj*4 bytes would be a whole page multiple, so the
+            # k-accumulate's component streams never 4K-alias (see
+            # set_residual; the pad measurably hurts blocks it cannot help).
+            kb = min(_KB_SLAB, nk - 1)
+            njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
+            planes, rows = util.carve_view(
+                block.tau_q_halo, (ni, njp, 5, 2), (ni, 5, 3)
+            )
             block.residual_nd.flags.writeable = True
             ember.fortran.set_residual(
                 cons=block.conserved_nd,
@@ -1403,13 +1442,14 @@ class Grid(_LabelledList):
                 vx=block.Vx_nd,
                 vr=block.Vr_nd,
                 vt=block.Vt_nd,
-                vt_rel=block.Vt_rel_nd,
                 ho=block.ho_nd,
-                flow_i=block.scratch,
-                flow_jk=flow_jk,
+                planes=planes,
+                rows=rows,
                 **block.ijk_wall_conv,
                 i_cusp_start=i_cusp_start,
                 i_cusp_end=i_cusp_end,
+                kb=kb,
+                njp=njp,
                 ni=ni,
                 nj=nj,
                 nk=nk,
@@ -1418,8 +1458,8 @@ class Grid(_LabelledList):
                 # Exact factored-tridiagonal IRS (Jameson ADI): a direct solve.
                 # Scratch is just the Thomas coefficients, 2*(nci+ncj+nck) floats;
                 # carve a 1D leading view of block.scratch (nodal (ni,nj,nk,5),
-                # vastly oversized). Free here: set_residual has released it
-                # (flow_i) and the march reuses it only after this returns.
+                # vastly oversized). Free here: set_residual does not touch it
+                # and the march reuses it only after this returns.
                 nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
                 ember.fortran.smooth_residual_tri_tiled(
                     du=block.residual_nd,
@@ -1526,6 +1566,16 @@ class Grid(_LabelledList):
                 tau_cell = halo[..., 0:6]
                 q_cell = halo[..., 6:9]
                 i_cusp_start, i_cusp_end = block.i_cusp
+                # Rolling face-flow buffers for the fused k-tiled kernel: a
+                # plane pair for the k-direction and three rows (one i, two
+                # alternating j), borrowed zero-copy from the leading
+                # block.scratch storage (5 nodal slots: fits for nk >= 3, or
+                # nk == 2 with nj >= 6; carve_view raises otherwise).
+                ni, nj, nk = block.shape
+                kb = min(_KB_SLAB, nk - 1)
+                planes, rows = util.carve_view(
+                    block.scratch, (ni, nj, 4, 2), (ni, 4, 3)
+                )
                 ember.fortran.set_visc_force(
                     cons=block.conserved_nd,
                     vol=block.vol_nd,
@@ -1541,7 +1591,9 @@ class Grid(_LabelledList):
                     vt=block.Vt_rel_nd,
                     tau_cell=tau_cell,
                     q_cell=q_cell,
-                    flow_scratch=block.scratch[..., 0:4],
+                    planes=planes,
+                    rows=rows,
+                    kb=kb,
                     **block.ijk_wall_visc,
                     **block.Omega_wall_nd,
                     i_cusp_start=i_cusp_start,
@@ -1575,15 +1627,16 @@ class Grid(_LabelledList):
     def update_timestep(self, rf, fac_visc=1.0):
         """Recompute the volumetric time step on every block.
 
-        Uses the JST/Blazek multidimensional definition
-        ``dt_vol = 1 / max(lam_conv, lam_diff)``, where ``lam_conv`` sums the
-        convective spectral radii ``Lambda_d = |V_rel . dA_d| + a*||dA_d||`` over
-        the three directions and ``lam_diff = fac_visc *
-        (mu_turb/rho)*sum_d||dA_d||^2/vol`` is the turbulent-diffusion radius over
-        the same faces (:func:`set_timestep_spectral`). Building both from the
-        directional face areas makes the stable CFL aspect-ratio-independent
-        (pinned near ``2*sqrt(2)`` for the 4-stage RK march) for the viscous limit
-        too.
+        Uses a max-of-directional-radii variant of the JST/Blazek definition
+        ``dt_vol = 1 / max(lam_conv, lam_diff)``, where ``lam_conv`` is the
+        largest of the convective spectral radii
+        ``Lambda_d = |V_rel . dA_d| + a*||dA_d||`` over the three directions and
+        ``lam_diff = fac_visc * (mu_turb/rho)*max_d||dA_d||^2/vol`` is the
+        turbulent-diffusion radius over the same faces
+        (:func:`set_timestep_spectral`). Taking the max of the directional radii
+        (rather than Blazek's sum) makes the CFL number the true 1D Courant limit
+        (~``2*sqrt(2)`` for the 4-stage RK march) while staying
+        aspect-ratio-independent for the viscous limit too.
 
         ``rf`` is the relaxation factor blending the new ``dt_vol`` with the
         existing buffer as ``rf*new + (1-rf)*old`` (pass ``rf=1.0`` for a fresh

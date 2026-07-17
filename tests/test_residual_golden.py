@@ -129,6 +129,31 @@ def test_residual_matches_golden(region):
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=atol)
 
 
+@pytest.mark.parametrize("kb", [1, 2, 3])
+def test_residual_kb_consistent(kb):
+    """The _KB_SLAB depth must not change the residual.
+
+    Compare each kb against the single-slab kb = nk-1 reference. _KB_SLAB
+    drives both fused tiled kernels: set_residual directly, and
+    set_visc_force inside update_sources, whose F_body feeds the residual
+    assembled here. The per-cell arithmetic is identical for every kb (the
+    slab depth only paces how the direction sweeps interleave), so the
+    comparison is exact -- any difference is a slab bookkeeping bug (plane
+    carry, short last slab). kb=3 exercises a short last slab
+    (nk-1 = 8 = 3+3+2).
+    """
+    nk = SHAPE[2]
+    orig = ember.grid._KB_SLAB
+    try:
+        ember.grid._KB_SLAB = nk - 1
+        ref = _assemble()
+        ember.grid._KB_SLAB = kb
+        out = _assemble()
+    finally:
+        ember.grid._KB_SLAB = orig
+    np.testing.assert_array_equal(out, ref)
+
+
 if __name__ == "__main__":
     residual = _assemble()
     GOLDEN_FILE.parent.mkdir(parents=True, exist_ok=True)

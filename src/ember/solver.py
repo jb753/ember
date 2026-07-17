@@ -1,35 +1,266 @@
-"""Explicit time-marching solver with a lagged-pressure loop.
+r"""Configure and run the Navier--Stokes solver.
 
-:func:`run` drives a whole grid to a steady state, selecting one of two
-integrators on each step according to :attr:`SolverConfig.n_stage`:
+ember integrates the compressible Navier--Stokes equations to a steady state
+using an explicit pseudo-time march, accelerated by multigrid and residual
+smoothing. The finite-volume discretisation is second-order accurate in space
+on structured multi-block grids; cell-centred residuals are distributed equally
+back to nodal conserved variables. This page describes the solver loop driven
+by :func:`run` and the configuration parameters in :class:`SolverConfig` that
+control each stage.
 
-* ``n_stage == 0`` -- Denton's basic "scree" march (:func:`scree_step`),
+Overview of one time step
+--------------------------
 
-    F_{n+1} = F_n + [2*(dF/dt)_n - (dF/dt)_{n-1}] * dt    (Denton 2017, Eq 4)
+:func:`run` performs the following operations each step:
 
-  which builds the unscaled residual exactly as multall (F1=2, F2=-1, F3=0),
-  scales it by dt_vol*CFL, and distributes it to the nodes by accumulating
-  straight onto ``conserved_nd`` -- bypassing the setters so the P/T cache
-  versions are left untouched (frozen pressure); optionally accelerated by
-  Denton block-sum multigrid at ``n_levels >= 1``, restricting the same
-  lagged ``[2*(dF/dt)_n - (dF/dt)_{n-1}]`` quantity at every coarse level
-  (matching multall's ``TSTEP``, which sums its own lagged ``STORE`` into
-  the multigrid block accumulators);
+1. **Boundary conditions**: :meth:`~ember.grid.Grid.update_bconds` updates
+   boundary patch targets (mass flow throttle, radial equilibrium,
+   mixing-plane exchange) and :meth:`~ember.grid.Grid.apply_bconds` imposes
+   those boundary conditions by modifying :attr:`~ember.block.Block.conserved_nd`.
+2. **NaN check**: :meth:`~ember.grid.Grid.check_nan` aborts the run early if
+   the conserved state has gone non-finite. Sets a flag on the returned
+   :class:`~ember.convergence_history.ConvergenceHistory` and leaves the
+   invalid field in place for inspection.
+3. **Source terms**: :meth:`~ember.grid.Grid.update_sources` updates viscous
+   forces and the polar coordinates source term needed to balance the radial
+   momentum equation. With the Runge--Kutta integrator,
+   :attr:`~SolverConfig.n_stage` ``> 0``, this runs once every full step
+   with the source terms held constant for all stages. When using the scree
+   integrator, :attr:`~SolverConfig.n_stage` ``== 0``, the source terms are
+   recomputed every few steps to save cost.
+4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes
+   the time step and stores it pre-divided by cell volume in
+   attr:``ember.block.Block.block.dt_vol_nd``.
+5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
+   unintegrated net-flow residual, with optional implicit residual smoothing
+   , :attr:`~SolverConfig.sf_resid`, or negative feedback limiter
+   , :attr:`~SolverConfig.dampin`.
+6. **Convergence logging**: every :attr:`~SolverConfig.n_step_log` steps,
+   :meth:`~ember.convergence_history.ConvergenceHistory.record_convergence`
+   and :meth:`~ember.convergence_history.ConvergenceHistory.format_message`
+   record and print a :class:`~ember.convergence_history.ConvergenceHistory`
+   row using the current residual.
+7. **March**: advance the solution with the selected integrator -- Denton's
+   scree march, :func:`scree_step`, or Jameson multi-stage Runge--Kutta,
+   :func:`rk_step` -- optionally accelerated by multigrid.
+8. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a
+   constant-coefficient blended second- and fourth-order filter to the
+   post-march :attr:`ember.block.Block.conserved_nd` field, to provide artificial dissipation and
+   suppress odd-even decoupling.
+9. **Pseudotime averaging**: over the final :attr:`~SolverConfig.n_step_avg`
+    steps, :meth:`~ember.grid.Grid.accumulate_avg` accumulates the conserved
+    state into a running average, which
+    :meth:`~ember.grid.Grid.finalise_average` uses to replace the
+    instantaneous state once the run completes.
 
-* ``n_stage >= 1`` -- a Jameson multi-stage Runge-Kutta step (:func:`rk_step`),
-  optionally accelerated by Denton block-sum multigrid
-  (:func:`advance_rk_stage_mg`).
+.. _march-schemes:
 
-Both integrators share the same lagged-pressure loop: the conserved cache is
-flushed once per step (one full-field pressure evaluation), the body force and
-dt_vol are refreshed only every few steps on that fresh P, the march and the
-constant-coefficient smoother (:meth:`~ember.grid.Grid.smooth`) then run on the frozen
-state, and the boundary conditions touch only boundary slices. This keeps
-exactly one full-field P recompute per step; everything else reuses the cache.
+Time integrators
+-----------------
+
+:attr:`~SolverConfig.n_stage` selects one of two integrators, applied to every
+block each step:
+
+:func:`scree_step` -- :attr:`~SolverConfig.n_stage` ``== 0``
+Implements Denton's basic scree scheme (two steps forward, one step back)
+
+.. math::
+
+    \mathcal{U}_{n+1} = \mathcal{U}_n + \left[ 2 \left(\frac{d\mathcal{U}}{dt}\right)_n
+    - \left(\frac{d\mathcal{U}}{dt}\right)_{n-1} \right] \Delta t
+
+The residual from the previous step, :math:`(d\mathcal{U}/dt)_{n-1}`, is kept in
+:attr:`~ember.block.Block.store` between steps. This scheme is only first-order accurate in pseudotime, unlike Adams--Bashforth, but experience shows it requires less artificial dissipation and is more robust.
+
+:func:`rk_step`  -- :attr:`~SolverConfig.n_stage` ``>= 1``
+-- Jameson's classic Runge--Kutta scheme. Every full step
+snapshots the starting conserved state
+:math:`\mathcal{U}_n`, saving it to :attr:`~ember.block.Block.store`.
+Then, :attr:`~SolverConfig.n_stage` substages call
+:func:`advance_rk_stage_mg`, each stage :math:`k` marching relative to the starting snapshot but with the residual freshly evaluated on the most recent stage:
+
+.. math::
+
+    \mathcal{U}^{(0)} &= \mathcal{U}_n \\
+    \mathcal{U}^{(k)} &= \mathcal{U}_n
+    + \alpha_k\,\Delta t \left(\frac{d\mathcal{U}}{dt}\right)^{(k-1)},
+    \qquad k = 1, \dots, m \\
+    \mathcal{U}_{n+1} &= \mathcal{U}^{(m)}
+
+for :math:`m =` :attr:`~SolverConfig.n_stage` stages with coefficients
+:math:`\alpha_k = 1 / (m - k + 1)`, so the final stage takes the full step
+:math:`\alpha_m = 1`.
+
+Both integrators share the :ref:`multigrid` acceleration and the constant-coefficient
+:ref:`smoothing` step; they differ only in the march formula and in how many
+residual evaluations occur per step. At the end of the step, :attr:`~ember.block.Block.conserved_nd` contains the advanced solution.
+
+.. _cfl:
+
+CFL number
+----------
+
+The integrators of the previous section scale each cell's residual by
+:attr:`~SolverConfig.cfl` and the local volumetric timestep
+:math:`\Delta t_\mathrm{vol}` set by :meth:`~ember.grid.Grid.update_timestep`,
+so the :math:`\Delta t` appearing in the march formulae is
+:math:`\mathrm{cfl}\,\Delta t_\mathrm{vol}` per cell. The timestep is the
+reciprocal of the larger of a convective and a turbulent-diffusion spectral
+radius (a max-of-directional-radii variant of the JST/Blazek definition):
+
+.. math::
+
+    \Delta t_\mathrm{vol} = \frac{1}{\max(\lambda_\mathrm{conv},\,\lambda_\mathrm{diff})}
+
+For each direction :math:`d \in \{i, j, k\}`, with :math:`\mathbf{S}_d` the mean
+of the two opposing face-area vectors, :math:`\mathbf{V}_\mathrm{rel}` the
+relative-frame velocity, :math:`a` the speed of sound, :math:`\mu_t` the
+turbulent viscosity, :math:`\rho` the density and :math:`\mathcal{V}` the cell
+volume, the directional convective radius and the two combined radii are
+
+.. math::
+
+    \Lambda_d &= \left| \mathbf{V}_\mathrm{rel} \cdot \mathbf{S}_d \right|
+    + a \left\| \mathbf{S}_d \right\| \\
+    \lambda_\mathrm{conv} &= \max_d \Lambda_d \\
+    \lambda_\mathrm{diff} &= f_\mathrm{visc}\, \frac{\mu_t}{\rho}\,
+    \frac{\max_d \left\| \mathbf{S}_d \right\|^2}{\mathcal{V}}
+
+Taking the max over directions (rather than Blazek's sum) makes
+:attr:`~SolverConfig.cfl` the true 1D Courant limit, so it stays
+aspect-ratio-independent for both limits and a single value scales them
+consistently; :attr:`~SolverConfig.fac_visc` tightens only the diffusion radius
+so the viscous march tolerates the same CFL as the inviscid one. Setting
+:math:`\mu_t = 0` drops :math:`\lambda_\mathrm{diff}` and recovers the bare
+convective limit. The 4-stage Runge--Kutta march is stable up to
+:math:`\mathrm{cfl} \approx 2\sqrt{2}`; the scree scheme is stable up to :math:`\mathrm{cfl} \approx 0.6` on a uniform mesh.
+
+:attr:`~SolverConfig.cfl` is a single constant applied uniformly to every cell
+for the entire run -- there is no per-cell adaptive CFL field and no
+tolerance-driven backoff inside the solver. A larger CFL converges faster but
+risks divergence; implicit residual smoothing (:attr:`~SolverConfig.sf_resid`)
+damps high-frequency residual content and so tolerates a substantially higher
+CFL for a given scheme.
+
+.. _smoothing:
+
+Smoothing
+---------
+
+A constant-coefficient blend of second- and fourth-difference operators, :meth:`ember.grid.Grid.smooth`, is applied to :attr:`ember.block.Block.conserved_nd` after
+each step to suppress odd--even decoupling and high-frequency content
+introduced by the march and multigrid corrections.
+:attr:`~SolverConfig.sf4` and :attr:`~SolverConfig.sf2` are coefficients on the
+fourth- and second-difference terms, each scaled by the run's ``cfl`` to make the effective dissipation independent of the time step.
+
+.. _multigrid:
+
+Multigrid
+---------
+
+**In-step Denton block-sum multigrid.** Coarse-grid corrections are computed
+in place within a single march call over one grid -- coarse block-sum
+corrections are folded directly into the fine-grid increment before it is
+scattered onto the conserved state -- rather than as a classical
+restrict/prolong V-cycle across separate coarse grids. Both integrators honor
+two knobs:
+
+- :attr:`~SolverConfig.n_levels` -- number of coarse levels; 0 disables
+  multigrid. Each block's cell counts must be an exact multiple of the coarsest
+  block size ``2**n_levels`` in every direction, or :func:`run` raises before
+  marching.
+- :attr:`~SolverConfig.fac_mgrid` -- scaling on the coarse correction, with
+  successively coarser levels damped further; 0 also disables multigrid.
+
+:attr:`~SolverConfig.sf_resid` additionally drives implicit residual smoothing
+(Jameson IRS) on the fine-grid residual via
+:meth:`~ember.grid.Grid.update_residual`, independent of whether multigrid is
+enabled.
+
+**Full multigrid startup.** :func:`run_fmg` runs the same solver
+coarse-to-fine as a startup schedule, rather than within a single step. It
+builds :attr:`~SolverConfig.n_levels` progressively-halved grids
+(:meth:`~ember.grid.Grid.resample`), solves the coarsest first, then
+prolongs each converged solution onto the next finer grid as its initial
+guess (:meth:`~ember.grid.Grid.interp_from`) and calls :func:`run`
+again with the in-step multigrid depth set to that level's index -- so the
+coarsest level runs with no in-step multigrid and the finest runs at the full
+requested :attr:`~SolverConfig.n_levels`, identical to calling :func:`run`
+directly on the finest grid. With ``n_levels <= 0`` it reduces to a single call
+to :func:`run`.
+
+.. _body-forces:
+
+Body forces and viscous model
+------------------------------
+
+The cell-centred body-force buffer (``block.F_body_nd``) accumulates all
+source terms before they are added to the residual, rebuilt by
+:meth:`ember.grid.Grid.update_sources`:
+
+- Viscous shear stresses and heat flux, computed unless
+  ``SolverConfig.inviscid`` is set. The viscous pass is phased across the
+  whole grid (tau/q on every block, then a periodic-seam halo exchange, then
+  face-flux accumulation) so block-to-block periodic interfaces stay
+  consistent.
+- A polar (axisymmetric) source term to balance the cylindrical coordinate
+  metric.
+- An optional selective-frequency-damping (SFD) force when
+  ``SolverConfig.gain_filt`` is nonzero.
+
+The mixing-length turbulent viscosity uses a fixed turbulent Prandtl number
+of 1.0 and is evaluated from the absolute-frame vorticity magnitude.
+``SolverConfig.fac_visc`` multiplies the turbulent-diffusion timestep radius
+independently of this, tightening the viscous stability limit to recover the
+inviscid stable CFL where needed.
+
+.. _boundary-coupling:
+
+Boundary patches and inter-block coupling
+------------------------------------------
+
+Inlet, outlet, and mixing-plane patches each relax their own state towards a
+target every step, with their own relaxation factor rather than a single
+solver-wide setting:
+
+- :class:`~ember.inlet.InletPatch` relaxes its interior pressure datum with
+  ``rf = 0.2`` by default.
+- :class:`~ember.mixing.MixingPatch` relaxes similarly, with ``rf = 1.0`` by
+  default (no relaxation).
+- :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
+  mixing-plane target exchanged between adjacent blocks with a separate
+  ``rf_mix`` (default 0.1).
+- :class:`~ember.outlet.OutletPatch` takes its own relaxation factor via
+  ``set_adjustment(rf=...)``.
+
+:meth:`ember.grid.Grid.update_bconds` advances the slowly-varying boundary
+targets once per step (mixing-plane exchange, inlet pressure snapshot,
+outlet PID/spanwise target); :meth:`ember.grid.Grid.apply_bconds` then
+imposes the full set of physical boundary conditions and closes periodic
+seams every time it is called, including between Runge--Kutta substages.
+
+.. _logging-and-averaging:
+
+Logging, averaging, and convergence history
+---------------------------------------------
+
+Convergence diagnostics are recorded into a
+:class:`~ember.convergence_history.ConvergenceHistory` every
+``SolverConfig.n_step_log`` steps: mean residual, mass flow / stagnation
+enthalpy / entropy at row interfaces, and outlet throttle state
+(:meth:`ember.grid.Grid.get_convergence`).
+
+Pseudotime averaging of the conserved variables accumulates over the final
+``SolverConfig.n_step_avg`` steps of the run
+(:meth:`ember.grid.Grid.accumulate_avg`). On completion, the time-averaged
+state replaces the instantaneous state
+(:meth:`ember.grid.Grid.finalise_average`) -- skipped if the run diverged, so
+the invalid field is preserved for inspection rather than overwritten by a
+partially-accumulated average.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import ember
 from ember import util
@@ -47,9 +278,6 @@ class SolverConfig:
 
     n_step_log: int = 10
     """Number of steps between convergence log messages."""
-
-    n_step_source: int = 1
-    """Number of steps between source term refreshes."""
 
     n_step_avg: int = 1
     """Number of steps to average over."""
@@ -74,10 +302,12 @@ class SolverConfig:
     viscous limit to recover the inviscid stable CFL."""
 
     sf_resid: float = 0.0
-    """Implicit residual smoothing factor. Only affects the RK path's coarse
-    multigrid correction (:func:`advance_rk_stage_mg`'s ``sf_irs``); scree
-    (``n_stage == 0``) does not yet have an IRS-smoothed multigrid variant,
-    so this is inert whenever ``n_stage == 0``."""
+    """Implicit residual smoothing factor. Applied to the fine residual by
+    :meth:`~ember.grid.Grid.update_residual` (``sf``) and, on both integrators,
+    to the coarse block-restricted residual of the multigrid correction
+    (:func:`advance_rk_stage_mg`'s ``sf_irs`` for RK, :func:`scree_step`'s
+    ``sf_irs`` for scree). The coarse smoothing needs ``n_levels > 0`` to have
+    any effect."""
 
     gain_filt: float = 0.0
     """Selective frequency damping gain."""
@@ -97,52 +327,17 @@ class SolverConfig:
     (:func:`scree_step` and :func:`rk_step`)."""
 
 
-def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
-    """Advance `block` one scree step in place.
-
-    Assumes ``block.dt_vol_nd`` is populated and the block's cached
-    P/T are consistent with ``conserved_nd`` on entry. The caller is
-    responsible for invalidating caches and applying boundary conditions
-    between steps.
-
-    With ``n_levels == 0`` (the default) the whole step is one fused Fortran
-    kernel (``scree_advance``): it builds the extrapolated, scaled increment
-    ``(2*residual - store)*CFL*dt_vol``, rolls the residual history
-    (``store <- residual``), and scatters the cell-centred increment straight
-    onto ``conserved_nd`` -- bypassing the setters so the P/T cache versions
-    stay frozen. This path is untouched by ``fac_mgrid``/``n_levels`` and
-    reproduces every existing caller byte-for-byte.
-
-    With ``n_levels >= 1``, ``scree_advance_mg`` additionally injects a Denton
-    block-sum multigrid correction at ``n_levels`` coarse levels, exactly like
-    :func:`advance_rk_stage_mg`'s coarse path but for the scree fine term.
-    Every level -- fine and coarse -- restricts/uses the same Denton-lagged
-    quantity ``(2*residual - store)``, not plain ``residual``: this was
-    verified against multall's ``TSTEP`` reference, which computes the
-    lagged ``STORE = F1*DELTA + F2*DIFF`` first and sums exactly that into
-    its multigrid block accumulators (not the raw flux imbalance). For
-    ``l = 1..n_levels`` the coarse block has ``b = 2**l`` and
-    ``coef_l = cfl*fac_mgrid/b**2 * 2**-(l-1)`` -- :func:`advance_rk_stage_mg`'s
-    formula with ``alpha=1``, since scree takes one full-weight step per call
-    rather than a partial RK sub-stage. The coarse timestep multiplying
-    ``coef_l`` is the volume-weighted mean of ``dt_vol`` over the block, not
-    ``dt_vol`` at the block's centre cell (see :func:`advance_rk_stage_mg`).
-
-    ``block.store`` is the persistent previous-step residual buffer
-    (``(dF/dt)_{n-1}``); the kernel reads it then overwrites it with the
-    current residual for the next step. The transient increment buffer is
-    borrowed from ``block.scratch`` as a cell-shaped, zero-copy view of the
-    leading elements -- nothing outside the kernel reads it, so only its
-    element count matters, not its indexing. When ``n_levels >= 1``, the
-    coarse block-sum accumulator (``corr``), the coarse timestep (``dtblk``)
-    and separable-prolong scratch (``aplane``, ``bb``) are carved from
-    ``block.tau_q_halo`` -- dead outside the viscous pass at this point in the
-    step, exactly as for :func:`advance_rk_stage_mg` -- so no per-step
-    allocation is needed for either integrator.
-
-    Smoothing is not applied here -- the caller runs :meth:`~ember.grid.Grid.smooth` once on
-    the post-step state, shared with the RK path.
-    """
+def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
+    """Advance every block one Denton scree step in place."""
+    # Preconditions: dt_vol_nd populated and cached P/T consistent with
+    # conserved_nd on entry. The caller invalidates caches and applies boundary
+    # conditions between steps, and smooths once on the post-step state
+    # (Grid.smooth, shared with the RK path); no smoothing happens here.
+    #
+    # fac_mgrid == 0 scales every coarse correction to identically zero, so
+    # collapse to the plain no-MG dispatch (which also makes sf_irs inert)
+    # rather than paying restrict/prolong per level for a guaranteed-zero push.
+    n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
 
     for block in grid:
         ni, nj, nk = block.shape
@@ -154,23 +349,35 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
         tmp = util.carve_view(block.scratch, cell_shape)
         store_cell = util.carve_view(block.store, cell_shape)
         # residual_nd is read here (a cache hit from the loop's get_convergence, or
-        # a fresh evaluation) BEFORE the kernel runs. residual_nd itself uses
-        # block.scratch as its flow_i workspace, so it must be fully materialised
-        # before scree_advance(_mg) reuses scratch as tmp -- passing it as an
-        # argument guarantees that ordering.
-        if n_levels > 0:
-            nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
-            # aplane, bb, corr are carved from tau_q_halo -- dead outside the
-            # viscous pass (already completed and consumed before this call),
-            # same reuse as advance_rk_stage_mg's coarse scratch.
-            aplane, bb, corr, dtblk = util.carve_view(
-                block.tau_q_halo,
-                (ni - 1, nc1j),
-                (ni - 1, nj - 1, nc1k, 5),
-                (nc1i, nc1j, nc1k, 5),
-                (nc1i, nc1j, nc1k),
+        # a fresh evaluation) BEFORE the kernel runs. Evaluating residual_nd
+        # borrows block.scratch (IRS work) and tau_q_halo (rolling flow
+        # buffers), both reused as scratch by the kernels below, so it must be
+        # fully materialised first -- passing it as an argument guarantees
+        # that ordering.
+        if n_levels_eff > 0:
+            # Denton block-sum multigrid over the scheme-agnostic engine
+            # (mg_coarse_correction), like advance_rk_stage_mg's coarse path but
+            # for the scree fine term. Every level -- fine and coarse -- uses the
+            # Denton-lagged quantity q = 2*residual - store, not plain residual;
+            # verified against multall's TSTEP, which sums the lagged
+            # STORE = F1*DELTA + F2*DIFF into its block accumulators. For coarse
+            # level l = 1..n_levels (block size b = 2**l) the correction scales by
+            # coef_l = cfl*fac_mgrid/b**2 * 2**-(l-1) (advance_rk_stage_mg's
+            # formula at alpha=1, since scree takes one full-weight step), with
+            # the coarse timestep the volume-weighted mean of dt_vol over the
+            # block. sf_irs > 0 selects the coarse-IRS kernel; sf_irs == 0 selects
+            # the plain _noirs kernel, which enters no smoothing code at all (no
+            # Fortran-side IRS branch -- the two share the engine and differ only
+            # in the smoother passed). The fine term is not smoothed here: it
+            # already carries the residual the caller's update_residual smoothed.
+            # Coarse scratch is carved from tau_q_halo, dead outside the viscous
+            # pass (already completed and consumed before this call).
+            kernel = (
+                ember.fortran.scree_mg_irs
+                if sf_irs > 0.0
+                else ember.fortran.scree_mg_noirs
             )
-            ember.fortran.scree_advance_mg(
+            kernel(
                 cons=block.conserved_nd,
                 residual=block.residual_nd,
                 store=store_cell,
@@ -178,15 +385,18 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
                 vol=block.vol_nd,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
-                n_levels=n_levels,
+                sf_irs=sf_irs,
+                n_levels=n_levels_eff,
                 tmp=tmp,
-                corr=corr,
-                dtblk=dtblk,
-                aplane=aplane,
-                bb=bb,
+                **_mg_coarse_carve(block, ni, nj, nk, n_levels_eff),
             )
         else:
-            ember.fortran.scree_advance(
+            # Multigrid off: fine term only, no coarse scratch. Forms
+            # q = 2*residual - store in store, builds the increment cfl*dt_vol*q,
+            # rolls the history (store <- residual) and frozen-scatters the
+            # increment straight onto cons -- bypassing the setters so the P/T
+            # cache stays frozen. Untouched by fac_mgrid/n_levels.
+            ember.fortran.scree_plain(
                 cons=block.conserved_nd,
                 residual=block.residual_nd,
                 store=store_cell,
@@ -196,22 +406,65 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0):
             )
 
 
-def _mg_irs_scratch_sizes(ni, nj, nk, n_levels, np=5):
-    """Element counts for advance_rk_stage_mg_fused_irs's flat packed scratch.
+def _mg_coarse_scratch_sizes(ni, nj, nk, n_levels, np=5):
+    """Element counts for the hier2 kernels' flat packed scratch.
 
-    coarse_res_buf/tri_work_buf hold each level's slice back-to-back (level 1
-    -- the largest, b=2 -- first, each successive level 8x smaller), so this
-    is just the sum of per-level element counts. The caller carves buffers of
-    exactly this size once per call (from ``block.tau_q_halo``, never
-    reallocated) -- see :func:`advance_rk_stage_mg`.
+    ``n_corr`` sizes ``corr_all``, which holds every coarse level's scaled
+    correction back-to-back (coarsest level first, where the cascade seeds) --
+    the sum of per-level element counts. ``cres``/``triw`` are reused per level
+    rather than packed, so they only need the largest (level-1) slice: ``n_res``
+    is that coarse residual size and ``n_tri`` its IRS Thomas-coefficient size.
+    All three are carved once per call from ``block.tau_q_halo``, never
+    reallocated -- see :func:`advance_rk_stage_mg` and :func:`scree_step`.
     """
-    n_res = n_tri = 0
+    n_corr = 0
     for lvl in range(1, n_levels + 1):
         b = 2**lvl
-        nib, njb, nkb = (ni - 1) // b, (nj - 1) // b, (nk - 1) // b
-        n_res += nib * njb * nkb * np
-        n_tri += 2 * (nib + njb + nkb)
-    return n_res, n_tri
+        n_corr += ((ni - 1) // b) * ((nj - 1) // b) * ((nk - 1) // b) * np
+    nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
+    n_res = nc1i * nc1j * nc1k * np if n_levels > 0 else 0
+    n_tri = 2 * (nc1i + nc1j + nc1k) if n_levels > 0 else 0
+    return n_corr, n_res, n_tri
+
+
+def _mg_coarse_carve(block, ni, nj, nk, n_levels_eff):
+    """Carve the hier2 kernels' scratch from ``block.tau_q_halo`` (dead outside
+    the viscous pass, which has completed and been consumed before this call, so
+    it is free private memory here). Returns the argument dict shared by both the
+    RK and scree fused kernels.
+    """
+    nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
+    n_corr, n_res, n_tri = _mg_coarse_scratch_sizes(ni, nj, nk, n_levels_eff)
+    acc_sz = nc1i * nc1j * nc1k * 5
+    aplane, bb, dtblk, rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw = (
+        util.carve_view(
+            block.tau_q_halo,
+            (ni - 1, nc1j),
+            (ni - 1, nj - 1, nc1k, 5),
+            (nc1i, nc1j, nc1k),
+            (nc1i, nc1j, nc1k, 5),
+            (nc1i, nc1j, nc1k),
+            (nc1i, nc1j, nc1k),
+            (n_corr,),
+            (acc_sz,),
+            (acc_sz,),
+            (n_res,),
+            (n_tri,),
+        )
+    )
+    return dict(
+        dtblk=dtblk,
+        aplane=aplane,
+        bb=bb,
+        rawbuf=rawbuf,
+        sdt=sdt,
+        sv=sv,
+        corr_all=corr_all,
+        acc0=acc0,
+        acc1=acc1,
+        cres=cres,
+        triw=triw,
+    )
 
 
 def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
@@ -247,27 +500,31 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     Scaling the block push by the same ``alpha`` as the fine term keeps the stage
     consistent; the final stage (``alpha=1``) therefore lands the full-weight
     coarse correction, matching Denton, while earlier stages damp it like the
-    fine residual. There is **no coarse-correction smoothing**, and prolongation
-    is **trilinear interpolation** (inlined into the fused kernel below).
+    fine residual. Prolongation is **trilinear interpolation**, cascaded coarsest
+    -> finest through factor-2 hops (inlined into the fused kernel below).
 
     The whole per-block body -- fine term, all coarse levels, and the final
-    scatter -- runs in one fused Fortran kernel
-    (``advance_rk_stage_mg_fused_opt``), with no per-level
-    Python crossings or numpy temporaries. That variant restructures the coarse
-    path for speed (~2x on the coarse levels at production sizes): restrict is a
-    coarse-cell register reduction folding in the zero+scale passes, and the
-    trilinear prolong is done as separable 1-D interpolations (a cached per-kb
-    plane instead of an 8-way gather), with the fine term folded into level 1.
+    scatter -- runs in one fused Fortran kernel (``rk_mg_irs``/``rk_mg_noirs``,
+    thin wrappers over the shared scheme-agnostic engine ``mg_coarse_correction``),
+    with no per-level Python crossings or numpy temporaries. With
+    ``n_levels == 0`` (or ``fac_mgrid == 0``) the coarse machinery is skipped
+    entirely by the ``rk_plain`` kernel (fine term + scatter, no coarse scratch).
+    Restriction is **hierarchical**: only level 1
+    reads the fine grid, coarser levels reduce the running accumulators
+    (``rawbuf`` for the residual, ``sdt``/``sv`` for the volume-weighted dt),
+    cutting restriction reads from ``n_levels x N`` to ~``1.14 x N``. Prolongation
+    is **cascaded**: the packed per-level corrections (``corr_all``) accumulate
+    coarsest -> finest through the ``acc0``/``acc1`` ping-pong, so only the final
+    factor-2 hop writes the fine grid (fused with the fine term).
     ``block.scratch`` is borrowed as the cell-shaped increment workspace (nodal,
-    free between kernel calls); the coarse block-sum accumulator (``corr``,
-    sized to the finest coarse level with coarser levels using only its leading
-    corner), the coarse timestep (``dtblk``, same sizing) and the
-    separable-prolong scratch (``aplane``, ``bb``) are all
-    carved from ``block.tau_q_halo`` at non-overlapping offsets -- dead outside
-    the viscous pass and a distinct buffer from ``scratch``, so they survive
-    alongside the increment within the call. The scatter reads the snapshot
-    from ``block.store`` and writes ``conserved_nd`` directly (frozen pressure,
-    bypasses the P/T cache).
+    free between kernel calls); the coarse timestep (``dtblk``), the restriction
+    accumulators, ``corr_all``/``acc0``/``acc1``, the separable-prolong scratch
+    (``aplane``, ``bb``) and the coarse-IRS buffers (``cres``, ``triw``) are all
+    carved from ``block.tau_q_halo`` at non-overlapping offsets (see
+    :func:`_mg_coarse_carve`) -- dead outside the viscous pass and a distinct
+    buffer from ``scratch``, so they survive alongside the increment within the
+    call. The scatter reads the snapshot from ``block.store`` and writes
+    ``conserved_nd`` directly (frozen pressure, bypasses the P/T cache).
 
     ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is
     recomputed once per stage even though ``dt_vol`` only changes once per step.
@@ -286,40 +543,42 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     smoothing (Jameson IRS) to the coarse block-restricted residual at every
     level, exactly like the fine-grid smoothing ``Grid.update_residual``
     already applies via its ``sf`` argument -- both are driven by the same
-    ``SolverConfig.sf_resid`` value (see :func:`rk_step`). This selects the
-    experimental ``advance_rk_stage_mg_fused_irs`` kernel
-    instead of ``_opt``; ``sf_irs=0`` makes its smoothing step an exact no-op
-    (see the kernel's docstring), so it is only selected when ``sf_irs > 0``,
-    keeping the default (no coarse IRS) path byte-identical to before. The
-    extra per-level scratch it needs (``coarse_res_buf``, ``tri_work_buf``,
-    sized by :func:`_mg_irs_scratch_sizes`) is likewise carved from
-    ``block.tau_q_halo`` -- caller-owned, no per-call allocation.
+    ``SolverConfig.sf_resid`` value (see :func:`rk_step`). ``sf_irs > 0``
+    dispatches ``rk_mg_irs``; ``sf_irs == 0`` (the default) dispatches
+    ``rk_mg_noirs``, which enters no smoothing code at all. The two share
+    ``mg_coarse_correction`` and differ only in the coarse-residual smoother
+    passed to it, so the choice is a Python-side branch
+    with no ``sf_irs`` test inside the engine (the fine term is never smoothed
+    here -- it already carries the fine residual the caller smoothed). The
+    per-level scratch it needs (``cres``, ``triw``) is carved by
+    :func:`_mg_coarse_carve` from ``block.tau_q_halo`` -- caller-owned, no
+    per-call allocation.
 
     Assumes ``block.dt_vol_nd`` and ``block.residual_nd`` are populated and the
     caller refreshes P/T, boundary conditions and the residual between stages.
     Requires :func:`_validate_mg` to have passed.
+
+    ``fac_mgrid == 0`` scales every coarse correction to identically zero, so it
+    collapses to the plain-RK fast path (``n_levels`` passed as 0, empty coarse
+    loop) rather than running restrict/prolong for a guaranteed-zero push -- and
+    makes ``sf_irs`` inert, exactly as in :func:`scree_step`.
     """
+    # fac_mgrid == 0 makes the coarse loop a no-op; collapse to no-MG dispatch.
+    n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
     for block in grid:
         ni, nj, nk = block.shape
-        nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
         tmp = util.carve_view(block.scratch, (ni - 1, nj - 1, nk - 1, 5))
-        if sf_irs > 0.0 and n_levels > 0:
-            # The prolong scratch (aplane, bb), the coarse block-sum
-            # accumulator (corr), and the coarse-IRS scratch (coarse_res_buf,
-            # tri_work_buf) are all carved from tau_q_halo -- dead outside the
-            # viscous pass and a distinct buffer from block.scratch, so they
-            # survive alongside tmp within the call.
-            n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels)
-            aplane, bb, corr, dtblk, coarse_res_buf, tri_work_buf = util.carve_view(
-                block.tau_q_halo,
-                (ni - 1, nc1j),
-                (ni - 1, nj - 1, nc1k, 5),
-                (nc1i, nc1j, nc1k, 5),
-                (nc1i, nc1j, nc1k),
-                (n_res,),
-                (n_tri,),
+        if n_levels_eff > 0:
+            # Multigrid-on RK wrappers over the scheme-agnostic engine
+            # (mg_coarse_correction). sf_irs > 0 selects the coarse-IRS kernel;
+            # otherwise the plain _noirs kernel, which enters no smoothing code
+            # (the two share the engine and differ only in the smoother passed --
+            # no Fortran-side IRS branch). Coarse scratch is carved from
+            # tau_q_halo, dead outside the viscous pass.
+            kernel = (
+                ember.fortran.rk_mg_irs if sf_irs > 0.0 else ember.fortran.rk_mg_noirs
             )
-            ember.fortran.advance_rk_stage_mg_fused_irs(
+            kernel(
                 cons=block.conserved_nd,
                 snapshot=block.store,
                 residual=block.residual_nd,
@@ -329,79 +588,42 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
                 cfl=cfl,
                 fmgrid=fac_mgrid,
                 sf_irs=sf_irs,
-                n_levels=n_levels,
+                n_levels=n_levels_eff,
                 tmp=tmp,
-                corr=corr,
-                dtblk=dtblk,
-                aplane=aplane,
-                bb=bb,
-                coarse_res_buf=coarse_res_buf,
-                tri_work_buf=tri_work_buf,
+                **_mg_coarse_carve(block, ni, nj, nk, n_levels_eff),
             )
         else:
-            # The prolong scratch (aplane, bb) and the coarse block-sum
-            # accumulator (corr) are all carved from tau_q_halo -- dead outside
-            # the viscous pass (the caller rebuilt the residual, tau_q_halo's
-            # other borrower, before this call) and a distinct buffer from
-            # block.scratch, so they survive alongside tmp within the call.
-            aplane, bb, corr, dtblk = util.carve_view(
-                block.tau_q_halo,
-                (ni - 1, nc1j),
-                (ni - 1, nj - 1, nc1k, 5),
-                (nc1i, nc1j, nc1k, 5),
-                (nc1i, nc1j, nc1k),
-            )
-            ember.fortran.advance_rk_stage_mg_fused_opt(
+            # Multigrid off: plain Jameson RK fine-term stage, no coarse scratch.
+            ember.fortran.rk_plain(
                 cons=block.conserved_nd,
                 snapshot=block.store,
                 residual=block.residual_nd,
                 dt_vol=block.dt_vol_nd,
-                vol=block.vol_nd,
                 alpha=alpha,
                 cfl=cfl,
-                fmgrid=fac_mgrid,
-                n_levels=n_levels,
                 tmp=tmp,
-                corr=corr,
-                dtblk=dtblk,
-                aplane=aplane,
-                bb=bb,
             )
 
 
 @util.profile
 def rk_step(grid, conf):
-    """Advance `grid` one Jameson RK pseudo-time step in place.
-
-    The RK counterpart of :func:`scree_step`: a full ``conf.n_stage``-stage
-    sweep. Snapshots ``U_n`` into ``block.store`` (the bconds-consistent state
-    from the step top -- the caller's residual build did not touch
-    ``conserved_nd``), then marches every stage off that frozen snapshot with
-    :func:`advance_rk_stage_mg` (which folds in the Denton block-sum multigrid
-    correction; with ``conf.n_levels == 0`` the coarse loop is empty and it is a
-    plain RK stage). ``conf.sf_resid`` is passed through as the coarse-level
-    IRS coefficient too, so a nonzero ``sf_resid`` smooths both the fine
-    residual (``Grid.update_residual``, run by the caller before this) and the
-    per-level coarse block-restricted residual inside the multigrid stage.
-
-    Stage 0 reuses the step-top P/T flush and the residual the caller built
-    before this call; later stages march off a changed ``conserved_nd``, so P/T,
-    boundary conditions and the residual are refreshed first. Stage coefficients
-    come from ``conf.alphas`` (``alpha_k = 1/(n_stage-k+1)``).
-
-    Each stage rebuilds the residual for the *next* stage to consume, so the
-    final stage skips it: nothing reads ``residual_nd`` before the next step's
-    top-of-loop rebuild. This trims one full residual evaluation per step (five
-    down to ``n_stage``).
-
-    Smoothing is not applied here -- the caller runs :meth:`~ember.grid.Grid.smooth` once on
-    the post-step state, shared with the scree path.
-    """
-    # Snapshot U_n into block.store; each stage marches off this snapshot.
+    """Advance every block one Jameson multi-stage RK step in place."""
+    # Snapshot the bconds-consistent step-top state U_n into block.store (the
+    # caller's residual build did not touch conserved_nd); every stage marches
+    # off this frozen snapshot. Smoothing is not applied here -- Grid.smooth runs
+    # once on the post-step state, shared with the scree path.
     for block in grid:
         block.store[...] = block.conserved_nd
-    # Loop over substeps
     for i_stage in range(conf.n_stage):
+        # Stage coefficient alpha_k = 1/(n_stage - k); the final stage takes the
+        # full step. advance_rk_stage_mg marches off the snapshot and folds in the
+        # Denton block-sum multigrid correction (empty coarse loop when
+        # conf.n_levels == 0, i.e. a plain RK stage). conf.sf_resid is the
+        # coarse-level IRS coefficient, so a nonzero sf_resid smooths both the
+        # fine residual (caller's update_residual) and the coarse block-restricted
+        # residual. Stage 0 reuses the step-top P/T flush and residual; later
+        # stages march off a changed conserved_nd, so P/T and bconds are
+        # refreshed below before the next advance.
         alpha = 1.0 / (conf.n_stage - i_stage)
         advance_rk_stage_mg(
             grid, alpha, conf.cfl, conf.fac_mgrid, conf.n_levels, conf.sf_resid
@@ -445,33 +667,13 @@ def _validate_mg(grid, n_levels):
 def run(grid, conf):
     """Drive a grid through ``n_step`` explicit time-marching steps.
 
-    Implements the lagged-pressure ordering so each step pays exactly one
-    full-field pressure evaluation:
+    See the module-level `Overview of one time step`_ for the stage-by-stage
+    ordering within each step.
 
-    1. flush the conserved cache so the residual sees a fresh full-field P;
-    2. every ``n_refresh`` steps, rebuild the body force and relax ``dt_vol``
-       (both read the just-refreshed P/a);
-    3. every ``conf.n_step_log`` steps, record and print a convergence message
-       (:meth:`~ember.grid.Grid.get_convergence` +
-       :meth:`~ember.convergence_history.ConvergenceHistory.format_message`).
-       Placed after the body-force refresh but before the march so its residual
-       read serves as the step's single full-field recompute, which
-       :func:`scree_step` then reuses;
-    4. march every block with the selected integrator (:func:`scree_step` or the
-       RK :func:`advance_rk_stage_mg` sweep) -- writes ``conserved_nd`` in place
-       without bumping the cache, so P/T stay frozen for the rest of the step;
-    5. smooth every block with the constant-coefficient kernel
-       (:meth:`~ember.grid.Grid.smooth`), which needs no P/T and so reuses the
-       frozen state;
-    6. refresh the boundary targets (:meth:`~ember.grid.Grid.update_bconds` --
-       interior-P snapshot, outlet throttle/equilibrium) and impose them
-       (:meth:`~ember.grid.Grid.apply_bconds`); the patches read/write only
-       boundary slices, so no full-field P recompute rides along.
-
-    ``dt_vol`` is relaxed in place by :meth:`~ember.grid.Grid.update_timestep` (the kernel blends
-    ``rf*new + (1-rf)*old``); the first refresh uses ``rf=1.0`` to initialise the
-    uninitialised buffer, ``rf_dt`` thereafter. CFL is the fixed module-level
-    :data:`CFL`.
+    ``dt_vol`` is relaxed in place by :meth:`~ember.grid.Grid.update_timestep`
+    (the kernel blends ``rf*new + (1-rf)*old``); the initial call before the
+    step loop uses ``rf=1.0`` to seed the uninitialised buffer, ``rf=0.2``
+    thereafter.
 
     Returns
     -------
@@ -509,12 +711,15 @@ def run(grid, conf):
             hist.diverged = True
             break
 
-        # Refresh source terms on the n_step_source cadence -- the viscous pass
-        # is the expensive part -- but recompute the timestep every step so
-        # dt_vol tracks the flow through fast transients. A lagged dt_vol is
-        # sized for an already-stale state and overshoots the stability limit
-        # during a cold start; the timestep refresh itself is cheap.
-        if i_step % conf.n_step_source == 0:
+        # Refresh source terms every step for the multi-stage RK march, which
+        # re-evaluates the residual each substep and needs current sources; the
+        # scree march reuses one residual per step, so lag the expensive viscous
+        # pass to every fifth step there. Recompute the timestep every step
+        # regardless so dt_vol tracks the flow through fast transients: a lagged
+        # dt_vol is sized for an already-stale state and overshoots the
+        # stability limit during a cold start, and the timestep refresh is cheap.
+        n_step_source = 5 if conf.n_stage == 0 else 1
+        if i_step % n_step_source == 0:
             # grid.update_filter(conf.delta_filt)
             grid.update_sources(conf.inviscid, conf.gain_filt)
         grid.update_timestep(rf=0.2, fac_visc=conf.fac_visc)
@@ -527,13 +732,13 @@ def run(grid, conf):
             hist.record_convergence(i_step, grid.get_convergence())
             logger.info(
                 "%s",
-                hist.format_message(i_finest=0, n_step=conf.n_step, n_levels=1),
+                hist.format_message(n_step=conf.n_step),
             )
 
         # Take a step with the selected integrator.  Both reuse the first
         # residual evaluated above, RK then recalculates each substep
         if conf.n_stage == 0:
-            scree_step(grid, conf.cfl, conf.fac_mgrid, conf.n_levels)
+            scree_step(grid, conf.cfl, conf.fac_mgrid, conf.n_levels, conf.sf_resid)
         else:
             rk_step(grid, conf)
 
@@ -554,3 +759,65 @@ def run(grid, conf):
     # that from_grid allocated, so this only bites when the loop broke early:
     # the caller never sees the unwritten NaN tail a divergence leaves behind.
     return hist.trim()
+
+
+def run_fmg(grid, conf):
+    """Full-multigrid startup: solve coarse-to-fine, prolonging each guess.
+
+    ``conf.n_levels`` is the single grid-hierarchy depth. With ``n_levels == 0``
+    this is exactly :func:`run(grid, conf) <run>`. Otherwise it builds
+    ``n_levels`` grids successively halved by :meth:`~ember.grid.Grid.resample`
+    at factor ``0.5``, solves the coarsest, and
+    :meth:`~ember.grid.Grid.interp_from`'s the solution up onto each finer grid
+    as its initial guess. Sequencing level ``i`` (``0`` = coarsest) is marched
+    with in-step Denton block-sum multigrid depth ``i`` -- the same grid
+    hierarchy ``n_levels`` already names -- so the coarsest runs plain and the
+    finest runs at full ``n_levels``, identical to :func:`run` on the finest.
+
+    The single validation ``_validate_mg(grid, n_levels)`` is sufficient for the
+    whole chain: level ``i`` holds ``N / 2**(n_levels - i)`` cells per dimension
+    and its depth-``i`` march needs those divisible by ``2**i``, which reduces to
+    ``N`` (the finest cell count) divisible by ``2**n_levels`` at every level.
+    That divisibility also keeps every ``resample(0.5)`` node-coincident with the
+    finer grid (an exact subset of its nodes), so the coarse coordinates are the
+    true geometry, not interpolated.
+
+    Every level runs the same ``conf`` apart from ``n_levels`` (fixed
+    ``n_step`` per level). ``grid`` is the finest level and is mutated in place
+    to carry the final solution, matching :func:`run`.
+
+    Parameters
+    ----------
+    grid : Grid
+        Finest grid, already carrying its initial guess. Mutated in place.
+    conf : SolverConfig
+        Solver configuration; ``conf.n_levels`` sets the hierarchy depth.
+
+    Returns
+    -------
+    list of ConvergenceHistory
+        Per-level histories, coarsest first, finest last.
+    """
+    _validate_mg(grid, conf.n_levels)
+    if conf.n_levels <= 0:
+        return [run(grid, conf)]
+
+    # Build finest -> coarsest, then reverse. resample carries the already-set
+    # fine guess down, so the coarsest starts from the coarsened cold start.
+    chain = [grid]
+    for _ in range(conf.n_levels):
+        chain.append(chain[-1].resample(0.5))
+    chain.reverse()  # chain[-1] is the original `grid`
+
+    histories = []
+    for i, level_grid in enumerate(chain):  # i == in-step MG depth for this mesh
+        if i > 0:
+            level_grid.interp_from(chain[i - 1])  # prolong previous solution
+        logger.info(
+            "FMG level %d/%d, shape(s) %s",
+            i,
+            conf.n_levels,
+            [block.shape for block in level_grid],
+        )
+        histories.append(run(level_grid, replace(conf, n_levels=i)))
+    return histories

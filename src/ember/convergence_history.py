@@ -420,13 +420,14 @@ class ConvergenceHistory(StructuredData):
             with open(filename, "rb") as f:
                 return pickle.load(f)
 
-    def format_message(self, i_finest=None, n_step=None, n_levels=None):
+    def format_message(self, n_step=None):
         """Format convergence message for current log step.
 
         Parameters
         ----------
-        i_finest, n_step, n_levels : int, optional
-            When provided, a timing line is inserted after the step header.
+        n_step : int, optional
+            Total steps in this march. When given, a timing line (tpnps,
+            elapsed, estimated remaining) is inserted after the step header.
 
         Returns
         -------
@@ -436,11 +437,10 @@ class ConvergenceHistory(StructuredData):
         now = self.now
         i_step = int(now.i_step)
 
-        level_str = f" Level {i_finest}" if i_finest is not None else ""
-        out = f"Step {i_step:4d}{level_str}:\n"
+        out = f"Step {i_step:4d}:\n"
 
-        if i_finest is not None and n_step is not None and n_levels is not None:
-            out += self.format_timing(i_step, i_finest, n_step, n_levels) + "\n"
+        if n_step is not None:
+            out += self.format_timing(i_step, n_step) + "\n"
 
         # Second line: stagnation conditions. ho/s are stored non-dimensional
         # (by u_ref / Rgas_ref), which is exactly what set_h_s expects.
@@ -500,47 +500,32 @@ class ConvergenceHistory(StructuredData):
         # Drop the trailing newline so callers (logger) own line separation.
         return out.rstrip("\n")
 
-    def format_timing(self, i_step, i_finest, n_step, n_levels):
-        """Format timing line: tpnps at current level, elapsed, and estimated remaining.
+    def format_timing(self, i_step, n_step):
+        """Format timing line: tpnps, elapsed, and estimated remaining.
 
         Parameters
         ----------
         i_step : int
-            Current global step index
-        i_finest : int
-            Index of the finest currently active grid level (0 = finest)
+            Current step index within this march.
         n_step : int
-            Steps per FMG phase (conf.n_step); equals total steps when no FMG
-        n_levels : int
-            Total number of multigrid levels (conf.n_levels)
+            Total steps in this march.
         """
-        # self.tpnps divides wall time by n_node (finest grid count), so it
-        # gives us/finest-node/step regardless of which level is actually active.
-        # True tpnps at the current coarse level = tpnps_stored * 8^i_finest
-        # because the current level has n_node/8^i_finest nodes.
-        tpnps_stored = self.tpnps
-        if np.isnan(tpnps_stored):
+        # tpnps already divides wall time by this history's own grid node count
+        # (from_grid stores n_node = grid.size), so it is the true per-node cost
+        # of the grid being marched. Under FMG each level keeps its own history,
+        # so no cross-level rescaling is needed here.
+        tpnps = self.tpnps
+        if np.isnan(tpnps):
             return "  Timing: insufficient data"
 
-        tpnps_level = tpnps_stored * (8**i_finest)
-
         elapsed_ms = float(self.now.time) * self._TIME_SCALE * 1e3
-
-        # Estimate remaining time using tpnps_level (true cost at current level)
-        # and n_node_current. Future phases at finer level i cost 8^(i_finest-i)
-        # times more per step than the current level.
-        n_node_current = self.n_node / (8**i_finest)
-        steps_left = n_step - (i_step % n_step) - 1
-        equiv = float(steps_left)
-        for i in range(i_finest - 1, -1, -1):
-            equiv += n_step * (8 ** (i_finest - i))
-        remaining_ms = equiv * tpnps_level * n_node_current / 1e3
-
+        steps_left = n_step - i_step - 1
+        remaining_ms = steps_left * tpnps * self.n_node / 1e3
         elapsed_min = elapsed_ms / 60e3
 
         return (
             f"  Timing:"
-            f"  tpnps={tpnps_level:.3f} µs"
+            f"  tpnps={tpnps:.3f} µs"
             f"  Elapsed/Remaining={elapsed_min:.1f}/{remaining_ms / 60e3:.1f} min"
         )
 
@@ -589,6 +574,121 @@ class ConvergenceHistory(StructuredData):
         now._set_data_by_keys(("dP_P",), conv.dP_P)
         now._set_data_by_keys(("dP_I",), conv.dP_I)
         now._set_data_by_keys(("dP_D",), conv.dP_D)
+
+    def check_convergence(self, decay=0.0, slope=0.0, cfl=1.0):
+        r"""True when every enabled convergence criterion is met.
+
+        Three independent signals reduce the history to a single verdict, and
+        the result is their logical AND. Each criterion is disabled by passing
+        its no-op threshold, so a bare :meth:`check_convergence` checks
+        divergence alone.
+
+        * **Divergence** reads :attr:`diverged` only; it never touches the
+          residual. A diverged march is never converged.
+        * **Decay** and **slope** read the energy residual ``drhoe`` (column 4
+          of :attr:`residual`), the strictest conserved-variable residual and
+          the one that lags in a stalled march, over the ``i_log + 1`` written
+          records.
+
+        Parameters
+        ----------
+        decay : float, optional
+            Required fall of the residual from its peak over the whole march, in
+            decades: converged needs ``log10(r.max() / r[-1]) >= decay``. The
+            default ``0`` disables the check (0 decades of fall is always met).
+        slope : float, optional
+            Maximum allowed magnitude of the residual slope, in decades of
+            residual per unit pseudo-time, where pseudo-time is ``i_step * cfl``.
+            Fitted over the last 20% of records so it reflects the recent tail
+            rather than the startup transient. Converged needs
+            ``abs(d log10(r) / d(i_step * cfl)) <= slope``. The default ``0``
+            disables the check.
+        cfl : float, optional
+            CFL number used to march, scaling the pseudo-time step so the slope
+            is comparable across runs with different step sizes. Only affects
+            the ``slope`` criterion.
+
+        Returns
+        -------
+        bool
+        """
+        # Divergence: always checked, cannot be disabled. Reads the flag only.
+        if self.diverged:
+            return False
+
+        n = self.i_log + 1
+        r = self.residual[:n, 4]  # energy residual, drhoe
+
+        # Decay: decades fallen from the peak residual over the whole calc.
+        if decay > 0.0 and np.log10(r.max() / r[-1]) < decay:
+            return False
+
+        # Slope: decades of residual per unit pseudo-time (i_step scaled by
+        # cfl), fitted over the final fifth of the march.
+        if slope > 0.0:
+            if n < 2:
+                return False  # need >= 2 records to fit a line
+            n_fit = max(2, -(-n // 5))  # ceil(n / 5), at least 2 records
+            t = self.i_step[n - n_fit : n] * cfl
+            m = np.polyfit(t, np.log10(r[n - n_fit :]), 1)[0]
+            if abs(m) > slope:
+                return False
+
+        return True
+
+    def find_settling_record(self, tol=0.01):
+        r"""Record index at which the entropy rise :attr:`zeta` has settled.
+
+        Complements :meth:`check_convergence`: where that reduces the *residual*
+        history to a converged/not verdict, this locates when the *solution
+        output* stopped moving. It returns the record index at which
+        :attr:`zeta` has come within a fraction ``tol`` of its total change and
+        stays there for the rest of the march.
+
+        The asymptote is estimated as the mean of ``zeta`` over the final fifth
+        of records (the same last-20% window :meth:`check_convergence` fits its
+        slope over), and the band is ``tol`` of the total swing
+        ``abs(zeta[0] - target)`` about it. The settling record is the one
+        *after* the last record still outside that band -- keying on the last
+        exit rather than the first entry makes it robust to any overshoot that
+        dips through the band and back out. Because the asymptote is the tail
+        mean, the result is only physically meaningful once the march has
+        actually levelled out (e.g. a run :meth:`check_convergence` accepts).
+
+        The return is a *record index* into the history arrays, not a solver
+        step number, so both the step it settled at and the wall-clock time to
+        get there are one indexing away::
+
+            idx  = hist.find_settling_record()
+            step = int(hist.i_step[idx])                  # solver step
+            wall = float(hist.time[idx] - hist.time[0])   # ms to settle
+
+        (``hist.time[0]`` is the one-iteration startup offset, not zero, so
+        subtract it for elapsed march time.)
+
+        Parameters
+        ----------
+        tol : float, optional
+            Settling band half-width, as a fraction of the total ``zeta`` swing.
+            Default ``0.01`` (1%).
+
+        Returns
+        -------
+        int
+            Record index of the settling point. Falls back to ``0`` when
+            ``zeta`` is within the band from the start, or is flat (zero swing).
+        """
+        n = self.i_log + 1
+        zeta = self.zeta[:n]
+        n_tail = max(1, -(-n // 5))  # ceil(n / 5), the final fifth, at least 1
+        target = zeta[n - n_tail :].mean()  # asymptote estimate
+        band = tol * abs(zeta[0] - target)  # tol of the total swing
+        outside = np.abs(zeta - target) > band
+        if band > 0 and outside.any():
+            # Record after the last one still outside; clamp in case the tail
+            # itself never settles (then report the last record).
+            return int(min(np.nonzero(outside)[0][-1] + 1, n - 1))
+        return 0
 
     def to_json(self, directory="."):
         """Write convergence history to three JSON files in directory.

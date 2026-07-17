@@ -82,7 +82,7 @@ subroutine map_coordinates_3d(data_in, coords_i, coords_j, coords_k, data_out, &
     real,    allocatable :: wi(:), wj(:), wk(:)
     integer :: in, jn, kn, n, ii, jj, kk
     real    :: ci, cj, ck
-    integer :: i0i, j0j, k0k
+    integer :: i0i, j0j, k0k, i1i, j1j, k1k
     real    :: wi0, wi1, wj0, wj1, wk0, wk1
     real    :: c000, c100, c010, c110, c001, c101, c011, c111
 
@@ -112,20 +112,27 @@ subroutine map_coordinates_3d(data_in, coords_i, coords_j, coords_k, data_out, &
     end do
 
     do kn = 1, nk_new
-        k0k = k0(kn);  wk0 = 1.0 - wk(kn);  wk1 = wk(kn)
+        ! Clamp indices into [1, n]; the upper neighbour degenerates to the
+        ! base node when an axis has extent 1 (e.g. a patch face plane). There
+        ! the paired weights sum to 1, so the axis contributes an identity and
+        ! no read falls outside data_in.
+        k0k = min(max(k0(kn), 1), nk);  k1k = min(k0k + 1, nk)
+        wk0 = 1.0 - wk(kn);  wk1 = wk(kn)
         do jn = 1, nj_new
-            j0j = j0(jn);  wj0 = 1.0 - wj(jn);  wj1 = wj(jn)
+            j0j = min(max(j0(jn), 1), nj);  j1j = min(j0j + 1, nj)
+            wj0 = 1.0 - wj(jn);  wj1 = wj(jn)
             do in = 1, ni_new
-                i0i = i0(in);  wi0 = 1.0 - wi(in);  wi1 = wi(in)
+                i0i = min(max(i0(in), 1), ni);  i1i = min(i0i + 1, ni)
+                wi0 = 1.0 - wi(in);  wi1 = wi(in)
                 do n = 1, nprop
-                    c000 = data_in(i0i,   j0j,   k0k,   n)
-                    c100 = data_in(i0i+1, j0j,   k0k,   n)
-                    c010 = data_in(i0i,   j0j+1, k0k,   n)
-                    c110 = data_in(i0i+1, j0j+1, k0k,   n)
-                    c001 = data_in(i0i,   j0j,   k0k+1, n)
-                    c101 = data_in(i0i+1, j0j,   k0k+1, n)
-                    c011 = data_in(i0i,   j0j+1, k0k+1, n)
-                    c111 = data_in(i0i+1, j0j+1, k0k+1, n)
+                    c000 = data_in(i0i, j0j, k0k, n)
+                    c100 = data_in(i1i, j0j, k0k, n)
+                    c010 = data_in(i0i, j1j, k0k, n)
+                    c110 = data_in(i1i, j1j, k0k, n)
+                    c001 = data_in(i0i, j0j, k1k, n)
+                    c101 = data_in(i1i, j0j, k1k, n)
+                    c011 = data_in(i0i, j1j, k1k, n)
+                    c111 = data_in(i1i, j1j, k1k, n)
                     data_out(in, jn, kn, n) = &
                         wi0*wj0*wk0*c000 + wi1*wj0*wk0*c100 + &
                         wi0*wj1*wk0*c010 + wi1*wj1*wk0*c110 + &

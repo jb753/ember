@@ -1,260 +1,22 @@
-! Denton "scree" explicit time-march step, fused into one kernel.
+! Explicit time-march step kernels (Denton "scree" and Jameson RK), with
+! optional block-sum multigrid and coarse-level implicit residual smoothing.
 !
-! Builds the lagged-residual extrapolation (Denton 2017, Eq 4 with F1=2, F2=-1,
-! F3=0), scales it to a per-volume conserved-variable increment, rolls the
-! residual history, and scatters the cell-centred increment onto the nodes.
+! The whole scheme x multigrid x IRS space is served by six branch-free wrappers
+! over one shared, scheme-agnostic engine (mg_coarse_correction) and a set of
+! branch-free building blocks. No configuration is decided by a runtime `if`
+! inside a kernel: the scheme is fixed by which fine quantity `q` the wrapper
+! forms and which scatter tail it calls; multigrid on/off is which wrapper the
+! caller picks (mg-off wrappers never touch the coarse engine); IRS on/off is the
+! `smoother` dummy-procedure argument (smooth_residual_tri vs mg_smooth_noop).
+! See the banner above mg_coarse_correction for the algorithm and the wrapper
+! grid.
 !
-! Equivalent to the former NumPy advance():
-!   tmp   = (2*residual - store) * cfl * dt_vol   ! extrapolated, scaled change
-!   store = residual                              ! roll history for next step
-!   cons += cell_to_node(tmp)                     ! distribute onto nodal cons
-!
-! store carries (dF/dt)_{n-1} in on entry and leaves with (dF/dt)_n; it is the
-! caller's persistent per-step buffer (Block.store). tmp is throwaway workspace
-! borrowed from Block.scratch -- nothing outside the kernel reads it, so only its
-! element count matters, not its indexing.
-!
-! Written as explicit scalar loops (no array-section expressions) so the build's
-! -Warray-temporaries -Werror flags pass with no compiler-generated temporary;
-! this is also why tmp is passed in rather than declared as a local automatic.
-!
-subroutine scree_advance(cons, residual, store, dt_vol, cfl, tmp, ni, nj, nk, np)
-
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk, np
-    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
-    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: cfl
-    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)  ! in: (dF/dt)_{n-1}; out: (dF/dt)_n
-    real, intent(inout) :: cons(ni, nj, nk, np)         ! nodal conserved vars, accumulated in place
-    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)    ! borrowed scratch workspace
-
-    integer :: i, j, k, ip
-
-    do ip = 1, np
-        do k = 1, nk-1
-            do j = 1, nj-1
-                do i = 1, ni-1
-                    ! Read the old history (store) before overwriting it.
-                    tmp(i,j,k,ip) = (2e0*residual(i,j,k,ip) - store(i,j,k,ip)) &
-                                    * cfl * dt_vol(i,j,k)
-                    store(i,j,k,ip) = residual(i,j,k,ip)
-                end do
-            end do
-        end do
-    end do
-
-    ! Accumulate the cell-centred increment onto the nodal conserved variables.
-    ! cell_to_node aliases its node array as both input and output, so this is an
-    ! in-place += (frozen pressure: bypasses the P/T cache, as before).
-    call cell_to_node(tmp, cons, ni, nj, nk, np)
-
-end subroutine scree_advance
-
-
-! Denton block-sum multigrid variant of scree_advance (identical fine-term
-! result at n_levels=0). Every level -- fine and coarse alike -- uses the
-! same Denton-extrapolated quantity (2*residual - store), matching multall's
-! TSTEP (~/multall-open-20.9.f:6457-6532): STORE = F1*DELTA + F2*DIFF is
-! computed first, and it is that already-extrapolated STORE, not the raw
-! flux imbalance, that gets summed into the multigrid block accumulators.
-! (This differs from the RK multigrid kernels below, whose fine term has no
-! lag to begin with, so their coarse restrict trivially uses plain residual
-! -- that is not evidence for what a lagged scheme like scree should do.)
-!
-!   dU_cell = (2*residual - store)*cfl*dt_vol                                          (fine)
-!           + sum_l  inject_l( coef_l * dt_coarse_l * restrict_l(2*residual - store) )  (coarse)
-!   cons   += cell_to_node(dU_cell)
-!   store   = residual
-!   coef_l  = cfl*fmgrid/b**2 * 2**-(l-1),  b = 2**l
-!
-! dt_coarse_l is the volume-weighted mean of dt_vol over the coarse block,
-! sum(dt_vol*vol)/sum(vol), not dt_vol sampled at the block's centre cell:
-! the centre sample is wrong by the local clustering ratio on a stretched
-! mesh. See the pre-pass comment in the level loop.
-!
-! Restrict (Opt #1) and separable prolong (Opt #2) mirror
-! advance_rk_stage_mg_fused_opt below, just with fmgrid in place of
-! alpha*fmgrid (scree has one full-weight step, not a partial RK sub-stage)
-! and the scree fine-term formula instead of RK's. The history roll
-! (store = residual) must read every level's pre-roll store first, so it
-! runs as one unconditional pass after the coarse-level loop, not fused into
-! the per-cell fine-term loop the way scree_advance does it.
-!
-! tmp, corr, aplane, bb are all caller-owned scratch (Block.scratch and
-! Block.tau_q_halo via util.carve_view in ember.solver.scree_step, mirroring
-! advance_rk_stage_mg's carving) -- no allocation here, same as scree_advance
-! and advance_rk_stage_mg_fused_opt/_irs.
-!
-subroutine scree_advance_mg(cons, residual, store, dt_vol, vol, cfl, fmgrid, &
-        n_levels, tmp, corr, dtblk, aplane, bb, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k)
-
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
-    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
-    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: cfl, fmgrid
-    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)  ! in: (dF/dt)_{n-1}; out: (dF/dt)_n
-    real, intent(inout) :: cons(ni, nj, nk, np)         ! nodal conserved vars, accumulated in place
-    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)    ! borrowed scratch (Block.scratch)
-    real, intent(inout) :: corr(nc1i, nc1j, nc1k, np)   ! borrowed scratch (Block.tau_q_halo)
-    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)      ! borrowed scratch (Block.tau_q_halo)
-    real, intent(inout) :: aplane(ni-1, nc1j)           ! borrowed scratch (Block.tau_q_halo)
-    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)     ! borrowed scratch (Block.tau_q_halo)
-
-    integer :: i, j, k, ip, lvl, b, nib, njb, nkb, ib, jb, kb
-    integer :: ii, jj, kk
-    real    :: coef, s, s_dt, s_v
-    integer :: il(ni-1), ih(ni-1), jl(nj-1), jh(nj-1), kl(nk-1), kh(nk-1)
-    real    :: wi(ni-1), wj(nj-1), wk(nk-1)
-
-    ! Fine term: dU = (2*residual - store)*cfl*dt_vol. When n_levels >= 1 this
-    ! is folded into level 1's Pass C to save a full tmp pass, so the
-    ! standalone version runs only for the plain-scree (n_levels == 0) case.
-    ! Reads store's pre-roll value -- the roll itself happens once, below,
-    ! after the whole coarse-level loop.
-    if (n_levels == 0) then
-        do ip = 1, np
-            do k = 1, nk-1
-                do j = 1, nj-1
-                    do i = 1, ni-1
-                        tmp(i,j,k,ip) = (2e0*residual(i,j,k,ip) - store(i,j,k,ip)) &
-                                        * cfl * dt_vol(i,j,k)
-                    end do
-                end do
-            end do
-        end do
-    end if
-
-    do lvl = 1, n_levels
-        b = 2**lvl
-        nib = (ni-1)/b
-        njb = (nj-1)/b
-        nkb = (nk-1)/b
-        coef = cfl * fmgrid / real(b*b) * 2e0**(-(lvl-1))
-
-        ! Coarse timestep: volume-weighted mean of dt_vol over the block, the
-        ! analogue of multall's STEP1 = CFL*FBLK*PERPMIN/VSOUND/VOLB. dt_vol*vol
-        ! is the per-cell perp/(a+V) that multall accumulates into PERPMIN, so
-        ! sum(dt_vol*vol)/sum(vol) recovers the block step (the 1/b**2 stays in
-        ! coef). Constant dt_vol over the block gives back dt_vol exactly, so
-        ! this is a no-op on a uniform mesh. Independent of ip, hence its own
-        ! pass ahead of the ip-outer restrict below.
-        do kb = 1, nkb
-            do jb = 1, njb
-                do ib = 1, nib
-                    s_dt = 0e0
-                    s_v  = 0e0
-                    do kk = (kb-1)*b+1, kb*b
-                        do jj = (jb-1)*b+1, jb*b
-                            do ii = (ib-1)*b+1, ib*b
-                                s_dt = s_dt + dt_vol(ii,jj,kk)*vol(ii,jj,kk)
-                                s_v  = s_v  + vol(ii,jj,kk)
-                            end do
-                        end do
-                    end do
-                    dtblk(ib,jb,kb) = s_dt / s_v
-                end do
-            end do
-        end do
-
-        ! Opt #1: fused zero + restrict + scale as a coarse-cell reduction,
-        ! summing the Denton-extrapolated quantity (2*residual - store), not
-        ! plain residual (see module-level comment above).
-        do ip = 1, np
-            do kb = 1, nkb
-                do jb = 1, njb
-                    do ib = 1, nib
-                        s = 0e0
-                        do kk = (kb-1)*b+1, kb*b
-                            do jj = (jb-1)*b+1, jb*b
-                                do ii = (ib-1)*b+1, ib*b
-                                    s = s + (2e0*residual(ii,jj,kk,ip) - store(ii,jj,kk,ip))
-                                end do
-                            end do
-                        end do
-                        corr(ib,jb,kb,ip) = s * coef * dtblk(ib,jb,kb)
-                    end do
-                end do
-            end do
-        end do
-
-        ! Bracketing coarse indices and upper-neighbour weights per direction.
-        call mg_prolong_weights(ni-1, b, nib, il, ih, wi)
-        call mg_prolong_weights(nj-1, b, njb, jl, jh, wj)
-        call mg_prolong_weights(nk-1, b, nkb, kl, kh, wk)
-
-        ! Opt #2: separable trilinear prolong onto tmp (same structure as
-        ! advance_rk_stage_mg_fused_opt below).
-        do ip = 1, np
-            do kb = 1, nkb
-                do jb = 1, njb
-                    do i = 1, ni-1
-                        aplane(i,jb) = corr(il(i),jb,kb,ip)*(1e0-wi(i)) &
-                                     + corr(ih(i),jb,kb,ip)*wi(i)
-                    end do
-                end do
-                do j = 1, nj-1
-                    do i = 1, ni-1
-                        bb(i,j,kb,ip) = aplane(i,jl(j))*(1e0-wj(j)) &
-                                      + aplane(i,jh(j))*wj(j)
-                    end do
-                end do
-            end do
-        end do
-
-        ! Pass C: interpolate B along k onto tmp. Level 1 folds in the fine
-        ! term (using store's pre-roll value); later levels accumulate.
-        if (lvl == 1) then
-            do ip = 1, np
-                do k = 1, nk-1
-                    do j = 1, nj-1
-                        do i = 1, ni-1
-                            tmp(i,j,k,ip) = &
-                                  (2e0*residual(i,j,k,ip) - store(i,j,k,ip)) &
-                                  * cfl * dt_vol(i,j,k) &
-                                + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
-                                + bb(i,j,kh(k),ip)*wk(k)
-                        end do
-                    end do
-                end do
-            end do
-        else
-            do ip = 1, np
-                do k = 1, nk-1
-                    do j = 1, nj-1
-                        do i = 1, ni-1
-                            tmp(i,j,k,ip) = tmp(i,j,k,ip) &
-                                          + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
-                                          + bb(i,j,kh(k),ip)*wk(k)
-                        end do
-                    end do
-                end do
-            end do
-        end if
-    end do
-
-    ! Roll the history now that every level (fine term and every coarse
-    ! restrict) has read store's pre-roll value.
-    do ip = 1, np
-        do k = 1, nk-1
-            do j = 1, nj-1
-                do i = 1, ni-1
-                    store(i,j,k,ip) = residual(i,j,k,ip)
-                end do
-            end do
-        end do
-    end do
-
-    ! Accumulate the cell-centred increment onto the nodal conserved variables
-    ! (frozen pressure: bypasses the P/T cache, as scree_advance does).
-    call cell_to_node(tmp, cons, ni, nj, nk, np)
-
-end subroutine scree_advance_mg
+! All loops are explicit scalar loops (no array-section expressions) so the
+! build's -Warray-temporaries -Werror flags pass with no compiler-generated
+! temporary; this is also why scratch (tmp, coarse buffers) is passed in rather
+! than declared as a local automatic. cell_to_node reuses its node array as both
+! input and output (frozen pressure: the increment bypasses the P/T cache), so
+! the scree scatter is an in-place +=.
 
 
 ! Bracketing coarse-cell indices (lo, hi) and upper-neighbour weight for every
@@ -294,218 +56,591 @@ subroutine mg_prolong_weights(n_fine, b, n_coarse, lo, hi, w)
 end subroutine mg_prolong_weights
 
 
-! Optimised variant of advance_rk_stage_mg_fused (identical result, same
-! signature) exercising two restructurings of the coarse path:
-!
-!   Opt #1  restrict fused with the zero + scale passes as a coarse-cell
-!           register reduction: iterate coarse cells outer, sum the b*b*b fine
-!           block into a scalar, and store corr = sum * coef * dtblk in
-!           one shot. Removes the zero pass, the per-fine-cell integer division
-!           ib=(i-1)/b+1, the strided read-modify-write into corr, and the
-!           separate scale pass of the reference kernel.
-!
-!   Opt #2  prolongation done as three separable 1-D interpolations (trilinear
-!           is a tensor product) instead of the 8-way gather. Passes A (interp i)
-!           and B (interp j) are fused per (ip, kb): A is a single (ni-1, njb)
-!           plane, kept in cache and consumed by B before the next kb, so the
-!           lone gather (corr along i) hits an in-cache plane and no full A
-!           buffer is streamed. Pass C (interp k) is contiguous in i and folds in
-!           the fine term at level 1 (saving a separate tmp pass). Mathematically
-!           identical to the direct blend; float rounding order differs (~1e-7).
-!
-! aplane (ni-1,njb) and B (ni-1,nj-1,nkb,np) are per-level heap scratch here
-! (experiment convenience -- a shipping version would pass them in). Everything
-! else matches advance_rk_stage_mg_fused: fine term, corr as the caller-owned
-! level-1-strided workspace, cell_to_node_generic scatter, frozen pressure.
-!
-subroutine advance_rk_stage_mg_fused_opt(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, n_levels, tmp, corr, dtblk, aplane, bb, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k)
-
+! Copy n contiguous reals (sequence-associated cascade plumbing).
+subroutine mg_copy(src, dst, n)
     implicit none
+    integer, intent(in) :: n
+    real, intent(in)    :: src(n)
+    real, intent(inout) :: dst(n)
+    integer :: i
+    do i = 1, n
+        dst(i) = src(i)
+    end do
+end subroutine mg_copy
 
-    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
-    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
-    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: alpha, cfl, fmgrid
-    real,    intent(in) :: snapshot(ni, nj, nk, np)
-    real, intent(inout) :: cons(ni, nj, nk, np)
-    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
-    real, intent(inout) :: corr(nc1i, nc1j, nc1k, np)
-    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
-    ! Caller-owned prolong scratch (level-1-strided, coarser levels use a leading
-    ! corner). aplane is one interp-i plane; bb holds the interp-j result.
-    real, intent(inout) :: aplane(ni-1, nc1j)
-    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
 
-    integer :: i, j, k, ip, lvl, b, nib, njb, nkb, ib, jb, kb
-    integer :: ii, jj, kk
-    real    :: coef, s, s_dt, s_v
-    integer :: il(ni-1), ih(ni-1), jl(nj-1), jh(nj-1), kl(nk-1), kh(nk-1)
-    real    :: wi(ni-1), wj(nj-1), wk(nk-1)
+! No-op coarse-residual smoother: the plain (non-IRS) kernels pass this to
+! mg_coarse_correction so the smoothing step is structurally absent (no sf_irs<=0
+! test, no tri_coeffs call), rather than relying on smooth_residual_tri's internal
+! guard. Signature matches smooth_residual_tri so either can be handed to the
+! shared engine's `smoother` dummy argument.
+subroutine mg_smooth_noop(dU, sf, work, ni, nj, nk)
+    implicit none
+    integer, intent(in) :: ni, nj, nk
+    real, intent(in)    :: sf
+    real, intent(inout) :: dU(*)
+    real, intent(inout) :: work(*)
+    ! Reference every dummy so -Werror=unused-dummy-argument stays quiet; the
+    ! guard is never true, so this is a genuine no-op at runtime.
+    if (ni < 0) dU(1) = sf + work(1) + real(nj + nk)
+end subroutine mg_smooth_noop
 
-    ! Fine RK term: dU = alpha*cfl*dt_vol*residual. When n_levels >= 1 this is
-    ! folded into level 1's Pass C (opt below) to save a full tmp pass, so the
-    ! standalone version runs only for the plain-RK (n_levels == 0) case.
-    if (n_levels == 0) then
-        do ip = 1, np
-            do k = 1, nk-1
-                do j = 1, nj-1
-                    do i = 1, ni-1
-                        tmp(i,j,k,ip) = alpha * cfl * dt_vol(i,j,k) * residual(i,j,k,ip)
-                    end do
+
+! Gather the leading (nib,njb,nkb) corner of a level-1-strided accumulator into
+! a tightly packed contiguous slice (so it can be handed to smooth_residual_tri).
+subroutine mg_gather_corner(dst, src, ldi, ldj, ldk, nib, njb, nkb, np)
+    implicit none
+    integer, intent(in) :: ldi, ldj, ldk, nib, njb, nkb, np
+    real, intent(in)    :: src(ldi, ldj, ldk, np)
+    real, intent(out)   :: dst(nib, njb, nkb, np)
+    integer :: ib, jb, kb, ip
+    do ip = 1, np
+        do kb = 1, nkb
+            do jb = 1, njb
+                do ib = 1, nib
+                    dst(ib,jb,kb,ip) = src(ib,jb,kb,ip)
                 end do
             end do
         end do
-    end if
+    end do
+end subroutine mg_gather_corner
 
+
+! Scale a (possibly smoothed) contiguous coarse residual into a correction:
+! corr = cres * coef * dtblk. dtblk is level-1-strided (leading corner read).
+subroutine mg_scale_corr(corr, cres, dtblk, coef, ldi, ldj, ldk, nib, njb, nkb, np)
+    implicit none
+    integer, intent(in) :: ldi, ldj, ldk, nib, njb, nkb, np
+    real, intent(in)    :: cres(nib, njb, nkb, np)
+    real, intent(in)    :: dtblk(ldi, ldj, ldk)
+    real, intent(in)    :: coef
+    real, intent(out)   :: corr(nib, njb, nkb, np)
+    integer :: ib, jb, kb, ip
+    do ip = 1, np
+        do kb = 1, nkb
+            do jb = 1, njb
+                do ib = 1, nib
+                    corr(ib,jb,kb,ip) = cres(ib,jb,kb,ip) * coef * dtblk(ib,jb,kb)
+                end do
+            end do
+        end do
+    end do
+end subroutine mg_scale_corr
+
+
+! Separable factor-2 trilinear prolongation, ACCUMULATED onto a coarse target:
+! out += interp_2x(src). Used for the cascade's coarse->coarse hops (out is
+! prefilled with that level's correction). aplane/bb are the shared prolong
+! scratch (full-fine leading dims ni1,nj1; third dim nkpad >= nck).
+subroutine mg_prolong2x_acc(src, nci, ncj, nck, out, nfi, nfj, nfk, np, &
+        aplane, bb, ni1, nj1, nkpad)
+    implicit none
+    integer, intent(in) :: nci, ncj, nck, nfi, nfj, nfk, np, ni1, nj1, nkpad
+    real, intent(in)    :: src(nci, ncj, nck, np)
+    real, intent(inout) :: out(nfi, nfj, nfk, np)
+    real, intent(inout) :: aplane(ni1, *)
+    real, intent(inout) :: bb(ni1, nj1, nkpad, np)
+    integer :: i, j, k, ip, jc, kc
+    integer :: il(nfi), ih(nfi), jl(nfj), jh(nfj), kl(nfk), kh(nfk)
+    real    :: wi(nfi), wj(nfj), wk(nfk)
+
+    call mg_prolong_weights(nfi, 2, nci, il, ih, wi)
+    call mg_prolong_weights(nfj, 2, ncj, jl, jh, wj)
+    call mg_prolong_weights(nfk, 2, nck, kl, kh, wk)
+
+    do ip = 1, np
+        do kc = 1, nck
+            do jc = 1, ncj
+                do i = 1, nfi
+                    aplane(i,jc) = src(il(i),jc,kc,ip)*(1e0-wi(i)) &
+                                 + src(ih(i),jc,kc,ip)*wi(i)
+                end do
+            end do
+            do j = 1, nfj
+                do i = 1, nfi
+                    bb(i,j,kc,ip) = aplane(i,jl(j))*(1e0-wj(j)) &
+                                  + aplane(i,jh(j))*wj(j)
+                end do
+            end do
+        end do
+        do k = 1, nfk
+            do j = 1, nfj
+                do i = 1, nfi
+                    out(i,j,k,ip) = out(i,j,k,ip) &
+                                  + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
+                                  + bb(i,j,kh(k),ip)*wk(k)
+                end do
+            end do
+        end do
+    end do
+end subroutine mg_prolong2x_acc
+
+
+! Final cascade hop onto the fine grid, fused with the fine term in one write:
+!   tmp = scale*dt_vol*q + interp_2x(src)
+! q is the scheme's fine quantity (residual for RK, 2*residual-store for scree),
+! formed by the wrapper -- this block is scheme-agnostic (no denton branch).
+subroutine mg_prolong2x_fine(src, nci, ncj, nck, tmp, scale, dt_vol, q, &
+        ni, nj, nk, np, aplane, bb, nc1j, nc1k)
+    implicit none
+    integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np, nc1j, nc1k
+    real, intent(in)    :: src(nci, ncj, nck, np)
+    real, intent(in)    :: scale
+    real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
+    real, intent(in)    :: q(ni-1, nj-1, nk-1, np)
+    real, intent(out)   :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: aplane(ni-1, nc1j)
+    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
+    integer :: i, j, k, ip, jc, kc
+    integer :: il(ni-1), ih(ni-1), jl(nj-1), jh(nj-1), kl(nk-1), kh(nk-1)
+    real    :: wi(ni-1), wj(nj-1), wk(nk-1)
+    real    :: ft
+
+    call mg_prolong_weights(ni-1, 2, nci, il, ih, wi)
+    call mg_prolong_weights(nj-1, 2, ncj, jl, jh, wj)
+    call mg_prolong_weights(nk-1, 2, nck, kl, kh, wk)
+
+    do ip = 1, np
+        do kc = 1, nck
+            do jc = 1, ncj
+                do i = 1, ni-1
+                    aplane(i,jc) = src(il(i),jc,kc,ip)*(1e0-wi(i)) &
+                                 + src(ih(i),jc,kc,ip)*wi(i)
+                end do
+            end do
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    bb(i,j,kc,ip) = aplane(i,jl(j))*(1e0-wj(j)) &
+                                  + aplane(i,jh(j))*wj(j)
+                end do
+            end do
+        end do
+    end do
+
+    do ip = 1, np
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    ft = scale * dt_vol(i,j,k) * q(i,j,k,ip)
+                    tmp(i,j,k,ip) = ft + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
+                                       + bb(i,j,kh(k),ip)*wk(k)
+                end do
+            end do
+        end do
+    end do
+end subroutine mg_prolong2x_fine
+
+
+! Scheme-agnostic fine term (the multigrid-off increment):  tmp = scale*dt_vol*q.
+! Grouping (scale*dt_vol)*q matches the fused fine term in mg_prolong2x_fine, so
+! an mg-off march is byte-identical to an mg-on march whose coarse correction is
+! exactly zero (fmgrid == 0).
+subroutine fine_term(q, dt_vol, scale, tmp, ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: q(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: scale
+    real, intent(out)   :: tmp(ni-1, nj-1, nk-1, np)
+    integer :: i, j, k, ip
+    do ip = 1, np
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    tmp(i,j,k,ip) = scale * dt_vol(i,j,k) * q(i,j,k,ip)
+                end do
+            end do
+        end do
+    end do
+end subroutine fine_term
+
+
+! Form the Denton fine quantity in place in the history buffer:
+!   store <- 2*residual - store
+! The pre-roll store (dF/dt)_{n-1} is read once here and overwritten with the
+! extrapolated q = 2*residual - store, which the engine/fine-term then consume as
+! the scree fine quantity. The post-march scree_roll_and_scatter overwrites store
+! again with residual, so no separate q buffer is needed. RK skips this and passes
+! residual directly as q.
+subroutine scree_form_q(store, residual, ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)
+    integer :: i, j, k, ip
+    do ip = 1, np
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    store(i,j,k,ip) = 2e0*residual(i,j,k,ip) - store(i,j,k,ip)
+                end do
+            end do
+        end do
+    end do
+end subroutine scree_form_q
+
+
+! Roll the Denton history (store = residual) and frozen-pressure accumulate the
+! increment onto cons. Shared post-march tail of the scree wrappers; called only
+! after the engine/fine-term has consumed q from store.
+subroutine scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    integer :: i, j, k, ip
+    do ip = 1, np
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    store(i,j,k,ip) = residual(i,j,k,ip)
+                end do
+            end do
+        end do
+    end do
+    call cell_to_node(tmp, cons, ni, nj, nk, np)
+end subroutine scree_roll_and_scatter
+
+
+! ============================================================================
+! Hierarchical-restriction + cascaded-prolongation block-sum multigrid engine.
+!
+! Scheme-agnostic: operates on a single pre-formed fine quantity `q` (residual
+! for RK, 2*residual-store for scree), so it carries no `denton` branch. Called
+! only by the mg-*on* wrappers, so n_levels >= 1 always (no n_levels==0 path).
+! IRS is the `smoother` dummy-procedure argument: smooth_residual_tri (Jameson
+! IRS) or mg_smooth_noop (none) -- no `if (sf_irs)` anywhere in here.
+!
+! The six production kernels, all branch-free straight-line compositions:
+!   scree_plain     rk_plain      fine_term + scatter          (multigrid off)
+!   scree_mg_noirs  rk_mg_noirs   engine(mg_smooth_noop) + scatter
+!   scree_mg_irs    rk_mg_irs     engine(smooth_residual_tri) + scatter
+! scree wrappers form q in store (scree_form_q) and roll+frozen-scatter
+! (scree_roll_and_scatter); rk wrappers pass residual as q and scatter off the
+! sub-stage snapshot (cell_to_node_generic).
+!
+! Restriction is HIERARCHICAL: a level-l block-sum equals eight level-(l-1)
+! block-sums (the block-sum is associative), so only level 1 reads the fine grid;
+! coarser levels reduce the small running accumulators -- rawbuf for the residual
+! sum, sdt/sv for the volume-weighted dt. Level 1 is loop-peeled (it alone reads
+! the fine grid), so the level loop has no `if (lvl==1)`. In-place reduction is
+! safe because, with blocks visited in ascending order, an output cell maps to
+! source cells whose every index is >= its own and no later block reads it.
+!
+! Prolongation is CASCADED: the per-level scaled corrections (packed coarsest
+! first in corr_all) accumulate coarsest -> finest through factor-2 hops, so only
+! the final hop writes the fine grid (fused with the fine term). This is a
+! genuine operator change from a direct factor-b prolong -- cascaded factor-2
+! trilinear interpolations are not equal to it.
+! ============================================================================
+subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, &
+        sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        corr_all, acc0, acc1, cres, triw, smoother, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    ! Coarse-residual smoother, chosen by the caller (no IRS branch in here):
+    ! smooth_residual_tri for the IRS kernels, mg_smooth_noop for the plain ones.
+    external :: smoother
+    real, intent(in)    :: q(ni-1, nj-1, nk-1, np)
+    real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
+    real, intent(in)    :: vol(ni-1, nj-1, nk-1)
+    real, intent(in)    :: scale, fmgrid, sf_irs
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: aplane(ni-1, nc1j)
+    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+
+    integer :: ip, lvl, b, nib, njb, nkb, ib, jb, kb
+    integer :: ii, jj, kk, slot, cnt
+    real    :: coef, s, s_dt, s_v
+    integer :: dib(n_levels), djb(n_levels), dkb(n_levels), offc(n_levels)
+    integer :: nci, ncj, nck, cur_i, cur_j, cur_k, o
+
+    ! Coarsest-first packed geometry for corr_all (cascade seeds at slot 1).
+    o = 0
     do lvl = 1, n_levels
+        b = 2**(n_levels - lvl + 1)
+        dib(lvl) = (ni-1)/b
+        djb(lvl) = (nj-1)/b
+        dkb(lvl) = (nk-1)/b
+        offc(lvl) = o
+        o = o + dib(lvl)*djb(lvl)*dkb(lvl)*np
+    end do
+
+    ! ---- Phase 1, level 1 (peeled): the only level that reads the fine grid ----
+    lvl = 1
+    b   = 2
+    nib = (ni-1)/b
+    njb = (nj-1)/b
+    nkb = (nk-1)/b
+    coef = scale * fmgrid / real(b*b) * 2e0**(-(lvl-1))
+    slot = n_levels - lvl + 1
+    cnt  = nib*njb*nkb*np
+
+    ! dt restriction (volume-weighted mean) from the fine grid.
+    do kb = 1, nkb
+        do jb = 1, njb
+            do ib = 1, nib
+                s_dt = 0e0
+                s_v  = 0e0
+                do kk = 2*kb-1, 2*kb
+                    do jj = 2*jb-1, 2*jb
+                        do ii = 2*ib-1, 2*ib
+                            s_dt = s_dt + dt_vol(ii,jj,kk)*vol(ii,jj,kk)
+                            s_v  = s_v  + vol(ii,jj,kk)
+                        end do
+                    end do
+                end do
+                sdt(ib,jb,kb)   = s_dt
+                sv (ib,jb,kb)   = s_v
+                dtblk(ib,jb,kb) = s_dt / s_v
+            end do
+        end do
+    end do
+
+    ! residual (fine quantity q) restriction from the fine grid into rawbuf.
+    do ip = 1, np
+        do kb = 1, nkb
+            do jb = 1, njb
+                do ib = 1, nib
+                    s = 0e0
+                    do kk = 2*kb-1, 2*kb
+                        do jj = 2*jb-1, 2*jb
+                            do ii = 2*ib-1, 2*ib
+                                s = s + q(ii,jj,kk,ip)
+                            end do
+                        end do
+                    end do
+                    rawbuf(ib,jb,kb,ip) = s
+                end do
+            end do
+        end do
+    end do
+
+    ! gather -> smooth -> scale into this level's corr slot.
+    call mg_gather_corner(cres, rawbuf, nc1i, nc1j, nc1k, nib, njb, nkb, np)
+    call smoother(cres(1:cnt), sf_irs, &
+                  triw(1:2*(nib+njb+nkb)), nib+1, njb+1, nkb+1)
+    call mg_scale_corr(corr_all(offc(slot)+1), cres, dtblk, coef, &
+                       nc1i, nc1j, nc1k, nib, njb, nkb, np)
+
+    ! ---- Phase 1, levels 2..n_levels: reduce the coarse accumulators ----
+    do lvl = 2, n_levels
         b = 2**lvl
         nib = (ni-1)/b
         njb = (nj-1)/b
         nkb = (nk-1)/b
-        coef = alpha * cfl * fmgrid / real(b*b) * 2e0**(-(lvl-1))
+        coef = scale * fmgrid / real(b*b) * 2e0**(-(lvl-1))
+        slot = n_levels - lvl + 1
+        cnt  = nib*njb*nkb*np
 
-        ! Coarse timestep: volume-weighted mean of dt_vol over the block (see
-        ! scree_advance_mg for the derivation from multall's STEP1). Independent
-        ! of ip, hence its own pass ahead of the ip-outer restrict below.
+        ! dt reduction (accumulator, hierarchical in place).
         do kb = 1, nkb
             do jb = 1, njb
                 do ib = 1, nib
                     s_dt = 0e0
                     s_v  = 0e0
-                    do kk = (kb-1)*b+1, kb*b
-                        do jj = (jb-1)*b+1, jb*b
-                            do ii = (ib-1)*b+1, ib*b
-                                s_dt = s_dt + dt_vol(ii,jj,kk)*vol(ii,jj,kk)
-                                s_v  = s_v  + vol(ii,jj,kk)
+                    do kk = 2*kb-1, 2*kb
+                        do jj = 2*jb-1, 2*jb
+                            do ii = 2*ib-1, 2*ib
+                                s_dt = s_dt + sdt(ii,jj,kk)
+                                s_v  = s_v  + sv (ii,jj,kk)
                             end do
                         end do
                     end do
+                    sdt(ib,jb,kb)   = s_dt
+                    sv (ib,jb,kb)   = s_v
                     dtblk(ib,jb,kb) = s_dt / s_v
                 end do
             end do
         end do
 
-        ! Opt #1: fused zero + restrict + scale as a coarse-cell reduction.
+        ! residual reduction (accumulator, hierarchical in place).
         do ip = 1, np
             do kb = 1, nkb
                 do jb = 1, njb
                     do ib = 1, nib
                         s = 0e0
-                        do kk = (kb-1)*b+1, kb*b
-                            do jj = (jb-1)*b+1, jb*b
-                                do ii = (ib-1)*b+1, ib*b
-                                    s = s + residual(ii,jj,kk,ip)
+                        do kk = 2*kb-1, 2*kb
+                            do jj = 2*jb-1, 2*jb
+                                do ii = 2*ib-1, 2*ib
+                                    s = s + rawbuf(ii,jj,kk,ip)
                                 end do
                             end do
                         end do
-                        corr(ib,jb,kb,ip) = s * coef * dtblk(ib,jb,kb)
+                        rawbuf(ib,jb,kb,ip) = s
                     end do
                 end do
             end do
         end do
 
-        ! Bracketing coarse indices and upper-neighbour weights per direction.
-        call mg_prolong_weights(ni-1, b, nib, il, ih, wi)
-        call mg_prolong_weights(nj-1, b, njb, jl, jh, wj)
-        call mg_prolong_weights(nk-1, b, nkb, kl, kh, wk)
-
-        ! Opt #2: separable trilinear prolong onto tmp. Passes A (interp i) and
-        ! B (interp j) are fused per (ip, kb): A is a single (ni-1, njb) plane
-        ! (aplane), kept in cache and consumed by B before moving to the next kb
-        ! -- so the only gather (corr along i) hits an in-cache plane and no full
-        ! A buffer is materialised. bb is kept whole (Pass C spans kb via kl/kh).
-        ! aplane/bb are caller-owned scratch declared at level-1 strides; coarser
-        ! levels write only the leading corner (njb<=nc1j, nkb<=nc1k).
-        do ip = 1, np
-            do kb = 1, nkb
-                ! Pass A (this kb, ip): interpolate corr along i into aplane.
-                do jb = 1, njb
-                    do i = 1, ni-1
-                        aplane(i,jb) = corr(il(i),jb,kb,ip)*(1e0-wi(i)) &
-                                     + corr(ih(i),jb,kb,ip)*wi(i)
-                    end do
-                end do
-                ! Pass B (this kb, ip): interpolate aplane along j into bb.
-                do j = 1, nj-1
-                    do i = 1, ni-1
-                        bb(i,j,kb,ip) = aplane(i,jl(j))*(1e0-wj(j)) &
-                                      + aplane(i,jh(j))*wj(j)
-                    end do
-                end do
-            end do
-        end do
-
-        ! Pass C: interpolate B along k onto tmp. Fixed k: contiguous i. Level 1
-        ! folds in the fine term (opt #2); later levels accumulate.
-        if (lvl == 1) then
-            do ip = 1, np
-                do k = 1, nk-1
-                    do j = 1, nj-1
-                        do i = 1, ni-1
-                            tmp(i,j,k,ip) = &
-                                  alpha * cfl * dt_vol(i,j,k) * residual(i,j,k,ip) &
-                                + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
-                                + bb(i,j,kh(k),ip)*wk(k)
-                        end do
-                    end do
-                end do
-            end do
-        else
-            do ip = 1, np
-                do k = 1, nk-1
-                    do j = 1, nj-1
-                        do i = 1, ni-1
-                            tmp(i,j,k,ip) = tmp(i,j,k,ip) &
-                                          + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
-                                          + bb(i,j,kh(k),ip)*wk(k)
-                        end do
-                    end do
-                end do
-            end do
-        end if
+        call mg_gather_corner(cres, rawbuf, nc1i, nc1j, nc1k, nib, njb, nkb, np)
+        call smoother(cres(1:cnt), sf_irs, &
+                      triw(1:2*(nib+njb+nkb)), nib+1, njb+1, nkb+1)
+        call mg_scale_corr(corr_all(offc(slot)+1), cres, dtblk, coef, &
+                           nc1i, nc1j, nc1k, nib, njb, nkb, np)
     end do
 
+    ! Phase 2: cascaded coarsest->fine prolongation.
+    call mg_copy(corr_all(offc(1)+1), acc0, dib(1)*djb(1)*dkb(1)*np)
+    cur_i = dib(1)
+    cur_j = djb(1)
+    cur_k = dkb(1)
+    do lvl = 2, n_levels
+        nci = cur_i
+        ncj = cur_j
+        nck = cur_k
+        call mg_copy(corr_all(offc(lvl)+1), acc1, dib(lvl)*djb(lvl)*dkb(lvl)*np)
+        call mg_prolong2x_acc(acc0, nci, ncj, nck, acc1, &
+                              dib(lvl), djb(lvl), dkb(lvl), np, &
+                              aplane, bb, ni-1, nj-1, nc1k)
+        call mg_copy(acc1, acc0, dib(lvl)*djb(lvl)*dkb(lvl)*np)
+        cur_i = dib(lvl)
+        cur_j = djb(lvl)
+        cur_k = dkb(lvl)
+    end do
+    call mg_prolong2x_fine(acc0, cur_i, cur_j, cur_k, tmp, scale, dt_vol, &
+                           q, ni, nj, nk, np, aplane, bb, nc1j, nc1k)
+end subroutine mg_coarse_correction
+
+
+! ============================================================================
+! The six production kernels. Each is a branch-free straight-line composition of
+! the blocks above; configuration is resolved by which blocks are called and
+! which smoother is passed, never by a runtime `if`.
+! ============================================================================
+
+
+! scree, multigrid off: form q, fine term only, roll history and frozen-scatter.
+subroutine scree_plain(cons, residual, store, dt_vol, cfl, tmp, ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: cfl
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)  ! in: (dF/dt)_{n-1}; out: (dF/dt)_n
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+
+    call scree_form_q(store, residual, ni, nj, nk, np)
+    call fine_term(store, dt_vol, cfl, tmp, ni, nj, nk, np)
+    call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+end subroutine scree_plain
+
+
+! scree, multigrid on, coarse-level IRS.
+subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
+        fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        corr_all, acc0, acc1, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: cfl, fmgrid, sf_irs
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: aplane(ni-1, nc1j)
+    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: smooth_residual_tri
+
+    call scree_form_q(store, residual, ni, nj, nk, np)
+    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, sf_irs, n_levels, &
+                       tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+end subroutine scree_mg_irs
+
+
+! scree, multigrid on, no smoothing.
+subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
+        fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        corr_all, acc0, acc1, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: cfl, fmgrid, sf_irs
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: aplane(ni-1, nc1j)
+    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: mg_smooth_noop
+
+    call scree_form_q(store, residual, ni, nj, nk, np)
+    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, sf_irs, n_levels, &
+                       tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+end subroutine scree_mg_noirs
+
+
+! RK stage, multigrid off: fine term only (q = residual), scatter off snapshot.
+subroutine rk_plain(cons, snapshot, residual, dt_vol, alpha, cfl, tmp, &
+        ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: alpha, cfl
+    real,    intent(in) :: snapshot(ni, nj, nk, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+
+    call fine_term(residual, dt_vol, alpha*cfl, tmp, ni, nj, nk, np)
     ! cons = snapshot + cell_to_node(tmp). Distinct in/out (snapshot vs cons).
     call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
+end subroutine rk_plain
 
-end subroutine advance_rk_stage_mg_fused_opt
 
-
-! Experimental variant of advance_rk_stage_mg_fused_opt that applies implicit
-! residual smoothing (Jameson IRS, cf. smooth_residual_tri in residual.f90) to
-! the coarse block-restricted residual at every level, before it is scaled by
-! coef*dtblk and prolongated. sf_irs=0 makes the smoothing step an exact
-! no-op (smooth_residual_tri's own guard), so this kernel is then byte-for-byte
-! identical to advance_rk_stage_mg_fused_opt -- the basis of the correctness
-! check against the production kernel.
-!
-! The production kernel has no clean "coarse residual" moment to smooth: its
-! restrict step fuses the block-sum directly with the coef*dtblk scale, and
-! its coarse workspace (corr) is declared at level-1 size and reused only via
-! a strided leading corner for coarser levels -- not contiguous, so it cannot
-! be handed to smooth_residual_tri as-is. Here each level instead restricts the
-! raw block-sum residual into its own slice of the caller-owned flat buffer
-! coarse_res_buf (levels packed back-to-back, largest first, so no per-level
-! stride reuse), smooths that slice in place via smooth_residual_tri (passed
-! by sequence association -- the same manual-offset idiom smooth_residual_tri
-! itself uses internally for its Thomas coefficients, residual.f90:758-768),
-! then scales the smoothed values into corr exactly as _opt did with the raw
-! sum. tri_work_buf is the equivalent caller-owned packed scratch for
-! smooth_residual_tri's per-level Thomas coefficients. Both buffers are sized
-! once by the caller (see mg_irs_scratch_sizes on the Python side) and reused
-! every call -- no allocation here.
-subroutine advance_rk_stage_mg_fused_irs(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, sf_irs, n_levels, tmp, corr, dtblk, aplane, bb, &
-        coarse_res_buf, tri_work_buf, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k, n_res_max, n_tri_max)
-
+! RK stage, multigrid on, coarse-level IRS. q = residual (passed directly).
+subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
+        alpha, cfl, fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, &
+        rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
-
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
-    integer, intent(in) :: n_res_max, n_tri_max
+    integer, intent(in) :: n_corr, n_res, n_tri
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real,    intent(in) :: vol(ni-1, nj-1, nk-1)
@@ -513,160 +648,58 @@ subroutine advance_rk_stage_mg_fused_irs(cons, snapshot, residual, dt_vol, vol, 
     real,    intent(in) :: snapshot(ni, nj, nk, np)
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
-    real, intent(inout) :: corr(nc1i, nc1j, nc1k, np)
     real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
     real, intent(inout) :: aplane(ni-1, nc1j)
     real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
-    real, intent(inout) :: coarse_res_buf(n_res_max)
-    real, intent(inout) :: tri_work_buf(n_tri_max)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: smooth_residual_tri
 
-    integer :: i, j, k, ip, lvl, b, nib, njb, nkb, ib, jb, kb
-    integer :: ii, jj, kk, lin
-    integer :: off_res, off_tri, cnt_res, cnt_tri
-    real    :: coef, s, s_dt, s_v
-    integer :: il(ni-1), ih(ni-1), jl(nj-1), jh(nj-1), kl(nk-1), kh(nk-1)
-    real    :: wi(ni-1), wj(nj-1), wk(nk-1)
-
-    ! Fine RK term (see advance_rk_stage_mg_fused_opt for the n_levels==1 fold-in).
-    if (n_levels == 0) then
-        do ip = 1, np
-            do k = 1, nk-1
-                do j = 1, nj-1
-                    do i = 1, ni-1
-                        tmp(i,j,k,ip) = alpha * cfl * dt_vol(i,j,k) * residual(i,j,k,ip)
-                    end do
-                end do
-            end do
-        end do
-    end if
-
-    off_res = 0
-    off_tri = 0
-    do lvl = 1, n_levels
-        b = 2**lvl
-        nib = (ni-1)/b
-        njb = (nj-1)/b
-        nkb = (nk-1)/b
-        coef = alpha * cfl * fmgrid / real(b*b) * 2e0**(-(lvl-1))
-        cnt_res = nib*njb*nkb*np
-        cnt_tri = 2*(nib+njb+nkb)
-
-        ! Coarse timestep: volume-weighted mean of dt_vol over the block (see
-        ! scree_advance_mg for the derivation from multall's STEP1). Independent
-        ! of ip, so it is its own pass; consumed by the scale pass below.
-        do kb = 1, nkb
-            do jb = 1, njb
-                do ib = 1, nib
-                    s_dt = 0e0
-                    s_v  = 0e0
-                    do kk = (kb-1)*b+1, kb*b
-                        do jj = (jb-1)*b+1, jb*b
-                            do ii = (ib-1)*b+1, ib*b
-                                s_dt = s_dt + dt_vol(ii,jj,kk)*vol(ii,jj,kk)
-                                s_v  = s_v  + vol(ii,jj,kk)
-                            end do
-                        end do
-                    end do
-                    dtblk(ib,jb,kb) = s_dt / s_v
-                end do
-            end do
-        end do
-
-        ! Restrict: raw block-sum residual (no scale yet), written into this
-        ! level's slice of coarse_res_buf via manual column-major flat indexing.
-        do ip = 1, np
-            do kb = 1, nkb
-                do jb = 1, njb
-                    do ib = 1, nib
-                        s = 0e0
-                        do kk = (kb-1)*b+1, kb*b
-                            do jj = (jb-1)*b+1, jb*b
-                                do ii = (ib-1)*b+1, ib*b
-                                    s = s + residual(ii,jj,kk,ip)
-                                end do
-                            end do
-                        end do
-                        lin = off_res + ib + (jb-1)*nib + (kb-1)*nib*njb + (ip-1)*nib*njb*nkb
-                        coarse_res_buf(lin) = s
-                    end do
-                end do
-            end do
-        end do
-
-        ! Implicit residual smoothing on the raw coarse residual, in place on
-        ! this level's slice (sequence association: a contiguous 1-D section
-        ! passed to smooth_residual_tri's explicit-shape (nib,njb,nkb,np) dummy).
-        call smooth_residual_tri(coarse_res_buf(off_res+1:off_res+cnt_res), sf_irs, &
-                                  tri_work_buf(off_tri+1:off_tri+cnt_tri), &
-                                  nib+1, njb+1, nkb+1)
-
-        ! Scale the (possibly smoothed) coarse residual into corr.
-        do ip = 1, np
-            do kb = 1, nkb
-                do jb = 1, njb
-                    do ib = 1, nib
-                        lin = off_res + ib + (jb-1)*nib + (kb-1)*nib*njb + (ip-1)*nib*njb*nkb
-                        corr(ib,jb,kb,ip) = coarse_res_buf(lin) * coef * dtblk(ib,jb,kb)
-                    end do
-                end do
-            end do
-        end do
-
-        off_res = off_res + cnt_res
-        off_tri = off_tri + cnt_tri
-
-        ! Bracketing coarse indices and upper-neighbour weights per direction.
-        call mg_prolong_weights(ni-1, b, nib, il, ih, wi)
-        call mg_prolong_weights(nj-1, b, njb, jl, jh, wj)
-        call mg_prolong_weights(nk-1, b, nkb, kl, kh, wk)
-
-        ! Separable trilinear prolong onto tmp (identical to _opt).
-        do ip = 1, np
-            do kb = 1, nkb
-                do jb = 1, njb
-                    do i = 1, ni-1
-                        aplane(i,jb) = corr(il(i),jb,kb,ip)*(1e0-wi(i)) &
-                                     + corr(ih(i),jb,kb,ip)*wi(i)
-                    end do
-                end do
-                do j = 1, nj-1
-                    do i = 1, ni-1
-                        bb(i,j,kb,ip) = aplane(i,jl(j))*(1e0-wj(j)) &
-                                      + aplane(i,jh(j))*wj(j)
-                    end do
-                end do
-            end do
-        end do
-
-        if (lvl == 1) then
-            do ip = 1, np
-                do k = 1, nk-1
-                    do j = 1, nj-1
-                        do i = 1, ni-1
-                            tmp(i,j,k,ip) = &
-                                  alpha * cfl * dt_vol(i,j,k) * residual(i,j,k,ip) &
-                                + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
-                                + bb(i,j,kh(k),ip)*wk(k)
-                        end do
-                    end do
-                end do
-            end do
-        else
-            do ip = 1, np
-                do k = 1, nk-1
-                    do j = 1, nj-1
-                        do i = 1, ni-1
-                            tmp(i,j,k,ip) = tmp(i,j,k,ip) &
-                                          + bb(i,j,kl(k),ip)*(1e0-wk(k)) &
-                                          + bb(i,j,kh(k),ip)*wk(k)
-                        end do
-                    end do
-                end do
-            end do
-        end if
-    end do
-
-    ! cons = snapshot + cell_to_node(tmp). Distinct in/out (snapshot vs cons).
+    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, sf_irs, &
+                       n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
+end subroutine rk_mg_irs
 
-end subroutine advance_rk_stage_mg_fused_irs
+
+! RK stage, multigrid on, no smoothing. q = residual (passed directly).
+subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
+        alpha, cfl, fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, &
+        rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: alpha, cfl, fmgrid, sf_irs
+    real,    intent(in) :: snapshot(ni, nj, nk, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: aplane(ni-1, nc1j)
+    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: mg_smooth_noop
+
+    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, sf_irs, &
+                       n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
+end subroutine rk_mg_noirs

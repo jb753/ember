@@ -1,93 +1,66 @@
 module residual_helpers
     implicit none
     private
-    public :: compute_iface_flows, compute_jface_flows, compute_kface_flows
-    public :: correct_cusp_kface
+    public :: iface_flow_row, jface_flow_row, kface_flow_plane
+    public :: correct_cusp_kface_du
 
 contains
 
-    pure subroutine put_flow(flow, i, j, k, pm, mf, Omega, dA1, dA2, dA3, ni, nj, nk)
-        ! Assemble the 5 inviscid face flows from the face-averaged per-mass
-        ! factors pm(6), mass-flux factors mf(3) and the face area vector dA,
-        ! writing them into flow(i,j,k,:) component-wise (no array temporary).
-        ! pm = (Vx, Vr, r*Vt_abs, ho, P-P_offset, r*(P-P_offset)).
-        ! mf = (rho*Vx, rho*Vr, rho*Vt_rel).
-        implicit none
-        integer, intent(in) :: i, j, k, ni, nj, nk
-        real, intent(inout) :: flow(ni, nj, nk, 5)
-        real, intent(in) :: pm(6), mf(3), Omega, dA1, dA2, dA3
-        real :: mdot
+    ! The three face-flow helpers below assemble, per face, the 5 inviscid
+    ! flows from face-averaged per-mass factors pm(6) and mass-flux factors
+    ! mf(3) via their internal accum/put pairs (bodies identical across the
+    ! three; the wall mask weights mf only):
+    !   pm = (Vx, Vr, r*Vt_abs, ho, P-P_offset, r*(P-P_offset))
+    !   mf = (rho*Vx, rho*Vr, rho*Vt_rel)
+    ! Granularity is one row (i/j directions) or one plane (k direction) so
+    ! the caller can roll small buffers instead of staging full volumes.
 
-        mdot = mf(1)*dA1 + mf(2)*dA2 + mf(3)*dA3
-        flow(i,j,k,1) = mdot
-        flow(i,j,k,2) = pm(1)*mdot + pm(5)*dA1
-        flow(i,j,k,3) = pm(2)*mdot + pm(5)*dA2
-        flow(i,j,k,4) = pm(3)*mdot + pm(6)*dA3
-        flow(i,j,k,5) = pm(4)*mdot + Omega*pm(6)*dA3
-    end subroutine put_flow
-
-
-    pure subroutine compute_iface_flows(vx, vr, vt, ho, P, P_offset, r, &
-                                        cons, vt_rel, Omega, dA, &
-                                        wall_lo, wall_hi, flow, ni, nj, nk)
-        ! Compute inviscid face flows on all i-faces.
-        ! i-face corners: (i, j:j+1, k:k+1)
+    pure subroutine iface_flow_row(vx, vr, vt, ho, P, P_offset, r, &
+                                   cons, Omega, dA, &
+                                   wall_lo, wall_hi, row, j, k, ni, nj, nk)
+        ! Compute inviscid face flows on the ni i-faces of cell row (j,k);
+        ! the i=1 / i=ni boundary faces are wall-masked by the scalars
+        ! wall_lo / wall_hi. i-face corners: (i, j:j+1, k:k+1)
 
         implicit none
-        integer, intent(in) :: ni, nj, nk
+        integer, intent(in) :: j, k, ni, nj, nk
         real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
-        real, intent(in) :: cons(ni, nj, nk, 5), vt_rel(ni, nj, nk)
+        real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
         real, intent(in) :: dA(3, ni, nj-1, nk-1)
-        real, intent(in) :: wall_lo(nj-1, nk-1)
-        real, intent(in) :: wall_hi(nj-1, nk-1)
-        real, intent(out) :: flow(ni, nj, nk, 5)
+        real, intent(in) :: wall_lo, wall_hi
+        real, intent(inout) :: row(ni, 5)
 
-        integer :: i, j, k
+        integer :: i
         real :: pm(6), mf(3)
 
         ! Low boundary i=1
-        do k = 1, nk-1
-        do j = 1, nj-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, 1, j,   k,   wall_lo(j,k))
-            call accum(pm, mf, 1, j+1, k,   wall_lo(j,k))
-            call accum(pm, mf, 1, j,   k+1, wall_lo(j,k))
-            call accum(pm, mf, 1, j+1, k+1, wall_lo(j,k))
-            call put_flow(flow, 1, j, k, pm, mf, Omega, &
-                          dA(1,1,j,k), dA(2,1,j,k), dA(3,1,j,k), ni, nj, nk)
-        end do
-        end do
+        pm = 0.0e0; mf = 0.0e0
+        call accum(pm, mf, 1, j,   k,   wall_lo)
+        call accum(pm, mf, 1, j+1, k,   wall_lo)
+        call accum(pm, mf, 1, j,   k+1, wall_lo)
+        call accum(pm, mf, 1, j+1, k+1, wall_lo)
+        call put(row, 1, pm, mf)
 
         ! Interior i=2..ni-1
-        do k = 1, nk-1
-        do j = 1, nj-1
         do i = 2, ni-1
             pm = 0.0e0; mf = 0.0e0
             call accum(pm, mf, i, j,   k,   1.0e0)
             call accum(pm, mf, i, j+1, k,   1.0e0)
             call accum(pm, mf, i, j,   k+1, 1.0e0)
             call accum(pm, mf, i, j+1, k+1, 1.0e0)
-            call put_flow(flow, i, j, k, pm, mf, Omega, &
-                          dA(1,i,j,k), dA(2,i,j,k), dA(3,i,j,k), ni, nj, nk)
-        end do
-        end do
+            call put(row, i, pm, mf)
         end do
 
         ! High boundary i=ni
-        do k = 1, nk-1
-        do j = 1, nj-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, ni, j,   k,   wall_hi(j,k))
-            call accum(pm, mf, ni, j+1, k,   wall_hi(j,k))
-            call accum(pm, mf, ni, j,   k+1, wall_hi(j,k))
-            call accum(pm, mf, ni, j+1, k+1, wall_hi(j,k))
-            call put_flow(flow, ni, j, k, pm, mf, Omega, &
-                          dA(1,ni,j,k), dA(2,ni,j,k), dA(3,ni,j,k), ni, nj, nk)
-        end do
-        end do
+        pm = 0.0e0; mf = 0.0e0
+        call accum(pm, mf, ni, j,   k,   wall_hi)
+        call accum(pm, mf, ni, j+1, k,   wall_hi)
+        call accum(pm, mf, ni, j,   k+1, wall_hi)
+        call accum(pm, mf, ni, j+1, k+1, wall_hi)
+        call put(row, ni, pm, mf)
 
     contains
         pure subroutine accum(pm, mf, i, j, k, wfac)
@@ -105,72 +78,77 @@ contains
             w = 0.25e0*wfac
             mf(1) = mf(1) + w*cons(i,j,k,2)
             mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*vt_rel(i,j,k)
+            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
         end subroutine accum
-    end subroutine compute_iface_flows
+
+        pure subroutine put(row, i, pm, mf)
+            real, intent(inout) :: row(ni, 5)
+            integer, intent(in) :: i
+            real, intent(in) :: pm(6), mf(3)
+            real :: mdot
+            mdot = mf(1)*dA(1,i,j,k) + mf(2)*dA(2,i,j,k) + mf(3)*dA(3,i,j,k)
+            row(i,1) = mdot
+            row(i,2) = pm(1)*mdot + pm(5)*dA(1,i,j,k)
+            row(i,3) = pm(2)*mdot + pm(5)*dA(2,i,j,k)
+            row(i,4) = pm(3)*mdot + pm(6)*dA(3,i,j,k)
+            row(i,5) = pm(4)*mdot + Omega*pm(6)*dA(3,i,j,k)
+        end subroutine put
+    end subroutine iface_flow_row
 
 
-    pure subroutine compute_jface_flows(vx, vr, vt, ho, P, P_offset, r, &
-                                        cons, vt_rel, Omega, dA, &
-                                        wall_lo, wall_hi, flow, ni, nj, nk)
-        ! Compute inviscid face flows on all j-faces.
-        ! j-face corners: (i:i+1, j, k:k+1)
+    pure subroutine jface_flow_row(vx, vr, vt, ho, P, P_offset, r, &
+                                   cons, Omega, dA, &
+                                   wall_lo, wall_hi, row, jf, k, ni, nj, nk)
+        ! Compute inviscid face flows on the (ni-1) j-faces of face row jf at
+        ! cell plane k; jf=1 / jf=nj are the wall-masked boundary rows.
+        ! j-face corners: (i:i+1, jf, k:k+1)
 
         implicit none
-        integer, intent(in) :: ni, nj, nk
+        integer, intent(in) :: jf, k, ni, nj, nk
         real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
-        real, intent(in) :: cons(ni, nj, nk, 5), vt_rel(ni, nj, nk)
+        real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
         real, intent(in) :: dA(3, ni-1, nj, nk-1)
         real, intent(in) :: wall_lo(ni-1, nk-1)
         real, intent(in) :: wall_hi(ni-1, nk-1)
-        real, intent(out) :: flow(ni, nj, nk, 5)
+        real, intent(inout) :: row(ni, 5)
 
-        integer :: i, j, k
+        integer :: i
         real :: pm(6), mf(3)
 
-        ! Low boundary j=1
-        do k = 1, nk-1
-        do i = 1, ni-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, i,   1, k,   wall_lo(i,k))
-            call accum(pm, mf, i+1, 1, k,   wall_lo(i,k))
-            call accum(pm, mf, i,   1, k+1, wall_lo(i,k))
-            call accum(pm, mf, i+1, 1, k+1, wall_lo(i,k))
-            call put_flow(flow, i, 1, k, pm, mf, Omega, &
-                          dA(1,i,1,k), dA(2,i,1,k), dA(3,i,1,k), ni, nj, nk)
-        end do
-        end do
-
-        ! Interior j=2..nj-1
-        do k = 1, nk-1
-        do j = 2, nj-1
-        do i = 1, ni-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, i,   j, k,   1.0e0)
-            call accum(pm, mf, i+1, j, k,   1.0e0)
-            call accum(pm, mf, i,   j, k+1, 1.0e0)
-            call accum(pm, mf, i+1, j, k+1, 1.0e0)
-            call put_flow(flow, i, j, k, pm, mf, Omega, &
-                          dA(1,i,j,k), dA(2,i,j,k), dA(3,i,j,k), ni, nj, nk)
-        end do
-        end do
-        end do
-
-        ! High boundary j=nj
-        do k = 1, nk-1
-        do i = 1, ni-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, i,   nj, k,   wall_hi(i,k))
-            call accum(pm, mf, i+1, nj, k,   wall_hi(i,k))
-            call accum(pm, mf, i,   nj, k+1, wall_hi(i,k))
-            call accum(pm, mf, i+1, nj, k+1, wall_hi(i,k))
-            call put_flow(flow, i, nj, k, pm, mf, Omega, &
-                          dA(1,i,nj,k), dA(2,i,nj,k), dA(3,i,nj,k), ni, nj, nk)
-        end do
-        end do
+        if (jf == 1) then
+            ! Low boundary j=1
+            do i = 1, ni-1
+                pm = 0.0e0; mf = 0.0e0
+                call accum(pm, mf, i,   1, k,   wall_lo(i,k))
+                call accum(pm, mf, i+1, 1, k,   wall_lo(i,k))
+                call accum(pm, mf, i,   1, k+1, wall_lo(i,k))
+                call accum(pm, mf, i+1, 1, k+1, wall_lo(i,k))
+                call put(row, i, pm, mf)
+            end do
+        else if (jf == nj) then
+            ! High boundary j=nj
+            do i = 1, ni-1
+                pm = 0.0e0; mf = 0.0e0
+                call accum(pm, mf, i,   nj, k,   wall_hi(i,k))
+                call accum(pm, mf, i+1, nj, k,   wall_hi(i,k))
+                call accum(pm, mf, i,   nj, k+1, wall_hi(i,k))
+                call accum(pm, mf, i+1, nj, k+1, wall_hi(i,k))
+                call put(row, i, pm, mf)
+            end do
+        else
+            ! Interior 2 <= jf <= nj-1
+            do i = 1, ni-1
+                pm = 0.0e0; mf = 0.0e0
+                call accum(pm, mf, i,   jf, k,   1.0e0)
+                call accum(pm, mf, i+1, jf, k,   1.0e0)
+                call accum(pm, mf, i,   jf, k+1, 1.0e0)
+                call accum(pm, mf, i+1, jf, k+1, 1.0e0)
+                call put(row, i, pm, mf)
+            end do
+        end if
 
     contains
         pure subroutine accum(pm, mf, i, j, k, wfac)
@@ -188,72 +166,85 @@ contains
             w = 0.25e0*wfac
             mf(1) = mf(1) + w*cons(i,j,k,2)
             mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*vt_rel(i,j,k)
+            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
         end subroutine accum
-    end subroutine compute_jface_flows
+
+        pure subroutine put(row, i, pm, mf)
+            real, intent(inout) :: row(ni, 5)
+            integer, intent(in) :: i
+            real, intent(in) :: pm(6), mf(3)
+            real :: mdot
+            mdot = mf(1)*dA(1,i,jf,k) + mf(2)*dA(2,i,jf,k) + mf(3)*dA(3,i,jf,k)
+            row(i,1) = mdot
+            row(i,2) = pm(1)*mdot + pm(5)*dA(1,i,jf,k)
+            row(i,3) = pm(2)*mdot + pm(5)*dA(2,i,jf,k)
+            row(i,4) = pm(3)*mdot + pm(6)*dA(3,i,jf,k)
+            row(i,5) = pm(4)*mdot + Omega*pm(6)*dA(3,i,jf,k)
+        end subroutine put
+    end subroutine jface_flow_row
 
 
-    pure subroutine compute_kface_flows(vx, vr, vt, ho, P, P_offset, r, &
-                                        cons, vt_rel, Omega, dA, &
-                                        wall_lo, wall_hi, flow, ni, nj, nk)
-        ! Compute inviscid face flows on all k-faces.
-        ! k-face corners: (i:i+1, j:j+1, k)
+    pure subroutine kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, &
+                                     cons, Omega, dA, &
+                                     wall_lo, wall_hi, plane, kf, njp, &
+                                     ni, nj, nk)
+        ! Compute inviscid face flows on the (ni-1)x(nj-1) k-face plane kf;
+        ! kf=1 / kf=nk are the wall-masked boundary planes. njp (nj or nj+1)
+        ! is the plane buffer's padded j-extent -- see set_residual.
+        ! k-face corners: (i:i+1, j:j+1, kf)
 
         implicit none
-        integer, intent(in) :: ni, nj, nk
+        integer, intent(in) :: kf, njp, ni, nj, nk
         real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
-        real, intent(in) :: cons(ni, nj, nk, 5), vt_rel(ni, nj, nk)
+        real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
         real, intent(in) :: dA(3, ni-1, nj-1, nk)
         real, intent(in) :: wall_lo(ni-1, nj-1)
         real, intent(in) :: wall_hi(ni-1, nj-1)
-        real, intent(out) :: flow(ni, nj, nk, 5)
+        real, intent(inout) :: plane(ni, njp, 5)
 
-        integer :: i, j, k
+        integer :: i, j
         real :: pm(6), mf(3)
 
-        ! Low boundary k=1
-        do j = 1, nj-1
-        do i = 1, ni-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, i,   j,   1, wall_lo(i,j))
-            call accum(pm, mf, i+1, j,   1, wall_lo(i,j))
-            call accum(pm, mf, i,   j+1, 1, wall_lo(i,j))
-            call accum(pm, mf, i+1, j+1, 1, wall_lo(i,j))
-            call put_flow(flow, i, j, 1, pm, mf, Omega, &
-                          dA(1,i,j,1), dA(2,i,j,1), dA(3,i,j,1), ni, nj, nk)
-        end do
-        end do
-
-        ! Interior k=2..nk-1
-        do k = 2, nk-1
-        do j = 1, nj-1
-        do i = 1, ni-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, i,   j,   k, 1.0e0)
-            call accum(pm, mf, i+1, j,   k, 1.0e0)
-            call accum(pm, mf, i,   j+1, k, 1.0e0)
-            call accum(pm, mf, i+1, j+1, k, 1.0e0)
-            call put_flow(flow, i, j, k, pm, mf, Omega, &
-                          dA(1,i,j,k), dA(2,i,j,k), dA(3,i,j,k), ni, nj, nk)
-        end do
-        end do
-        end do
-
-        ! High boundary k=nk
-        do j = 1, nj-1
-        do i = 1, ni-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, i,   j,   nk, wall_hi(i,j))
-            call accum(pm, mf, i+1, j,   nk, wall_hi(i,j))
-            call accum(pm, mf, i,   j+1, nk, wall_hi(i,j))
-            call accum(pm, mf, i+1, j+1, nk, wall_hi(i,j))
-            call put_flow(flow, i, j, nk, pm, mf, Omega, &
-                          dA(1,i,j,nk), dA(2,i,j,nk), dA(3,i,j,nk), ni, nj, nk)
-        end do
-        end do
+        if (kf == 1) then
+            ! Low boundary k=1
+            do j = 1, nj-1
+            do i = 1, ni-1
+                pm = 0.0e0; mf = 0.0e0
+                call accum(pm, mf, i,   j,   1, wall_lo(i,j))
+                call accum(pm, mf, i+1, j,   1, wall_lo(i,j))
+                call accum(pm, mf, i,   j+1, 1, wall_lo(i,j))
+                call accum(pm, mf, i+1, j+1, 1, wall_lo(i,j))
+                call put(plane, i, j, pm, mf)
+            end do
+            end do
+        else if (kf == nk) then
+            ! High boundary k=nk
+            do j = 1, nj-1
+            do i = 1, ni-1
+                pm = 0.0e0; mf = 0.0e0
+                call accum(pm, mf, i,   j,   nk, wall_hi(i,j))
+                call accum(pm, mf, i+1, j,   nk, wall_hi(i,j))
+                call accum(pm, mf, i,   j+1, nk, wall_hi(i,j))
+                call accum(pm, mf, i+1, j+1, nk, wall_hi(i,j))
+                call put(plane, i, j, pm, mf)
+            end do
+            end do
+        else
+            ! Interior 2 <= kf <= nk-1
+            do j = 1, nj-1
+            do i = 1, ni-1
+                pm = 0.0e0; mf = 0.0e0
+                call accum(pm, mf, i,   j,   kf, 1.0e0)
+                call accum(pm, mf, i+1, j,   kf, 1.0e0)
+                call accum(pm, mf, i,   j+1, kf, 1.0e0)
+                call accum(pm, mf, i+1, j+1, kf, 1.0e0)
+                call put(plane, i, j, pm, mf)
+            end do
+            end do
+        end if
 
     contains
         pure subroutine accum(pm, mf, i, j, k, wfac)
@@ -271,87 +262,163 @@ contains
             w = 0.25e0*wfac
             mf(1) = mf(1) + w*cons(i,j,k,2)
             mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*vt_rel(i,j,k)
+            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
         end subroutine accum
-    end subroutine compute_kface_flows
+
+        pure subroutine put(plane, i, j, pm, mf)
+            real, intent(inout) :: plane(ni, njp, 5)
+            integer, intent(in) :: i, j
+            real, intent(in) :: pm(6), mf(3)
+            real :: mdot
+            mdot = mf(1)*dA(1,i,j,kf) + mf(2)*dA(2,i,j,kf) + mf(3)*dA(3,i,j,kf)
+            plane(i,j,1) = mdot
+            plane(i,j,2) = pm(1)*mdot + pm(5)*dA(1,i,j,kf)
+            plane(i,j,3) = pm(2)*mdot + pm(5)*dA(2,i,j,kf)
+            plane(i,j,4) = pm(3)*mdot + pm(6)*dA(3,i,j,kf)
+            plane(i,j,5) = pm(4)*mdot + Omega*pm(6)*dA(3,i,j,kf)
+        end subroutine put
+    end subroutine kface_flow_plane
 
 
-    subroutine correct_cusp_kface(vx, vr, vt, ho, P, P_offset, r, &
-                                  cons, vt_rel, dAk, flow, &
-                                  i_cusp_start, i_cusp_end, ni, nj, nk)
-        ! Correct k-face flux at cusp faces (matching Multall).
+    subroutine correct_cusp_kface_du(vx, vr, vt, ho, P, P_offset, r, &
+                                     cons, Omega, dAk, &
+                                     wall_lo, wall_hi, dU, &
+                                     i_cusp_start, i_cusp_end, ni, nj, nk)
+        ! Correct the residual for the cusp k-face coupling (matching Multall).
         ! Mass / angular momentum / energy: full TFLUX average across the seam.
         ! Axial and radial momentum: rebuild both faces from seam-averaged
         ! mdot, velocity and pressure, with per-face dAk only.
+        !
+        ! Deferred form for the rolling-buffer sweep: the seam couples the
+        ! k=1 and k=nk faces, whose flows are long retired from the rolling
+        ! buffers, so during the sweep the two seam cells accumulate the raw
+        ! (wall-masked) one-sided fluxes and this pass afterwards adds the
+        ! difference between the corrected and raw seam fluxes to dU. The raw
+        ! fluxes are recomputed here from the nodal fields exactly as
+        ! kface_flow_plane built them (the wall mask weights mf only, so pm
+        ! is shared with the unmasked seam factors); nothing mutates the
+        ! nodal inputs between the sweep and this pass, so the recompute
+        ! matches the sweep's values. Same arithmetic as correcting the flux
+        ! before accumulation, up to float reassociation. (nk=2, where the
+        ! two seam cells coincide, is not supported and must be excluded by
+        ! the caller.)
 
         implicit none
         integer, intent(in) :: ni, nj, nk
         real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
-        real, intent(in) :: cons(ni, nj, nk, 5), vt_rel(ni, nj, nk)
+        real, intent(in) :: cons(ni, nj, nk, 5)
+        real, intent(in) :: Omega
         real, intent(in) :: dAk(3, ni-1, nj-1, nk)
-        real, intent(inout) :: flow(ni, nj, nk, 5)
+        real, intent(in) :: wall_lo(ni-1, nj-1)
+        real, intent(in) :: wall_hi(ni-1, nj-1)
+        real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
         integer, intent(in) :: i_cusp_start, i_cusp_end
 
         integer :: i, j
         real :: pm_lo(6), mf_lo(3), mdot_lo
         real :: pm_hi(6), mf_hi(3), mdot_hi
-        real :: Vx_avg, Vr_avg, P_avg, mdot_avg, imb_mass
+        real :: pmd(6), mfm(3), mdm_lo, mdm_hi
+        real :: raw_lo(5), raw_hi(5), corr_lo(5), corr_hi(5)
+        real :: Vx_avg, Vr_avg, P_avg, mdot_avg
 
         do j = 1, nj-1
         do i = i_cusp_start, i_cusp_end-1
-            ! Seam-averaged per-mass and mass-flux factors at k=1.
+            ! Seam-averaged (unmasked) per-mass and mass-flux factors at k=1.
             pm_lo = 0.0e0; mf_lo = 0.0e0
-            call accum(pm_lo, mf_lo, i,   j,   1)
-            call accum(pm_lo, mf_lo, i+1, j,   1)
-            call accum(pm_lo, mf_lo, i,   j+1, 1)
-            call accum(pm_lo, mf_lo, i+1, j+1, 1)
+            call accum(pm_lo, mf_lo, i,   j,   1, 1.0e0)
+            call accum(pm_lo, mf_lo, i+1, j,   1, 1.0e0)
+            call accum(pm_lo, mf_lo, i,   j+1, 1, 1.0e0)
+            call accum(pm_lo, mf_lo, i+1, j+1, 1, 1.0e0)
             mdot_lo = mf_lo(1)*dAk(1,i,j,1) + mf_lo(2)*dAk(2,i,j,1) &
                     + mf_lo(3)*dAk(3,i,j,1)
 
-            ! Seam-averaged factors at k=nk.
+            ! Seam-averaged (unmasked) factors at k=nk.
             pm_hi = 0.0e0; mf_hi = 0.0e0
-            call accum(pm_hi, mf_hi, i,   j,   nk)
-            call accum(pm_hi, mf_hi, i+1, j,   nk)
-            call accum(pm_hi, mf_hi, i,   j+1, nk)
-            call accum(pm_hi, mf_hi, i+1, j+1, nk)
+            call accum(pm_hi, mf_hi, i,   j,   nk, 1.0e0)
+            call accum(pm_hi, mf_hi, i+1, j,   nk, 1.0e0)
+            call accum(pm_hi, mf_hi, i,   j+1, nk, 1.0e0)
+            call accum(pm_hi, mf_hi, i+1, j+1, nk, 1.0e0)
             mdot_hi = mf_hi(1)*dAk(1,i,j,nk) + mf_hi(2)*dAk(2,i,j,nk) &
                     + mf_hi(3)*dAk(3,i,j,nk)
 
-            ! Seam-averaged primitives (Vx, Vr, P) and mdot.
+            ! Raw (wall-masked) seam fluxes exactly as the sweep accumulated
+            ! them: masked mf, unmasked pm (pm_lo/pm_hi carry the identical
+            ! values, the mask never touches pm), assembled as put_flow does.
+            pmd = 0.0e0; mfm = 0.0e0
+            call accum(pmd, mfm, i,   j,   1, wall_lo(i,j))
+            call accum(pmd, mfm, i+1, j,   1, wall_lo(i,j))
+            call accum(pmd, mfm, i,   j+1, 1, wall_lo(i,j))
+            call accum(pmd, mfm, i+1, j+1, 1, wall_lo(i,j))
+            mdm_lo = mfm(1)*dAk(1,i,j,1) + mfm(2)*dAk(2,i,j,1) &
+                   + mfm(3)*dAk(3,i,j,1)
+            raw_lo(1) = mdm_lo
+            raw_lo(2) = pm_lo(1)*mdm_lo + pm_lo(5)*dAk(1,i,j,1)
+            raw_lo(3) = pm_lo(2)*mdm_lo + pm_lo(5)*dAk(2,i,j,1)
+            raw_lo(4) = pm_lo(3)*mdm_lo + pm_lo(6)*dAk(3,i,j,1)
+            raw_lo(5) = pm_lo(4)*mdm_lo + Omega*pm_lo(6)*dAk(3,i,j,1)
+
+            pmd = 0.0e0; mfm = 0.0e0
+            call accum(pmd, mfm, i,   j,   nk, wall_hi(i,j))
+            call accum(pmd, mfm, i+1, j,   nk, wall_hi(i,j))
+            call accum(pmd, mfm, i,   j+1, nk, wall_hi(i,j))
+            call accum(pmd, mfm, i+1, j+1, nk, wall_hi(i,j))
+            mdm_hi = mfm(1)*dAk(1,i,j,nk) + mfm(2)*dAk(2,i,j,nk) &
+                   + mfm(3)*dAk(3,i,j,nk)
+            raw_hi(1) = mdm_hi
+            raw_hi(2) = pm_hi(1)*mdm_hi + pm_hi(5)*dAk(1,i,j,nk)
+            raw_hi(3) = pm_hi(2)*mdm_hi + pm_hi(5)*dAk(2,i,j,nk)
+            raw_hi(4) = pm_hi(3)*mdm_hi + pm_hi(6)*dAk(3,i,j,nk)
+            raw_hi(5) = pm_hi(4)*mdm_hi + Omega*pm_hi(6)*dAk(3,i,j,nk)
+
+            ! Seam-averaged primitives (Vx, Vr, P) and (unmasked) mdot.
             Vx_avg   = 0.5e0*(pm_lo(1) + pm_hi(1))
             Vr_avg   = 0.5e0*(pm_lo(2) + pm_hi(2))
             P_avg    = 0.5e0*(pm_lo(5) + pm_hi(5))
             mdot_avg = 0.5e0*(mdot_lo + mdot_hi)
 
-            ! Mass (m=1): full TFLUX average.
-            imb_mass = 0.5e0*(flow(i,j,1,1) + flow(i,j,nk,1))
-            flow(i,j,1,1)  = imb_mass
-            flow(i,j,nk,1) = imb_mass
+            ! Corrected seam fluxes. Mass (m=1): full TFLUX average of the
+            ! raw fluxes, shared by both faces.
+            corr_lo(1) = 0.5e0*(raw_lo(1) + raw_hi(1))
+            corr_hi(1) = corr_lo(1)
 
             ! Axial momentum (m=2): rebuild both faces from averaged
             ! mdot*Vx + P*Ax, using each face's own dAk(1,...).
-            flow(i,j,1,2)  = mdot_avg*Vx_avg + P_avg*dAk(1,i,j,1)
-            flow(i,j,nk,2) = mdot_avg*Vx_avg + P_avg*dAk(1,i,j,nk)
+            corr_lo(2) = mdot_avg*Vx_avg + P_avg*dAk(1,i,j,1)
+            corr_hi(2) = mdot_avg*Vx_avg + P_avg*dAk(1,i,j,nk)
 
             ! Radial momentum (m=3): same with dAk(2,...).
-            flow(i,j,1,3)  = mdot_avg*Vr_avg + P_avg*dAk(2,i,j,1)
-            flow(i,j,nk,3) = mdot_avg*Vr_avg + P_avg*dAk(2,i,j,nk)
+            corr_lo(3) = mdot_avg*Vr_avg + P_avg*dAk(2,i,j,1)
+            corr_hi(3) = mdot_avg*Vr_avg + P_avg*dAk(2,i,j,nk)
 
             ! Angular momentum (m=4) and energy (m=5): full TFLUX average.
-            flow(i,j,1,4)  = 0.5e0*(flow(i,j,1,4) + flow(i,j,nk,4))
-            flow(i,j,nk,4) = flow(i,j,1,4)
-            flow(i,j,1,5)  = 0.5e0*(flow(i,j,1,5) + flow(i,j,nk,5))
-            flow(i,j,nk,5) = flow(i,j,1,5)
+            corr_lo(4) = 0.5e0*(raw_lo(4) + raw_hi(4))
+            corr_hi(4) = corr_lo(4)
+            corr_lo(5) = 0.5e0*(raw_lo(5) + raw_hi(5))
+            corr_hi(5) = corr_lo(5)
+
+            ! Apply to the residual: the k=1 cell reads face 1 with + sign,
+            ! the k=nk-1 cell reads face nk with - sign.
+            dU(i,j,1,1) = dU(i,j,1,1) + (corr_lo(1) - raw_lo(1))
+            dU(i,j,1,2) = dU(i,j,1,2) + (corr_lo(2) - raw_lo(2))
+            dU(i,j,1,3) = dU(i,j,1,3) + (corr_lo(3) - raw_lo(3))
+            dU(i,j,1,4) = dU(i,j,1,4) + (corr_lo(4) - raw_lo(4))
+            dU(i,j,1,5) = dU(i,j,1,5) + (corr_lo(5) - raw_lo(5))
+            dU(i,j,nk-1,1) = dU(i,j,nk-1,1) - (corr_hi(1) - raw_hi(1))
+            dU(i,j,nk-1,2) = dU(i,j,nk-1,2) - (corr_hi(2) - raw_hi(2))
+            dU(i,j,nk-1,3) = dU(i,j,nk-1,3) - (corr_hi(3) - raw_hi(3))
+            dU(i,j,nk-1,4) = dU(i,j,nk-1,4) - (corr_hi(4) - raw_hi(4))
+            dU(i,j,nk-1,5) = dU(i,j,nk-1,5) - (corr_hi(5) - raw_hi(5))
         end do
         end do
 
     contains
-        pure subroutine accum(pm, mf, i, j, k)
+        pure subroutine accum(pm, mf, i, j, k, wfac)
             real, intent(inout) :: pm(6), mf(3)
             integer, intent(in) :: i, j, k
-            real :: dp
+            real, intent(in) :: wfac
+            real :: dp, w
             dp = P(i,j,k) - P_offset
             pm(1) = pm(1) + 0.25e0*vx(i,j,k)
             pm(2) = pm(2) + 0.25e0*vr(i,j,k)
@@ -359,11 +426,12 @@ contains
             pm(4) = pm(4) + 0.25e0*ho(i,j,k)
             pm(5) = pm(5) + 0.25e0*dp
             pm(6) = pm(6) + 0.25e0*r(i,j,k)*dp
-            mf(1) = mf(1) + 0.25e0*cons(i,j,k,2)
-            mf(2) = mf(2) + 0.25e0*cons(i,j,k,3)
-            mf(3) = mf(3) + 0.25e0*cons(i,j,k,1)*vt_rel(i,j,k)
+            w = 0.25e0*wfac
+            mf(1) = mf(1) + w*cons(i,j,k,2)
+            mf(2) = mf(2) + w*cons(i,j,k,3)
+            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
         end subroutine accum
-    end subroutine correct_cusp_kface
+    end subroutine correct_cusp_kface_du
 
 
 end module residual_helpers
@@ -372,20 +440,49 @@ end module residual_helpers
 ! =====================================================================
 ! v3 unscaled residual: single pass over precomputed nodal primitives.
 ! Per-mass (perm) and mass-flux (mflux) factors are read directly from
-! cached nodal arrays (vx, vr, vt, vt_rel, ho) and assembled per face,
-! so the only scratch needed is the 5-wide reusable `flow` buffer.
+! cached nodal arrays (vx, vr, vt, ho) and assembled per face; the
+! relative tangential velocity (Vt - Omega*r) is derived inline rather
+! than read from its own stored array (see accum() in each face helper).
+!
+! k-slab cache blocking and rolling-buffer fusion
+! -----------------------------------------------
+! The three face-direction sweeps are tiled over slabs of kb cell planes
+! (1 <= kb <= nk-1) so a slab's nodal input planes stay cache-resident
+! across all three directions. Within a slab each direction fuses its
+! face-flow computation with its dU accumulate through a rolling buffer,
+! so no slab-sized flow scratch exists:
+!   - i+j-directions: fused per (j,k) row into a single dU write -- the
+!     i-face row (rows slot 1) and the rolling j-face pair (rows slots
+!     2/3) are both consumed in one expression (i-diff + f_body + j-diff),
+!     cutting dU from three touches per slab (write, RMW, RMW) to two;
+!   - k-direction: an alternating face-plane pair (planes slots 1/2),
+!     persisting across the slab boundary (the intervening i/j phases
+!     touch only rows), so the shared face plane carries automatically.
+!
+! Unlike the staged version, dU accumulates in two stages (the fused i+j
+! write dU = i-diff + f_body + j-diff, then += k-diff) instead of one
+! fused seven-term expression: the per-face flow values are identical, but
+! the final sum is reassociated, so results differ from the staged kernel
+! by a few ulp on near-cancelling cells. This is a deliberate, bounded
+! float32 tolerance in exchange for keeping the slab tiling together
+! with the rolling buffers (the bitwise-preserving alternative needed a
+! single all-direction sweep, which measured slower at large planes).
+!
+! The cusp seam (k=1 face coupled to k=nk) is non-local in k and is
+! applied as a deferred O(surface) correction to dU after the sweep
+! (see correct_cusp_kface_du).
 ! =====================================================================
 subroutine set_residual( &
     cons, P, P_offset, &
     r, Omega, dAi, dAj, dAk, &
     f_body, &
     dU, &
-    vx, vr, vt, vt_rel, ho, &
-    flow_i, flow_jk, &
+    vx, vr, vt, ho, &
+    planes, rows, &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
     i_cusp_start, i_cusp_end, &
-    ni, nj, nk &
+    kb, njp, ni, nj, nk &
     )
 
     use residual_helpers
@@ -404,7 +501,6 @@ subroutine set_residual( &
     real, intent(in) :: vx(ni, nj, nk)
     real, intent(in) :: vr(ni, nj, nk)
     real, intent(in) :: vt(ni, nj, nk)
-    real, intent(in) :: vt_rel(ni, nj, nk)
     real, intent(in) :: ho(ni, nj, nk)
     real, intent(in) :: walli1(nj-1, nk-1)
     real, intent(in) :: wallni(nj-1, nk-1)
@@ -414,45 +510,102 @@ subroutine set_residual( &
     real, intent(in) :: wallnk(ni-1, nj-1)
     integer, intent(in) :: i_cusp_start, i_cusp_end
     real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    ! Two transient flow-scratch buffers so all three direction flows coexist
-    ! and the dU accumulation fuses into one pass. flow_i (5 slots) holds the
-    ! i-face flows; flow_jk (10 slots) holds j-face (1:5) and k-face (6:10).
-    ! Caller backs these with block._scratch and block._tau_q_halo, which are
-    ! pure transient scratch -- the (i,j,k) layout here is private to this call.
-    real, intent(inout) :: flow_i(ni, nj, nk, 5)
-    real, intent(inout) :: flow_jk(ni, nj, nk, 10)
-    integer, intent(in) :: ni, nj, nk
+    ! Two transient rolling flow-scratch buffers: planes holds the k-face
+    ! plane pair (slots pa/pb), rows holds the i-face row (slot 1) and the
+    ! j-face row pair (slots ja/jb alternating 2/3). Caller backs these with
+    ! block._tau_q_halo, which is pure transient scratch -- the layout here
+    ! is private to this call. njp is planes' padded j-extent, chosen by the
+    ! caller: nj+1 whenever ni*nj*4 bytes is a whole page multiple (e.g.
+    ! ni=128, nj=96: 48 KB exactly), so the ten concurrent component streams
+    ! of the k-accumulate (5 components x pa/pb) never 4K-alias into the
+    ! same L1 sets; nj otherwise (measured: an unconditional pad costs ~5%
+    ! at small blocks it does not help).
+    real, intent(inout) :: planes(ni, njp, 5, 2)
+    real, intent(inout) :: rows(ni, 5, 3)
+    integer, intent(in) :: kb, njp, ni, nj, nk
 
-    integer :: i, j, k, m
+    integer :: i, j, k, m, k0, k1, kf0, ja, jb, pa, pb, stmp
 
-    ! Each direction writes its own contiguous 5-slot sub-block. In Fortran
-    ! column-major order flow_jk(:,:,:,a:b) is contiguous (last axis varies
-    ! slowest), so these slices pass without array temporaries.
-    call compute_iface_flows(vx, vr, vt, ho, P, P_offset, r, cons, vt_rel, &
-                             Omega, dAi, walli1, wallni, flow_i, ni, nj, nk)
-    call compute_jface_flows(vx, vr, vt, ho, P, P_offset, r, cons, vt_rel, &
-                             Omega, dAj, wallj1, wallnj, flow_jk(:,:,:,1:5), ni, nj, nk)
-    call compute_kface_flows(vx, vr, vt, ho, P, P_offset, r, cons, vt_rel, &
-                             Omega, dAk, wallk1, wallnk, flow_jk(:,:,:,6:10), ni, nj, nk)
-    if (i_cusp_start > 0) then
-        call correct_cusp_kface(vx, vr, vt, ho, P, P_offset, r, cons, vt_rel, &
-                                dAk, flow_jk(:,:,:,6:10), i_cusp_start, i_cusp_end, &
-                                ni, nj, nk)
+    pa = 1
+    pb = 2
+
+    do k0 = 1, nk-1, kb
+    k1 = min(k0 + kb - 1, nk-1)
+
+    ! --- i+j directions fused per (j,k) row ---
+    ! For each cell row (j,k): compute the i-face row (slot 1) and advance
+    ! the rolling j-face pair (slots ja/jb), then write dU once with both
+    ! contributions folded in (i-diff + f_body + j-diff). This cuts dU from
+    ! three touches per slab (write, RMW, RMW) to two; the i-face slot and
+    ! the j-face pair are disjoint slots that already coexist in rows.
+    do k = k0, k1
+        ja = 2
+        jb = 3
+        ! Prime the rolling j-face pair with the j=1 boundary face.
+        call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+                            Omega, dAj, wallj1, wallnj, rows(:,:,ja), &
+                            1, k, ni, nj, nk)
+        do j = 1, nj-1
+            call iface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+                                Omega, dAi, walli1(j,k), wallni(j,k), &
+                                rows(:,:,1), j, k, ni, nj, nk)
+            call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+                                Omega, dAj, wallj1, wallnj, rows(:,:,jb), &
+                                j+1, k, ni, nj, nk)
+            do m = 1, 5
+            do i = 1, ni-1
+                dU(i,j,k,m) = rows(i,m,1) - rows(i+1,m,1) + f_body(i,j,k,m) &
+                            + rows(i,m,ja) - rows(i,m,jb)
+            end do
+            end do
+            stmp = ja
+            ja = jb
+            jb = stmp
+        end do
+    end do
+
+    ! --- k-direction: faces k0..k1+1, fused with a rolling plane pair ---
+    ! Slot pa holds the previous face plane k-1; face k is computed into
+    ! slot pb, then cell plane k-1 is differenced and the slots swap. The
+    ! slab's low face plane k0 is the previous slab's high plane and is
+    ! still in slot pa -- the intervening i/j phases touch only rows -- so
+    ! the carry is automatic and only the first slab computes its own k=1
+    ! face plane.
+    if (k0 == 1) then
+        kf0 = 1
+    else
+        kf0 = k0 + 1
     end if
+    do k = kf0, k1+1
+        call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
+                              Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
+                              k, njp, ni, nj, nk)
+        ! Accumulate cell plane k-1 between faces k-1 (pa) and k (pb)
+        if (k > k0) then
+            do m = 1, 5
+            do j = 1, nj-1
+            do i = 1, ni-1
+                dU(i,j,k-1,m) = dU(i,j,k-1,m) &
+                              + planes(i,j,m,pa) - planes(i,j,m,pb)
+            end do
+            end do
+            end do
+        end if
+        stmp = pa
+        pa = pb
+        pb = stmp
+    end do
 
-    ! Fused accumulation: dU written once, never read back.
-    do m = 1, 5
-    do k = 1, nk-1
-    do j = 1, nj-1
-    do i = 1, ni-1
-        dU(i,j,k,m) = flow_i(i,j,k,m)     - flow_i(i+1,j,k,m)     &
-                    + flow_jk(i,j,k,m)    - flow_jk(i,j+1,k,m)    &
-                    + flow_jk(i,j,k,m+5)  - flow_jk(i,j,k+1,m+5)  &
-                    + f_body(i,j,k,m)
-    end do
-    end do
-    end do
-    end do
+    end do  ! ===== end slab sweep =====
+
+    ! Cusp seam: non-local in k (couples the k=1 and k=nk faces), applied as
+    ! a deferred O(surface) correction to dU after the sweep. nk=2 (the two
+    ! seam cells coincide) is not supported.
+    if (i_cusp_start > 0 .and. nk > 2) then
+        call correct_cusp_kface_du(vx, vr, vt, ho, P, P_offset, r, cons, &
+                                   Omega, dAk, wallk1, wallnk, dU, &
+                                   i_cusp_start, i_cusp_end, ni, nj, nk)
+    end if
 
 end subroutine set_residual
 
@@ -675,7 +828,8 @@ subroutine smooth_residual_tri(dU, sf, work, ni, nj, nk)
     integer, intent(in) :: ni, nj, nk
     real, intent(in)    :: sf
     real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    real, intent(inout) :: work(2*((ni-1) + (nj-1) + (nk-1)))
+    ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
+    real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
 
     integer :: i, j, k, m, nci, ncj, nck
     integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
@@ -825,7 +979,8 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
     integer, intent(in) :: ni, nj, nk
     real, intent(in)    :: sf
     real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    real, intent(inout) :: work(2*((ni-1) + (nj-1) + (nk-1)))
+    ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
+    real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
 
     integer :: i, j, k, m, nci, ncj, nck
     integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik

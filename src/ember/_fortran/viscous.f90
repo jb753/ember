@@ -18,6 +18,7 @@ module viscous_helpers
     public :: wall_func
     public :: wall_func_iface, wall_func_jface, wall_func_kface
     public :: compute_tau, grad_cell_cached, compute_q
+    public :: kface_flow
 
 contains
 
@@ -254,6 +255,45 @@ contains
                + 0.125e0 * (s1 + s2) / rc) * (lambda * 0.5e0)
     end subroutine compute_q
 
+    ! One k-face viscous flux at face plane k: identical arithmetic to the
+    ! k-direction face loop in set_visc_force. Used only by the O(surface)
+    ! cusp-seam correction pass there, never by the hot slab loops (which keep
+    ! the body inlined for vectorization). tau_cell/q_cell are halo-indexed
+    ! (ni+1, nj+1, nk+1, 6/3), component-last.
+    pure subroutine kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, k, flow)
+        implicit none
+        real, intent(in), contiguous :: tau_cell(:,:,:,:), q_cell(:,:,:,:)
+        real, intent(in), contiguous :: Vx(:,:,:), Vr(:,:,:), Vt(:,:,:), r(:,:,:)
+        real, intent(in), contiguous :: dAk(:,:,:,:)
+        real, intent(in) :: Omega_block
+        integer, intent(in) :: i, j, k
+        real, intent(out) :: flow(4)
+        real :: tauf(6), qf(3), Vf(3), rf, Vabs, wvisc(3)
+        tauf(1) = (tau_cell(i+1, j+1, k, 1) + tau_cell(i+1, j+1, k+1, 1)) * 0.5e0
+        tauf(2) = (tau_cell(i+1, j+1, k, 2) + tau_cell(i+1, j+1, k+1, 2)) * 0.5e0
+        tauf(3) = (tau_cell(i+1, j+1, k, 3) + tau_cell(i+1, j+1, k+1, 3)) * 0.5e0
+        tauf(4) = (tau_cell(i+1, j+1, k, 4) + tau_cell(i+1, j+1, k+1, 4)) * 0.5e0
+        tauf(5) = (tau_cell(i+1, j+1, k, 5) + tau_cell(i+1, j+1, k+1, 5)) * 0.5e0
+        tauf(6) = (tau_cell(i+1, j+1, k, 6) + tau_cell(i+1, j+1, k+1, 6)) * 0.5e0
+        qf(1)   = (q_cell(i+1, j+1, k, 1) + q_cell(i+1, j+1, k+1, 1)) * 0.5e0
+        qf(2)   = (q_cell(i+1, j+1, k, 2) + q_cell(i+1, j+1, k+1, 2)) * 0.5e0
+        qf(3)   = (q_cell(i+1, j+1, k, 3) + q_cell(i+1, j+1, k+1, 3)) * 0.5e0
+        Vf(1) = (Vx(i,j,k) + Vx(i+1,j,k) + Vx(i,j+1,k) + Vx(i+1,j+1,k)) * 0.25e0
+        Vf(2) = (Vr(i,j,k) + Vr(i+1,j,k) + Vr(i,j+1,k) + Vr(i+1,j+1,k)) * 0.25e0
+        Vf(3) = (Vt(i,j,k) + Vt(i+1,j,k) + Vt(i,j+1,k) + Vt(i+1,j+1,k)) * 0.25e0
+        rf     = (r(i,j,k)  + r(i+1,j,k)  + r(i,j+1,k)  + r(i+1,j+1,k))  * 0.25e0
+        Vabs = Vf(3) + Omega_block * rf
+        flow(1) = tauf(1)*dAk(1,i,j,k) + tauf(4)*dAk(2,i,j,k) + tauf(5)*dAk(3,i,j,k)
+        flow(2) = tauf(4)*dAk(1,i,j,k) + tauf(2)*dAk(2,i,j,k) + tauf(6)*dAk(3,i,j,k)
+        flow(3) = (tauf(5)*dAk(1,i,j,k) + tauf(6)*dAk(2,i,j,k) + tauf(3)*dAk(3,i,j,k)) * rf
+        wvisc(1) = Vf(1)*tauf(1) + Vf(2)*tauf(4) + Vabs*tauf(5)
+        wvisc(2) = Vf(1)*tauf(4) + Vf(2)*tauf(2) + Vabs*tauf(6)
+        wvisc(3) = Vf(1)*tauf(5) + Vf(2)*tauf(6) + Vabs*tauf(3)
+        flow(4) = (wvisc(1)-qf(1))*dAk(1,i,j,k) &
+                + (wvisc(2)-qf(2))*dAk(2,i,j,k) &
+                + (wvisc(3)-qf(3))*dAk(3,i,j,k)
+    end subroutine kface_flow
+
 end module viscous_helpers
 
 ! Compute viscous fluxes fvisc for all cells using a three-pass algorithm.
@@ -276,7 +316,8 @@ end module viscous_helpers
 !         the correct face value without an extra factor.
 !
 ! Pass 2  Accumulate viscous face flows into fvisc one coordinate direction at a
-!         time, reusing flow_scratch between directions.  For each direction:
+!         time, staging face flows in a small rolling buffer per direction.
+!         For each direction:
 !
 !         Boundary faces (i=1, i=ni, j=1, j=nj, k=1, k=nk):
 !           Face stress is taken from the single adjacent interior cell (already
@@ -291,8 +332,8 @@ end module viscous_helpers
 !           cells.  Face velocity is inlined as the average of four nodes at the
 !           face (avoiding a function-call overhead in the hot loop).
 !
-!         After all face flows for a direction are in flow_scratch, fvisc is
-!         updated as:  fvisc(i,j,k) += flow_scratch(lo_face) - flow_scratch(hi_face)
+!         As soon as both face flows adjacent to a cell exist in the rolling
+!         buffer, fvisc is updated as:  fvisc(cell) += flow(lo_face) - flow(hi_face)
 !
 ! Scratch layout (16 nodal slots total):
 !   slots 0-5:   tau_cell  (6,ni,nj,nk) -- written pass 1, read pass 2
@@ -473,10 +514,36 @@ end subroutine set_tau_q_soa
 ! have been exchanged across periodic boundaries since eval_tau_q returned),
 ! compute face fluxes and accumulate into fvisc.
 !
-! tau_cell and q_cell are halo-dimensioned (6/3, ni+1, nj+1, nk+1): owned
+! tau_cell and q_cell are halo-dimensioned (ni+1, nj+1, nk+1, 6/3): owned
 ! cells sit at indices 2..ni (2..nj, 2..nk).  Halo slots 1 and ni+1 (etc.)
 ! will carry neighbour data after exchange; until then the boundary loops
 ! below are single-sided and use only the nearest owned cell, as before.
+!
+! k-slab cache blocking and rolling-buffer fusion
+! -----------------------------------------------
+! The three face-direction sweeps are tiled over slabs of kb cell planes
+! (1 <= kb <= nk-1) so that a slab's tau_cell/q_cell planes stay hot in cache
+! across all three directions: tau/q is then streamed from memory roughly once
+! instead of once per direction. Within a slab the i-, j- and k-direction
+! sweeps run back to back, and each fuses its face-flux loop with its fvisc
+! accumulate through a rolling buffer, so no slab-sized flow scratch exists:
+!   - i-direction: one face row (rows slot 1) per (j,k), differenced in place;
+!   - j-direction: an alternating face-row pair (rows slots 2/3);
+!   - k-direction: an alternating face-plane pair (planes slots 1/2).
+! The per-cell arithmetic and its ordering (i, then j, then k) are identical
+! to the staged version, so the result differs only by float reassociation at
+! the cusp seam (see below).
+!
+! The k direction couples adjacent slabs: a slab's low k-face plane is the
+! previous slab's high plane. The rolling plane pair persists across the slab
+! boundary (the intervening i/j phases touch only rows), so the carry is
+! automatic, and the carried plane preserves the k=2 / k=nk-1 wall-function
+! injections for both adjacent cells.
+!
+! The cusp seam (k=1 face coupled to k=nk) is inherently non-local in k, so it
+! is handled by an O(surface) correction pass after the slab sweep instead of
+! the pre-accumulation flux averaging the unblocked version used; see the
+! comment at the correction loop.
 subroutine set_visc_force( &
     cons, vol, dAi, dAj, dAk, &
     Omega_block, r, mu, &
@@ -484,18 +551,18 @@ subroutine set_visc_force( &
     Vx, Vr, Vt, &
     tau_cell, &
     q_cell, &
-    flow_scratch, &
+    planes, rows, &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
     Omega_walli1_nd, Omega_wallj1_nd, Omega_wallk1_nd, &
     Omega_wallni_nd, Omega_wallnj_nd, Omega_wallnk_nd, &
     i_cusp_start, i_cusp_end, &
-    ni, nj, nk)
+    kb, ni, nj, nk)
 
     use viscous_helpers
     implicit none
 
-    integer, intent(in) :: ni, nj, nk
+    integer, intent(in) :: ni, nj, nk, kb
     real, intent(in) :: cons(ni, nj, nk, 5)
     real, intent(in) :: vol(ni-1, nj-1, nk-1)
     real, intent(in) :: dAi(3, ni, nj-1, nk-1)
@@ -509,7 +576,8 @@ subroutine set_visc_force( &
     real, intent(in) :: Vt(ni, nj, nk)
     real, intent(inout) :: tau_cell(ni+1, nj+1, nk+1, 6)
     real, intent(inout) :: q_cell(ni+1, nj+1, nk+1, 3)
-    real, intent(inout) :: flow_scratch(ni, nj, nk, 4)
+    real, intent(inout) :: planes(ni, nj, 4, 2)
+    real, intent(inout) :: rows(ni, 4, 3)
     real, intent(in) :: walli1(nj-1, nk-1)
     real, intent(in) :: wallni(nj-1, nk-1)
     real, intent(in) :: wallj1(ni-1, nk-1)
@@ -525,8 +593,10 @@ subroutine set_visc_force( &
     integer, intent(in) :: i_cusp_start, i_cusp_end
 
     integer :: i, j, k
+    integer :: k0, k1, kf0, sa, sb, pa, pb, stmp
     real :: tauf(6), qf(3), Vf(3), rf
     real :: wvisc(3), Vabs, wf(4), wfac
+    real :: flow1(4), flownk(4), fcorr(4)
 
     ! ===== Scale boundary halos by (2*wall-1) =====
     ! wall=0 (wall face): factor=-1, giving -edge so face average is zero.
@@ -575,130 +645,152 @@ subroutine set_visc_force( &
     end do
     end do
 
-    ! ===== Uniform face loops =====
+    ! ===== Uniform face loops, tiled over k-slabs, fused accumulation =====
     ! Every face averages the two adjacent halo-indexed cells.
     ! Boundary faces use the ghost values written by eval_tau_q and exchange_halos.
+    ! Each slab owns cell planes k0..k1 (the last slab may be short); each
+    ! direction stages its face flows only in a rolling buffer (see header).
 
-    ! --- i-direction: faces i=1..ni ---
-    do k = 1, nk-1
+    pa = 1
+    pb = 2
+
+    do k0 = 1, nk-1, kb
+    k1 = min(k0 + kb - 1, nk-1)
+
+    ! --- i-direction: faces i=1..ni, fused per (j,k) row ---
+    do k = k0, k1
     do j = 1, nj-1
-    do i = 1, ni
-        tauf(1) = (tau_cell(i, j+1, k+1, 1) + tau_cell(i+1, j+1, k+1, 1)) * 0.5e0
-        tauf(2) = (tau_cell(i, j+1, k+1, 2) + tau_cell(i+1, j+1, k+1, 2)) * 0.5e0
-        tauf(3) = (tau_cell(i, j+1, k+1, 3) + tau_cell(i+1, j+1, k+1, 3)) * 0.5e0
-        tauf(4) = (tau_cell(i, j+1, k+1, 4) + tau_cell(i+1, j+1, k+1, 4)) * 0.5e0
-        tauf(5) = (tau_cell(i, j+1, k+1, 5) + tau_cell(i+1, j+1, k+1, 5)) * 0.5e0
-        tauf(6) = (tau_cell(i, j+1, k+1, 6) + tau_cell(i+1, j+1, k+1, 6)) * 0.5e0
-        qf(1)   = (q_cell(i, j+1, k+1, 1) + q_cell(i+1, j+1, k+1, 1)) * 0.5e0
-        qf(2)   = (q_cell(i, j+1, k+1, 2) + q_cell(i+1, j+1, k+1, 2)) * 0.5e0
-        qf(3)   = (q_cell(i, j+1, k+1, 3) + q_cell(i+1, j+1, k+1, 3)) * 0.5e0
-        Vf(1) = (Vx(i,j,k) + Vx(i,j+1,k) + Vx(i,j,k+1) + Vx(i,j+1,k+1)) * 0.25e0
-        Vf(2) = (Vr(i,j,k) + Vr(i,j+1,k) + Vr(i,j,k+1) + Vr(i,j+1,k+1)) * 0.25e0
-        Vf(3) = (Vt(i,j,k) + Vt(i,j+1,k) + Vt(i,j,k+1) + Vt(i,j+1,k+1)) * 0.25e0
-        rf     = (r(i,j,k)  + r(i,j+1,k)  + r(i,j,k+1)  + r(i,j+1,k+1))  * 0.25e0
-        Vabs = Vf(3) + Omega_block * rf
-        flow_scratch(i,j,k,1) = tauf(1)*dAi(1,i,j,k) + tauf(4)*dAi(2,i,j,k) + tauf(5)*dAi(3,i,j,k)
-        flow_scratch(i,j,k,2) = tauf(4)*dAi(1,i,j,k) + tauf(2)*dAi(2,i,j,k) + tauf(6)*dAi(3,i,j,k)
-        flow_scratch(i,j,k,3) = (tauf(5)*dAi(1,i,j,k) + tauf(6)*dAi(2,i,j,k) + tauf(3)*dAi(3,i,j,k)) * rf
-        wvisc(1) = Vf(1)*tauf(1) + Vf(2)*tauf(4) + Vabs*tauf(5)
-        wvisc(2) = Vf(1)*tauf(4) + Vf(2)*tauf(2) + Vabs*tauf(6)
-        wvisc(3) = Vf(1)*tauf(5) + Vf(2)*tauf(6) + Vabs*tauf(3)
-        flow_scratch(i,j,k,4) = (wvisc(1)-qf(1))*dAi(1,i,j,k) &
-                               + (wvisc(2)-qf(2))*dAi(2,i,j,k) &
-                               + (wvisc(3)-qf(3))*dAi(3,i,j,k)
-    end do
-    end do
-    end do
-    ! ===== Wall function injected as i=2 / i=ni-1 face flow =====
-    do k = 1, nk-1
-    do j = 1, nj-1
+        do i = 1, ni
+            tauf(1) = (tau_cell(i, j+1, k+1, 1) + tau_cell(i+1, j+1, k+1, 1)) * 0.5e0
+            tauf(2) = (tau_cell(i, j+1, k+1, 2) + tau_cell(i+1, j+1, k+1, 2)) * 0.5e0
+            tauf(3) = (tau_cell(i, j+1, k+1, 3) + tau_cell(i+1, j+1, k+1, 3)) * 0.5e0
+            tauf(4) = (tau_cell(i, j+1, k+1, 4) + tau_cell(i+1, j+1, k+1, 4)) * 0.5e0
+            tauf(5) = (tau_cell(i, j+1, k+1, 5) + tau_cell(i+1, j+1, k+1, 5)) * 0.5e0
+            tauf(6) = (tau_cell(i, j+1, k+1, 6) + tau_cell(i+1, j+1, k+1, 6)) * 0.5e0
+            qf(1)   = (q_cell(i, j+1, k+1, 1) + q_cell(i+1, j+1, k+1, 1)) * 0.5e0
+            qf(2)   = (q_cell(i, j+1, k+1, 2) + q_cell(i+1, j+1, k+1, 2)) * 0.5e0
+            qf(3)   = (q_cell(i, j+1, k+1, 3) + q_cell(i+1, j+1, k+1, 3)) * 0.5e0
+            Vf(1) = (Vx(i,j,k) + Vx(i,j+1,k) + Vx(i,j,k+1) + Vx(i,j+1,k+1)) * 0.25e0
+            Vf(2) = (Vr(i,j,k) + Vr(i,j+1,k) + Vr(i,j,k+1) + Vr(i,j+1,k+1)) * 0.25e0
+            Vf(3) = (Vt(i,j,k) + Vt(i,j+1,k) + Vt(i,j,k+1) + Vt(i,j+1,k+1)) * 0.25e0
+            rf     = (r(i,j,k)  + r(i,j+1,k)  + r(i,j,k+1)  + r(i,j+1,k+1))  * 0.25e0
+            Vabs = Vf(3) + Omega_block * rf
+            rows(i,1,1) = tauf(1)*dAi(1,i,j,k) + tauf(4)*dAi(2,i,j,k) + tauf(5)*dAi(3,i,j,k)
+            rows(i,2,1) = tauf(4)*dAi(1,i,j,k) + tauf(2)*dAi(2,i,j,k) + tauf(6)*dAi(3,i,j,k)
+            rows(i,3,1) = (tauf(5)*dAi(1,i,j,k) + tauf(6)*dAi(2,i,j,k) + tauf(3)*dAi(3,i,j,k)) * rf
+            wvisc(1) = Vf(1)*tauf(1) + Vf(2)*tauf(4) + Vabs*tauf(5)
+            wvisc(2) = Vf(1)*tauf(4) + Vf(2)*tauf(2) + Vabs*tauf(6)
+            wvisc(3) = Vf(1)*tauf(5) + Vf(2)*tauf(6) + Vabs*tauf(3)
+            rows(i,4,1) = (wvisc(1)-qf(1))*dAi(1,i,j,k) &
+                        + (wvisc(2)-qf(2))*dAi(2,i,j,k) &
+                        + (wvisc(3)-qf(3))*dAi(3,i,j,k)
+        end do
+        ! Wall function injected as the row's i=2 / i=ni-1 face flow
         wfac = 1.0e0 - walli1(j,k)
         call wall_func_iface(r, dAi, vol, Omega_block, Omega_walli1_nd(j,k), mu, cons(:,:,:,1), Vx, Vr, Vt, 1, j, k, 1, wf)
-        flow_scratch(2,j,k,1) = walli1(j,k)*flow_scratch(2,j,k,1) + wfac*wf(1)
-        flow_scratch(2,j,k,2) = walli1(j,k)*flow_scratch(2,j,k,2) + wfac*wf(2)
-        flow_scratch(2,j,k,3) = walli1(j,k)*flow_scratch(2,j,k,3) + wfac*wf(3)
-        flow_scratch(2,j,k,4) = walli1(j,k)*flow_scratch(2,j,k,4) + wfac*wf(4)
+        rows(2,1,1) = walli1(j,k)*rows(2,1,1) + wfac*wf(1)
+        rows(2,2,1) = walli1(j,k)*rows(2,2,1) + wfac*wf(2)
+        rows(2,3,1) = walli1(j,k)*rows(2,3,1) + wfac*wf(3)
+        rows(2,4,1) = walli1(j,k)*rows(2,4,1) + wfac*wf(4)
         wfac = 1.0e0 - wallni(j,k)
         call wall_func_iface(r, dAi, vol, Omega_block, Omega_wallni_nd(j,k), mu, cons(:,:,:,1), Vx, Vr, Vt, ni, j, k, -1, wf)
-        flow_scratch(ni-1,j,k,1) = wallni(j,k)*flow_scratch(ni-1,j,k,1) + wfac*wf(1)
-        flow_scratch(ni-1,j,k,2) = wallni(j,k)*flow_scratch(ni-1,j,k,2) + wfac*wf(2)
-        flow_scratch(ni-1,j,k,3) = wallni(j,k)*flow_scratch(ni-1,j,k,3) + wfac*wf(3)
-        flow_scratch(ni-1,j,k,4) = wallni(j,k)*flow_scratch(ni-1,j,k,4) + wfac*wf(4)
-    end do
-    end do
-    ! --- accumulate i-direction ---
-    do k = 1, nk-1
-    do j = 1, nj-1
-    do i = 1, ni-1
-        fvisc(i,j,k,1) = flow_scratch(i,j,k,1) - flow_scratch(i+1,j,k,1)
-        fvisc(i,j,k,2) = flow_scratch(i,j,k,2) - flow_scratch(i+1,j,k,2)
-        fvisc(i,j,k,3) = flow_scratch(i,j,k,3) - flow_scratch(i+1,j,k,3)
-        fvisc(i,j,k,4) = flow_scratch(i,j,k,4) - flow_scratch(i+1,j,k,4)
-    end do
+        rows(ni-1,1,1) = wallni(j,k)*rows(ni-1,1,1) + wfac*wf(1)
+        rows(ni-1,2,1) = wallni(j,k)*rows(ni-1,2,1) + wfac*wf(2)
+        rows(ni-1,3,1) = wallni(j,k)*rows(ni-1,3,1) + wfac*wf(3)
+        rows(ni-1,4,1) = wallni(j,k)*rows(ni-1,4,1) + wfac*wf(4)
+        ! Accumulate the row (first direction: assignment)
+        do i = 1, ni-1
+            fvisc(i,j,k,1) = rows(i,1,1) - rows(i+1,1,1)
+            fvisc(i,j,k,2) = rows(i,2,1) - rows(i+1,2,1)
+            fvisc(i,j,k,3) = rows(i,3,1) - rows(i+1,3,1)
+            fvisc(i,j,k,4) = rows(i,4,1) - rows(i+1,4,1)
+        end do
     end do
     end do
 
-    ! --- j-direction: faces j=1..nj ---
-    do k = 1, nk-1
+    ! --- j-direction: faces j=1..nj, fused with a rolling row pair ---
+    ! Slot sa holds the previous face row j-1; face j is computed into slot
+    ! sb, wall-injected if it is the j=2 / j=nj-1 face, then cell row j-1 is
+    ! differenced and the slots swap.
+    do k = k0, k1
+    sa = 2
+    sb = 3
     do j = 1, nj
-    do i = 1, ni-1
-        tauf(1) = (tau_cell(i+1, j, k+1, 1) + tau_cell(i+1, j+1, k+1, 1)) * 0.5e0
-        tauf(2) = (tau_cell(i+1, j, k+1, 2) + tau_cell(i+1, j+1, k+1, 2)) * 0.5e0
-        tauf(3) = (tau_cell(i+1, j, k+1, 3) + tau_cell(i+1, j+1, k+1, 3)) * 0.5e0
-        tauf(4) = (tau_cell(i+1, j, k+1, 4) + tau_cell(i+1, j+1, k+1, 4)) * 0.5e0
-        tauf(5) = (tau_cell(i+1, j, k+1, 5) + tau_cell(i+1, j+1, k+1, 5)) * 0.5e0
-        tauf(6) = (tau_cell(i+1, j, k+1, 6) + tau_cell(i+1, j+1, k+1, 6)) * 0.5e0
-        qf(1)   = (q_cell(i+1, j, k+1, 1) + q_cell(i+1, j+1, k+1, 1)) * 0.5e0
-        qf(2)   = (q_cell(i+1, j, k+1, 2) + q_cell(i+1, j+1, k+1, 2)) * 0.5e0
-        qf(3)   = (q_cell(i+1, j, k+1, 3) + q_cell(i+1, j+1, k+1, 3)) * 0.5e0
-        Vf(1) = (Vx(i,j,k) + Vx(i+1,j,k) + Vx(i,j,k+1) + Vx(i+1,j,k+1)) * 0.25e0
-        Vf(2) = (Vr(i,j,k) + Vr(i+1,j,k) + Vr(i,j,k+1) + Vr(i+1,j,k+1)) * 0.25e0
-        Vf(3) = (Vt(i,j,k) + Vt(i+1,j,k) + Vt(i,j,k+1) + Vt(i+1,j,k+1)) * 0.25e0
-        rf     = (r(i,j,k)  + r(i+1,j,k)  + r(i,j,k+1)  + r(i+1,j,k+1))  * 0.25e0
-        Vabs = Vf(3) + Omega_block * rf
-        flow_scratch(i,j,k,1) = tauf(1)*dAj(1,i,j,k) + tauf(4)*dAj(2,i,j,k) + tauf(5)*dAj(3,i,j,k)
-        flow_scratch(i,j,k,2) = tauf(4)*dAj(1,i,j,k) + tauf(2)*dAj(2,i,j,k) + tauf(6)*dAj(3,i,j,k)
-        flow_scratch(i,j,k,3) = (tauf(5)*dAj(1,i,j,k) + tauf(6)*dAj(2,i,j,k) + tauf(3)*dAj(3,i,j,k)) * rf
-        wvisc(1) = Vf(1)*tauf(1) + Vf(2)*tauf(4) + Vabs*tauf(5)
-        wvisc(2) = Vf(1)*tauf(4) + Vf(2)*tauf(2) + Vabs*tauf(6)
-        wvisc(3) = Vf(1)*tauf(5) + Vf(2)*tauf(6) + Vabs*tauf(3)
-        flow_scratch(i,j,k,4) = (wvisc(1)-qf(1))*dAj(1,i,j,k) &
-                               + (wvisc(2)-qf(2))*dAj(2,i,j,k) &
-                               + (wvisc(3)-qf(3))*dAj(3,i,j,k)
-    end do
-    end do
-    end do
-    ! ===== Wall function injected as j=2 / j=nj-1 face flow =====
-    do k = 1, nk-1
-    do i = 1, ni-1
-        wfac = 1.0e0 - wallj1(i,k)
-        call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallj1_nd(i,k), mu, cons(:,:,:,1), Vx, Vr, Vt, i, 1, k, 1, wf)
-        flow_scratch(i,2,k,1) = wallj1(i,k)*flow_scratch(i,2,k,1) + wfac*wf(1)
-        flow_scratch(i,2,k,2) = wallj1(i,k)*flow_scratch(i,2,k,2) + wfac*wf(2)
-        flow_scratch(i,2,k,3) = wallj1(i,k)*flow_scratch(i,2,k,3) + wfac*wf(3)
-        flow_scratch(i,2,k,4) = wallj1(i,k)*flow_scratch(i,2,k,4) + wfac*wf(4)
-        wfac = 1.0e0 - wallnj(i,k)
-        call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallnj_nd(i,k), mu, cons(:,:,:,1), Vx, Vr, Vt, i, nj, k, -1, wf)
-        flow_scratch(i,nj-1,k,1) = wallnj(i,k)*flow_scratch(i,nj-1,k,1) + wfac*wf(1)
-        flow_scratch(i,nj-1,k,2) = wallnj(i,k)*flow_scratch(i,nj-1,k,2) + wfac*wf(2)
-        flow_scratch(i,nj-1,k,3) = wallnj(i,k)*flow_scratch(i,nj-1,k,3) + wfac*wf(3)
-        flow_scratch(i,nj-1,k,4) = wallnj(i,k)*flow_scratch(i,nj-1,k,4) + wfac*wf(4)
-    end do
-    end do
-    ! --- accumulate j-direction ---
-    do k = 1, nk-1
-    do j = 1, nj-1
-    do i = 1, ni-1
-        fvisc(i,j,k,1) = fvisc(i,j,k,1) + flow_scratch(i,j,k,1) - flow_scratch(i,j+1,k,1)
-        fvisc(i,j,k,2) = fvisc(i,j,k,2) + flow_scratch(i,j,k,2) - flow_scratch(i,j+1,k,2)
-        fvisc(i,j,k,3) = fvisc(i,j,k,3) + flow_scratch(i,j,k,3) - flow_scratch(i,j+1,k,3)
-        fvisc(i,j,k,4) = fvisc(i,j,k,4) + flow_scratch(i,j,k,4) - flow_scratch(i,j+1,k,4)
-    end do
+        do i = 1, ni-1
+            tauf(1) = (tau_cell(i+1, j, k+1, 1) + tau_cell(i+1, j+1, k+1, 1)) * 0.5e0
+            tauf(2) = (tau_cell(i+1, j, k+1, 2) + tau_cell(i+1, j+1, k+1, 2)) * 0.5e0
+            tauf(3) = (tau_cell(i+1, j, k+1, 3) + tau_cell(i+1, j+1, k+1, 3)) * 0.5e0
+            tauf(4) = (tau_cell(i+1, j, k+1, 4) + tau_cell(i+1, j+1, k+1, 4)) * 0.5e0
+            tauf(5) = (tau_cell(i+1, j, k+1, 5) + tau_cell(i+1, j+1, k+1, 5)) * 0.5e0
+            tauf(6) = (tau_cell(i+1, j, k+1, 6) + tau_cell(i+1, j+1, k+1, 6)) * 0.5e0
+            qf(1)   = (q_cell(i+1, j, k+1, 1) + q_cell(i+1, j+1, k+1, 1)) * 0.5e0
+            qf(2)   = (q_cell(i+1, j, k+1, 2) + q_cell(i+1, j+1, k+1, 2)) * 0.5e0
+            qf(3)   = (q_cell(i+1, j, k+1, 3) + q_cell(i+1, j+1, k+1, 3)) * 0.5e0
+            Vf(1) = (Vx(i,j,k) + Vx(i+1,j,k) + Vx(i,j,k+1) + Vx(i+1,j,k+1)) * 0.25e0
+            Vf(2) = (Vr(i,j,k) + Vr(i+1,j,k) + Vr(i,j,k+1) + Vr(i+1,j,k+1)) * 0.25e0
+            Vf(3) = (Vt(i,j,k) + Vt(i+1,j,k) + Vt(i,j,k+1) + Vt(i+1,j,k+1)) * 0.25e0
+            rf     = (r(i,j,k)  + r(i+1,j,k)  + r(i,j,k+1)  + r(i+1,j,k+1))  * 0.25e0
+            Vabs = Vf(3) + Omega_block * rf
+            rows(i,1,sb) = tauf(1)*dAj(1,i,j,k) + tauf(4)*dAj(2,i,j,k) + tauf(5)*dAj(3,i,j,k)
+            rows(i,2,sb) = tauf(4)*dAj(1,i,j,k) + tauf(2)*dAj(2,i,j,k) + tauf(6)*dAj(3,i,j,k)
+            rows(i,3,sb) = (tauf(5)*dAj(1,i,j,k) + tauf(6)*dAj(2,i,j,k) + tauf(3)*dAj(3,i,j,k)) * rf
+            wvisc(1) = Vf(1)*tauf(1) + Vf(2)*tauf(4) + Vabs*tauf(5)
+            wvisc(2) = Vf(1)*tauf(4) + Vf(2)*tauf(2) + Vabs*tauf(6)
+            wvisc(3) = Vf(1)*tauf(5) + Vf(2)*tauf(6) + Vabs*tauf(3)
+            rows(i,4,sb) = (wvisc(1)-qf(1))*dAj(1,i,j,k) &
+                         + (wvisc(2)-qf(2))*dAj(2,i,j,k) &
+                         + (wvisc(3)-qf(3))*dAj(3,i,j,k)
+        end do
+        ! Wall function injected as the j=2 / j=nj-1 face flow (nj=3: both on
+        ! the same face, wallj1 first, as in the staged version)
+        if (j == 2) then
+            do i = 1, ni-1
+                wfac = 1.0e0 - wallj1(i,k)
+                call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallj1_nd(i,k), mu, cons(:,:,:,1), Vx, Vr, Vt, i, 1, k, 1, wf)
+                rows(i,1,sb) = wallj1(i,k)*rows(i,1,sb) + wfac*wf(1)
+                rows(i,2,sb) = wallj1(i,k)*rows(i,2,sb) + wfac*wf(2)
+                rows(i,3,sb) = wallj1(i,k)*rows(i,3,sb) + wfac*wf(3)
+                rows(i,4,sb) = wallj1(i,k)*rows(i,4,sb) + wfac*wf(4)
+            end do
+        end if
+        if (j == nj-1) then
+            do i = 1, ni-1
+                wfac = 1.0e0 - wallnj(i,k)
+                call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallnj_nd(i,k), mu, cons(:,:,:,1), Vx, Vr, Vt, i, nj, k, -1, wf)
+                rows(i,1,sb) = wallnj(i,k)*rows(i,1,sb) + wfac*wf(1)
+                rows(i,2,sb) = wallnj(i,k)*rows(i,2,sb) + wfac*wf(2)
+                rows(i,3,sb) = wallnj(i,k)*rows(i,3,sb) + wfac*wf(3)
+                rows(i,4,sb) = wallnj(i,k)*rows(i,4,sb) + wfac*wf(4)
+            end do
+        end if
+        ! Accumulate cell row j-1 between faces j-1 (sa) and j (sb)
+        if (j > 1) then
+            do i = 1, ni-1
+                fvisc(i,j-1,k,1) = fvisc(i,j-1,k,1) + rows(i,1,sa) - rows(i,1,sb)
+                fvisc(i,j-1,k,2) = fvisc(i,j-1,k,2) + rows(i,2,sa) - rows(i,2,sb)
+                fvisc(i,j-1,k,3) = fvisc(i,j-1,k,3) + rows(i,3,sa) - rows(i,3,sb)
+                fvisc(i,j-1,k,4) = fvisc(i,j-1,k,4) + rows(i,4,sa) - rows(i,4,sb)
+            end do
+        end if
+        stmp = sa
+        sa = sb
+        sb = stmp
     end do
     end do
 
-    ! --- k-direction: faces k=1..nk ---
-    do k = 1, nk
+    ! --- k-direction: faces k0..k1+1, fused with a rolling plane pair ---
+    ! Slot pa holds the previous face plane k-1; face k is computed into slot
+    ! pb, wall-injected if it is the k=2 / k=nk-1 face, then cell plane k-1 is
+    ! differenced and the slots swap. The slab's low face plane k0 is the
+    ! previous slab's high plane and is still in slot pa -- the intervening
+    ! i/j phases touch only rows -- so the carry is automatic and only the
+    ! first slab computes its own k=1 face plane.
+    if (k0 == 1) then
+        kf0 = 1
+    else
+        kf0 = k0 + 1
+    end if
+    do k = kf0, k1+1
     do j = 1, nj-1
     do i = 1, ni-1
         tauf(1) = (tau_cell(i+1, j+1, k, 1) + tau_cell(i+1, j+1, k+1, 1)) * 0.5e0
@@ -715,18 +807,66 @@ subroutine set_visc_force( &
         Vf(3) = (Vt(i,j,k) + Vt(i+1,j,k) + Vt(i,j+1,k) + Vt(i+1,j+1,k)) * 0.25e0
         rf     = (r(i,j,k)  + r(i+1,j,k)  + r(i,j+1,k)  + r(i+1,j+1,k))  * 0.25e0
         Vabs = Vf(3) + Omega_block * rf
-        flow_scratch(i,j,k,1) = tauf(1)*dAk(1,i,j,k) + tauf(4)*dAk(2,i,j,k) + tauf(5)*dAk(3,i,j,k)
-        flow_scratch(i,j,k,2) = tauf(4)*dAk(1,i,j,k) + tauf(2)*dAk(2,i,j,k) + tauf(6)*dAk(3,i,j,k)
-        flow_scratch(i,j,k,3) = (tauf(5)*dAk(1,i,j,k) + tauf(6)*dAk(2,i,j,k) + tauf(3)*dAk(3,i,j,k)) * rf
+        planes(i,j,1,pb) = tauf(1)*dAk(1,i,j,k) + tauf(4)*dAk(2,i,j,k) + tauf(5)*dAk(3,i,j,k)
+        planes(i,j,2,pb) = tauf(4)*dAk(1,i,j,k) + tauf(2)*dAk(2,i,j,k) + tauf(6)*dAk(3,i,j,k)
+        planes(i,j,3,pb) = (tauf(5)*dAk(1,i,j,k) + tauf(6)*dAk(2,i,j,k) + tauf(3)*dAk(3,i,j,k)) * rf
         wvisc(1) = Vf(1)*tauf(1) + Vf(2)*tauf(4) + Vabs*tauf(5)
         wvisc(2) = Vf(1)*tauf(4) + Vf(2)*tauf(2) + Vabs*tauf(6)
         wvisc(3) = Vf(1)*tauf(5) + Vf(2)*tauf(6) + Vabs*tauf(3)
-        flow_scratch(i,j,k,4) = (wvisc(1)-qf(1))*dAk(1,i,j,k) &
-                               + (wvisc(2)-qf(2))*dAk(2,i,j,k) &
-                               + (wvisc(3)-qf(3))*dAk(3,i,j,k)
+        planes(i,j,4,pb) = (wvisc(1)-qf(1))*dAk(1,i,j,k) &
+                         + (wvisc(2)-qf(2))*dAk(2,i,j,k) &
+                         + (wvisc(3)-qf(3))*dAk(3,i,j,k)
     end do
     end do
+    ! ===== Wall function injected as k=2 / k=nk-1 face flow =====
+    ! At k=1 wall cells, overwrite the face-2 flow with wall_func_kface
+    ! (off-wall stencil). At k=nk wall cells, overwrite the face nk-1 flow.
+    ! Blend by wall mask: wall=0 -> use wf; wall=1 -> keep original.
+    ! Injected right after the face plane is computed, so the accumulate
+    ! below and the carried plane both see the post-injection value (nk=3:
+    ! both injections on the same face, wallk1 first, as before).
+    if (k == 2) then
+        do j = 1, nj-1
+        do i = 1, ni-1
+            wfac = 1.0e0 - wallk1(i,j)
+            call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, 1, 1, wf)
+            planes(i,j,1,pb) = wallk1(i,j)*planes(i,j,1,pb) + wfac*wf(1)
+            planes(i,j,2,pb) = wallk1(i,j)*planes(i,j,2,pb) + wfac*wf(2)
+            planes(i,j,3,pb) = wallk1(i,j)*planes(i,j,3,pb) + wfac*wf(3)
+            planes(i,j,4,pb) = wallk1(i,j)*planes(i,j,4,pb) + wfac*wf(4)
+        end do
+        end do
+    end if
+    if (k == nk-1) then
+        do j = 1, nj-1
+        do i = 1, ni-1
+            wfac = 1.0e0 - wallnk(i,j)
+            call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, nk, -1, wf)
+            planes(i,j,1,pb) = wallnk(i,j)*planes(i,j,1,pb) + wfac*wf(1)
+            planes(i,j,2,pb) = wallnk(i,j)*planes(i,j,2,pb) + wfac*wf(2)
+            planes(i,j,3,pb) = wallnk(i,j)*planes(i,j,3,pb) + wfac*wf(3)
+            planes(i,j,4,pb) = wallnk(i,j)*planes(i,j,4,pb) + wfac*wf(4)
+        end do
+        end do
+    end if
+    ! Accumulate cell plane k-1 between faces k-1 (pa) and k (pb)
+    if (k > k0) then
+        do j = 1, nj-1
+        do i = 1, ni-1
+            fvisc(i,j,k-1,1) = fvisc(i,j,k-1,1) + planes(i,j,1,pa) - planes(i,j,1,pb)
+            fvisc(i,j,k-1,2) = fvisc(i,j,k-1,2) + planes(i,j,2,pa) - planes(i,j,2,pb)
+            fvisc(i,j,k-1,3) = fvisc(i,j,k-1,3) + planes(i,j,3,pa) - planes(i,j,3,pb)
+            fvisc(i,j,k-1,4) = fvisc(i,j,k-1,4) + planes(i,j,4,pa) - planes(i,j,4,pb)
+        end do
+        end do
+    end if
+    stmp = pa
+    pa = pb
+    pb = stmp
     end do
+
+    end do  ! ===== end slab sweep =====
+
     ! --- cusp: couple the viscous k-faces across the seam ---
     ! The seam (a modelled trailing edge) joins the k=1 and k=nk faces. To make
     ! the viscous flux continuous across the cut -- and consistent with the
@@ -735,45 +875,36 @@ subroutine set_visc_force( &
     ! gives the seam cells a real viscous flux that the residual can balance,
     ! instead of the slip-wall decoupling that left the seam over-constrained
     ! (inviscidly coupled but viscously zeroed) and prevented convergence.
-    if (i_cusp_start > 0) then
+    !
+    ! The seam is non-local in k, so under the slab sweep both seam cells have
+    ! accumulated their raw one-sided flux; replacing it with the average is
+    ! the same correction 0.5*(flow(k=nk) - flow(k=1)) for both cells (for the
+    ! k=1 cell avg - flow(1); for the k=nk-1 cell flow(nk) - avg). The two raw
+    ! seam-face fluxes are recomputed via kface_flow: tau_cell/q_cell are
+    ! unchanged since the entry halo scaling and neither seam plane takes a
+    ! wall-function injection, so the recompute matches the sweep's values.
+    ! Same arithmetic as the unblocked version up to float reassociation.
+    ! (nk=2, where the two seam cells coincide, is not supported here.)
+    if (i_cusp_start > 0 .and. nk > 2) then
         do j = 1, nj-1
         do i = i_cusp_start, i_cusp_end-1
-            flow_scratch(i,j,1,:)  = 0.5e0 * (flow_scratch(i,j,1,:) + flow_scratch(i,j,nk,:))
-            flow_scratch(i,j,nk,:) = flow_scratch(i,j,1,:)
+            call kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, 1, flow1)
+            call kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, nk, flownk)
+            fcorr(1) = 0.5e0 * (flownk(1) - flow1(1))
+            fcorr(2) = 0.5e0 * (flownk(2) - flow1(2))
+            fcorr(3) = 0.5e0 * (flownk(3) - flow1(3))
+            fcorr(4) = 0.5e0 * (flownk(4) - flow1(4))
+            fvisc(i,j,1,1) = fvisc(i,j,1,1) + fcorr(1)
+            fvisc(i,j,1,2) = fvisc(i,j,1,2) + fcorr(2)
+            fvisc(i,j,1,3) = fvisc(i,j,1,3) + fcorr(3)
+            fvisc(i,j,1,4) = fvisc(i,j,1,4) + fcorr(4)
+            fvisc(i,j,nk-1,1) = fvisc(i,j,nk-1,1) + fcorr(1)
+            fvisc(i,j,nk-1,2) = fvisc(i,j,nk-1,2) + fcorr(2)
+            fvisc(i,j,nk-1,3) = fvisc(i,j,nk-1,3) + fcorr(3)
+            fvisc(i,j,nk-1,4) = fvisc(i,j,nk-1,4) + fcorr(4)
         end do
         end do
     end if
-    ! ===== Wall function injected as k=2 / k=nk-1 face flow =====
-    ! At k=1 wall cells, overwrite flow_scratch(:,:,2,:) with wall_func_kface
-    ! (off-wall stencil). At k=nk wall cells, overwrite flow_scratch(:,:,nk-1,:).
-    ! Blend by wall mask: wall=0 -> use wf; wall=1 -> keep original.
-    do j = 1, nj-1
-    do i = 1, ni-1
-        wfac = 1.0e0 - wallk1(i,j)
-        call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, 1, 1, wf)
-        flow_scratch(i,j,2,1) = wallk1(i,j)*flow_scratch(i,j,2,1) + wfac*wf(1)
-        flow_scratch(i,j,2,2) = wallk1(i,j)*flow_scratch(i,j,2,2) + wfac*wf(2)
-        flow_scratch(i,j,2,3) = wallk1(i,j)*flow_scratch(i,j,2,3) + wfac*wf(3)
-        flow_scratch(i,j,2,4) = wallk1(i,j)*flow_scratch(i,j,2,4) + wfac*wf(4)
-        wfac = 1.0e0 - wallnk(i,j)
-        call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, nk, -1, wf)
-        flow_scratch(i,j,nk-1,1) = wallnk(i,j)*flow_scratch(i,j,nk-1,1) + wfac*wf(1)
-        flow_scratch(i,j,nk-1,2) = wallnk(i,j)*flow_scratch(i,j,nk-1,2) + wfac*wf(2)
-        flow_scratch(i,j,nk-1,3) = wallnk(i,j)*flow_scratch(i,j,nk-1,3) + wfac*wf(3)
-        flow_scratch(i,j,nk-1,4) = wallnk(i,j)*flow_scratch(i,j,nk-1,4) + wfac*wf(4)
-    end do
-    end do
-    ! --- accumulate k-direction ---
-    do k = 1, nk-1
-    do j = 1, nj-1
-    do i = 1, ni-1
-        fvisc(i,j,k,1) = fvisc(i,j,k,1) + flow_scratch(i,j,k,1) - flow_scratch(i,j,k+1,1)
-        fvisc(i,j,k,2) = fvisc(i,j,k,2) + flow_scratch(i,j,k,2) - flow_scratch(i,j,k+1,2)
-        fvisc(i,j,k,3) = fvisc(i,j,k,3) + flow_scratch(i,j,k,3) - flow_scratch(i,j,k+1,3)
-        fvisc(i,j,k,4) = fvisc(i,j,k,4) + flow_scratch(i,j,k,4) - flow_scratch(i,j,k+1,4)
-    end do
-    end do
-    end do
 
     ! ===== Zero fvisc at wall-adjacent cells =====
     ! The wall-adjacent cell is made entirely inviscid: the wall friction is
