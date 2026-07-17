@@ -83,15 +83,17 @@ def seed_rk_fields(block, seed):
     resid[...] = rng.standard_normal(resid.shape).astype(np.float32)
 
 
-def make_stage_call(grid, sf_irs):
-    """Closure: one production advance_rk_stage_mg stage at the given sf_irs.
+def make_stage_call(grid, sf_irs, fac_mgrid=FAC_MGRID):
+    """Closure: one production advance_rk_stage_mg stage.
 
-    sf_irs > 0 dispatches rk_mg_irs (the changed kernel); sf_irs == 0 dispatches
-    rk_mg_noirs (the unchanged gauge). Both route through _mg_coarse_carve.
+    fac_mgrid > 0: sf_irs > 0 dispatches rk_mg_irs, sf_irs == 0 dispatches
+    rk_mg_noirs (both use the fused final-hop+scatter -- the changed kernels).
+    fac_mgrid == 0 collapses to rk_plain (multigrid off), which is *unchanged*
+    by the fusion and serves as the co-measured cross-build drift gauge.
     """
 
     def call():
-        solver.advance_rk_stage_mg(grid, ALPHA, CFL, FAC_MGRID, N_LEVELS, sf_irs)
+        solver.advance_rk_stage_mg(grid, ALPHA, CFL, fac_mgrid, N_LEVELS, sf_irs)
 
     return call
 
@@ -142,10 +144,13 @@ def main():
         cells = (ni - 1) * (nj - 1) * (nk - 1)
         seed_rk_fields(block, seed=abs(hash(size)) % (2**31))
 
-        # --- Full RK stage: changed kernel (irs) vs unchanged gauge (noirs). ---
+        # --- Full RK stage. irs + noirs are the fused (changed) kernels; plain
+        # (fac_mgrid=0 -> rk_plain) is unchanged by the fusion and is the
+        # co-measured cross-build drift gauge for this A/B. ---
         stage_variants = {
             "irs": make_stage_call(grid, SF_IRS),
             "noirs": make_stage_call(grid, 0.0),
+            "plain": make_stage_call(grid, 0.0, fac_mgrid=0.0),
         }
         reps = args.reps or max(30, int(0.5e9 / (cells * 40)))
         report(rows, args.label, size, cells, "rk_stage",

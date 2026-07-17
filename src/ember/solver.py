@@ -567,14 +567,17 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
     for block in grid:
         ni, nj, nk = block.shape
-        tmp = util.carve_view(block.scratch, (ni - 1, nj - 1, nk - 1, 5))
         if n_levels_eff > 0:
             # Multigrid-on RK wrappers over the scheme-agnostic engine
             # (mg_coarse_correction). sf_irs > 0 selects the coarse-IRS kernel;
             # otherwise the plain _noirs kernel, which enters no smoothing code
             # (the two share the engine and differ only in the smoother passed --
             # no Fortran-side IRS branch). Coarse scratch is carved from
-            # tau_q_halo, dead outside the viscous pass.
+            # tau_q_halo, dead outside the viscous pass. The engine leaves the
+            # coarse correction in acc0; the wrapper's final factor-2 hop is
+            # fused with the cell->node scatter, so instead of a full-volume
+            # increment it takes a rolling two-plane buffer carved from scratch.
+            rbuf = util.carve_view(block.scratch, (ni - 1, nj - 1, 5, 2))
             kernel = (
                 ember.fortran.rk_mg_irs if sf_irs > 0.0 else ember.fortran.rk_mg_noirs
             )
@@ -589,11 +592,12 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
                 fmgrid=fac_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
-                tmp=tmp,
+                rbuf=rbuf,
                 **_mg_coarse_carve(block, ni, nj, nk, n_levels_eff),
             )
         else:
             # Multigrid off: plain Jameson RK fine-term stage, no coarse scratch.
+            tmp = util.carve_view(block.scratch, (ni - 1, nj - 1, nk - 1, 5))
             ember.fortran.rk_plain(
                 cons=block.conserved_nd,
                 snapshot=block.store,
