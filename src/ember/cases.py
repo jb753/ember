@@ -1,10 +1,9 @@
 """Canonical test cases assembled from the core building blocks.
 
-This module holds the case-construction scaffolding shared by the square-duct
-gallery example (``examples/run_duct.py``) and the CLI sweep driver
-(``scripts/run_duct.py``): a single :func:`build_duct_grid` that meshes the
-duct, sets the mean flow and boundary conditions, and applies the
-initial-condition perturbations.
+This module holds the case-construction scaffolding used by the square-duct
+CLI sweep driver (``scripts/run_duct.py``): a single :func:`build_duct_grid`
+that meshes the duct, sets the mean flow and boundary conditions, and applies
+the initial-condition perturbations.
 """
 
 import numpy as np

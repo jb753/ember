@@ -19,23 +19,23 @@ Supported versions and platforms
    versions.
 
 ember follows `SPEC 0 <https://scientific-python.org/specs/spec-0000/>`_ for
-its Python support window, currently **Python |PythonVersion| or newer**. We
+its Python support window, currently Python 3.12 or newer. We
 only test and provide precompiled wheels on Linux. The code may possibly be
 coerced to work on other operating systems, with some modifications, but you
-will need a working Fortran toolchain to build from source.
+will need a working Fortran toolchain to build it from source.
 
 Via the Python Package Index
 ----------------------------
 
 The most convenient way to install ember is via the Python Package Index (PyPI).
-Pass pip the distribution name ``ember-cfd``, not the import name ``ember``:
+Ask for the distribution name ``ember-cfd``, not the import name ``ember``:
 
 .. code-block:: bash
 
    pip install ember-cfd
 
 We precompile and distribute wheels for Linux (x86_64), so if your system
-matches you should not need a Fortran compiler to install from PyPI. On other
+is the same you should not need a Fortran compiler to install from PyPI. On other
 systems, pip will automatically attempt to build from source, which requires a
 Fortran toolchain. Install these packages from your distribution's package
 manager, for example on Debian/Ubuntu:
@@ -79,7 +79,7 @@ Clone the repository and make an editable install with pip:
    pip install -e .
 
 Note that edits to ``.f90`` files are *not* picked up automatically and need
-`pip install -e .` rerun; but edits to Python files are picked up immediately.
+``pip install -e .`` rerun; but edits to Python files are picked up immediately.
 This command always recompiles the Fortran extension from scratch, as when
 installing from a local directory there is no incremental build or wheel cache
 to go stale.
@@ -113,4 +113,4 @@ compilers instead of gfortran, set ``EMBER_COMPILER=ifort`` before installing:
 
    EMBER_COMPILER=ifort pip install -e .
 
-Compiler flags can be further customised by editing ``setup.py``. See the `tools/compile_wilkes.sh` script for an example of how to build on an HPC cluster.
+Compiler flags can be further customised by editing ``setup.py``. See the ``tools/compile_wilkes.sh`` script for an example of how to build on an HPC cluster.

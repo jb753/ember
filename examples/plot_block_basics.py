@@ -24,8 +24,8 @@ import ember.fluid
 # A scalar block: coordinates and velocity
 # ----------------------------------------
 #
-# With no shape argument a block defaults to a single scalar point (shape
-# ``()``).
+# With no shape argument a block defaults to a single scalar point of shape
+# ``()``.
 # Coordinates and velocity components can be set individually, or a velocity
 # vector can be supplied as an array. Flow angles are derived properties.
 
@@ -53,7 +53,7 @@ print(f"Doubled velocity vector: {block.Vxrt}")
 # -------------------
 #
 # A block needs a fluid before any thermodynamic property can be evaluated. The
-# state is then fixed two properties at a time (the two-property rule).
+# state is then fixed two properties at a time by the two-property rule.
 
 # Define a perfect gas
 fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.71)
@@ -61,14 +61,11 @@ fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.71)
 # Read back denstiy and enthalpy from a (P, T) pair.
 block.set_fluid(fluid)
 block.set_P_T(1e5, 300.0)
-print(f"Density {block.rho:.3f} kg/m^3, enthalpy {block.h:.0f} J/kg")
+print(f"From (P,T): rho = {block.rho:.3f} kg/m^3, h = {block.h:.0f} J/kg")
 
-# A different property pair.
-block2 = ember.block.Block()
-block2.set_fluid(fluid)
-block2.set_rho_u(1.1, 1e4)
-T = block2.T
-print(f"Temperature from (rho, u): {T:.1f} K")
+# A different property pair
+block.set_rho_u(1.1, 1e4)
+print(f"From (rho, u): T = {block.T:.1f} K")
 
 # %%
 # Setting state independently

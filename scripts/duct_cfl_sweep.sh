@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bisects the maximum stable CFL for scripts/run_duct.py for each of the three
-# schemes compared in examples/run_duct.py (scree, RK4, RK4+IRS), holding that
+# marching schemes (scree, RK4, RK4+IRS), holding that
 # scheme's other settings fixed. run_duct.py is the sole source of truth for
 # stability -- it exits 1 and prints "Diverged" if the run blows up (checked
 # directly against the final conserved state, not inferred from wall-clock
@@ -51,7 +51,7 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The three schemes from examples/run_duct.py, as "label n_stage sf_resid
+# The three marching schemes, as "label n_stage sf_resid
 # n_step_source". CFL is the swept variable, so it is not fixed here.
 CASES=(
     "scree   0 0.0 5"

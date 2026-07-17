@@ -1,7 +1,7 @@
 # Square-duct empirical CFL stability limits
 
-Empirical maximum-stable-CFL measurements for the three marching schemes compared
-in `examples/run_duct.py`, obtained by bisecting the CFL number with
+Empirical maximum-stable-CFL measurements for the three marching schemes
+(scree, RK4, RK4+IRS), obtained by bisecting the CFL number with
 `scripts/duct_cfl_sweep.sh` (which drives `scripts/run_duct.py` and keys purely on
 its exit code). The measurements bracket the discovery that the old
 sum-of-directional-radii timestep normalisation inflated the CFL number to ~2.3x
