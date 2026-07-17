@@ -756,7 +756,8 @@ subroutine set_visc_force( &
         if (j == nj-1) then
             do i = 1, ni-1
                 wfac = 1.0e0 - wallnj(i,k)
-                call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallnj_nd(i,k), mu, cons(:,:,:,1), Vx, Vr, Vt, i, nj, k, -1, wf)
+                call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallnj_nd(i,k), &
+                    mu, cons(:,:,:,1), Vx, Vr, Vt, i, nj, k, -1, wf)
                 rows(i,1,sb) = wallnj(i,k)*rows(i,1,sb) + wfac*wf(1)
                 rows(i,2,sb) = wallnj(i,k)*rows(i,2,sb) + wfac*wf(2)
                 rows(i,3,sb) = wallnj(i,k)*rows(i,3,sb) + wfac*wf(3)
