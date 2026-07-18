@@ -1296,11 +1296,16 @@ class Grid(_LabelledList):
         caller's responsibility.
         """
         for block in self:
+            ni, nj, nk = block.conserved_nd.shape[:3]
+            # Rolling k-plane buffer for the in-place sweep: min(6,nk) planes
+            # (five held for the high-k biased stencils, plus the two-plane
+            # writeback lag), carved zero-copy from the block scratch.
+            kr = min(6, nk)
             ember.fortran.smooth3d_const(
                 x=block.conserved_nd,
                 sf4=sf4,
                 sf2=sf2,
-                xs=block.scratch[..., 0],
+                xs=util.carve_view(block.scratch, (ni, nj, kr)),
             )
 
     def update_bconds(self, freeze=False):
