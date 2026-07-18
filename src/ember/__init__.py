@@ -10,7 +10,6 @@ for rapid prototyping while maintaining computational efficiency for production 
 """
 
 import os
-import importlib.metadata
 
 # Set default OpenMP thread limit before importing Fortran extensions.
 # The Fortran code uses OpenMP for parallel loops. Default to single-threaded so
@@ -33,5 +32,17 @@ __all__ = [
     "cases",
 ]
 
-__version__ = importlib.metadata.version("ember-cfd")
+# _version.py is generated at build time by setuptools-scm (see pyproject.toml);
+# it is gitignored, so fall back to a runtime metadata lookup when running from
+# an uninstalled source tree that has never been built.
+try:
+    from ember._version import __version__
+except ImportError:  # pragma: no cover - only hit in a bare, unbuilt source tree
+    from importlib.metadata import version, PackageNotFoundError
+
+    try:
+        __version__ = version("ember-cfd")
+    except PackageNotFoundError:
+        __version__ = "0.0.0+unknown"
+
 __copyright__ = "2025 James Brind"

@@ -54,6 +54,10 @@ requires = ["setuptools>=77,<90", "setuptools-scm>=8", "wheel>=0.40", "numpy~=2.
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
+# Materialise the git-tag-derived version into a generated module at build time
+# so ember.__version__ is a baked-in string, not a runtime metadata lookup.
+# This file is generated (gitignored); __init__.py re-exports it.
+version_file = "src/ember/_version.py"
 
 [tool.cibuildwheel]
 build = "cp312-* cp313-* cp314-*"
