@@ -1,200 +1,127 @@
-"""Correctness check and timing benchmark for advance_rk_stage_mg_fused_irs.
+"""A/B benchmark for the RK multigrid stage (docs/dev/viscous_kernels.md 14-15).
 
-Compares the experimental coarse-IRS kernel against the production
-advance_rk_stage_mg_fused_opt on a 97^3 node (96^3 cell) grid:
+Times the whole per-block RK multigrid stage through the real production call
+path ``solver.advance_rk_stage_mg`` (which carves the coarse scratch via
+``solver._mg_coarse_carve`` and dispatches the Fortran kernels), in three
+variants:
 
-1. Correctness: sf_irs=0.0 must match _opt to within float rounding order
-   (see tests/test_mg_irs.py for the same check at a smaller, CI-friendly size).
-2. Benchmark: mean time per call for _opt vs _irs, both at sf_irs=0.0 (isolates
-   the new subroutine's own overhead) and at a representative sf_irs>0 (the
-   real cost of smoothing).
+  * ``irs``   -- ``sf_irs > 0``  -> ``rk_mg_irs``   (coarse IRS smoothing on);
+  * ``noirs`` -- ``sf_irs = 0``  -> ``rk_mg_noirs`` (smoothing off);
+  * ``plain`` -- ``fac_mgrid = 0`` -> ``rk_plain``  (multigrid off).
 
-Run with: uv run python scripts/mg_irs_bench.py
+For an A/B of a change that touches the multigrid kernels, co-measure whichever
+variant the change leaves *unchanged* as the cross-build drift gauge and report
+deltas gauge-corrected against it (e.g. the section-15 scatter fusion touched
+both irs and noirs, so ``plain`` is the gauge).
+
+Protocol mirrors ``scripts/bench_viscous.py`` and viscous_kernels.md section 4:
+one pinned core, ``OMP_NUM_THREADS=1``, warmup, round-robin interleave, median +
+min ns/cell. A/B: ``make compile`` each side of the change. Sizes are NODE dims;
+cell dims (node-1) must be divisible by ``2**n_levels`` (=8 for n_levels=3) so
+multigrid divides evenly (``solver._validate_mg``).
+
+Run:  uv run python scripts/mg_irs_bench.py [--label L] [--csv F] [--reps N]
 """
 
-import logging
-import time
+import argparse
+import os
 
-import numpy as np
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.sched_setaffinity(0, {int(os.environ.get("BENCH_CPU", "2"))})
 
-import ember.grid  # noqa: F401  binds ember.fortran
-import ember
+import numpy as np  # noqa: E402
 
-logging.disable(logging.CRITICAL)
+from ember import solver  # noqa: E402
 
-NP = 5
-NI = NJ = NK = 97  # 96^3 cells, divisible by 2**5
+# Reuse the real single-block grid fixture and the timing/report/CSV helpers
+# from the viscous bench rather than duplicating them.
+from bench_viscous import build_grid, report, time_variants  # noqa: E402
+
+# Node dims; cell dims (node-1) divisible by 8 for n_levels=3.
+SIZES = [(49, 33, 33), (65, 49, 49), (81, 65, 65), (97, 97, 97), (129, 97, 97)]
 N_LEVELS = 3
-N_REPEAT = 30
+CFL = 0.4
+FAC_MGRID = 0.2
+ALPHA = 1.0
+SF_IRS = 0.5
+
+# The swap (untiled vs tiled coarse smoother) is internal to rk_mg_irs and
+# bitwise-invisible at runtime -- the f2py signature is identical on both sides
+# -- so the A/B side cannot be auto-detected. Pass --label explicitly per build.
 
 
-def _make_inputs(ni, nj, nk, seed):
-    rng = np.random.default_rng(seed)
-    residual = np.asfortranarray(
-        rng.standard_normal((ni - 1, nj - 1, nk - 1, NP)).astype(np.float32)
-    )
-    dt_vol = np.asfortranarray(
-        (0.5 + rng.random((ni - 1, nj - 1, nk - 1))).astype(np.float32)
-    )
-    snapshot = np.asfortranarray(
-        rng.standard_normal((ni, nj, nk, NP)).astype(np.float32)
-    )
-    return residual, dt_vol, snapshot
+def seed_rk_fields(block, seed):
+    """Populate the fields advance_rk_stage_mg consumes (store, dt_vol, residual).
 
-
-def _make_scratch(ni, nj, nk):
-    nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
-    tmp = np.asfortranarray(np.zeros((ni - 1, nj - 1, nk - 1, NP), dtype=np.float32))
-    corr = np.asfortranarray(np.zeros((nc1i, nc1j, nc1k, NP), dtype=np.float32))
-    aplane = np.asfortranarray(np.zeros((ni - 1, nc1j), dtype=np.float32))
-    bb = np.asfortranarray(np.zeros((ni - 1, nj - 1, nc1k, NP), dtype=np.float32))
-    return tmp, corr, aplane, bb
-
-
-def _mg_irs_scratch_sizes(ni, nj, nk, n_levels):
-    """Element counts for advance_rk_stage_mg_fused_irs's flat packed scratch.
-
-    Allocated once by the caller (see _build_kwargs) and reused every call --
-    no per-step allocation.
+    Geometry/vol come from build_grid; the RK stage reads only store, residual,
+    dt_vol and vol and writes conserved -- no P/T dependence -- and its streaming
+    loops have no data-dependent branches, so representative random fills give a
+    faithful cost. Mirrors rk_step's ``block.store[...] = conserved_nd`` seed.
     """
-    n_res = n_tri = 0
-    for lvl in range(1, n_levels + 1):
-        b = 2**lvl
-        nib, njb, nkb = (ni - 1) // b, (nj - 1) // b, (nk - 1) // b
-        n_res += nib * njb * nkb * NP
-        n_tri += 2 * (nib + njb + nkb)
-    return n_res, n_tri
+    rng = np.random.default_rng(seed)
+    block.store[...] = block.conserved_nd
+    dt_vol = block.dt_vol_nd
+    dt_vol.flags.writeable = True
+    dt_vol[...] = (0.5 + rng.random(dt_vol.shape)).astype(np.float32)
+    resid = block.residual_nd
+    resid.flags.writeable = True
+    resid[...] = rng.standard_normal(resid.shape).astype(np.float32)
 
 
-def _build_kwargs(residual, dt_vol, snapshot, ni, nj, nk, n_levels, sf_irs=None):
-    cons = np.asfortranarray(snapshot.copy())
-    tmp, corr, aplane, bb = _make_scratch(ni, nj, nk)
-    kwargs = dict(
-        cons=cons,
-        snapshot=snapshot,
-        residual=residual,
-        dt_vol=dt_vol,
-        alpha=1.0,
-        cfl=0.4,
-        fmgrid=0.2,
-        n_levels=n_levels,
-        tmp=tmp,
-        corr=corr,
-        aplane=aplane,
-        bb=bb,
-    )
-    if sf_irs is not None:
-        n_res, n_tri = _mg_irs_scratch_sizes(ni, nj, nk, n_levels)
-        kwargs["sf_irs"] = sf_irs
-        kwargs["coarse_res_buf"] = np.asfortranarray(
-            np.zeros(max(n_res, 1), dtype=np.float32)
-        )
-        kwargs["tri_work_buf"] = np.asfortranarray(
-            np.zeros(max(n_tri, 1), dtype=np.float32)
-        )
-    return kwargs
+def make_stage_call(grid, sf_irs, fac_mgrid=FAC_MGRID):
+    """Closure: one production advance_rk_stage_mg stage.
 
+    fac_mgrid > 0: sf_irs > 0 dispatches rk_mg_irs, sf_irs == 0 dispatches
+    rk_mg_noirs (both use the fused final-hop+scatter -- the changed kernels).
+    fac_mgrid == 0 collapses to rk_plain (multigrid off), which is *unchanged*
+    by the fusion and serves as the co-measured cross-build drift gauge.
+    """
 
-def _run(kernel, residual, dt_vol, snapshot, ni, nj, nk, n_levels, sf_irs=None):
-    kwargs = _build_kwargs(residual, dt_vol, snapshot, ni, nj, nk, n_levels, sf_irs)
-    kernel(**kwargs)
-    return kwargs["cons"]
+    def call():
+        solver.advance_rk_stage_mg(grid, ALPHA, CFL, fac_mgrid, N_LEVELS, sf_irs)
 
-
-def _time_call(
-    kernel, residual, dt_vol, snapshot, ni, nj, nk, n_levels, sf_irs, n_repeat
-):
-    # Buffers built once, outside the timed loop, and reused every call --
-    # matches how a persistent Block's scratch would be reused step to step.
-    kwargs = _build_kwargs(residual, dt_vol, snapshot, ni, nj, nk, n_levels, sf_irs)
-    # Warm-up call (page faults, first-touch, branch predictor).
-    kernel(**kwargs)
-    t0 = time.perf_counter()
-    for _ in range(n_repeat):
-        kernel(**kwargs)
-    elapsed = time.perf_counter() - t0
-    return elapsed / n_repeat
+    return call
 
 
 def main():
-    residual, dt_vol, snapshot = _make_inputs(NI, NJ, NK, seed=0)
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--label", default="run", help="A/B side label (base|cand)")
+    ap.add_argument("--csv", default=None, help="append results to this CSV")
+    ap.add_argument("--reps", type=int, default=None, help="override rep count")
+    args = ap.parse_args()
 
-    print(f"Grid: {NI}x{NJ}x{NK} nodes ({NI - 1}^3 cells), n_levels={N_LEVELS}")
-    print()
+    print(f"# label={args.label}  n_levels={N_LEVELS}  sf_irs={SF_IRS}")
+    print(f"{'label':10s} {'size':>11s} {'kernel':15s} {'variant':>8s} "
+          f"{'med':>8s} {'min':>8s}  (ns/cell)")
 
-    # --- Correctness: sf_irs=0.0 must match production _opt. ---
-    cons_opt = _run(
-        ember.fortran.advance_rk_stage_mg_fused_opt,
-        residual,
-        dt_vol,
-        snapshot,
-        NI,
-        NJ,
-        NK,
-        N_LEVELS,
-    )
-    cons_irs = _run(
-        ember.fortran.advance_rk_stage_mg_fused_irs,
-        residual,
-        dt_vol,
-        snapshot,
-        NI,
-        NJ,
-        NK,
-        N_LEVELS,
-        sf_irs=0.0,
-    )
-    max_abs_diff = np.abs(cons_opt - cons_irs).max()
-    np.testing.assert_allclose(cons_opt, cons_irs, rtol=1e-5, atol=1e-6)
-    print(f"Correctness OK: sf_irs=0.0 matches _opt (max abs diff {max_abs_diff:.3e})")
-    print()
+    rows = []
+    for size in SIZES:
+        grid = build_grid(size)
+        block = list(grid)[0]
+        ni, nj, nk = block.shape
+        cells = (ni - 1) * (nj - 1) * (nk - 1)
+        seed_rk_fields(block, seed=abs(hash(size)) % (2**31))
 
-    # --- Benchmark. ---
-    t_opt = _time_call(
-        ember.fortran.advance_rk_stage_mg_fused_opt,
-        residual,
-        dt_vol,
-        snapshot,
-        NI,
-        NJ,
-        NK,
-        N_LEVELS,
-        None,
-        N_REPEAT,
-    )
-    t_irs_0 = _time_call(
-        ember.fortran.advance_rk_stage_mg_fused_irs,
-        residual,
-        dt_vol,
-        snapshot,
-        NI,
-        NJ,
-        NK,
-        N_LEVELS,
-        0.0,
-        N_REPEAT,
-    )
-    t_irs_smooth = _time_call(
-        ember.fortran.advance_rk_stage_mg_fused_irs,
-        residual,
-        dt_vol,
-        snapshot,
-        NI,
-        NJ,
-        NK,
-        N_LEVELS,
-        0.5,
-        N_REPEAT,
-    )
+        # --- Full RK stage. irs + noirs are the fused (changed) kernels; plain
+        # (fac_mgrid=0 -> rk_plain) is unchanged by the fusion and is the
+        # co-measured cross-build drift gauge for this A/B. ---
+        stage_variants = {
+            "irs": make_stage_call(grid, SF_IRS),
+            "noirs": make_stage_call(grid, 0.0),
+            "plain": make_stage_call(grid, 0.0, fac_mgrid=0.0),
+        }
+        reps = args.reps or max(30, int(0.5e9 / (cells * 40)))
+        report(rows, args.label, size, cells, "rk_stage",
+               time_variants(stage_variants, reps))
 
-    print(f"{'kernel':40s} {'ms/call':>10s} {'vs _opt':>10s}")
-    print(f"{'_opt (production)':40s} {t_opt * 1e3:10.3f} {'1.00x':>10s}")
-    print(
-        f"{'_irs sf_irs=0.0 (overhead only)':40s} {t_irs_0 * 1e3:10.3f} {t_irs_0 / t_opt:9.2f}x"
-    )
-    print(
-        f"{'_irs sf_irs=0.5 (smoothing cost)':40s} {t_irs_smooth * 1e3:10.3f} {t_irs_smooth / t_opt:9.2f}x"
-    )
+    if args.csv:
+        new = not os.path.exists(args.csv)
+        with open(args.csv, "a") as f:
+            if new:
+                f.write("label,size,kernel,variant,med_ns_per_cell,min_ns_per_cell\n")
+            for row in rows:
+                f.write(",".join(str(x) for x in row) + "\n")
+        print(f"# appended {len(rows)} rows to {args.csv}")
 
 
 if __name__ == "__main__":

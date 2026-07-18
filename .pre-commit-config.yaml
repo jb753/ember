@@ -15,7 +15,11 @@ repos:
         name: check fortran syntax
         entry: tools/check_compile.sh
         language: script
-        files: \.f90$
+        # check_compile.sh syntax-checks the whole .f90 set (pass_filenames:
+        # false), so run it on every commit -- not only when a .f90 is staged --
+        # to catch a latent bad line already in the tree (e.g. an over-length
+        # free-form line) on the next commit of any file, not just a .f90 edit.
+        always_run: true
         pass_filenames: false
 
       - id: check-no-typing

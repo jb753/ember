@@ -71,7 +71,7 @@ def _run(residual, dt_vol, vol, snapshot, ni, nj, nk, n_levels, sf_irs=0.0,
         fmgrid=fmgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
-        tmp=Z(ni - 1, nj - 1, nk - 1, NP),
+        rbuf=Z(ni - 1, nj - 1, NP, 2),
         dtblk=Z(nc1i, nc1j, nc1k),
         aplane=Z(ni - 1, nc1j),
         bb=Z(ni - 1, nj - 1, nc1k, NP),
@@ -122,9 +122,15 @@ def test_noirs_kernel_matches_fused_at_sf_zero():
 
 def test_rk_plain_matches_mg_at_fac_mgrid_zero():
     """The multigrid-off kernel rk_plain must reproduce rk_mg_noirs with
-    fac_mgrid=0 byte-for-byte: the coarse coefficient is exactly zero, so the
-    prolonged correction adds exactly 0.0 to the fused fine term (q = residual,
-    so no float32 re-rounding of the fine quantity, unlike the scree scheme)."""
+    fac_mgrid=0 to float32 rounding: the coarse coefficient is exactly zero, so
+    the prolonged correction adds exactly 0.0 to the fine term (identical
+    increment). The two differ only in how the cell->node scatter sums --
+    rk_mg_noirs fuses the final prolong hop with the scatter
+    (mg_prolong2x_fine_scatter, rolling k-planes) while rk_plain writes the full
+    increment and scatters it with cell_to_node_generic -- so the averaging is
+    reassociated by ~1 ulp, matching to a tolerance rather than byte-for-byte.
+    (In production advance_rk_stage_mg routes fac_mgrid=0 to rk_plain itself, so
+    this cross-kernel comparison only bounds the scatter reassociation.)"""
     residual, dt_vol, vol, snapshot = _make_inputs(NI, NJ, NK, seed=9)
 
     cons_mg = _run(
@@ -137,7 +143,7 @@ def test_rk_plain_matches_mg_at_fac_mgrid_zero():
         cons=cons_plain, snapshot=snapshot, residual=residual, dt_vol=dt_vol,
         alpha=1.0, cfl=0.4, tmp=tmp,
     )
-    np.testing.assert_array_equal(cons_plain, cons_mg)
+    np.testing.assert_allclose(cons_plain, cons_mg, atol=1e-6, rtol=1e-3)
 
 
 def test_sf_irs_damps_checkerboard_coarse_correction():
