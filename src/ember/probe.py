@@ -4,7 +4,8 @@ ProbePatch marks a point, face, or interior plane where flow history is
 recorded. It is a passive overlay: it does not change the boundary condition of
 the face it samples, may sit on an interior plane, and is exempt from overlap
 checks so it can coincide with another patch. It is not currently wired into
-ember's solver and is used only for Turbostream 3 file round-tripping.
+ember's solver; it is a generic marker that external solvers or post-processing
+tools can target to request sampled flow history.
 
 See Also
 --------
@@ -15,7 +16,7 @@ from ember.basepatch import Patch
 
 
 class ProbePatch(Patch):
-    """Passive flow-sampling probe (Turbostream 3 kind 8).
+    """Passive flow-sampling probe.
 
     Records flow history at a point, face, or interior plane. Unlike boundary
     patches it does not affect wall/slip treatment of the sampled face -- it is

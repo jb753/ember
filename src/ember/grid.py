@@ -101,14 +101,16 @@ has blown up.
 File formats
 ============
 
-A grid can be read from and written to three formats. The reading methods are
+A grid can be read from and written to two formats. The reading methods are
 constructors, returning a new :class:`Grid`.
 
 * EMB -- :meth:`Grid.read_emb`, :meth:`Grid.write_emb`. Our native format: a pickle of the grid with its blocks, patches, and  labels, optionally gzip-compressed. Being a pickle of the objects themselves, it is the format   that preserves a grid most completely.
 
 * Plot3D -- :meth:`Grid.read_plot3d`, :meth:`Grid.write_plot3d`. The standard multi-block structured interchange format, carrying coordinates only. Boundary patches are stored alongside it in a separate FieldView  boundary file, which may be read and written with the Plot3D file  or on its own via :meth:`Grid.write_fvbnd`.
 
-* TS3 -- :meth:`Grid.read_ts3`, :meth:`Grid.write_ts3`. The HDF5-based format of the Turbostream 3 solver, carrying geometry  and flow field.
+The HDF5-based Turbostream 3 (TS3) solver format is supported by the separate
+``ember-cfd-ts`` plugin (``ember.plugins.ts.read_ts3`` /
+``ember.plugins.ts.write_ts3``), not by core ember.
 """
 
 from ember.collections import _LabelledList, GridPatchCollection
@@ -507,24 +509,6 @@ class Grid(_LabelledList):
                     grid[block_id].patches.append(patch)
 
         return grid
-
-    @classmethod
-    def read_ts3(cls, filename):
-        """Read grid from TS3 format file.
-
-        Parameters
-        ----------
-        filename : str
-            Input TS3 file to read
-
-        Returns
-        -------
-        Grid
-            New grid containing blocks with coordinates and flow data from TS3 file
-        """
-        from ember.ts3 import read_ts3
-
-        return read_ts3(filename)
 
     def set_conserved_cart_unstr(self, xyz, conserved_cart):
         r"""Set conserved variables from Cartesian unstructured data.
@@ -1764,25 +1748,6 @@ class Grid(_LabelledList):
         # Write boundary file if requested
         if fvbnd_filename is not None:
             write_fvbnd(self, fvbnd_filename, iregion=iregion)
-
-    def write_ts3(self, filename, strict=False):
-        """Write grid to TS3 format file.
-
-        Parameters
-        ----------
-        filename : str
-            Output filename for TS3 file
-        strict : bool, optional
-            Whether to strictly validate all variables (default False)
-
-        Raises
-        ------
-        ValueError
-            If grid is empty (contains no blocks)
-        """
-        from ember.ts3 import write_ts3
-
-        write_ts3(self, filename, strict=strict)
 
     @property
     def connectivity(self):
