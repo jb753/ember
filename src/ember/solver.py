@@ -697,7 +697,10 @@ def run(grid, conf):
     # Initialise timesteps
     grid.update_timestep(rf=1.0, fac_visc=conf.fac_visc)
 
-    hist = ConvergenceHistory.from_grid(conf.n_step, conf.n_step_log, grid)
+    # One record per log step: i_step % n_step_log == 0 fires ceil(n_step /
+    # n_step_log) times over range(n_step); floor division would under-allocate.
+    n_log = -(-conf.n_step // conf.n_step_log)
+    hist = ConvergenceHistory.from_grid(n_log, grid)
 
     for i_step in range(conf.n_step):
         #

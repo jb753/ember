@@ -74,9 +74,10 @@ Bookkeeping:
 Storage
 =======
 
-:meth:`ConvergenceHistory.from_grid` allocates ``ceil(n_step / n_step_log)``
-records up front and fills them with NaN, where ``n_step`` is the total number
-of steps requested and ``n_step_log`` is the logging interval. At each log step,
+:meth:`ConvergenceHistory.from_grid` allocates ``n_log`` records up front and
+fills them with NaN, one per log step; the solver passes
+``n_log = ceil(n_step / n_step_log)`` for ``n_step`` marched steps logged every
+``n_step_log``. At each log step,
 :func:`ember.solver.run` calls :meth:`ConvergenceHistory.record_convergence`
 to fill one record. A march that runs to completion fills every record; one that
 diverges breaks from the loop early before logging an invalid value, sets
@@ -177,15 +178,16 @@ class ConvergenceHistory(StructuredData):
         out._set_metadata_by_key("n_node", grid.size)
 
     @classmethod
-    def from_grid(cls, n_step, n_step_log, grid):
-        """Initialize convergence history from grid.
+    def from_grid(cls, n_log, grid):
+        """Initialize an empty convergence history sized for a solver run.
 
         Parameters
         ----------
-        n_step : int
-            Number of time steps the solver will march
-        n_step_log : int
-            Number of steps between records; one record is allocated per log step
+        n_log : int
+            Number of records to allocate; one is filled per log step. The
+            solver derives this as ``ceil(n_step / n_step_log)`` -- floor
+            division would under-allocate when ``n_step`` is not a multiple of
+            ``n_step_log``.
         grid : Grid
             Grid object containing blocks with patches
 
@@ -194,17 +196,13 @@ class ConvergenceHistory(StructuredData):
         ConvergenceHistory
             Configured instance ready to record data
         """
-        # The solver records when i_step % n_step_log == 0 over range(n_step),
-        # which fires ceil(n_step / n_step_log) times -- floor division would
-        # under-allocate whenever n_step is not a multiple of n_step_log.
-        n_log = -(-n_step // n_step_log)
         out = cls(shape=(n_log,))
 
         # Reference scales and counts derived from the grid geometry/flow.
         cls._set_grid_metadata(out, grid)
 
-        # Fluid from the first outlet patch (a log-file reader may instead use
-        # the fluid recorded in the log header).
+        # Fluid from the first outlet patch (the grid is the reference frame the
+        # history is projected onto).
         outlet_block = grid.patches.outlet[0].block_view
         out._set_metadata_by_key("fluid", outlet_block.fluid)
 
@@ -357,13 +355,13 @@ class ConvergenceHistory(StructuredData):
             f"  Elapsed/Remaining={elapsed_min:.1f}/{remaining_ms / 60e3:.1f} min"
         )
 
-    def record_convergence(self, i_step, conv):
+    def record_convergence(self, i_step, conv, time=None):
         """Append one fully populated record, holding solver step ``i_step``.
 
         Advances :attr:`i_log` onto the next allocated record and writes every
-        column of it: the step index, the elapsed wall-clock time, and the
-        monitors carried by ``conv``. A record is never left half-written, so
-        the only NaN a reader can meet is an untouched record past ``i_log``.
+        column of it: the step index, the time, and the monitors carried by
+        ``conv``. A record is never left half-written, so the only NaN a reader
+        can meet is an untouched record past ``i_log``.
 
         Parameters
         ----------
@@ -374,6 +372,10 @@ class ConvergenceHistory(StructuredData):
             The ``mdot``, ``ho`` and ``s`` station vectors are unpacked into one
             scalar column per station, so at most 4 stations (``n_row <= 2``)
             can be recorded.
+        time : float, optional
+            Elapsed time for this record, in seconds. Defaults to the wall-clock
+            time since the history was created (the live-solver behaviour); a
+            reader replaying a log passes the log's own time instead.
         """
         n = len(conv.mdot)
         if n > 4:
@@ -386,9 +388,10 @@ class ConvergenceHistory(StructuredData):
         now = self.now
 
         now._set_data_by_keys(("i_step",), i_step)
-        t_start = self._get_metadata_by_key("_time_start")  # float64 array
-        t_raw_f64 = np.float64(_time.perf_counter()) - t_start  # subtraction in f64
-        now._set_data_by_keys(("time",), f32(t_raw_f64 / self._TIME_SCALE))
+        if time is None:
+            t_start = self._get_metadata_by_key("_time_start")  # float64 array
+            time = np.float64(_time.perf_counter()) - t_start  # elapsed s, in f64
+        now._set_data_by_keys(("time",), f32(time / self._TIME_SCALE))
 
         now._set_data_by_keys(
             ("drho", "drhoVx", "drhoVr", "drhorVt", "drhoe"), conv.residual

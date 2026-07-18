@@ -95,6 +95,14 @@ def test_record_throttle_nan_passthrough(hist_with_throttle):
     assert "Thr" in msg
 
 
+def test_record_convergence_explicit_time(hist_with_throttle):
+    """An explicit time (seconds) is stored verbatim, bypassing the wall clock."""
+    hist = hist_with_throttle
+    # 2.5 s at _TIME_SCALE = 1e-3 s/unit -> 2500 stored units.
+    hist.record_convergence(0, _throttle_conv(1.0, 0.95, P0), time=2.5)
+    assert hist.time[0] == pytest.approx(2.5 / ConvergenceHistory._TIME_SCALE)
+
+
 # ---------------------------------------------------------------------------
 # read_cnv / write_cnv round-trip
 # ---------------------------------------------------------------------------
