@@ -527,14 +527,12 @@ def test_scree_mg_converges_faster_than_plain_scree(duct_grid_builder):
     )
 
     grid_plain = duct_grid_builder()
-    hist_plain = ember.solver.run(
-        grid_plain, ember.solver.SolverConfig(n_levels=0, fac_mgrid=0.0, **common)
+    hist_plain = ember.solver.Solver(n_levels=0, fac_mgrid=0.0, **common).run(
+        grid_plain
     )
 
     grid_mg = duct_grid_builder()
-    hist_mg = ember.solver.run(
-        grid_mg, ember.solver.SolverConfig(n_levels=2, fac_mgrid=0.2, **common)
-    )
+    hist_mg = ember.solver.Solver(n_levels=2, fac_mgrid=0.2, **common).run(grid_mg)
 
     assert not hist_plain.diverged
     assert not hist_mg.diverged
@@ -565,7 +563,7 @@ def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
 
     n_step, n_step_log = 20, 2
     n_alloc = -(-n_step // n_step_log)  # what from_grid would have allocated
-    conf = ember.solver.SolverConfig(
+    conf = ember.solver.Solver(
         n_step=n_step,
         n_step_log=n_step_log,
         n_step_avg=1,
@@ -581,7 +579,7 @@ def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
     # log() legitimately goes invalid before check_nan trips. The suite turns
     # warnings into errors, so scope that to the march itself.
     with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
-        hist = ember.solver.run(grid, conf)
+        hist = conf.run(grid)
 
     assert hist.diverged
     assert hist.shape[0] < n_alloc  # the unwritten tail is gone

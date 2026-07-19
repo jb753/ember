@@ -5,13 +5,13 @@ using an explicit pseudo-time march, accelerated by multigrid and residual
 smoothing. The finite-volume discretisation is second-order accurate in space
 on structured multi-block grids; cell-centred residuals are distributed equally
 back to nodal conserved variables. This page describes the solver loop driven
-by :func:`run` and the configuration parameters in :class:`SolverConfig` that
+by :meth:`Solver.run` and the configuration parameters in :class:`Solver` that
 control each stage.
 
 Overview of one time step
 --------------------------
 
-:func:`run` performs the following operations each step:
+:meth:`Solver.run` performs the following operations each step:
 
 1. **Boundary conditions**: :meth:`~ember.grid.Grid.update_bconds` updates
    boundary patch targets (mass flow throttle, radial equilibrium,
@@ -24,18 +24,18 @@ Overview of one time step
 3. **Source terms**: :meth:`~ember.grid.Grid.update_sources` updates viscous
    forces and the polar coordinates source term needed to balance the radial
    momentum equation. With the Runge--Kutta integrator,
-   :attr:`~SolverConfig.n_stage` ``> 0``, this runs once every full step
+   :attr:`~Solver.n_stage` ``> 0``, this runs once every full step
    with the source terms held constant for all stages. When using the scree
-   integrator, :attr:`~SolverConfig.n_stage` ``== 0``, the source terms are
+   integrator, :attr:`~Solver.n_stage` ``== 0``, the source terms are
    recomputed every few steps to save cost.
 4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes
    the time step and stores it pre-divided by cell volume in
    attr:``ember.block.Block.block.dt_vol_nd``.
 5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
    unintegrated net-flow residual, with optional implicit residual smoothing
-   , :attr:`~SolverConfig.sf_resid`, or negative feedback limiter
-   , :attr:`~SolverConfig.dampin`.
-6. **Convergence logging**: every :attr:`~SolverConfig.n_step_log` steps,
+   , :attr:`~Solver.sf_resid`, or negative feedback limiter
+   , :attr:`~Solver.dampin`.
+6. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
    :meth:`~ember.convergence_history.ConvergenceHistory.record_convergence`
    and :meth:`~ember.convergence_history.ConvergenceHistory.format_message`
    record and print a :class:`~ember.convergence_history.ConvergenceHistory`
@@ -47,7 +47,7 @@ Overview of one time step
    constant-coefficient blended second- and fourth-order filter to the
    post-march :attr:`ember.block.Block.conserved_nd` field, to provide artificial dissipation and
    suppress odd-even decoupling.
-9. **Pseudotime averaging**: over the final :attr:`~SolverConfig.n_step_avg`
+9. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`
     steps, :meth:`~ember.grid.Grid.accumulate_avg` accumulates the conserved
     state into a running average, which
     :meth:`~ember.grid.Grid.finalise_average` uses to replace the
@@ -58,10 +58,10 @@ Overview of one time step
 Time integrators
 -----------------
 
-:attr:`~SolverConfig.n_stage` selects one of two integrators, applied to every
+:attr:`~Solver.n_stage` selects one of two integrators, applied to every
 block each step:
 
-:func:`scree_step` -- :attr:`~SolverConfig.n_stage` ``== 0``
+:func:`scree_step` -- :attr:`~Solver.n_stage` ``== 0``
 Implements Denton's basic scree scheme (two steps forward, one step back)
 
 .. math::
@@ -72,11 +72,11 @@ Implements Denton's basic scree scheme (two steps forward, one step back)
 The residual from the previous step, :math:`(d\mathcal{U}/dt)_{n-1}`, is kept in
 :attr:`~ember.block.Block.store` between steps. This scheme is only first-order accurate in pseudotime, unlike Adams--Bashforth, but experience shows it requires less artificial dissipation and is more robust.
 
-:func:`rk_step`  -- :attr:`~SolverConfig.n_stage` ``>= 1``
+:func:`rk_step`  -- :attr:`~Solver.n_stage` ``>= 1``
 -- Jameson's classic Runge--Kutta scheme. Every full step
 snapshots the starting conserved state
 :math:`\mathcal{U}_n`, saving it to :attr:`~ember.block.Block.store`.
-Then, :attr:`~SolverConfig.n_stage` substages call
+Then, :attr:`~Solver.n_stage` substages call
 :func:`advance_rk_stage_mg`, each stage :math:`k` marching relative to the starting snapshot but with the residual freshly evaluated on the most recent stage:
 
 .. math::
@@ -87,7 +87,7 @@ Then, :attr:`~SolverConfig.n_stage` substages call
     \qquad k = 1, \dots, m \\
     \mathcal{U}_{n+1} &= \mathcal{U}^{(m)}
 
-for :math:`m =` :attr:`~SolverConfig.n_stage` stages with coefficients
+for :math:`m =` :attr:`~Solver.n_stage` stages with coefficients
 :math:`\alpha_k = 1 / (m - k + 1)`, so the final stage takes the full step
 :math:`\alpha_m = 1`.
 
@@ -101,7 +101,7 @@ CFL number
 ----------
 
 The integrators of the previous section scale each cell's residual by
-:attr:`~SolverConfig.cfl` and the local volumetric timestep
+:attr:`~Solver.cfl` and the local volumetric timestep
 :math:`\Delta t_\mathrm{vol}` set by :meth:`~ember.grid.Grid.update_timestep`,
 so the :math:`\Delta t` appearing in the march formulae is
 :math:`\mathrm{cfl}\,\Delta t_\mathrm{vol}` per cell. The timestep is the
@@ -127,18 +127,18 @@ volume, the directional convective radius and the two combined radii are
     \frac{\max_d \left\| \mathbf{S}_d \right\|^2}{\mathcal{V}}
 
 Taking the max over directions (rather than Blazek's sum) makes
-:attr:`~SolverConfig.cfl` the true 1D Courant limit, so it stays
+:attr:`~Solver.cfl` the true 1D Courant limit, so it stays
 aspect-ratio-independent for both limits and a single value scales them
-consistently; :attr:`~SolverConfig.fac_visc` tightens only the diffusion radius
+consistently; :attr:`~Solver.fac_visc` tightens only the diffusion radius
 so the viscous march tolerates the same CFL as the inviscid one. Setting
 :math:`\mu_t = 0` drops :math:`\lambda_\mathrm{diff}` and recovers the bare
 convective limit. The 4-stage Runge--Kutta march is stable up to
 :math:`\mathrm{cfl} \approx 2\sqrt{2}`; the scree scheme is stable up to :math:`\mathrm{cfl} \approx 0.6` on a uniform mesh.
 
-:attr:`~SolverConfig.cfl` is a single constant applied uniformly to every cell
+:attr:`~Solver.cfl` is a single constant applied uniformly to every cell
 for the entire run -- there is no per-cell adaptive CFL field and no
 tolerance-driven backoff inside the solver. A larger CFL converges faster but
-risks divergence; implicit residual smoothing (:attr:`~SolverConfig.sf_resid`)
+risks divergence; implicit residual smoothing (:attr:`~Solver.sf_resid`)
 damps high-frequency residual content and so tolerates a substantially higher
 CFL for a given scheme.
 
@@ -150,7 +150,7 @@ Smoothing
 A constant-coefficient blend of second- and fourth-difference operators, :meth:`ember.grid.Grid.smooth`, is applied to :attr:`ember.block.Block.conserved_nd` after
 each step to suppress odd--even decoupling and high-frequency content
 introduced by the march and multigrid corrections.
-:attr:`~SolverConfig.sf4` and :attr:`~SolverConfig.sf2` are coefficients on the
+:attr:`~Solver.sf4` and :attr:`~Solver.sf2` are coefficients on the
 fourth- and second-difference terms, each scaled by the run's ``cfl`` to make the effective dissipation independent of the time step.
 
 .. _multigrid:
@@ -165,29 +165,29 @@ scattered onto the conserved state -- rather than as a classical
 restrict/prolong V-cycle across separate coarse grids. Both integrators honor
 two knobs:
 
-- :attr:`~SolverConfig.n_levels` -- number of coarse levels; 0 disables
+- :attr:`~Solver.n_levels` -- number of coarse levels; 0 disables
   multigrid. Each block's cell counts must be an exact multiple of the coarsest
-  block size ``2**n_levels`` in every direction, or :func:`run` raises before
+  block size ``2**n_levels`` in every direction, or :meth:`Solver.run` raises before
   marching.
-- :attr:`~SolverConfig.fac_mgrid` -- scaling on the coarse correction, with
+- :attr:`~Solver.fac_mgrid` -- scaling on the coarse correction, with
   successively coarser levels damped further; 0 also disables multigrid.
 
-:attr:`~SolverConfig.sf_resid` additionally drives implicit residual smoothing
+:attr:`~Solver.sf_resid` additionally drives implicit residual smoothing
 (Jameson IRS) on the fine-grid residual via
 :meth:`~ember.grid.Grid.update_residual`, independent of whether multigrid is
 enabled.
 
-**Full multigrid startup.** :func:`run_fmg` runs the same solver
+**Full multigrid startup.** :meth:`Solver.run_fmg` runs the same solver
 coarse-to-fine as a startup schedule, rather than within a single step. It
-builds :attr:`~SolverConfig.n_levels` progressively-halved grids
+builds :attr:`~Solver.n_levels` progressively-halved grids
 (:meth:`~ember.grid.Grid.resample`), solves the coarsest first, then
 prolongs each converged solution onto the next finer grid as its initial
-guess (:meth:`~ember.grid.Grid.interp_from`) and calls :func:`run`
+guess (:meth:`~ember.grid.Grid.interp_from`) and calls :meth:`Solver.run`
 again with the in-step multigrid depth set to that level's index -- so the
 coarsest level runs with no in-step multigrid and the finest runs at the full
-requested :attr:`~SolverConfig.n_levels`, identical to calling :func:`run`
+requested :attr:`~Solver.n_levels`, identical to calling :meth:`Solver.run`
 directly on the finest grid. With ``n_levels <= 0`` it reduces to a single call
-to :func:`run`.
+to :meth:`Solver.run`.
 
 .. _body-forces:
 
@@ -199,18 +199,18 @@ source terms before they are added to the residual, rebuilt by
 :meth:`ember.grid.Grid.update_sources`:
 
 - Viscous shear stresses and heat flux, computed unless
-  ``SolverConfig.inviscid`` is set. The viscous pass is phased across the
+  ``Solver.inviscid`` is set. The viscous pass is phased across the
   whole grid (tau/q on every block, then a periodic-seam halo exchange, then
   face-flux accumulation) so block-to-block periodic interfaces stay
   consistent.
 - A polar (axisymmetric) source term to balance the cylindrical coordinate
   metric.
 - An optional selective-frequency-damping (SFD) force when
-  ``SolverConfig.gain_filt`` is nonzero.
+  ``Solver.gain_filt`` is nonzero.
 
 The mixing-length turbulent viscosity uses a fixed turbulent Prandtl number
 of 1.0 and is evaluated from the absolute-frame vorticity magnitude.
-``SolverConfig.fac_visc`` multiplies the turbulent-diffusion timestep radius
+``Solver.fac_visc`` multiplies the turbulent-diffusion timestep radius
 independently of this, tightening the viscous stability limit to recover the
 inviscid stable CFL where needed.
 
@@ -246,12 +246,12 @@ Logging, averaging, and convergence history
 
 Convergence diagnostics are recorded into a
 :class:`~ember.convergence_history.ConvergenceHistory` every
-``SolverConfig.n_step_log`` steps: mean residual, mass flow / stagnation
+``Solver.n_step_log`` steps: mean residual, mass flow / stagnation
 enthalpy / entropy at row interfaces, and outlet throttle state
 (:meth:`ember.grid.Grid.get_convergence`).
 
 Pseudotime averaging of the conserved variables accumulates over the final
-``SolverConfig.n_step_avg`` steps of the run
+``Solver.n_step_avg`` steps of the run
 (:meth:`ember.grid.Grid.accumulate_avg`). On completion, the time-averaged
 state replaces the instantaneous state
 (:meth:`ember.grid.Grid.finalise_average`) -- skipped if the run diverged, so
@@ -260,6 +260,7 @@ partially-accumulated average.
 """
 
 import logging
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 
 import ember
@@ -270,9 +271,29 @@ from ember.grid import DivergenceError
 logger = logging.getLogger(__name__)
 
 
+class BaseSolver(ABC):
+    """Common interface for in-place flow solvers.
+
+    A solver is constructed from its configuration and run with
+    ``solver.run(grid)``, which advances ``grid`` in place and returns the
+    convergence history. Both the built-in :class:`Solver` and external-solver
+    plugins (e.g. ``ember.plugins.ts.TS3Solver``) implement this contract so
+    they are drop-in interchangeable.
+    """
+
+    @abstractmethod
+    def run(self, grid):
+        """Solve on ``grid`` in place; return a ``ConvergenceHistory``."""
+        raise NotImplementedError
+
+
 @dataclass
-class SolverConfig:
-    """Configuration for the explicit time-marching solver."""
+class Solver(BaseSolver):
+    """Configuration for the explicit time-marching solver.
+
+    Also the entry point: build one with the parameters below and call
+    :meth:`run` (or :meth:`run_fmg`) to march a grid in place.
+    """
 
     n_step: int
 
@@ -325,6 +346,23 @@ class SolverConfig:
     fac_mgrid: float = 0.2
     """Scaling factor on multigrid corrections. Honored by both integrators
     (:func:`scree_step` and :func:`rk_step`)."""
+
+    def run(self, grid):
+        """Drive ``grid`` through ``n_step`` steps in place; return the history.
+
+        See :func:`_run` for the stage-by-stage march; this is the public
+        :class:`BaseSolver` entry point.
+        """
+        return _run(grid, self)
+
+    def run_fmg(self, grid):
+        """Full-multigrid startup on ``grid`` in place; see :func:`_run_fmg`.
+
+        Returns a list of per-level :class:`ConvergenceHistory`, coarsest first.
+        Not part of the :class:`BaseSolver` contract (plugins have no FMG
+        analogue).
+        """
+        return _run_fmg(grid, self)
 
 
 def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
@@ -543,7 +581,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     smoothing (Jameson IRS) to the coarse block-restricted residual at every
     level, exactly like the fine-grid smoothing ``Grid.update_residual``
     already applies via its ``sf`` argument -- both are driven by the same
-    ``SolverConfig.sf_resid`` value (see :func:`rk_step`). ``sf_irs > 0``
+    ``Solver.sf_resid`` value (see :func:`rk_step`). ``sf_irs > 0``
     dispatches ``rk_mg_irs``; ``sf_irs == 0`` (the default) dispatches
     ``rk_mg_noirs``, which enters no smoothing code at all. The two share
     ``mg_coarse_correction`` and differ only in the coarse-residual smoother
@@ -668,7 +706,7 @@ def _validate_mg(grid, n_levels):
 
 
 @util.profile
-def run(grid, conf):
+def _run(grid, conf):
     """Drive a grid through ``n_step`` explicit time-marching steps.
 
     See the module-level `Overview of one time step`_ for the stage-by-stage
@@ -768,7 +806,7 @@ def run(grid, conf):
     return hist.trim()
 
 
-def run_fmg(grid, conf):
+def _run_fmg(grid, conf):
     """Full-multigrid startup: solve coarse-to-fine, prolonging each guess.
 
     ``conf.n_levels`` is the single grid-hierarchy depth. With ``n_levels == 0``
@@ -779,7 +817,7 @@ def run_fmg(grid, conf):
     as its initial guess. Sequencing level ``i`` (``0`` = coarsest) is marched
     with in-step Denton block-sum multigrid depth ``i`` -- the same grid
     hierarchy ``n_levels`` already names -- so the coarsest runs plain and the
-    finest runs at full ``n_levels``, identical to :func:`run` on the finest.
+    finest runs at full ``n_levels``, identical to :meth:`Solver.run` on the finest.
 
     The single validation ``_validate_mg(grid, n_levels)`` is sufficient for the
     whole chain: level ``i`` holds ``N / 2**(n_levels - i)`` cells per dimension
@@ -791,13 +829,13 @@ def run_fmg(grid, conf):
 
     Every level runs the same ``conf`` apart from ``n_levels`` (fixed
     ``n_step`` per level). ``grid`` is the finest level and is mutated in place
-    to carry the final solution, matching :func:`run`.
+    to carry the final solution, matching :meth:`Solver.run`.
 
     Parameters
     ----------
     grid : Grid
         Finest grid, already carrying its initial guess. Mutated in place.
-    conf : SolverConfig
+    conf : Solver
         Solver configuration; ``conf.n_levels`` sets the hierarchy depth.
 
     Returns
@@ -807,7 +845,7 @@ def run_fmg(grid, conf):
     """
     _validate_mg(grid, conf.n_levels)
     if conf.n_levels <= 0:
-        return [run(grid, conf)]
+        return [_run(grid, conf)]
 
     # Build finest -> coarsest, then reverse. resample carries the already-set
     # fine guess down, so the coarsest starts from the coarsened cold start.
@@ -826,5 +864,5 @@ def run_fmg(grid, conf):
             conf.n_levels,
             [block.shape for block in level_grid],
         )
-        histories.append(run(level_grid, replace(conf, n_levels=i)))
+        histories.append(_run(level_grid, replace(conf, n_levels=i)))
     return histories

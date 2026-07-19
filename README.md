@@ -82,8 +82,8 @@ grid = ember.grid.Grid([block])
 grid.calculate_wdist()
 
 # Choose solver settings and run
-conf = ember.solver.SolverConfig(n_step=500, cfl=3.0, n_stage=4, n_levels=3)
-ember.solver.run(grid, conf)
+solver = ember.solver.Solver(n_step=500, cfl=3.0, n_stage=4, n_levels=3)
+solver.run(grid)
 
 ```
 

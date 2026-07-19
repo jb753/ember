@@ -99,14 +99,14 @@ def mixing_grid():
 
 def test_mixing_plane_no_nan(mixing_grid):
     """Mixing-plane run completes 5 steps without NaN or non-physical values."""
-    config = ember.solver.SolverConfig(
+    config = ember.solver.Solver(
         n_step=5,
         n_step_avg=1,
         n_step_log=5,
         n_stage=4,
     )
 
-    ember.solver.run(mixing_grid, config)
+    config.run(mixing_grid)
 
     for block in mixing_grid:
         assert np.all(np.isfinite(block.conserved)), "Non-finite conserved variables"

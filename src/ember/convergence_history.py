@@ -1,7 +1,7 @@
 r"""Convergence history recorded by the time-marching loop.
 
 This module defines :class:`ConvergenceHistory`, a 1D time series of flow
-monitors that :func:`ember.solver.run` fills as it marches. It holds one
+monitors that :meth:`ember.solver.Solver.run` fills as it marches. It holds one
 *record* per logged step, carrying the residuals, and the mass flow, stagnation
 enthalpy and entropy at each station. The residuals are whole-field block
 means; only the mass flow, enthalpy, and entropy are per-station quantities.
@@ -9,7 +9,7 @@ means; only the mass flow, enthalpy, and entropy are per-station quantities.
 Throughout, *record* means one entry in the history, and *row* is reserved for
 a blade row of the machine.
 
-A history is *returned to you* by :func:`ember.solver.run`; it is not something
+A history is *returned to you* by :meth:`ember.solver.Solver.run`; it is not something
 you build directly. :meth:`ConvergenceHistory.from_grid`,
 :meth:`ConvergenceHistory.record_convergence` exist for the solver to call, and
 are of no use outside it.
@@ -19,7 +19,7 @@ Reading a history
 
 Run a simulation, then read the monitors as plain numpy arrays::
 
-    hist = ember.solver.run(grid, conf)
+    hist = ember.solver.Solver(n_step=1000).run(grid)
 
     hist.i_step            # solver step index of each record
     hist.residual[:, 4]    # energy residual, drhoe
@@ -78,7 +78,7 @@ Storage
 fills them with NaN, one per log step; the solver passes
 ``n_log = ceil(n_step / n_step_log)`` for ``n_step`` marched steps logged every
 ``n_step_log``. At each log step,
-:func:`ember.solver.run` calls :meth:`ConvergenceHistory.record_convergence`
+:meth:`ember.solver.Solver.run` calls :meth:`ConvergenceHistory.record_convergence`
 to fill one record. A march that runs to completion fills every record; one that
 diverges breaks from the loop early before logging an invalid value, sets
 :attr:`ConvergenceHistory.diverged`, and trims the history to drop the
@@ -607,7 +607,7 @@ class ConvergenceHistory(StructuredData):
     def diverged(self):
         """True if the run that produced this history blew up, scalar.
 
-        Set by :func:`ember.solver.run` when :meth:`ember.grid.Grid.check_nan`
+        Set by :meth:`ember.solver.Solver.run` when :meth:`ember.grid.Grid.check_nan`
         raises :class:`ember.grid.DivergenceError`, in which case the step loop
         broke early and only ``i_log + 1`` records were written.
         """
@@ -719,7 +719,7 @@ class ConvergenceHistory(StructuredData):
         """View of the record at :attr:`i_log`, a single-record history.
 
         During a march this is the record being written. Once
-        :func:`ember.solver.run` has trimmed the history it is the last one.
+        :meth:`ember.solver.Solver.run` has trimmed the history it is the last one.
         """
         return self[self.i_log]
 

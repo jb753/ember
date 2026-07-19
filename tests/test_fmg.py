@@ -26,7 +26,7 @@ NCELL = 120_000  # smallest that satisfies build_duct_grid's ni >= 25 floor
 
 
 def _conf(n_levels, n_step=100):
-    return ember.solver.SolverConfig(
+    return ember.solver.Solver(
         n_step=n_step,
         n_step_log=50,
         n_step_avg=1,
@@ -39,11 +39,11 @@ def _conf(n_levels, n_step=100):
 def test_n_levels_zero_matches_run():
     """n_levels == 0 is a passthrough to run() on the given grid."""
     grid_fmg = build_duct_grid(NCELL)
-    hists = ember.solver.run_fmg(grid_fmg, _conf(0))
+    hists = _conf(0).run_fmg(grid_fmg)
     assert len(hists) == 1
 
     grid_run = build_duct_grid(NCELL)
-    ember.solver.run(grid_run, _conf(0))
+    _conf(0).run(grid_run)
 
     # Identical seeds and identical march -> bit-for-bit conserved state.
     np.testing.assert_array_equal(grid_fmg[0].conserved, grid_run[0].conserved)
@@ -53,7 +53,7 @@ def test_non_divisible_finest_raises():
     """Finest (n-1) not divisible by 2**n_levels is rejected before marching."""
     grid = build_duct_grid(NCELL)  # nk-1 == 56, not a multiple of 16
     with pytest.raises(ValueError, match="multiple"):
-        ember.solver.run_fmg(grid, _conf(4))
+        _conf(4).run_fmg(grid)
 
 
 def test_hierarchy_shapes_and_history_length():
@@ -61,7 +61,7 @@ def test_hierarchy_shapes_and_history_length():
     grid = build_duct_grid(NCELL)
     finest_shape = grid[0].shape  # (ni, nj, nk)
 
-    hists = ember.solver.run_fmg(grid, _conf(2))
+    hists = _conf(2).run_fmg(grid)
 
     assert len(hists) == 3  # n_levels + 1
     assert not any(h.diverged for h in hists)
@@ -79,10 +79,10 @@ def test_hierarchy_shapes_and_history_length():
 def test_fmg_starts_finest_below_cold():
     """The finest level begins from a much lower residual than a cold run."""
     grid_fmg = build_duct_grid(NCELL)
-    hists = ember.solver.run_fmg(grid_fmg, _conf(2))
+    hists = _conf(2).run_fmg(grid_fmg)
 
     grid_cold = build_duct_grid(NCELL)
-    cold = ember.solver.run(grid_cold, _conf(2))
+    cold = _conf(2).run(grid_cold)
 
     # Energy residual (column 4) at the first recorded finest-level step.
     fmg_start = hists[-1].residual[0, 4]
