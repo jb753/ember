@@ -384,6 +384,40 @@ class TestGridResampleValues:
         np.testing.assert_allclose(b.r, expected_r, atol=1e-4)
         np.testing.assert_allclose(b.t, expected_t, atol=1e-4)
 
+    def test_resample_downsamples_wdist_at_coincident_nodes(self):
+        """Downsampling must carry wall distance onto the coarse grid, sampling it
+        exactly at the node-coincident coarse nodes.
+
+        ``resample(0.5)`` halves each dimension node-coincidentally (a 9-node edge
+        becomes the 5 even-indexed fine nodes), so the coarse wall distance must
+        equal the fine field at those nodes. This is the property full-multigrid
+        relies on when it resamples a grid carrying ``wdist`` -- e.g. before a TS3
+        run, whose input file requires wall distance on every level. A non-linear
+        field is used so the check is only satisfied by exact node-coincident
+        sampling; a linear field would pass even under interpolation.
+        """
+        ni, nj, nk = 9, 9, 9
+        block = Block(shape=(ni, nj, nk))
+        block.set_fluid(PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72))
+        xrt = util.linmesh3([0.0, 8.0], [1.0, 9.0], [0.0, 8.0], (ni, nj, nk))
+        x, r, t = xrt[..., 0], xrt[..., 1], xrt[..., 2]
+        block.set_x(x)
+        block.set_r(r)
+        block.set_t(t)
+
+        # Strictly-positive (set_wdist requires it), non-linear wall-distance field.
+        wdist_fine = (1.0 + 0.1 * (x**2 + r**2 + t**2)).astype(np.float32)
+        block.set_wdist(wdist_fine)
+
+        coarse = Grid([block]).resample(0.5)[0]
+
+        # 9 -> 5 per dimension, with coarse node i coincident with fine node 2*i.
+        assert coarse.shape == (5, 5, 5)
+        np.testing.assert_allclose(coarse.x, x[::2, ::2, ::2], rtol=1e-5)
+        np.testing.assert_allclose(
+            coarse.wdist, wdist_fine[::2, ::2, ::2], rtol=1e-5, atol=1e-6
+        )
+
     def test_resample_nonlinear_mesh_interpolation(self):
         """Interior points of a curved mesh must match bilinear interpolation
         from the original grid — checked at a single known interior point."""
