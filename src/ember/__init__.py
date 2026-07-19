@@ -9,6 +9,22 @@ extraction. Built on NumPy with Fortran-accelerated numerics, EMBER emphasizes e
 for rapid prototyping while maintaining computational efficiency for production simulations.
 """
 
+# Allow out-of-tree plugins to extend the ``ember`` package.
+#
+# ``ember`` is a *regular* package (this ``__init__.py`` exists), so Python fixes
+# ``ember.__path__`` to the single directory holding this file. PEP 420 only
+# discovers namespace subpackages (e.g. ``ember.plugins.ts``, shipped by the
+# separate ``ember-cfd-ts`` distribution) under the directories already listed in
+# ``ember.__path__`` -- so a plugin installed into its own source tree would be
+# invisible, its ``ember/`` never being scanned. ``extend_path`` rescans
+# ``sys.path`` and appends every *other* ``ember/`` directory to ``__path__``, so
+# plugins installed alongside core ember -- as wheels in the same environment, or
+# editable from a sibling repo -- are found. With only core ember installed it is
+# a no-op. Must run before any ``ember.<sub>`` import below.
+from pkgutil import extend_path
+
+__path__ = extend_path(__path__, __name__)
+
 __all__ = [
     "fluid",
     "block",
