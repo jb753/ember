@@ -39,7 +39,7 @@ def run(args):
         f"fac_mgrid={args.fac_mgrid}, sf_resid={args.sf_resid}, n_step={args.n_step}"
     )
 
-    conf = ember.solver.SolverConfig(
+    conf = ember.solver.Solver(
         n_step=args.n_step,
         n_step_log=args.n_step_log,
         n_step_avg=1,
@@ -53,7 +53,7 @@ def run(args):
 
     try:
         t0 = time.perf_counter()
-        hist = ember.solver.run(grid, conf)
+        hist = conf.run(grid)
         wall = time.perf_counter() - t0
     except (RuntimeError, FloatingPointError) as exc:
         print(f"Diverged ({type(exc).__name__}: {exc})")
