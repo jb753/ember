@@ -24,8 +24,14 @@ logging.disable(logging.CRITICAL)  # silence per-step convergence logging
 
 NCELL = 120_000  # smallest that satisfies build_duct_grid's ni >= 25 floor
 
+# Halved cross-stream resolution for the solver-heavy tests below: cuts the
+# cell count roughly 4x while keeping ni, and the nj-1/nk-1 divisibility by
+# 2**n_levels, the same as the full-resolution grid.
+NJ_SMALL, NK_SMALL = (65 + 1) // 2, (57 + 1) // 2
+NCELL_SMALL = 30_000
 
-def _conf(n_levels, n_step=100):
+
+def _conf(n_levels, n_step=50):
     return ember.solver.Solver(
         n_step=n_step,
         n_step_log=50,
@@ -38,11 +44,11 @@ def _conf(n_levels, n_step=100):
 
 def test_n_levels_zero_matches_run():
     """n_levels == 0 is a passthrough to run() on the given grid."""
-    grid_fmg = build_duct_grid(NCELL)
+    grid_fmg = build_duct_grid(NCELL_SMALL, nj=NJ_SMALL, nk=NK_SMALL)
     hists = _conf(0).run_fmg(grid_fmg)
     assert len(hists) == 1
 
-    grid_run = build_duct_grid(NCELL)
+    grid_run = build_duct_grid(NCELL_SMALL, nj=NJ_SMALL, nk=NK_SMALL)
     _conf(0).run(grid_run)
 
     # Identical seeds and identical march -> bit-for-bit conserved state.
@@ -58,7 +64,7 @@ def test_non_divisible_finest_raises():
 
 def test_hierarchy_shapes_and_history_length():
     """Chain is coarsest-first, halves each level, and keeps the finest shape."""
-    grid = build_duct_grid(NCELL)
+    grid = build_duct_grid(NCELL_SMALL, nj=NJ_SMALL, nk=NK_SMALL)
     finest_shape = grid[0].shape  # (ni, nj, nk)
 
     hists = _conf(2).run_fmg(grid)
@@ -71,17 +77,17 @@ def test_hierarchy_shapes_and_history_length():
     # Coarsest holds N/4 + 1 nodes per dim, matching the coincident-subset rule.
     expected_coarsest = tuple((n - 1) // 4 + 1 for n in finest_shape)
     # Rebuild the chain deterministically to check the coarsening geometry.
-    ref = build_duct_grid(NCELL)
+    ref = build_duct_grid(NCELL_SMALL, nj=NJ_SMALL, nk=NK_SMALL)
     coarser = ref.resample(0.5).resample(0.5)
     assert coarser[0].shape == expected_coarsest
 
 
 def test_fmg_starts_finest_below_cold():
     """The finest level begins from a much lower residual than a cold run."""
-    grid_fmg = build_duct_grid(NCELL)
+    grid_fmg = build_duct_grid(NCELL_SMALL, nj=NJ_SMALL, nk=NK_SMALL)
     hists = _conf(2).run_fmg(grid_fmg)
 
-    grid_cold = build_duct_grid(NCELL)
+    grid_cold = build_duct_grid(NCELL_SMALL, nj=NJ_SMALL, nk=NK_SMALL)
     cold = _conf(2).run(grid_cold)
 
     # Energy residual (column 4) at the first recorded finest-level step.

@@ -125,6 +125,11 @@ def test_block_dA(block):
     assert np.allclose(block.vol, vol_second)
 
 
+def test_rt(block):
+    """rt is the pseudo-Cartesian product of r and theta."""
+    np.testing.assert_allclose(block.rt, block.r * block.t)
+
+
 def test_block_vol_positive_left_handed(block):
     """Cell volumes must be positive when i, j, k increase in the x, r,
     theta directions respectively (x increasing with i, r increasing with
@@ -518,6 +523,48 @@ def test_velocity_setters_preserve_thermodynamics(block):
     np.testing.assert_allclose(
         block.rhoe, rho_before * (block.u + 0.5 * block.V**2), rtol=rtol
     )
+
+
+def test_set_Vxrt_matches_separate_setters(block):
+    """set_Vxrt from a stacked array matches three separate component setters."""
+    rtol = 1e-6
+
+    rho_initial = np.full(block.shape, 1.2, dtype=np.float32)
+    u_initial = np.full(block.shape, 200000.0, dtype=np.float32)
+
+    Vxrt = np.zeros(block.shape + (3,), dtype=np.float32)
+    Vxrt[..., 0] = 80.0  # Vx
+    Vxrt[..., 1] = 20.0  # Vr
+    Vxrt[..., 2] = -15.0  # Vt
+
+    block.set_rho_u(rho_initial, u_initial)
+    block.set_Vx(Vxrt[..., 0])
+    block.set_Vr(Vxrt[..., 1])
+    block.set_Vt(Vxrt[..., 2])
+    conserved_separate = block.conserved.copy()
+
+    block.set_rho_u(rho_initial, u_initial)
+    block.set_Vxrt(Vxrt)
+
+    np.testing.assert_allclose(block.Vx, Vxrt[..., 0], rtol=rtol)
+    np.testing.assert_allclose(block.Vr, Vxrt[..., 1], rtol=rtol)
+    np.testing.assert_allclose(block.Vt, Vxrt[..., 2], rtol=rtol)
+    np.testing.assert_allclose(block.conserved, conserved_separate, rtol=rtol)
+
+
+def test_set_Vxrt_rejects_bad_shape(block):
+    """set_Vxrt requires a trailing axis of length 3."""
+    Vxrt_bad = np.zeros(block.shape + (2,), dtype=np.float32)
+    with pytest.raises(ValueError, match="shape"):
+        block.set_Vxrt(Vxrt_bad)
+
+
+def test_set_Vxrt_rejects_non_finite(block):
+    """set_Vxrt rejects NaN/inf velocity components."""
+    Vxrt = np.zeros(block.shape + (3,), dtype=np.float32)
+    Vxrt[0, 0, 0, 1] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        block.set_Vxrt(Vxrt)
 
 
 def test_set_Omega():
