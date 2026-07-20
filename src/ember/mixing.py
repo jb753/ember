@@ -38,7 +38,9 @@ class MixingPatch(RevolutionPatch):
         self._target = None
         self._P_nd_soln = None
         # Relaxation factor for the inflow pressure update, read by apply().
-        self.rf = 1.0
+        # Matches InletPatch's default (0.1), since inflow nodes are treated
+        # the same way (see the class docstring).
+        self.rf = 0.1
 
     def _copy(self, c):
         c.rf = self.rf
@@ -119,12 +121,12 @@ class MixingPatch(RevolutionPatch):
         target via :meth:`set_target`. Inflow nodes are treated as in
         :class:`~ember.inlet.InletPatch`: stagnation enthalpy, entropy, and
         transverse velocities are imposed from the target and static pressure is
-        relaxed toward a linear extrapolation of the first two interior layers
-        using the relaxation factor :attr:`rf` (used directly as the convex
-        weight toward the first interior layer, no Mach scaling). Outflow nodes
-        are treated as in :class:`~ember.outlet.OutletPatch`: target static
-        pressure is imposed and entropy plus all three velocity components are
-        linearly extrapolated from the first two interior layers.
+        relaxed toward the first interior layer using the relaxation factor
+        :attr:`rf` (used directly as the convex weight toward the first
+        interior layer, no Mach scaling). Outflow nodes are treated as in
+        :class:`~ember.outlet.OutletPatch`: target static pressure is imposed
+        and entropy plus all three velocity components are linearly
+        extrapolated from the first two interior layers.
         """
         b = self.block_view
 
@@ -153,13 +155,11 @@ class MixingPatch(RevolutionPatch):
         h_max_nd = ho_nd - 0.5 * (Vr_nd**2 + Vt_nd**2)
         P_cap_nd = fluid.get_P(*fluid.set_h_s(h_max_nd, s_nd))
 
-        # Linearly extrapolate static pressure from the first two interior
-        # layers (P_face = 2*P_1 - P_2) and relax toward it, mirroring
+        # Relax static pressure toward the first interior layer, mirroring
         # InletPatch: rf is used directly as the convex weight (no Mach
         # scaling), anchored to the start-of-step face pressure.
         b1 = self.block_view_offset_1
-        b2 = self.block_view_offset_2
-        P_interior_nd = 2.0 * b1.P_nd - b2.P_nd
+        P_interior_nd = b1.P_nd
         P_new_nd = self._P_nd_soln + self.rf * (P_interior_nd - self._P_nd_soln)
         np.minimum(P_new_nd, 0.9999 * P_cap_nd, out=P_new_nd)
 
@@ -238,6 +238,7 @@ class MixingPatch(RevolutionPatch):
             # set_rho_u_Vxrt_nd takes nondimensional velocity, so extrapolate the
             # nondimensional components (Vx_nd = Vx / V_ref, linear so the
             # division commutes with the two-point extrapolation).
+            b2 = self.block_view_offset_2
             V_ref = b.fluid.V_ref
             s_extrap = 2.0 * b1.s_nd - b2.s_nd
             Vx_extrap = (2.0 * b1.Vx - b2.Vx) / V_ref
