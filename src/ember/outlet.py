@@ -527,15 +527,12 @@ class OutletPatch(RevolutionPatch):
                 rhoVt_mean = np.sum(b1.rho_nd * b1.Vt_nd * w, axis=pd).squeeze()
                 Vt_mean = np.sum(b1.Vt_nd * w, axis=pd).squeeze()
                 r_nd = np.sum(b1.r_nd * w, axis=pd).squeeze()
-                assert not np.any(np.isnan(r_nd)), (
-                    "radial_equilibrium: r_nd contains NaN"
-                )
-                assert not np.any(np.isnan(rhoVt_mean)), (
-                    "radial_equilibrium: rho*Vt contains NaN"
-                )
-                assert not np.any(np.isnan(Vt_mean)), (
-                    "radial_equilibrium: Vt contains NaN"
-                )
+                # No NaN guard here: a diverged march can feed NaN into these
+                # means, but it should propagate through (into the pressure
+                # target, then the conserved state) and be caught by the
+                # solver's own Grid.check_nan() on its next pass, the same
+                # graceful path every other divergence takes. Raising here
+                # instead pre-empts that with a hard, uncaught crash.
                 dPdr_nd = rhoVt_mean * Vt_mean / r_nd
                 dr_nd = np.diff(r_nd)
                 P_re_span_nd = np.empty(len(r_nd))
