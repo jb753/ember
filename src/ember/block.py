@@ -766,6 +766,12 @@ class Block(ember.struct.StructuredData):
         fluid_new : Fluid
             New fluid / equation of state object.
 
+        See Also
+        --------
+        ember.grid.Grid.set_fluid : Apply to every block in a Grid at once.
+            Prefer this when the block is part of a Grid, rather than looping
+            over blocks and calling this method individually.
+
         """
         has_old = "fluid" in self._metadata
         if has_old:
