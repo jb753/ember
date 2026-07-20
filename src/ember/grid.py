@@ -1819,16 +1819,26 @@ class Grid(_LabelledList):
         n_row = len(rows)
         result = []
         for i, row_blocks in enumerate(rows):
-            up_cls = InletPatch if i == 0 else MixingPatch
-            dn_cls = OutletPatch if i == n_row - 1 else MixingPatch
             up_idx, dn_idx = [], []
             for b in row_blocks:
                 bid = self.index(b)
                 for pid, p in enumerate(b.patches):
-                    if isinstance(p, up_cls):
+                    if i == 0 and isinstance(p, InletPatch):
                         up_idx.append((bid, pid))
-                    if isinstance(p, dn_cls):
+                    elif i == n_row - 1 and isinstance(p, OutletPatch):
                         dn_idx.append((bid, pid))
+                    elif isinstance(p, MixingPatch):
+                        # A middle row's own upstream and downstream faces are
+                        # both MixingPatch instances, so type alone can't tell
+                        # them apart -- use position instead. This patch's
+                        # face sits on its block's high-x side (mean x above
+                        # the whole block's mean x) iff it's that block's own
+                        # exit face, the same test mixing.py's apply() uses to
+                        # tell which side of a pair it owns.
+                        if p.block_view.x.mean() > p.block.x.mean():
+                            dn_idx.append((bid, pid))
+                        else:
+                            up_idx.append((bid, pid))
             result.append((up_idx, dn_idx))
         return result
 
@@ -2046,7 +2056,7 @@ class GridConnectivity:
                     self.grid, self.pair()
                 )
             elif self.patch_class is MixingPatch:
-                # rf_mix hardcoded to the config default (0.1).
+                # rf_mix hardcoded to the config default (0.01).
                 self._communicator = ember.mixing_communicator.MixingCommunicator(
                     self.grid, self.pair()
                 )

@@ -25,7 +25,7 @@ class MixingCommunicator:
         self,
         grid,
         mixing_pairs,
-        rf_mix=0.1,
+        rf_mix=0.01,
     ):
         """Initialize with grid and mixing patch pairs.
 
@@ -38,7 +38,7 @@ class MixingCommunicator:
         rf_mix : float, optional
             Constant relaxation factor applied to the cross-plane mix-space
             mismatch. The same value is used on all grid levels. Defaults to
-            ``0.1``.
+            ``0.01``.
         """
         self._grid = grid
         self.pairs = {}
