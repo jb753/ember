@@ -116,6 +116,19 @@ class Patch(ABC):
     def _setup(self):
         """Hook for subclass attribute initialisation. Called at end of ``__init__``."""
 
+    def __setstate__(self, state):
+        """Restore pickled state, defaulting any attributes added since the pickle was made.
+
+        ``_setup()`` seeds today's default instance attributes first (patch
+        subclasses gain new cache/relaxation state over time, e.g. a solver
+        tuning change), then the pickled state is applied on top. Without
+        this, an EMB file written by an older ember version would unpickle
+        objects missing whatever attributes were added since, raising
+        AttributeError the first time solver code reads one of them.
+        """
+        self._setup()
+        self.__dict__.update(state)
+
     def _set_lim(self, dim, value):
         """Set limits for specified dimension."""
         self._ijk_lim[dim] = self._cast_lim(value)

@@ -37,13 +37,19 @@ class MixingPatch(RevolutionPatch):
         self._flux_avg = None
         self._target = None
         self._P_nd_soln = None
-        # Relaxation factor for the inflow pressure update, read by apply().
-        # Matches InletPatch's default (0.1), since inflow nodes are treated
-        # the same way (see the class docstring).
+        self._P_nd_face = None
+        # Cycle-level relaxation factor for p_soln (toward the interior
+        # pressure), read by update_soln(). Matches InletPatch's default
+        # (0.1), since inflow nodes are treated the same way (see the class
+        # docstring).
         self.rf = 0.1
+        # Stage-level relaxation factor for p_face (toward p_soln), read by
+        # apply(). Matches InletPatch's default (0.5).
+        self.rf_stage = 0.5
 
     def _copy(self, c):
         c.rf = self.rf
+        c.rf_stage = self.rf_stage
 
     def set_flux_avg(self):
         """Compute pitch-averaged node fluxes and store in :attr:`flux_avg_nd`.
@@ -120,15 +126,18 @@ class MixingPatch(RevolutionPatch):
         :class:`~ember.mixing_communicator.MixingCommunicator` has updated the
         target via :meth:`set_target`. Inflow nodes are treated as in
         :class:`~ember.inlet.InletPatch`: stagnation enthalpy, entropy, and
-        transverse velocities are imposed from the target and static pressure is
-        relaxed toward the first interior layer using the relaxation factor
-        :attr:`rf` (used directly as the convex weight toward the first
-        interior layer, no Mach scaling). Outflow nodes are treated as in
-        :class:`~ember.outlet.OutletPatch`: target static pressure is imposed
-        and entropy plus all three velocity components are linearly
-        extrapolated from the first two interior layers.
+        transverse velocities are imposed from the target and static pressure
+        is :math:`p_\\mathrm{face}`, relaxed here (once per stage, by
+        :attr:`rf_stage`) toward the fixed cycle target :math:`p_\\mathrm{soln}`
+        -- itself relaxed toward the first interior layer once per step by
+        :meth:`update_soln`, at its own rate :attr:`rf` -- then clamped each
+        call to the current pressure cap (see below). Outflow nodes are
+        treated as in :class:`~ember.outlet.OutletPatch`: target static
+        pressure is imposed and entropy plus all three velocity components are
+        linearly extrapolated from the first two interior layers.
         """
         b = self.block_view
+        b1 = self.block_view_offset_1
 
         # Self-seed from the current block state if nothing has ever set the
         # target yet (mirrors the _P_nd_soln guard below).
@@ -142,26 +151,30 @@ class MixingPatch(RevolutionPatch):
         Vt_nd = inout_target[..., 3]
         P_nd = inout_target[..., 4]
 
-        # Inlet side: static-pressure relaxation, mirroring InletPatch.
+        # Inlet side: cycle-level pressure relaxation, mirroring InletPatch.
         if self._P_nd_soln is None:
             self.update_soln()
 
-        # Cap relaxed pressure at the pressure where static enthalpy equals
+        # Stage-level relaxation: p_face chases the fixed cycle target
+        # p_soln at rate rf_stage, once per Runge-Kutta stage.
+        if self._P_nd_face is None:
+            self._P_nd_face = self._P_nd_soln.copy()
+        else:
+            self._P_nd_face = self._P_nd_face + self.rf_stage * (
+                self._P_nd_soln - self._P_nd_face
+            )
+
+        # Cap p_face at the pressure where static enthalpy equals
         # ho - 0.5*(Vr^2 + Vt^2), i.e. all remaining kinetic energy is axial.
         # Going above this cap forces the Vx sqrt in the inflow branch below
-        # negative. Recomputed each call because the conservation-adjustment
-        # routine mutates Vr/Vt between calls.
+        # negative. Recomputed and reapplied every call (not just once per
+        # step in update_soln) because the target's ho/Vr/Vt -- and hence the
+        # cap -- are refreshed by MixingCommunicator every Runge-Kutta stage.
         fluid = self.block.fluid
         h_max_nd = ho_nd - 0.5 * (Vr_nd**2 + Vt_nd**2)
         P_cap_nd = fluid.get_P(*fluid.set_h_s(h_max_nd, s_nd))
-
-        # Relax static pressure toward the first interior layer, mirroring
-        # InletPatch: rf is used directly as the convex weight (no Mach
-        # scaling), anchored to the start-of-step face pressure.
-        b1 = self.block_view_offset_1
-        P_interior_nd = b1.P_nd
-        P_new_nd = self._P_nd_soln + self.rf * (P_interior_nd - self._P_nd_soln)
-        np.minimum(P_new_nd, 0.9999 * P_cap_nd, out=P_new_nd)
+        np.minimum(self._P_nd_face, 0.9999 * P_cap_nd, out=self._P_nd_face)
+        P_new_nd = self._P_nd_face
 
         # Build target array with relaxed pressure replacing the target P
         target_inlet = inout_target.copy()
@@ -334,15 +347,22 @@ class MixingPatch(RevolutionPatch):
         return None
 
     def update_soln(self):
-        r"""Update :math:`p_\mathrm{soln}` from the current face static pressure.
+        r"""Advance the cycle target :math:`p_\mathrm{soln}` by one relaxation step.
 
-        Should be called once per timestep before the Runge-Kutta stages so
-        that the inflow pressure relaxation in :meth:`apply` is anchored to the
-        start-of-step pressure; see :class:`~ember.inlet.InletPatch`.
+        Called once per timestep, before the Runge-Kutta stages: relaxes
+        :math:`p_\mathrm{soln}` toward the first interior layer's pressure at
+        the start of the step by :attr:`rf`. :meth:`apply` then chases this
+        fixed target with the live boundary pressure :math:`p_\mathrm{face}`
+        once per stage, at its own rate :attr:`rf_stage` (subject to its own
+        per-stage cap); see :class:`~ember.inlet.InletPatch`.
         """
         self._check_attached()
         b = self.block_view
-        self._P_nd_soln = b.P_nd.copy()
+        if self._P_nd_soln is None:
+            self._P_nd_soln = b.P_nd.copy()
+            return
+        P_interior_nd = self.block_view_offset_1.P_nd
+        self._P_nd_soln = self._P_nd_soln + self.rf * (P_interior_nd - self._P_nd_soln)
 
     @property
     def flux_avg_nd(self):

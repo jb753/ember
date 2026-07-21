@@ -24,12 +24,16 @@ class InletPatch(RevolutionPatch):
     :math:`T_0` and imposed directly. Flow direction is set from :math:`\\alpha`
     and :math:`\\beta`.
 
-    Static pressure is not imposed directly. Each call to :meth:`apply` relaxes
-    :math:`p_\\mathrm{soln}` toward the static pressure at the first interior
-    node, then clamps it below the stagnation pressure. This damps acoustic
-    transients at startup without prescribing a fixed pressure. Call
-    :meth:`update_soln` once per timestep (before the Runge-Kutta stages) to
-    advance :math:`p_\\mathrm{soln}`.
+    Static pressure is imposed through two decoupled relaxation stages.
+    :meth:`update_soln` relaxes the cycle target :math:`p_\\mathrm{soln}`
+    toward the static pressure at the first interior node by :attr:`rf`, then
+    clamps it below the stagnation pressure; call it once per timestep,
+    before the Runge-Kutta stages. :meth:`apply` then relaxes the actual
+    boundary pressure :math:`p_\\mathrm{face}` toward that fixed
+    :math:`p_\\mathrm{soln}` by :attr:`rf_stage`, once per Runge-Kutta stage.
+    This damps acoustic transients at startup without prescribing a fixed
+    pressure, and keeps the fast within-cycle response independently tunable
+    from the slow cycle-to-cycle drift of the target.
 
     All four boundary condition values must be set via
     :meth:`set_Po_To_Alpha_Beta` before :meth:`apply` is called.
@@ -42,7 +46,9 @@ class InletPatch(RevolutionPatch):
         # _target_nd and _Po_nd_target are derived from _raw and block_view.shape,
         # so they must be recomputed on the new block rather than copied.
         c._P_nd_soln = np.copy(self._P_nd_soln) if self._P_nd_soln is not None else None
+        c._P_nd_face = np.copy(self._P_nd_face) if self._P_nd_face is not None else None
         c.rf = self.rf
+        c.rf_stage = self.rf_stage
 
     def _setup(self):
         super()._setup()
@@ -52,8 +58,13 @@ class InletPatch(RevolutionPatch):
         )
         self._Po_nd_target = None
         self._P_nd_soln = None
-        # Relaxation factor for the static-pressure update, read by apply().
-        self.rf = 0.2
+        self._P_nd_face = None
+        # Cycle-level relaxation factor for p_soln (toward the interior
+        # pressure), read by update_soln().
+        self.rf = 0.1
+        # Stage-level relaxation factor for p_face (toward p_soln), read by
+        # apply().
+        self.rf_stage = 0.1
 
     def _calc_target(self):
         """Compute nondimensional target tuple from Po, To, Alpha, Beta."""
@@ -122,6 +133,7 @@ class InletPatch(RevolutionPatch):
         self._target_nd = None
         self._Po_nd_target = None
         self._P_nd_soln = None
+        self._P_nd_face = None
 
     def apply(self):
         """Impose inlet boundary conditions on the patch.
@@ -132,19 +144,23 @@ class InletPatch(RevolutionPatch):
         reconstruct the velocity vector, which is stored via
         :py:meth:`~ember.block.Block.set_rho_u_Vxrt_nd`.
 
-        Static pressure is not prescribed; instead it is relaxed from the
-        previous-step solution toward the static pressure at the first interior
-        node (a Multall-style pressure extrapolation):
+        Static pressure is not prescribed; instead the live boundary pressure
+        :math:`p_\\mathrm{face}` is relaxed toward the fixed cycle target
+        :math:`p_\\mathrm{soln}` (advanced separately by :meth:`update_soln`,
+        once per step):
 
         .. math::
-            p_\\mathrm{new} = p_\\mathrm{soln}
-                + rf\\,(p_\\mathrm{interior} - p_\\mathrm{soln})
+            p_\\mathrm{face} \\mathrel{+}= rf_\\mathrm{stage}\\,
+                (p_\\mathrm{soln} - p_\\mathrm{face})
 
-        using the relaxation factor :attr:`rf`, then clamped below the stagnation
-        pressure :attr:`Po`. The solution reference is advanced by calling
-        :meth:`update_soln` once per timestep. :attr:`rf` is used directly as a
-        convex weight (no Mach scaling); higher values converge faster but may
-        excite acoustics.
+        using the relaxation factor :attr:`rf_stage`, then clamped below the
+        stagnation pressure :attr:`Po`. Called once per Runge-Kutta stage, so
+        :math:`p_\\mathrm{face}` chases a target that itself only moves once
+        per step -- a Multall-style pressure extrapolation, decoupled into a
+        slow cycle-to-cycle rate (:attr:`rf`, in :meth:`update_soln`) and a
+        fast within-cycle rate (:attr:`rf_stage`). Both are used directly as
+        convex weights (no Mach scaling); higher values converge faster but
+        may excite acoustics.
 
         Raises
         ------
@@ -167,33 +183,47 @@ class InletPatch(RevolutionPatch):
         #         f"(min Vx = {float(np.min(Vx_nd)):.4g} m/s)."
         #     )
 
-        P_interior_nd = self.block_view_offset_1.P_nd
         if self._target_nd is None:
             self._calc_target()
         if self._P_nd_soln is None:
             self._P_nd_soln = b.P_nd.copy()
-
-        # relaxed change in inlet pressure to avoid instability from large jumps
-        P_new_nd = self._P_nd_soln + self.rf * (P_interior_nd - self._P_nd_soln)
-        np.minimum(P_new_nd, 0.999999 * self._Po_nd_target, out=P_new_nd)
+        if self._P_nd_face is None:
+            self._P_nd_face = self._P_nd_soln.copy()
+        else:
+            self._P_nd_face = self._P_nd_face + self.rf_stage * (
+                self._P_nd_soln - self._P_nd_face
+            )
+        np.minimum(self._P_nd_face, 0.9999 * self._Po_nd_target, out=self._P_nd_face)
 
         ho_nd, s_nd, cosBcosA, sinBcosA, sinA = self._target_nd
 
         # Density and internal energy follow from (P, s) in closed form; the
         # velocity magnitude follows from the enthalpy deficit V = sqrt(2(ho - h)),
         # and the Cartesian components from the three precomputed direction cosines.
-        rho_nd, u_nd = b.fluid.set_P_s(P_new_nd, s_nd)
+        rho_nd, u_nd = b.fluid.set_P_s(self._P_nd_face, s_nd)
         V_nd = np.sqrt(2.0 * (ho_nd - b.fluid.get_h(rho_nd, u_nd)))
         b.set_rho_u_Vxrt_nd(rho_nd, u_nd, V_nd * cosBcosA, V_nd * sinBcosA, V_nd * sinA)
 
     def update_soln(self):
-        """Update :math:`p_\\mathrm{soln}` from the current inlet-face pressure.
+        """Advance the cycle target :math:`p_\\mathrm{soln}` by one relaxation step.
 
-        Should be called once per timestep before the Runge-Kutta stages so
-        that each stage's relaxation in :meth:`apply` is anchored to the
-        start-of-step pressure rather than drifting across stages.
+        Called once per timestep, before the Runge-Kutta stages: reads the
+        interior pressure at the start of the step and relaxes
+        :math:`p_\\mathrm{soln}` toward it by :attr:`rf`, then clamps below
+        the stagnation pressure. :meth:`apply` then chases this fixed target
+        with the live boundary pressure once per stage, at its own rate
+        :attr:`rf_stage`.
         """
-        self._P_nd_soln = self.block_view.P_nd.copy()
+        b = self.block_view
+        if self._target_nd is None:
+            self._calc_target()
+        if self._P_nd_soln is None:
+            self._P_nd_soln = b.P_nd.copy()
+            return
+        P_interior_nd = self.block_view_offset_1.P_nd
+        P_new_nd = self._P_nd_soln + self.rf * (P_interior_nd - self._P_nd_soln)
+        np.minimum(P_new_nd, 0.9999 * self._Po_nd_target, out=P_new_nd)
+        self._P_nd_soln = P_new_nd
 
     @property
     def Alpha(self):
