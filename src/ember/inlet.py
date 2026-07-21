@@ -61,10 +61,10 @@ class InletPatch(RevolutionPatch):
         self._P_nd_face = None
         # Cycle-level relaxation factor for p_soln (toward the interior
         # pressure), read by update_soln().
-        self.rf = 0.2
+        self.rf = 0.1
         # Stage-level relaxation factor for p_face (toward p_soln), read by
         # apply().
-        self.rf_stage = 0.2
+        self.rf_stage = 0.1
 
     def _calc_target(self):
         """Compute nondimensional target tuple from Po, To, Alpha, Beta."""

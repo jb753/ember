@@ -43,7 +43,7 @@ class MixingPatch(RevolutionPatch):
         self.rf = 0.1
         # Stage-level relaxation factor for p_face (toward p_soln), read by
         # apply().
-        self.rf_stage = 0.5
+        self.rf_stage = 0.1
 
     def _copy(self, c):
         c.rf = self.rf
