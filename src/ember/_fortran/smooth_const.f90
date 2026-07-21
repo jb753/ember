@@ -4,9 +4,18 @@
 ! sf2 and sf4 are independent: sf2 drives 2nd-order smoothing and sf4 drives
 ! 4th-order smoothing with no coupling between them.
 !
-! At i=1,2 and i=ni-1,ni (and equivalently for j, k) an asymmetric biased
-! 4th-order difference is used instead of falling back to 2nd order, so the
-! stencil leaves any cubic polynomial exactly unchanged everywhere.
+! The 4th-order term is applied as M = S^T S, where S is the 2nd-difference
+! operator taken only where its centred stencil fits (no boundary closure is
+! invented). M is therefore symmetric positive semi-definite by construction,
+! so I - (sf4/6) M is non-amplifying for every sf4 <= 0.75: ||A^k||_2 = 1 at all
+! k. The boundary rows fall out as (1,-2,1) at i=1 and (-2,5,-4,1) at i=2.
+!
+! The trade: those rows are 2nd differences, so near a face the 4th-order term
+! degrades to 2nd-order dissipation and a cubic is NOT reproduced at i=1,2 and
+! i=ni-1,ni. Linear fields still are, everywhere. The earlier scheme shared one
+! biased 4th difference between i=1 and i=2 to keep cubic exactness at the wall;
+! that made the boundary block defective and amplified the non-cubic residual
+! like sf4*sqrt(k) under repeated application.
 !
 ! Separable rolling-plane version. The smoother is a sum of three independent
 ! 1-D operators applied to the *original* field, so the work is done as a
@@ -48,7 +57,7 @@ subroutine smooth3d_const( &
     real, parameter :: c16 = 1e0 / 6e0
 
     real :: sum_sf, base
-    real :: d4, s2, s4
+    real :: d4, d4b, s2, s4
     integer :: i, j, k, ip, slot, ps
 
     if (ni < 5 .or. nj < 5 .or. nk < 5) then
@@ -75,8 +84,7 @@ subroutine smooth3d_const( &
             if (k == 1) then
                 do j = 1, nj
                     do i = 1, ni
-                        d4 = (x(i,j,1,ip) - 4e0*x(i,j,2,ip) + 6e0*x(i,j,3,ip) &
-                            - 4e0*x(i,j,4,ip) + x(i,j,5,ip)) * c16
+                        d4 = (x(i,j,1,ip) - 2e0*x(i,j,2,ip) + x(i,j,3,ip)) * c16
                         xs(i,j,slot) = base*x(i,j,1,ip) &
                             + sf2*(2e0*x(i,j,2,ip) - x(i,j,3,ip)) &
                             + sf4*(x(i,j,1,ip) - d4)
@@ -85,8 +93,8 @@ subroutine smooth3d_const( &
             else if (k == 2) then
                 do j = 1, nj
                     do i = 1, ni
-                        d4 = (x(i,j,1,ip) - 4e0*x(i,j,2,ip) + 6e0*x(i,j,3,ip) &
-                            - 4e0*x(i,j,4,ip) + x(i,j,5,ip)) * c16
+                        d4 = (-2e0*x(i,j,1,ip) + 5e0*x(i,j,2,ip) &
+                            - 4e0*x(i,j,3,ip) + x(i,j,4,ip)) * c16
                         xs(i,j,slot) = base*x(i,j,2,ip) &
                             + sf2*((x(i,j,1,ip) + x(i,j,3,ip)) * 0.5e0) &
                             + sf4*(x(i,j,2,ip) - d4)
@@ -95,8 +103,8 @@ subroutine smooth3d_const( &
             else if (k == nk-1) then
                 do j = 1, nj
                     do i = 1, ni
-                        d4 = (x(i,j,nk-4,ip) - 4e0*x(i,j,nk-3,ip) + 6e0*x(i,j,nk-2,ip) &
-                            - 4e0*x(i,j,nk-1,ip) + x(i,j,nk,ip)) * c16
+                        d4 = (-2e0*x(i,j,nk,ip) + 5e0*x(i,j,nk-1,ip) &
+                            - 4e0*x(i,j,nk-2,ip) + x(i,j,nk-3,ip)) * c16
                         xs(i,j,slot) = base*x(i,j,nk-1,ip) &
                             + sf2*((x(i,j,nk-2,ip) + x(i,j,nk,ip)) * 0.5e0) &
                             + sf4*(x(i,j,nk-1,ip) - d4)
@@ -105,8 +113,7 @@ subroutine smooth3d_const( &
             else if (k == nk) then
                 do j = 1, nj
                     do i = 1, ni
-                        d4 = (x(i,j,nk-4,ip) - 4e0*x(i,j,nk-3,ip) + 6e0*x(i,j,nk-2,ip) &
-                            - 4e0*x(i,j,nk-1,ip) + x(i,j,nk,ip)) * c16
+                        d4 = (x(i,j,nk,ip) - 2e0*x(i,j,nk-1,ip) + x(i,j,nk-2,ip)) * c16
                         xs(i,j,slot) = base*x(i,j,nk,ip) &
                             + sf2*(2e0*x(i,j,nk-1,ip) - x(i,j,nk-2,ip)) &
                             + sf4*(x(i,j,nk,ip) - d4)
@@ -134,16 +141,18 @@ subroutine smooth3d_const( &
                         + 4e0*x(i+1,j,k,ip) - x(i+2,j,k,ip)) * c16
                     xs(i,j,slot) = xs(i,j,slot) + sf2*s2 + sf4*s4
                 end do
-                d4 = (x(1,j,k,ip) - 4e0*x(2,j,k,ip) + 6e0*x(3,j,k,ip) &
-                    - 4e0*x(4,j,k,ip) + x(5,j,k,ip)) * c16
+                d4 = (x(1,j,k,ip) - 2e0*x(2,j,k,ip) + x(3,j,k,ip)) * c16
+                d4b = (-2e0*x(1,j,k,ip) + 5e0*x(2,j,k,ip) &
+                    - 4e0*x(3,j,k,ip) + x(4,j,k,ip)) * c16
                 xs(1,j,slot) = xs(1,j,slot) &
                     + sf2*(2e0*x(2,j,k,ip) - x(3,j,k,ip)) + sf4*(x(1,j,k,ip) - d4)
                 xs(2,j,slot) = xs(2,j,slot) &
-                    + sf2*((x(1,j,k,ip) + x(3,j,k,ip)) * 0.5e0) + sf4*(x(2,j,k,ip) - d4)
-                d4 = (x(ni-4,j,k,ip) - 4e0*x(ni-3,j,k,ip) + 6e0*x(ni-2,j,k,ip) &
-                    - 4e0*x(ni-1,j,k,ip) + x(ni,j,k,ip)) * c16
+                    + sf2*((x(1,j,k,ip) + x(3,j,k,ip)) * 0.5e0) + sf4*(x(2,j,k,ip) - d4b)
+                d4 = (x(ni,j,k,ip) - 2e0*x(ni-1,j,k,ip) + x(ni-2,j,k,ip)) * c16
+                d4b = (-2e0*x(ni,j,k,ip) + 5e0*x(ni-1,j,k,ip) &
+                    - 4e0*x(ni-2,j,k,ip) + x(ni-3,j,k,ip)) * c16
                 xs(ni-1,j,slot) = xs(ni-1,j,slot) &
-                    + sf2*((x(ni-2,j,k,ip) + x(ni,j,k,ip)) * 0.5e0) + sf4*(x(ni-1,j,k,ip) - d4)
+                    + sf2*((x(ni-2,j,k,ip) + x(ni,j,k,ip)) * 0.5e0) + sf4*(x(ni-1,j,k,ip) - d4b)
                 xs(ni,j,slot) = xs(ni,j,slot) &
                     + sf2*(2e0*x(ni-1,j,k,ip) - x(ni-2,j,k,ip)) + sf4*(x(ni,j,k,ip) - d4)
             end do
@@ -153,14 +162,13 @@ subroutine smooth3d_const( &
             ! All bodies vectorise over i; the j-mode branch is outside do i.
             ! ============================================================
             do i = 1, ni
-                d4 = (x(i,1,k,ip) - 4e0*x(i,2,k,ip) + 6e0*x(i,3,k,ip) &
-                    - 4e0*x(i,4,k,ip) + x(i,5,k,ip)) * c16
+                d4 = (x(i,1,k,ip) - 2e0*x(i,2,k,ip) + x(i,3,k,ip)) * c16
                 xs(i,1,slot) = xs(i,1,slot) &
                     + sf2*(2e0*x(i,2,k,ip) - x(i,3,k,ip)) + sf4*(x(i,1,k,ip) - d4)
             end do
             do i = 1, ni
-                d4 = (x(i,1,k,ip) - 4e0*x(i,2,k,ip) + 6e0*x(i,3,k,ip) &
-                    - 4e0*x(i,4,k,ip) + x(i,5,k,ip)) * c16
+                d4 = (-2e0*x(i,1,k,ip) + 5e0*x(i,2,k,ip) &
+                    - 4e0*x(i,3,k,ip) + x(i,4,k,ip)) * c16
                 xs(i,2,slot) = xs(i,2,slot) &
                     + sf2*((x(i,1,k,ip) + x(i,3,k,ip)) * 0.5e0) + sf4*(x(i,2,k,ip) - d4)
             end do
@@ -173,14 +181,13 @@ subroutine smooth3d_const( &
                 end do
             end do
             do i = 1, ni
-                d4 = (x(i,nj-4,k,ip) - 4e0*x(i,nj-3,k,ip) + 6e0*x(i,nj-2,k,ip) &
-                    - 4e0*x(i,nj-1,k,ip) + x(i,nj,k,ip)) * c16
+                d4 = (-2e0*x(i,nj,k,ip) + 5e0*x(i,nj-1,k,ip) &
+                    - 4e0*x(i,nj-2,k,ip) + x(i,nj-3,k,ip)) * c16
                 xs(i,nj-1,slot) = xs(i,nj-1,slot) &
                     + sf2*((x(i,nj-2,k,ip) + x(i,nj,k,ip)) * 0.5e0) + sf4*(x(i,nj-1,k,ip) - d4)
             end do
             do i = 1, ni
-                d4 = (x(i,nj-4,k,ip) - 4e0*x(i,nj-3,k,ip) + 6e0*x(i,nj-2,k,ip) &
-                    - 4e0*x(i,nj-1,k,ip) + x(i,nj,k,ip)) * c16
+                d4 = (x(i,nj,k,ip) - 2e0*x(i,nj-1,k,ip) + x(i,nj-2,k,ip)) * c16
                 xs(i,nj,slot) = xs(i,nj,slot) &
                     + sf2*(2e0*x(i,nj-1,k,ip) - x(i,nj-2,k,ip)) + sf4*(x(i,nj,k,ip) - d4)
             end do
