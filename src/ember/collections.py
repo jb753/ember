@@ -549,6 +549,13 @@ class BlockPatchCollection(_LabelledList):
         return [p for p in self._items if isinstance(p, InletPatch)]
 
     @property
+    def inlet_nonreflecting(self):
+        """All :py:class:`~ember.inlet_nonreflecting.NonReflectingInletPatch` objects."""
+        from ember.patch import NonReflectingInletPatch
+
+        return [p for p in self._items if isinstance(p, NonReflectingInletPatch)]
+
+    @property
     def inviscid(self):
         """All :py:class:`~ember.inviscid.InviscidPatch` objects."""
         from ember.patch import InviscidPatch
@@ -729,6 +736,14 @@ class GridPatchCollection:
         inlet_patches = []
         for block in self._grid:
             inlet_patches.extend(block.patches.inlet)
+        return inlet_patches
+
+    @property
+    def inlet_nonreflecting(self):
+        """Return all non-reflecting inlet patches from all blocks."""
+        inlet_patches = []
+        for block in self._grid:
+            inlet_patches.extend(block.patches.inlet_nonreflecting)
         return inlet_patches
 
     @property

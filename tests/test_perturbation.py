@@ -20,9 +20,33 @@ import ember.fluid
 from ember import util, perturbation
 
 
-@pytest.fixture
-def scalar_blocks():
-    """Create two scalar blocks with small perturbation between them."""
+# Relative size of the finite-difference perturbation. Small enough that the
+# second-order truncation error stays well under _LIN_RTOL, large enough that
+# differencing float32 storage does not swamp it (the noise floor is about
+# 6e-8 / _LIN_EPS in relative terms).
+_LIN_EPS = 1e-3
+
+# How closely a Jacobian must reproduce the finite-difference delta, as a
+# fraction of the delta a one-_LIN_EPS change in that component would produce.
+_LIN_RTOL = 5e-2
+
+
+@pytest.fixture(params=range(5), ids=["d_rho", "d_Vx", "d_Vr", "d_Vt", "d_P"])
+def scalar_blocks(request):
+    """Two scalar blocks differing by a small change in one primitive variable.
+
+    Perturbing a single primitive at a time means each linearization test
+    probes one column of the Jacobian on its own, so a wrong entry cannot be
+    masked by cancellation against the others.
+
+    The returned tolerance is per component and proportional to the
+    perturbation, not to the state: a Jacobian must predict each component of
+    the delta to within :data:`_LIN_RTOL` of what a one-:data:`_LIN_EPS` change
+    in that component would be. Scaling the tolerance by the state instead
+    would admit any Jacobian at all, and scaling by the delta alone would be
+    unusable for the components a single-variable perturbation leaves exactly
+    zero.
+    """
     fluid = ember.fluid.PerfectFluid(cp=1105.0, gamma=1.3, mu=1.8e-4, Pr=0.8)
 
     # Base state
@@ -36,18 +60,19 @@ def scalar_blocks():
     block1.set_Vt(50.0)
     block1.set_P_rho(1.2e5, 295.0)
 
-    # Small perturbation to conserved variables
-    eps = 1e-3
-    dcons = util.get_atol(block1.conserved, block1.r.mean(), rtol=eps)
+    prim1 = np.array([block1.rho, block1.Vx, block1.Vr, block1.Vt, block1.P]).ravel()
 
-    # Perturbed state
+    # Perturbed state: one primitive variable moved by a small relative step.
+    prim2 = prim1.copy()
+    prim2[request.param] *= 1.0 + _LIN_EPS
+
     block2 = block1.copy()
-    block2.set_conserved(block1.conserved + dcons)
+    block2.set_P_rho(prim2[4], prim2[0])  # thermodynamics, velocity preserved
+    block2.set_Vx(prim2[1])
+    block2.set_Vr(prim2[2])
+    block2.set_Vt(prim2[3])
 
-    # Set appropriate tolerance for primitive variables
-    prim1 = np.stack((block1.rho, block1.Vx, block1.Vr, block1.Vt, block1.P), axis=-1)
-    prim2 = np.stack((block2.rho, block2.Vx, block2.Vr, block2.Vt, block2.P), axis=-1)
-    atol = prim1 - prim2 * 1e-2
+    atol = _LIN_RTOL * _LIN_EPS * np.abs(prim1)
 
     return block1, block2, atol
 
@@ -197,30 +222,27 @@ def test_primitive_to_chic_linearization(scalar_blocks):
         ]
     )
 
-    # Calculate finite difference in characteristic variables
-    # Characteristic variables are typically acoustic waves: [entropy, upstream acoustic, radial acoustic, tangential acoustic, downstream acoustic]
-    rhoa1 = block1.rho * block1.a
-    rhoa2 = block2.rho * block2.a
+    # Characteristic variables are defined as perturbations about a reference
+    # state with the coefficients frozen there (Giles 1988, Eq. 5.7), so the
+    # delta must be formed with block1's rho, a throughout. Evaluating rho*a on
+    # each state separately would add a d(rho*a) term that primitive_to_chic
+    # does not model and that does not vanish with the step size, which shows
+    # up whenever the perturbation changes the speed of sound.
+    rhoa = block1.rho * block1.a
+    asq = block1.a**2
 
-    chic1 = np.array(
-        [
-            -block1.Vx * rhoa1 + block1.P,  # upstream acoustic
-            block1.Vx * rhoa1 + block1.P,  # downstream acoustic
-            block1.Vr * rhoa1,  # radial acoustic
-            block1.Vt * rhoa1,  # tangential acoustic
-            block1.P - block1.a**2 * block1.rho,  # entropy
-        ]
-    )
-    chic2 = np.array(
-        [
-            -block2.Vx * rhoa2 + block2.P,
-            block2.Vx * rhoa2 + block2.P,
-            block2.Vr * rhoa2,
-            block2.Vt * rhoa2,
-            block2.P - block2.a**2 * block2.rho,
-        ]
-    )
-    dchic_actual = chic2 - chic1
+    def _chic(block):
+        return np.array(
+            [
+                -block.Vx * rhoa + block.P,  # upstream acoustic
+                block.Vx * rhoa + block.P,  # downstream acoustic
+                block.Vr * rhoa,  # radial acoustic
+                block.Vt * rhoa,  # tangential acoustic
+                block.P - asq * block.rho,  # entropy
+            ]
+        )
+
+    dchic_actual = _chic(block2) - _chic(block1)
 
     chic2p = perturbation.chic_to_primitive(block1)
     dprim_calc = util.matvec(chic2p, dchic_actual)
@@ -364,7 +386,15 @@ def test_mix_to_conserved_linearization(scalar_blocks):
     p2c = perturbation.primitive_to_conserved(block1)
     dcons_ref = util.matvec(p2c, dprim)
 
-    np.testing.assert_allclose(dcons_calc, dcons_ref, atol=0.0, rtol=1e-3)
+    # A linear identity, so only float32 round-off separates the two sides. A
+    # single-variable perturbation leaves some components exactly zero, which a
+    # pure rtol cannot express, hence the atol scaled to the vector magnitude.
+    np.testing.assert_allclose(
+        dcons_calc,
+        dcons_ref,
+        atol=1e-4 * np.abs(dcons_ref).max(),
+        rtol=1e-3,
+    )
 
 
 def test_chic_to_mix_matches_product(scalar_blocks):
@@ -403,6 +433,81 @@ def test_chic_to_mix_linearization(scalar_blocks):
     dmix_ref = util.matvec(p2mix, dprim)
 
     np.testing.assert_allclose(dmix_calc, dmix_ref, atol=0.0, rtol=1e-5)
+
+
+def test_chic_to_bcond_matches_product(scalar_blocks):
+    """Test that chic_to_bcond equals primitive_to_bcond @ chic_to_primitive."""
+    block1 = scalar_blocks[0]
+
+    c2b_direct = perturbation.chic_to_bcond(block1)
+    c2b_chained = util.matmat(
+        perturbation.primitive_to_bcond(block1),
+        perturbation.chic_to_primitive(block1),
+    )
+
+    np.testing.assert_allclose(c2b_direct, c2b_chained, atol=1e-6, rtol=0.0)
+
+
+def test_chic_to_bcond_linearization(scalar_blocks):
+    """Test that chic_to_bcond correctly maps a chic perturbation to bcond."""
+    block1, block2, _ = scalar_blocks
+
+    dprim = np.array(
+        [
+            block2.rho - block1.rho,
+            block2.Vx - block1.Vx,
+            block2.Vr - block1.Vr,
+            block2.Vt - block1.Vt,
+            block2.P - block1.P,
+        ]
+    )
+    p2chic = perturbation.primitive_to_chic(block1)
+    dchic = util.matvec(p2chic, dprim)
+
+    c2b = perturbation.chic_to_bcond(block1)
+    dbcond_calc = util.matvec(c2b, dchic)
+
+    p2b = perturbation.primitive_to_bcond(block1)
+    dbcond_ref = util.matvec(p2b, dprim)
+
+    np.testing.assert_allclose(dbcond_calc, dbcond_ref, atol=0.0, rtol=1e-5)
+
+
+def test_primitive_to_bcond_finite_difference():
+    """Test primitive_to_bcond against finite differences of the block properties.
+
+    The angle rows are measured against the meridional speed, matching
+    Block.tanAlpha and Block.sinBeta. The existing linearization tests compare
+    against a tolerance of order the values themselves, which is too loose to
+    detect a wrong velocity scale in these derivatives.
+    """
+    fluid = ember.fluid.PerfectFluid(cp=1105.0, gamma=1.3, mu=1.8e-4, Pr=0.8)
+
+    def _block(Vx, Vr, Vt):
+        b = ember.block.Block(shape=())
+        b.set_x(np.array([0.05]))
+        b.set_r(np.array([0.85]))
+        b.set_t(np.array([0.05]))
+        b.set_fluid(fluid)
+        b.set_Vx(Vx)
+        b.set_Vr(Vr)
+        b.set_Vt(Vt)
+        b.set_P_rho(1.2e5, 1.4)
+        return b
+
+    V = (100.0, 80.0, 50.0)
+    jac = perturbation.primitive_to_bcond(_block(*V))
+
+    h = 1.0
+    for col, axis in enumerate((0, 1, 2), start=1):
+        step = [0.0, 0.0, 0.0]
+        step[axis] = h
+        plus = _block(*(v + d for v, d in zip(V, step)))
+        minus = _block(*(v - d for v, d in zip(V, step)))
+        d_tanAlpha = (float(plus.tanAlpha) - float(minus.tanAlpha)) / (2.0 * h)
+        d_sinBeta = (float(plus.sinBeta) - float(minus.sinBeta)) / (2.0 * h)
+        assert jac[2, col] == pytest.approx(d_tanAlpha, rel=1e-3)
+        assert jac[3, col] == pytest.approx(d_sinBeta, rel=1e-3, abs=1e-9)
 
 
 def _ref_scales(block):
@@ -513,6 +618,7 @@ def test_matrix_reference_invariance():
         ("mix_to_primitive", perturbation.mix_to_primitive, "prim", "mix"),
         ("mix_to_conserved", perturbation.mix_to_conserved, "cons", "mix"),
         ("chic_to_mix", perturbation.chic_to_mix, "mix", "chic"),
+        ("chic_to_bcond", perturbation.chic_to_bcond, "bcond", "chic"),
         ("flux_to_conserved", perturbation.flux_to_conserved, "cons", "flux"),
         ("conserved_to_flux", perturbation.conserved_to_flux, "flux", "cons"),
     ]
@@ -566,6 +672,7 @@ def test_matrix_uniformity_all_dimensions():
             "mix_to_primitive": perturbation.mix_to_primitive,
             "mix_to_conserved": perturbation.mix_to_conserved,
             "chic_to_mix": perturbation.chic_to_mix,
+            "chic_to_bcond": perturbation.chic_to_bcond,
         }
 
         for matrix_name, fn in matrices_to_test.items():

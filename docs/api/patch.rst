@@ -32,6 +32,12 @@ Concrete patch types
    :show-inheritance:
    :class-doc-from: class
 
+.. autoclass:: ember.inlet_nonreflecting.NonReflectingInletPatch
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :class-doc-from: class
+
 .. autoclass:: ember.outlet.OutletPatch
    :members:
    :undoc-members:

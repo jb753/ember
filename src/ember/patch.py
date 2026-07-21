@@ -152,6 +152,7 @@ from ember.collections import BlockPatchCollection, GridPatchCollection
 from ember.cooling import CoolingPatch
 from ember.cusp import CuspPatch
 from ember.inlet import InletPatch
+from ember.inlet_nonreflecting import NonReflectingInletPatch
 from ember.inviscid import InviscidPatch
 from ember.mixing import MixingPatch
 from ember.nonmatch import NonMatchPatch
@@ -165,6 +166,7 @@ __all__ = [
     "RevolutionPatch",
     "PeriodicPatch",
     "InletPatch",
+    "NonReflectingInletPatch",
     "OutletPatch",
     "MixingPatch",
     "NonMatchPatch",
@@ -181,6 +183,7 @@ __all__ = [
 
 PERMEABLE_TYPES = (
     InletPatch,
+    NonReflectingInletPatch,
     OutletPatch,
     PeriodicPatch,
     MixingPatch,

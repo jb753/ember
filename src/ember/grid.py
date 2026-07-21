@@ -279,7 +279,8 @@ class Grid(_LabelledList):
         inlet_row_idx = None
         for group_idx, group in enumerate(row_groups):
             for bid in group:
-                if len(self[bid].patches.inlet) > 0:
+                patches = self[bid].patches
+                if len(patches.inlet) + len(patches.inlet_nonreflecting) > 0:
                     inlet_row_idx = group_idx
                     break
             if inlet_row_idx is not None:
@@ -807,6 +808,8 @@ class Grid(_LabelledList):
         for block in self:
             for patch in block.patches.inlet:
                 patch.apply()
+            for patch in block.patches.inlet_nonreflecting:
+                patch.apply()
             for patch in block.patches.outlet:
                 patch.apply()
             for patch in block.patches.mixing:
@@ -1314,6 +1317,8 @@ class Grid(_LabelledList):
         for block in self:
             for patch in block.patches.inlet:
                 patch.update_soln()
+            for patch in block.patches.inlet_nonreflecting:
+                patch.update_soln()
             for patch in block.patches.mixing:
                 patch.update_soln()
             for patch in block.patches.outlet:
@@ -1813,8 +1818,14 @@ class Grid(_LabelledList):
             Consumed by :meth:`get_convergence` and
             :meth:`ember.convergence_history.ConvergenceHistory.from_grid`.
         """
-        from ember.patch import InletPatch, OutletPatch, MixingPatch
+        from ember.patch import (
+            InletPatch,
+            MixingPatch,
+            NonReflectingInletPatch,
+            OutletPatch,
+        )
 
+        inflow_types = (InletPatch, NonReflectingInletPatch)
         rows = self.rows
         n_row = len(rows)
         result = []
@@ -1823,7 +1834,7 @@ class Grid(_LabelledList):
             for b in row_blocks:
                 bid = self.index(b)
                 for pid, p in enumerate(b.patches):
-                    if i == 0 and isinstance(p, InletPatch):
+                    if i == 0 and isinstance(p, inflow_types):
                         up_idx.append((bid, pid))
                     elif i == n_row - 1 and isinstance(p, OutletPatch):
                         dn_idx.append((bid, pid))
