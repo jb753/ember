@@ -90,8 +90,9 @@ class BlockRestart:
         was never seeded.
     inlet_rho_soln : tuple of (ndarray or None)
         One entry per InletPatch, in `block.patches.inlet` order. The
-        patch's `_P_nd_soln` pressure-relaxation reference, or None if it
-        was never seeded.
+        patch's `_V_nd_soln` velocity-relaxation reference, or None if it
+        was never seeded. The field name predates the inlet moving its
+        relaxation from pressure onto velocity and is kept for back-compat.
     """
 
     conserved: np.ndarray
@@ -169,7 +170,7 @@ def make_restart(grid):
         mixing = tuple(p._target * refs for p in block.patches.mixing)
         mixing_rho_soln = tuple(p._P_nd_soln for p in block.patches.mixing)
 
-        inlet_rho_soln = tuple(p._P_nd_soln for p in block.patches.inlet)
+        inlet_rho_soln = tuple(p._V_nd_soln for p in block.patches.inlet)
 
         # conserved_filt_nd is a cached Block property; read its store entry
         # directly so a block that never allocated it still saves None (no lag).
@@ -215,8 +216,8 @@ def apply_restart(block, restart):
     The outlet spanwise-adjustment relaxation profile (`_P_last_nd`) is
     restored when present, index-interpolated if shapes differ.
 
-    Per-patch density/pressure relaxation anchors (`_rho_nd_soln` on outlet and
-    mixing, `_P_nd_soln` on inlet) are NOT restored: they are start-of-step
+    Per-patch relaxation anchors (`_rho_nd_soln` on outlet and mixing,
+    `_V_nd_soln` on inlet) are NOT restored: they are start-of-step
     references that `Grid.update_bconds` overwrites via each patch's
     `update_soln()` before any `apply()` reads them, so restoring them has no
     effect (see body).
@@ -271,8 +272,8 @@ def apply_restart(block, restart):
     # consistent with the field on this grid by construction. (restart.mixing
     # is still saved for diagnostics/back-compat.)
     #
-    # The per-patch density/pressure relaxation anchors (_rho_nd_soln on outlet,
-    # _P_nd_soln on inlet and mixing) are likewise NOT restored. They are
+    # The per-patch relaxation anchors (_rho_nd_soln on outlet, _P_nd_soln on
+    # mixing, _V_nd_soln on inlet) are likewise NOT restored. They are
     # start-of-step relaxation references, refreshed every timestep by each
     # patch's update_soln() in Grid.update_bconds before any apply() reads
     # them, so a restored value is overwritten before it can take effect.

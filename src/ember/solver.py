@@ -223,10 +223,11 @@ Inlet, outlet, and mixing-plane patches each relax their own state towards a
 target every step, with their own relaxation factor rather than a single
 solver-wide setting:
 
-- :class:`~ember.inlet.InletPatch` relaxes its interior pressure datum with
-  ``rf = 0.2`` by default.
-- :class:`~ember.mixing.MixingPatch` relaxes similarly, with ``rf = 1.0`` by
-  default (no relaxation).
+- :class:`~ember.inlet.InletPatch` relaxes the face velocity from its
+  characteristic solve with ``rf = 1.0`` by default (no relaxation); because
+  that target is well conditioned, ``rf < 1`` only adds startup lag.
+- :class:`~ember.mixing.MixingPatch` relaxes its interior pressure datum, with
+  ``rf = 1.0`` by default (no relaxation).
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
   mixing-plane target exchanged between adjacent blocks with a separate
   ``rf_mix`` (default 0.1).
@@ -234,7 +235,7 @@ solver-wide setting:
   ``set_adjustment(rf=...)``.
 
 :meth:`ember.grid.Grid.update_bconds` advances the slowly-varying boundary
-targets once per step (mixing-plane exchange, inlet pressure snapshot,
+targets once per step (mixing-plane exchange, inlet velocity snapshot,
 outlet PID/spanwise target); :meth:`ember.grid.Grid.apply_bconds` then
 imposes the full set of physical boundary conditions and closes periodic
 seams every time it is called, including between Runge--Kutta substages.

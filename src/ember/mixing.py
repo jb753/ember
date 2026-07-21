@@ -154,9 +154,12 @@ class MixingPatch(RevolutionPatch):
         P_cap_nd = fluid.get_P(*fluid.set_h_s(h_max_nd, s_nd))
 
         # Linearly extrapolate static pressure from the first two interior
-        # layers (P_face = 2*P_1 - P_2) and relax toward it, mirroring
-        # InletPatch: rf is used directly as the convex weight (no Mach
-        # scaling), anchored to the start-of-step face pressure.
+        # layers (P_face = 2*P_1 - P_2) and relax toward it: rf is used directly
+        # as the convex weight (no Mach scaling), anchored to the start-of-step
+        # face pressure. Note InletPatch no longer does this -- it solves the
+        # outgoing characteristic for velocity instead, because inverting an
+        # imposed pressure through the isentropic relation has a gain of
+        # 1/(gamma*M^2). The same reasoning applies here.
         b1 = self.block_view_offset_1
         b2 = self.block_view_offset_2
         P_interior_nd = 2.0 * b1.P_nd - b2.P_nd

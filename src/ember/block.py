@@ -812,7 +812,8 @@ class Block(ember.struct.StructuredData):
 
             for p in self.patches.inlet:
                 p._target_nd = None
-                p._Po_nd_target = None
+                p._V_nd_max = None
+                p._V_nd_soln = None
             for p in self.patches.outlet:
                 p._P_target_nd = None
 
@@ -890,7 +891,8 @@ class Block(ember.struct.StructuredData):
 
         for p in self.patches.inlet:
             p._target_nd = None
-            p._Po_nd_target = None
+            p._V_nd_max = None
+            p._V_nd_soln = None
         for p in self.patches.outlet:
             p._P_target_nd = None
 

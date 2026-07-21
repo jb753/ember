@@ -942,8 +942,13 @@ class TestPatchRelaxationFactor:
     """Inlet/mixing patches carry their own relaxation factor."""
 
     def test_inlet_rf_default(self):
-        """InletPatch.rf defaults to 0.2."""
-        assert InletPatch(i=0).rf == 0.2
+        """InletPatch.rf defaults to 1.0, i.e. no relaxation.
+
+        The characteristic solve in apply() makes the face velocity a
+        well-conditioned target, so taking it in full is correct; rf < 1 is a
+        startup-lag knob rather than a stability crutch.
+        """
+        assert InletPatch(i=0).rf == 1.0
 
     def test_inlet_rf_settable_and_copied(self):
         """rf is settable and preserved across a patch copy."""
@@ -962,10 +967,13 @@ class TestApplyBconds:
     def _grid_with_inlet_and_seam(self):
         b1 = _make_flow_block()
         b2 = _make_flow_block()
-        # Axial pressure gradient so the inlet-face pressure differs from the
-        # first interior node; otherwise the rf relaxation term vanishes.
+        # Curved axial pressure profile so the pressure extrapolated to the
+        # inlet face from the first two interior nodes differs from the face
+        # value; otherwise the rf relaxation term vanishes. The profile must be
+        # non-linear: the patch extrapolates as 2*P_1 - P_2, which reproduces a
+        # linear field exactly and would leave nothing for rf to relax.
         i_idx = np.arange(b1.shape[0]).reshape(-1, 1, 1)
-        P_grad = 1e5 * (1.0 + 0.02 * i_idx) * np.ones(b1.shape)
+        P_grad = 1e5 * (1.0 + 0.02 * i_idx**2) * np.ones(b1.shape)
         b1.set_P_rho(P_grad, 1.2 * np.ones(b1.shape))
         b1.patches.append(PeriodicPatch(i=0, j=(1, 4), k=(2, 5)))
         b2.patches.append(PeriodicPatch(i=0, j=(1, 4), k=(2, 5)))
