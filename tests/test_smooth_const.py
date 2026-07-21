@@ -91,11 +91,7 @@ def reference(x, sf4, sf2):
     s2i, s4i = _dir_ops(x, 0)
     s2j, s4j = _dir_ops(x, 1)
     s2k, s4k = _dir_ops(x, 2)
-    return (
-        (1.0 - sum_sf) * x
-        + sf2 * (s2i + s2j + s2k)
-        + sf4 * (s4i + s4j + s4k)
-    )
+    return (1.0 - sum_sf) * x + sf2 * (s2i + s2j + s2k) + sf4 * (s4i + s4j + s4k)
 
 
 # ------------------------------------------------------------------
@@ -124,9 +120,7 @@ def test_constant_preserved():
 def test_linear_preserved_everywhere():
     """A linear field is preserved at every node, including boundaries."""
     ni, nj, nk = 10, 12, 8
-    iv, jv, kv = np.meshgrid(
-        np.arange(ni), np.arange(nj), np.arange(nk), indexing="ij"
-    )
+    iv, jv, kv = np.meshgrid(np.arange(ni), np.arange(nj), np.arange(nk), indexing="ij")
     f = (1.0 + iv + 2.0 * jv - 3.0 * kv).astype(typ)[..., None]
     for sf2, sf4 in ((0.2, 0.0), (0.0, 0.2), (0.15, 0.15)):
         out = run(f, sf4=sf4, sf2=sf2)
@@ -136,16 +130,11 @@ def test_linear_preserved_everywhere():
 def test_cubic_preserved_everywhere():
     """4th-order smoothing preserves a cubic at every node (biased edges)."""
     ni, nj, nk = 10, 12, 8
-    iv, jv, kv = np.meshgrid(
-        np.arange(ni), np.arange(nj), np.arange(nk), indexing="ij"
-    )
+    iv, jv, kv = np.meshgrid(np.arange(ni), np.arange(nj), np.arange(nk), indexing="ij")
     # Cubic in each direction; centred to keep float32 magnitudes modest.
-    f = (
-        (iv - 4.5) ** 3
-        + 2.0 * (jv - 5.5) ** 3
-        - (kv - 3.5) ** 3
-        + 1.0
-    ).astype(typ)[..., None]
+    f = ((iv - 4.5) ** 3 + 2.0 * (jv - 5.5) ** 3 - (kv - 3.5) ** 3 + 1.0).astype(typ)[
+        ..., None
+    ]
     out = run(f, sf4=0.2, sf2=0.0)
     # Relative check: cubic magnitudes are O(100), so scale the tolerance.
     assert np.allclose(out, f, rtol=2e-4, atol=5e-2), "cubic not preserved"
@@ -192,3 +181,111 @@ def test_kr_independent():
         for kr in {min(6, nk), nk, nk + 1}:
             got = _run_kr(x, 0.15, 0.2, kr=kr)
             assert np.array_equal(got, ref), f"kr={kr} differs at nk={nk}"
+
+
+# ------------------------------------------------------------------
+# 2nd-order diffusivity at the i/j/k boundaries
+# ------------------------------------------------------------------
+#
+# Polynomial exactness above pins down what the stencils *preserve*; it says
+# nothing about the sign of what they do to everything else. The boundary
+# 2nd-order stencil is a one-parameter family: linear exactness forces
+#
+#     s2[0] = (1+c)*x0 - 2c*x1 + c*x2   ->   contribution = sf2 * c * d2(x1)
+#
+# so every linear-exact choice is some multiple of the second difference about
+# the *first interior* node, and only the scalar c is free. The kernel uses
+# ``s2[0] = 2*x1 - x2`` (c = -1). Because the difference is centred inboard,
+# damping the boundary node requires c < 0: at c = 0 the node is left untouched
+# and never decays, and at c = +1/2 (the "interior-consistent" sign) a boundary
+# spike *grows*. The tests below are what distinguishes those cases -- they fail
+# for c >= 0 while every polynomial-exactness test above still passes.
+#
+# sf4 is held at zero throughout. The 4th-order operator alone is neutrally
+# stable rather than contracting (rho = 1 with a defective mode), so it has no
+# strict-decay property to assert; mixed sf2+sf4 converges but not monotonically.
+
+# Realistic block dimensions, distinct per axis so a transposed index shows up.
+NI, NJ, NK = 49, 33, 25
+
+
+def _axis_field(axis, values):
+    """A block varying as ``values`` along ``axis`` and constant across the other two.
+
+    Constants are preserved exactly by every stencil, biased boundary formulas
+    included, so the other two directions contribute exactly zero and the 3-D
+    kernel reduces to the pure 1-D operator for ``axis``. That isolates one pair
+    of faces at a time.
+    """
+    shape = [1, 1, 1]
+    shape[axis] = len(values)
+    a = np.asarray(values, dtype=typ).reshape(shape)
+    return np.broadcast_to(a, (NI, NJ, NK)).copy()[..., None]
+
+
+def _axis_line(y, axis):
+    """Extract the 1-D profile along ``axis`` from a field built by ``_axis_field``."""
+    return np.moveaxis(y[..., 0], axis, 0)[:, 0, 0].astype(np.float64)
+
+
+def _linear_residual(y, axis):
+    """L2 distance of the profile along ``axis`` from the nearest linear field.
+
+    ``span{1, x}`` is exactly the eigenvalue-1 eigenspace of the 1-D sf2
+    operator (dimension 2 at every n), so this residual is the component the
+    smoother must strictly remove.
+    """
+    a = _axis_line(y, axis)
+    basis = np.vstack([np.ones(a.size), np.arange(a.size)]).T
+    coef, *_ = np.linalg.lstsq(basis, a, rcond=None)
+    return float(np.linalg.norm(a - basis @ coef))
+
+
+@pytest.mark.parametrize("sf2", [0.05, 0.25, 1.0 / 3.0])
+@pytest.mark.parametrize("axis", [0, 1, 2])
+def test_sf2_boundary_spike_decays(axis, sf2):
+    """A spike sitting *on* a boundary node decays under repeated smoothing.
+
+    Covers both ends of all three axes (six faces). This is the direct probe of
+    the boundary row: at c = 0 the amplitude would sit at 1.0 forever, and at
+    c = +1/2 it would grow.
+    """
+    n = (NI, NJ, NK)[axis]
+    for idx in (0, n - 1):
+        values = np.zeros(n)
+        values[idx] = 1.0
+        y = _axis_field(axis, values)
+        amp = [1.0]
+        for _ in range(40):
+            y = run(y, sf4=0.0, sf2=sf2)
+            amp.append(abs(_axis_line(y, axis)[idx]))
+        rise = np.diff(amp).max()
+        assert rise < 0.0, (
+            f"boundary spike not strictly decaying: axis={axis} idx={idx} "
+            f"sf2={sf2} worst step {rise:+.2e}"
+        )
+        assert amp[-1] < 0.5 * amp[0]
+
+
+@pytest.mark.parametrize("sf2", [0.05, 0.25, 1.0 / 3.0])
+@pytest.mark.parametrize("axis", [0, 1, 2])
+def test_sf2_contracts_to_linear(axis, sf2):
+    """Repeated smoothing strictly contracts random data towards a linear field.
+
+    Strict per-pass decrease of the residual is the statement of diffusivity;
+    it holds despite the operator being non-normal at the boundaries (no
+    transient growth for sf4 = 0).
+    """
+    n = (NI, NJ, NK)[axis]
+    rng = np.random.default_rng(axis)
+    y = _axis_field(axis, rng.random(n).astype(typ))
+    res = [_linear_residual(y, axis)]
+    for _ in range(60):
+        y = run(y, sf4=0.0, sf2=sf2)
+        res.append(_linear_residual(y, axis))
+    rise = np.diff(res).max()
+    assert rise < 0.0, (
+        f"residual not strictly decreasing: axis={axis} sf2={sf2} "
+        f"worst step {rise:+.2e}"
+    )
+    assert res[-1] < res[0]
