@@ -1334,6 +1334,8 @@ class Grid(_LabelledList):
                     patch.update_target()
             for patch in block.patches.outlet_nonreflecting:
                 patch.update_soln()
+                if not freeze:
+                    patch.update_target()
 
     def update_cached_conserved(self):
         """Refresh conserved-dependent caches on every block.

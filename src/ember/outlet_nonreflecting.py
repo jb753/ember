@@ -26,8 +26,11 @@ never enter.
 
 Unlike :class:`~ember.outlet.OutletPatch` this patch imposes the prescribed
 pressure only on the pitchwise mean at each span station, and it neither
-extrapolates from the interior nor offers throttle control, spanwise pressure
-adjustment or backflow handling.
+extrapolates from the interior nor offers throttle control or backflow
+handling. It does share that patch's radial-equilibrium adjustment, through the
+common :func:`~ember.outlet.calc_radial_equilibrium`; a swirling exit flow needs
+one, and prescribing the pitchwise mean at every span station holds the exit
+plane off radial equilibrium just as firmly as prescribing it node by node.
 
 See Also
 --------
@@ -40,6 +43,7 @@ ember.perturbation.chic_to_bcond : Jacobian the characteristic solves are built 
 import numpy as np
 
 from ember.nonreflecting import NonReflectingPatch
+from ember.outlet import calc_radial_equilibrium
 
 
 class NonReflectingOutletPatch(NonReflectingPatch):
@@ -102,6 +106,12 @@ class NonReflectingOutletPatch(NonReflectingPatch):
 
     The sum of the two contributions is applied under-relaxed by :attr:`sigma`;
     the four outgoing characteristics are carried through untouched.
+
+    :meth:`set_adjustment` adds a spanwise radial-equilibrium profile to the
+    prescribed pressure, re-derived from the solution once per timestep by
+    :meth:`update_target`. Without it the prescribed pressure is imposed on
+    every span station alike, which for a swirling exit flow fights the
+    centrifugal pressure gradient the flow is trying to establish.
     """
 
     _collection_name = "outlet_nonreflecting"
@@ -123,7 +133,13 @@ class NonReflectingOutletPatch(NonReflectingPatch):
         # corrected, only the Jacobian is frozen -- a modified Newton step, as
         # at the inflow. Here the Jacobian is the constant dp/dc_up = 1/2, so
         # the step is written out rather than solved for.
-        resid_mean = self._pitch_mean(prim[..., 4] - self.P_nd)
+        #
+        # update_target folds the spanwise adjustment into _P_target_nd once per
+        # timestep. Until it has run -- there is no adjustment configured, or
+        # this patch is being driven directly rather than by the solver loop --
+        # the prescribed level is the whole target.
+        P_target = self.P_nd if self._P_target_nd is None else self._P_target_nd
+        resid_mean = self._pitch_mean(prim[..., 4] - P_target)
         dchic_mean = -2.0 * resid_mean
 
         # Harmonics, from the two outgoing characteristics the relation couples
@@ -157,13 +173,77 @@ class NonReflectingOutletPatch(NonReflectingPatch):
             "coef_down_hilbert": self._span_bcast(-2.0 * Mt * wave / denom),
         }
 
+    def _copy(self, c):
+        super()._copy(c)
+        c._P_raw = None if self._P_raw is None else np.copy(self._P_raw)
+        c._adjustment = self._adjustment.copy()
+        # _P_last_nd and _P_target_nd are derived from the solution, so they are
+        # rebuilt by update_target on the new block rather than copied, as _ref
+        # is.
+
+    def _setup(self):
+        super()._setup()
+        # The prescribed pressure as passed, kept so set_adjustment can tell
+        # whether it varies along the span.
+        self._P_raw = None
+        # Empty means no spanwise adjustment; see set_adjustment.
+        self._adjustment = {}
+        # Relaxation state and the combined target, both built by update_target.
+        self._P_last_nd = None
+        self._P_target_nd = None
+
+    def set_adjustment(self, radial_equilibrium=True, rf=0.1):
+        r"""Configure the spanwise adjustment to the prescribed pressure.
+
+        Swirling flow leaving a blade row carries a centrifugal radial pressure
+        gradient. Prescribing one pressure at every span station fights it and
+        induces unnatural streamline curvature, so the adjustment adds the
+        profile satisfying :math:`dp/dr = \overline{\rho V_\theta}\,
+        \overline{V_\theta}/r`, integrated from the hub, where the prescribed
+        pressure is then the value enforced. It is re-derived from the solution
+        by :meth:`update_target` once per timestep and relaxed toward the new
+        value:
+
+        .. math::
+
+            \Delta p^\mathrm{new} = \mathit{rf}\,\Delta p
+                + (1 - \mathit{rf})\,\Delta p^\mathrm{old}
+
+        Off unless this method is called, and incompatible with a non-scalar
+        :meth:`set_P`, which would prescribe a spanwise profile of its own and
+        double count.
+
+        Unlike :meth:`~ember.outlet.OutletPatch.set_adjustment` there is no
+        dynamic-head term. That offset has zero pitchwise mean at every span
+        station by construction, and this patch imposes nothing but pitchwise
+        means, so it would be annihilated exactly.
+
+        Parameters
+        ----------
+        radial_equilibrium : bool, optional
+            Include the radial equilibrium offset. Default True; False
+            configures an adjustment that adjusts nothing, and is accepted only
+            so the signature stays a subset of the reflecting outlet's.
+        rf : float, optional
+            Relaxation factor applied to the profile each step. Default 0.1.
+        """
+        if self._P_raw is not None and self._P_raw.ndim > 0 and self._P_raw.size > 1:
+            raise ValueError("Adjustment is incompatible with non-scalar P")
+        self._adjustment = {
+            "radial_equilibrium": bool(radial_equilibrium),
+            "rf": float(rf),
+        }
+        self._P_last_nd = None
+        self._P_target_nd = None
+
     def set_P(self, P):
         r"""Prescribe the outlet static pressure.
 
         Imposed on the pitchwise mean at each span station, not node by node,
-        so a value varying along the pitch is averaged before use; pass a
-        spanwise profile to prescribe one, for instance to satisfy radial
-        equilibrium in a swirling exit flow.
+        so a value varying along the pitch is averaged before use. With
+        :meth:`set_adjustment` configured this is the hub value and the
+        spanwise profile follows from radial equilibrium; without it, a
+        spanwise array prescribes the profile directly.
 
         Parameters
         ----------
@@ -177,4 +257,36 @@ class NonReflectingOutletPatch(NonReflectingPatch):
             raise ValueError("P must be finite")
         if not (arr > 0.0).all():
             raise ValueError("P must be positive")
+        if self._adjustment and arr.ndim > 0 and arr.size > 1:
+            raise ValueError("Non-scalar P is incompatible with the adjustment")
+        self._P_raw = arr
         self.P_nd = self._broadcast_target("P", arr / self.block.fluid.P_ref)
+        self._P_target_nd = None
+
+    def update_target(self):
+        """Recompute the pressure target for the current timestep.
+
+        Applies the spanwise adjustment of :meth:`set_adjustment`, if
+        configured. Should be called once per outer timestep before the
+        Runge-Kutta stages; :meth:`ember.grid.Grid.update_bconds` does so.
+        """
+        if self.P_nd is None:
+            # Nothing prescribed yet; apply() reports the missing setter.
+            return
+
+        if not self._adjustment:
+            self._P_target_nd = self.P_nd
+            return
+
+        if self._adjustment["radial_equilibrium"]:
+            profile = self._span_bcast(calc_radial_equilibrium(self).astype(np.float32))
+        else:
+            profile = np.zeros_like(self.P_nd)
+
+        # Relax, seeding the history with the first profile so the target starts
+        # where the flow is rather than crawling out from zero.
+        if self._P_last_nd is None:
+            self._P_last_nd = profile.copy()
+        rf = self._adjustment["rf"]
+        self._P_last_nd = rf * profile + (1.0 - rf) * self._P_last_nd
+        self._P_target_nd = self.P_nd + self._P_last_nd

@@ -21,6 +21,7 @@ import pytest
 
 from ember.convergence_history import ConvergenceHistory
 from ember.grid import Grid
+from ember.outlet import calc_radial_equilibrium
 from ember.patch import (
     InviscidPatch,
     NonReflectingInletPatch,
@@ -126,6 +127,127 @@ def test_set_P_before_attach_raises():
     patch = NonReflectingOutletPatch(i=-1)
     with pytest.raises(ValueError, match="not attached"):
         patch.set_P(P_MEAN)
+
+
+# ---------------------------------------------------------------------------
+# Spanwise adjustment
+# ---------------------------------------------------------------------------
+
+
+def _span_profile(patch, field):
+    """Span profile of a patch-shaped field, pitch-averaged and squeezed."""
+    return np.asarray(patch._pitch_mean(field)).squeeze()
+
+
+def test_set_adjustment_stores_values():
+    """set_adjustment records the flag and the relaxation factor."""
+    _, patch = _attached()
+    assert patch._adjustment == {}
+    patch.set_adjustment(radial_equilibrium=True, rf=0.2)
+    assert patch._adjustment == {"radial_equilibrium": True, "rf": 0.2}
+
+
+def test_adjustment_and_nonscalar_P_are_incompatible():
+    """A prescribed spanwise profile plus a derived one would double count."""
+    block = make_block()
+    patch = NonReflectingOutletPatch(i=-1)
+    block.patches.append(patch)
+    nspan = patch.shape[patch.span_dim]
+    profile = np.full((1, nspan, 1), P_MEAN)
+
+    patch.set_P(profile)
+    with pytest.raises(ValueError, match="incompatible"):
+        patch.set_adjustment()
+
+    # ... and refused in the other order too.
+    patch.set_P(P_MEAN)
+    patch.set_adjustment()
+    with pytest.raises(ValueError, match="incompatible"):
+        patch.set_P(profile)
+
+
+def test_update_target_without_adjustment_is_the_prescribed_level():
+    """With no adjustment configured the target is exactly what set_P stored."""
+    _, patch = _attached()
+    patch.update_target()
+    np.testing.assert_array_equal(patch._P_target_nd, patch.P_nd)
+
+
+def test_target_carries_the_radial_equilibrium_profile():
+    """At rf=1 the target is the prescribed level plus the integrated profile."""
+    block, patch = _attached(Vt=VT_MEAN)
+    patch.set_adjustment(radial_equilibrium=True, rf=1.0)
+    patch.update_target()
+
+    got = _span_profile(patch, patch._P_target_nd - patch.P_nd)
+    expect = calc_radial_equilibrium(patch)
+    assert np.abs(got - expect).max() < 1e-5 * np.abs(expect).max()
+    # Anchored at the hub, rising toward the casing, and worth having: a few
+    # percent of the prescribed level on this much swirl.
+    assert got[0] == 0.0
+    assert got[-1] > 0.01 * P_MEAN / FLUID.P_ref
+
+
+def test_relaxation_approaches_the_profile_geometrically():
+    """rf sets how fast the target moves onto the profile, not where it lands."""
+    rf = 0.25
+    _, patch = _attached(Vt=VT_MEAN)
+    patch.set_adjustment(radial_equilibrium=True, rf=rf)
+
+    # The first call seeds the history with the profile itself, so the target
+    # starts where the flow is rather than crawling out from zero.
+    patch.update_target()
+    profile = calc_radial_equilibrium(patch)
+    first = _span_profile(patch, patch._P_target_nd - patch.P_nd)
+    np.testing.assert_allclose(first, profile, rtol=1e-5)
+
+    # Halve the swirl behind the face; the target must walk toward the new
+    # profile at the relaxation rate rather than jumping to it.
+    Vt = patch.block.Vt.copy()
+    Vt[-2] *= 0.5
+    patch.block.set_Vt(Vt)
+    target_profile = calc_radial_equilibrium(patch)
+
+    errs = []
+    for _ in range(10):
+        patch.update_target()
+        got = _span_profile(patch, patch._P_target_nd - patch.P_nd)
+        errs.append(np.abs(got - target_profile).max())
+    assert errs[0] / errs[1] == pytest.approx(1.0 / (1.0 - rf), rel=1e-3)
+    assert errs[-1] < errs[0] * (1.0 - rf) ** 8
+
+
+def test_apply_lands_on_the_adjusted_target():
+    """The mean mode drives each span station to its adjusted pressure.
+
+    The plumbing test for the whole feature: with the adjustment on, one
+    sigma=1 visit must land the pitch-mean pressure on the sloped target, not
+    on the uniform level that set_P prescribed.
+    """
+    _, patch = _attached(Vt=VT_MEAN)
+    patch.set_adjustment(radial_equilibrium=True, rf=1.0)
+    patch.update_target()
+    patch.update_soln()
+    patch.apply()
+
+    got = _span_profile(patch, patch.block_view.P_nd)
+    expect = _span_profile(patch, patch._P_target_nd)
+    assert np.abs(got - expect).max() < 1e-5 * np.abs(expect).max()
+    # Not vacuous: the target really does slope, so an implementation that
+    # ignored the adjustment would fail here.
+    assert np.ptp(expect) > 0.01 * expect.mean()
+
+
+def test_copy_carries_the_adjustment_and_drops_its_caches():
+    """copy() keeps the configuration but not the solution-derived state."""
+    _, patch = _attached(Vt=VT_MEAN)
+    patch.set_adjustment(radial_equilibrium=True, rf=0.3)
+    patch.update_target()
+    clone = patch.copy()
+    assert clone._adjustment == patch._adjustment
+    np.testing.assert_array_equal(clone._P_raw, patch._P_raw)
+    assert clone._P_last_nd is None
+    assert clone._P_target_nd is None
 
 
 # ---------------------------------------------------------------------------
@@ -424,6 +546,21 @@ def test_grid_closed_by_this_patch_alone():
 
     # And a full boundary-condition cycle runs: the patch is visited by both
     # update_bconds and apply_bconds, and asked only for what it implements.
+    outlet.set_adjustment(radial_equilibrium=True, rf=1.0)
     grid.update_bconds()
     grid.apply_bconds()
     assert outlet._ref is not None and outlet._prim_prev is not None
+    # update_bconds reached update_target, so the spanwise profile is in place.
+    assert outlet._P_target_nd is not None
+    assert np.ptp(_span_profile(outlet, outlet._P_target_nd)) > 0.0
+
+    # A frozen update leaves the target alone, so an averaging window sees a
+    # fixed boundary; an unfrozen one picks the new profile up.
+    before = outlet._P_target_nd.copy()
+    Vt = block.Vt.copy()
+    Vt[-2] *= 0.5
+    block.set_Vt(Vt)
+    grid.update_bconds(freeze=True)
+    np.testing.assert_array_equal(outlet._P_target_nd, before)
+    grid.update_bconds()
+    assert np.abs(outlet._P_target_nd - before).max() > 0.0

@@ -13,6 +13,60 @@ import numpy as np
 from ember.basepatch import RevolutionPatch
 
 
+def calc_radial_equilibrium(patch):
+    r"""Spanwise static pressure profile in centrifugal radial equilibrium.
+
+    Swirling flow leaving a blade row carries a centrifugal radial pressure
+    gradient,
+
+    .. math::
+
+        \frac{dp}{dr} = \frac{\overline{\rho V_\theta}\;\overline{V_\theta}}{r}
+
+    where :math:`\overline{\Box}` is the pitch mean. This product-of-means form
+    matches the Multall ``EXBCONDS`` radial-equilibrium treatment. Flow
+    quantities are pitch-averaged over the first interior layer (the offset-1
+    slice) rather than the boundary face, so the profile is driven by the
+    interior rather than by whatever the boundary condition last wrote there.
+
+    Integrated from hub to tip and anchored to zero at the hub, so a patch that
+    adds this to a prescribed pressure enforces that pressure at the hub.
+
+    Parameters
+    ----------
+    patch : ember.basepatch.RevolutionPatch
+        Outflow patch to read the interior layer and pitch weights from.
+
+    Returns
+    -------
+    array
+        Nondimensional pressure offset at each span station, shape
+        ``(nspan,)``, zero at the hub. The caller broadcasts it over the patch
+        shape and adds it to its own prescribed pressure.
+
+    See Also
+    --------
+    ember.outlet.OutletPatch.set_adjustment : Enables this on the reflecting outlet
+    """
+    b1 = patch.block_view_offset_1
+    w = patch.weight_pitch
+    pd = patch.pitch_dim
+    rhoVt_mean = np.sum(b1.rho_nd * b1.Vt_nd * w, axis=pd).squeeze()
+    Vt_mean = np.sum(b1.Vt_nd * w, axis=pd).squeeze()
+    r_nd = np.sum(b1.r_nd * w, axis=pd).squeeze()
+    # No NaN guard here: a diverged march can feed NaN into these means, but it
+    # should propagate through (into the pressure target, then the conserved
+    # state) and be caught by the solver's own Grid.check_nan() on its next
+    # pass, the same graceful path every other divergence takes. Raising here
+    # instead pre-empts that with a hard, uncaught crash.
+    dPdr_nd = rhoVt_mean * Vt_mean / r_nd
+    dr_nd = np.diff(r_nd)
+    P_re_span_nd = np.empty(len(r_nd))
+    P_re_span_nd[0] = 0.0
+    P_re_span_nd[1:] = np.cumsum(0.5 * (dPdr_nd[:-1] + dPdr_nd[1:]) * dr_nd)
+    return P_re_span_nd
+
+
 class OutletPatch(RevolutionPatch):
     """Outflow boundary condition.
 
@@ -515,34 +569,15 @@ class OutletPatch(RevolutionPatch):
                 dyn_offset = np.zeros(self.block_view.shape, dtype=np.float32)
 
             # --- Radial equilibrium offset ---
-            # Centrifugal pressure rise integrated along span; anchored to hub.
-            # Flow quantities are pitch-averaged over the first interior layer
-            # (the offset-1 slice), the same source apply() extrapolates the
-            # boundary state from. The integrand reproduces the Multall
-            # EXBCONDS IPOUT=3 form: pitch-mean(rho*Vt) * pitch-mean(Vt) / r.
+            # Centrifugal pressure rise integrated along span, anchored to the
+            # hub: the integration starts there with a zero offset, so the
+            # prescribed p_out is enforced at the hub and the profile rises
+            # centrifugally toward the tip. Shared with
+            # NonReflectingOutletPatch; see calc_radial_equilibrium.
             if do_re:
-                b1 = self.block_view_offset_1
-                w = self.weight_pitch
-                pd = self.pitch_dim
-                rhoVt_mean = np.sum(b1.rho_nd * b1.Vt_nd * w, axis=pd).squeeze()
-                Vt_mean = np.sum(b1.Vt_nd * w, axis=pd).squeeze()
-                r_nd = np.sum(b1.r_nd * w, axis=pd).squeeze()
-                # No NaN guard here: a diverged march can feed NaN into these
-                # means, but it should propagate through (into the pressure
-                # target, then the conserved state) and be caught by the
-                # solver's own Grid.check_nan() on its next pass, the same
-                # graceful path every other divergence takes. Raising here
-                # instead pre-empts that with a hard, uncaught crash.
-                dPdr_nd = rhoVt_mean * Vt_mean / r_nd
-                dr_nd = np.diff(r_nd)
-                P_re_span_nd = np.empty(len(r_nd))
-                P_re_span_nd[0] = 0.0
-                P_re_span_nd[1:] = np.cumsum(0.5 * (dPdr_nd[:-1] + dPdr_nd[1:]) * dr_nd)
-                # Anchor to the hub: integration starts at the hub with a zero
-                # offset there, so the prescribed p_out is enforced at the hub
-                # and the profile rises centrifugally toward the tip.
                 re_offset = np.broadcast_to(
-                    self._span_bcast(P_re_span_nd), self.block_view.shape
+                    self._span_bcast(calc_radial_equilibrium(self)),
+                    self.block_view.shape,
                 ).astype(np.float32)
             else:
                 re_offset = np.zeros(self.block_view.shape, dtype=np.float32)
