@@ -2,8 +2,9 @@
 
 :class:`MixingCommunicator` serves the reflecting mixing plane of
 :mod:`ember.mixing` and :class:`NonReflectingMixingCommunicator` the
-non-reflecting one of :mod:`ember.mixing_nonreflecting`. They differ only in the
-variables the exchanged target is expressed in; everything else is shared.
+non-reflecting one of :mod:`ember.mixing_nonreflecting`. Both exchange the same
+mix variables and share the whole algorithm; they are separate types only
+because the two planes are wired separately.
 """
 
 from ember import perturbation, util
@@ -224,9 +225,8 @@ class MixingCommunicator:
         The split is expressed as a pair of row masks on the target vector, so
         :attr:`_chic_to_target` has to map characteristics into a space whose
         last row is the static pressure and whose first four rows are the
-        quantities an inflow prescribes. Both mix space and bcond space
-        satisfy that, which is what lets the non-reflecting mixing plane reuse
-        this method unchanged.
+        quantities an inflow prescribes. Mix space satisfies that, which is
+        what lets both mixing planes reuse this method unchanged.
         """
         v1 = self._vec1[:nspan]
         v2 = self._vec2[:nspan]
@@ -308,25 +308,24 @@ class MixingCommunicator:
 class NonReflectingMixingCommunicator(MixingCommunicator):
     r"""Cross-plane exchange for the non-reflecting mixing plane.
 
-    Identical to :class:`MixingCommunicator` but for the space the exchanged
-    target is written in. The reflecting plane exchanges mix variables
-    :math:`[h_0, s, V_r, V_\theta, p]`, which its patches impose node by node;
-    the non-reflecting plane exchanges boundary-condition variables
-    :math:`[h_0, s, \tan\alpha, \sin\beta, p]`, which are exactly the targets
-    :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch` and
-    :class:`~ember.outlet_nonreflecting.NonReflectingOutletPatch` already take
-    their pitchwise-mean residuals against.
+    Behaviourally identical to :class:`MixingCommunicator`, down to the
+    exchanged variables: both planes write the target in the mix variables
+    :math:`[h_0, s, V_r, V_\theta, p]`. The reflecting plane's patches impose
+    those node by node; the non-reflecting plane's take pitchwise-mean
+    residuals against them and drive only the mean mode of each side's
+    boundary condition, leaving the harmonics to the non-reflecting relations
+    of the patches themselves. That is exactly how :cite:t:`Saxer1993` (his
+    Section 5.5) specifies the interface.
 
     So the whole exchange -- the symmetrised cross-plane average, the flux
     mismatch, the split by direction of propagation, the relaxation onto the
-    symmetrised baseline -- is inherited unchanged, and only the mean mode of
-    each side's boundary condition is driven by it. The harmonics are left to
-    the non-reflecting relations of the patches themselves, which is exactly
-    how :cite:t:`Saxer1993` (his Section 5.5) specifies the interface.
+    symmetrised baseline -- is inherited unchanged, and this subclass overrides
+    nothing. It survives as a distinct type because
+    :class:`~ember.grid.GridConnectivity` selects the communicator by class and
+    the two planes are wired separately; keeping it also leaves one place to
+    hang a non-reflecting-only change should the two ever diverge again.
 
     See Also
     --------
     ember.mixing_nonreflecting : The two patch classes this pairs
     """
-
-    _chic_to_target = staticmethod(perturbation.chic_to_bcond)

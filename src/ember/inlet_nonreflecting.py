@@ -85,6 +85,9 @@ class NonReflectingInletPatch(NonReflectingPatch):
 
     _sign_interior = 1
 
+    # Declaration order is the row order of the mean-mode residual and of the
+    # first four rows of :attr:`_chic_to_target`; the two must agree, since
+    # :meth:`_calc_dchic` stacks the residuals by iterating this.
     _target_setters = {
         "ho_nd": "set_ho_s or set_Po_To",
         "s_nd": "set_ho_s or set_Po_To",
@@ -92,28 +95,49 @@ class NonReflectingInletPatch(NonReflectingPatch):
         "sinBeta": "set_Beta",
     }
 
+    # Jacobian from characteristic variables to the space the prescribed
+    # quantities live in. Its first four rows are those quantities, in
+    # _target_setters order, and its fifth the static pressure. Subclasses
+    # prescribing a different set override this and _target_from_prim together;
+    # everything else here is written against the two of them rather than
+    # against any particular set.
+    _chic_to_target = staticmethod(perturbation.chic_to_bcond)
+
     # A mean-mode Jacobian is treated as singular when its determinant falls
     # this far below the Hadamard bound (the product of its row norms).
     _rtol_det = 1e-6
 
-    def _bcond_from_prim(self, prim):
-        """Boundary condition quantities (ho, s, tanAlpha, sinBeta) of a primitive state.
+    def _ho_s_from_prim(self, prim):
+        """Stagnation enthalpy and entropy of a primitive state.
 
         Evaluated without writing to the block, so the residuals are taken on
         the state about to be corrected rather than on whatever is currently
-        stored.
+        stored. Shared by every prescribed set, all of which carry ``ho`` and
+        ``s`` as their first two rows -- which is also why :meth:`_calc_dchic`
+        can take its harmonic residual on rows 0 and 1 whatever the set.
         """
         fluid = self.block_view.fluid
         rho_nd, u_nd = fluid.set_P_rho(prim[..., 4], prim[..., 0])
         Vx, Vr, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
-        Vm = np.sqrt(Vx**2 + Vr**2)
         ho_nd = fluid.get_h(rho_nd, u_nd) + 0.5 * (Vx**2 + Vr**2 + Vt**2)
-        return ho_nd, fluid.get_s(rho_nd, u_nd), Vt / Vm, Vr / Vm
+        return ho_nd, fluid.get_s(rho_nd, u_nd)
+
+    def _target_from_prim(self, prim):
+        """The prescribed quantities (ho, s, tanAlpha, sinBeta) of a primitive state.
+
+        Returned in :attr:`_target_setters` order, which is the row order both
+        the mean-mode residual and :attr:`_chic_to_target` are written in.
+        """
+        ho_nd, s_nd = self._ho_s_from_prim(prim)
+        Vx, Vr, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
+        Vm = np.sqrt(Vx**2 + Vr**2)
+        return ho_nd, s_nd, Vt / Vm, Vr / Vm
 
     def _calc_dchic(self, dchic, prim):
         """Change in the four incoming characteristics; see the class docstring."""
         ref = self._ref
-        ho_nd, s_nd, tanAlpha, sinBeta = self._bcond_from_prim(prim)
+        target = self._target_from_prim(prim)
+        ho_nd, s_nd = target[0], target[1]
 
         # Mean mode: one Newton step on the four prescribed quantities. The
         # residual is evaluated on the state about to be corrected, only the
@@ -122,12 +146,10 @@ class NonReflectingInletPatch(NonReflectingPatch):
         # stale, so repeated stages would re-apply one correction rather than
         # converge on it.
         resid_mean = np.stack(
-            (
-                self._pitch_mean(ho_nd - self.ho_nd),
-                self._pitch_mean(s_nd - self.s_nd),
-                self._pitch_mean(tanAlpha - self.tanAlpha),
-                self._pitch_mean(sinBeta - self.sinBeta),
-            ),
+            [
+                self._pitch_mean(value - getattr(self, name))
+                for value, name in zip(target, self._target_setters, strict=True)
+            ],
             axis=-1,
         )
         dchic_mean = -util.matvec(ref["inv_mean"], resid_mean)
@@ -166,11 +188,11 @@ class NonReflectingInletPatch(NonReflectingPatch):
 
     def _calc_reference_extra(self, avg, Mn, Mt, wave):
         """Jacobians of the mean and local Newton steps, and the harmonic coefficients."""
-        c2b = perturbation.chic_to_bcond(avg)
-        # Rows [ho, s, tanAlpha, sinBeta] against the four incoming
+        c2t = self._chic_to_target(avg)
+        # The four prescribed quantities against the four incoming
         # characteristic columns [c_down, c_r, c_t, c_s]: the square system
         # whose solution zeroes the mean boundary condition residuals.
-        jac_mean = np.ascontiguousarray(c2b[..., 0:4, 1:5])
+        jac_mean = np.ascontiguousarray(c2t[..., 0:4, 1:5])
         det = np.linalg.det(jac_mean)
         hadamard = np.prod(np.linalg.norm(jac_mean, axis=-1), axis=-1)
         if np.any(np.abs(det) < self._rtol_det * hadamard):
@@ -183,14 +205,17 @@ class NonReflectingInletPatch(NonReflectingPatch):
         # Local system: stagnation enthalpy and entropy against the entropy and
         # downstream-running pressure characteristics, the two left free once
         # the vorticity characteristics are fixed by the non-reflecting theory.
-        # Columns 1 and 4 of a length-5 axis are c_down and c_s.
-        jac_local = np.ascontiguousarray(c2b[..., 0:2, 1::3])
+        # Columns 1 and 4 of a length-5 axis are c_down and c_s. Rows 0 and 1
+        # are ho and s in every prescribed set, so this system and the two
+        # coupling columns below are the same matrices whatever _chic_to_target
+        # is.
+        jac_local = np.ascontiguousarray(c2t[..., 0:2, 1::3])
 
         return {
             "inv_mean": self._span_bcast(util.inv(jac_mean)),
             "inv_local": self._span_bcast(util.inv(jac_local)),
-            "couple_r": self._span_bcast(np.ascontiguousarray(c2b[..., 0:2, 2])),
-            "couple_t": self._span_bcast(np.ascontiguousarray(c2b[..., 0:2, 3])),
+            "couple_r": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 2])),
+            "couple_t": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 3])),
             "coef_local": self._span_bcast(-Mt / (1.0 + Mn)),
             "coef_hilbert": self._span_bcast(wave / (1.0 + Mn)),
         }

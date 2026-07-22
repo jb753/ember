@@ -221,7 +221,7 @@ def test_target_is_pitch_uniform():
 
     nspan = patch_dn.shape[patch_dn.span_dim]
     assert patch_dn.get_target().shape == (nspan, 5)
-    for name in ("ho_nd", "s_nd", "tanAlpha", "sinBeta"):
+    for name in ("ho_nd", "s_nd", "Vr_nd", "Vt_nd"):
         target = getattr(patch_dn, name)
         assert target.shape[patch_dn.pitch_dim] == 1
     assert patch_up.P_nd.shape[patch_up.pitch_dim] == 1
@@ -234,7 +234,7 @@ def test_target_seeds_from_own_pitch_mean():
 
     target = patch_dn.get_target()
     b = patch_dn.block_view
-    for idx, field in enumerate((b.ho_nd, b.s_nd, b.tanAlpha, b.sinBeta, b.P_nd)):
+    for idx, field in enumerate((b.ho_nd, b.s_nd, b.Vr_nd, b.Vt_nd, b.P_nd)):
         expect = patch_dn._pitch_mean(field).squeeze()
         assert np.allclose(target[:, idx], expect, rtol=1e-6)
 
@@ -259,6 +259,26 @@ def test_set_adjustment_refuses():
     grid, patch_up, patch_dn = make_pair()
     with pytest.raises(ValueError, match="double count"):
         patch_up.set_adjustment()
+
+
+@pytest.mark.parametrize("setter", ["set_Alpha", "set_Beta"])
+def test_angle_setters_refuse(setter):
+    """The inflow side prescribes velocities, so the angle setters have no target.
+
+    Letting them through would set tanAlpha or sinBeta, which nothing on this
+    side reads, and the caller would get no sign that the value was ignored.
+    """
+    grid, patch_up, patch_dn = make_pair()
+    with pytest.raises(ValueError, match="nothing to set"):
+        getattr(patch_dn, setter)(10.0)
+
+
+def test_ho_s_setter_still_works():
+    """set_ho_s still fills rows 0-1, which the mix set shares with the angles."""
+    grid, patch_up, patch_dn = make_pair()
+    patch_dn.set_ho_s(4.1e5, 1.5e3)
+    assert patch_dn.ho_nd is not None
+    assert patch_dn.s_nd is not None
 
 
 # Physics

@@ -435,6 +435,42 @@ def test_chic_to_mix_linearization(scalar_blocks):
     np.testing.assert_allclose(dmix_calc, dmix_ref, atol=0.0, rtol=1e-5)
 
 
+def test_chic_to_bcond_and_chic_to_mix_share_rows(scalar_blocks):
+    """chic_to_bcond and chic_to_mix agree exactly on rows 0, 1 and 4.
+
+    The two differ only in which pair of transverse quantities they carry --
+    (tanAlpha, sinBeta) against (Vr, Vt) -- so their stagnation enthalpy,
+    entropy and static pressure rows are the same expressions. Several callers
+    depend on that:
+
+    * :class:`ember.outlet_nonreflecting.NonReflectingOutletPatch` hardcodes
+      ``dp/dc_up = 1/2`` from row 4, so it is correct under either set;
+    * :meth:`ember.inlet_nonreflecting.NonReflectingInletPatch._calc_reference_extra`
+      builds its local Newton system and both coupling columns from rows 0:2,
+      so those are the same matrices whichever set the patch prescribes;
+    * :meth:`ember.mixing_communicator.MixingCommunicator._write_targets`
+      splits the interface jump on the assumption that row 4 is the pressure.
+
+    If this ever stops holding, the outflow side of the non-reflecting mixing
+    plane and the harmonic systems of the inflow side would silently disagree
+    between the two variable sets.
+    """
+    block1 = scalar_blocks[0]
+
+    c2b = perturbation.chic_to_bcond(block1)
+    c2m = perturbation.chic_to_mix(block1)
+
+    for row in (0, 1, 4):
+        np.testing.assert_array_equal(
+            c2b[..., row, :],
+            c2m[..., row, :],
+            err_msg=f"chic_to_bcond and chic_to_mix differ in row {row}",
+        )
+
+    # And rows 2-3 genuinely do differ, so the test above is not vacuous.
+    assert not np.array_equal(c2b[..., 2:4, :], c2m[..., 2:4, :])
+
+
 def test_chic_to_bcond_matches_product(scalar_blocks):
     """Test that chic_to_bcond equals primitive_to_bcond @ chic_to_primitive."""
     block1 = scalar_blocks[0]

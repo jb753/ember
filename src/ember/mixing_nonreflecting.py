@@ -28,12 +28,20 @@ target.
 
 The exchange is carried out by
 :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator`, which
-writes the target in the boundary-condition variables
-:math:`[h_0, s, \tan\alpha, \sin\beta, p]` of
-:func:`~ember.perturbation.chic_to_bcond` -- exactly the quantities the two
-patches already take their pitchwise-mean residuals against. Rows 0-3 go to the
+writes the target in the mix variables :math:`[h_0, s, V_r, V_\theta, p]` of
+:func:`~ember.perturbation.chic_to_mix` -- exactly the quantities the two
+patches take their pitchwise-mean residuals against. Rows 0-3 go to the
 inflow side, row 4 to the outflow side, which is Saxer's split by direction of
 propagation expressed in those variables.
+
+That is the same set :class:`~ember.mixing.MixingPatch` exchanges, so the two
+mixing planes now agree on their interface variables and differ only in what
+they do with them. The inflow side takes its residuals in mix variables rather
+than in the :math:`[h_0, s, \tan\alpha, \sin\beta]` its parent
+:class:`~ember.inlet_nonreflecting.NonReflectingInletPatch` uses; see that
+class for why the angles suit a physical inlet and not an interface. The
+outflow side is unaffected either way, because the static-pressure row is
+identical in the two variable sets.
 
 Unlike :class:`~ember.mixing.MixingPatch` the two sides are distinct classes
 rather than one class that infers its side from the geometry, because the
@@ -63,7 +71,7 @@ ember.nonreflecting.NonReflectingPatch : Base class holding the shared machinery
 
 import numpy as np
 
-from ember import util
+from ember import perturbation, util
 from ember.inlet_nonreflecting import NonReflectingInletPatch
 from ember.outlet_nonreflecting import NonReflectingOutletPatch
 
@@ -100,7 +108,7 @@ class NonReflectingMixingPatch:
     _collection_name = "mixing_nonreflecting"
 
     # Nondimensional target attribute -> its row of the exchanged target vector
-    # [ho, s, tanAlpha, sinBeta, P]. The inflow side owns the first four rows,
+    # [ho, s, Vr, Vt, P]. The inflow side owns the first four rows,
     # the outflow side the last, which is Saxer Eq. 5.66's split of the
     # interface jump by direction of propagation.
     _target_index = None
@@ -119,7 +127,7 @@ class NonReflectingMixingPatch:
         super()._setup()
         self._flux_avg = None
         # Exchanged cross-plane target, shape (*span_shape, 5), nondimensional
-        # [ho, s, tanAlpha, sinBeta, P]. None until first used; seeded lazily
+        # [ho, s, Vr, Vt, P]. None until first used; seeded lazily
         # from this side's own pitch mean so a patch that has never been
         # exchanged still has somewhere consistent to start.
         self._target = None
@@ -225,7 +233,7 @@ class NonReflectingMixingPatch:
     def get_target(self):
         """Return the exchanged target, a nondimensional ``(nspan, 5)`` array.
 
-        Rows are ``[ho, s, tanAlpha, sinBeta, P]``. Read by
+        Rows are ``[ho, s, Vr, Vt, P]``. Read by
         :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator` to
         form the symmetrised baseline the cross-plane mismatch is relaxed onto.
         """
@@ -251,7 +259,7 @@ class NonReflectingMixingPatch:
         Parameters
         ----------
         target : array of shape ``(nspan, 5)``, optional
-            Nondimensional ``[ho, s, tanAlpha, sinBeta, P]`` target values.
+            Nondimensional ``[ho, s, Vr, Vt, P]`` target values.
         """
         self._check_attached()
         shape = self._target_shape()
@@ -268,9 +276,7 @@ class NonReflectingMixingPatch:
             # safe to use either, since the communicator overwrites it with the
             # symmetrised cross-plane average.
             b = self.block_view
-            for idx, field in enumerate(
-                (b.ho_nd, b.s_nd, b.tanAlpha, b.sinBeta, b.P_nd)
-            ):
+            for idx, field in enumerate((b.ho_nd, b.s_nd, b.Vr_nd, b.Vt_nd, b.P_nd)):
                 self._target[..., idx] = self._pitch_mean(field)
         else:
             self._target[...] = target.reshape(shape)
@@ -287,19 +293,91 @@ class NonReflectingMixingInletPatch(NonReflectingMixingPatch, NonReflectingInlet
 
     An inflow face, so four of its five characteristics are incoming. Their
     pitchwise means are driven to the exchanged stagnation enthalpy, entropy and
-    two flow angles by the same Newton step against
-    :func:`~ember.perturbation.chic_to_bcond` that
+    two transverse velocities by the same Newton step that
     :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch` uses, and their
-    harmonics by the same non-reflecting relations. The only difference is where
-    the target comes from: the cross-plane exchange each timestep, rather than a
-    user calling :meth:`~ember.inlet_nonreflecting.NonReflectingInletPatch.set_ho_s`
-    and friends. Those setters still work but are overwritten by the next
-    exchange, so there is no point calling them.
+    harmonics by the same non-reflecting relations.
+
+    Two things differ from that condition. The target comes from the cross-plane
+    exchange each timestep rather than from a user calling
+    :meth:`~ember.inlet_nonreflecting.NonReflectingInletPatch.set_ho_s` and
+    friends; :meth:`set_ho_s` and :meth:`set_Po_To` still work but are
+    overwritten by the next exchange, so there is no point calling them.
+
+    And the prescribed set is the *mix* set :math:`[h_0, s, V_r, V_\theta]`
+    rather than that condition's :math:`[h_0, s, \tan\alpha, \sin\beta]`, so the
+    Newton step is taken against ``ember.perturbation.chic_to_mix``. A physical
+    inlet knows its flow angles and not its velocity magnitude, so the angles
+    are the right variables there; across a mixing plane both sides know the
+    velocities, and the angles are actively worse. They are measured against the unsigned meridional speed
+    :math:`V_m = \sqrt{V_x^2 + V_r^2}`, so they cannot tell :math:`V_x` from
+    :math:`-V_x`, and their rows of the mean-mode Jacobian carry a factor of
+    :math:`V_x` that takes the system towards singular as the axial velocity
+    falls. The mix rows carry no :math:`V_x` at all, so the solve stays
+    conditioned down to and through zero axial velocity. Only rows 2 and 3 of
+    the two Jacobians differ; rows 0, 1 and 4 are identical, which is why the
+    outflow side and the harmonic relations are untouched by the choice.
+
+    :meth:`set_Alpha` and :meth:`set_Beta` therefore raise rather than setting
+    an attribute nothing reads.
     """
 
     _desc = "non-reflecting mixing plane inflow side"
 
-    _target_index = {"ho_nd": 0, "s_nd": 1, "tanAlpha": 2, "sinBeta": 3}
+    _target_index = {"ho_nd": 0, "s_nd": 1, "Vr_nd": 2, "Vt_nd": 3}
+
+    _target_setters = {
+        "ho_nd": "the mixing exchange",
+        "s_nd": "the mixing exchange",
+        "Vr_nd": "the mixing exchange",
+        "Vt_nd": "the mixing exchange",
+    }
+
+    _chic_to_target = staticmethod(perturbation.chic_to_mix)
+
+    def _raise_angle_setter(self, name):
+        """Report that an angle setter does not apply to the mix target set."""
+        raise ValueError(
+            f"{self._desc.capitalize()} {self.label!r} takes its inflow state "
+            f"from the mixing exchange as (ho, s, Vr, Vt), so {name} has "
+            "nothing to set; the flow angles cross the plane as the velocity "
+            "components that carry them."
+        )
+
+    def _target_from_prim(self, prim):
+        """The prescribed quantities (ho, s, Vr, Vt) of a primitive state.
+
+        The mix set in place of the inflow condition's angles; see the class
+        docstring for why. ``Vr`` and ``Vt`` are read straight off the
+        primitive state, so unlike
+        :meth:`~ember.inlet_nonreflecting.NonReflectingInletPatch._target_from_prim`
+        no meridional speed is formed and there is nothing to divide by.
+        """
+        ho_nd, s_nd = self._ho_s_from_prim(prim)
+        return ho_nd, s_nd, prim[..., 2], prim[..., 3]
+
+    def set_Alpha(self, Alpha):
+        """Not available: the exchanged target prescribes velocities, not angles.
+
+        Raises
+        ------
+        ValueError
+            Always; see :meth:`set_Beta`.
+        """
+        self._raise_angle_setter("set_Alpha")
+
+    def set_Beta(self, Beta):
+        r"""Not available: the exchanged target prescribes velocities, not angles.
+
+        Raises
+        ------
+        ValueError
+            Always. This side prescribes :math:`(h_0, s, V_r, V_\theta)` from
+            the cross-plane exchange, so there is no :attr:`tanAlpha` or
+            :attr:`sinBeta` for these to fill and calling them would set an
+            attribute nothing reads. Yaw and pitch still cross the plane, as
+            the velocity components that carry them.
+        """
+        self._raise_angle_setter("set_Beta")
 
 
 class NonReflectingMixingOutletPatch(NonReflectingMixingPatch, NonReflectingOutletPatch):
