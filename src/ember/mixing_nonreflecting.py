@@ -34,10 +34,10 @@ patches take their pitchwise-mean residuals against. Rows 0-3 go to the
 inflow side, row 4 to the outflow side, which is Saxer's split by direction of
 propagation expressed in those variables.
 
-That is the same set :class:`~ember.mixing.MixingPatch` exchanges, so the two
-mixing planes now agree on their interface variables and differ only in what
-they do with them. The inflow side takes its residuals in mix variables rather
-than in the :math:`[h_0, s, \tan\alpha, \sin\beta]` its parent
+:class:`~ember.mixing.MixingPatch` exchanges conserved variables instead and
+imposes them outright, so the two mixing planes now share only their pairing
+and their relaxation factor. The inflow side takes its residuals in mix
+variables rather than in the :math:`[h_0, s, \tan\alpha, \sin\beta]` its parent
 :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch` uses; see that
 class for why the angles suit a physical inlet and not an interface. The
 outflow side is unaffected either way, because the static-pressure row is
@@ -53,9 +53,9 @@ Restrictions beyond those of the reflecting plane, all inherited:
 * the plane must be one of constant :math:`x` with the flow running along
   :math:`+x`, and the mean state axially and absolutely subsonic;
 * pitchwise-mean backflow raises rather than being handled. The reflecting
-  plane limps through reversed flow at the interface (see
-  :meth:`ember.mixing.MixingPatch.apply`); this one does not, because the
-  characteristic split it is built on is invalid there.
+  plane is indifferent to the sign of the flow through it -- it imposes a
+  conserved state and never asks which way it points -- while this one is not,
+  because the characteristic split it is built on is invalid there.
 
 Both sides build their own Hilbert transform on their own pitch and no harmonic
 crosses the plane, so the two sides may have different pitchwise node counts and
@@ -210,9 +210,9 @@ class NonReflectingMixingPatch:
         :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator`
         before reading :attr:`flux_avg_nd` to form the cross-plane flux
         difference of Saxer Eq. 5.65. No rotation into interface coordinates is
-        needed as it is for :meth:`ember.mixing.MixingPatch.set_flux_avg`: the
-        base class restricts this patch to a plane of constant ``x``, so ``Vx``
-        is already the face-normal velocity and ``Vr`` the spanwise one.
+        needed: the base class restricts this patch to a plane of constant
+        ``x``, so ``Vx`` is already the face-normal velocity and ``Vr`` the
+        spanwise one.
         """
         import ember.fortran as ft
 

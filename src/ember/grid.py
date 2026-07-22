@@ -1326,19 +1326,20 @@ class Grid(_LabelledList):
         """
         if not freeze:
             self.connectivity.mixing.exchange()
-            self.connectivity.mixing_nonreflecting.exchange()
+            # self.connectivity.mixing_nonreflecting.exchange()
 
         for block in self:
             for patch in block.patches.inlet:
                 patch.update_soln()
             for patch in block.patches.inlet_nonreflecting:
                 patch.update_soln()
-            for patch in block.patches.mixing:
-                patch.update_soln()
-            # No update_target: both sides take their target from the exchange
-            # above, not from a prescribed level plus a spanwise adjustment.
-            for patch in block.patches.mixing_nonreflecting:
-                patch.update_soln()
+            # No mixing loop: MixingPatch holds no per-step state of its own,
+            # only the target the exchange above just wrote. And no
+            # update_target on either mixing plane: both sides take their
+            # target from that exchange, not from a prescribed level plus a
+            # spanwise adjustment.
+            # for patch in block.patches.mixing_nonreflecting:
+            #     patch.update_soln()
             for patch in block.patches.outlet:
                 patch.update_soln()
                 if not freeze:
@@ -1880,8 +1881,7 @@ class Grid(_LabelledList):
                         # them apart -- use position instead. This patch's
                         # face sits on its block's high-x side (mean x above
                         # the whole block's mean x) iff it's that block's own
-                        # exit face, the same test mixing.py's apply() uses to
-                        # tell which side of a pair it owns.
+                        # exit face.
                         if p.block_view.x.mean() > p.block.x.mean():
                             dn_idx.append((bid, pid))
                         else:

@@ -359,19 +359,6 @@ class Block(ember.struct.StructuredData):
         e_new = u_nd + self._halfVsq_nd_uninit
         self._set_data_by_keys(("rhoe",), rho_nd * e_new, store_init=False)
 
-    def _mixing_refs(self):
-        """Reference scales for the [ho, s, Vr, Vt, P] _target stack."""
-        return np.array(
-            [
-                self.fluid.u_ref,
-                self.fluid.Rgas_ref,
-                self.fluid.V_ref,
-                self.fluid.V_ref,
-                self.fluid.P_ref,
-            ],
-            dtype=np.float32,
-        )
-
     def _set_rho_u_nd(self, rho_nd, u_nd):
         """Set nondimensional density and internal energy, preserving velocities."""
         Vxrt_nd = self._Vxrt_nd_uninit

@@ -3114,7 +3114,7 @@ class TestMixingPatchCopy:
         c = p.copy()
         assert c._block_ref is None
         assert c._block_view is None
-        assert c._flux_avg is None
+        assert c._target is None
 
 
 class TestInletPatch:

@@ -12,8 +12,12 @@ def _frozen_copy(a):
     return out
 
 
-def _cons_filt_refs(block):
-    """Per-component dimensional reference scales for conserved_filt_nd."""
+def _cons_refs(block):
+    """Per-component dimensional reference scales for a stack of conserved variables.
+
+    Used for both ``conserved_filt_nd`` and the mixing-plane ``_target``, which
+    is a conserved-variable stack too.
+    """
     f = block.fluid
     return np.array(
         [
@@ -83,7 +87,7 @@ class BlockRestart:
         One read-only array per MixingPatch, in `block.patches.mixing`
         order. Each is `_target` dimensionalized so reference
         scales between save and restore can differ; stack along last
-        axis is [ho, s, Vr, Vt, P].
+        axis is the conserved variables [rho, rhoVx, rhoVr, rho*r*Vt, rho*e].
     """
 
     conserved: np.ndarray
@@ -141,7 +145,7 @@ def make_restart(grid):
         outlet_rho_soln = tuple(p._rho_nd_soln for p in block.patches.outlet)
         outlet_P_last = tuple(p._P_last_nd for p in block.patches.outlet)
 
-        refs = block._mixing_refs()
+        refs = _cons_refs(block)
         mixing = tuple(p._target * refs for p in block.patches.mixing)
 
         # conserved_filt_nd is a cached Block property; read its store entry
@@ -150,7 +154,7 @@ def make_restart(grid):
         cons_filt_nd = None if _filt_entry is None else _filt_entry[1]
         if cons_filt_nd is not None:
             lag_nd = cons_filt_nd - block.conserved_cell_nd
-            cons_filt_lag_dim = lag_nd * _cons_filt_refs(block)
+            cons_filt_lag_dim = lag_nd * _cons_refs(block)
         else:
             cons_filt_lag_dim = None
 
@@ -203,7 +207,7 @@ def apply_restart(block, restart):
     interp_from_conserved(block, restart.conserved)
 
     if restart.conserved_filt_lag is not None:
-        refs = _cons_filt_refs(block)
+        refs = _cons_refs(block)
         lag_nd = restart.conserved_filt_lag / refs
         target_shape = block.shape_cell + (5,)
         if lag_nd.shape != target_shape:
