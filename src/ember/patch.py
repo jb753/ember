@@ -156,7 +156,9 @@ from ember.inlet_nonreflecting import NonReflectingInletPatch
 from ember.inviscid import InviscidPatch
 from ember.mixing import MixingPatch
 from ember.nonmatch import NonMatchPatch
+from ember.nonreflecting import NonReflectingPatch
 from ember.outlet import OutletPatch
+from ember.outlet_nonreflecting import NonReflectingOutletPatch
 from ember.periodic import PeriodicPatch
 from ember.probe import ProbePatch
 from ember.rotating import RotatingPatch
@@ -164,10 +166,12 @@ from ember.rotating import RotatingPatch
 __all__ = [
     "Patch",
     "RevolutionPatch",
+    "NonReflectingPatch",
     "PeriodicPatch",
     "InletPatch",
     "NonReflectingInletPatch",
     "OutletPatch",
+    "NonReflectingOutletPatch",
     "MixingPatch",
     "NonMatchPatch",
     "RotatingPatch",
@@ -185,6 +189,7 @@ PERMEABLE_TYPES = (
     InletPatch,
     NonReflectingInletPatch,
     OutletPatch,
+    NonReflectingOutletPatch,
     PeriodicPatch,
     MixingPatch,
     NonMatchPatch,

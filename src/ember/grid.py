@@ -290,7 +290,8 @@ class Grid(_LabelledList):
         outlet_row_idx = None
         for group_idx, group in enumerate(row_groups):
             for bid in group:
-                if len(self[bid].patches.outlet) > 0:
+                patches = self[bid].patches
+                if len(patches.outlet) + len(patches.outlet_nonreflecting) > 0:
                     outlet_row_idx = group_idx
                     break
             if outlet_row_idx is not None:
@@ -748,12 +749,16 @@ class Grid(_LabelledList):
                 mdot.append(m)
                 ho.append(h)
                 s.append(se)
+        # Throttle monitors come from the first OutletPatch; a grid closed by a
+        # NonReflectingOutletPatch alone has none, and the ConvergenceStep
+        # throttle fields keep their zero defaults.
+        outlets = self.patches.outlet
         return ConvergenceStep(
             residual=residual,
             mdot=np.array(mdot),
             ho=np.array(ho),
             s=np.array(s),
-            **self.patches.outlet[0].get_throttle_stats(),
+            **(outlets[0].get_throttle_stats() if outlets else {}),
         )
 
     def get_r_ref(self):
@@ -811,6 +816,8 @@ class Grid(_LabelledList):
             for patch in block.patches.inlet_nonreflecting:
                 patch.apply()
             for patch in block.patches.outlet:
+                patch.apply()
+            for patch in block.patches.outlet_nonreflecting:
                 patch.apply()
             for patch in block.patches.mixing:
                 patch.apply()
@@ -1325,6 +1332,8 @@ class Grid(_LabelledList):
                 patch.update_soln()
                 if not freeze:
                     patch.update_target()
+            for patch in block.patches.outlet_nonreflecting:
+                patch.update_soln()
 
     def update_cached_conserved(self):
         """Refresh conserved-dependent caches on every block.
@@ -1822,10 +1831,12 @@ class Grid(_LabelledList):
             InletPatch,
             MixingPatch,
             NonReflectingInletPatch,
+            NonReflectingOutletPatch,
             OutletPatch,
         )
 
         inflow_types = (InletPatch, NonReflectingInletPatch)
+        outflow_types = (OutletPatch, NonReflectingOutletPatch)
         rows = self.rows
         n_row = len(rows)
         result = []
@@ -1836,7 +1847,7 @@ class Grid(_LabelledList):
                 for pid, p in enumerate(b.patches):
                     if i == 0 and isinstance(p, inflow_types):
                         up_idx.append((bid, pid))
-                    elif i == n_row - 1 and isinstance(p, OutletPatch):
+                    elif i == n_row - 1 and isinstance(p, outflow_types):
                         dn_idx.append((bid, pid))
                     elif isinstance(p, MixingPatch):
                         # A middle row's own upstream and downstream faces are

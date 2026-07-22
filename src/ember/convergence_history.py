@@ -216,8 +216,9 @@ class ConvergenceHistory(StructuredData):
         cls._set_grid_metadata(out, grid)
 
         # Fluid from the first outlet patch (the grid is the reference frame the
-        # history is projected onto).
-        outlet_block = grid.patches.outlet[0].block_view
+        # history is projected onto), of either outlet type.
+        outlet_patches = grid.patches.outlet or grid.patches.outlet_nonreflecting
+        outlet_block = outlet_patches[0].block_view
         out._set_metadata_by_key("fluid", outlet_block.fluid)
 
         # Initialize timer reference

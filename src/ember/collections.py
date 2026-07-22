@@ -577,6 +577,13 @@ class BlockPatchCollection(_LabelledList):
         return [p for p in self._items if isinstance(p, OutletPatch)]
 
     @property
+    def outlet_nonreflecting(self):
+        """All :py:class:`~ember.outlet_nonreflecting.NonReflectingOutletPatch` objects."""
+        from ember.patch import NonReflectingOutletPatch
+
+        return [p for p in self._items if isinstance(p, NonReflectingOutletPatch)]
+
+    @property
     def periodic(self):
         """All :py:class:`~ember.periodic.PeriodicPatch` objects."""
         from ember.patch import PeriodicPatch
@@ -588,7 +595,9 @@ class BlockPatchCollection(_LabelledList):
         """Patches through which flow passes (non-wall faces).
 
         Includes :py:class:`~ember.inlet.InletPatch`,
+        :py:class:`~ember.inlet_nonreflecting.NonReflectingInletPatch`,
         :py:class:`~ember.outlet.OutletPatch`,
+        :py:class:`~ember.outlet_nonreflecting.NonReflectingOutletPatch`,
         :py:class:`~ember.periodic.PeriodicPatch`,
         :py:class:`~ember.mixing.MixingPatch`,
         :py:class:`~ember.nonmatch.NonMatchPatch`, and
@@ -762,6 +771,14 @@ class GridPatchCollection:
         outlet_patches = []
         for block in self._grid:
             outlet_patches.extend(block.patches.outlet)
+        return outlet_patches
+
+    @property
+    def outlet_nonreflecting(self):
+        """Return all non-reflecting outlet patches from all blocks."""
+        outlet_patches = []
+        for block in self._grid:
+            outlet_patches.extend(block.patches.outlet_nonreflecting)
         return outlet_patches
 
     @property

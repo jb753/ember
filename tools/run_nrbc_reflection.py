@@ -1,26 +1,35 @@
 #!/usr/bin/env -S uv run
-"""Inlet reflectivity: domain-truncation study, non-reflecting vs standard inlet.
+"""Boundary reflectivity: domain-truncation study, non-reflecting vs standard.
 
-Measures the thing a steady non-reflecting inflow condition is actually for --
-being able to put the inflow plane close to a blade row without corrupting the
-solution near it.
+Measures the thing a steady non-reflecting boundary condition is actually for --
+being able to put the boundary plane close to a blade row without corrupting the
+solution near it. Either end of a duct can be put under test with ``--boundary``.
 
-A pitchwise-varying static pressure at the outlet stands in for the potential
-field of a downstream blade row. In subsonic flow its harmonics are evanescent:
-the wave parameter of Saxer and Giles (their Eq. 22) is imaginary, so each
-pitchwise harmonic decays upstream over roughly a pitch divided by two pi, and a
-disturbance seeded further upstream than that never reaches the inflow plane at
-all. The inlet condition therefore only matters when the plane sits within a
-few decay lengths of the source, which is exactly the regime this script sets
-up: the same physical problem is solved on a short domain and on a long one,
+With ``--boundary inlet`` a pitchwise-varying static pressure at the outlet
+stands in for the potential field of a downstream blade row, and the inflow
+plane is moved toward it. In subsonic flow the harmonics of that field are
+evanescent: the wave parameter of Saxer and Giles (their Eq. 22) is imaginary, so
+each pitchwise harmonic decays upstream over roughly a pitch divided by two pi,
+and a disturbance seeded further upstream than that never reaches the inflow
+plane at all. The inlet condition therefore only matters when the plane sits
+within a few decay lengths of the source, which is exactly the regime this script
+sets up: the same physical problem is solved on a short domain and on a long one,
 and the two solutions are compared over their common region. A perfectly
 non-reflecting inlet gives the same answer on both.
 
+With ``--boundary outlet`` the study is mirrored. The source is a
+pitchwise-varying inflow yaw angle standing in for the wake and potential field
+of an upstream blade row, and the outflow plane is moved toward it. The vorticity
+it sheds convects to the exit whatever the domain length, so a reflecting outlet
+answers it with a pressure wave; that wave is evanescent and decays going
+upstream, so again only a boundary within a few decay lengths of the source
+corrupts it.
+
 Note that the *pitchwise mean* is prescribed by any inlet that fixes stagnation
-quantities and flow angles, so the ``m = 0`` mode is reflecting by construction
-for both conditions here -- Saxer and Giles make this point in their Section
-III. Only the harmonics are absorbed, which is why the source below is purely
-harmonic.
+quantities and flow angles, and by any outlet that fixes pressure, so the
+``m = 0`` mode is reflecting by construction for both conditions here -- Saxer and
+Giles make this point in their Section III. Only the harmonics are absorbed,
+which is why the source below is purely harmonic.
 
 Not part of ``make test``: it drives a few thousand solver steps per
 configuration.
@@ -30,7 +39,8 @@ Examples
 ::
 
     uv run tools/run_nrbc_reflection.py
-    uv run tools/run_nrbc_reflection.py --sigma 0.05 0.1 0.2 --plot nrbc.png
+    uv run tools/run_nrbc_reflection.py --boundary outlet --plot nrbc_outlet.pdf
+    uv run tools/run_nrbc_reflection.py --sigma 0.05 0.1 0.2 --plot nrbc.pdf
 """
 
 import argparse
@@ -56,24 +66,47 @@ _NB = int(np.round(2.0 * np.pi * _R_HUB / _SPAN))
 _PITCH = 2.0 * np.pi / _NB
 _ARC = _R_HUB * _PITCH  # pitch as a length, the natural axial decay scale
 
+# Default source amplitude for each study: a relative static pressure harmonic
+# at the exit, or an inflow yaw angle harmonic in degrees.
+_AMP_DEFAULT = {"inlet": 0.02, "outlet": 5.0}
 
-def build_grid(n_pitch, inlet_kind, amp, sigma, dx_frac=0.04, nj=9, nk=25):
-    """Uniform duct ending at x = 0 with a pitchwise-varying exit pressure.
+# The patch class used at the boundary under test, standard or non-reflecting.
+_PATCH_TYPES = {
+    "inlet": {
+        "standard": ember.patch.InletPatch,
+        "nrbc": ember.patch.NonReflectingInletPatch,
+    },
+    "outlet": {
+        "standard": ember.patch.OutletPatch,
+        "nrbc": ember.patch.NonReflectingOutletPatch,
+    },
+}
+
+
+def build_grid(n_pitch, boundary, kind, amp, sigma, dx_frac=0.04, nj=9, nk=25):
+    """Uniform duct with a pitchwise-varying source at the end not under test.
 
     Parameters
     ----------
     n_pitch : float
-        Domain length in pitches; the inflow plane sits at ``x = -n_pitch*arc``.
-    inlet_kind : str
-        ``"standard"`` for :class:`~ember.inlet.InletPatch`, ``"nrbc"`` for
-        :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch`.
+        Domain length in pitches; the boundary under test sits ``n_pitch``
+        arc lengths from the source.
+    boundary : str
+        ``"inlet"`` or ``"outlet"``, which end of the duct is under test.
+    kind : str
+        ``"standard"`` for the reflecting patch, ``"nrbc"`` for the
+        non-reflecting one.
     amp : float
-        Relative amplitude of the exit static pressure harmonic.
+        Source amplitude: relative static pressure harmonic at the exit for the
+        inlet study, inflow yaw angle harmonic in degrees for the outlet study.
     sigma : float
-        Relaxation factor for the non-reflecting inlet.
+        Relaxation factor for the non-reflecting patch.
     """
     length = n_pitch * _ARC
     ni = int(round(length / (dx_frac * _ARC))) + 1
+    # The source sits at x = 0 either way, with the domain upstream of it for
+    # the inlet study and downstream of it for the outlet study.
+    x_lim = [-length, 0.0] if boundary == "inlet" else [0.0, length]
 
     fluid = ember.fluid.PerfectFluid(
         cp=1005.0,
@@ -87,7 +120,7 @@ def build_grid(n_pitch, inlet_kind, amp, sigma, dx_frac=0.04, nj=9, nk=25):
     )
 
     xrt = util.linmesh3(
-        [-length, 0.0],
+        x_lim,
         [_R_HUB, _R_HUB + _SPAN],
         [-_PITCH / 2.0, _PITCH / 2.0],
         (ni, nj, nk),
@@ -112,11 +145,10 @@ def build_grid(n_pitch, inlet_kind, amp, sigma, dx_frac=0.04, nj=9, nk=25):
     ref.set_Vr(0.0)
     ref.set_Vt(0.0)
 
-    if inlet_kind == "nrbc":
-        inlet = ember.patch.NonReflectingInletPatch(i=0)
-    else:
-        inlet = ember.patch.InletPatch(i=0)
-    outlet = ember.patch.OutletPatch(i=-1)
+    inlet_kind = kind if boundary == "inlet" else "standard"
+    outlet_kind = kind if boundary == "outlet" else "standard"
+    inlet = _PATCH_TYPES["inlet"][inlet_kind](i=0)
+    outlet = _PATCH_TYPES["outlet"][outlet_kind](i=-1)
     block.patches.extend(
         [
             inlet,
@@ -128,18 +160,26 @@ def build_grid(n_pitch, inlet_kind, amp, sigma, dx_frac=0.04, nj=9, nk=25):
         ]
     )
 
+    # Purely harmonic source: the mean is prescribed by every condition here, so
+    # only the harmonic part exercises the non-reflecting theory.
+    Alpha = 0.0
+    P_out = _P
+    if boundary == "inlet":
+        P_out = _P * (1.0 + amp * np.cos(2.0 * np.pi * block.t[-1] / _PITCH))
+    else:
+        Alpha = amp * np.cos(2.0 * np.pi * block.t[0] / _PITCH)
+
     if inlet_kind == "nrbc":
         inlet.set_Po_To(float(ref.Po), float(ref.To))
-        inlet.set_Alpha(0.0)
+        inlet.set_Alpha(Alpha)
         inlet.set_Beta(0.0)
         inlet.sigma = sigma
     else:
-        inlet.set_Po_To_Alpha_Beta(float(ref.Po), float(ref.To), 0.0, 0.0)
+        inlet.set_Po_To_Alpha_Beta(float(ref.Po), float(ref.To), Alpha, 0.0)
 
-    # Purely harmonic exit pressure: the mean is prescribed by both inlets, so
-    # only the harmonic part exercises the non-reflecting theory.
-    theta = block.t[-1]
-    outlet.set_P(_P * (1.0 + amp * np.cos(2.0 * np.pi * theta / _PITCH)))
+    outlet.set_P(P_out)
+    if outlet_kind == "nrbc":
+        outlet.sigma = sigma
 
     grid = ember.grid.Grid([block])
     grid.set_L_ref(_SPAN)
@@ -159,6 +199,12 @@ def profile_at(grid, x_target):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--boundary",
+        choices=("inlet", "outlet"),
+        default="inlet",
+        help="which boundary is under test",
+    )
+    parser.add_argument(
         "--short", type=float, default=0.5, help="short domain, pitches"
     )
     parser.add_argument("--long", type=float, default=4.0, help="long domain, pitches")
@@ -166,15 +212,23 @@ def main():
         "--probe",
         type=float,
         default=0.2,
-        help="probe station, pitches upstream of exit",
+        help="probe station, pitches from the source, inside the domain",
     )
-    parser.add_argument("--amp", type=float, default=0.02)
+    parser.add_argument(
+        "--amp",
+        type=float,
+        default=None,
+        help="source amplitude; exit pressure fraction (inlet study) or inflow "
+        "yaw angle in degrees (outlet study)",
+    )
     parser.add_argument("--n-step", type=int, default=2000)
     parser.add_argument("--cfl", type=float, default=0.4)
     parser.add_argument("--n-stage", type=int, default=4)
     parser.add_argument("--sigma", type=float, nargs="+", default=[0.05, 0.1, 0.2])
     parser.add_argument("--plot", type=str, default=None)
     args = parser.parse_args()
+
+    amp = _AMP_DEFAULT[args.boundary] if args.amp is None else args.amp
 
     conf = ember.solver.Solver(
         n_step=args.n_step,
@@ -183,15 +237,18 @@ def main():
         cfl=args.cfl,
         n_step_avg=1,
     )
-    x_probe = -args.probe * _ARC
+    # The probe sits a fixed distance inside the domain from the source at
+    # x = 0, in the region of interest common to the short and long domains.
+    sign = -1.0 if args.boundary == "inlet" else 1.0
+    source = "exit" if args.boundary == "inlet" else "inlet"
 
     def solve(n_pitch, kind, sigma):
-        grid = build_grid(n_pitch, kind, args.amp, sigma)
+        grid = build_grid(n_pitch, args.boundary, kind, amp, sigma)
         conf.run(grid)
-        return profile_at(grid, x_probe)
+        return profile_at(grid, sign * args.probe * _ARC)
 
-    # Reference: the same physics with the inflow plane far enough away that the
-    # evanescent harmonics have died before reaching it.
+    # Reference: the same physics with the boundary under test far enough away
+    # that the evanescent harmonics have died before reaching it.
     reference, x_ref = solve(args.long, "standard", 0.0)
     scale = float(np.ptp(reference))
     print(
@@ -199,12 +256,13 @@ def main():
     )
     print(f"           peak-to-peak pressure variation {scale:.1f} Pa\n")
 
-    cases = [("InletPatch", "standard", 0.0)]
+    standard = _PATCH_TYPES[args.boundary]["standard"].__name__
+    cases = [(standard, "standard", 0.0)]
     cases += [(f"NRBC sigma={s:g}", "nrbc", s) for s in args.sigma]
 
     results = {}
     width = max(len(label) for label, _, _ in cases)
-    print(f"{'short-domain inlet':<{width}}  error vs reference")
+    print(f"{'short-domain ' + args.boundary:<{width}}  error vs reference")
     for label, kind, sigma in cases:
         got, _ = solve(args.short, kind, sigma)
         results[label] = got
@@ -226,11 +284,11 @@ def main():
             ax.plot(theta, got, "--", label=label)
         ax.set_xlabel(r"pitchwise position $\theta / P$")
         ax.set_ylabel("static pressure [Pa]")
-        ax.set_title(f"probe {args.probe:g} pitches upstream of exit")
+        ax.set_title(f"probe {args.probe:g} pitches from the {source}")
         ax.legend(fontsize=8)
         ax.grid(True, alpha=0.3)
         fig.tight_layout()
-        fig.savefig(args.plot, dpi=150)
+        fig.savefig(args.plot)
         print(f"\nwrote {args.plot}")
 
 

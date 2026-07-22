@@ -820,10 +820,11 @@ class Block(ember.struct.StructuredData):
                 p._target_nd = None
                 p._Po_nd_target = None
             for p in self.patches.inlet_nonreflecting:
-                p._target_nd = None
                 p._ref = None
             for p in self.patches.outlet:
                 p._P_target_nd = None
+            for p in self.patches.outlet_nonreflecting:
+                p._ref = None
 
     def set_h_s(self, h, s):
         """Store enthalpy and entropy.
@@ -901,10 +902,11 @@ class Block(ember.struct.StructuredData):
             p._target_nd = None
             p._Po_nd_target = None
         for p in self.patches.inlet_nonreflecting:
-            p._target_nd = None
             p._ref = None
         for p in self.patches.outlet:
             p._P_target_nd = None
+        for p in self.patches.outlet_nonreflecting:
+            p._ref = None
 
     def set_label(self, label):
         """Set a string label describing the block.
