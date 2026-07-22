@@ -128,12 +128,9 @@ def _attached(sigma=1.0, target=None, **kwargs):
             "T": kwargs.get("T", _T),
         }
     state = _reference_state(**target)
-    patch.set_ho_s_Alpha_Beta(
-        ho=float(state.ho),
-        s=float(state.s),
-        Alpha=float(state.Alpha),
-        Beta=float(state.Beta),
-    )
+    patch.set_ho_s(float(state.ho), float(state.s))
+    patch.set_Alpha(float(state.Alpha))
+    patch.set_Beta(float(state.Beta))
     patch.sigma = sigma
     return block, patch
 
@@ -211,21 +208,23 @@ def test_attach_rejects_partial_pitch():
 
 
 @pytest.mark.parametrize(
-    "kwargs, match",
+    "setter, args, match",
     [
-        ({"ho": np.nan}, "must be finite"),
-        ({"s": np.inf}, "must be finite"),
-        ({"Alpha": 90.0}, "Alpha"),
-        ({"Beta": 91.0}, "Beta"),
+        ("set_ho_s", (np.nan, 10.0), "ho must be finite"),
+        ("set_ho_s", (3.0e5, np.inf), "s must be finite"),
+        ("set_Alpha", (90.0,), "Alpha"),
+        ("set_Beta", (91.0,), "Beta"),
+        ("set_Po_To", (np.nan, 300.0), "Po must be finite"),
+        ("set_Po_To", (1.0e5, -300.0), "To must be positive"),
     ],
 )
-def test_set_targets_rejects_invalid(kwargs, match):
+def test_set_targets_rejects_invalid(setter, args, match):
     """Non-finite or out-of-range boundary condition values are refused."""
     block = _make_block()
     patch = NonReflectingInletPatch(i=0)
     block.patches.append(patch)
     with pytest.raises(ValueError, match=match):
-        patch.set_ho_s_Alpha_Beta(**kwargs)
+        getattr(patch, setter)(*args)
 
 
 def test_set_targets_rejects_bad_shape():
@@ -234,18 +233,44 @@ def test_set_targets_rejects_bad_shape():
     patch = NonReflectingInletPatch(i=0)
     block.patches.append(patch)
     with pytest.raises(ValueError, match="broadcast"):
-        patch.set_ho_s_Alpha_Beta(ho=np.ones(patch.shape + (3,)))
+        patch.set_ho_s(np.ones(patch.shape + (3,)), 10.0)
 
 
 def test_set_targets_are_independent():
-    """Omitted arguments retain their previous value."""
+    """Each setter leaves the targets owned by the others alone."""
     block = _make_block()
     patch = NonReflectingInletPatch(i=0)
     block.patches.append(patch)
-    patch.set_ho_s_Alpha_Beta(ho=3.0e5, s=10.0, Alpha=20.0, Beta=0.0)
-    patch.set_ho_s_Alpha_Beta(Alpha=30.0)
-    assert float(patch.ho) == pytest.approx(3.0e5)
-    assert float(patch.Alpha) == pytest.approx(30.0)
+    patch.set_ho_s(3.0e5, 10.0)
+    patch.set_Alpha(20.0)
+    patch.set_Beta(0.0)
+    ho_nd = np.copy(patch.ho_nd)
+    patch.set_Alpha(30.0)
+    np.testing.assert_allclose(patch.tanAlpha, np.tan(np.radians(30.0)), rtol=1e-6)
+    np.testing.assert_array_equal(patch.ho_nd, ho_nd)
+
+
+def test_set_Po_To_matches_set_ho_s():
+    """Prescribing a stagnation state agrees with prescribing ho and s."""
+    block_a, block_b = _make_block(), _make_block()
+    patch_a = NonReflectingInletPatch(i=0)
+    patch_b = NonReflectingInletPatch(i=0)
+    block_a.patches.append(patch_a)
+    block_b.patches.append(patch_b)
+
+    state = _reference_state()
+    patch_a.set_Po_To(float(state.Po), float(state.To))
+    patch_b.set_ho_s(float(state.ho), float(state.s))
+
+    np.testing.assert_allclose(patch_a.ho_nd, patch_b.ho_nd, rtol=1e-6)
+    np.testing.assert_allclose(patch_a.s_nd, patch_b.s_nd, rtol=1e-6, atol=1e-6)
+
+
+def test_set_targets_before_attach_raises():
+    """The targets are stored nondimensionally, so a block is needed to set them."""
+    patch = NonReflectingInletPatch(i=0)
+    with pytest.raises(ValueError, match="not attached"):
+        patch.set_ho_s(3.0e5, 10.0)
 
 
 def test_apply_without_targets_raises():
@@ -253,7 +278,8 @@ def test_apply_without_targets_raises():
     block = _make_block()
     patch = NonReflectingInletPatch(i=0)
     block.patches.append(patch)
-    with pytest.raises(ValueError, match="set_ho_s_Alpha_Beta"):
+    patch.set_Alpha(0.0)
+    with pytest.raises(ValueError, match="set_ho_s or set_Po_To, set_Beta"):
         patch.apply()
 
 
@@ -262,14 +288,11 @@ def test_copy_preserves_targets_and_drops_caches():
     _, patch = _attached(sigma=0.25)
     patch.update_soln()
     clone = patch.copy()
-    assert float(clone.ho) == pytest.approx(float(patch.ho))
-    assert float(clone.s) == pytest.approx(float(patch.s))
-    assert float(clone.Alpha) == pytest.approx(float(patch.Alpha))
-    assert float(clone.Beta) == pytest.approx(float(patch.Beta))
+    for name in ("ho_nd", "s_nd", "tanAlpha", "sinBeta"):
+        np.testing.assert_array_equal(getattr(clone, name), getattr(patch, name))
     assert clone.sigma == patch.sigma
     assert clone._hilbert is None
     assert clone._ref is None
-    assert clone._target_nd is None
     assert clone._prim_prev is None
 
 

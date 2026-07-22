@@ -50,8 +50,12 @@ class NonReflectingInletPatch(RevolutionPatch):
     Prescribes stagnation enthalpy :math:`h_0`, entropy :math:`s`, yaw angle
     :math:`\alpha` and pitch angle :math:`\beta` as pitchwise-mean quantities,
     while absorbing outgoing acoustic waves rather than reflecting them. All
-    four values must be set via :meth:`set_ho_s_Alpha_Beta` before
-    :meth:`apply` is called.
+    four must be set before :meth:`apply` is called, via :meth:`set_ho_s` or
+    :meth:`set_Po_To` together with :meth:`set_Alpha` and :meth:`set_Beta`.
+    Each setter converts and stores its target nondimensionally in
+    :attr:`ho_nd`, :attr:`s_nd`, :attr:`tanAlpha` and :attr:`sinBeta`, the form
+    :meth:`apply` takes its residuals against, so the patch must already be
+    attached to a block whose fluid is set.
 
     Each Runge-Kutta stage :meth:`apply` forms the characteristic deviation of
     the face state from the frozen pitchwise-mean reference state, computes the
@@ -253,28 +257,19 @@ class NonReflectingInletPatch(RevolutionPatch):
             "coef_hilbert": self._span_bcast(np.sqrt(1.0 - Msq) / (1.0 + Mn)),
         }
 
-    def _calc_target(self):
-        """Broadcast the prescribed inflow state to nondimensional patch arrays."""
-        missing = [k for k, v in self._raw.items() if not np.all(np.isfinite(v))]
-        if missing:
+    def _broadcast_target(self, name, value):
+        """Check a prescribed value against the patch shape and make it a target array."""
+        arr = np.asarray(value)
+        if not np.isfinite(arr).all():
+            raise ValueError(f"{name} must be finite")
+        try:
+            arr = np.broadcast_to(arr, self.block_view.shape)
+        except ValueError:
             raise ValueError(
-                f"Non-reflecting inlet patch {self.label!r} is missing boundary "
-                f"condition values {missing}; call set_ho_s_Alpha_Beta first."
-            )
-
-        fluid = self.block.fluid
-
-        def _broadcast(arr):
-            return np.asfortranarray(
-                np.broadcast_to(arr, self.block_view.shape).astype(np.float32)
-            )
-
-        self._target_nd = (
-            _broadcast(self.ho / fluid.u_ref),
-            _broadcast(self.s / fluid.Rgas_ref),
-            _broadcast(np.tan(np.radians(self.Alpha))),
-            _broadcast(np.sin(np.radians(self.Beta))),
-        )
+                f"{name} of shape {arr.shape} does not broadcast to patch "
+                f"shape {self.shape}"
+            ) from None
+        return np.asfortranarray(arr.astype(np.float32))
 
     def _check_plane(self):
         """Validate the restrictions of the first implementation."""
@@ -295,10 +290,14 @@ class NonReflectingInletPatch(RevolutionPatch):
             )
 
     def _copy(self, c):
-        c._raw = {k: np.copy(v) for k, v in self._raw.items()}
+        for name in ("ho_nd", "s_nd", "tanAlpha", "sinBeta"):
+            val = getattr(self, name)
+            setattr(c, name, None if val is None else np.copy(val))
         c.sigma = self.sigma
-        # _target_nd, _hilbert and _ref all derive from the block geometry or
-        # solution, so they are rebuilt on the new block rather than copied.
+        # _hilbert and _ref both derive from the block geometry or solution, so
+        # they are rebuilt on the new block rather than copied. The targets are
+        # copied nondimensionalised, so the new block must share the reference
+        # scales of the old one; every block of a grid does.
 
     def _bcond_from_prim(self, prim):
         """Boundary condition quantities (ho, s, tanAlpha, sinBeta) of a primitive state.
@@ -318,10 +317,29 @@ class NonReflectingInletPatch(RevolutionPatch):
         """Weighted pitchwise mean of a patch-shaped field, keeping dimensions."""
         return (field * self.weight_pitch).sum(axis=self.pitch_dim, keepdims=True)
 
+    def _raise_unset(self):
+        """Report which parts of the prescribed inflow state are still missing."""
+        needed = {
+            "ho_nd": "set_ho_s or set_Po_To",
+            "s_nd": "set_ho_s or set_Po_To",
+            "tanAlpha": "set_Alpha",
+            "sinBeta": "set_Beta",
+        }
+        unset = {k: v for k, v in needed.items() if getattr(self, k) is None}
+        raise ValueError(
+            f"Non-reflecting inlet patch {self.label!r} is missing boundary "
+            f"condition values {list(unset)}; call "
+            f"{', '.join(dict.fromkeys(unset.values()))} first."
+        )
+
     def _setup(self):
         super()._setup()
-        self._raw = {"ho": np.nan, "s": np.nan, "Alpha": np.nan, "Beta": np.nan}
-        self._target_nd = None
+        # Prescribed inflow state, stored as the nondimensional patch arrays
+        # apply() takes its residuals against. None until set.
+        self.ho_nd = None
+        self.s_nd = None
+        self.tanAlpha = None
+        self.sinBeta = None
         self._hilbert = None
         self._ref = None
         # Face state this patch last authored. The incoming characteristics are
@@ -347,58 +365,93 @@ class NonReflectingInletPatch(RevolutionPatch):
             self.pitch_dim,
         )
 
-    def set_ho_s_Alpha_Beta(self, ho=None, s=None, Alpha=None, Beta=None):
-        r"""Set the prescribed inflow state.
-
-        Each argument is independent; omitted arguments retain their current
-        value. All four must be set before :meth:`apply` can be called. Each
-        value accepts a scalar or an array that broadcasts to
-        :attr:`~ember.basepatch.Patch.shape`.
-
-        Stagnation enthalpy and entropy are measured from the fluid datum state
-        where :math:`u = s = 0` at :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`, the
-        same convention as :py:attr:`~ember.block.Block.ho` and
-        :py:attr:`~ember.block.Block.s`; only differences are physically
-        meaningful, so these are not :math:`c_p T_0` and :math:`c_p \log(\ldots)`.
-        To convert from a stagnation pressure and temperature, set that state on
-        a scratch :py:class:`~ember.block.Block` with
-        :py:meth:`~ember.block.Block.set_P_T` and read back its
-        :py:attr:`~ember.block.Block.ho` and :py:attr:`~ember.block.Block.s`.
+    def set_Alpha(self, Alpha):
+        r"""Prescribe the inflow yaw angle.
 
         Parameters
         ----------
-        ho : float or array, optional
-            Prescribed stagnation enthalpy :math:`h_0` [J/kg].
-        s : float or array, optional
-            Prescribed entropy :math:`s` [J/kg/K].
-        Alpha : float or array, optional
+        Alpha : float or array
             Prescribed inflow yaw angle :math:`\alpha` [deg], measured from the
-            meridional plane; must satisfy :math:`|\alpha| < 90`.
-        Beta : float or array, optional
-            Prescribed inflow pitch angle :math:`\beta` [deg]; must satisfy
-            :math:`|\beta| \leq 90`.
+            meridional plane; must satisfy :math:`|\alpha| < 90`. A scalar or an
+            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`.
         """
-        kwargs = {"ho": ho, "s": s, "Alpha": Alpha, "Beta": Beta}
-        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        if not (np.abs(np.asarray(Alpha)) < 90.0).all():
+            raise ValueError("Alpha must be within +/-90 degrees exclusive")
+        self.tanAlpha = self._broadcast_target(
+            "Alpha", np.tan(np.radians(np.asarray(Alpha, dtype=np.float32)))
+        )
 
-        if kwargs:
-            broadcasted = np.broadcast_arrays(*kwargs.values(), np.ones(self.shape))
-            if broadcasted[0].shape != self.shape:
-                raise ValueError(
-                    f"Inputs broadcast to {broadcasted[0].shape}, exceeding patch shape {self.shape}"
-                )
+    def set_Beta(self, Beta):
+        r"""Prescribe the inflow pitch angle.
 
-        for key, val in kwargs.items():
+        Parameters
+        ----------
+        Beta : float or array
+            Prescribed inflow pitch angle :math:`\beta` [deg]; must satisfy
+            :math:`|\beta| \leq 90`. A scalar or an array that broadcasts to
+            :attr:`~ember.basepatch.Patch.shape`.
+        """
+        if not (np.abs(np.asarray(Beta)) <= 90.0).all():
+            raise ValueError("Beta must be within +/-90 degrees inclusive")
+        self.sinBeta = self._broadcast_target(
+            "Beta", np.sin(np.radians(np.asarray(Beta, dtype=np.float32)))
+        )
+
+    def set_ho_s(self, ho, s):
+        r"""Prescribe the inflow stagnation enthalpy and entropy.
+
+        Both are measured from the fluid datum state where :math:`u = s = 0` at
+        :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`, the same convention as
+        :py:attr:`~ember.block.Block.ho` and :py:attr:`~ember.block.Block.s`;
+        only differences are physically meaningful, so these are not
+        :math:`c_p T_0` and :math:`c_p \log(\ldots)`. Use :meth:`set_Po_To` to
+        prescribe a stagnation state instead.
+
+        Parameters
+        ----------
+        ho : float or array
+            Prescribed stagnation enthalpy :math:`h_0` [J/kg]. A scalar or an
+            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`.
+        s : float or array
+            Prescribed entropy :math:`s` [J/kg/K].
+        """
+        fluid = self.block.fluid
+        self.ho_nd = self._broadcast_target("ho", np.asarray(ho) / fluid.u_ref)
+        self.s_nd = self._broadcast_target("s", np.asarray(s) / fluid.Rgas_ref)
+
+    def set_Po_To(self, Po, To):
+        r"""Prescribe the inflow stagnation pressure and temperature.
+
+        Converted here, once, to the stagnation enthalpy and entropy of
+        :meth:`set_ho_s` using the fluid of the block this patch is attached to;
+        only the result is stored, so a later change of fluid does not
+        re-convert.
+
+        Parameters
+        ----------
+        Po : float or array
+            Prescribed stagnation pressure :math:`p_0` [Pa]; must be positive.
+            A scalar or an array that broadcasts to
+            :attr:`~ember.basepatch.Patch.shape`.
+        To : float or array
+            Prescribed stagnation temperature :math:`T_0` [K]; must be positive.
+        """
+        fluid = self.block.fluid
+
+        for name, val in (("Po", Po), ("To", To)):
             arr = np.asarray(val)
             if not np.isfinite(arr).all():
-                raise ValueError(f"{key} must be finite")
-            if key == "Alpha" and not (np.abs(arr) < 90.0).all():
-                raise ValueError("Alpha must be within +/-90 degrees exclusive")
-            if key == "Beta" and not (np.abs(arr) <= 90.0).all():
-                raise ValueError("Beta must be within +/-90 degrees inclusive")
-            self._raw[key] = arr.astype(np.float32)
+                raise ValueError(f"{name} must be finite")
+            if not (arr > 0.0).all():
+                raise ValueError(f"{name} must be positive")
 
-        self._target_nd = None
+        # get_h and get_s return nondimensional values already, so the targets
+        # are formed without a round trip through dimensional ho and s.
+        rhoo_nd, uo_nd = fluid.set_P_T(
+            np.asarray(Po) / fluid.P_ref, np.asarray(To) / fluid.T_ref
+        )
+        self.ho_nd = self._broadcast_target("Po and To", fluid.get_h(rhoo_nd, uo_nd))
+        self.s_nd = self._broadcast_target("Po and To", fluid.get_s(rhoo_nd, uo_nd))
 
     def apply(self):
         r"""Impose the non-reflecting inflow condition on the patch.
@@ -425,14 +478,18 @@ class NonReflectingInletPatch(RevolutionPatch):
         is exactly ``prim += sigma * c2p @ dchic`` with a zero outgoing
         component, so no reflection is introduced by the reconstruction itself.
         """
-        if self._target_nd is None:
-            self._calc_target()
+        if (
+            self.ho_nd is None
+            or self.s_nd is None
+            or self.tanAlpha is None
+            or self.sinBeta is None
+        ):
+            self._raise_unset()
         if self._ref is None:
             self._calc_reference()
 
         b = self.block_view
         ref = self._ref
-        ho_target, s_target, tanAlpha_target, sinBeta_target = self._target_nd
 
         prim_marched = np.stack((b.rho_nd, b.Vx_nd, b.Vr_nd, b.Vt_nd, b.P_nd), axis=-1)
         if self._prim_prev is None:
@@ -461,10 +518,10 @@ class NonReflectingInletPatch(RevolutionPatch):
         # converge on it.
         resid_mean = np.stack(
             (
-                self._pitch_mean(ho_nd - ho_target),
-                self._pitch_mean(s_nd - s_target),
-                self._pitch_mean(tanAlpha - tanAlpha_target),
-                self._pitch_mean(sinBeta - sinBeta_target),
+                self._pitch_mean(ho_nd - self.ho_nd),
+                self._pitch_mean(s_nd - self.s_nd),
+                self._pitch_mean(tanAlpha - self.tanAlpha),
+                self._pitch_mean(sinBeta - self.sinBeta),
             ),
             axis=-1,
         )
@@ -526,23 +583,3 @@ class NonReflectingInletPatch(RevolutionPatch):
         stages of the step.
         """
         self._calc_reference()
-
-    @property
-    def Alpha(self):
-        r"""Prescribed inflow yaw angle :math:`\alpha` [deg]; broadcasts to :attr:`~ember.basepatch.Patch.shape`. See :py:attr:`~ember.block.Block.Alpha`."""
-        return self._raw["Alpha"]
-
-    @property
-    def Beta(self):
-        r"""Prescribed inflow pitch angle :math:`\beta` [deg]; broadcasts to :attr:`~ember.basepatch.Patch.shape`. See :py:attr:`~ember.block.Block.Beta`."""
-        return self._raw["Beta"]
-
-    @property
-    def ho(self):
-        r"""Prescribed inflow stagnation enthalpy :math:`h_0` [J/kg], measured from the fluid datum; broadcasts to :attr:`~ember.basepatch.Patch.shape`. See :py:attr:`~ember.block.Block.ho`."""
-        return self._raw["ho"]
-
-    @property
-    def s(self):
-        r"""Prescribed inflow entropy :math:`s` [J/kg/K], measured from the fluid datum; broadcasts to :attr:`~ember.basepatch.Patch.shape`. See :py:attr:`~ember.block.Block.s`."""
-        return self._raw["s"]

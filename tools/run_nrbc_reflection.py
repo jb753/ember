@@ -129,7 +129,9 @@ def build_grid(n_pitch, inlet_kind, amp, sigma, dx_frac=0.04, nj=9, nk=25):
     )
 
     if inlet_kind == "nrbc":
-        inlet.set_ho_s_Alpha_Beta(ho=float(ref.ho), s=float(ref.s), Alpha=0.0, Beta=0.0)
+        inlet.set_Po_To(float(ref.Po), float(ref.To))
+        inlet.set_Alpha(0.0)
+        inlet.set_Beta(0.0)
         inlet.sigma = sigma
     else:
         inlet.set_Po_To_Alpha_Beta(float(ref.Po), float(ref.To), 0.0, 0.0)
