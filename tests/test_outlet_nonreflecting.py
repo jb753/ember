@@ -713,7 +713,7 @@ def test_copy_carries_the_backflow_state():
 
     np.testing.assert_array_equal(clone._target, patch._target)
     np.testing.assert_array_equal(clone._target_set, patch._target_set)
-    assert clone._reversed is None
+    assert clone._entering is None
     assert clone._rho_nd_soln is None
 
 
@@ -723,8 +723,8 @@ def test_reversed_mean_is_carried_without_configuring_anything(span_dim):
     block = _backflow_block(rev_span=(2,), span_dim=span_dim)
     patch = _backflow_patch(block, backflow=False)
     patch.update_soln()
-    assert patch._reversed[2]
-    assert not patch._reversed[[0, 1, 3, 4, 5, 6]].any()
+    assert patch._entering[2]
+    assert not patch._entering[[0, 1, 3, 4, 5, 6]].any()
 
 
 @pytest.mark.parametrize("span_dim", [1, 2])
@@ -782,7 +782,7 @@ def test_nodal_backflow_falls_back_to_the_seeded_state():
     patch.update_soln()
     patch.apply()
 
-    assert not patch._reversed.any()
+    assert not patch._entering.any()
     b = patch.block_view
     # The seed is the exit plane's own mean, so what lands on the node is that
     # and emphatically not the state set_backflow would have prescribed.
@@ -799,7 +799,7 @@ def test_nodal_backflow_imposes_the_prescribed_state_on_reversed_nodes():
     patch.update_soln()
     patch.apply()
 
-    assert not patch._reversed.any()
+    assert not patch._entering.any()
     b = patch.block_view
     ho_snap, s_snap, Vr_snap, Vt_snap = _backflow_state(patch, 3)
     assert float(b.ho_nd[0, 3, 5]) == pytest.approx(float(ho_snap), rel=1e-5)
@@ -870,20 +870,20 @@ def test_reversed_station_release_is_hysteretic():
     block = _backflow_block(rev_span=(2,))
     patch = _backflow_patch(block)
     patch.update_soln()
-    assert patch._reversed[2]
+    assert patch._entering[2]
 
     # Forward again, but only just: held, so the split cannot chatter.
     Vx = block.Vx.copy()
     Vx[:, 2, :] = 3.0
     block.set_Vx(Vx)
     patch.update_soln()
-    assert patch._reversed[2]
+    assert patch._entering[2]
 
     # Clear of the threshold: released.
     Vx[:, 2, :] = 50.0
     block.set_Vx(Vx)
     patch.update_soln()
-    assert not patch._reversed[2]
+    assert not patch._entering[2]
 
 
 def test_backflow_runs_through_the_solver_loop():
@@ -933,12 +933,12 @@ def test_backflow_runs_through_the_solver_loop():
     b = outlet.block_view
 
     # The reversed station is carried by the characteristic solve.
-    assert outlet._reversed[3]
+    assert outlet._entering[3]
     assert _span_profile(outlet, b.Vx_nd)[3] < 0.0
 
     # The lone reversed node, at a station whose mean still runs forward, is
     # carried by the override instead.
-    assert not outlet._reversed[1]
+    assert not outlet._entering[1]
     assert float(b.Vt_nd[0, 1, 4]) == pytest.approx(
         _backflow_state(outlet, 1)[3], rel=1e-5
     )

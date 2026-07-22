@@ -32,6 +32,7 @@ from nonreflecting_util import (
     PITCH,
     P_MEAN,
     VT_MEAN,
+    VX_MEAN,
     attached,
     face_prim,
     make_block,
@@ -276,6 +277,7 @@ def test_collection_and_permeable(kind):
         ("ember.nonreflecting", "NonReflectingPatch"),
         ("ember.inlet_nonreflecting", "NonReflectingInletPatch"),
         ("ember.outlet_nonreflecting", "NonReflectingOutletPatch"),
+        ("ember.mixing_nonreflecting", "NonReflectingMixingPatch"),
     ],
 )
 def test_class_member_order(module_name, class_name):
@@ -291,20 +293,38 @@ def test_class_member_order(module_name, class_name):
 # ---------------------------------------------------------------------------
 
 
-def test_backflow_raises(kind):
-    """Reversed mean flow invalidates the characteristic split.
+@pytest.mark.parametrize("Vx", [VX_MEAN, -10.0])
+def test_split_follows_the_flow_direction(kind, Vx):
+    """The four splits of the table in ember.nonreflecting, checked one by one.
 
-    Unless the condition declares a reversed split of its own, in which case it
-    owns those stations and the guard stands aside. The outflow condition does;
-    what it then imposes on them is test_outlet_nonreflecting.py's business.
+    A characteristic is outgoing when its wave speed carries it out of the
+    domain. So the acoustic split is fixed by the geometry -- c_up outgoing when
+    the interior is on the +x side, c_down when it is on the -x side -- and the
+    three convective characteristics follow the flow. This is the load-bearing
+    test for the whole family: get a column wrong here and a boundary condition
+    silently overwrites information the interior owns, or keeps stale
+    information the interior should have replaced.
     """
+    _, patch = attached(kind, Vx=Vx, target={})
+    patch.update_soln()
+
+    entering = Vx * patch._sign_interior > 0.0
+    assert patch._entering.all() == entering
+    acoustic_out = 0 if patch._sign_interior > 0 else 1
+    expect = np.zeros(5, dtype=bool)
+    expect[acoustic_out] = True
+    if not entering:
+        expect[2:] = True
+    mask = np.broadcast_to(patch._mask_out, patch.shape + (5,))
+    np.testing.assert_array_equal(mask[0, 0, 0], expect)
+
+
+def test_reversed_mean_does_not_raise(kind):
+    """Reversal is the other row of the table, not an error."""
     _, patch = attached(kind, Vx=-10.0, target={})
-    if patch._split_rev is None:
-        with pytest.raises(ValueError, match="Backflow"):
-            patch.update_soln()
-    else:
-        patch.update_soln()
-        assert patch._reversed.all()
+    patch.update_soln()
+    patch.apply()
+    assert np.isfinite(face_prim(patch)).all()
 
 
 def test_axially_supersonic_raises(kind):

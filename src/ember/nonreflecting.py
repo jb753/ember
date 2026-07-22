@@ -1,23 +1,45 @@
 r"""Shared machinery for the steady non-reflecting boundary conditions of EMBER CFD.
 
-:class:`NonReflectingPatch` holds everything the non-reflecting inflow and
+:class:`NonReflectingPatch` implements the steady non-reflecting inflow and
 outflow conditions of :cite:t:`Giles1988` (his Chapter 5), as extended to three
-dimensions by :cite:t:`Saxer1993`, have in common: the pitchwise Hilbert
-transform their harmonic relations are written with, the frozen pitchwise-mean
-reference state the characteristic variables are perturbations about, the split
-of the boundary node into the characteristics the interior march owns and those
-the boundary condition owns, and the prescribed boundary state itself.
+dimensions by :cite:t:`Saxer1993`, as one condition. Its subclasses supply a
+side of the face, a set of variables to prescribe and the setters that fill
+them; the characteristic treatment itself lives here.
 
-The two conditions are mirror images. Of the five characteristics at an axially
-subsonic boundary, four propagate downstream (entropy, both vorticity waves, the
-downstream-running pressure wave) and one, the upstream-running pressure wave,
-propagates upstream; so an inflow plane has four incoming characteristics and
-one outgoing, and an outflow plane has one incoming and four outgoing. Each
-Runge-Kutta stage the outgoing characteristics are read from the boundary node
-exactly as the interior scheme left them and are never overwritten, so a wave
-reaching the boundary passes through it. The incoming characteristics are
-discarded and rebuilt from the prescribed mean state and the non-reflecting
-relations, then applied under-relaxed by :attr:`~NonReflectingPatch.sigma`.
+Of the five characteristics at an axially subsonic boundary, four propagate
+downstream (entropy, both vorticity waves, the downstream-running pressure wave)
+and one, the upstream-running pressure wave, propagates upstream. A
+characteristic is *outgoing* -- owned by the interior march, read from the
+boundary node exactly as the scheme left it and never overwritten, so a wave
+reaching the boundary passes through -- when its wave speed carries it out of
+the domain, :math:`\lambda\,n_x < 0` for the inward face normal
+:attr:`~NonReflectingPatch._sign_interior`. The rest are *incoming*: discarded
+each Runge-Kutta stage and rebuilt from the prescribed mean state and the
+non-reflecting relations, then applied under-relaxed by
+:attr:`~NonReflectingPatch.sigma`.
+
+Working that out for the wave speeds
+:math:`[V_x - a,\, V_x + a,\, V_x,\, V_x,\, V_x]` of
+:math:`[c_\mathrm{up}, c_\mathrm{down}, c_r, c_t, c_s]` gives four splits, not
+two, and they have a simple structure: **the acoustic split is fixed by the
+geometry** -- :math:`c_\mathrm{up}` is always outgoing when the interior lies on
+the :math:`+x` side, :math:`c_\mathrm{down}` always outgoing when it lies on the
+:math:`-x` side -- **and the three convective characteristics follow the flow**,
+incoming at a span station the flow enters and outgoing at one it leaves.
+
+============ ================== =================== ================
+ normal       mean flow          incoming            prescribed rows
+============ ================== =================== ================
+ :math:`+1`   entering           ``[1, 2, 3, 4]``    ``[0, 1, 2, 3]``
+ :math:`+1`   leaving            ``[1]``             ``[4]``
+ :math:`-1`   leaving            ``[0]``             ``[4]``
+ :math:`-1`   entering           ``[0, 2, 3, 4]``    ``[0, 1, 2, 3]``
+============ ================== =================== ================
+
+So a station the flow enters prescribes the four quantities an inflow sets, and
+one the flow leaves prescribes static pressure. Reversal is not a special case
+needing a guard: it is the other row of the table, and every face carries it at
+every span station.
 
 Whatever a condition prescribes, it prescribes as one nondimensional five-vector
 per span station, :attr:`~NonReflectingPatch._target`, in the space
@@ -31,25 +53,28 @@ loses nothing: every target is read only through
 :meth:`~NonReflectingPatch._pitch_mean` of its own residual, which is linear, so
 the pitch mean of a prescribed profile is all that was ever imposed.
 
-Which rows a condition prescribes follows from how many characteristics are
-incoming, and the pair is written down as a *split*: four incoming
-characteristics take rows 0-3, the quantities an inflow plane sets; one takes
-row 4, the static pressure an outflow plane sets.
+The harmonic relations are the one place the two directions genuinely differ,
+and each patch needs only one of them. Giles and Saxer derive them for mean flow
+along :math:`+x`, so a relation applies only where :math:`V_x > 0` -- and there,
+entering implies an inward normal of :math:`+1` and leaving one of :math:`-1`.
+A patch's normal is fixed, so exactly one relation is ever live on it and the
+other kind of station takes zeroed harmonics, which is the honest thing to do
+where the derivation does not hold.
 
 See Also
 --------
 ember.basepatch.RevolutionPatch : Base class providing the pitchwise geometry
 ember.inlet_nonreflecting.NonReflectingInletPatch : Subsonic inflow
 ember.outlet_nonreflecting.NonReflectingOutletPatch : Subsonic outflow
+ember.mixing_nonreflecting.NonReflectingMixingPatch : Either side of an interface
 ember.perturbation.chic_to_mix : Jacobian the characteristic solves are built on
 """
-
-from abc import abstractmethod
 
 import numpy as np
 
 from ember import perturbation, util
 from ember.basepatch import RevolutionPatch
+from ember.outlet import calc_backflow_rho
 
 
 class _TargetRow:
@@ -84,31 +109,29 @@ class _TargetRow:
 
 
 class NonReflectingPatch(RevolutionPatch):
-    r"""Base class for the steady non-reflecting inflow and outflow conditions.
+    r"""The steady non-reflecting boundary condition.
 
-    Subclasses supply the class attributes below and two hooks. The attributes
-    are :attr:`_desc`, a description used in error messages; :attr:`_split_fwd`
-    and :attr:`_split_rev`, the characteristic/target splits of a forward and a
-    reversed mean state; :attr:`_sign_interior`, which side of the face the
-    interior lies on; :attr:`_chic_to_target` and :attr:`_target_names`, naming
-    the space the prescribed target lives in; and :attr:`_target_setters`,
-    mapping each prescribed row to the setter that fills it. The hooks are
-    :meth:`_calc_reference_extra`, which adds the coefficients that condition's
-    harmonic relations need to the frozen reference state, and
-    :meth:`_calc_dchic`, which returns the change required in the incoming
-    characteristics.
+    Subclasses supply :attr:`_desc`, a description used in error messages;
+    :attr:`_sign_interior`, the inward face normal, or ``None`` to take whatever
+    the geometry gives; :attr:`_chic_to_target` and :attr:`_target_names`, naming
+    the space the prescribed target lives in; :attr:`_target_setters`, mapping
+    each required target row to the setter that fills it; and
+    :attr:`_target_seeded`, the rows taken from the flow when nothing prescribes
+    them. They add the setters themselves and nothing else: the characteristic
+    treatment, both harmonic relations and the reversed-flow handling are all
+    here.
 
     :meth:`apply` is called once per Runge-Kutta stage and :meth:`update_soln`
     once per timestep, the latter refreshing the reference state to match Giles'
     definition of the characteristic variables as perturbations about the
     time-level-:math:`n` average.
 
-    Both conditions are restricted to a constant-:math:`x` plane with the flow
-    running in the :math:`+x` direction and an axially subsonic, absolutely
-    subsonic mean state; each restriction is checked and raises. A span station
-    whose mean flow has reversed raises too, since the split above is no longer
-    the right one there -- unless the subclass declares a :attr:`_split_rev` and
-    says through :meth:`_calc_reversed` that this station is using it.
+    The condition is restricted to a constant-:math:`x` plane and to an axially
+    subsonic, absolutely subsonic mean state; each restriction is checked and
+    raises. Neither restriction concerns the *direction* of the flow through the
+    face: a span station whose mean has reversed simply takes the other
+    characteristic split, and drives the quantities that split prescribes toward
+    rows of the same target.
     """
 
     # A mean-mode Jacobian is treated as singular when its determinant falls
@@ -134,22 +157,31 @@ class NonReflectingPatch(RevolutionPatch):
     # _TargetRow descriptors below publish them under.
     _target_names = ("ho_nd", "s_nd", "Vr_nd", "Vt_nd", "P_nd")
 
-    # Characteristic/target split of a forward mean state, as (incoming
-    # characteristic columns, the target rows prescribed against them). The
-    # complement of the columns is what the interior march owns: [0] at an
-    # inflow plane, [1, 2, 3, 4] at an outflow plane.
-    _split_fwd = None
+    # A span station stops being treated as one the flow enters once the
+    # interior velocity out through the face climbs above this fraction of the
+    # mean speed of sound. It starts being treated as one at zero, so the gap
+    # between the two is the hysteresis that stops a station chattering between
+    # the two splits.
+    _frac_rev_off = 0.02
 
-    # The same under a reversed mean state, or None for a condition that cannot
-    # carry one and raises on it instead.
-    _split_rev = None
+    # Whether to impose the entering state on individual nodes the interior is
+    # pushing flow in through, within a station the flow leaves; see
+    # _calc_override. Off for a condition whose target rows 2-3 are angles
+    # rather than velocities, which cannot express the state to impose.
+    _nodal_backflow = True
+
+    # Relaxation factor for the density of such a node.
+    _rf_backflow = 1.0
+
+    # Inward face normal: +1 if the interior lies on the +x side of the face,
+    # -1 if on the -x side. None lets the geometry decide at attach time, which
+    # is what a patch that can sit on either side of a plane wants; a value
+    # here is validated against the geometry instead.
+    _sign_interior = None
 
     # Rows filled from the pitchwise mean of the face when nothing has
     # prescribed them; see _seed_target.
     _target_seeded = ()
-
-    # +1 if the interior lies on the +x side of the face, -1 if on the -x side.
-    _sign_interior = None
 
     # Prescribed target row -> the setter, or setters, that fill it. Rows absent
     # from this mapping are not required of the user, either because they are
@@ -163,6 +195,246 @@ class NonReflectingPatch(RevolutionPatch):
     tanAlpha = _TargetRow()
     sinBeta = _TargetRow()
     P_nd = _TargetRow()
+
+    def _backflow(self):
+        """The entering state as a tuple of four span-indexed arrays.
+
+        Rows 0-3 of the target, in the ``[ho, s, Vr, Vt]`` order
+        :func:`~ember.outlet.calc_backflow_rho` and :meth:`_calc_override` read
+        them in -- so only meaningful in a mix target space, which is why
+        :attr:`_nodal_backflow` gates its only caller. Each has a pitch axis of
+        length one, so they broadcast against the patch-shaped face state.
+        """
+        return tuple(self._target[..., row] for row in range(4))
+
+    def _calc_dchic(self, dchic, prim):
+        """Change in the incoming characteristics, taken station by station.
+
+        Parameters
+        ----------
+        dchic : array
+            Characteristic deviation of the face from the reference state,
+            outgoing components as the interior march left them and incoming
+            components as this patch last set them, shape ``(*shape, 5)``.
+        prim : array
+            The primitive face state ``dchic`` describes, so residuals are taken
+            on the state about to be corrected rather than on whatever is
+            currently stored in the block, shape ``(*shape, 5)``.
+
+        Returns
+        -------
+        array
+            Change in the characteristic variables, zero in the outgoing
+            components, shape ``(*shape, 5)``. Applied under-relaxed by
+            :attr:`sigma`.
+        """
+        target = self._target_from_prim(prim)
+        # A face whose stations are all of one kind, which is every face until
+        # something reverses, evaluates one branch. Only a genuinely mixed face
+        # pays for both, and each carries a pitchwise Hilbert transform.
+        if self._entering.all():
+            return self._calc_dchic_entering(dchic, target)
+        if not self._entering.any():
+            return self._calc_dchic_leaving(dchic, target)
+        return np.where(
+            self._span_bcast(self._entering)[..., np.newaxis],
+            self._calc_dchic_entering(dchic, target),
+            self._calc_dchic_leaving(dchic, target),
+        )
+
+    def _calc_dchic_entering(self, dchic, target):
+        r"""Change in the four incoming characteristics where the flow enters.
+
+        The pitchwise mean of each is set by requiring the four prescribed
+        quantities of rows 0-3 to take their target values, in one modified
+        Newton step (Giles Eq. 5.13-5.15, Saxer Eq. 9).
+
+        The harmonics depend on which way the station is entering. With the
+        interior on the :math:`+x` side the mean flow runs along :math:`+x` and
+        Giles' inflow relations apply: the tangential vorticity characteristic
+        follows from the outgoing acoustic one (Giles Eq. 5.17, Saxer Eq. 56),
+        the radial vorticity harmonics are driven to zero, and entropy and
+        stagnation enthalpy are held uniform along the pitch (Giles
+        Eq. 5.22-5.24) through the two characteristics left free once the
+        vorticity ones are fixed. Giles adopts that last constraint because a
+        straightforward implementation of the linear theory leaves second-order
+        variations in entropy and stagnation enthalpy that would be comparable
+        with the losses of a viscous calculation.
+
+        With the interior on the :math:`-x` side the flow through an entering
+        station runs along :math:`-x`, where none of that was derived. The
+        relation reads the tangential vorticity characteristic, which is itself
+        incoming there; nothing is well posed enough to absorb. So the harmonics
+        of all four are driven to zero instead: what is imposed is a uniform
+        inflow, and the one wave still leaving is carried through untouched, so
+        acoustics are not trapped by the choice.
+        """
+        ref = self._ref
+        cols = self._split_entering[0]
+        dchic_mean = self._calc_dchic_mean(
+            target, self._split_entering, ref["inv_entering"]
+        )
+        dchic_new = np.zeros_like(dchic)
+
+        if self._sign_interior < 0:
+            for k, col in enumerate(cols):
+                c = dchic[..., col]
+                dchic_new[..., col] = dchic_mean[..., k] - (c - self._pitch_mean(c))
+            return dchic_new
+
+        # The non-reflecting relation for the tangential vorticity
+        # characteristic, and no radial vorticity harmonics.
+        c_up = dchic[..., 0]
+        c_up_harm = c_up - self._pitch_mean(c_up)
+        c_t_ideal = ref["coef_local"] * c_up_harm + ref[
+            "coef_hilbert"
+        ] * self._transform_pitch(c_up_harm)
+        c_t = dchic[..., 3]
+        c_r = dchic[..., 2]
+        dchic_t = c_t_ideal - (c_t - self._pitch_mean(c_t))
+        dchic_r = -(c_r - self._pitch_mean(c_r))
+
+        # Harmonics of entropy and stagnation enthalpy driven to zero, given the
+        # vorticity changes just fixed.
+        ho_nd, s_nd = target[0], target[1]
+        resid_local = np.stack(
+            (ho_nd - self._pitch_mean(ho_nd), s_nd - self._pitch_mean(s_nd)),
+            axis=-1,
+        )
+        resid_local = (
+            resid_local
+            + ref["couple_t"] * dchic_t[..., np.newaxis]
+            + ref["couple_r"] * dchic_r[..., np.newaxis]
+        )
+        dchic_local = -util.matvec(ref["inv_local"], resid_local)
+
+        dchic_new[..., 1] = dchic_mean[..., 0] + dchic_local[..., 0]
+        dchic_new[..., 2] = dchic_mean[..., 1] + dchic_r
+        dchic_new[..., 3] = dchic_mean[..., 2] + dchic_t
+        dchic_new[..., 4] = dchic_mean[..., 3] + dchic_local[..., 1]
+        return dchic_new
+
+    def _calc_dchic_leaving(self, dchic, target):
+        r"""Change in the single incoming characteristic where the flow leaves.
+
+        Its pitchwise mean follows from the prescribed static pressure of row 4
+        (Giles Eq. 5.29-5.30, Saxer Eq. D.31). Row 4 of every target space is
+        :math:`\partial p/\partial c = \tfrac{1}{2}` against either acoustic
+        characteristic, so the Newton step comes out as
+        :math:`\delta \bar{c} = -2(\bar{p} - p_\mathrm{target})`.
+
+        Its harmonics follow the non-reflecting relation of Giles Eq. 5.32 and
+        Saxer Eq. 57 when the interior lies on the :math:`-x` side, so that the
+        flow through a leaving station runs along :math:`+x` as that relation
+        assumes, and are driven to zero otherwise -- the mirror of the entering
+        case, and for the same reason.
+
+        Nothing corresponding to Giles' uniform entropy and stagnation enthalpy
+        constraint is needed here: both are carried out of the domain by the
+        outgoing characteristics rather than prescribed, so the second-order
+        variations that constraint exists to suppress never enter.
+        """
+        ref = self._ref
+        col = self._split_leaving[0][0]
+        dchic_mean = self._calc_dchic_mean(
+            target, self._split_leaving, ref["inv_leaving"]
+        )
+        c = dchic[..., col]
+        c_harm = c - self._pitch_mean(c)
+        dchic_new = np.zeros_like(dchic)
+
+        if self._sign_interior > 0:
+            dchic_new[..., col] = dchic_mean[..., 0] - c_harm
+            return dchic_new
+
+        # Harmonics, from the two outgoing characteristics the relation couples
+        # to. Both are taken mean-free so this cannot disturb the mean mode.
+        c_t = dchic[..., 3]
+        c_down = dchic[..., 1]
+        c_t_harm = c_t - self._pitch_mean(c_t)
+        c_down_harm = c_down - self._pitch_mean(c_down)
+        c_up_ideal = (
+            ref["coef_t"] * c_t_harm
+            + ref["coef_t_hilbert"] * self._transform_pitch(c_t_harm)
+            + ref["coef_down"] * c_down_harm
+            + ref["coef_down_hilbert"] * self._transform_pitch(c_down_harm)
+        )
+
+        dchic_new[..., col] = dchic_mean[..., 0] + c_up_ideal - c_harm
+        return dchic_new
+
+    def _calc_dchic_mean(self, target, split, inv):
+        """One modified Newton step on the prescribed pitchwise-mean quantities.
+
+        The residual is evaluated on the state about to be corrected and only
+        the Jacobian is frozen. Reading the residual from the frozen reference
+        too would leave it up to ``n_stage`` stages stale, so repeated stages
+        would re-apply one correction rather than converge on it.
+
+        Parameters
+        ----------
+        target : tuple of array
+            The five target-space quantities of the face state, as
+            :meth:`_target_from_prim` returns them.
+        split : tuple
+            ``(incoming characteristic columns, prescribed target rows)``. The
+            two are the same length, so the system is square.
+        inv : array
+            Inverse of that system's Jacobian, from :meth:`_calc_inv_jac`.
+
+        Returns
+        -------
+        array
+            Change in each incoming characteristic, in the column order of
+            ``split``, shape ``(*span_shape, len(cols))``.
+        """
+        rows = split[1]
+        resid = np.stack(
+            [self._pitch_mean(target[row] - self._target[..., row]) for row in rows],
+            axis=-1,
+        )
+        return -util.matvec(inv, resid)
+
+    def _calc_entering(self, avg):
+        """Span stations the mean flow enters through, with hysteresis.
+
+        Worked in the inward-normal velocity :math:`V_x n_x`, positive where
+        flow comes into the domain, so the same test serves a face of either
+        orientation. A station starts being treated as entering as soon as
+        anything says it is and stops only once the interior is clearly leaving,
+        by :attr:`_frac_rev_off` of the mean speed of sound, so a station
+        hovering about zero settles into one split rather than alternating
+        between them.
+
+        The test reads the first interior layer as well as the face. The
+        interior is the physical signal, and the only one that can release a
+        station once this condition is imposing an inflow on the face; but the
+        face is what the reference state is built from, so a face that has gone
+        backwards has to be carried whatever the interior is doing.
+
+        Parameters
+        ----------
+        avg : Block
+            Pitchwise-mean state, one node per span station.
+
+        Returns
+        -------
+        array
+            Boolean, shape ``(nspan,)``.
+        """
+        sign = self._sign_interior
+        cons = self.block_view_offset_1.conserved_nd
+        u_int = sign * (
+            self._pitch_mean(cons[..., 1]) / self._pitch_mean(cons[..., 0])
+        ).reshape(-1)
+        u_face = sign * avg.Vx_nd
+
+        on = (u_int > 0.0) | (u_face >= 0.0)
+        off = (u_int < -self._frac_rev_off * avg.a_nd) & (u_face < 0.0)
+        prev = self._entering
+        if prev is None or prev.shape != on.shape:
+            return on
+        return np.where(prev, ~off, on)
 
     def _calc_hilbert(self):
         r"""Build the pitchwise Hilbert transform matrix.
@@ -282,39 +554,7 @@ class NonReflectingPatch(RevolutionPatch):
         hilbert -= (w[:, None] * hilbert).sum(axis=0, keepdims=True)
         self._hilbert = hilbert.astype(np.float32)
 
-    def _calc_dchic_mean(self, target, split, inv):
-        """One modified Newton step on the prescribed pitchwise-mean quantities.
-
-        The residual is evaluated on the state about to be corrected and only
-        the Jacobian is frozen. Reading the residual from the frozen reference
-        too would leave it up to ``n_stage`` stages stale, so repeated stages
-        would re-apply one correction rather than converge on it.
-
-        Parameters
-        ----------
-        target : tuple of array
-            The five target-space quantities of the face state, as
-            :meth:`_target_from_prim` returns them.
-        split : tuple
-            ``(incoming characteristic columns, prescribed target rows)``. The
-            two are the same length, so the system is square.
-        inv : array
-            Inverse of that system's Jacobian, from :meth:`_calc_inv_jac`.
-
-        Returns
-        -------
-        array
-            Change in each incoming characteristic, in the column order of
-            ``split``, shape ``(*span_shape, len(cols))``.
-        """
-        rows = split[1]
-        resid = np.stack(
-            [self._pitch_mean(target[row] - self._target[..., row]) for row in rows],
-            axis=-1,
-        )
-        return -util.matvec(inv, resid)
-
-    def _calc_inv_jac(self, c2t, split, where=""):
+    def _calc_inv_jac(self, c2t, split, where):
         """Invert the mean-mode Jacobian of one split, checking it is not singular.
 
         Parameters
@@ -324,9 +564,9 @@ class NonReflectingPatch(RevolutionPatch):
             ``(nspan, 5, 5)``.
         split : tuple
             ``(incoming characteristic columns, prescribed target rows)``.
-        where : str, optional
-            Clause appended to the error message, naming the stations the
-            system belongs to.
+        where : str
+            Clause naming the stations the system belongs to, for the error
+            message.
 
         Returns
         -------
@@ -340,54 +580,101 @@ class NonReflectingPatch(RevolutionPatch):
         if np.any(np.abs(det) < self._rtol_det * hadamard):
             raise ValueError(
                 f"{self._desc.capitalize()} {self.label!r} has a singular mean "
-                f"characteristic Jacobian{where}; the prescribed state is "
-                "degenerate (reversed or extreme swirl)."
+                f"characteristic Jacobian for a span station the flow {where}; "
+                "the mean state is degenerate (extreme swirl)."
             )
         return self._span_bcast(util.inv(jac))
 
     def _calc_mask_out(self):
         """Boolean mask of the characteristic components the interior march owns.
 
-        The complement of the incoming columns of :attr:`_split_fwd`, with any
-        station :meth:`_calc_reversed` flagged carrying the complement of
-        :attr:`_split_rev` instead.
+        The complement of the incoming columns of whichever split each span
+        station is on.
 
         Returns
         -------
         array
             Boolean, broadcastable against ``(*shape, 5)``. A bare length-5
-            mask while no station is reversed; one entry per span station once
-            one is.
+            mask while every station is on one split; one entry per span station
+            once they are mixed.
         """
-        mask = self._mask_from_split(self._split_fwd)
-        if self._split_rev is None or not self._reversed.any():
-            return mask
+        mask_entering = self._mask_from_split(self._split_entering)
+        if self._entering.all():
+            return mask_entering
+        mask_leaving = self._mask_from_split(self._split_leaving)
+        if not self._entering.any():
+            return mask_leaving
         return np.where(
-            self._span_bcast(self._reversed)[..., np.newaxis],
-            self._mask_from_split(self._split_rev),
-            mask,
+            self._span_bcast(self._entering)[..., np.newaxis],
+            mask_entering,
+            mask_leaving,
         )
 
     def _calc_override(self, prim):
-        """Face state to write, given the state the characteristic solve produced.
+        """Impose the entering state on nodes the interior is pushing flow in through.
 
-        A hook for a condition that has to depart from its own linear theory at
-        some nodes, the identity here. Called after :attr:`_prim_prev` has been
-        stored, so whatever it returns reaches the block without displacing the
-        state the characteristic solve carries into the next stage.
+        The node-level counterpart of the station-level split: within a station
+        the mean flow leaves there is no split to change, since the split is a
+        property of that mean and the Hilbert transform couples every node of
+        the station to every other. So this is frankly a limiter on the linear
+        theory rather than an extension of it, and it is kept out of the state
+        the solve carries forward.
 
-        Parameters
-        ----------
-        prim : array
-            Primitive face state the characteristic solve produced, shape
-            ``(*shape, 5)``.
-
-        Returns
-        -------
-        array
-            Primitive face state to write, same shape.
+        Off unless :attr:`_nodal_backflow` is set, since the state imposed is
+        rows 0-3 read as ``[ho, s, Vr, Vt]``, which a target space carrying
+        angles in rows 2-3 cannot express.
         """
-        return prim
+        if not self._nodal_backflow:
+            return prim
+
+        # Detected from the interior layer, the physical signal of flow
+        # entering the domain, and never from the face: this method authors
+        # that face, and a face-based test would latch every node it flagged
+        # permanently into backflow. Stations the characteristic solve is
+        # already carrying as entering are left to it rather than treated
+        # twice, once here and once there.
+        cons_x = self.block_view_offset_1.conserved_nd[..., 1]
+        inflow = cons_x * self._sign_interior > 0.0
+        if self._entering.any():
+            inflow = inflow & ~self._span_bcast(self._entering)
+        if not inflow.any():
+            return prim
+
+        b = self.block_view
+        fluid = b.fluid
+        if self._rho_nd_soln is None:
+            self._rho_nd_soln = b.rho_nd.copy()
+
+        backflow = self._backflow()
+        ho_snap, s_snap, Vr_snap, Vt_snap = backflow
+        rho_nd, u_nd = fluid.set_rho_s(
+            calc_backflow_rho(
+                fluid,
+                backflow,
+                self._rho_nd_soln,
+                prim[..., 0],
+                b.Max,
+                self._rf_backflow,
+            ),
+            s_snap,
+        )
+
+        # The cap inside calc_backflow_rho holds the radicand non-negative over
+        # the whole face, not only on the flagged nodes, so the sqrt is sound
+        # everywhere it is evaluated; the errstate is float32 insurance for
+        # nodes sitting on the cap itself, which can land a few ulp below zero.
+        with np.errstate(invalid="ignore"):
+            Vx_nd = self._sign_interior * np.sqrt(
+                2.0 * (ho_snap - fluid.get_h(rho_nd, u_nd)) - Vr_snap**2 - Vt_snap**2
+            )
+
+        prim_back = np.empty_like(prim)
+        prim_back[..., 0] = rho_nd
+        prim_back[..., 1] = Vx_nd
+        prim_back[..., 2] = Vr_snap
+        prim_back[..., 3] = Vt_snap
+        prim_back[..., 4] = fluid.get_P(rho_nd, u_nd)
+        return np.where(inflow[..., np.newaxis], prim_back, prim)
 
     def _calc_reference(self):
         """Freeze the pitchwise-mean state and everything derived from it.
@@ -410,24 +697,16 @@ class NonReflectingPatch(RevolutionPatch):
         Mt = avg.Vt_nd / a_nd
         Msq = Mn**2 + Mt**2
 
-        # Which span stations, if any, this condition treats as reversed.
-        # Frozen for the step alongside everything else here, so the
-        # characteristic split cannot change between Runge-Kutta stages, and
-        # settled before the guard below so a handled station does not raise.
-        self._reversed = self._calc_reversed(avg)
+        # Which way the flow runs through each span station. Frozen for the step
+        # alongside everything else here, so the characteristic split cannot
+        # change between Runge-Kutta stages.
+        self._entering = self._calc_entering(avg)
         self._mask_out = self._calc_mask_out()
 
-        unhandled = (avg.Vx_nd <= 0.0) & ~self._reversed
-        if np.any(unhandled):
-            raise ValueError(
-                f"Backflow at {self._desc} {self.label!r}: the pitchwise-mean "
-                f"axial velocity is negative at "
-                f"{int(np.count_nonzero(unhandled))} of {avg.Vx_nd.size} "
-                "span stations, so the characteristic split is invalid."
-            )
         # Tested on the magnitude, so a station running backwards fast enough
-        # to be axially supersonic is caught too: there the upstream-running
-        # pressure wave turns outgoing and even the reversed split is wrong.
+        # to be axially supersonic is caught too: there one of the two acoustic
+        # characteristics changes direction and even the reversed split is
+        # wrong.
         if np.any(np.abs(Mn) >= 1.0):
             raise NotImplementedError(
                 f"{self._desc.capitalize()} {self.label!r} is axially "
@@ -450,98 +729,98 @@ class NonReflectingPatch(RevolutionPatch):
             ),
             "p2c": self._span_bcast(perturbation.primitive_to_chic(avg)),
             "c2p": self._span_bcast(perturbation.chic_to_primitive(avg)),
-            "inv_fwd": self._calc_inv_jac(c2t, self._split_fwd),
+            # Both built at every station, whichever split it is on. Neither
+            # goes singular anywhere the guards above admit, so there is nothing
+            # to gain by building them conditionally and a branch to lose.
+            "inv_entering": self._calc_inv_jac(c2t, self._split_entering, "enters"),
+            "inv_leaving": self._calc_inv_jac(c2t, self._split_leaving, "leaves"),
         }
-        if self._split_rev is not None:
-            # Built at every station, reversed or not. Every entry of the
-            # reversed system stays finite and its determinant vanishes only at
-            # an axial Mach number the checks above have already excluded, so
-            # there is nothing to gain by building it conditionally and a
-            # branch to lose.
-            self._ref["inv_rev"] = self._calc_inv_jac(
-                c2t, self._split_rev, " at a reversed span station"
-            )
         # The wave parameter magnitude, sqrt(1 - M^2). Both the axial and the
         # tangential Mach number enter it, but not the radial one: Saxer's
         # quasi-3D theory treats each span station as a two-dimensional cascade
-        # (his Eq. 15).
-        self._ref.update(
-            self._calc_reference_extra(avg, c2t, Mn, Mt, np.sqrt(1.0 - Msq))
-        )
+        # (his Eq. 15). Only the relation this face's orientation makes live is
+        # built; see the module docstring.
+        wave = np.sqrt(1.0 - Msq)
+        if self._sign_interior > 0:
+            self._ref.update(self._calc_ref_entering(c2t, Mn, Mt, wave))
+        else:
+            self._ref.update(self._calc_ref_leaving(Mn, Mt, wave))
 
-    def _calc_reversed(self, avg):
-        """Span stations whose mean flow runs backwards through the face.
+    def _calc_ref_entering(self, c2t, Mn, Mt, wave):
+        """Coefficients of Giles Eq. 5.17 and of the uniform ho/s solve."""
+        # Stagnation enthalpy and entropy against the entropy and
+        # downstream-running pressure characteristics, the two left free once
+        # the vorticity characteristics are fixed by the non-reflecting theory.
+        # Columns 1 and 4 of a length-5 axis are c_down and c_s. Rows 0 and 1
+        # are ho and s in every target space, so this system and the two
+        # coupling columns below are the same matrices whatever
+        # _chic_to_target is.
+        jac_local = np.ascontiguousarray(c2t[..., 0:2, 1::3])
 
-        None of them here, so a reversed mean state raises as ill-posed. A
-        condition that can carry one declares a :attr:`_split_rev` and returns
-        those stations instead, and owns whatever :meth:`_calc_dchic` does
-        there.
+        return {
+            "inv_local": self._span_bcast(util.inv(jac_local)),
+            "couple_r": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 2])),
+            "couple_t": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 3])),
+            "coef_local": self._span_bcast(-Mt / (1.0 + Mn)),
+            "coef_hilbert": self._span_bcast(wave / (1.0 + Mn)),
+        }
+
+    def _calc_ref_leaving(self, Mn, Mt, wave):
+        r"""Coefficients of the rationalised Giles Eq. 5.32, per span station.
+
+        Since :math:`(\beta - M_t)(-\beta - M_t) = 1 - M_n^2` is real and
+        mode-independent, rationalising the relation splits it into local terms
+        and Hilbert transforms along the pitch, and no Fourier transform need be
+        taken at run time:
+
+        .. math::
+            \left(1 - M_n^2\right) c_\mathrm{up} =
+                -2 M_n M_t\, c_t
+                + 2 M_n \sqrt{1 - M^2}\, \mathcal{H}[c_t]
+                + \left(M_t^2 - 1 + M^2\right) c_\mathrm{down}
+                - 2 M_t \sqrt{1 - M^2}\, \mathcal{H}[c_\mathrm{down}].
+
+        Two limits check it: without swirl it reduces to
+        :math:`c_\mathrm{up} = -c_\mathrm{down}
+        + 2M_n\mathcal{H}[c_t]/\sqrt{1-M^2}`, a zero harmonic pressure
+        perturbation for pure acoustics; and the steady potential mode
+        downstream of the plane, :math:`\phi \sim e^{-\mu x}\cos(l\theta)` with
+        :math:`\mu = |l|/\sqrt{1-M^2}`, satisfies it exactly.
+        """
+        # 1 - Mn^2 is the product of the wave-parameter denominator and its
+        # conjugate; it is bounded away from zero by the axially subsonic check
+        # in the caller.
+        denom = 1.0 - Mn**2
+        return {
+            "coef_t": self._span_bcast(-2.0 * Mn * Mt / denom),
+            "coef_t_hilbert": self._span_bcast(2.0 * Mn * wave / denom),
+            "coef_down": self._span_bcast((Mt**2 - wave**2) / denom),
+            "coef_down_hilbert": self._span_bcast(-2.0 * Mt * wave / denom),
+        }
+
+    def _calc_split(self, entering):
+        """The characteristic/target split of a span station, from the table above.
 
         Parameters
         ----------
-        avg : Block
-            Pitchwise-mean state, one node per span station.
+        entering : bool
+            Whether the mean flow comes into the domain through the station.
 
         Returns
         -------
-        array
-            Boolean, shape ``(nspan,)``.
+        tuple
+            ``(incoming characteristic columns, prescribed target rows)``, the
+            two the same length so the mean-mode system is square.
         """
-        return np.zeros(avg.shape, dtype=bool)
-
-    @abstractmethod
-    def _calc_dchic(self, dchic, prim):
-        """Return the change required in the incoming characteristics.
-
-        Parameters
-        ----------
-        dchic : array
-            Characteristic deviation of the face from the reference state,
-            outgoing components as the interior march left them and incoming
-            components as this patch last set them, shape ``(*shape, 5)``.
-        prim : array
-            The primitive face state ``dchic`` describes, so residuals are taken
-            on the state about to be corrected rather than on whatever is
-            currently stored in the block, shape ``(*shape, 5)``.
-
-        Returns
-        -------
-        array
-            Change in the characteristic variables, zero in the outgoing
-            components, shape ``(*shape, 5)``. Applied under-relaxed by
-            :attr:`sigma`.
-        """
-
-    @abstractmethod
-    def _calc_reference_extra(self, avg, c2t, Mn, Mt, wave):
-        """Return the reference-state entries specific to this condition.
-
-        The mean-mode Jacobians are not among them: the base class builds those
-        from :attr:`_split_fwd` and :attr:`_split_rev`. What is left is the
-        coefficients of this condition's harmonic relations.
-
-        Parameters
-        ----------
-        avg : Block
-            Pitchwise-mean state, one node per span station.
-        c2t : array
-            Characteristic-to-target Jacobian on that state, shape
-            ``(nspan, 5, 5)``, passed rather than recomputed.
-        Mn, Mt : array
-            Axial and tangential Mach number of the mean state, per span
-            station.
-        wave : array
-            Wave parameter magnitude :math:`\\sqrt{1 - M^2}`, per span station.
-
-        Returns
-        -------
-        dict
-            Entries to merge into the frozen reference state, each already
-            broadcast over the patch shape by :meth:`_span_bcast`.
-        """
+        # The acoustic that runs against the inward normal is the one the
+        # interior owns; the other is incoming whichever way the flow runs.
+        acoustic = 1 if self._sign_interior > 0 else 0
+        if entering:
+            return sorted([acoustic, 2, 3, 4]), [0, 1, 2, 3]
+        return [acoustic], [4]
 
     def _check_plane(self):
-        """Validate the restrictions of the first implementation."""
+        """Validate the boundary plane and settle which side the interior is on."""
         block = self.block
         x = self.block_view.x
         Lref = max(np.ptp(block.x), np.ptp(block.r))
@@ -551,23 +830,40 @@ class NonReflectingPatch(RevolutionPatch):
                 f"of constant x (spread {float(np.ptp(x)):.4g} over reference "
                 f"length {Lref:.4g}); canted planes are not implemented."
             )
-        x_interior = block.x[self._get_offset_slice(1)].mean()
-        if self._sign_interior * (x_interior - x.mean()) <= 0.0:
-            side = "+x" if self._sign_interior > 0 else "-x"
-            verb = "enters" if self._sign_interior > 0 else "leaves"
+
+        # A constant-x plane has an inward normal of exactly (+/-1, 0), so the
+        # sign is the whole of it.
+        offset = block.x[self._get_offset_slice(1)].mean() - x.mean()
+        if offset == 0.0:
+            raise ValueError(
+                f"{self._desc.capitalize()} {self.label!r} cannot tell which "
+                "side its interior lies on: the first interior layer is in the "
+                "same plane as the face."
+            )
+        sign = 1 if offset > 0.0 else -1
+
+        # Read off the class, not the instance, so that a patch whose class
+        # leaves the side to the geometry can be re-attached to the other side
+        # of a plane rather than validated against its own previous answer.
+        fixed = type(self)._sign_interior
+        if fixed is not None and fixed != sign:
+            side = "+x" if fixed > 0 else "-x"
+            verb = "enters" if fixed > 0 else "leaves"
             raise NotImplementedError(
                 f"{self._desc.capitalize()} {self.label!r} must have its "
                 f"interior on the {side} side, so that flow {verb} along +x."
             )
+        self._sign_interior = sign
 
     def _copy(self, c):
         c._target = None if self._target is None else np.copy(self._target)
         c._target_set = self._target_set.copy()
         c.sigma = self.sigma
-        # _hilbert and _ref both derive from the block geometry or solution, so
-        # they are rebuilt on the new block rather than copied. The target is
-        # copied nondimensionalised, so the new block must share the reference
-        # scales of the old one; every block of a grid does.
+        # _hilbert, _ref, _sign_interior and the two splits all derive from the
+        # block geometry or solution, so they are rebuilt on the new block
+        # rather than copied. The target is copied nondimensionalised, so the
+        # new block must share the reference scales of the old one; every block
+        # of a grid does.
 
     def _ho_s_from_prim(self, prim):
         """Stagnation enthalpy and entropy of a primitive state.
@@ -663,13 +959,19 @@ class NonReflectingPatch(RevolutionPatch):
         self._target_set = np.zeros(5, dtype=bool)
         self._hilbert = None
         self._ref = None
-        # Characteristic split and the reversed span stations behind it, both
-        # rebuilt every timestep by _calc_reference before anything reads them.
+        # The two splits, settled at attach time from the inward normal, and
+        # which span stations are on which, rebuilt every timestep by
+        # _calc_reference before anything reads it.
+        self._split_entering = None
+        self._split_leaving = None
         self._mask_out = None
-        self._reversed = None
+        self._entering = None
         # Face state this patch last authored. The incoming characteristics are
         # carried from here rather than from the marched face; see apply().
         self._prim_prev = None
+        # Start-of-step density the reversed-node relaxation runs from, taken
+        # by update_soln.
+        self._rho_nd_soln = None
         # Under-relaxation of the characteristic correction, Giles Eq. 5.25,
         # needed for wellposedness. He suggests 1/N for N pitchwise nodes,
         # applied once per timestep; ember applies this once per Runge-Kutta
@@ -779,6 +1081,8 @@ class NonReflectingPatch(RevolutionPatch):
             return
 
         self._check_plane()
+        self._split_entering = self._calc_split(True)
+        self._split_leaving = self._calc_split(False)
         self._calc_hilbert()
 
         shape = self._target_shape()
@@ -791,6 +1095,9 @@ class NonReflectingPatch(RevolutionPatch):
 
         Re-derives the pitchwise-mean state and every Jacobian evaluated on it,
         which :meth:`apply` then holds fixed across the Runge-Kutta stages of
-        the step.
+        the step. Snapshots the density first, so a reversed node's density is
+        relaxed from the start-of-step value rather than from whatever the last
+        stage happened to leave.
         """
+        self._rho_nd_soln = self.block_view.rho_nd.copy()
         self._calc_reference()

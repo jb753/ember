@@ -30,8 +30,7 @@ from ember.grid import Grid
 from ember.mixing_communicator import NonReflectingMixingCommunicator
 from ember.patch import (
     InletPatch,
-    NonReflectingMixingInletPatch,
-    NonReflectingMixingOutletPatch,
+    NonReflectingMixingPatch,
     NonReflectingOutletPatch,
     OutletPatch,
     PeriodicPatch,
@@ -69,8 +68,8 @@ def make_chain(states, npitch=17):
 
     planes = []
     for i, (block_up, block_dn) in enumerate(zip(blocks[:-1], blocks[1:])):
-        patch_up = NonReflectingMixingOutletPatch(i=-1, label=f"plane{i}_up")
-        patch_dn = NonReflectingMixingInletPatch(i=0, label=f"plane{i}_dn")
+        patch_up = NonReflectingMixingPatch(i=-1, label=f"plane{i}_up")
+        patch_dn = NonReflectingMixingPatch(i=0, label=f"plane{i}_dn")
         block_up.patches.append(patch_up)
         block_dn.patches.append(patch_dn)
         planes.append((patch_up, patch_dn))
@@ -145,6 +144,24 @@ def test_pairs_across_the_plane():
     assert pairs == {(0, 0): ((1, 0), False), (1, 0): ((0, 0), False)}
 
 
+def test_side_is_read_off_the_geometry():
+    """One class serves both sides; which one it is comes from the mesh.
+
+    The two sides are constructed identically and differ only in the face they
+    are attached to, so nothing is left for a caller to get right that the mesh
+    does not already say.
+    """
+    grid, patch_up, patch_dn = make_pair()
+    assert type(patch_up) is type(patch_dn)
+    # Interior on the -x side of the upstream block's exit face, on the +x side
+    # of the downstream block's inlet face.
+    assert patch_up._sign_interior == -1
+    assert patch_dn._sign_interior == 1
+    # And so the two prescribe different rows of the same exchanged target.
+    assert patch_up._split_leaving == ([0], [4])
+    assert patch_dn._split_entering == ([1, 2, 3, 4], [0, 1, 2, 3])
+
+
 def test_pairs_with_unequal_pitchwise_resolution():
     """Only pitch means cross the plane, so the two sides may be resolved differently."""
     grid, patch_up, patch_dn = make_pair(npitch_up=17, npitch_dn=13)
@@ -154,7 +171,7 @@ def test_pairs_with_unequal_pitchwise_resolution():
 def test_same_side_patches_do_not_pair():
     """Two outflow sides face the same way, so they are not two sides of a plane."""
     grid, patch_up, _ = make_pair()
-    other = NonReflectingMixingOutletPatch(i=-1, label="mix_other")
+    other = NonReflectingMixingPatch(i=-1, label="mix_other")
     grid[1].patches.append(other)
     assert patch_up.check_match(other) is None
 
@@ -273,7 +290,7 @@ def test_reversed_station_takes_its_inflow_state_from_the_exchange():
     block.set_Vx(Vx)
 
     patch_up.update_soln()
-    assert patch_up._reversed[3]
+    assert patch_up._entering[3]
     # Nothing was prescribed and nothing was seeded either: the exchange had
     # already filled every row, so the seed stood aside.
     target = patch_up.get_target()
@@ -293,31 +310,70 @@ def test_reversed_station_takes_its_inflow_state_from_the_exchange():
     np.testing.assert_allclose(got, patch_up.get_target()[3, 0:4], rtol=5e-3)
 
 
-def test_set_adjustment_refuses():
-    """The exchanged pressure profile already carries radial equilibrium."""
-    grid, patch_up, patch_dn = make_pair()
-    with pytest.raises(ValueError, match="double count"):
-        patch_up.set_adjustment()
+def test_reversed_station_on_the_inflow_side_takes_the_exchanged_pressure():
+    """The downstream side carries reversal too, which is what it never used to.
+
+    A stalled or separated row pushes flow back upstream through the interface,
+    and the downstream side of a mixing plane is exactly where that shows up.
+    Four of that station's characteristics turn outgoing and one quantity is
+    left to prescribe -- static pressure, which is row 4 of the same exchanged
+    target the upstream side reads.
+    """
+    grid, patch_up, patch_dn, comm = exchanged()
+    comm.exchange()
+
+    # Reverse one span station of the downstream block over its whole axial
+    # extent, hard enough to stay reversed: raising the static pressure at a
+    # station the flow leaves raises its axial velocity with it.
+    block = grid[1]
+    Vx = block.Vx.copy()
+    Vx[:, 3, :] = -100.0
+    block.set_Vx(Vx)
+
+    patch_dn.update_soln()
+    assert not patch_dn._entering[3]
+    assert patch_dn._entering[[0, 1, 2, 4, 5, 6]].all()
+
+    # Only c_down still enters that station; every other characteristic is the
+    # interior's, where at a forward station only c_up would be.
+    mask = np.broadcast_to(patch_dn._mask_out, patch_dn.shape + (5,))
+    np.testing.assert_array_equal(mask[0, 3, 0], [True, False, True, True, True])
+    np.testing.assert_array_equal(mask[0, 0, 0], [True, False, False, False, False])
+
+    for _ in range(60):
+        patch_dn.update_soln()
+        patch_dn.apply()
+
+    P_face = np.asarray(patch_dn._pitch_mean(patch_dn.block_view.P_nd)).squeeze()
+    assert P_face[3] == pytest.approx(patch_dn.get_target()[3, 4], rel=5e-3)
+    assert float(patch_dn._pitch_mean(patch_dn.block_view.Vx_nd).ravel()[3]) < 0.0
 
 
-@pytest.mark.parametrize("setter", ["set_Alpha", "set_Beta"])
-def test_angle_setters_refuse(setter):
-    """The inflow side prescribes velocities, so the angle setters have no target.
+@pytest.mark.parametrize(
+    "name", ["set_adjustment", "set_Alpha", "set_Beta", "set_P", "set_ho_s"]
+)
+def test_no_setters_of_its_own(name):
+    """Every row comes from the exchange, so none of the conditions' setters exist.
 
-    Letting them through would set tanAlpha or sinBeta, which nothing on this
-    side reads, and the caller would get no sign that the value was ignored.
+    They used to be inherited and then overridden to raise, which meant a caller
+    could reach a method that did nothing useful. There is nothing to override
+    now: this class is not an inlet or an outlet, it is the condition plus an
+    exchange.
     """
     grid, patch_up, patch_dn = make_pair()
-    with pytest.raises(ValueError, match="nothing to set"):
-        getattr(patch_dn, setter)(10.0)
+    for patch in (patch_up, patch_dn):
+        assert not hasattr(patch, name)
 
 
-def test_ho_s_setter_still_works():
-    """set_ho_s still fills rows 0-1, which the mix set shares with the angles."""
+def test_angle_rows_are_not_addressable():
+    """The mix target space carries velocities in rows 2-3, so the angles are not there."""
     grid, patch_up, patch_dn = make_pair()
-    patch_dn.set_ho_s(4.1e5, 1.5e3)
-    assert patch_dn.ho_nd is not None
-    assert patch_dn.s_nd is not None
+    for name in ("tanAlpha", "sinBeta"):
+        with pytest.raises(AttributeError, match="so it has no"):
+            getattr(patch_dn, name)
+    # And what is there instead reads back.
+    assert patch_dn.Vr_nd is not None
+    assert patch_dn.Vt_nd is not None
 
 
 # Physics

@@ -9,6 +9,9 @@ itself.
 
 Test cases:
 - Targets: validation, independence, the Po/To and ho/s routes agreeing
+- Reversed stations: what set_backflow_P accepts and what is seeded without it,
+  the split switched at a station the flow leaves, the pressure it is driven to
+  and the inflow state it stops imposing there
 - Physics: fixed point at the target, absorption of a mean acoustic wave, the
   mean Newton step, harmonic reflection coefficient against the non-reflecting
   theory, an analytic potential disturbance passing through, pitch uniformity
@@ -22,6 +25,7 @@ from ember.patch import NonReflectingInletPatch
 from nonreflecting_util import (
     FLUID,
     PITCH,
+    P_MEAN,
     T_MEAN,
     VT_MEAN,
     attached,
@@ -118,6 +122,154 @@ def test_apply_names_the_missing_setters():
     patch.set_Alpha(0.0)
     with pytest.raises(ValueError, match="set_ho_s or set_Po_To, set_Beta"):
         patch.apply()
+
+
+# ---------------------------------------------------------------------------
+# Reversed stations
+# ---------------------------------------------------------------------------
+
+
+def _reversed_block(rev_span=(2,), Vx_rev=-100.0, **kwargs):
+    """Block whose inflow face has one span station running backwards out of it.
+
+    Reversed over the whole axial extent, so the face and the interior layer
+    behind it agree; a reversal only one plane deep would be released as soon as
+    the condition raised the pressure enough to push the face velocity back
+    through zero, which is the hysteresis working rather than a station to test
+    against. Reversed hard for the same reason: the acoustic relation ties a
+    rise in static pressure to a rise in axial velocity, so the station has to
+    start far enough from zero to stay the other side of it.
+    """
+    block = make_block(**kwargs)
+    span_dim = kwargs.get("span_dim", 1)
+    Vx = block.Vx.copy()
+    for j in rev_span:
+        idx = [slice(None), slice(None), slice(None)]
+        idx[span_dim] = j
+        Vx[tuple(idx)] = Vx_rev
+    block.set_Vx(Vx)
+    return block
+
+
+def _reversed_patch(block, P_back=None, sigma=1.0):
+    """Attach an inlet to the i=0 face of such a block."""
+    patch = NonReflectingInletPatch(i=0, label="inlet_nrbc")
+    block.patches.append(patch)
+    state = reference_state()
+    patch.set_ho_s(float(state.ho), float(state.s))
+    patch.set_Alpha(float(state.Alpha))
+    patch.set_Beta(float(state.Beta))
+    if P_back is not None:
+        patch.set_backflow_P(P_back)
+    patch.sigma = sigma
+    return patch
+
+
+def _span_profile(patch, field):
+    """Span profile of a patch-shaped field, pitch-averaged and squeezed."""
+    return np.asarray(patch._pitch_mean(field)).squeeze()
+
+
+def test_set_backflow_P_stores_the_pressure_nondimensionally():
+    """The pressure is stored in the units the residual is taken in."""
+    _, patch = _attached()
+    patch.set_backflow_P(1.1 * P_MEAN)
+    np.testing.assert_allclose(
+        _span_profile(patch, patch.P_nd), 1.1 * P_MEAN / FLUID.P_ref, rtol=1e-6
+    )
+    assert patch._target_set[4]
+
+
+def test_set_backflow_P_accepts_a_spanwise_profile():
+    """A profile is allowed, as for every other target; the pitch mean is kept."""
+    _, patch = _attached()
+    nspan = patch.shape[patch.span_dim]
+    profile = P_MEAN * np.linspace(0.9, 1.1, nspan)
+    patch.set_backflow_P(
+        profile.reshape([nspan if d == patch.span_dim else 1 for d in range(3)])
+    )
+    np.testing.assert_allclose(
+        _span_profile(patch, patch.P_nd), profile / FLUID.P_ref, rtol=1e-6
+    )
+
+
+@pytest.mark.parametrize("value, match", [(np.nan, "finite"), (-1.0e5, "positive")])
+def test_set_backflow_P_rejects_invalid(value, match):
+    """Non-finite or non-positive pressures are refused, as for set_P."""
+    _, patch = _attached()
+    with pytest.raises(ValueError, match=match):
+        patch.set_backflow_P(value)
+
+
+def test_backflow_P_seeds_from_the_inflow_plane_when_not_set():
+    """Left alone, row 4 is taken from the face once and then frozen."""
+    patch = _reversed_patch(_reversed_block())
+    assert not patch._target_set[4]
+    patch.update_soln()
+
+    assert patch._target_set[4]
+    expect = _span_profile(patch, patch.block_view.P_nd)
+    np.testing.assert_allclose(_span_profile(patch, patch.P_nd), expect, rtol=1e-5)
+
+    # Frozen: a later step does not re-derive it from a face this patch has
+    # since been writing, which would leave the residual identically zero.
+    seed = np.copy(patch.P_nd)
+    patch.apply()
+    patch.update_soln()
+    np.testing.assert_array_equal(patch.P_nd, seed)
+
+
+@pytest.mark.parametrize("span_dim", [1, 2])
+def test_reversed_station_switches_the_characteristic_split(span_dim):
+    """Only the downstream-running pressure wave still enters a reversed station."""
+    patch = _reversed_patch(_reversed_block(span_dim=span_dim))
+    patch.update_soln()
+    assert not patch._entering[2]
+    assert patch._entering[[0, 1, 3, 4, 5, 6]].all()
+
+    mask = np.broadcast_to(patch._mask_out, patch.shape + (5,))
+    at = [0, 0, 0]
+    at[patch.span_dim] = 2
+    np.testing.assert_array_equal(mask[tuple(at)], [True, False, True, True, True])
+    at[patch.span_dim] = 0
+    np.testing.assert_array_equal(mask[tuple(at)], [True, False, False, False, False])
+
+
+@pytest.mark.parametrize("span_dim", [1, 2])
+def test_reversed_station_converges_to_the_prescribed_pressure(span_dim):
+    """The one quantity a reversed station prescribes is set_backflow_P's value."""
+    P_back = 1.05 * P_MEAN
+    patch = _reversed_patch(
+        _reversed_block(span_dim=span_dim), P_back=P_back, sigma=0.5
+    )
+    for _ in range(80):
+        patch.update_soln()
+        patch.apply()
+
+    P_face = _span_profile(patch, patch.block_view.P_nd)
+    assert P_face[2] == pytest.approx(P_back / FLUID.P_ref, rel=2e-3)
+    # And it really is flow leaving through the inflow face.
+    assert _span_profile(patch, patch.block_view.Vx_nd)[2] < 0.0
+    # A forward station is still driven to the prescribed inflow state, not to
+    # a pressure: nothing about the reversed one leaks along the span.
+    assert P_face[0] != pytest.approx(P_back / FLUID.P_ref, rel=1e-2)
+
+
+def test_reversed_station_does_not_impose_the_inflow_state():
+    """Stagnation enthalpy is carried by the outgoing waves there, not prescribed."""
+    ho_target = 1.2 * float(reference_state().ho)
+    patch = _reversed_patch(_reversed_block(), sigma=0.5)
+    patch.set_ho_s(ho_target, float(reference_state().s))
+    for _ in range(80):
+        patch.update_soln()
+        patch.apply()
+
+    ho_face = _span_profile(patch, patch.block_view.ho_nd)
+    target = ho_target / FLUID.u_ref
+    # A forward station sits on the prescribed level.
+    assert ho_face[0] == pytest.approx(target, rel=2e-3)
+    # The reversed one is left where its own flow puts it.
+    assert abs(ho_face[2] - target) > 0.01 * abs(target)
 
 
 # ---------------------------------------------------------------------------

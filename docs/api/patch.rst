@@ -68,13 +68,7 @@ Concrete patch types
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.mixing_nonreflecting.NonReflectingMixingInletPatch
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :class-doc-from: class
-
-.. autoclass:: ember.mixing_nonreflecting.NonReflectingMixingOutletPatch
+.. autoclass:: ember.mixing_nonreflecting.NonReflectingMixingPatch
    :members:
    :undoc-members:
    :show-inheritance:

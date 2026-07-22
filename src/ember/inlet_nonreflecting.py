@@ -5,25 +5,14 @@ two flow angles at an inflow face while letting outgoing acoustic waves leave
 the domain, after the steady non-reflecting theory of :cite:t:`Giles1988` (his
 Sections 5.3-5.4) extended to three dimensions by :cite:t:`Saxer1993`.
 
-The condition works in characteristic variables. Of the five characteristics at
-an axially subsonic inflow plane, four are incoming (entropy, two vorticity
-waves, the downstream-running pressure wave) and one, the upstream-running
-pressure wave, is outgoing. Each stage the outgoing characteristic is read from
-the boundary node exactly as the interior scheme left it and is never
-overwritten, so an acoustic wave reaching the inflow plane passes through it.
-The four incoming characteristics are driven toward the prescribed inflow state
-in two parts:
-
-* the **pitchwise mean** of each incoming characteristic is set by requiring the
-  mean stagnation enthalpy, entropy, yaw and pitch angles to take their
-  prescribed values (Giles Eq. 5.13-5.15, Saxer Eq. 9);
-* the **pitchwise harmonics** are set from the harmonics of the outgoing
-  characteristic by the non-reflecting relation (Giles Eq. 5.17, Saxer Eq. 56),
-  except that entropy and stagnation enthalpy are additionally held uniform
-  along the pitch (Giles Eq. 5.22-5.24). Giles adopts that last constraint
-  because a straightforward implementation of the linear theory leaves
-  second-order variations in entropy and stagnation enthalpy that would be
-  comparable with the losses of a viscous calculation.
+The characteristic treatment is entirely
+:class:`~ember.nonreflecting.NonReflectingPatch`'s; what this class adds is an
+interior on the :math:`+x` side and the variables a physical inlet knows. Of the
+five characteristics at an axially subsonic inflow plane four are incoming
+(entropy, two vorticity waves, the downstream-running pressure wave) and one,
+the upstream-running pressure wave, is outgoing, so four quantities are
+prescribed: the pitchwise means of :math:`h_0`, :math:`s`, :math:`\tan\alpha`
+and :math:`\sin\beta`.
 
 Unlike :class:`~ember.inlet.InletPatch` this patch shares no state or code with
 the pressure-relaxation inlet, and the inflow state is prescribed in the
@@ -38,15 +27,15 @@ inlet and nothing else.
 
 See Also
 --------
-ember.nonreflecting.NonReflectingPatch : Base class holding the shared machinery
+ember.nonreflecting.NonReflectingPatch : The condition itself
 ember.inlet.InletPatch : Reflecting inlet with pressure relaxation
 ember.outlet_nonreflecting.NonReflectingOutletPatch : The outflow counterpart
-ember.perturbation.chic_to_bcond : Jacobian the characteristic solves are built on
+ember.perturbation.chic_to_bcond : Jacobian this patch's mean-mode solve is built on
 """
 
 import numpy as np
 
-from ember import perturbation, util
+from ember import perturbation
 from ember.nonreflecting import NonReflectingPatch
 
 
@@ -72,39 +61,23 @@ class NonReflectingInletPatch(NonReflectingPatch):
     :func:`~ember.perturbation.chic_to_mix`. Only rows 2 and 3 of the two
     Jacobians differ; rows 0, 1 and 4 are identical.
 
-    Each Runge-Kutta stage the characteristic deviation of the face state from
-    the frozen pitchwise-mean reference state is formed, and the change required
-    in the four incoming characteristics is assembled from three contributions:
-
-    #. a pitchwise-mean change that zeroes the mean residuals in
-       :math:`(h_0, s, \tan\alpha, \sin\beta)` in one Newton step
-       (Giles Eq. 5.13-5.15), taken by the base class's
-       :meth:`~ember.nonreflecting.NonReflectingPatch._calc_dchic_mean`;
-    #. harmonic changes setting the tangential vorticity characteristic from
-       the outgoing characteristic by the non-reflecting relation, and the
-       radial vorticity harmonics to zero (Giles Eq. 5.17, Saxer Eq. 56);
-    #. harmonic changes in the entropy and downstream-running pressure
-       characteristics that hold entropy and stagnation enthalpy uniform along
-       the pitch (Giles Eq. 5.22-5.24).
-
-    Their sum is applied under-relaxed by :attr:`sigma`; the outgoing
-    characteristic is carried through untouched.
+    A span station whose mean flow has reversed becomes an outflow, and the base
+    class drives it to the static pressure of row 4 instead. Nothing need be
+    configured for that: :meth:`set_backflow_P` prescribes the pressure and,
+    left alone, it is seeded from the inflow plane at the first timestep. The
+    angle rows are not solved there -- row 4 is static pressure in both target
+    spaces -- so the factor of :math:`V_x` those rows carry never takes the
+    solve singular.
     """
 
     _collection_name = "inlet_nonreflecting"
 
     _desc = "non-reflecting inlet patch"
 
-    # Only the upstream-running pressure wave leaves an inflow plane, so the
-    # other four characteristics are incoming and carry the four quantities an
-    # inflow prescribes, rows 0-3 of the target.
-    _split_fwd = ([1, 2, 3, 4], [0, 1, 2, 3])
-
     _sign_interior = 1
 
     # Angles rather than the base class's transverse velocities; see the class
-    # docstring. Row 4, the static pressure, is the same in both spaces and is
-    # not prescribed here.
+    # docstring.
     _chic_to_target = staticmethod(perturbation.chic_to_bcond)
 
     _target_names = ("ho_nd", "s_nd", "tanAlpha", "sinBeta", "P_nd")
@@ -115,6 +88,16 @@ class NonReflectingInletPatch(NonReflectingPatch):
         2: "set_Alpha",
         3: "set_Beta",
     }
+
+    # The static pressure imposed at a station whose inflow has reversed. Not
+    # required: seeded from the face if set_backflow_P is never called.
+    _target_seeded = (4,)
+
+    # The node-level limiter imposes rows 0-3 read as [ho, s, Vr, Vt], which
+    # this patch's angle rows cannot express. It is also the wrong shape of
+    # problem here: a node the flow enters at an inflow face is the normal
+    # case, not the pathology the limiter exists for.
+    _nodal_backflow = False
 
     def _target_from_prim(self, prim):
         """The target-space quantities (ho, s, tanAlpha, sinBeta, P) of a primitive state.
@@ -127,66 +110,6 @@ class NonReflectingInletPatch(NonReflectingPatch):
         Vx, Vr, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
         Vm = np.sqrt(Vx**2 + Vr**2)
         return ho_nd, s_nd, Vt / Vm, Vr / Vm, prim[..., 4]
-
-    def _calc_dchic(self, dchic, prim):
-        """Change in the four incoming characteristics; see the class docstring."""
-        ref = self._ref
-        target = self._target_from_prim(prim)
-        ho_nd, s_nd = target[0], target[1]
-
-        # Mean mode: one Newton step on the four prescribed quantities.
-        dchic_mean = self._calc_dchic_mean(target, self._split_fwd, ref["inv_fwd"])
-
-        # Harmonics: the non-reflecting relation for the tangential vorticity
-        # characteristic, and no radial vorticity harmonics.
-        c_up = dchic[..., 0]
-        c_up_harm = c_up - self._pitch_mean(c_up)
-        c_t_ideal = ref["coef_local"] * c_up_harm + ref[
-            "coef_hilbert"
-        ] * self._transform_pitch(c_up_harm)
-        c_t = dchic[..., 3]
-        c_r = dchic[..., 2]
-        dchic_t = c_t_ideal - (c_t - self._pitch_mean(c_t))
-        dchic_r = -(c_r - self._pitch_mean(c_r))
-
-        # Harmonics of entropy and stagnation enthalpy driven to zero, given the
-        # vorticity changes just fixed.
-        resid_local = np.stack(
-            (ho_nd - self._pitch_mean(ho_nd), s_nd - self._pitch_mean(s_nd)),
-            axis=-1,
-        )
-        resid_local = (
-            resid_local
-            + ref["couple_t"] * dchic_t[..., np.newaxis]
-            + ref["couple_r"] * dchic_r[..., np.newaxis]
-        )
-        dchic_local = -util.matvec(ref["inv_local"], resid_local)
-
-        dchic_new = np.zeros_like(dchic)
-        dchic_new[..., 1] = dchic_mean[..., 0] + dchic_local[..., 0]
-        dchic_new[..., 2] = dchic_mean[..., 1] + dchic_r
-        dchic_new[..., 3] = dchic_mean[..., 2] + dchic_t
-        dchic_new[..., 4] = dchic_mean[..., 3] + dchic_local[..., 1]
-        return dchic_new
-
-    def _calc_reference_extra(self, avg, c2t, Mn, Mt, wave):
-        """Jacobian of the local Newton step, and the harmonic coefficients."""
-        # Local system: stagnation enthalpy and entropy against the entropy and
-        # downstream-running pressure characteristics, the two left free once
-        # the vorticity characteristics are fixed by the non-reflecting theory.
-        # Columns 1 and 4 of a length-5 axis are c_down and c_s. Rows 0 and 1
-        # are ho and s in every target space, so this system and the two
-        # coupling columns below are the same matrices whatever
-        # _chic_to_target is.
-        jac_local = np.ascontiguousarray(c2t[..., 0:2, 1::3])
-
-        return {
-            "inv_local": self._span_bcast(util.inv(jac_local)),
-            "couple_r": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 2])),
-            "couple_t": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 3])),
-            "coef_local": self._span_bcast(-Mt / (1.0 + Mn)),
-            "coef_hilbert": self._span_bcast(wave / (1.0 + Mn)),
-        }
 
     def set_Alpha(self, Alpha):
         r"""Prescribe the inflow yaw angle.
@@ -204,6 +127,43 @@ class NonReflectingInletPatch(NonReflectingPatch):
         self._set_target_row(
             2, "Alpha", np.tan(np.radians(np.asarray(Alpha, dtype=np.float32)))
         )
+
+    def set_backflow_P(self, P):
+        r"""Prescribe the static pressure imposed where the inflow reverses.
+
+        A span station whose pitchwise-mean flow has turned round is an outflow:
+        four of its five characteristics leave the domain and only one enters,
+        so one quantity is prescribed and it is static pressure, not the inflow
+        state. This is that pressure. The other four rows are not imposed at
+        such a station -- they are what the outgoing waves carry there.
+
+        Calling this is optional. Left alone, the row is seeded once from the
+        pitchwise mean of the inflow plane at the first timestep and frozen
+        there; see
+        :meth:`~ember.nonreflecting.NonReflectingPatch._seed_target`. If a large
+        part of the span ends up reversed the inflow is no longer under control
+        and the boundary wants moving upstream, rather than this value tuning.
+
+        Parameters
+        ----------
+        P : float or array
+            Static pressure :math:`p` [Pa]; must be positive and finite. A
+            scalar or an array that broadcasts to
+            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            mean at each span station is imposed.
+
+        See Also
+        --------
+        ember.outlet_nonreflecting.NonReflectingOutletPatch.set_backflow : The
+            mirror of this, prescribing the inflow state an outflow face falls
+            back on
+        """
+        arr = np.asarray(P)
+        if not np.isfinite(arr).all():
+            raise ValueError("P must be finite")
+        if not (arr > 0.0).all():
+            raise ValueError("P must be positive")
+        self._set_target_row(4, "P", arr / self.block.fluid.P_ref)
 
     def set_Beta(self, Beta):
         r"""Prescribe the inflow pitch angle.
