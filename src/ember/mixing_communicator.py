@@ -38,7 +38,7 @@ class MixingCommunicator:
         self,
         grid,
         mixing_pairs,
-        rf_mix=0.01,
+        rf_mix=0.05,
     ):
         """Initialize with grid and mixing patch pairs.
 

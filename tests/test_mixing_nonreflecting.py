@@ -18,6 +18,8 @@ Test cases:
 - Physics: matched flow is a fixed point, a cross-plane mismatch relaxes to
   matched pitch-mean fluxes, a pitchwise harmonic is absorbed rather than
   reflected, and a solver run stays finite
+- Chains: several planes in one grid stay independent of one another, with a
+  middle block carrying an inflow side and an outflow side at once
 """
 
 import numpy as np
@@ -43,40 +45,72 @@ RF_MIX_FAST = 0.5
 SIGMA_FAST = 0.5
 
 
-def make_pair(npitch_up=17, npitch_dn=17, up=None, dn=None, **kwargs):
-    """Two blocks joined by a non-reflecting mixing plane at x = 0.1.
+def make_chain(states, npitch=17):
+    """Blocks butted end to end, each junction a non-reflecting mixing plane.
 
-    ``up`` and ``dn`` are per-side overrides of the flow state passed to
-    :func:`nonreflecting_util.make_block`, so the two sides can be started
-    mismatched. Returns the grid, the upstream (outflow) patch and the
-    downstream (inflow) patch.
+    One entry in ``states`` per block, a dict of overrides for
+    :func:`nonreflecting_util.make_block`, so each block can start at a
+    different flow state and the planes between them see a genuine mismatch.
+    ``npitch`` is a scalar or one value per block; the two sides of a plane may
+    differ in it, since only pitch means cross.
+
+    Returns the grid and a list of ``(outflow side, inflow side)`` pairs, one
+    per plane, ordered upstream to downstream.
     """
-    block_up = make_block(npitch=npitch_up, **{**kwargs, **(up or {})})
-    block_dn = make_block(npitch=npitch_dn, **{**kwargs, **(dn or {})})
-    block_dn.set_x(block_dn.x + np.ptp(block_up.x))
+    npitches = [npitch] * len(states) if np.isscalar(npitch) else list(npitch)
 
-    patch_up = NonReflectingMixingOutletPatch(i=-1, label="mix_up")
-    patch_dn = NonReflectingMixingInletPatch(i=0, label="mix_dn")
-    block_up.patches.append(patch_up)
-    block_dn.patches.append(patch_dn)
+    blocks = []
+    x_next = 0.0
+    for state, npitch_block in zip(states, npitches, strict=True):
+        block = make_block(npitch=npitch_block, **state)
+        block.set_x(block.x - block.x.min() + x_next)
+        x_next += float(np.ptp(block.x))
+        blocks.append(block)
 
-    grid = Grid((block_up, block_dn))
+    planes = []
+    for i, (block_up, block_dn) in enumerate(zip(blocks[:-1], blocks[1:])):
+        patch_up = NonReflectingMixingOutletPatch(i=-1, label=f"plane{i}_up")
+        patch_dn = NonReflectingMixingInletPatch(i=0, label=f"plane{i}_dn")
+        block_up.patches.append(patch_up)
+        block_dn.patches.append(patch_dn)
+        planes.append((patch_up, patch_dn))
+
+    return Grid(blocks), planes
+
+
+def make_pair(npitch_up=17, npitch_dn=17, up=None, dn=None, **kwargs):
+    """Two blocks joined by one non-reflecting mixing plane.
+
+    ``up`` and ``dn`` are per-side overrides of the flow state, so the two
+    sides can be started mismatched. Returns the grid, the upstream (outflow)
+    patch and the downstream (inflow) patch.
+    """
+    grid, planes = make_chain(
+        [{**kwargs, **(up or {})}, {**kwargs, **(dn or {})}],
+        npitch=(npitch_up, npitch_dn),
+    )
+    ((patch_up, patch_dn),) = planes
     return grid, patch_up, patch_dn
 
 
-def exchanged(*args, rf_mix=RF_MIX_FAST, sigma=SIGMA_FAST, **kwargs):
-    """A paired plane plus its communicator, ready to exchange."""
-    grid, patch_up, patch_dn = make_pair(*args, **kwargs)
+def communicator(grid, rf_mix=RF_MIX_FAST, sigma=SIGMA_FAST):
+    """Communicator for every plane in a grid, with the patches sped up."""
     comm = NonReflectingMixingCommunicator(
         grid, grid.connectivity.mixing_nonreflecting.pair(), rf_mix=rf_mix
     )
-    for patch in (patch_up, patch_dn):
+    for patch in grid.patches.mixing_nonreflecting:
         patch.sigma = sigma
-    return grid, patch_up, patch_dn, comm
+    return comm
+
+
+def exchanged(*args, rf_mix=RF_MIX_FAST, sigma=SIGMA_FAST, **kwargs):
+    """A single paired plane plus its communicator, ready to exchange."""
+    grid, patch_up, patch_dn = make_pair(*args, **kwargs)
+    return grid, patch_up, patch_dn, communicator(grid, rf_mix, sigma)
 
 
 def relax(patches, comm, n_iter):
-    """Iterate the exchange and both boundary conditions to their fixed point."""
+    """Iterate the exchange and every boundary condition to the fixed point."""
     for _ in range(n_iter):
         comm.exchange()
         for patch in patches:
@@ -303,6 +337,142 @@ def test_harmonic_acoustic_is_absorbed():
     amp_after = np.abs(harmonic(patch_up, patch_up.block_view.P_nd)).max()
 
     assert amp_after < 0.01 * amp_before, f"{amp_before} -> {amp_after}"
+
+
+# Several planes in one grid
+
+
+# Three blocks, the middle one carrying an inflow side and an outflow side at
+# once. Blocks 0 and 1 match; block 2 is off, so plane 1 has work to do and
+# plane 0 does not. That asymmetry is what the independence tests read.
+CHAIN_MATCHED = [{}, {}, {}]
+CHAIN_SKEWED = [{}, {}, {"P": 0.9e5, "Vx": 90.0}]
+
+
+def test_chain_pairs_adjacent_blocks_only():
+    """Each plane joins consecutive blocks; the ends do not pair through the middle."""
+    grid, planes = make_chain(CHAIN_MATCHED)
+    pairs = grid.connectivity.mixing_nonreflecting.pair()
+
+    # Block 1 owns two patches, appended inflow side first.
+    assert pairs == {
+        (0, 0): ((1, 0), False),
+        (1, 0): ((0, 0), False),
+        (1, 1): ((2, 0), False),
+        (2, 0): ((1, 1), False),
+    }
+    # The far ends face the same way and are not a plane, whatever the geometry.
+    patch_first_up = planes[0][0]
+    patch_last_dn = planes[1][1]
+    assert patch_first_up.check_match(patch_last_dn) is None
+
+
+def test_chain_middle_block_sides_are_distinct():
+    """The middle block's two patches hold separate targets, not one aliased buffer."""
+    grid, planes = make_chain(CHAIN_MATCHED)
+    dn_of_plane0 = planes[0][1]
+    up_of_plane1 = planes[1][0]
+
+    assert dn_of_plane0.block is up_of_plane1.block
+
+    comm = communicator(grid)
+    comm.exchange()
+
+    # Seeded by the exchange, so the buffers now exist to be compared.
+    assert dn_of_plane0._target is not up_of_plane1._target
+
+    before = up_of_plane1.get_target().copy()
+    dn_of_plane0._target[...] += 1.0
+    assert np.array_equal(up_of_plane1.get_target(), before)
+
+
+def test_chain_planes_are_independent():
+    """A mismatch at one plane leaves the other plane's target untouched.
+
+    The communicator carries one set of scratch buffers across every pair and
+    keys its per-pair state by patch identity, so this is the test that a
+    second plane in the grid cannot corrupt the first.
+    """
+    grid_matched, planes_matched = make_chain(CHAIN_MATCHED)
+    communicator(grid_matched).exchange()
+
+    grid_skewed, planes_skewed = make_chain(CHAIN_SKEWED)
+    communicator(grid_skewed).exchange()
+
+    # Plane 1 straddles the mismatch and must have moved.
+    tgt_matched = planes_matched[1][1].get_target()
+    tgt_skewed = planes_skewed[1][1].get_target()
+    assert not np.allclose(tgt_skewed, tgt_matched, rtol=1e-3)
+
+    # Plane 0 sees the same flow either way and must not have.
+    for side in (0, 1):
+        assert np.allclose(
+            planes_skewed[0][side].get_target(),
+            planes_matched[0][side].get_target(),
+            rtol=1e-6,
+            atol=1e-7,
+        )
+
+
+def test_chain_exchange_matches_planes_taken_one_at_a_time():
+    """Exchanging both planes together gives what exchanging each alone gives.
+
+    Run with a different pitchwise count on every block, so the two planes have
+    different shapes and the shared scratch buffers are sliced differently on
+    each pair -- the case where a leak between them would show up.
+    """
+    npitch = (17, 13, 9)
+    grid_both, planes_both = make_chain(CHAIN_SKEWED, npitch=npitch)
+    communicator(grid_both).exchange()
+
+    for iplane in (0, 1):
+        grid_one, planes_one = make_chain(CHAIN_SKEWED, npitch=npitch)
+        # Exchange this plane alone by handing the communicator only its pair.
+        all_pairs = grid_one.connectivity.mixing_nonreflecting.pair()
+        keys = [(iplane, 0), (iplane + 1, 0)] if iplane == 0 else [(1, 1), (2, 0)]
+        one_pair = {k: all_pairs[k] for k in keys}
+        NonReflectingMixingCommunicator(
+            grid_one, one_pair, rf_mix=RF_MIX_FAST
+        ).exchange()
+
+        for side in (0, 1):
+            assert np.allclose(
+                planes_both[iplane][side].get_target(),
+                planes_one[iplane][side].get_target(),
+                rtol=1e-6,
+                atol=1e-7,
+            ), f"plane {iplane} side {side} changed when the other plane was present"
+
+
+def test_chain_relaxes_every_plane():
+    """Mismatches at both planes converge together to matched pitch-mean fluxes."""
+    states = [{}, {"P": 1.05e5, "Vx": 105.0}, {"P": 0.95e5, "Vx": 95.0}]
+    grid, planes = make_chain(states)
+    comm = communicator(grid)
+    patches = grid.patches.mixing_nonreflecting
+
+    gaps_before = [flux_gap(up, dn) for up, dn in planes]
+    assert all(gap.max() > 1e-2 for gap in gaps_before)
+
+    relax(patches, comm, 150)
+
+    for iplane, (up, dn) in enumerate(planes):
+        gap = flux_gap(up, dn)
+        assert gap.max() < 1e-4, f"plane {iplane}: {gaps_before[iplane]} -> {gap}"
+
+
+def test_chain_stats_are_kept_per_plane():
+    """Diagnostics are keyed per pair, so two planes do not share one record."""
+    grid, planes = make_chain(CHAIN_SKEWED)
+    comm = communicator(grid)
+    comm.exchange()
+
+    keys = list(comm.pairs)
+    assert len(keys) == 2
+    du = [comm.get_stats(*key)["du"] for key in keys]
+    # Plane 0 sits in matched flow and plane 1 does not, so their increments
+    # cannot be the same record.
+    assert not np.allclose(du[0], du[1])
 
 
 def test_solver_run_stays_finite():
