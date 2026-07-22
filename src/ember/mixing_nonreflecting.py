@@ -29,10 +29,12 @@ target.
 The exchange is carried out by
 :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator`, which
 writes the target in the mix variables :math:`[h_0, s, V_r, V_\theta, p]` of
-:func:`~ember.perturbation.chic_to_mix` -- exactly the quantities the two
-patches take their pitchwise-mean residuals against. Rows 0-3 go to the
-inflow side, row 4 to the outflow side, which is Saxer's split by direction of
-propagation expressed in those variables.
+:func:`~ember.perturbation.chic_to_mix` -- exactly the space
+:class:`~ember.nonreflecting.NonReflectingPatch` stores its prescribed target
+in. Rows 0-3 are what the inflow side takes its pitchwise-mean residuals
+against, row 4 what the outflow side does, which is Saxer's split by direction
+of propagation expressed in those variables. So the exchange writes the patches'
+own target array and there is nothing to translate.
 
 :class:`~ember.mixing.MixingPatch` exchanges conserved variables instead and
 imposes them outright, so the two mixing planes now share only their pairing
@@ -52,10 +54,13 @@ Restrictions beyond those of the reflecting plane, all inherited:
 
 * the plane must be one of constant :math:`x` with the flow running along
   :math:`+x`, and the mean state axially and absolutely subsonic;
-* pitchwise-mean backflow raises rather than being handled. The reflecting
-  plane is indifferent to the sign of the flow through it -- it imposes a
-  conserved state and never asks which way it points -- while this one is not,
-  because the characteristic split it is built on is invalid there.
+* pitchwise-mean backflow raises on the inflow side, where the reflecting plane
+  is indifferent to the sign of the flow through it -- it imposes a conserved
+  state and never asks which way it points -- because the characteristic split
+  that side is built on is invalid there. The outflow side carries it, and
+  needs nothing configured to: the four quantities a reversed station has to be
+  given are rows 0-3 of the exchanged target, so such a station is driven
+  toward the flow actually standing on the other side of the plane.
 
 Both sides build their own Hilbert transform on their own pitch and no harmonic
 crosses the plane, so the two sides may have different pitchwise node counts and
@@ -69,10 +74,9 @@ ember.mixing_communicator.NonReflectingMixingCommunicator : The exchange
 ember.nonreflecting.NonReflectingPatch : Base class holding the shared machinery
 """
 
-import numpy as np
-
 from ember import perturbation, util
 from ember.inlet_nonreflecting import NonReflectingInletPatch
+from ember.nonreflecting import NonReflectingPatch
 from ember.outlet_nonreflecting import NonReflectingOutletPatch
 
 
@@ -88,10 +92,9 @@ class NonReflectingMixingPatch:
     :class:`~ember.nonreflecting.NonReflectingPatch`, which would also sweep up
     ordinary non-reflecting inlets and outlets.
 
-    Subclasses supply :attr:`_target_index`, mapping each nondimensional target
-    attribute of the condition they inherit to its row of the exchanged target.
-    That mapping is the whole of the difference between the two sides as far as
-    the exchange is concerned.
+    Both sides take their whole target from the exchange, so neither requires a
+    setter, and both seed every row from their own pitchwise mean before the
+    first exchange has happened.
 
     A note on which average is which. The communicator evaluates its Jacobians
     on the *symmetrised cross-plane* average, so both sides linearise the
@@ -107,49 +110,18 @@ class NonReflectingMixingPatch:
 
     _collection_name = "mixing_nonreflecting"
 
-    # Nondimensional target attribute -> its row of the exchanged target vector
-    # [ho, s, Vr, Vt, P]. The inflow side owns the first four rows,
-    # the outflow side the last, which is Saxer Eq. 5.66's split of the
-    # interface jump by direction of propagation.
-    _target_index = None
+    # The exchange fills every row, so nothing is required of the user, and
+    # every row is seeded from this side's own mean until it has run once.
+    _target_setters = {}
 
-    def _copy(self, c):
-        super()._copy(c)
-        # _target and the target attributes are views on one buffer, so re-link
-        # them on the copy rather than leaving behind the detached copies of the
-        # attributes that the base class just made.
-        c._target = None if self._target is None else np.copy(self._target)
-        if c._target is not None:
-            for name, idx in self._target_index.items():
-                setattr(c, name, c._target[..., idx])
+    _target_seeded = (0, 1, 2, 3, 4)
 
     def _setup(self):
         super()._setup()
         self._flux_avg = None
-        # Exchanged cross-plane target, shape (*span_shape, 5), nondimensional
-        # [ho, s, Vr, Vt, P]. None until first used; seeded lazily
-        # from this side's own pitch mean so a patch that has never been
-        # exchanged still has somewhere consistent to start.
-        self._target = None
-
-    def apply(self):
-        """Impose the condition, seeding the target first if nothing has set one.
-
-        The seed matters only before the first exchange:
-        :meth:`ember.grid.Grid.apply_bconds` exchanges ahead of every apply, so
-        in a solver run the target is always the exchanged one.
-        """
-        if self._target is None:
-            self.set_target()
-        super().apply()
 
     def attach_to_block(self, block):
-        """Attach to a block, validate the plane, and allocate the flux average.
-
-        Safe to call repeatedly; an existing :attr:`_target` of the right shape
-        survives re-attachment, and one of the wrong shape is dropped so it
-        re-seeds rather than being silently misread.
-        """
+        """Attach to a block, validate the plane, and allocate the flux average."""
         super().attach_to_block(block)
 
         if self._block_ref is None:
@@ -157,15 +129,6 @@ class NonReflectingMixingPatch:
 
         nspan = self._block_view.shape[self.span_dim]
         self._flux_avg = util.zeros((nspan, 5))
-
-        if self._target is not None and self._target.shape != self._target_shape():
-            self._target = None
-
-    def _target_shape(self):
-        """Shape of the stored target: one span-indexed vector of five."""
-        shape = [1, 1, 1]
-        shape[self.span_dim] = self._block_view.shape[self.span_dim]
-        return (*shape, 5)
 
     def check_match(self, other, rtol=1e-5):
         """Check whether this patch pairs with another across a mixing plane.
@@ -235,11 +198,12 @@ class NonReflectingMixingPatch:
 
         Rows are ``[ho, s, Vr, Vt, P]``. Read by
         :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator` to
-        form the symmetrised baseline the cross-plane mismatch is relaxed onto.
+        form the symmetrised baseline the cross-plane mismatch is relaxed onto,
+        which is why a patch that has never been exchanged is seeded here rather
+        than left at zero.
         """
         self._check_attached()
-        if self._target is None:
-            self.set_target()
+        self._seed_target()
         return self._target.squeeze()
 
     def set_target(self, target=None):
@@ -247,14 +211,9 @@ class NonReflectingMixingPatch:
 
         Called by
         :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator`
-        after each exchange. Omitting ``target`` seeds it from the pitchwise
+        after each exchange. Omitting ``target`` re-seeds from the pitchwise
         mean of the current face state instead, which is how a patch that has
         not yet been exchanged gets a consistent starting point.
-
-        The rows this side owns are then published as the nondimensional target
-        attributes the inherited condition takes its mean-mode residuals
-        against, as views on the stored target rather than copies, so no
-        per-stage allocation happens here.
 
         Parameters
         ----------
@@ -262,24 +221,12 @@ class NonReflectingMixingPatch:
             Nondimensional ``[ho, s, Vr, Vt, P]`` target values.
         """
         self._check_attached()
-        shape = self._target_shape()
-        if self._target is None:
-            self._target = util.zeros(shape)
-            for name, idx in self._target_index.items():
-                setattr(self, name, self._target[..., idx])
-
         if target is None:
-            # Read the primitives off block_view and pitch-average them here.
-            # Going via block_view.mean() returns a meaned-block whose derived
-            # properties read as zero before the conserved cache is primed,
-            # which would silently seed a zero target; and block_avg is not
-            # safe to use either, since the communicator overwrites it with the
-            # symmetrised cross-plane average.
-            b = self.block_view
-            for idx, field in enumerate((b.ho_nd, b.s_nd, b.Vr_nd, b.Vt_nd, b.P_nd)):
-                self._target[..., idx] = self._pitch_mean(field)
+            self._target_set[:] = False
+            self._seed_target()
         else:
-            self._target[...] = target.reshape(shape)
+            self._target[...] = target.reshape(self._target_shape())
+            self._target_set[:] = True
 
     @property
     def flux_avg_nd(self):
@@ -318,21 +265,19 @@ class NonReflectingMixingInletPatch(NonReflectingMixingPatch, NonReflectingInlet
     outflow side and the harmonic relations are untouched by the choice.
 
     :meth:`set_Alpha` and :meth:`set_Beta` therefore raise rather than setting
-    an attribute nothing reads.
+    a target row nothing reads.
     """
 
     _desc = "non-reflecting mixing plane inflow side"
 
-    _target_index = {"ho_nd": 0, "s_nd": 1, "Vr_nd": 2, "Vt_nd": 3}
-
-    _target_setters = {
-        "ho_nd": "the mixing exchange",
-        "s_nd": "the mixing exchange",
-        "Vr_nd": "the mixing exchange",
-        "Vt_nd": "the mixing exchange",
-    }
-
+    # An inflow face, but not a physical inlet, so the angle specialisation of
+    # NonReflectingInletPatch is reverted to the mix target space the base
+    # class and the exchange both work in; see the class docstring.
     _chic_to_target = staticmethod(perturbation.chic_to_mix)
+
+    _target_names = NonReflectingPatch._target_names
+
+    _target_from_prim = NonReflectingPatch._target_from_prim
 
     def _raise_angle_setter(self, name):
         """Report that an angle setter does not apply to the mix target set."""
@@ -342,18 +287,6 @@ class NonReflectingMixingInletPatch(NonReflectingMixingPatch, NonReflectingInlet
             "nothing to set; the flow angles cross the plane as the velocity "
             "components that carry them."
         )
-
-    def _target_from_prim(self, prim):
-        """The prescribed quantities (ho, s, Vr, Vt) of a primitive state.
-
-        The mix set in place of the inflow condition's angles; see the class
-        docstring for why. ``Vr`` and ``Vt`` are read straight off the
-        primitive state, so unlike
-        :meth:`~ember.inlet_nonreflecting.NonReflectingInletPatch._target_from_prim`
-        no meridional speed is formed and there is nothing to divide by.
-        """
-        ho_nd, s_nd = self._ho_s_from_prim(prim)
-        return ho_nd, s_nd, prim[..., 2], prim[..., 3]
 
     def set_Alpha(self, Alpha):
         """Not available: the exchanged target prescribes velocities, not angles.
@@ -373,14 +306,16 @@ class NonReflectingMixingInletPatch(NonReflectingMixingPatch, NonReflectingInlet
         ValueError
             Always. This side prescribes :math:`(h_0, s, V_r, V_\theta)` from
             the cross-plane exchange, so there is no :attr:`tanAlpha` or
-            :attr:`sinBeta` for these to fill and calling them would set an
-            attribute nothing reads. Yaw and pitch still cross the plane, as
+            :attr:`sinBeta` row for these to fill and calling them would set
+            something nothing reads. Yaw and pitch still cross the plane, as
             the velocity components that carry them.
         """
         self._raise_angle_setter("set_Beta")
 
 
-class NonReflectingMixingOutletPatch(NonReflectingMixingPatch, NonReflectingOutletPatch):
+class NonReflectingMixingOutletPatch(
+    NonReflectingMixingPatch, NonReflectingOutletPatch
+):
     r"""Upstream side of a non-reflecting mixing plane.
 
     An outflow face, so only the upstream-running pressure characteristic is
@@ -392,11 +327,16 @@ class NonReflectingMixingOutletPatch(NonReflectingMixingPatch, NonReflectingOutl
     The exchanged pressure is a spanwise profile taken from the flow on the far
     side of the plane, so it already carries that flow's radial equilibrium.
     :meth:`set_adjustment` therefore raises rather than adding a second one.
+
+    A span station whose mean has reversed needs no configuring here.
+    :meth:`~ember.outlet_nonreflecting.NonReflectingOutletPatch.set_backflow`
+    exists on this class and still works, but the four rows it fills are the
+    four the exchange writes anyway, so an unconfigured reversed station is
+    driven toward the flow standing on the other side of the plane -- which is
+    where the flow entering through that station is in fact coming from.
     """
 
     _desc = "non-reflecting mixing plane outflow side"
-
-    _target_index = {"P_nd": 4}
 
     def set_adjustment(self, radial_equilibrium=True, rf=0.1):
         """Not available: the exchanged pressure profile already carries radial equilibrium.

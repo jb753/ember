@@ -230,16 +230,17 @@ def test_target_is_pitch_uniform():
 def test_target_seeds_from_own_pitch_mean():
     """An unexchanged patch seeds its target from the face it is attached to."""
     grid, patch_up, patch_dn = make_pair()
-    assert patch_dn._target is None
+    assert not patch_dn._target_set.any()
 
     target = patch_dn.get_target()
+    assert patch_dn._target_set.all()
     b = patch_dn.block_view
     for idx, field in enumerate((b.ho_nd, b.s_nd, b.Vr_nd, b.Vt_nd, b.P_nd)):
         expect = patch_dn._pitch_mean(field).squeeze()
         assert np.allclose(target[:, idx], expect, rtol=1e-6)
 
 
-def test_copy_relinks_target_views():
+def test_copy_keeps_target_views_live():
     """A copied patch keeps its target, with the published attributes still views on it."""
     grid, patch_up, patch_dn, comm = exchanged()
     comm.exchange()
@@ -252,6 +253,44 @@ def test_copy_relinks_target_views():
     # condition would keep driving to a stale value.
     clone._target[..., 0] += 1.0
     assert np.allclose(clone.ho_nd, clone._target[..., 0])
+
+
+def test_reversed_station_takes_its_inflow_state_from_the_exchange():
+    """The outflow side needs nothing configured to carry a reversed station.
+
+    Rows 0-3 of the exchanged target are the four quantities a reversed station
+    has to be given, so it is driven toward the flow standing on the other side
+    of the plane -- which is where the flow entering through it comes from.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(dn={"Vt": 90.0})
+    comm.exchange()
+
+    # Reverse one span station of the upstream block's exit face and its
+    # interior neighbour, so the outflow side has to switch its split there.
+    block = grid[0]
+    Vx = block.Vx.copy()
+    Vx[-2:, 3, :] = -20.0
+    block.set_Vx(Vx)
+
+    patch_up.update_soln()
+    assert patch_up._reversed[3]
+    # Nothing was prescribed and nothing was seeded either: the exchange had
+    # already filled every row, so the seed stood aside.
+    target = patch_up.get_target()
+    np.testing.assert_allclose(
+        [float(row.ravel()[3]) for row in patch_up._backflow()], target[3, 0:4], rtol=0
+    )
+
+    for _ in range(60):
+        patch_up.update_soln()
+        patch_up.apply()
+
+    b = patch_up.block_view
+    got = [
+        float(patch_up._pitch_mean(f).ravel()[3])
+        for f in (b.ho_nd, b.s_nd, b.Vr_nd, b.Vt_nd)
+    ]
+    np.testing.assert_allclose(got, patch_up.get_target()[3, 0:4], rtol=5e-3)
 
 
 def test_set_adjustment_refuses():

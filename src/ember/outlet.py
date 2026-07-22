@@ -13,6 +13,112 @@ import numpy as np
 from ember.basepatch import RevolutionPatch
 
 
+def calc_backflow_rho(fluid, snapshot, rho_soln_nd, rho_nd, Max, rf):
+    r"""Relaxed boundary density for reversed-flow nodes, capped to keep :math:`V_x` real.
+
+    A reversed node takes its stagnation enthalpy, entropy and transverse
+    velocities from the prescribed backflow state, which leaves density as the
+    one quantity still free to come from the interior. It
+    is relaxed from the start-of-step value toward the current one at a rate
+    that falls away with the local axial Mach number,
+
+    .. math::
+
+        \rho^\mathrm{new} = \rho^n
+            + \min\left(\mathit{rf}\,\left|M_x\right|,\, 0.8\right)
+              \left(\rho - \rho^n\right),
+
+    then capped just below the density at which the static enthalpy would reach
+    :math:`h_0 - \tfrac{1}{2}(V_r^2 + V_\theta^2)`. Static enthalpy rises with
+    density at fixed entropy, so under that cap the radicand of the axial
+    velocity the caller recovers from the energy equation,
+    :math:`V_x = \sqrt{2(h_0 - h) - V_r^2 - V_\theta^2}`, is non-negative.
+
+    Parameters
+    ----------
+    fluid : ember.fluid.Fluid
+        Fluid the equation of state is evaluated on.
+    snapshot : sequence of array
+        Nondimensional ``[ho, s, Vr, Vt]`` to impose. Four scalars from
+        :func:`calc_backflow_snapshot` on the reflecting outlet, four
+        span-indexed arrays from the target rows on the non-reflecting one;
+        either way they need only broadcast against ``rho_nd``.
+    rho_soln_nd : array
+        Nondimensional density at the start of the step, the anchor the
+        relaxation runs from.
+    rho_nd : array
+        Nondimensional density the relaxation runs toward.
+    Max : array
+        Axial Mach number, setting the local relaxation rate.
+    rf : float
+        Relaxation factor.
+
+    Returns
+    -------
+    array
+        Nondimensional density, of the shape the inputs broadcast to. Computed
+        over the whole array; the caller selects the reversed nodes.
+
+    See Also
+    --------
+    ember.outlet.OutletPatch.set_backflow : Enables this on the reflecting outlet
+    ember.outlet_nonreflecting.NonReflectingOutletPatch.set_backflow : and on the
+        non-reflecting one
+    """
+    ho_snap, s_snap, Vr_snap, Vt_snap = snapshot
+    h_max_nd = ho_snap - 0.5 * (Vr_snap**2 + Vt_snap**2)
+    rho_cap_nd = fluid.set_h_s(h_max_nd, s_snap)[0]
+    rho_new_nd = rho_soln_nd + np.minimum(rf * np.abs(Max), 0.8) * (
+        rho_nd - rho_soln_nd
+    )
+    return np.minimum(rho_new_nd, 0.9999 * rho_cap_nd)
+
+
+def calc_backflow_snapshot(fluid, ho, s, Vr, Vt):
+    """Validate and nondimensionalise the state imposed on reversed-flow nodes.
+
+    All four arguments must be scalars: reversed flow arrives from outside the
+    domain, where the calculation knows nothing of how the state varies, so
+    there is no profile to impose.
+
+    Parameters
+    ----------
+    fluid : ember.fluid.Fluid
+        Fluid supplying the reference scales.
+    ho : float
+        Stagnation enthalpy [J/kg].
+    s : float
+        Specific entropy [J/(kg K)].
+    Vr : float
+        Radial velocity [m/s].
+    Vt : float
+        Tangential velocity [m/s].
+
+    Returns
+    -------
+    array
+        Nondimensional ``[ho, s, Vr, Vt]``, shape ``(4,)``.
+
+    See Also
+    --------
+    ember.outlet.OutletPatch.set_backflow : The only caller
+    """
+    for name, val in (("ho", ho), ("s", s), ("Vr", Vr), ("Vt", Vt)):
+        if not np.isscalar(val):
+            raise TypeError(
+                f"set_backflow: {name} must be a scalar, got {type(val).__name__}"
+            )
+    return np.array(
+        [
+            ho / fluid.u_ref,
+            s / fluid.Rgas_ref,
+            Vr / fluid.V_ref,
+            Vt / fluid.V_ref,
+        ],
+        dtype=np.float32,
+    )
+
+
 def calc_radial_equilibrium(patch):
     r"""Spanwise static pressure profile in centrifugal radial equilibrium.
 
@@ -232,22 +338,7 @@ class OutletPatch(RevolutionPatch):
         Vt : float
             Tangential velocity [m/s].
         """
-        for name, val in (("ho", ho), ("s", s), ("Vr", Vr), ("Vt", Vt)):
-            if not np.isscalar(val):
-                raise TypeError(
-                    f"set_backflow: {name} must be a scalar, got {type(val).__name__}"
-                )
-
-        fluid = self.block.fluid
-        self._inout_snapshot = np.array(
-            [
-                ho / fluid.u_ref,
-                s / fluid.Rgas_ref,
-                Vr / fluid.V_ref,
-                Vt / fluid.V_ref,
-            ],
-            dtype=np.float32,
-        )
+        self._inout_snapshot = calc_backflow_snapshot(self.block.fluid, ho, s, Vr, Vt)
         self._backflow_enabled = True
 
     def set_P(self, P):
@@ -428,16 +519,16 @@ class OutletPatch(RevolutionPatch):
             Vr_snap = self._inout_snapshot[..., 2]
             Vt_snap = self._inout_snapshot[..., 3]
 
-            # Cap relaxed density at the value where static enthalpy equals
-            # ho_snap - 0.5*(Vr_snap^2 + Vt_snap^2) so the Vx sqrt in the
-            # inflow reconstruction below stays non-negative on inflow cells.
-            fluid = self.block.fluid
-            h_max_nd = ho_snap - 0.5 * (Vr_snap**2 + Vt_snap**2)
-            rho_cap_nd = fluid.set_h_s(h_max_nd, s_snap)[0]
-            rho_new_nd = self._rho_nd_soln + np.minimum(rf * np.abs(b.Max), 0.8) * (
-                b.rho_nd - self._rho_nd_soln
+            # Relaxed and capped so the Vx sqrt in the inflow reconstruction
+            # below stays non-negative on inflow cells.
+            rho_new_nd = calc_backflow_rho(
+                self.block.fluid,
+                self._inout_snapshot,
+                self._rho_nd_soln,
+                b.rho_nd,
+                b.Max,
+                rf,
             )
-            np.minimum(rho_new_nd, 0.9999 * rho_cap_nd, out=rho_new_nd)
 
             cons_saved = b.conserved_nd.copy()
             ho_saved = b.ho_nd.copy()

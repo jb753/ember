@@ -241,8 +241,9 @@ def test_copy_preserves_targets_and_drops_caches(kind):
     _, patch = attached(kind, sigma=0.25)
     patch.update_soln()
     clone = patch.copy()
-    for name in patch._target_setters:
-        np.testing.assert_array_equal(getattr(clone, name), getattr(patch, name))
+    np.testing.assert_array_equal(clone._target, patch._target)
+    np.testing.assert_array_equal(clone._target_set, patch._target_set)
+    assert clone._target is not patch._target
     assert clone.sigma == patch.sigma
     assert clone._hilbert is None
     assert clone._ref is None
@@ -291,10 +292,19 @@ def test_class_member_order(module_name, class_name):
 
 
 def test_backflow_raises(kind):
-    """Reversed mean flow invalidates the characteristic split."""
+    """Reversed mean flow invalidates the characteristic split.
+
+    Unless the condition declares a reversed split of its own, in which case it
+    owns those stations and the guard stands aside. The outflow condition does;
+    what it then imposes on them is test_outlet_nonreflecting.py's business.
+    """
     _, patch = attached(kind, Vx=-10.0, target={})
-    with pytest.raises(ValueError, match="Backflow"):
+    if patch._split_rev is None:
+        with pytest.raises(ValueError, match="Backflow"):
+            patch.update_soln()
+    else:
         patch.update_soln()
+        assert patch._reversed.all()
 
 
 def test_axially_supersonic_raises(kind):

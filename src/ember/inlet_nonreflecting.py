@@ -31,6 +31,11 @@ the pressure-relaxation inlet, and the inflow state is prescribed in the
 entropy rather than stagnation pressure and temperature -- so no thermodynamic
 inversion happens inside the boundary condition.
 
+This is the one non-reflecting condition that works in the angle variables of
+:func:`~ember.perturbation.chic_to_bcond` rather than the mix variables the base
+class defaults to; see the class docstring for why the angles suit a physical
+inlet and nothing else.
+
 See Also
 --------
 ember.nonreflecting.NonReflectingPatch : Base class holding the shared machinery
@@ -53,18 +58,28 @@ class NonReflectingInletPatch(NonReflectingPatch):
     while absorbing outgoing acoustic waves rather than reflecting them. All
     four must be set before :meth:`~ember.nonreflecting.NonReflectingPatch.apply`
     is called, via :meth:`set_ho_s` or :meth:`set_Po_To` together with
-    :meth:`set_Alpha` and :meth:`set_Beta`. Each setter converts and stores its
-    target nondimensionally in :attr:`ho_nd`, :attr:`s_nd`, :attr:`tanAlpha` and
-    :attr:`sinBeta`, the form the residuals are taken against, so the patch must
-    already be attached to a block whose fluid is set.
+    :meth:`set_Alpha` and :meth:`set_Beta`. Each setter converts its target and
+    stores it nondimensionally in the corresponding row of the prescribed
+    target, published as :attr:`ho_nd`, :attr:`s_nd`, :attr:`tanAlpha` and
+    :attr:`sinBeta`, so the patch must already be attached to a block whose
+    fluid is set.
+
+    The angles are what makes this condition different from every other
+    non-reflecting one. A physical inlet knows its flow angles and not its
+    velocity magnitude, so :math:`(\tan\alpha, \sin\beta)` are the right
+    variables here, and :attr:`_chic_to_target` is
+    :func:`~ember.perturbation.chic_to_bcond` rather than the base class's
+    :func:`~ember.perturbation.chic_to_mix`. Only rows 2 and 3 of the two
+    Jacobians differ; rows 0, 1 and 4 are identical.
 
     Each Runge-Kutta stage the characteristic deviation of the face state from
     the frozen pitchwise-mean reference state is formed, and the change required
     in the four incoming characteristics is assembled from three contributions:
 
     #. a pitchwise-mean change that zeroes the mean residuals in
-       :math:`(h_0, s, \tan\alpha, \sin\beta)` in one Newton step against
-       ``ember.perturbation.chic_to_bcond`` (Giles Eq. 5.13-5.15);
+       :math:`(h_0, s, \tan\alpha, \sin\beta)` in one Newton step
+       (Giles Eq. 5.13-5.15), taken by the base class's
+       :meth:`~ember.nonreflecting.NonReflectingPatch._calc_dchic_mean`;
     #. harmonic changes setting the tangential vorticity characteristic from
        the outgoing characteristic by the non-reflecting relation, and the
        radial vorticity harmonics to zero (Giles Eq. 5.17, Saxer Eq. 56);
@@ -80,58 +95,38 @@ class NonReflectingInletPatch(NonReflectingPatch):
 
     _desc = "non-reflecting inlet patch"
 
-    # Only the upstream-running pressure wave leaves an inflow plane.
-    _idx_out = [0]
+    # Only the upstream-running pressure wave leaves an inflow plane, so the
+    # other four characteristics are incoming and carry the four quantities an
+    # inflow prescribes, rows 0-3 of the target.
+    _split_fwd = ([1, 2, 3, 4], [0, 1, 2, 3])
 
     _sign_interior = 1
 
-    # Declaration order is the row order of the mean-mode residual and of the
-    # first four rows of :attr:`_chic_to_target`; the two must agree, since
-    # :meth:`_calc_dchic` stacks the residuals by iterating this.
-    _target_setters = {
-        "ho_nd": "set_ho_s or set_Po_To",
-        "s_nd": "set_ho_s or set_Po_To",
-        "tanAlpha": "set_Alpha",
-        "sinBeta": "set_Beta",
-    }
-
-    # Jacobian from characteristic variables to the space the prescribed
-    # quantities live in. Its first four rows are those quantities, in
-    # _target_setters order, and its fifth the static pressure. Subclasses
-    # prescribing a different set override this and _target_from_prim together;
-    # everything else here is written against the two of them rather than
-    # against any particular set.
+    # Angles rather than the base class's transverse velocities; see the class
+    # docstring. Row 4, the static pressure, is the same in both spaces and is
+    # not prescribed here.
     _chic_to_target = staticmethod(perturbation.chic_to_bcond)
 
-    # A mean-mode Jacobian is treated as singular when its determinant falls
-    # this far below the Hadamard bound (the product of its row norms).
-    _rtol_det = 1e-6
+    _target_names = ("ho_nd", "s_nd", "tanAlpha", "sinBeta", "P_nd")
 
-    def _ho_s_from_prim(self, prim):
-        """Stagnation enthalpy and entropy of a primitive state.
-
-        Evaluated without writing to the block, so the residuals are taken on
-        the state about to be corrected rather than on whatever is currently
-        stored. Shared by every prescribed set, all of which carry ``ho`` and
-        ``s`` as their first two rows -- which is also why :meth:`_calc_dchic`
-        can take its harmonic residual on rows 0 and 1 whatever the set.
-        """
-        fluid = self.block_view.fluid
-        rho_nd, u_nd = fluid.set_P_rho(prim[..., 4], prim[..., 0])
-        Vx, Vr, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
-        ho_nd = fluid.get_h(rho_nd, u_nd) + 0.5 * (Vx**2 + Vr**2 + Vt**2)
-        return ho_nd, fluid.get_s(rho_nd, u_nd)
+    _target_setters = {
+        0: "set_ho_s or set_Po_To",
+        1: "set_ho_s or set_Po_To",
+        2: "set_Alpha",
+        3: "set_Beta",
+    }
 
     def _target_from_prim(self, prim):
-        """The prescribed quantities (ho, s, tanAlpha, sinBeta) of a primitive state.
+        """The target-space quantities (ho, s, tanAlpha, sinBeta, P) of a primitive state.
 
-        Returned in :attr:`_target_setters` order, which is the row order both
-        the mean-mode residual and :attr:`_chic_to_target` are written in.
+        The angles in place of the base class's transverse velocities, measured
+        against the meridional speed as
+        :func:`~ember.perturbation.chic_to_bcond` differentiates them.
         """
         ho_nd, s_nd = self._ho_s_from_prim(prim)
         Vx, Vr, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
         Vm = np.sqrt(Vx**2 + Vr**2)
-        return ho_nd, s_nd, Vt / Vm, Vr / Vm
+        return ho_nd, s_nd, Vt / Vm, Vr / Vm, prim[..., 4]
 
     def _calc_dchic(self, dchic, prim):
         """Change in the four incoming characteristics; see the class docstring."""
@@ -139,20 +134,8 @@ class NonReflectingInletPatch(NonReflectingPatch):
         target = self._target_from_prim(prim)
         ho_nd, s_nd = target[0], target[1]
 
-        # Mean mode: one Newton step on the four prescribed quantities. The
-        # residual is evaluated on the state about to be corrected, only the
-        # Jacobian is frozen -- a modified Newton step. Reading the residual
-        # from the frozen reference too would leave it up to n_stage stages
-        # stale, so repeated stages would re-apply one correction rather than
-        # converge on it.
-        resid_mean = np.stack(
-            [
-                self._pitch_mean(value - getattr(self, name))
-                for value, name in zip(target, self._target_setters, strict=True)
-            ],
-            axis=-1,
-        )
-        dchic_mean = -util.matvec(ref["inv_mean"], resid_mean)
+        # Mean mode: one Newton step on the four prescribed quantities.
+        dchic_mean = self._calc_dchic_mean(target, self._split_fwd, ref["inv_fwd"])
 
         # Harmonics: the non-reflecting relation for the tangential vorticity
         # characteristic, and no radial vorticity harmonics.
@@ -186,33 +169,18 @@ class NonReflectingInletPatch(NonReflectingPatch):
         dchic_new[..., 4] = dchic_mean[..., 3] + dchic_local[..., 1]
         return dchic_new
 
-    def _calc_reference_extra(self, avg, Mn, Mt, wave):
-        """Jacobians of the mean and local Newton steps, and the harmonic coefficients."""
-        c2t = self._chic_to_target(avg)
-        # The four prescribed quantities against the four incoming
-        # characteristic columns [c_down, c_r, c_t, c_s]: the square system
-        # whose solution zeroes the mean boundary condition residuals.
-        jac_mean = np.ascontiguousarray(c2t[..., 0:4, 1:5])
-        det = np.linalg.det(jac_mean)
-        hadamard = np.prod(np.linalg.norm(jac_mean, axis=-1), axis=-1)
-        if np.any(np.abs(det) < self._rtol_det * hadamard):
-            raise ValueError(
-                f"{self._desc.capitalize()} {self.label!r} has a singular mean "
-                "characteristic Jacobian; the inflow state is degenerate "
-                "(reversed or extreme swirl)."
-            )
-
+    def _calc_reference_extra(self, avg, c2t, Mn, Mt, wave):
+        """Jacobian of the local Newton step, and the harmonic coefficients."""
         # Local system: stagnation enthalpy and entropy against the entropy and
         # downstream-running pressure characteristics, the two left free once
         # the vorticity characteristics are fixed by the non-reflecting theory.
         # Columns 1 and 4 of a length-5 axis are c_down and c_s. Rows 0 and 1
-        # are ho and s in every prescribed set, so this system and the two
-        # coupling columns below are the same matrices whatever _chic_to_target
-        # is.
+        # are ho and s in every target space, so this system and the two
+        # coupling columns below are the same matrices whatever
+        # _chic_to_target is.
         jac_local = np.ascontiguousarray(c2t[..., 0:2, 1::3])
 
         return {
-            "inv_mean": self._span_bcast(util.inv(jac_mean)),
             "inv_local": self._span_bcast(util.inv(jac_local)),
             "couple_r": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 2])),
             "couple_t": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 3])),
@@ -228,12 +196,13 @@ class NonReflectingInletPatch(NonReflectingPatch):
         Alpha : float or array
             Prescribed inflow yaw angle :math:`\alpha` [deg], measured from the
             meridional plane; must satisfy :math:`|\alpha| < 90`. A scalar or an
-            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`.
+            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`, of
+            which only the pitchwise mean at each span station is imposed.
         """
         if not (np.abs(np.asarray(Alpha)) < 90.0).all():
             raise ValueError("Alpha must be within +/-90 degrees exclusive")
-        self.tanAlpha = self._broadcast_target(
-            "Alpha", np.tan(np.radians(np.asarray(Alpha, dtype=np.float32)))
+        self._set_target_row(
+            2, "Alpha", np.tan(np.radians(np.asarray(Alpha, dtype=np.float32)))
         )
 
     def set_Beta(self, Beta):
@@ -244,12 +213,13 @@ class NonReflectingInletPatch(NonReflectingPatch):
         Beta : float or array
             Prescribed inflow pitch angle :math:`\beta` [deg]; must satisfy
             :math:`|\beta| \leq 90`. A scalar or an array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`.
+            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            mean at each span station is imposed.
         """
         if not (np.abs(np.asarray(Beta)) <= 90.0).all():
             raise ValueError("Beta must be within +/-90 degrees inclusive")
-        self.sinBeta = self._broadcast_target(
-            "Beta", np.sin(np.radians(np.asarray(Beta, dtype=np.float32)))
+        self._set_target_row(
+            3, "Beta", np.sin(np.radians(np.asarray(Beta, dtype=np.float32)))
         )
 
     def set_ho_s(self, ho, s):
@@ -266,13 +236,14 @@ class NonReflectingInletPatch(NonReflectingPatch):
         ----------
         ho : float or array
             Prescribed stagnation enthalpy :math:`h_0` [J/kg]. A scalar or an
-            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`.
+            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`, of
+            which only the pitchwise mean at each span station is imposed.
         s : float or array
             Prescribed entropy :math:`s` [J/kg/K].
         """
         fluid = self.block.fluid
-        self.ho_nd = self._broadcast_target("ho", np.asarray(ho) / fluid.u_ref)
-        self.s_nd = self._broadcast_target("s", np.asarray(s) / fluid.Rgas_ref)
+        self._set_target_row(0, "ho", np.asarray(ho) / fluid.u_ref)
+        self._set_target_row(1, "s", np.asarray(s) / fluid.Rgas_ref)
 
     def set_Po_To(self, Po, To):
         r"""Prescribe the inflow stagnation pressure and temperature.
@@ -287,7 +258,8 @@ class NonReflectingInletPatch(NonReflectingPatch):
         Po : float or array
             Prescribed stagnation pressure :math:`p_0` [Pa]; must be positive.
             A scalar or an array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`.
+            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            mean at each span station is imposed.
         To : float or array
             Prescribed stagnation temperature :math:`T_0` [K]; must be positive.
         """
@@ -305,5 +277,5 @@ class NonReflectingInletPatch(NonReflectingPatch):
         rhoo_nd, uo_nd = fluid.set_P_T(
             np.asarray(Po) / fluid.P_ref, np.asarray(To) / fluid.T_ref
         )
-        self.ho_nd = self._broadcast_target("Po and To", fluid.get_h(rhoo_nd, uo_nd))
-        self.s_nd = self._broadcast_target("Po and To", fluid.get_s(rhoo_nd, uo_nd))
+        self._set_target_row(0, "Po and To", fluid.get_h(rhoo_nd, uo_nd))
+        self._set_target_row(1, "Po and To", fluid.get_s(rhoo_nd, uo_nd))
