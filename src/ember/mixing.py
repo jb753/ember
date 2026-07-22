@@ -10,8 +10,6 @@ ember.patch.Patch : Base class for all patches
 ember.patch.PeriodicPatch : For circumferentially periodic boundaries
 """
 
-import itertools
-
 import numpy as np
 from ember import util
 from ember.basepatch import RevolutionPatch
@@ -317,38 +315,7 @@ class MixingPatch(RevolutionPatch):
         if self.shape[self.span_dim] != other.shape[other.span_dim]:
             return None
 
-        perm = [0, 0, 0]
-        perm[self.const_dim] = other.const_dim
-        perm[self.span_dim] = other.span_dim
-        perm[self.pitch_dim] = other.pitch_dim
-        perm = tuple(perm)
-
-        flip_axes = [ax for ax in (self.span_dim, self.pitch_dim) if self.shape[ax] > 1]
-        flip_candidates = [
-            combo
-            for r in range(len(flip_axes) + 1)
-            for combo in itertools.combinations(flip_axes, r)
-        ]
-
-        for flip in flip_candidates:
-            if not self._compare_coords(
-                other, (perm, flip), corners_only=True, xr_only=True, rtol=rtol
-            ):
-                continue
-
-            span_flipped = self.span_dim in flip
-            other_spf = 1.0 - other.spf[::-1] if span_flipped else other.spf
-            if np.allclose(self.spf, other_spf, atol=1e-4, rtol=0):
-                return span_flipped
-            else:
-                print("spf mismatch with flip", flip)
-                print(self.spf[(0, -1),])
-                print(other_spf[(0, -1),])
-                err = np.abs(self.spf - other_spf)
-                print("max abs error:", err.max())
-                print("mean abs error:", err.mean())
-
-        return None
+        return self._check_match_xr(other, rtol)
 
     def update_soln(self):
         r"""Advance the cycle target :math:`p_\mathrm{soln}` by one relaxation step.

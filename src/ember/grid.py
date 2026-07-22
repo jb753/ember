@@ -253,12 +253,15 @@ class Grid(_LabelledList):
         if len(row_groups) <= 1:
             return row_groups
 
-        # Get mixing connectivity
-        try:
-            mixing_conn = self.connectivity.mixing.pair()
-        except ValueError:
-            # No mixing patches or unmatched - return groups as-is
-            mixing_conn = {}
+        # Get mixing connectivity, of either kind: rows may be separated by
+        # reflecting or non-reflecting mixing planes, and both join row groups.
+        mixing_conn = {}
+        for conn in (self.connectivity.mixing, self.connectivity.mixing_nonreflecting):
+            try:
+                mixing_conn.update(conn.pair())
+            except ValueError:
+                # No mixing patches of this kind, or unmatched ones
+                pass
 
         # Build mapping from block ID to row group index
         bid_to_group = {}
@@ -809,6 +812,7 @@ class Grid(_LabelledList):
         # Refresh mixing-plane targets from the current cross-plane state before
         # the mixing patches read them in their apply step below.
         self.connectivity.mixing.exchange()
+        self.connectivity.mixing_nonreflecting.exchange()
 
         for block in self:
             for patch in block.patches.inlet:
@@ -820,6 +824,8 @@ class Grid(_LabelledList):
             for patch in block.patches.outlet_nonreflecting:
                 patch.apply()
             for patch in block.patches.mixing:
+                patch.apply()
+            for patch in block.patches.mixing_nonreflecting:
                 patch.apply()
 
         # Close the point-matched periodic seams last.
@@ -1320,6 +1326,7 @@ class Grid(_LabelledList):
         """
         if not freeze:
             self.connectivity.mixing.exchange()
+            self.connectivity.mixing_nonreflecting.exchange()
 
         for block in self:
             for patch in block.patches.inlet:
@@ -1327,6 +1334,10 @@ class Grid(_LabelledList):
             for patch in block.patches.inlet_nonreflecting:
                 patch.update_soln()
             for patch in block.patches.mixing:
+                patch.update_soln()
+            # No update_target: both sides take their target from the exchange
+            # above, not from a prescribed level plus a spanwise adjustment.
+            for patch in block.patches.mixing_nonreflecting:
                 patch.update_soln()
             for patch in block.patches.outlet:
                 patch.update_soln()
@@ -1833,6 +1844,7 @@ class Grid(_LabelledList):
             InletPatch,
             MixingPatch,
             NonReflectingInletPatch,
+            NonReflectingMixingPatch,
             NonReflectingOutletPatch,
             OutletPatch,
         )
@@ -1847,7 +1859,18 @@ class Grid(_LabelledList):
             for b in row_blocks:
                 bid = self.index(b)
                 for pid, p in enumerate(b.patches):
-                    if i == 0 and isinstance(p, inflow_types):
+                    # Tested before the inflow/outflow types because the two
+                    # sides of a non-reflecting mixing plane subclass them. The
+                    # class already says which side of the plane this face is,
+                    # so unlike the MixingPatch branch below there is nothing to
+                    # infer from position: an inflow face (interior on the +x
+                    # side) is its row's upstream station.
+                    if isinstance(p, NonReflectingMixingPatch):
+                        if p._sign_interior > 0:
+                            up_idx.append((bid, pid))
+                        else:
+                            dn_idx.append((bid, pid))
+                    elif i == 0 and isinstance(p, inflow_types):
                         up_idx.append((bid, pid))
                     elif i == n_row - 1 and isinstance(p, outflow_types):
                         dn_idx.append((bid, pid))
@@ -2073,7 +2096,12 @@ class GridConnectivity:
             If no communicator is defined for ``self.patch_class``.
         """
         if self._communicator is None:
-            from .patch import MixingPatch, NonMatchPatch, PeriodicPatch
+            from .patch import (
+                MixingPatch,
+                NonMatchPatch,
+                NonReflectingMixingPatch,
+                PeriodicPatch,
+            )
 
             if self.patch_class is PeriodicPatch:
                 self._communicator = ember.periodic_communicator.PeriodicCommunicator(
@@ -2083,6 +2111,12 @@ class GridConnectivity:
                 # rf_mix hardcoded to the config default (0.01).
                 self._communicator = ember.mixing_communicator.MixingCommunicator(
                     self.grid, self.pair()
+                )
+            elif self.patch_class is NonReflectingMixingPatch:
+                self._communicator = (
+                    ember.mixing_communicator.NonReflectingMixingCommunicator(
+                        self.grid, self.pair()
+                    )
                 )
             elif self.patch_class is NonMatchPatch:
                 self._communicator = ember.nonmatch_communicator.NonMatchCommunicator(
@@ -2245,6 +2279,7 @@ class GridConnectivityManager:
         all_matches = {}
         all_matches.update(self.periodic.pair(rtol))
         all_matches.update(self.mixing.pair(rtol))
+        all_matches.update(self.mixing_nonreflecting.pair(rtol))
         all_matches.update(self.nonmatch.pair(rtol))
         return all_matches
 
@@ -2265,6 +2300,15 @@ class GridConnectivityManager:
         return self._connectivity(MixingPatch)
 
     # end mixing
+
+    @property
+    def mixing_nonreflecting(self):
+        """Get connectivity manager for non-reflecting mixing planes."""
+        from .patch import NonReflectingMixingPatch
+
+        return self._connectivity(NonReflectingMixingPatch)
+
+    # end mixing_nonreflecting
 
     @property
     def nonmatch(self):

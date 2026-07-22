@@ -1,4 +1,10 @@
-"""Mixing plane boundary condition communication."""
+"""Mixing plane boundary condition communication.
+
+:class:`MixingCommunicator` serves the reflecting mixing plane of
+:mod:`ember.mixing` and :class:`NonReflectingMixingCommunicator` the
+non-reflecting one of :mod:`ember.mixing_nonreflecting`. They differ only in the
+variables the exchanged target is expressed in; everything else is shared.
+"""
 
 from ember import perturbation, util
 from ember.util import profile
@@ -20,6 +26,13 @@ class MixingCommunicator:
 
     The relaxation factor is the same on every multigrid level.
     """
+
+    # Jacobian mapping characteristic variables to the space the exchanged
+    # target is written in. Its last row must be the static pressure and its
+    # first four the quantities an inflow prescribes, because _write_targets
+    # expresses Saxer's split of the interface jump by direction of propagation
+    # as a pair of row masks on the target vector.
+    _chic_to_target = staticmethod(perturbation.chic_to_mix)
 
     def __init__(
         self,
@@ -92,7 +105,7 @@ class MixingCommunicator:
 
     @profile
     def _exchange_pair(self, bid, pid, flip):
-        """Compute cross-plane mix targets and write absolute values into each patch.
+        """Compute cross-plane targets and write absolute values into each patch.
 
         Performs inter-patch communication only; does not apply the targets to
         block_view.conserved.  Call MixingPatch.apply(rf) on each patch afterwards.
@@ -103,6 +116,24 @@ class MixingCommunicator:
         (nxbid, nxpid), _ = self.pairs[(bid, pid)]
         patch2 = self._grid[nxbid].patches[nxpid]
 
+        b_avg, nspan = self._prepare_pair(patch1, patch2, flip)
+        self._write_targets(patch1, patch2, flip, b_avg, nspan, (bid, pid))
+
+    def _prepare_pair(self, patch1, patch2, flip):
+        """Symmetrise the cross-plane average and reduce the flux mismatch to chic space.
+
+        Leaves the characteristic mismatch ``dchic`` in the shared scratch
+        buffer ``self._vec1[:nspan]``, which :meth:`_write_targets` consumes.
+
+        Returns
+        -------
+        b_avg : Block
+            The symmetrised pitch-averaged state both sides now share, with its
+            axial Mach number clipped away from zero. Every Jacobian downstream
+            is evaluated on it, so both sides see the same linearisation.
+        nspan : int
+            Number of span stations; the length the scratch buffers are sliced to.
+        """
         # The patches have to agree on a common pitch-avg state
         # before exchanging, before resolving to interface coordinates
 
@@ -151,12 +182,6 @@ class MixingCommunicator:
         # patch1.resolve_to_interface()
         # patch2.resolve_to_interface()
 
-        # Extract pitch-averaged conserved variables and fluxes
-        mix1 = patch1.get_target()
-        mix2 = patch2.get_target()
-        if flip:
-            mix2 = mix2[::-1]
-
         # Store the flux difference in v1
         v1[:] = flux2
         v1 -= flux1
@@ -185,44 +210,64 @@ class MixingCommunicator:
         util.matvec(J, v1, out=v1)  # v1 = dchic
         # print("dchic", v1[nspan // 2])
 
+        return b_avg, nspan
+
+    def _write_targets(self, patch1, patch2, flip, b_avg, nspan, key):
+        """Project the characteristic mismatch into target space and write both sides.
+
+        Reads ``dchic`` from the scratch buffer :meth:`_prepare_pair` left it
+        in, splits it by direction of propagation -- the upstream-running
+        pressure characteristic against the four downstream-running ones, which
+        is :cite:t:`Saxer1993` Eq. 5.66 -- and relaxes the resulting mismatch
+        onto the symmetrised baseline of the two sides' current targets.
+
+        The split is expressed as a pair of row masks on the target vector, so
+        :attr:`_chic_to_target` has to map characteristics into a space whose
+        last row is the static pressure and whose first four rows are the
+        quantities an inflow prescribes. Both mix space and bcond space
+        satisfy that, which is what lets the non-reflecting mixing plane reuse
+        this method unchanged.
+        """
+        v1 = self._vec1[:nspan]
+        v2 = self._vec2[:nspan]
+        J = self._jac_buf[:nspan]
+
+        # Each side's current target, the baseline the mismatch is relaxed onto.
+        target1 = patch1.get_target()
+        target2 = patch2.get_target()
+        if flip:
+            target2 = target2[::-1]
+
         # Split into upstream/downstream contributions in chic space
         v2[:] = v1  # copy dchic into v2
         v1[..., 1:] = 0.0  # v1 = dchic_up (keep upstream acoustic)
         v2[..., 0] = 0.0  # v2 = dchic_dn (keep downstream acoustic and convective)
 
-        # Convert upstream/downstream chic to mix space via chic->prim->mix
-        perturbation.chic_to_primitive(b_avg, out=J)
-        util.matvec(J, v1, out=v1)  # v1 = dprim_up
-        # print("dprim_up", v1[nspan // 2])
-        util.matvec(J, v2, out=v2)  # v2 = dprim_dn
-        # print("dprim_dn", v2[nspan // 2])
-        perturbation.primitive_to_mix(b_avg, out=J)
-        util.matvec(J, v1, out=v1)  # v1 = dmix_up
-        # print("dmix_up", v1[nspan // 2])
+        # Convert both to target space with the single fused Jacobian
+        self._chic_to_target(b_avg, out=J)
+        util.matvec(J, v1, out=v1)  # v1 = dtarget_up
         v1[..., :-1] = 0.0  # zero non-P contribution
 
-        # Convert downstream prim to mix space -> v2 = dmix_dn
-        util.matvec(J, v2, out=v2)  # reuse same J
+        util.matvec(J, v2, out=v2)  # v2 = dtarget_dn
         v2[..., -1] = 0.0  # zero P contribution
-        # print("dmix_dn", v2[nspan // 2])
 
-        # Combine: v1 = dmix = dmix_up - dmix_dn
-        # Change to [ho, s, Vr, Vt] comes from downstream chics
+        # Combine: v1 = dtarget = dtarget_up - dtarget_dn
+        # Change to the first four rows comes from downstream chics
         # Change to P comes from upstream chics
-        # For some reason need a -ve sign on dmix_dn here!
+        # For some reason need a -ve sign on dtarget_dn here!
         v1 -= v2
 
-        # Relax the mix-space mismatch onto the symmetrised baseline. v1 holds
-        # the error e_n = dmix; the increment is du = rf_mix * e_n and the
-        # updated target is target_n = 0.5*(mix1 + mix2) + du.
-        state = self._ensure_pair_state((bid, pid), nspan)
+        # Relax the target-space mismatch onto the symmetrised baseline. v1
+        # holds the error e_n = dtarget; the increment is du = rf_mix * e_n and
+        # the updated target is target_n = 0.5*(target1 + target2) + du.
+        state = self._ensure_pair_state(key, nspan)
 
         v1 *= self._rf_mix  # v1 = du
         state["du"][:] = v1
 
         # target_n = baseline + du.
-        v2[:] = mix1
-        v2 += mix2
+        v2[:] = target1
+        v2 += target2
         v2 *= 0.5
         v2 += v1
 
@@ -244,7 +289,7 @@ class MixingCommunicator:
         Returns
         -------
         dict or None
-            Key ``du`` (last relaxation increment in mix space, shape
+            Key ``du`` (last relaxation increment in target space, shape
             ``(nspan, 5)``). Returns ``None`` if the pair has not been
             exchanged yet.
         """
@@ -254,7 +299,34 @@ class MixingCommunicator:
         return {"du": state["du"].copy()}
 
     def exchange(self):
-        """Compute and write mix targets for all pairs (no apply step)."""
+        """Compute and write targets for all pairs (no apply step)."""
         for bid, pid in self.pairs.keys():
             _, flip = self.pairs[(bid, pid)]
             self._exchange_pair(bid, pid, flip)
+
+
+class NonReflectingMixingCommunicator(MixingCommunicator):
+    r"""Cross-plane exchange for the non-reflecting mixing plane.
+
+    Identical to :class:`MixingCommunicator` but for the space the exchanged
+    target is written in. The reflecting plane exchanges mix variables
+    :math:`[h_0, s, V_r, V_\theta, p]`, which its patches impose node by node;
+    the non-reflecting plane exchanges boundary-condition variables
+    :math:`[h_0, s, \tan\alpha, \sin\beta, p]`, which are exactly the targets
+    :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch` and
+    :class:`~ember.outlet_nonreflecting.NonReflectingOutletPatch` already take
+    their pitchwise-mean residuals against.
+
+    So the whole exchange -- the symmetrised cross-plane average, the flux
+    mismatch, the split by direction of propagation, the relaxation onto the
+    symmetrised baseline -- is inherited unchanged, and only the mean mode of
+    each side's boundary condition is driven by it. The harmonics are left to
+    the non-reflecting relations of the patches themselves, which is exactly
+    how :cite:t:`Saxer1993` (his Section 5.5) specifies the interface.
+
+    See Also
+    --------
+    ember.mixing_nonreflecting : The two patch classes this pairs
+    """
+
+    _chic_to_target = staticmethod(perturbation.chic_to_bcond)

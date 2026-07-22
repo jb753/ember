@@ -26,6 +26,8 @@ that direction, and is shorthand for e.g. `j=(0, -1)`.
 indices are wrapped. `k=(6,4)` is not valid, and neither is `k=(-1, -2)`.
 """
 
+import itertools
+import logging
 import weakref
 from abc import ABC, abstractmethod
 
@@ -33,6 +35,8 @@ import numpy as np
 
 from ember.util import pol_to_pseudocart
 from ember import util
+
+logger = logging.getLogger(__name__)
 
 
 class Patch(ABC):
@@ -638,6 +642,70 @@ class RevolutionPatch(Patch):
                     self._block_avg.set_fluid(self.block.fluid)
                 except ValueError:
                     pass
+
+    def _check_match_xr(self, other, rtol=1e-5):
+        """Match another patch on meridional geometry alone, ignoring theta.
+
+        The geometric half of the matching test used by the patch types that
+        exchange only pitch-averaged data across a plane -- the mixing planes,
+        whose two sides need not share a pitchwise node count or even a blade
+        count, so only x and r can be compared. Callers supply their own type
+        and spanwise-size guards first; this method assumes the two patches are
+        already candidates for pairing.
+
+        Every combination of spanwise and pitchwise flips is tried against the
+        corner coordinates, and the surviving candidate is confirmed by
+        comparing the span fractions of :attr:`spf`, which detects a spanwise
+        reversal that the corners alone cannot when the two sides are
+        symmetric about midspan.
+
+        Parameters
+        ----------
+        other : Patch
+            The other patch to compare with.
+        rtol : float, optional
+            Relative tolerance for matching.
+
+        Returns
+        -------
+        bool or None
+            None if the patches do not match. False if they match with no
+            spanwise flip needed. True if they match but ``other``'s span must
+            be reversed. Always test with ``is not None``; do not use as a bare
+            truthiness check since False is a valid match result.
+        """
+        perm = [0, 0, 0]
+        perm[self.const_dim] = other.const_dim
+        perm[self.span_dim] = other.span_dim
+        perm[self.pitch_dim] = other.pitch_dim
+        perm = tuple(perm)
+
+        flip_axes = [ax for ax in (self.span_dim, self.pitch_dim) if self.shape[ax] > 1]
+        flip_candidates = [
+            combo
+            for r in range(len(flip_axes) + 1)
+            for combo in itertools.combinations(flip_axes, r)
+        ]
+
+        for flip in flip_candidates:
+            if not self._compare_coords(
+                other, (perm, flip), corners_only=True, xr_only=True, rtol=rtol
+            ):
+                continue
+
+            span_flipped = self.span_dim in flip
+            other_spf = 1.0 - other.spf[::-1] if span_flipped else other.spf
+            if np.allclose(self.spf, other_spf, atol=1e-4, rtol=0):
+                return span_flipped
+
+            err = np.abs(self.spf - other_spf)
+            logger.debug(
+                f"spf mismatch with flip {flip}: "
+                f"self ends {self.spf[(0, -1),]}, other ends {other_spf[(0, -1),]}, "
+                f"max abs error {err.max()}, mean abs error {err.mean()}"
+            )
+
+        return None
 
     @property
     def _std_perm(self):

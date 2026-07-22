@@ -155,6 +155,11 @@ from ember.inlet import InletPatch
 from ember.inlet_nonreflecting import NonReflectingInletPatch
 from ember.inviscid import InviscidPatch
 from ember.mixing import MixingPatch
+from ember.mixing_nonreflecting import (
+    NonReflectingMixingInletPatch,
+    NonReflectingMixingOutletPatch,
+    NonReflectingMixingPatch,
+)
 from ember.nonmatch import NonMatchPatch
 from ember.nonreflecting import NonReflectingPatch
 from ember.outlet import OutletPatch
@@ -173,6 +178,9 @@ __all__ = [
     "OutletPatch",
     "NonReflectingOutletPatch",
     "MixingPatch",
+    "NonReflectingMixingPatch",
+    "NonReflectingMixingInletPatch",
+    "NonReflectingMixingOutletPatch",
     "NonMatchPatch",
     "RotatingPatch",
     "CoolingPatch",

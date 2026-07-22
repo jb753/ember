@@ -1,0 +1,332 @@
+"""Tests for the non-reflecting mixing plane.
+
+Modules tested: ember.mixing_nonreflecting,
+ember.mixing_communicator.NonReflectingMixingCommunicator
+
+The two patch classes add no numerics of their own -- the characteristic split,
+the Hilbert transform, the mean-mode Newton step and the harmonic relations are
+all inherited from the non-reflecting inlet and outlet, and are tested in
+test_nonreflecting.py, test_inlet_nonreflecting.py and
+test_outlet_nonreflecting.py. What is left here is the mixing plane itself.
+
+Test cases:
+- Pairing: the two sides pair across the plane, same-side and foreign patches do
+  not, differing pitchwise resolution is allowed
+- Collections: both sides appear under mixing_nonreflecting and not under the
+  plain non-reflecting inlet/outlet lists, and row stations find them
+- Target: shape, pitch-uniformity, lazy seeding, copy semantics, set_adjustment
+- Physics: matched flow is a fixed point, a cross-plane mismatch relaxes to
+  matched pitch-mean fluxes, a pitchwise harmonic is absorbed rather than
+  reflected, and a solver run stays finite
+"""
+
+import numpy as np
+import pytest
+
+import ember.solver
+from ember.grid import Grid
+from ember.mixing_communicator import NonReflectingMixingCommunicator
+from ember.patch import (
+    InletPatch,
+    NonReflectingMixingInletPatch,
+    NonReflectingMixingOutletPatch,
+    NonReflectingOutletPatch,
+    OutletPatch,
+    PeriodicPatch,
+)
+from nonreflecting_util import harmonic, make_block, seed_chic
+
+# The exchange and the boundary conditions are both heavily under-relaxed by
+# default, which is right for a solver run and far too slow for a test that
+# iterates the boundary alone. These drive the same fixed point, faster.
+RF_MIX_FAST = 0.5
+SIGMA_FAST = 0.5
+
+
+def make_pair(npitch_up=17, npitch_dn=17, up=None, dn=None, **kwargs):
+    """Two blocks joined by a non-reflecting mixing plane at x = 0.1.
+
+    ``up`` and ``dn`` are per-side overrides of the flow state passed to
+    :func:`nonreflecting_util.make_block`, so the two sides can be started
+    mismatched. Returns the grid, the upstream (outflow) patch and the
+    downstream (inflow) patch.
+    """
+    block_up = make_block(npitch=npitch_up, **{**kwargs, **(up or {})})
+    block_dn = make_block(npitch=npitch_dn, **{**kwargs, **(dn or {})})
+    block_dn.set_x(block_dn.x + np.ptp(block_up.x))
+
+    patch_up = NonReflectingMixingOutletPatch(i=-1, label="mix_up")
+    patch_dn = NonReflectingMixingInletPatch(i=0, label="mix_dn")
+    block_up.patches.append(patch_up)
+    block_dn.patches.append(patch_dn)
+
+    grid = Grid((block_up, block_dn))
+    return grid, patch_up, patch_dn
+
+
+def exchanged(*args, rf_mix=RF_MIX_FAST, sigma=SIGMA_FAST, **kwargs):
+    """A paired plane plus its communicator, ready to exchange."""
+    grid, patch_up, patch_dn = make_pair(*args, **kwargs)
+    comm = NonReflectingMixingCommunicator(
+        grid, grid.connectivity.mixing_nonreflecting.pair(), rf_mix=rf_mix
+    )
+    for patch in (patch_up, patch_dn):
+        patch.sigma = sigma
+    return grid, patch_up, patch_dn, comm
+
+
+def relax(patches, comm, n_iter):
+    """Iterate the exchange and both boundary conditions to their fixed point."""
+    for _ in range(n_iter):
+        comm.exchange()
+        for patch in patches:
+            patch.update_soln()
+            patch.apply()
+
+
+def flux_gap(patch_up, patch_dn):
+    """Largest pitch-mean flux mismatch across the plane, relative to its scale.
+
+    Each of the five components is scaled on its own, floored against the
+    largest of them so that a component which is identically zero either side
+    (the radial momentum flux of a swirl-only mean state) does not divide by
+    zero.
+    """
+    patch_up.set_flux_avg()
+    patch_dn.set_flux_avg()
+    flux_up = patch_up.flux_avg_nd
+    flux_dn = patch_dn.flux_avg_nd
+    scale = np.maximum(np.abs(flux_up), np.abs(flux_dn)).max(axis=0)
+    scale = np.maximum(scale, 1e-6 * scale.max())
+    return np.abs(flux_dn - flux_up).max(axis=0) / scale
+
+
+# Pairing
+
+
+def test_pairs_across_the_plane():
+    """The two sides of the plane pair with each other, in both directions."""
+    grid, patch_up, patch_dn = make_pair()
+    pairs = grid.connectivity.mixing_nonreflecting.pair()
+    assert pairs == {(0, 0): ((1, 0), False), (1, 0): ((0, 0), False)}
+
+
+def test_pairs_with_unequal_pitchwise_resolution():
+    """Only pitch means cross the plane, so the two sides may be resolved differently."""
+    grid, patch_up, patch_dn = make_pair(npitch_up=17, npitch_dn=13)
+    assert grid.connectivity.mixing_nonreflecting.pair()
+
+
+def test_same_side_patches_do_not_pair():
+    """Two outflow sides face the same way, so they are not two sides of a plane."""
+    grid, patch_up, _ = make_pair()
+    other = NonReflectingMixingOutletPatch(i=-1, label="mix_other")
+    grid[1].patches.append(other)
+    assert patch_up.check_match(other) is None
+
+
+def test_plain_nonreflecting_patch_does_not_pair():
+    """A prescribed-pressure outlet is not half of a mixing plane."""
+    grid, _, patch_dn = make_pair()
+    plain = NonReflectingOutletPatch(i=-1, label="plain")
+    grid[0].patches.append(plain)
+    assert patch_dn.check_match(plain) is None
+    assert plain.check_match(patch_dn) is None
+
+
+# Collections and grid wiring
+
+
+def test_collections_separate_from_plain_nonreflecting():
+    """Both sides list under mixing_nonreflecting and under neither plain list.
+
+    The plain lists drive Grid.apply_bconds and the inlet-row search in
+    Grid._order_row_groups, so a mixing face leaking into them would be applied
+    twice per stage and could misidentify which row is first.
+    """
+    grid, patch_up, patch_dn = make_pair()
+    assert grid.patches.mixing_nonreflecting == [patch_up, patch_dn]
+    assert grid.patches.inlet_nonreflecting == []
+    assert grid.patches.outlet_nonreflecting == []
+    assert grid.patches.mixing == []
+    # Still a permeable, non-wall face for the boundary-flux machinery.
+    assert patch_up in grid[0].patches.permeable
+
+
+def test_row_stations_find_both_sides():
+    """Each row's mixing face is its own upstream or downstream station."""
+    grid, patch_up, patch_dn = make_pair()
+    grid[0].patches.append(InletPatch(i=0))
+    grid[1].patches.append(OutletPatch(i=-1))
+    for face in (0, -1):
+        grid[0].patches.append(PeriodicPatch(k=face))
+        grid[1].patches.append(PeriodicPatch(k=face))
+    grid.connectivity.periodic.pair()
+
+    (up0, dn0), (up1, dn1) = grid.row_station_bid_pid
+    # The upstream row's mixing face is an outflow side, so its exit station.
+    assert (0, 0) in dn0
+    # The downstream row's mixing face is an inflow side, so its inlet station.
+    assert (1, 0) in up1
+
+
+def test_communicator_is_the_nonreflecting_one():
+    """Connectivity builds the bcond-space exchange for this patch type."""
+    grid, _, _ = make_pair()
+    comm = grid.connectivity.mixing_nonreflecting._get_communicator()
+    assert isinstance(comm, NonReflectingMixingCommunicator)
+
+
+# Target handling
+
+
+def test_target_is_pitch_uniform():
+    """The exchange writes one value per span station, not a nodal field."""
+    grid, patch_up, patch_dn, comm = exchanged()
+    comm.exchange()
+
+    nspan = patch_dn.shape[patch_dn.span_dim]
+    assert patch_dn.get_target().shape == (nspan, 5)
+    for name in ("ho_nd", "s_nd", "tanAlpha", "sinBeta"):
+        target = getattr(patch_dn, name)
+        assert target.shape[patch_dn.pitch_dim] == 1
+    assert patch_up.P_nd.shape[patch_up.pitch_dim] == 1
+
+
+def test_target_seeds_from_own_pitch_mean():
+    """An unexchanged patch seeds its target from the face it is attached to."""
+    grid, patch_up, patch_dn = make_pair()
+    assert patch_dn._target is None
+
+    target = patch_dn.get_target()
+    b = patch_dn.block_view
+    for idx, field in enumerate((b.ho_nd, b.s_nd, b.tanAlpha, b.sinBeta, b.P_nd)):
+        expect = patch_dn._pitch_mean(field).squeeze()
+        assert np.allclose(target[:, idx], expect, rtol=1e-6)
+
+
+def test_copy_relinks_target_views():
+    """A copied patch keeps its target, with the published attributes still views on it."""
+    grid, patch_up, patch_dn, comm = exchanged()
+    comm.exchange()
+
+    clone = patch_dn.copy()
+    clone.attach_to_block(grid[1])
+    assert np.allclose(clone.get_target(), patch_dn.get_target())
+
+    # Writing the target must move the published attribute with it, or the
+    # condition would keep driving to a stale value.
+    clone._target[..., 0] += 1.0
+    assert np.allclose(clone.ho_nd, clone._target[..., 0])
+
+
+def test_set_adjustment_refuses():
+    """The exchanged pressure profile already carries radial equilibrium."""
+    grid, patch_up, patch_dn = make_pair()
+    with pytest.raises(ValueError, match="double count"):
+        patch_up.set_adjustment()
+
+
+# Physics
+
+
+def test_matched_flow_is_a_fixed_point():
+    """With the same state either side, the exchange and both conditions do nothing."""
+    grid, patch_up, patch_dn, comm = exchanged()
+    before = [patch.block_view.conserved_nd.copy() for patch in (patch_up, patch_dn)]
+
+    relax((patch_up, patch_dn), comm, 20)
+
+    for patch, start in zip((patch_up, patch_dn), before):
+        assert np.allclose(patch.block_view.conserved_nd, start, atol=1e-5, rtol=1e-4)
+
+
+def test_mismatch_relaxes_to_matched_mean_fluxes():
+    """A cross-plane jump relaxes until the pitch-mean fluxes agree.
+
+    This is the property Saxer Eq. 5.65 asserts: mass, momentum and energy
+    fluxes match across the interface once the exchange has converged.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(
+        up={"P": 1.05e5, "Vx": 105.0}, dn={"P": 0.95e5, "Vx": 95.0}
+    )
+    gap_before = flux_gap(patch_up, patch_dn)
+    assert gap_before.max() > 1e-2
+
+    relax((patch_up, patch_dn), comm, 100)
+
+    # An 18 percent mass-flux jump converges to float32 round-off, a few times
+    # 1e-6, well inside this.
+    gap_after = flux_gap(patch_up, patch_dn)
+    assert gap_after.max() < 1e-4, f"{gap_before} -> {gap_after}"
+
+
+def test_exchange_leaves_harmonics_alone():
+    """Only the pitch mean crosses the plane; the exchange must not touch harmonics."""
+    grid, patch_up, patch_dn, comm = exchanged()
+    patch_up.update_soln()
+
+    wave = np.zeros(patch_up.shape + (5,), dtype=np.float32)
+    phase = 2.0 * np.pi * patch_up.block_view.t / patch_up.block.pitch
+    wave[..., 1] = 0.01 * np.cos(phase)
+    seed_chic(patch_up, wave)
+
+    seeded = patch_up.block_view.conserved_nd.copy()
+    comm.exchange()
+    assert np.array_equal(patch_up.block_view.conserved_nd, seeded)
+
+    # And the target the exchange produced carries no pitchwise variation.
+    assert np.ptp(patch_up.P_nd, axis=patch_up.pitch_dim).max() == 0.0
+
+
+def test_harmonic_acoustic_is_absorbed():
+    """An acoustic harmonic reaching the plane leaves no pressure harmonic behind.
+
+    The inherited outflow relation reduces without swirl to
+    ``c_up = -c_down + 2*Mn*H[c_t]/sqrt(1 - M^2)``, so a pure downstream-running
+    acoustic harmonic is met by an equal and opposite upstream-running one and
+    the pressure harmonic ``(c_up + c_down)/2`` cancels. Exercised here with the
+    target coming from the exchange rather than from ``set_P``, which is the
+    only thing this class changes.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(sigma=1.0, Vt=0.0)
+    relax((patch_up, patch_dn), comm, 5)
+
+    wave = np.zeros(patch_up.shape + (5,), dtype=np.float32)
+    phase = 2.0 * np.pi * patch_up.block_view.t / patch_up.block.pitch
+    wave[..., 1] = 0.01 * np.cos(phase)
+    seed_chic(patch_up, wave)
+
+    amp_before = np.abs(harmonic(patch_up, patch_up.block_view.P_nd)).max()
+    comm.exchange()
+    patch_up.apply()
+    amp_after = np.abs(harmonic(patch_up, patch_up.block_view.P_nd)).max()
+
+    assert amp_after < 0.01 * amp_before, f"{amp_before} -> {amp_after}"
+
+
+def test_solver_run_stays_finite():
+    """A two-block run across the plane completes without NaN or non-physical values."""
+    grid, patch_up, patch_dn = make_pair(npitch_up=9, npitch_dn=9, ni=9, nspan=9)
+    grid[0].patches.append(InletPatch(i=0))
+    grid[1].patches.append(OutletPatch(i=-1))
+    for block in grid:
+        block.set_wdist(0.0)
+        for face in (0, -1):
+            block.patches.append(PeriodicPatch(k=face))
+    grid.set_L_ref(float(np.ptp(grid[0].x)))
+
+    grid.patches.inlet[0].set_Po_To_Alpha_Beta(
+        float(grid[0].Po[0].mean()), float(grid[0].To[0].mean()), 0.0, 0.0
+    )
+    grid.patches.outlet[0].set_P(float(grid[1].P[-1].mean()))
+    grid.connectivity.periodic.pair()
+    grid.connectivity.mixing_nonreflecting.pair()
+
+    ember.solver.Solver(n_step=20, n_step_avg=1, n_step_log=20, n_stage=4).run(grid)
+
+    for block in grid:
+        assert np.all(np.isfinite(block.conserved)), "Non-finite conserved variables"
+        assert np.all(block.rho > 0), "Non-positive density"
+        assert np.all(block.P > 0), "Non-positive pressure"
+        assert np.all(block.T > 0), "Non-positive temperature"
