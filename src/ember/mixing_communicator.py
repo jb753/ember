@@ -21,27 +21,28 @@ class MixingCommunicator:
 
     Each side's face is pitch-averaged in conserved variables, the two averages
     are averaged across the plane, and the shared target is relaxed towards
-    that with a single constant relaxation factor :math:`\mathrm{rf\_mix}`,
+    that with the plane's relaxation factor :math:`\mathrm{rf\_exchange}`,
 
     .. math::
 
         \mathrm{target}_n = \mathrm{target}_{n-1}
-            + \mathrm{rf\_mix}\,\bigl(\tfrac{1}{2}(U_1 + U_2)
+            + \mathrm{rf\_exchange}\,\bigl(\tfrac{1}{2}(U_1 + U_2)
             - \mathrm{target}_{n-1}\bigr).
 
-    The relaxation factor is the same on every multigrid level. Because
-    :class:`~ember.mixing.MixingPatch` imposes all five conserved variables at
-    its face, this relaxation is the only thing damping the resulting
-    Dirichlet-Dirichlet coupling between the two blocks -- it carries the whole
-    stability margin of the plane. See that class for what the choice of
-    conserved variables costs in conservation.
+    The factor is read from the patches at every exchange, so it is per plane
+    rather than per grid, and a solver run can retune it on a communicator that
+    already exists. Both sides of a plane must agree on it. It is the same on
+    every multigrid level. Because :class:`~ember.mixing.MixingPatch` imposes
+    all five conserved variables at its face, this relaxation is the only thing
+    damping the resulting Dirichlet-Dirichlet coupling between the two blocks --
+    it carries the whole stability margin of the plane. See that class for what
+    the choice of conserved variables costs in conservation.
     """
 
     def __init__(
         self,
         grid,
         mixing_pairs,
-        rf_mix=0.05,
     ):
         """Initialize with grid and mixing patch pairs.
 
@@ -51,20 +52,39 @@ class MixingCommunicator:
             The grid instance.
         mixing_pairs : dict
             Mapping of mixing patch pair information.
-        rf_mix : float, optional
-            Constant relaxation factor applied to the cross-plane mismatch. The
-            same value is used on all grid levels. Defaults to ``0.05``.
+
+        Raises
+        ------
+        ValueError
+            If the two sides of a plane disagree on ``rf_exchange``.
         """
         self._grid = grid
         self.pairs = {}
         self._prune_pairs(mixing_pairs)
+        self._check_rf_exchange()
 
         # Per-pair diagnostic snapshots, lazily allocated on first exchange.
         # Keys: (bid, pid). Values: dict with 'du' (the relaxation increment in
         # the exchanged target's own variables, shape (nspan, 5)).
         self._pair_state = {}
 
-        self._rf_mix = np.float32(rf_mix)
+    def _check_rf_exchange(self):
+        """Raise if either side of a plane would relax the exchange differently.
+
+        The exchange writes one shared target, so a pair holds one relaxation
+        factor; the exchange reads it from the first side. Checked once here
+        rather than per exchange, so a value changed on one side alone
+        afterwards -- which the solver's push cannot do, since it writes the
+        same value to every patch -- goes unnoticed.
+        """
+        for bid, pid in self.pairs:
+            patch1, patch2 = self._get_pair(bid, pid)
+            if patch1.rf_exchange != patch2.rf_exchange:
+                raise ValueError(
+                    f"Mixing plane sides disagree on rf_exchange: "
+                    f"{patch1.label!r} has {patch1.rf_exchange}, "
+                    f"{patch2.label!r} has {patch2.rf_exchange}"
+                )
 
     def _prune_pairs(self, mixing_pairs):
         """Prune bidirectional pairs to unidirectional mapping."""
@@ -127,10 +147,10 @@ class MixingCommunicator:
             target2 = target2[::-1]
         target = 0.5 * (target1 + target2)
 
-        # du = rf_mix * (cross-plane average - baseline).
+        # du = rf_exchange * (cross-plane average - baseline).
         du = 0.5 * (cons1 + cons2)
         du -= target
-        du *= self._rf_mix
+        du *= patch1.rf_exchange
 
         state = self._ensure_pair_state((bid, pid), target.shape[0])
         state["du"][:] = du
@@ -175,7 +195,7 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
     .. math::
 
         \mathrm{target}_n = \tfrac{1}{2}(\mathrm{mix}_1 + \mathrm{mix}_2)
-            + \mathrm{rf\_mix}\,\varepsilon_n.
+            + \mathrm{rf\_exchange}\,\varepsilon_n.
 
     The target is written in the mix variables :math:`[h_0, s, V_r, V_\theta,
     p]`, which are exactly the quantities the two patches take their
@@ -353,11 +373,11 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         v1 -= v2
 
         # Relax the target-space mismatch onto the symmetrised baseline. v1
-        # holds the error e_n = dtarget; the increment is du = rf_mix * e_n and
-        # the updated target is target_n = 0.5*(target1 + target2) + du.
+        # holds the error e_n = dtarget; the increment is du = rf_exchange * e_n
+        # and the updated target is target_n = 0.5*(target1 + target2) + du.
         state = self._ensure_pair_state(key, nspan)
 
-        v1 *= self._rf_mix  # v1 = du
+        v1 *= patch1.rf_exchange  # v1 = du
         state["du"][:] = v1
 
         # target_n = baseline + du.

@@ -2108,7 +2108,6 @@ class GridConnectivity:
                     self.grid, self.pair()
                 )
             elif self.patch_class is MixingPatch:
-                # rf_mix hardcoded to the config default (0.01).
                 self._communicator = ember.mixing_communicator.MixingCommunicator(
                     self.grid, self.pair()
                 )

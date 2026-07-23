@@ -112,6 +112,21 @@ class NonReflectingMixingPatch(NonReflectingPatch):
     def _setup(self):
         super()._setup()
         self._flux_avg = None
+        # Relaxation of the cross-plane mismatch, read by the communicator at
+        # every exchange. Held here rather than on the communicator so it
+        # survives the pickle that drops the communicator, and so the two
+        # planes of a multi-row grid can damp at different rates; both sides of
+        # a plane must agree on it. Distinct from
+        # :attr:`~ember.nonreflecting.NonReflectingPatch.sigma`, which relaxes
+        # this side's own characteristic correction.
+        self.rf_exchange = 0.05
+
+    def _copy(self, c):
+        # NonReflectingPatch._copy is shared with the inlet and outlet, neither
+        # of which has an exchange to relax, so extend it here rather than
+        # there.
+        super()._copy(c)
+        c.rf_exchange = self.rf_exchange
 
     def set_flux_avg(self):
         """Compute pitch-averaged node fluxes and store in :attr:`flux_avg_nd`.

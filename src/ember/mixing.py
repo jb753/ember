@@ -33,8 +33,9 @@ class MixingPatch(RevolutionPatch):
     the downstream side, and those are overwritten along with the rest. The
     fixed point is still consistent -- each side's own pitch mean equals the
     state imposed on it -- but nothing makes the iteration towards it
-    contracting except the communicator's relaxation factor ``rf_mix``, which
-    is therefore the only stability knob the plane has. Waves reaching the
+    contracting except the relaxation factor :attr:`rf_exchange` the exchange
+    reads off this patch, which is therefore the only stability knob the plane
+    has. Waves reaching the
     plane reflect off it in full; :mod:`ember.mixing_nonreflecting` is the
     alternative that absorbs them.
 
@@ -59,6 +60,19 @@ class MixingPatch(RevolutionPatch):
     def _setup(self):
         super()._setup()
         self._target = None
+        # Relaxation of the cross-plane mismatch, read by the communicator at
+        # every exchange. Held here rather than on the communicator so it
+        # survives the pickle that drops the communicator, and so the two
+        # planes of a multi-row grid can damp at different rates; both sides of
+        # a plane must agree on it.
+        self.rf_exchange = 0.05
+
+    def _copy(self, c):
+        # The target is deliberately not carried: it is seeded lazily from the
+        # block state a copy is attached to. rf_exchange is configuration, not
+        # solver state, so it travels with the patch.
+        super()._copy(c)
+        c.rf_exchange = self.rf_exchange
 
     def set_target(self, target=None):
         """Set the pitch-uniform target from the current block state or an explicit array.
