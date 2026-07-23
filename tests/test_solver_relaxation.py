@@ -70,9 +70,8 @@ def make_grid(mixing_cls=NonReflectingMixingPatch, ends="nonreflecting", nblock=
         block.set_wdist(0.0)
         for face in (0, -1):
             block.patches.append(PeriodicPatch(k=face))
-    # No set_L_ref: rescaling the reference length leaves the non-reflecting
-    # inlet's mean state supersonic and its solve unimplemented. Nothing here
-    # converges anything, so the blocks' own scales are enough.
+    # After the patches are attached, as the case setup scripts do it.
+    grid.set_L_ref(float(np.ptp(grid[0].x)))
 
     P_exit = float(grid[-1].P[-1].mean())
     if ends == "nonreflecting":

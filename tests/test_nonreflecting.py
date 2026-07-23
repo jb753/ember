@@ -16,7 +16,8 @@ Test cases:
   bounded norm
 - Shared behaviour: characteristic round trip, relaxation linearity, copy
   semantics, unset targets, collection membership, class member order
-- Guards: backflow, axially supersonic, absolutely supersonic
+- Guards: backflow, axially supersonic, absolutely supersonic, and a length
+  scale set after attachment carrying through to the averaged block
 """
 
 import importlib
@@ -339,3 +340,25 @@ def test_absolutely_supersonic_raises(kind):
     _, patch = attached(kind, Vx=100.0, Vt=400.0, target={})
     with pytest.raises(NotImplementedError, match="supersonic mean state"):
         patch.update_soln()
+
+
+def test_setting_the_length_scale_after_attaching_rescales_the_averaged_block(kind):
+    """block_avg follows the block it averages when the length scale moves.
+
+    Angular momentum is the one conserved variable nondimensionalised with
+    L_ref in it, so the pitch average has to decode it against a radius on the
+    same scale. Left behind, block_avg reports a tangential velocity wrong by
+    the ratio of the two scales, which inflates the kinetic energy, deflates
+    the internal energy the speed of sound comes from, and takes an ordinary
+    subsonic mean state through the supersonic guard.
+    """
+    block, patch = attached(kind)
+
+    block.set_L_ref(0.04683 * block.L_ref)
+    patch.set_block_avg()
+
+    assert patch.block_avg.L_ref == pytest.approx(block.L_ref)
+    np.testing.assert_allclose(patch.block_avg.Vt, VT_MEAN, rtol=1e-5)
+    np.testing.assert_allclose(patch.block_avg.Vx, VX_MEAN, rtol=1e-5)
+    # The state stays where it was, so the guard it would have tripped passes.
+    patch.update_soln()
