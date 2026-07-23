@@ -18,6 +18,9 @@ Test cases:
 - Physics: matched flow is a fixed point, a cross-plane mismatch relaxes to
   matched pitch-mean fluxes, a pitchwise harmonic is absorbed rather than
   reflected, and a solver run stays finite
+- Stalled and reversed stations: a station whose cross-plane mean axial velocity
+  is zero survives the exchange, and the clip on that mean bounds it in
+  magnitude without turning a reversed station round
 - Chains: several planes in one grid stay independent of one another, with a
   middle block carrying an inflow side and an outflow side at once
 """
@@ -347,6 +350,71 @@ def test_reversed_station_on_the_inflow_side_takes_the_exchanged_pressure():
     P_face = np.asarray(patch_dn._pitch_mean(patch_dn.block_view.P_nd)).squeeze()
     assert P_face[3] == pytest.approx(patch_dn.get_target()[3, 4], rel=5e-3)
     assert float(patch_dn._pitch_mean(patch_dn.block_view.Vx_nd).ravel()[3]) < 0.0
+
+
+def test_exchange_survives_a_stalled_span_station():
+    """A station whose cross-plane mean axial velocity is zero goes through exchange.
+
+    The two reversal tests above reverse the flow and then only iterate the
+    patches, so the clip in _prepare_pair that holds the symmetrised mean axial
+    Mach number away from zero is never reached with a stalled mean. It divides
+    by that mean two lines later, so a station sitting exactly at zero is the
+    case that has to stay finite.
+
+    Station 3 and not station 0: _write_targets extrapolates the hub and casing
+    rows from their neighbours, so a fault driven at the hub is overwritten
+    before it can be seen -- and a fault at station 1 is what gets copied into
+    the hub row.
+    """
+    grid, patch_up, patch_dn, comm = exchanged()
+    comm.exchange()
+
+    # Zero on both sides, so their average is exactly zero rather than merely
+    # small: the clip is only wrong at exactly zero.
+    for block in grid:
+        Vx = block.Vx.copy()
+        Vx[:, 3, :] = 0.0
+        block.set_Vx(Vx)
+
+    comm.exchange()
+
+    assert np.all(np.isfinite(patch_up.get_target()))
+    assert np.all(np.isfinite(patch_dn.get_target()))
+
+    for patch in (patch_up, patch_dn):
+        patch.update_soln()
+        patch.apply()
+
+    for block in grid:
+        assert np.all(np.isfinite(block.conserved))
+
+
+def test_clip_bounds_the_mean_axial_mach_in_magnitude_only():
+    """The clip bounds the mean axial Mach number in magnitude, not in direction.
+
+    A station the flow leaves through has to stay reversed in the state the
+    Jacobians are evaluated on, or both sides would be linearised about a flow
+    running the other way. A station sitting exactly at zero has no direction to
+    keep, so it takes the downstream one -- what it must not take is zero, which
+    is the value the clip exists to keep out of the Jacobians.
+    """
+    grid, patch_up, patch_dn, comm = exchanged()
+
+    # Both small enough that |Max| < Ma_clip, so both stations are clipped.
+    for block in grid:
+        Vx = block.Vx.copy()
+        Vx[:, 2, :] = -0.2
+        Vx[:, 4, :] = 0.0
+        block.set_Vx(Vx)
+
+    b_avg, _ = comm._prepare_pair(patch_up, patch_dn, flip=False)
+
+    Max = np.asarray(b_avg.Max).ravel()
+    assert Max[2] == pytest.approx(-0.01, rel=1e-3)
+    assert Max[4] == pytest.approx(0.01, rel=1e-3)
+    # The untouched stations are above the clip and left alone by it.
+    assert Max[0] > 0.01
+    assert Max[6] == pytest.approx(Max[0], rel=1e-5)
 
 
 @pytest.mark.parametrize(

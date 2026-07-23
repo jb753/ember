@@ -283,13 +283,19 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         v1[:] = flux2
         v1 -= flux1
 
-        # Clip b_avg axial Mach to Ma_clip before evaluating Jacobians
+        # Clip b_avg axial Mach to Ma_clip before evaluating Jacobians.
+        # np.sign is not usable for the direction: it returns 0 at Max == 0, so
+        # a stalled station would be clipped to exactly zero axial momentum --
+        # the one value the clip exists to keep out of flux_to_primitive, which
+        # divides by it two lines below. A station with no direction of its own
+        # takes the downstream one.
         Ma_clip = 0.01
         b_avg = patch1.block_avg
         Max = b_avg.Max
         too_low = np.abs(Max) < Ma_clip
         if too_low.any():
-            rhoVx_clip = np.sign(Max) * Ma_clip * b_avg.rho_nd * b_avg.a_nd
+            sign = np.where(Max >= 0.0, 1.0, -1.0)
+            rhoVx_clip = sign * Ma_clip * b_avg.rho_nd * b_avg.a_nd
             b_avg.conserved_nd[..., 1] = np.where(
                 too_low, rhoVx_clip, b_avg.conserved_nd[..., 1]
             )
