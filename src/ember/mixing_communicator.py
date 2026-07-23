@@ -312,6 +312,16 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         patch1.block_avg.update_cached_conserved()
         patch2.block_avg.update_cached_conserved()
 
+        # The symmetrised interface state in target space, which _write_targets
+        # relaxes the mismatch onto. Taken here because the clip below is about
+        # to move the axial momentum, and a baseline is wanted for the state the
+        # two sides actually share rather than for the one the Jacobians are
+        # evaluated on.
+        b = patch1.block_avg
+        self._baseline = np.stack(
+            [b.ho_nd, b.s_nd, b.Vr_nd, b.Vt_nd, b.P_nd], axis=-1
+        ).reshape(nspan, 5)
+
         # Store the flux difference in v1
         v1[:] = flux2
         v1 -= flux1
@@ -359,12 +369,6 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         v2 = self._vec2[:nspan]
         J = self._jac_buf[:nspan]
 
-        # Each side's current target, the baseline the mismatch is relaxed onto.
-        target1 = patch1.get_target()
-        target2 = patch2.get_target()
-        if flip:
-            target2 = target2[::-1]
-
         # Split into upstream/downstream contributions in chic space
         v2[:] = v1  # copy dchic into v2
         v1[..., 1:] = 0.0  # v1 = dchic_up (keep upstream acoustic)
@@ -384,18 +388,22 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         # For some reason need a -ve sign on dtarget_dn here!
         v1 -= v2
 
-        # Relax the target-space mismatch onto the symmetrised baseline. v1
-        # holds the error e_n = dtarget; the increment is du = rf_exchange * e_n
-        # and the updated target is target_n = 0.5*(target1 + target2) + du.
+        # Relax the target-space mismatch onto the symmetrised interface state.
+        # v1 holds the error e_n = dtarget; the increment is du = rf_exchange *
+        # e_n and the updated target is target_n = baseline + du.
         state = self._ensure_pair_state(key, nspan)
 
         v1 *= patch1.rf_exchange  # v1 = du
         state["du"][:] = v1
 
-        # target_n = baseline + du.
-        v2[:] = target1
-        v2 += target2
-        v2 *= 0.5
+        # The baseline is the state the two sides currently share, not the
+        # previous target. Relaxing onto the previous target makes this an
+        # integrator, which is fine while the mismatch resolves and unbounded
+        # when it does not: at a reversed station the target used to walk away
+        # until it described no state the flow was ever in, and the patches
+        # tracked it there. Saxer applies his correction to the current jump and
+        # keeps no interface state between steps, which is what this is.
+        v2[:] = self._baseline
         v2 += v1
 
         # 0th-order extrapolation of targets at hub/casing walls

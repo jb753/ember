@@ -611,6 +611,41 @@ def test_mismatch_relaxes_to_matched_mean_fluxes():
     assert gap_after.max() < 1e-4, f"{gap_before} -> {gap_after}"
 
 
+def test_a_reversed_station_relaxes_like_any_other():
+    """The plane converges with a span station reversed, as it does without one.
+
+    The twin of :func:`test_mismatch_relaxes_to_matched_mean_fluxes`, differing
+    only in the reversed station, and held to the same limit.
+
+    It used to diverge: the reversal at that station deepened by an order of
+    magnitude, the target followed it, and the mean state went axially
+    supersonic within about a dozen iterations -- the two-block form of what
+    ended a LISA turbine run. The cause was the target integrating onto its own
+    previous value, so a mismatch that never resolved accumulated without bound
+    and the target walked away from any state the flow was in. Relaxing onto the
+    current symmetrised interface state instead leaves it nothing to wind up.
+
+    Reversed on both blocks, so the mean the exchange symmetrises is genuinely
+    reversed there rather than merely small.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(
+        up={"P": 1.05e5, "Vx": 105.0}, dn={"P": 0.95e5, "Vx": 95.0}
+    )
+    for block in grid:
+        Vx = block.Vx.copy()
+        Vx[:, 3, :] = -20.0
+        block.set_Vx(Vx)
+
+    relax((patch_up, patch_dn), comm, 100)
+
+    # The same limit the all-forward case converges to; that one reaches a few
+    # times 1e-6, so this is not a tight ask.
+    gap = flux_gap(patch_up, patch_dn)
+    assert gap.max() < 1e-4, f"flux gap {gap}"
+    # And the target stays a physical state rather than integrating away.
+    assert np.abs(patch_up.get_target()).max() < 20.0
+
+
 def test_exchange_leaves_harmonics_alone():
     """Only the pitch mean crosses the plane; the exchange must not touch harmonics."""
     grid, patch_up, patch_dn, comm = exchanged()
