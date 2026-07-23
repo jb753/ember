@@ -16,6 +16,9 @@ Test cases:
   bounded norm
 - Shared behaviour: characteristic round trip, relaxation linearity, copy
   semantics, unset targets, collection membership, class member order
+- Cadence: the condition advances once a timestep and apply only imposes, so a
+  cycle relaxes the same however many stages impose it, while the outgoing
+  characteristics still refresh on every one of them
 - Guards: backflow, axially supersonic, absolutely supersonic, and a length
   scale set after attachment carrying through to the averaged block
 """
@@ -35,9 +38,11 @@ from nonreflecting_util import (
     VT_MEAN,
     VX_MEAN,
     attached,
+    face_chic,
     face_prim,
     make_block,
     pitch_coords,
+    seed_chic,
 )
 
 # Target that mismatches the flow the block is built with, per kind, for the
@@ -232,10 +237,100 @@ def test_sigma_scales_the_correction_linearly(kind):
         _, patch = attached(kind, sigma=sigma, target=MISMATCH[kind])
         patch.update_soln()
         before = face_prim(patch)
+        patch.advance()
         patch.apply()
         changes[sigma] = face_prim(patch) - before
     ratio = np.abs(changes[0.5]).max() / np.abs(changes[1.0]).max()
     assert ratio == pytest.approx(0.5, abs=1e-3)
+
+
+def test_apply_alone_does_not_advance_the_condition(kind):
+    """The condition steps once a timestep, however many stages impose it.
+
+    Giles bounds that step per timestep -- his 1/N for N pitchwise nodes, a
+    restriction on how fast the pitchwise-nonlocal harmonic relations may
+    outrun an interior march that moves information one cell -- so taking it
+    once per Runge-Kutta stage would scale the rate with the stage count and
+    leave sigma dependent on the integrator.
+    """
+    _, patch = attached(kind, target=MISMATCH[kind])
+    patch.update_soln()
+    patch.advance()
+    patch.apply()
+    settled = face_prim(patch)
+
+    for _ in range(4):
+        patch.apply()
+
+    np.testing.assert_allclose(face_prim(patch), settled, rtol=1e-6)
+
+
+@pytest.mark.parametrize("n_stage", [2, 4])
+def test_a_cycle_relaxes_the_same_however_many_stages_impose_it(kind, n_stage):
+    """The same cycles relax the same, however many stages impose each one.
+
+    Driven by hand rather than through the solver, so the interior march cannot
+    mask the difference: the same cycles, differing only in how many times each
+    imposes. sigma is a per-timestep quantity and this is what makes it one.
+
+    Compared on _prim_prev, the characteristic state the condition owns, with
+    the nodal backflow limiter off. That limiter sits outside the linear theory
+    by design and is not idempotent under repeated imposition, so it carries a
+    stage-count dependence of its own -- pre-existing, and nothing to do with
+    the relaxation this is about.
+    """
+
+    def drive(stages):
+        _, patch = attached(kind, sigma=0.2, target=MISMATCH[kind])
+        patch._nodal_backflow = False
+        for _ in range(5):
+            patch.update_soln()
+            patch.advance()
+            for _ in range(stages):
+                patch.apply()
+        return patch._prim_prev
+
+    many, one = drive(n_stage), drive(1)
+    # Scaled to the state rather than element-wise: Vr is identically zero here,
+    # and repeated imposition costs a few 1e-7 of float32 round-trip through the
+    # equation of state. A stage-count dependence in the relaxation would be of
+    # order sigma, four decades above this.
+    np.testing.assert_allclose(many, one, rtol=0.0, atol=1e-5 * np.abs(one).max())
+
+
+def test_outgoing_characteristics_still_refresh_every_stage(kind):
+    """Imposing is per stage even though advancing is not.
+
+    The two were split apart; if imposition had been frozen along with the
+    condition's own step, a wave reaching the boundary mid-step would stop
+    passing through and the boundary would turn reflective within the step.
+    """
+    # The acoustic split is fixed by the geometry, so one index is outgoing on
+    # each kind whatever the flow does: c_up at an inlet, c_down at an outlet.
+    outgoing = {"inlet": 0, "outlet": 1}[kind]
+
+    eps = 2.0e-2
+    _, patch = attached(kind, target=MISMATCH[kind])
+    patch.update_soln()
+    patch.advance()
+    patch.apply()
+    before = face_chic(patch)
+
+    # Deposit an outgoing wave as a stage's march would, and impose with no
+    # advance after it.
+    wave = np.zeros(patch.shape + (5,), dtype=np.float32)
+    wave[..., outgoing] = eps * np.cos(2.0 * np.pi * patch.block_view.t / PITCH)
+    seed_chic(patch, wave)
+    patch.apply()
+
+    # The outgoing component came through; the incoming ones did not move,
+    # because nothing advanced the condition.
+    after = face_chic(patch)
+    assert np.abs(after[..., outgoing] - before[..., outgoing]).max() > 1e-2 * eps
+    incoming = [i for i in range(5) if i != outgoing]
+    np.testing.assert_allclose(
+        after[..., incoming], before[..., incoming], atol=1e-3 * eps
+    )
 
 
 def test_copy_preserves_targets_and_drops_caches(kind):
@@ -257,6 +352,10 @@ def test_apply_without_targets_raises(kind):
     block, patch_type, i_face = _bare(kind)
     patch = patch_type(i=i_face)
     block.patches.append(patch)
+    # advance() stands aside with nothing prescribed, leaving apply() to report
+    # it, so a patch missing a setter names the setter rather than failing in
+    # the characteristic solve.
+    patch.advance()
     with pytest.raises(ValueError, match="missing boundary condition values"):
         patch.apply()
 
@@ -324,6 +423,7 @@ def test_reversed_mean_does_not_raise(kind):
     """Reversal is the other row of the table, not an error."""
     _, patch = attached(kind, Vx=-10.0, target={})
     patch.update_soln()
+    patch.advance()
     patch.apply()
     assert np.isfinite(face_prim(patch)).all()
 

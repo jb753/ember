@@ -121,6 +121,7 @@ def test_apply_names_the_missing_setters():
     block.patches.append(patch)
     patch.set_Alpha(0.0)
     with pytest.raises(ValueError, match="set_ho_s or set_Po_To, set_Beta"):
+        patch.advance()
         patch.apply()
 
 
@@ -214,6 +215,7 @@ def test_backflow_P_seeds_from_the_inflow_plane_when_not_set():
     # Frozen: a later step does not re-derive it from a face this patch has
     # since been writing, which would leave the residual identically zero.
     seed = np.copy(patch.P_nd)
+    patch.advance()
     patch.apply()
     patch.update_soln()
     np.testing.assert_array_equal(patch.P_nd, seed)
@@ -244,6 +246,7 @@ def test_reversed_station_converges_to_the_prescribed_pressure(span_dim):
     )
     for _ in range(80):
         patch.update_soln()
+        patch.advance()
         patch.apply()
 
     P_face = _span_profile(patch, patch.block_view.P_nd)
@@ -262,6 +265,7 @@ def test_reversed_station_does_not_impose_the_inflow_state():
     patch.set_ho_s(ho_target, float(reference_state().s))
     for _ in range(80):
         patch.update_soln()
+        patch.advance()
         patch.apply()
 
     ho_face = _span_profile(patch, patch.block_view.ho_nd)
@@ -284,9 +288,11 @@ def test_fixed_point(Vt, Vr):
     before = block.conserved_nd.copy()
     scale = np.abs(before).max()
     patch.update_soln()
+    patch.advance()
     patch.apply()
     assert np.abs(block.conserved_nd - before).max() < 1e-5 * scale
     # And still a fixed point on a second visit.
+    patch.advance()
     patch.apply()
     assert np.abs(block.conserved_nd - before).max() < 1e-5 * scale
 
@@ -304,6 +310,7 @@ def test_mean_acoustic_wave_passes_through():
     wave = np.zeros(patch.shape + (5,), dtype=np.float32)
     wave[..., 0] = eps
     seed_chic(patch, wave)
+    patch.advance()
     patch.apply()
     assert np.abs(face_chic(patch)[..., 0] - eps).max() < 1e-3 * eps
 
@@ -332,6 +339,7 @@ def test_mean_newton_step_is_second_order():
         wave = np.zeros(patch.shape + (5,), dtype=np.float32)
         wave[..., 0] = eps
         seed_chic(patch, wave)
+        patch.advance()
         patch.apply()
         b = patch.block_view
         resid.append(
@@ -362,6 +370,7 @@ def test_harmonic_reflection_coefficient(mode, Vt):
     wave = np.zeros(patch.shape + (5,), dtype=np.float32)
     wave[..., 0] = eps * np.cos(2.0 * np.pi * mode * b.t / PITCH)
     seed_chic(patch, wave)
+    patch.advance()
     patch.apply()
 
     dchic = face_chic(patch)
@@ -421,6 +430,7 @@ def test_analytic_potential_disturbance_is_a_fixed_point(mode):
 
     before = face_prim(patch)
     perturbation = np.abs(before - patch._ref["prim"]).max()
+    patch.advance()
     patch.apply()
     change = np.abs(face_prim(patch) - before).max()
 
@@ -445,6 +455,7 @@ def test_entropy_and_ho_stay_pitch_uniform():
         amp = rng.uniform(0.5, 1.5)
         wave[..., 0] += 2.0e-2 * amp * np.cos(2.0 * np.pi * mode * b.t / PITCH)
     seed_chic(patch, wave)
+    patch.advance()
     patch.apply()
 
     spread_ho = np.ptp(b.ho_nd, axis=patch.pitch_dim).max()
@@ -472,6 +483,7 @@ def test_converges_to_prescribed_state():
     errs = []
     for _ in range(200):
         patch.update_soln()
+        patch.advance()
         patch.apply()
         errs.append(
             max(
@@ -496,6 +508,7 @@ def test_nonuniform_pitch_end_to_end():
     wave = np.zeros(patch.shape + (5,), dtype=np.float32)
     wave[..., 0] = 2.0e-2 * np.cos(2.0 * np.pi * b.t / PITCH)
     seed_chic(patch, wave)
+    patch.advance()
     patch.apply()
 
     dchic = face_chic(patch)

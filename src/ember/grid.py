@@ -1335,24 +1335,30 @@ class Grid(_LabelledList):
             self.connectivity.mixing.exchange()
             self.connectivity.mixing_nonreflecting.exchange()
 
+        # Every non-reflecting patch takes update_soln to refresh the frozen
+        # mean state its Jacobians and characteristic split are built on, then
+        # advance for the one under-relaxed step of the condition itself. Both
+        # belong here rather than in apply_bconds: Giles bounds that step per
+        # timestep, so taking it per Runge-Kutta stage would scale it with the
+        # stage count. apply() imposes the result every stage.
         for block in self:
             for patch in block.patches.inlet:
                 patch.update_soln()
             for patch in block.patches.inlet_nonreflecting:
                 patch.update_soln()
+                patch.advance()
             # No loop over the reflecting plane: MixingPatch holds no per-step
             # state of its own, only the target the exchange above just wrote.
-            # The non-reflecting one does -- update_soln re-derives the frozen
-            # mean state its Jacobians and its characteristic split are built
-            # on, which apply() otherwise computes once and holds for the whole
-            # run, leaving the plane linearised about the initial guess and
-            # unable to notice a station reversing. Outside the freeze gate,
-            # like the inlet and outlet snapshots and for the same reason.
-            # Neither plane takes update_target: both sides take their target
-            # from the exchange, not from a prescribed level plus a spanwise
-            # adjustment.
+            # The non-reflecting one does, and without it apply() would compute
+            # the reference once and hold it for the whole run, leaving the
+            # plane linearised about the initial guess and unable to notice a
+            # station reversing. Outside the freeze gate, like the inlet and
+            # outlet snapshots and for the same reason. Neither plane takes
+            # update_target: both sides take their target from the exchange,
+            # not from a prescribed level plus a spanwise adjustment.
             for patch in block.patches.mixing_nonreflecting:
                 patch.update_soln()
+                patch.advance()
             for patch in block.patches.outlet:
                 patch.update_soln()
                 if not freeze:
@@ -1361,6 +1367,7 @@ class Grid(_LabelledList):
                 patch.update_soln()
                 if not freeze:
                     patch.update_target()
+                patch.advance()
 
     def update_cached_conserved(self):
         """Refresh conserved-dependent caches on every block.

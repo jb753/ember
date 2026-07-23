@@ -237,6 +237,7 @@ def test_apply_lands_on_the_adjusted_target():
     patch.set_adjustment(radial_equilibrium=True, rf=1.0)
     patch.update_target()
     patch.update_soln()
+    patch.advance()
     patch.apply()
 
     got = _span_profile(patch, patch.block_view.P_nd)
@@ -285,9 +286,11 @@ def test_fixed_point(Vt, Vr):
     before = block.conserved_nd.copy()
     scale = np.abs(before).max()
     patch.update_soln()
+    patch.advance()
     patch.apply()
     assert np.abs(block.conserved_nd - before).max() < 1e-5 * scale
     # And still a fixed point on a second visit.
+    patch.advance()
     patch.apply()
     assert np.abs(block.conserved_nd - before).max() < 1e-5 * scale
 
@@ -303,6 +306,7 @@ def test_mean_mode_lands_on_the_prescribed_pressure(ratio):
     """
     _, patch = _attached(target={"P": P_MEAN * ratio})
     patch.update_soln()
+    patch.advance()
     patch.apply()
     P_target_nd = P_MEAN * ratio / FLUID.P_ref
     got = patch._pitch_mean(patch.block_view.P_nd)
@@ -330,6 +334,7 @@ def test_harmonic_relation_matches_theory(mode, Vt):
     _, patch = _attached(Vt=Vt)
     patch.update_soln()
     _seed_harmonic(patch, mode, amp_t=amp_t, amp_down=amp_down)
+    patch.advance()
     patch.apply()
 
     avg = patch.block_avg
@@ -363,6 +368,7 @@ def test_outgoing_characteristics_are_untouched(idx):
     seed_chic(patch, wave)
 
     before = face_chic(patch)
+    patch.advance()
     patch.apply()
     after = face_chic(patch)
     assert np.abs(after[..., 1:] - before[..., 1:]).max() < 1e-3 * eps
@@ -386,6 +392,7 @@ def test_acoustic_harmonic_leaves_no_pressure_without_swirl():
     dP_before = np.abs(harmonic(patch, b.P_nd)).max()
     dVx_before = np.abs(harmonic(patch, b.Vx_nd)).max()
 
+    patch.advance()
     patch.apply()
 
     assert np.abs(harmonic(patch, b.P_nd)).max() < 1e-2 * dP_before
@@ -438,6 +445,7 @@ def test_analytic_potential_disturbance_is_a_fixed_point(mode):
 
     before = face_prim(patch)
     disturbance = np.abs(before - patch._ref["prim"]).max()
+    patch.advance()
     patch.apply()
     change = np.abs(face_prim(patch) - before).max()
 
@@ -465,6 +473,7 @@ def test_harmonics_do_not_disturb_the_mean():
     seed_chic(patch, wave)
 
     P_target_nd = P_MEAN / FLUID.P_ref
+    patch.advance()
     patch.apply()
     assert np.abs(harmonic(patch, b.P_nd)).max() > 1e-4, "no harmonic content left"
     got = patch._pitch_mean(b.P_nd)
@@ -485,6 +494,7 @@ def test_converges_to_prescribed_pressure():
     errs = []
     for _ in range(100):
         patch.update_soln()
+        patch.advance()
         patch.apply()
         errs.append(float(np.abs(patch._pitch_mean(b.P_nd) - P_target_nd).max()))
 
@@ -508,6 +518,7 @@ def test_nonuniform_pitch_end_to_end():
     _, patch = _attached(npitch=33, stretch=0.4)
     patch.update_soln()
     _seed_harmonic(patch, 1, amp_t=amp_t, amp_down=amp_down)
+    patch.advance()
     patch.apply()
 
     avg = patch.block_avg
@@ -749,6 +760,7 @@ def test_reversed_station_converges_to_the_prescribed_state(span_dim):
     patch = _backflow_patch(block, sigma=0.5)
     for _ in range(80):
         patch.update_soln()
+        patch.advance()
         patch.apply()
 
     b = patch.block_view
@@ -764,6 +776,7 @@ def test_reversed_station_does_not_impose_the_exit_pressure():
     patch = _backflow_patch(block, P=1.2 * P_MEAN, sigma=0.5)
     for _ in range(80):
         patch.update_soln()
+        patch.advance()
         patch.apply()
 
     P_face = _span_profile(patch, patch.block_view.P_nd)
@@ -780,6 +793,7 @@ def test_nodal_backflow_falls_back_to_the_seeded_state():
     block = _backflow_block(rev_node=((3, 5),))
     patch = _backflow_patch(block, backflow=False)
     patch.update_soln()
+    patch.advance()
     patch.apply()
 
     assert not patch._entering.any()
@@ -797,6 +811,7 @@ def test_nodal_backflow_imposes_the_prescribed_state_on_reversed_nodes():
     block = _backflow_block(rev_node=((3, 5),))
     patch = _backflow_patch(block)
     patch.update_soln()
+    patch.advance()
     patch.apply()
 
     assert not patch._entering.any()
@@ -822,6 +837,7 @@ def test_nodal_backflow_leaves_the_rest_of_the_face_untouched():
     imposed = _backflow_patch(_backflow_block(rev_node=(node,)))
     for patch in (plain, imposed):
         patch.update_soln()
+        patch.advance()
         patch.apply()
 
     got = imposed.block_view.conserved_nd.copy()
@@ -839,6 +855,7 @@ def test_nodal_backflow_stays_out_of_the_carried_state():
     imposed = _backflow_patch(_backflow_block(rev_node=(node,)))
     for patch in (plain, imposed):
         patch.update_soln()
+        patch.advance()
         patch.apply()
 
     np.testing.assert_array_equal(imposed._prim_prev, plain._prim_prev)
@@ -853,6 +870,7 @@ def test_nodal_backflow_defers_to_a_reversed_station():
     block = _backflow_block(rev_span=(2,), rev_node=((3, 5),))
     patch = _backflow_patch(block, sigma=0.5)
     patch.update_soln()
+    patch.advance()
     patch.apply()
 
     b = patch.block_view

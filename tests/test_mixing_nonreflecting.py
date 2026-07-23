@@ -120,6 +120,7 @@ def relax(patches, comm, n_iter):
         comm.exchange()
         for patch in patches:
             patch.update_soln()
+            patch.advance()
             patch.apply()
 
 
@@ -332,6 +333,7 @@ def test_reversed_station_takes_its_inflow_state_from_the_exchange():
 
     for _ in range(60):
         patch_up.update_soln()
+        patch_up.advance()
         patch_up.apply()
 
     b = patch_up.block_view
@@ -374,6 +376,7 @@ def test_reversed_station_on_the_inflow_side_takes_the_exchanged_pressure():
 
     for _ in range(60):
         patch_dn.update_soln()
+        patch_dn.advance()
         patch_dn.apply()
 
     P_face = np.asarray(patch_dn._pitch_mean(patch_dn.block_view.P_nd)).squeeze()
@@ -412,6 +415,7 @@ def test_exchange_survives_a_stalled_span_station():
 
     for patch in (patch_up, patch_dn):
         patch.update_soln()
+        patch.advance()
         patch.apply()
 
     for block in grid:
@@ -645,6 +649,7 @@ def test_harmonic_acoustic_is_absorbed():
 
     amp_before = np.abs(harmonic(patch_up, patch_up.block_view.P_nd)).max()
     comm.exchange()
+    patch_up.advance()
     patch_up.apply()
     amp_after = np.abs(harmonic(patch_up, patch_up.block_view.P_nd)).max()
 

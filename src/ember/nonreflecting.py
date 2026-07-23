@@ -14,8 +14,8 @@ boundary node exactly as the scheme left it and never overwritten, so a wave
 reaching the boundary passes through -- when its wave speed carries it out of
 the domain, :math:`\lambda\,n_x < 0` for the inward face normal
 :attr:`~NonReflectingPatch._sign_interior`. The rest are *incoming*: discarded
-each Runge-Kutta stage and rebuilt from the prescribed mean state and the
-non-reflecting relations, then applied under-relaxed by
+rather than taken from the march, and rebuilt once a timestep from the
+prescribed mean state and the non-reflecting relations, under-relaxed by
 :attr:`~NonReflectingPatch.sigma`.
 
 Working that out for the wave speeds
@@ -121,10 +121,13 @@ class NonReflectingPatch(RevolutionPatch):
     treatment, both harmonic relations and the reversed-flow handling are all
     here.
 
-    :meth:`apply` is called once per Runge-Kutta stage and :meth:`update_soln`
-    once per timestep, the latter refreshing the reference state to match Giles'
-    definition of the characteristic variables as perturbations about the
-    time-level-:math:`n` average.
+    :meth:`update_soln` and :meth:`advance` are called once per timestep, the
+    first refreshing the reference state to match Giles' definition of the
+    characteristic variables as perturbations about the time-level-:math:`n`
+    average, the second taking the condition's one under-relaxed step on it.
+    :meth:`apply` is called once per Runge-Kutta stage and only imposes what
+    those two settled, so the rate of the condition does not scale with the
+    stage count.
 
     The condition is restricted to a constant-:math:`x` plane and to an axially
     subsonic, absolutely subsonic mean state; each restriction is checked and
@@ -367,9 +370,9 @@ class NonReflectingPatch(RevolutionPatch):
         """One modified Newton step on the prescribed pitchwise-mean quantities.
 
         The residual is evaluated on the state about to be corrected and only
-        the Jacobian is frozen. Reading the residual from the frozen reference
-        too would leave it up to ``n_stage`` stages stale, so repeated stages
-        would re-apply one correction rather than converge on it.
+        the Jacobian is frozen, so successive timesteps converge on the target
+        rather than re-applying one correction against a reference that is
+        already a step out of date.
 
         Parameters
         ----------
@@ -974,8 +977,12 @@ class NonReflectingPatch(RevolutionPatch):
         self._rho_nd_soln = None
         # Under-relaxation of the characteristic correction, Giles Eq. 5.25,
         # needed for wellposedness. He suggests 1/N for N pitchwise nodes,
-        # applied once per timestep; ember applies this once per Runge-Kutta
-        # stage, so the effective rate per step is larger by the stage count.
+        # applied once per timestep, and advance() takes it exactly once per
+        # timestep, so the two are in the same units: set it to 1/N and it is
+        # 1/N. The bound is not about the transform amplifying -- it cannot,
+        # its norm grows only logarithmically -- but about how far the
+        # pitchwise-nonlocal harmonic relations may spread information in one
+        # application while the explicit interior march moves it one cell.
         self.sigma = 0.05
 
     def _span_bcast(self, arr):
@@ -1009,14 +1016,8 @@ class NonReflectingPatch(RevolutionPatch):
             self.pitch_dim,
         )
 
-    def apply(self):
-        r"""Impose the non-reflecting condition on the patch.
-
-        Called once per Runge-Kutta stage. The face state is decomposed into
-        characteristic deviations from the frozen reference state of
-        :meth:`update_soln`, the outgoing characteristics are left exactly as the
-        interior march deposited them, and :meth:`_calc_dchic` supplies the
-        change in the incoming ones, applied under-relaxed by :attr:`sigma`.
+    def _recombine(self):
+        r"""The face state this patch stands behind, given the marched interior.
 
         The interior march updates all five characteristics at the boundary
         node, but only the outgoing ones carry legitimate information from
@@ -1026,25 +1027,19 @@ class NonReflectingPatch(RevolutionPatch):
         under-relaxing on top lets the interior drive the incoming
         characteristics, which is unstable, and worse the smaller
         :attr:`sigma` is. So the outgoing characteristics are taken from the
-        marched face and the incoming ones from this patch's own previous
-        output.
+        marched face and the incoming ones from this patch's own last output.
 
         Because the characteristic transform is linear with frozen
-        coefficients, the update is exactly ``prim += sigma * c2p @ dchic`` with
-        zero outgoing components, so no reflection is introduced by the
-        reconstruction itself.
+        coefficients, this reconstruction introduces no reflection of its own.
 
-        The result is stored as the state to carry into the next stage before
-        :meth:`_calc_override` is given the chance to change what actually
-        reaches the block, so a condition that has to depart from its own
-        linear theory somewhere does not thereby corrupt the characteristic
-        state it is still solving on.
+        Returns
+        -------
+        dchic : array
+            Characteristic deviation of that state from the reference,
+            shape ``(*shape, 5)``.
+        prim : array
+            The same state in primitives, shape ``(*shape, 5)``.
         """
-        if not self._target_set[list(self._target_setters)].all():
-            self._raise_unset()
-        if self._ref is None:
-            self._calc_reference()
-
         b = self.block_view
         ref = self._ref
 
@@ -1055,13 +1050,62 @@ class NonReflectingPatch(RevolutionPatch):
         dchic_prev = util.matvec(ref["p2c"], self._prim_prev - ref["prim"])
         dchic_marched = util.matvec(ref["p2c"], prim_marched - ref["prim"])
         dchic = np.where(self._mask_out, dchic_marched, dchic_prev)
-        prim = ref["prim"] + util.matvec(ref["c2p"], dchic)
+        return dchic, ref["prim"] + util.matvec(ref["c2p"], dchic)
 
-        prim_new = prim + self.sigma * util.matvec(
-            ref["c2p"], self._calc_dchic(dchic, prim)
+    def advance(self):
+        r"""Take the boundary condition's one step; call once per timestep.
+
+        :meth:`_calc_dchic` supplies the change in the incoming characteristics
+        and :attr:`sigma` scales it, which is exactly Giles' Eq. 5.25
+        correction. This is the whole of a timestep's boundary-condition
+        change: :meth:`apply` only imposes the result, once per stage.
+
+        Per timestep and not per stage because the harmonic relations couple
+        every pitchwise node to every other through the Hilbert transform, so
+        one application can spread information across the whole pitch while the
+        explicit interior march moves it one cell. Giles' :math:`1/N` for
+        :math:`N` pitchwise nodes is the restriction that keeps the two in step,
+        and it is a bound per timestep; taking the step once per stage
+        multiplied the rate by the stage count and left :attr:`sigma` dependent
+        on the integrator.
+
+        A no-op until something has been prescribed, so that a patch missing a
+        setter still reports it from :meth:`apply` rather than from here.
+        """
+        if not self._target_set[list(self._target_setters)].all():
+            return
+        if self._ref is None:
+            self._calc_reference()
+
+        dchic, prim = self._recombine()
+        self._prim_prev = prim + self.sigma * util.matvec(
+            self._ref["c2p"], self._calc_dchic(dchic, prim)
         )
-        self._prim_prev = prim_new
-        prim_write = self._calc_override(prim_new)
+
+    def apply(self):
+        r"""Impose the non-reflecting condition on the patch.
+
+        Called once per Runge-Kutta stage, and imposes only: the outgoing
+        characteristics are re-read from the marched face every stage so a wave
+        reaching the boundary still passes through within the step, while the
+        incoming ones are the state :meth:`update_soln` last authored. The
+        :attr:`sigma`-relaxed correction that advances that state is taken there,
+        once per timestep, not here.
+
+        :meth:`_calc_override` is given the chance to change what actually
+        reaches the block, and its result is deliberately not carried back into
+        :attr:`_prim_prev`, so a condition that has to depart from its own linear
+        theory somewhere does not thereby corrupt the characteristic state it is
+        still solving on.
+        """
+        if not self._target_set[list(self._target_setters)].all():
+            self._raise_unset()
+        if self._ref is None:
+            self._calc_reference()
+
+        b = self.block_view
+        _, prim = self._recombine()
+        prim_write = self._calc_override(prim)
         rho_nd, u_nd = b.fluid.set_P_rho(prim_write[..., 4], prim_write[..., 0])
         b.set_rho_u_Vxrt_nd(
             rho_nd, u_nd, prim_write[..., 1], prim_write[..., 2], prim_write[..., 3]
@@ -1098,6 +1142,9 @@ class NonReflectingPatch(RevolutionPatch):
         the step. Snapshots the density first, so a reversed node's density is
         relaxed from the start-of-step value rather than from whatever the last
         stage happened to leave.
+
+        Pairs with :meth:`advance`, which takes the boundary condition's own
+        step on the reference this leaves behind.
         """
         self._rho_nd_soln = self.block_view.rho_nd.copy()
         self._calc_reference()

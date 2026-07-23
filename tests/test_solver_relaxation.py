@@ -13,10 +13,14 @@ Test cases:
 - Push: each setting lands on the patches it names, and on no others
 - Defaults: the configured value is imposed over whatever the patches carried
   in, and passing None is what opts out and keeps theirs
+- Cadence: a run advances each non-reflecting condition once a step, so the
+  factors mean the same thing whatever the stage count
 - Independence: rf_mix and rf_exchange are separate knobs despite the names
 - Wiring: a real run applies them, and a full-multigrid run applies them on
   every level of its chain
 """
+
+from collections import Counter
 
 import numpy as np
 import pytest
@@ -244,6 +248,40 @@ def test_the_defaults_are_imposed_over_a_hand_set_value():
     )
     assert grid.patches.inlet_nonreflecting[0].sigma == pytest.approx(conf.rf_inlet)
     assert grid.patches.outlet_nonreflecting[0].sigma == pytest.approx(conf.rf_outlet)
+
+
+@pytest.mark.parametrize("n_stage", [2, 4])
+def test_the_solver_advances_each_condition_once_a_step(n_stage, monkeypatch):
+    """update_bconds advances; apply_bconds only imposes, however many stages.
+
+    Giles bounds the condition's step per timestep, so a run has to take it once
+    a step. It used to be taken inside apply(), which apply_bconds calls once at
+    the top of the step and once per stage, making the rate scale with the
+    integrator and putting sigma's meaning beyond stating.
+    """
+    counts = Counter()
+    for cls in (
+        NonReflectingInletPatch,
+        NonReflectingOutletPatch,
+        NonReflectingMixingPatch,
+    ):
+        original = cls.advance
+
+        def counted(self, _original=original):
+            counts[type(self).__name__] += 1
+            return _original(self)
+
+        monkeypatch.setattr(cls, "advance", counted)
+
+    grid = make_grid()
+    ember.solver.Solver(
+        n_step=N_STEP, n_step_avg=1, n_step_log=N_STEP, n_stage=n_stage
+    ).run(grid)
+
+    assert counts["NonReflectingInletPatch"] == N_STEP
+    assert counts["NonReflectingOutletPatch"] == N_STEP
+    # Two sides to the plane, one advance each.
+    assert counts["NonReflectingMixingPatch"] == 2 * N_STEP
 
 
 # Independence
