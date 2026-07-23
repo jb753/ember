@@ -228,16 +228,22 @@ def test_the_defaults_are_imposed_over_a_hand_set_value():
     The alternative -- defaulting to None -- would leave the damping of a run
     depending on state the grid happened to arrive with, which is invisible in
     the settings the run was launched from.
+
+    Read against the dataclass's own defaults rather than literals, so retuning
+    one does not fail a test that is about where the value lands.
     """
     grid = make_grid()
     hand_set(grid)
 
-    solver().run(grid)
+    conf = solver()
+    conf.run(grid)
 
-    np.testing.assert_allclose(sigmas(grid.patches.mixing_nonreflecting), 0.05)
-    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing_nonreflecting), 0.05)
-    assert grid.patches.inlet_nonreflecting[0].sigma == pytest.approx(0.05)
-    assert grid.patches.outlet_nonreflecting[0].sigma == pytest.approx(0.05)
+    np.testing.assert_allclose(sigmas(grid.patches.mixing_nonreflecting), conf.rf_mix)
+    np.testing.assert_allclose(
+        rf_exchanges(grid.patches.mixing_nonreflecting), conf.rf_exchange
+    )
+    assert grid.patches.inlet_nonreflecting[0].sigma == pytest.approx(conf.rf_inlet)
+    assert grid.patches.outlet_nonreflecting[0].sigma == pytest.approx(conf.rf_outlet)
 
 
 # Independence

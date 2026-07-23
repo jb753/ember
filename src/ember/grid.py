@@ -812,7 +812,14 @@ class Grid(_LabelledList):
         # Refresh mixing-plane targets from the current cross-plane state before
         # the mixing patches read them in their apply step below.
         self.connectivity.mixing.exchange()
-        self.connectivity.mixing_nonreflecting.exchange()
+        # Not the non-reflecting plane: its exchange is a target update, not a
+        # boundary application, so it belongs once per outer step in
+        # update_bconds alongside the reference state its patches freeze there.
+        # Running it here as well relaxed the target once per Runge-Kutta
+        # substage, which made the effective rate scale with n_stage and let the
+        # target chase intermediate stage states that are not a solution at any
+        # time level.
+        # self.connectivity.mixing_nonreflecting.exchange()
 
         for block in self:
             for patch in block.patches.inlet:
@@ -1326,20 +1333,26 @@ class Grid(_LabelledList):
         """
         if not freeze:
             self.connectivity.mixing.exchange()
-            # self.connectivity.mixing_nonreflecting.exchange()
+            self.connectivity.mixing_nonreflecting.exchange()
 
         for block in self:
             for patch in block.patches.inlet:
                 patch.update_soln()
             for patch in block.patches.inlet_nonreflecting:
                 patch.update_soln()
-            # No mixing loop: MixingPatch holds no per-step state of its own,
-            # only the target the exchange above just wrote. And no
-            # update_target on either mixing plane: both sides take their
-            # target from that exchange, not from a prescribed level plus a
-            # spanwise adjustment.
-            # for patch in block.patches.mixing_nonreflecting:
-            #     patch.update_soln()
+            # No loop over the reflecting plane: MixingPatch holds no per-step
+            # state of its own, only the target the exchange above just wrote.
+            # The non-reflecting one does -- update_soln re-derives the frozen
+            # mean state its Jacobians and its characteristic split are built
+            # on, which apply() otherwise computes once and holds for the whole
+            # run, leaving the plane linearised about the initial guess and
+            # unable to notice a station reversing. Outside the freeze gate,
+            # like the inlet and outlet snapshots and for the same reason.
+            # Neither plane takes update_target: both sides take their target
+            # from the exchange, not from a prescribed level plus a spanwise
+            # adjustment.
+            for patch in block.patches.mixing_nonreflecting:
+                patch.update_soln()
             for patch in block.patches.outlet:
                 patch.update_soln()
                 if not freeze:

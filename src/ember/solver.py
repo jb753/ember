@@ -365,13 +365,13 @@ class Solver(BaseSolver):
     touch the plain :class:`~ember.outlet.OutletPatch`, which takes its own
     relaxation via ``set_adjustment(rf=...)``."""
 
-    rf_mix: float | None = 0.05
+    rf_mix: float | None = 0.01
     """As :attr:`rf_inlet`, for every
     :class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch`. This is each
     side's own characteristic relaxation; :attr:`rf_exchange` is the separate
     factor on the cross-plane exchange between them."""
 
-    rf_exchange: float | None = 0.05
+    rf_exchange: float | None = 0.01
     """Relaxation of the cross-plane mismatch on every mixing plane, reflecting
     (:class:`~ember.mixing.MixingPatch`) and non-reflecting alike. Read from the
     patches by

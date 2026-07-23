@@ -278,6 +278,32 @@ def test_copy_keeps_target_views_live():
     assert np.allclose(clone.ho_nd, clone._target[..., 0])
 
 
+def test_update_bconds_refreshes_the_frozen_mean_state():
+    """The plane re-derives its reference every step, like the inlet and outlet.
+
+    apply() builds the reference only if it has none, so without a per-step
+    update_soln the plane stays linearised about whatever state it first saw --
+    for a whole run, that is the initial guess -- and its characteristic split
+    is frozen with it, leaving a station that reverses during the transient
+    still treated as forward-running.
+    """
+    grid, patch_up, patch_dn, comm = exchanged()
+    grid.update_bconds()
+    assert not patch_up._entering[3]
+
+    # Reverse one span station over the upstream block's whole axial extent,
+    # after the plane has already built a reference on the forward flow.
+    block = grid[0]
+    Vx = block.Vx.copy()
+    Vx[:, 3, :] = -20.0
+    block.set_Vx(Vx)
+
+    grid.update_bconds()
+
+    assert patch_up._entering[3]
+    assert not patch_up._entering[[0, 1, 2, 4, 5, 6]].any()
+
+
 def test_reversed_station_takes_its_inflow_state_from_the_exchange():
     """The outflow side needs nothing configured to carry a reversed station.
 
