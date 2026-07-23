@@ -12,8 +12,12 @@ def _frozen_copy(a):
     return out
 
 
-def _cons_filt_refs(block):
-    """Per-component dimensional reference scales for conserved_filt_nd."""
+def _cons_refs(block):
+    """Per-component dimensional reference scales for a stack of conserved variables.
+
+    Used for both ``conserved_filt_nd`` and the mixing-plane ``_target``, which
+    is a conserved-variable stack too.
+    """
     f = block.fluid
     return np.array(
         [
@@ -83,16 +87,7 @@ class BlockRestart:
         One read-only array per MixingPatch, in `block.patches.mixing`
         order. Each is `_target` dimensionalized so reference
         scales between save and restore can differ; stack along last
-        axis is [ho, s, Vr, Vt, P].
-    mixing_rho_soln : tuple of (ndarray or None)
-        One entry per MixingPatch, in `block.patches.mixing` order. The
-        patch's `_rho_nd_soln` density-relaxation reference, or None if it
-        was never seeded.
-    inlet_rho_soln : tuple of (ndarray or None)
-        One entry per InletPatch, in `block.patches.inlet` order. The
-        patch's `_V_nd_soln` velocity-relaxation reference, or None if it
-        was never seeded. The field name predates the inlet moving its
-        relaxation from pressure onto velocity and is kept for back-compat.
+        axis is the conserved variables [rho, rhoVx, rhoVr, rho*r*Vt, rho*e].
     """
 
     conserved: np.ndarray
@@ -101,8 +96,6 @@ class BlockRestart:
     outlet_rho_soln: tuple = ()
     outlet_P_last: tuple = ()
     mixing: tuple = ()
-    mixing_rho_soln: tuple = ()
-    inlet_rho_soln: tuple = ()
 
     def __post_init__(self):
         object.__setattr__(self, "conserved", _frozen_copy(self.conserved))
@@ -126,20 +119,6 @@ class BlockRestart:
             ),
         )
         object.__setattr__(self, "mixing", tuple(_frozen_copy(a) for a in self.mixing))
-        object.__setattr__(
-            self,
-            "mixing_rho_soln",
-            tuple(
-                _frozen_copy(a) if a is not None else None for a in self.mixing_rho_soln
-            ),
-        )
-        object.__setattr__(
-            self,
-            "inlet_rho_soln",
-            tuple(
-                _frozen_copy(a) if a is not None else None for a in self.inlet_rho_soln
-            ),
-        )
 
 
 def make_restart(grid):
@@ -166,11 +145,8 @@ def make_restart(grid):
         outlet_rho_soln = tuple(p._rho_nd_soln for p in block.patches.outlet)
         outlet_P_last = tuple(p._P_last_nd for p in block.patches.outlet)
 
-        refs = block._mixing_refs()
+        refs = _cons_refs(block)
         mixing = tuple(p._target * refs for p in block.patches.mixing)
-        mixing_rho_soln = tuple(p._P_nd_soln for p in block.patches.mixing)
-
-        inlet_rho_soln = tuple(p._V_nd_soln for p in block.patches.inlet)
 
         # conserved_filt_nd is a cached Block property; read its store entry
         # directly so a block that never allocated it still saves None (no lag).
@@ -178,7 +154,7 @@ def make_restart(grid):
         cons_filt_nd = None if _filt_entry is None else _filt_entry[1]
         if cons_filt_nd is not None:
             lag_nd = cons_filt_nd - block.conserved_cell_nd
-            cons_filt_lag_dim = lag_nd * _cons_filt_refs(block)
+            cons_filt_lag_dim = lag_nd * _cons_refs(block)
         else:
             cons_filt_lag_dim = None
 
@@ -190,8 +166,6 @@ def make_restart(grid):
                 outlet_rho_soln=outlet_rho_soln,
                 outlet_P_last=outlet_P_last,
                 mixing=mixing,
-                mixing_rho_soln=mixing_rho_soln,
-                inlet_rho_soln=inlet_rho_soln,
             )
         )
     return restarts
@@ -216,11 +190,10 @@ def apply_restart(block, restart):
     The outlet spanwise-adjustment relaxation profile (`_P_last_nd`) is
     restored when present, index-interpolated if shapes differ.
 
-    Per-patch relaxation anchors (`_rho_nd_soln` on outlet and mixing,
-    `_V_nd_soln` on inlet) are NOT restored: they are start-of-step
-    references that `Grid.update_bconds` overwrites via each patch's
-    `update_soln()` before any `apply()` reads them, so restoring them has no
-    effect (see body).
+    The outlet density relaxation anchor (`_rho_nd_soln`) is NOT restored: it
+    is a start-of-step reference that `Grid.update_bconds` overwrites via
+    `OutletPatch.update_soln()` before any `apply()` reads it, so restoring it
+    has no effect (see body).
 
     The flux-kernel pressure datum `Block.P_offset_nd` is no longer saved or
     restored: it is a cached property keyed on the conserved state, so it
@@ -234,7 +207,7 @@ def apply_restart(block, restart):
     interp_from_conserved(block, restart.conserved)
 
     if restart.conserved_filt_lag is not None:
-        refs = _cons_filt_refs(block)
+        refs = _cons_refs(block)
         lag_nd = restart.conserved_filt_lag / refs
         target_shape = block.shape_cell + (5,)
         if lag_nd.shape != target_shape:
@@ -272,12 +245,11 @@ def apply_restart(block, restart):
     # consistent with the field on this grid by construction. (restart.mixing
     # is still saved for diagnostics/back-compat.)
     #
-    # The per-patch relaxation anchors (_rho_nd_soln on outlet, _P_nd_soln on
-    # mixing, _V_nd_soln on inlet) are likewise NOT restored. They are
-    # start-of-step relaxation references, refreshed every timestep by each
-    # patch's update_soln() in Grid.update_bconds before any apply() reads
-    # them, so a restored value is overwritten before it can take effect.
-    # update_soln() re-anchors them to the boundary-face field that
+    # The outlet's density relaxation anchor (_rho_nd_soln) is likewise NOT
+    # restored. It is a start-of-step relaxation reference, refreshed every
+    # timestep by OutletPatch.update_soln() in Grid.update_bconds before any
+    # apply() reads it, so a restored value is overwritten before it can take
+    # effect. update_soln() re-anchors it to the boundary-face field that
     # interp_from_conserved has already populated from restart.conserved,
-    # which is exactly what restoring would have produced. (*_rho_soln are
+    # which is exactly what restoring would have produced. (outlet_rho_soln is
     # still saved for diagnostics/back-compat.)

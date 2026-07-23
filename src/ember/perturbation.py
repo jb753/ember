@@ -304,18 +304,21 @@ def primitive_to_bcond(block, out=None):
     Vx = q[..., 1] / rho
     Vr = q[..., 2] / rho
     Vt = q[..., 3] / (rho * r)
-    Vm_meridional = np.sqrt(Vx**2 + Vr**2)
-    Vm = np.sqrt(Vx**2 + Vr**2 + Vt**2)
-    tanAlpha = Vt / Vm_meridional
-    dtanAl_dVx = -tanAlpha * Vx / Vm**2
-    dtanAl_dVr = -tanAlpha * Vr / Vm**2
+    # Both angles are measured against the meridional velocity magnitude, as in
+    # Block.tanAlpha and Block.sinBeta, so every derivative below carries Vm
+    # (meridional) and not the total speed.
+    Vm_sq = Vx**2 + Vr**2
+    Vm = np.sqrt(Vm_sq)
+    Vm_cb = Vm * Vm_sq
+    tanAlpha = Vt / Vm
+    dtanAl_dVx = -tanAlpha * Vx / Vm_sq
+    dtanAl_dVr = -tanAlpha * Vr / Vm_sq
     dtanAl_dVt = 1.0 / Vm
 
     # Use sinBeta instead of tanBeta to avoid singularity at Beta=90
     # sinBeta = Vr / sqrt(Vx^2 + Vr^2), derivatives verified numerically
-    Vm_mer_cb = Vm_meridional**3
-    dsinBe_dVx = -Vr * Vx / Vm_mer_cb
-    dsinBe_dVr = Vx**2 / Vm_mer_cb
+    dsinBe_dVx = -Vr * Vx / Vm_cb
+    dsinBe_dVr = Vx**2 / Vm_cb
 
     return util.stack_matrix(
         (b.dhdrho_P_nd, Vx, Vr, Vt, b.dhdP_rho_nd),
@@ -357,37 +360,39 @@ def bcond_to_primitive(block, out=None):
         )
         return out
 
-    Vm_mer_sq = Vx**2 + Vr**2
-    Vm_sq = Vm_mer_sq + Vt**2
+    # Vm is the meridional speed the two angles are measured against; Vsq is the
+    # total speed squared. Eliminating the velocity components from the forward
+    # matrix leaves the meridional projection u = Vx dVx + Vr dVr as the only
+    # coupling, and u = Vm^2 (b0 - Vt Vm dtanAlpha) / Vsq with
+    # b0 = dho - (dhdrho_P/dsdrho_P) ds + cross dP the stagnation enthalpy
+    # residual once density has been eliminated via the entropy row.
+    Vm_sq = Vx**2 + Vr**2
+    Vsq = Vm_sq + Vt**2
     Vm = np.sqrt(Vm_sq)
-    Vm_mer = np.sqrt(Vm_mer_sq)
-    Vm_mer_cu = Vm_mer * Vm_mer_sq
-    tanAlpha = Vt / Vm_mer
     dsdrho_inv = 1.0 / dsdrho_P
-    # E_inv = 1 / (Vm + Vt * tanAlpha) = 1 / (Vm + Vt^2/Vm) = Vm / (Vm^2 + Vt^2)
-    E_inv = 1.0 / (Vm + Vt * tanAlpha)
-    # F_inv = E_inv / Vm_mer^2
-    F_inv = E_inv / Vm_mer_sq
-    Vm_F_inv = Vm * F_inv
     cross = (dhdrho_P * dsdP_rho - dhdP_rho * dsdrho_P) * dsdrho_inv
+    Vx_Vsq = Vx / Vsq
+    Vr_Vsq = Vr / Vsq
+    Vt_Vsq = Vt / Vsq
+    Vt_Vm = Vt * Vm
 
     out.fill(0.0)
     out[..., 0, 1] = dsdrho_inv
     out[..., 0, 4] = -dsdP_rho * dsdrho_inv
-    out[..., 1, 0] = Vm_F_inv * Vx
-    out[..., 1, 1] = -dhdrho_P * Vm_F_inv * Vx * dsdrho_inv
-    out[..., 1, 2] = -Vm_sq * Vt * Vx * F_inv
-    out[..., 1, 3] = -Vm_mer_cu * Vr / (Vx * Vm_mer_sq)
-    out[..., 1, 4] = cross * Vm_F_inv * Vx
-    out[..., 2, 0] = Vm_F_inv * Vr
-    out[..., 2, 1] = -dhdrho_P * Vm_F_inv * Vr * dsdrho_inv
-    out[..., 2, 2] = -Vm_sq * Vr * Vt * F_inv
-    out[..., 2, 3] = Vm_mer_cu / Vm_mer_sq
-    out[..., 2, 4] = cross * Vm_F_inv * Vr
-    out[..., 3, 0] = tanAlpha * E_inv
-    out[..., 3, 1] = -dhdrho_P * tanAlpha * E_inv * dsdrho_inv
-    out[..., 3, 2] = Vm_sq * E_inv
-    out[..., 3, 4] = cross * tanAlpha * E_inv
+    out[..., 1, 0] = Vx_Vsq
+    out[..., 1, 1] = -dhdrho_P * Vx_Vsq * dsdrho_inv
+    out[..., 1, 2] = -Vx_Vsq * Vt_Vm
+    out[..., 1, 3] = -Vr * Vm / Vx
+    out[..., 1, 4] = cross * Vx_Vsq
+    out[..., 2, 0] = Vr_Vsq
+    out[..., 2, 1] = -dhdrho_P * Vr_Vsq * dsdrho_inv
+    out[..., 2, 2] = -Vr_Vsq * Vt_Vm
+    out[..., 2, 3] = Vm
+    out[..., 2, 4] = cross * Vr_Vsq
+    out[..., 3, 0] = Vt_Vsq
+    out[..., 3, 1] = -dhdrho_P * Vt_Vsq * dsdrho_inv
+    out[..., 3, 2] = Vm * Vm_sq / Vsq
+    out[..., 3, 4] = cross * Vt_Vsq
     out[..., 4, 4] = 1.0
     return out
 
@@ -542,6 +547,105 @@ def mix_to_conserved(block, out=None):
             (drhoe_dP_rho * dsdrho_P - drhoe_drho_P * dsdP_rho + rho * cross)
             * dsdrho_inv,
         ),
+        shape=b.shape,
+        out=out,
+    )
+
+
+def chic_to_bcond(block, out=None):
+    r"""Jacobian matrix for characteristic to boundary condition variable transformation.
+
+    Analytically fused product of primitive_to_bcond @ chic_to_primitive.
+
+    bcond = [ho, s, tanAlpha, sinBeta, P] are the four quantities a subsonic
+    inflow specifies plus the static pressure; chic = [c_up, c_down, c_r, c_t,
+    c_s] are the characteristic variables. Rows 0-3 against the four incoming
+    characteristic columns form the square system a non-reflecting inlet solves
+    to drive its boundary condition residuals to zero; see
+    :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch`.
+
+    Returns:
+        Array with shape (..., 5, 5) with matrices stacked on trailing dimensions
+    """
+    b = block
+
+    q = b.conserved_nd
+    r = b.r_nd
+    rho = q[..., 0]
+    Vx = q[..., 1] / rho
+    Vr = q[..., 2] / rho
+    Vt = q[..., 3] / (rho * r)
+    a = b.a_nd
+    dhdrho_P = b.dhdrho_P_nd
+    dhdP_rho = b.dhdP_rho_nd
+    dsdrho_P = b.dsdrho_P_nd
+    dsdP_rho = b.dsdP_rho_nd
+    asq_recip = 1.0 / a**2
+    rhoa_recip = 1.0 / (rho * a)
+    half_asq = asq_recip / 2.0
+    half_rhoa_recip = rhoa_recip / 2.0
+
+    # Angle derivatives as in primitive_to_bcond: both measured against the
+    # meridional speed.
+    Vm_sq = Vx**2 + Vr**2
+    Vm = np.sqrt(Vm_sq)
+    Vm_cb = Vm * Vm_sq
+    tanAlpha = Vt / Vm
+    dtanAl_dVx = -tanAlpha * Vx / Vm_sq
+    dtanAl_dVr = -tanAlpha * Vr / Vm_sq
+    dtanAl_dVt = 1.0 / Vm
+    dsinBe_dVx = -Vr * Vx / Vm_cb
+    dsinBe_dVr = Vx**2 / Vm_cb
+
+    # Common sub-expressions for row 0
+    half_dhdP = dhdP_rho / 2.0
+    half_dhdrho_asq = dhdrho_P * half_asq
+
+    # Common sub-expressions for row 1
+    half_dsdP = dsdP_rho / 2.0
+    half_dsdrho_asq = dsdrho_P * half_asq
+
+    # The two acoustic characteristics enter every velocity derivative through
+    # dVx = (c_down - c_up) / (2 rho a), so their columns share a magnitude and
+    # differ only in sign.
+    half_dtanAl = dtanAl_dVx * half_rhoa_recip
+    half_dsinBe = dsinBe_dVx * half_rhoa_recip
+
+    return util.stack_matrix(
+        # Row 0: d(ho)/d(chic)
+        (
+            half_dhdrho_asq - Vx * half_rhoa_recip + half_dhdP,
+            half_dhdrho_asq + Vx * half_rhoa_recip + half_dhdP,
+            Vr * rhoa_recip,
+            Vt * rhoa_recip,
+            -dhdrho_P * asq_recip,
+        ),
+        # Row 1: d(s)/d(chic)
+        (
+            half_dsdrho_asq + half_dsdP,
+            half_dsdrho_asq + half_dsdP,
+            None,
+            None,
+            -dsdrho_P * asq_recip,
+        ),
+        # Row 2: d(tanAlpha)/d(chic)
+        (
+            -half_dtanAl,
+            half_dtanAl,
+            dtanAl_dVr * rhoa_recip,
+            dtanAl_dVt * rhoa_recip,
+            None,
+        ),
+        # Row 3: d(sinBeta)/d(chic)
+        (
+            -half_dsinBe,
+            half_dsinBe,
+            dsinBe_dVr * rhoa_recip,
+            None,
+            None,
+        ),
+        # Row 4: d(P)/d(chic)
+        (0.5, 0.5, None, None, None),
         shape=b.shape,
         out=out,
     )

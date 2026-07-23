@@ -117,35 +117,48 @@ class ConvergenceHistory(StructuredData):
     # observed a divergence, so `diverged` reads False without being set.
     _defaults = {"diverged": False}
 
-    # Station ordering and reference scales are documented in the module
-    # docstring. Width 4 covers n_row <= 2.
-    _data_keys = (
-        "mdot_st0",
-        "mdot_st1",
-        "mdot_st2",
-        "mdot_st3",
-        "ho_st0",
-        "ho_st1",
-        "ho_st2",
-        "ho_st3",
-        "s_st0",
-        "s_st1",
-        "s_st2",
-        "s_st3",
-        "drho",
-        "drhoVx",
-        "drhoVr",
-        "drhorVt",
-        "drhoe",
-        "i_step",
-        "time",
-        "mdot_target",
-        "mdot_throttle",
-        "P_throttle",
-        "dP_P",
-        "dP_I",
-        "dP_D",
-    )
+    def __init__(self, shape=(), n_row=1):
+        """Allocate the data array, sized for ``n_row`` blade rows.
+
+        Station ordering and reference scales are documented in the module
+        docstring. The station columns (``mdot_st<i>``, ``ho_st<i>``,
+        ``s_st<i>``) are sized to ``2 * n_row`` each, one inlet/exit pair per
+        row, rather than a fixed width -- so ``self._data_keys`` is built
+        here, per instance, before delegating to ``StructuredData.__init__``,
+        which reads it to size the backing array.
+
+        Parameters
+        ----------
+        shape : tuple
+            Shape of a single property array (see
+            :py:meth:`ember.struct.StructuredData.__init__`).
+        n_row : int, optional
+            Number of blade rows this history tracks (default 1, i.e. 2
+            stations: inlet and exit).
+        """
+        n_station = 2 * n_row
+        self._data_keys = (
+            tuple(f"mdot_st{i}" for i in range(n_station))
+            + tuple(f"ho_st{i}" for i in range(n_station))
+            + tuple(f"s_st{i}" for i in range(n_station))
+            + (
+                "drho",
+                "drhoVx",
+                "drhoVr",
+                "drhorVt",
+                "drhoe",
+                "i_step",
+                "time",
+                "mdot_target",
+                "mdot_throttle",
+                "P_throttle",
+                "dP_P",
+                "dP_I",
+                "dP_D",
+            )
+        )
+        super().__init__(shape)
+        self._set_metadata_by_key("n_row", n_row)
 
     def __post_init__(self):
         super().__post_init__()
@@ -196,14 +209,16 @@ class ConvergenceHistory(StructuredData):
         ConvergenceHistory
             Configured instance ready to record data
         """
-        out = cls(shape=(n_log,))
+        n_row = len(grid.rows)
+        out = cls(shape=(n_log,), n_row=n_row)
 
         # Reference scales and counts derived from the grid geometry/flow.
         cls._set_grid_metadata(out, grid)
 
         # Fluid from the first outlet patch (the grid is the reference frame the
-        # history is projected onto).
-        outlet_block = grid.patches.outlet[0].block_view
+        # history is projected onto), of either outlet type.
+        outlet_patches = grid.patches.outlet or grid.patches.outlet_nonreflecting
+        outlet_block = outlet_patches[0].block_view
         out._set_metadata_by_key("fluid", outlet_block.fluid)
 
         # Initialize timer reference
@@ -213,14 +228,6 @@ class ConvergenceHistory(StructuredData):
 
         # Initialize log index to -1 (incremented to 0 by the first record_convergence)
         out._set_metadata_by_key("i_log", -1)
-
-        rows = grid.rows
-        n_row = len(rows)
-        if n_row > 2:
-            raise NotImplementedError(
-                f"Per-row mass flow tracking supports n_row <= 2, got {n_row}"
-            )
-        out._set_metadata_by_key("n_row", n_row)
 
         return out
 
@@ -370,18 +377,15 @@ class ConvergenceHistory(StructuredData):
         conv : ember.grid.ConvergenceStep
             One step's monitors, from :meth:`ember.grid.Grid.get_convergence`.
             The ``mdot``, ``ho`` and ``s`` station vectors are unpacked into one
-            scalar column per station, so at most 4 stations (``n_row <= 2``)
-            can be recorded.
+            scalar column per station; the history must have been constructed
+            with a matching ``n_row`` (see :meth:`__init__`) to have enough
+            station columns allocated.
         time : float, optional
             Elapsed time for this record, in seconds. Defaults to the wall-clock
             time since the history was created (the live-solver behaviour); a
             reader replaying a log passes the log's own time instead.
         """
         n = len(conv.mdot)
-        if n > 4:
-            raise NotImplementedError(
-                f"Station tracking supports n_row <= 2 (<= 4 stations), got {n}"
-            )
 
         # Advance onto the next allocated record, then fill every column of it.
         self._set_metadata_by_key("i_log", self._get_metadata_by_key("i_log") + 1)

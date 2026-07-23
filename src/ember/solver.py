@@ -226,11 +226,11 @@ solver-wide setting:
 - :class:`~ember.inlet.InletPatch` relaxes the face velocity from its
   characteristic solve with ``rf = 1.0`` by default (no relaxation); because
   that target is well conditioned, ``rf < 1`` only adds startup lag.
-- :class:`~ember.mixing.MixingPatch` relaxes its interior pressure datum, with
-  ``rf = 1.0`` by default (no relaxation).
+- :class:`~ember.mixing.MixingPatch` holds no relaxation of its own: it imposes
+  whatever target the exchange last wrote.
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
-  mixing-plane target exchanged between adjacent blocks with a separate
-  ``rf_mix`` (default 0.1).
+  mixing-plane target exchanged between adjacent blocks with ``rf_mix``
+  (default 0.05), which is the only damping the reflecting plane has.
 - :class:`~ember.outlet.OutletPatch` takes its own relaxation factor via
   ``set_adjustment(rf=...)``.
 

@@ -946,35 +946,30 @@ class TestRestartMixing:
         tgt_mix.set_target()
 
         # Sanity: refs really do differ.
-        assert src.fluid.P_ref != tgt.fluid.P_ref
-        assert src.fluid.u_ref != tgt.fluid.u_ref
+        assert src.fluid.rho_ref != tgt.fluid.rho_ref
+        assert src.fluid.V_ref != tgt.fluid.V_ref
+
+        # _target is a conserved-variable stack, so it scales like one.
+        def _refs(block):
+            f = block.fluid
+            return np.array(
+                [
+                    f.rho_ref,
+                    f.rho_ref * f.V_ref,
+                    f.rho_ref * f.V_ref,
+                    f.rho_ref * block.L_ref * f.V_ref,
+                    f.rho_ref * f.V_ref**2,
+                ],
+                dtype=np.float32,
+            )
 
         # Capture the source's _target in dimensional units.
-        src_refs = np.array(
-            [
-                src.fluid.u_ref,
-                src.fluid.Rgas_ref,
-                src.fluid.V_ref,
-                src.fluid.V_ref,
-                src.fluid.P_ref,
-            ],
-            dtype=np.float32,
-        )
-        src_dim = src_mix._target * src_refs
+        src_dim = src_mix._target * _refs(src)
 
         apply_restart(tgt, make_restart(Grid([src]))[0])
 
         # Destination's nondim _target = source's dimensional / dst refs.
-        tgt_refs = np.array(
-            [
-                tgt.fluid.u_ref,
-                tgt.fluid.Rgas_ref,
-                tgt.fluid.V_ref,
-                tgt.fluid.V_ref,
-                tgt.fluid.P_ref,
-            ],
-            dtype=np.float32,
-        )
+        tgt_refs = _refs(tgt)
         np.testing.assert_allclose(tgt_mix._target, src_dim / tgt_refs, rtol=1e-5)
 
     def test_shape_interpolation(self):

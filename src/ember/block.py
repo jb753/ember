@@ -359,19 +359,6 @@ class Block(ember.struct.StructuredData):
         e_new = u_nd + self._halfVsq_nd_uninit
         self._set_data_by_keys(("rhoe",), rho_nd * e_new, store_init=False)
 
-    def _mixing_refs(self):
-        """Reference scales for the [ho, s, Vr, Vt, P] _target stack."""
-        return np.array(
-            [
-                self.fluid.u_ref,
-                self.fluid.Rgas_ref,
-                self.fluid.V_ref,
-                self.fluid.V_ref,
-                self.fluid.P_ref,
-            ],
-            dtype=np.float32,
-        )
-
     def _set_rho_u_nd(self, rho_nd, u_nd):
         """Set nondimensional density and internal energy, preserving velocities."""
         Vxrt_nd = self._Vxrt_nd_uninit
@@ -766,6 +753,12 @@ class Block(ember.struct.StructuredData):
         fluid_new : Fluid
             New fluid / equation of state object.
 
+        See Also
+        --------
+        ember.grid.Grid.set_fluid : Apply to every block in a Grid at once.
+            Prefer this when the block is part of a Grid, rather than looping
+            over blocks and calling this method individually.
+
         """
         has_old = "fluid" in self._metadata
         if has_old:
@@ -814,8 +807,13 @@ class Block(ember.struct.StructuredData):
                 p._target_nd = None
                 p._V_nd_max = None
                 p._V_nd_soln = None
+            for p in self.patches.inlet_nonreflecting:
+                p._ref = None
             for p in self.patches.outlet:
                 p._P_target_nd = None
+            for p in self.patches.outlet_nonreflecting:
+                p._ref = None
+                p.reset_target()
 
     def set_h_s(self, h, s):
         """Store enthalpy and entropy.
@@ -893,8 +891,13 @@ class Block(ember.struct.StructuredData):
             p._target_nd = None
             p._V_nd_max = None
             p._V_nd_soln = None
+        for p in self.patches.inlet_nonreflecting:
+            p._ref = None
         for p in self.patches.outlet:
             p._P_target_nd = None
+        for p in self.patches.outlet_nonreflecting:
+            p._ref = None
+            p.reset_target()
 
     def set_label(self, label):
         """Set a string label describing the block.

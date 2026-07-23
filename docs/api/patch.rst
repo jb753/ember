@@ -17,6 +17,18 @@ Base classes
    :show-inheritance:
    :class-doc-from: class
 
+.. autoclass:: ember.nonreflecting.NonReflectingPatch
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :class-doc-from: class
+
+.. autoclass:: ember.mixing_nonreflecting.NonReflectingMixingPatch
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :class-doc-from: class
+
 Concrete patch types
 --------------------
 
@@ -32,13 +44,31 @@ Concrete patch types
    :show-inheritance:
    :class-doc-from: class
 
+.. autoclass:: ember.inlet_nonreflecting.NonReflectingInletPatch
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :class-doc-from: class
+
 .. autoclass:: ember.outlet.OutletPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
+.. autoclass:: ember.outlet_nonreflecting.NonReflectingOutletPatch
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :class-doc-from: class
+
 .. autoclass:: ember.mixing.MixingPatch
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :class-doc-from: class
+
+.. autoclass:: ember.mixing_nonreflecting.NonReflectingMixingPatch
    :members:
    :undoc-members:
    :show-inheritance:

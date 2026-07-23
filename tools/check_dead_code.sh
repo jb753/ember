@@ -1,7 +1,7 @@
 #!/bin/bash
 # Check for untested code, unused vars etc using vulture
 
-ERRORS=$(uv run -q vulture src tests scripts --min-confidence 60 --ignore-names "Test*,pytestmark" 2>&1  || true)
+ERRORS=$(uv run -q vulture src tests tools --min-confidence 60 --ignore-names "Test*,pytestmark" 2>&1  || true)
 
 if [ -n "$ERRORS" ]; then
     echo "Dead code found:"

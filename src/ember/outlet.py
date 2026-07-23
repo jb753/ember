@@ -13,6 +13,166 @@ import numpy as np
 from ember.basepatch import RevolutionPatch
 
 
+def calc_backflow_rho(fluid, snapshot, rho_soln_nd, rho_nd, Max, rf):
+    r"""Relaxed boundary density for reversed-flow nodes, capped to keep :math:`V_x` real.
+
+    A reversed node takes its stagnation enthalpy, entropy and transverse
+    velocities from the prescribed backflow state, which leaves density as the
+    one quantity still free to come from the interior. It
+    is relaxed from the start-of-step value toward the current one at a rate
+    that falls away with the local axial Mach number,
+
+    .. math::
+
+        \rho^\mathrm{new} = \rho^n
+            + \min\left(\mathit{rf}\,\left|M_x\right|,\, 0.8\right)
+              \left(\rho - \rho^n\right),
+
+    then capped just below the density at which the static enthalpy would reach
+    :math:`h_0 - \tfrac{1}{2}(V_r^2 + V_\theta^2)`. Static enthalpy rises with
+    density at fixed entropy, so under that cap the radicand of the axial
+    velocity the caller recovers from the energy equation,
+    :math:`V_x = \sqrt{2(h_0 - h) - V_r^2 - V_\theta^2}`, is non-negative.
+
+    Parameters
+    ----------
+    fluid : ember.fluid.Fluid
+        Fluid the equation of state is evaluated on.
+    snapshot : sequence of array
+        Nondimensional ``[ho, s, Vr, Vt]`` to impose. Four scalars from
+        :func:`calc_backflow_snapshot` on the reflecting outlet, four
+        span-indexed arrays from the target rows on the non-reflecting one;
+        either way they need only broadcast against ``rho_nd``.
+    rho_soln_nd : array
+        Nondimensional density at the start of the step, the anchor the
+        relaxation runs from.
+    rho_nd : array
+        Nondimensional density the relaxation runs toward.
+    Max : array
+        Axial Mach number, setting the local relaxation rate.
+    rf : float
+        Relaxation factor.
+
+    Returns
+    -------
+    array
+        Nondimensional density, of the shape the inputs broadcast to. Computed
+        over the whole array; the caller selects the reversed nodes.
+
+    See Also
+    --------
+    ember.outlet.OutletPatch.set_backflow : Enables this on the reflecting outlet
+    ember.outlet_nonreflecting.NonReflectingOutletPatch.set_backflow : and on the
+        non-reflecting one
+    """
+    ho_snap, s_snap, Vr_snap, Vt_snap = snapshot
+    h_max_nd = ho_snap - 0.5 * (Vr_snap**2 + Vt_snap**2)
+    rho_cap_nd = fluid.set_h_s(h_max_nd, s_snap)[0]
+    rho_new_nd = rho_soln_nd + np.minimum(rf * np.abs(Max), 0.8) * (
+        rho_nd - rho_soln_nd
+    )
+    return np.minimum(rho_new_nd, 0.9999 * rho_cap_nd)
+
+
+def calc_backflow_snapshot(fluid, ho, s, Vr, Vt):
+    """Validate and nondimensionalise the state imposed on reversed-flow nodes.
+
+    All four arguments must be scalars: reversed flow arrives from outside the
+    domain, where the calculation knows nothing of how the state varies, so
+    there is no profile to impose.
+
+    Parameters
+    ----------
+    fluid : ember.fluid.Fluid
+        Fluid supplying the reference scales.
+    ho : float
+        Stagnation enthalpy [J/kg].
+    s : float
+        Specific entropy [J/(kg K)].
+    Vr : float
+        Radial velocity [m/s].
+    Vt : float
+        Tangential velocity [m/s].
+
+    Returns
+    -------
+    array
+        Nondimensional ``[ho, s, Vr, Vt]``, shape ``(4,)``.
+
+    See Also
+    --------
+    ember.outlet.OutletPatch.set_backflow : The only caller
+    """
+    for name, val in (("ho", ho), ("s", s), ("Vr", Vr), ("Vt", Vt)):
+        if not np.isscalar(val):
+            raise TypeError(
+                f"set_backflow: {name} must be a scalar, got {type(val).__name__}"
+            )
+    return np.array(
+        [
+            ho / fluid.u_ref,
+            s / fluid.Rgas_ref,
+            Vr / fluid.V_ref,
+            Vt / fluid.V_ref,
+        ],
+        dtype=np.float32,
+    )
+
+
+def calc_radial_equilibrium(patch):
+    r"""Spanwise static pressure profile in centrifugal radial equilibrium.
+
+    Swirling flow leaving a blade row carries a centrifugal radial pressure
+    gradient,
+
+    .. math::
+
+        \frac{dp}{dr} = \frac{\overline{\rho V_\theta}\;\overline{V_\theta}}{r}
+
+    where :math:`\overline{\Box}` is the pitch mean. This product-of-means form
+    matches the Multall ``EXBCONDS`` radial-equilibrium treatment. Flow
+    quantities are pitch-averaged over the first interior layer (the offset-1
+    slice) rather than the boundary face, so the profile is driven by the
+    interior rather than by whatever the boundary condition last wrote there.
+
+    Integrated from hub to tip and anchored to zero at the hub, so a patch that
+    adds this to a prescribed pressure enforces that pressure at the hub.
+
+    Parameters
+    ----------
+    patch : ember.basepatch.RevolutionPatch
+        Outflow patch to read the interior layer and pitch weights from.
+
+    Returns
+    -------
+    array
+        Nondimensional pressure offset at each span station, shape
+        ``(nspan,)``, zero at the hub. The caller broadcasts it over the patch
+        shape and adds it to its own prescribed pressure.
+
+    See Also
+    --------
+    ember.outlet.OutletPatch.set_adjustment : Enables this on the reflecting outlet
+    """
+    b1 = patch.block_view_offset_1
+    w = patch.weight_pitch
+    pd = patch.pitch_dim
+    rhoVt_mean = np.sum(b1.rho_nd * b1.Vt_nd * w, axis=pd).squeeze()
+    Vt_mean = np.sum(b1.Vt_nd * w, axis=pd).squeeze()
+    r_nd = np.sum(b1.r_nd * w, axis=pd).squeeze()
+    # No NaN guard here: a diverged march can feed NaN into these means, but it
+    # should propagate through (into the pressure target, then the conserved
+    # state) and be caught by the solver's own Grid.check_nan() on its next
+    # pass, the same graceful path every other divergence takes. Raising here
+    # instead pre-empts that with a hard, uncaught crash.
+    dPdr_nd = rhoVt_mean * Vt_mean / r_nd
+    dr_nd = np.diff(r_nd)
+    P_re_span_nd = np.empty(len(r_nd))
+    P_re_span_nd[0] = 0.0
+    P_re_span_nd[1:] = np.cumsum(0.5 * (dPdr_nd[:-1] + dPdr_nd[1:]) * dr_nd)
+    return P_re_span_nd
+
+
 class OutletPatch(RevolutionPatch):
     """Outflow boundary condition.
 
@@ -178,22 +338,7 @@ class OutletPatch(RevolutionPatch):
         Vt : float
             Tangential velocity [m/s].
         """
-        for name, val in (("ho", ho), ("s", s), ("Vr", Vr), ("Vt", Vt)):
-            if not np.isscalar(val):
-                raise TypeError(
-                    f"set_backflow: {name} must be a scalar, got {type(val).__name__}"
-                )
-
-        fluid = self.block.fluid
-        self._inout_snapshot = np.array(
-            [
-                ho / fluid.u_ref,
-                s / fluid.Rgas_ref,
-                Vr / fluid.V_ref,
-                Vt / fluid.V_ref,
-            ],
-            dtype=np.float32,
-        )
+        self._inout_snapshot = calc_backflow_snapshot(self.block.fluid, ho, s, Vr, Vt)
         self._backflow_enabled = True
 
     def set_P(self, P):
@@ -374,16 +519,16 @@ class OutletPatch(RevolutionPatch):
             Vr_snap = self._inout_snapshot[..., 2]
             Vt_snap = self._inout_snapshot[..., 3]
 
-            # Cap relaxed density at the value where static enthalpy equals
-            # ho_snap - 0.5*(Vr_snap^2 + Vt_snap^2) so the Vx sqrt in the
-            # inflow reconstruction below stays non-negative on inflow cells.
-            fluid = self.block.fluid
-            h_max_nd = ho_snap - 0.5 * (Vr_snap**2 + Vt_snap**2)
-            rho_cap_nd = fluid.set_h_s(h_max_nd, s_snap)[0]
-            rho_new_nd = self._rho_nd_soln + np.minimum(rf * np.abs(b.Max), 0.8) * (
-                b.rho_nd - self._rho_nd_soln
+            # Relaxed and capped so the Vx sqrt in the inflow reconstruction
+            # below stays non-negative on inflow cells.
+            rho_new_nd = calc_backflow_rho(
+                self.block.fluid,
+                self._inout_snapshot,
+                self._rho_nd_soln,
+                b.rho_nd,
+                b.Max,
+                rf,
             )
-            np.minimum(rho_new_nd, 0.9999 * rho_cap_nd, out=rho_new_nd)
 
             cons_saved = b.conserved_nd.copy()
             ho_saved = b.ho_nd.copy()
@@ -515,37 +660,15 @@ class OutletPatch(RevolutionPatch):
                 dyn_offset = np.zeros(self.block_view.shape, dtype=np.float32)
 
             # --- Radial equilibrium offset ---
-            # Centrifugal pressure rise integrated along span; anchored to hub.
-            # Flow quantities are pitch-averaged over the first interior layer
-            # (the offset-1 slice), the same source apply() extrapolates the
-            # boundary state from. The integrand reproduces the Multall
-            # EXBCONDS IPOUT=3 form: pitch-mean(rho*Vt) * pitch-mean(Vt) / r.
+            # Centrifugal pressure rise integrated along span, anchored to the
+            # hub: the integration starts there with a zero offset, so the
+            # prescribed p_out is enforced at the hub and the profile rises
+            # centrifugally toward the tip. Shared with
+            # NonReflectingOutletPatch; see calc_radial_equilibrium.
             if do_re:
-                b1 = self.block_view_offset_1
-                w = self.weight_pitch
-                pd = self.pitch_dim
-                rhoVt_mean = np.sum(b1.rho_nd * b1.Vt_nd * w, axis=pd).squeeze()
-                Vt_mean = np.sum(b1.Vt_nd * w, axis=pd).squeeze()
-                r_nd = np.sum(b1.r_nd * w, axis=pd).squeeze()
-                assert not np.any(np.isnan(r_nd)), (
-                    "radial_equilibrium: r_nd contains NaN"
-                )
-                assert not np.any(np.isnan(rhoVt_mean)), (
-                    "radial_equilibrium: rho*Vt contains NaN"
-                )
-                assert not np.any(np.isnan(Vt_mean)), (
-                    "radial_equilibrium: Vt contains NaN"
-                )
-                dPdr_nd = rhoVt_mean * Vt_mean / r_nd
-                dr_nd = np.diff(r_nd)
-                P_re_span_nd = np.empty(len(r_nd))
-                P_re_span_nd[0] = 0.0
-                P_re_span_nd[1:] = np.cumsum(0.5 * (dPdr_nd[:-1] + dPdr_nd[1:]) * dr_nd)
-                # Anchor to the hub: integration starts at the hub with a zero
-                # offset there, so the prescribed p_out is enforced at the hub
-                # and the profile rises centrifugally toward the tip.
                 re_offset = np.broadcast_to(
-                    self._span_bcast(P_re_span_nd), self.block_view.shape
+                    self._span_bcast(calc_radial_equilibrium(self)),
+                    self.block_view.shape,
                 ).astype(np.float32)
             else:
                 re_offset = np.zeros(self.block_view.shape, dtype=np.float32)

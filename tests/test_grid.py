@@ -985,14 +985,25 @@ class TestApplyBconds:
         return grid, inlet
 
     def test_uses_patch_rf(self):
-        """The inlet rf attribute drives the apply; different rf -> different state."""
+        """The inlet rf attribute drives the apply; different rf -> different state.
+
+        rf is only applied by update_soln() (once per step); apply() itself
+        just holds p_soln fixed. update_bconds() must therefore run at least
+        twice -- the first call only seeds p_soln from the current face
+        pressure, the second actually relaxes it toward the interior -- before
+        apply_bconds() reads a value that reflects rf.
+        """
         grid0, inlet0 = self._grid_with_inlet_and_seam()
         inlet0.rf = 0.0
+        grid0.update_bconds()
+        grid0.update_bconds()
         grid0.apply_bconds()
         cons_rf0 = grid0[0].conserved.copy()
 
         grid1, inlet1 = self._grid_with_inlet_and_seam()
         inlet1.rf = 1.0
+        grid1.update_bconds()
+        grid1.update_bconds()
         grid1.apply_bconds()
         cons_rf1 = grid1[0].conserved.copy()
 

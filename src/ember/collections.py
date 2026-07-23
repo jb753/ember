@@ -549,6 +549,23 @@ class BlockPatchCollection(_LabelledList):
         return [p for p in self._items if isinstance(p, InletPatch)]
 
     @property
+    def inlet_nonreflecting(self):
+        """All :py:class:`~ember.inlet_nonreflecting.NonReflectingInletPatch` objects.
+
+        Excludes the inflow side of a non-reflecting mixing plane, which is a
+        subclass but is driven by a cross-plane exchange rather than a
+        prescribed inflow state; see :py:attr:`mixing_nonreflecting`.
+        """
+        from ember.patch import NonReflectingInletPatch, NonReflectingMixingPatch
+
+        return [
+            p
+            for p in self._items
+            if isinstance(p, NonReflectingInletPatch)
+            and not isinstance(p, NonReflectingMixingPatch)
+        ]
+
+    @property
     def inviscid(self):
         """All :py:class:`~ember.inviscid.InviscidPatch` objects."""
         from ember.patch import InviscidPatch
@@ -563,11 +580,38 @@ class BlockPatchCollection(_LabelledList):
         return [p for p in self._items if isinstance(p, MixingPatch)]
 
     @property
+    def mixing_nonreflecting(self):
+        """All :py:class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch` objects.
+
+        Both sides of a non-reflecting mixing plane, inflow and outflow.
+        """
+        from ember.patch import NonReflectingMixingPatch
+
+        return [p for p in self._items if isinstance(p, NonReflectingMixingPatch)]
+
+    @property
     def outlet(self):
         """All :py:class:`~ember.outlet.OutletPatch` objects."""
         from ember.patch import OutletPatch
 
         return [p for p in self._items if isinstance(p, OutletPatch)]
+
+    @property
+    def outlet_nonreflecting(self):
+        """All :py:class:`~ember.outlet_nonreflecting.NonReflectingOutletPatch` objects.
+
+        Excludes the outflow side of a non-reflecting mixing plane, which is a
+        subclass but is driven by a cross-plane exchange rather than a
+        prescribed exit pressure; see :py:attr:`mixing_nonreflecting`.
+        """
+        from ember.patch import NonReflectingMixingPatch, NonReflectingOutletPatch
+
+        return [
+            p
+            for p in self._items
+            if isinstance(p, NonReflectingOutletPatch)
+            and not isinstance(p, NonReflectingMixingPatch)
+        ]
 
     @property
     def periodic(self):
@@ -581,7 +625,9 @@ class BlockPatchCollection(_LabelledList):
         """Patches through which flow passes (non-wall faces).
 
         Includes :py:class:`~ember.inlet.InletPatch`,
+        :py:class:`~ember.inlet_nonreflecting.NonReflectingInletPatch`,
         :py:class:`~ember.outlet.OutletPatch`,
+        :py:class:`~ember.outlet_nonreflecting.NonReflectingOutletPatch`,
         :py:class:`~ember.periodic.PeriodicPatch`,
         :py:class:`~ember.mixing.MixingPatch`,
         :py:class:`~ember.nonmatch.NonMatchPatch`, and
@@ -732,6 +778,14 @@ class GridPatchCollection:
         return inlet_patches
 
     @property
+    def inlet_nonreflecting(self):
+        """Return all non-reflecting inlet patches from all blocks."""
+        inlet_patches = []
+        for block in self._grid:
+            inlet_patches.extend(block.patches.inlet_nonreflecting)
+        return inlet_patches
+
+    @property
     def mixing(self):
         """Return all mixing patches from all blocks."""
         # Import here to avoid circular import
@@ -741,12 +795,28 @@ class GridPatchCollection:
         return mixing_patches
 
     @property
+    def mixing_nonreflecting(self):
+        """Return both sides of every non-reflecting mixing plane, from all blocks."""
+        patches = []
+        for block in self._grid:
+            patches.extend(block.patches.mixing_nonreflecting)
+        return patches
+
+    @property
     def outlet(self):
         """Return all outlet patches from all blocks."""
         # Import here to avoid circular import
         outlet_patches = []
         for block in self._grid:
             outlet_patches.extend(block.patches.outlet)
+        return outlet_patches
+
+    @property
+    def outlet_nonreflecting(self):
+        """Return all non-reflecting outlet patches from all blocks."""
+        outlet_patches = []
+        for block in self._grid:
+            outlet_patches.extend(block.patches.outlet_nonreflecting)
         return outlet_patches
 
     @property

@@ -242,12 +242,11 @@ def test_to_json_x_matches_steps(hist_with_throttle, tmp_path):
 
 def _make_hist_with_row_flows(n_row, steps=3):
     """ConvergenceHistory with n_row rows and row flow data recorded."""
-    hist = ConvergenceHistory(shape=(10,))
+    hist = ConvergenceHistory(shape=(10,), n_row=n_row)
     hist._set_metadata_by_key("n_node", 100)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
-    hist._set_metadata_by_key("n_row", n_row)
     for k in hist._data_keys:
         hist._versions[k] += 1
     for i in range(steps):
@@ -306,12 +305,18 @@ def test_err_mdot_row_values():
 
 
 def test_err_mdot_row_no_metadata_returns_nan():
-    """err_mdot_row returns NaN array when n_row metadata is absent."""
+    """err_mdot_row returns NaN array when n_row metadata is absent.
+
+    __init__ always sets n_row now (default 1), so this simulates an object
+    that predates that -- e.g. an old pickled .cnv file -- by deleting the
+    metadata key after construction rather than simply omitting it.
+    """
     hist = ConvergenceHistory(shape=(10,))
     hist._set_metadata_by_key("n_node", 100)
     hist._set_metadata_by_key("fluid", _FLUID)
     hist._set_metadata_by_key("_time_start", 0.0)
     hist._set_metadata_by_key("i_log", -1)
+    del hist._metadata["n_row"]
     for k in hist._data_keys:
         hist._versions[k] += 1
     hist.record_convergence(0, _conv())
