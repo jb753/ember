@@ -92,10 +92,10 @@ class _TargetRow:
     the target space and the classes do not share one.
     """
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, _owner, name):
         self._name = name
 
-    def __get__(self, obj, objtype=None):
+    def __get__(self, obj, _objtype=None):
         if obj is None:
             return self
         names = obj._target_names

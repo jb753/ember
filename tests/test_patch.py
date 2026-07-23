@@ -4083,6 +4083,150 @@ class TestPatchSurfaceOfRevolution:
         )
         np.testing.assert_allclose(patch.block_avg.conserved[:, 0], 1.0, rtol=1e-5)
 
+    def _make_conical_sor_block(self, shape, Nb=36, slope=0.0, dRi=0.0, R0=0.5):
+        """Helper: SOR block whose meridional line (j) has radius R0 + slope*x,
+        and whose i-direction offsets radius by -dRi per step, so the "inward"
+        flip logic in `_build_rot_matrices` has a genuine reference direction.
+        """
+        fluid = PerfectFluid(gamma=1.4, cp=1004.5, mu=1.8e-5, Pr=0.7)
+        block = ember.block.Block(shape=shape)
+        block.set_fluid(fluid)
+        block.set_Nb(Nb)
+        pitch = 2.0 * np.pi / Nb
+        ni, nj, nk = shape
+        x_j = np.linspace(0.0, 1.0, nj)
+        i_idx = np.arange(ni).reshape(ni, 1, 1)
+        x = x_j.reshape(1, nj, 1) * np.ones(shape)
+        r = (R0 - dRi * i_idx + slope * x_j.reshape(1, nj, 1)) * np.ones(shape)
+        t = np.linspace(0.0, pitch, nk).reshape(1, 1, nk) * np.ones(shape)
+        block.set_x(x)
+        block.set_r(r)
+        block.set_t(t)
+        return block
+
+    def test_build_rot_matrices_straight_duct_no_flip(self):
+        """Constant-radius duct: face normal is purely radial (xi = pi/2).
+
+        With no radial offset between i-planes (dRi=0) the "inward" reference
+        vector is zero, so the flip in `_build_rot_matrices` never triggers and
+        the angle stays at the raw meridional value.
+        """
+        shape = (3, 5, 8)
+        block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.0)
+        block.set_P_T(1e5, 300.0)
+
+        patch = InletPatch(i=0)
+        patch.attach_to_block(block)
+        patch._build_rot_matrices()
+
+        expected_c = np.zeros(shape[1], dtype=np.float32)
+        expected_s = np.ones(shape[1], dtype=np.float32)
+        np.testing.assert_allclose(
+            patch._rot_to.squeeze(),
+            np.stack(
+                [
+                    np.stack([expected_c, expected_s], axis=-1),
+                    np.stack([-expected_s, expected_c], axis=-1),
+                ],
+                axis=-2,
+            ),
+            atol=1e-6,
+        )
+
+    def test_build_rot_matrices_flip_when_dot_negative(self):
+        """Radius decreasing into the domain (dRi > 0) flips the angle by pi.
+
+        The raw meridional xi (pi/2) points away from the "inward" reference
+        vector (0, -dRi), so `_build_rot_matrices` should flip it to 3*pi/2.
+        """
+        shape = (3, 5, 8)
+        block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.1)
+        block.set_P_T(1e5, 300.0)
+
+        patch = InletPatch(i=0)
+        patch.attach_to_block(block)
+        patch._build_rot_matrices()
+
+        expected_c = np.zeros(shape[1], dtype=np.float32)
+        expected_s = -np.ones(shape[1], dtype=np.float32)
+        np.testing.assert_allclose(
+            patch._rot_to.squeeze()[:, 0, 0], expected_c, atol=1e-6
+        )
+        np.testing.assert_allclose(
+            patch._rot_to.squeeze()[:, 0, 1], expected_s, atol=1e-6
+        )
+
+    def test_build_rot_matrices_inward_false_negates_matrices(self):
+        """inward=False shifts the angle by pi, negating both rotation matrices."""
+        shape = (3, 5, 8)
+        block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.0)
+        block.set_P_T(1e5, 300.0)
+
+        patch = InletPatch(i=0)
+        patch.attach_to_block(block)
+        patch._build_rot_matrices(inward=True)
+        rot_to_in = patch._rot_to.copy()
+        rot_from_in = patch._rot_from.copy()
+
+        patch._build_rot_matrices(inward=False)
+        np.testing.assert_allclose(patch._rot_to, -rot_to_in, atol=1e-6)
+        np.testing.assert_allclose(patch._rot_from, -rot_from_in, atol=1e-6)
+
+    def test_resolve_to_interface_matches_manual_rotation(self):
+        """resolve_to_interface applies the precomputed rot_to to (rhoVx, rhoVr).
+
+        On the constant-radius duct xi = pi/2 (c=0, s=1), so the documented
+        formula V_norm = c*Vx + s*Vr, V_span = -s*Vx + c*Vr reduces to
+        V_norm = Vr, V_span = -Vx.
+        """
+        shape = (3, 5, 8)
+        block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.0)
+        block.set_P_T(1e5, 300.0)
+        block.set_Vx(30.0)
+        block.set_Vr(7.0)
+        block.set_Vt(0.0)
+
+        patch = InletPatch(i=0)
+        patch.attach_to_block(block)
+        patch.set_block_avg()
+        patch._build_rot_matrices()
+
+        rhoVx_before = patch.block_view.conserved_nd[..., 1].copy()
+        rhoVr_before = patch.block_view.conserved_nd[..., 2].copy()
+
+        patch.resolve_to_interface()
+
+        np.testing.assert_allclose(
+            patch.block_view.conserved_nd[..., 1], rhoVr_before, atol=1e-5
+        )
+        np.testing.assert_allclose(
+            patch.block_view.conserved_nd[..., 2], -rhoVx_before, atol=1e-5
+        )
+
+    def test_resolve_round_trip_recovers_original(self):
+        """resolve_from_interface undoes resolve_to_interface on the same field."""
+        shape = (3, 5, 8)
+        block = self._make_conical_sor_block(shape, slope=0.3, dRi=0.05)
+        block.set_P_T(1e5, 300.0)
+        rng = np.random.default_rng(0)
+        block.set_Vx(rng.uniform(10.0, 50.0, shape))
+        block.set_Vr(rng.uniform(-10.0, 10.0, shape))
+        block.set_Vt(rng.uniform(-10.0, 10.0, shape))
+
+        patch = InletPatch(i=0)
+        patch.attach_to_block(block)
+        patch.set_block_avg()
+        patch._build_rot_matrices()
+
+        cons_before = patch.block_view.conserved_nd[..., 1:3].copy()
+
+        patch.resolve_to_interface()
+        patch.resolve_from_interface()
+
+        np.testing.assert_allclose(
+            patch.block_view.conserved_nd[..., 1:3], cons_before, atol=1e-4
+        )
+
 
 class TestPatchNonSurfaceOfRevolution:
     """Tests for pitch_dim, span_dim, and spf on non-surface of revolution patches."""

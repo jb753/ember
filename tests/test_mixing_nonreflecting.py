@@ -214,7 +214,7 @@ def test_row_stations_find_both_sides():
         grid[1].patches.append(PeriodicPatch(k=face))
     grid.connectivity.periodic.pair()
 
-    (up0, dn0), (up1, dn1) = grid.row_station_bid_pid
+    (_, dn0), (up1, _) = grid.row_station_bid_pid
     # The upstream row's mixing face is an outflow side, so its exit station.
     assert (0, 0) in dn0
     # The downstream row's mixing face is an inflow side, so its inlet station.
