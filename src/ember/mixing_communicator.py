@@ -215,6 +215,19 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
     # as a pair of row masks on the target vector.
     _chic_to_target = staticmethod(perturbation.chic_to_mix)
 
+    Ma_clip = 0.05
+    r"""Floor on :math:`\lvert \mathit{Ma}_x \rvert` of the symmetrised mean
+    state the Jacobians are evaluated on.
+
+    :cite:t:`Holmes2008` Eq. 16: as the mean normal velocity tends to zero the
+    eigenvalues of the transformation matrices grow, so the interface
+    over-controls to make up for the slow advection the small velocity implies.
+    Bounding the magnitude -- not the direction, which a reversed station keeps
+    -- is his remedy and this is ember's form of it. It also keeps
+    :func:`~ember.perturbation.flux_to_primitive`, which divides by the axial
+    velocity, away from zero.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -309,13 +322,12 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         # the one value the clip exists to keep out of flux_to_primitive, which
         # divides by it two lines below. A station with no direction of its own
         # takes the downstream one.
-        Ma_clip = 0.01
         b_avg = patch1.block_avg
         Max = b_avg.Max
-        too_low = np.abs(Max) < Ma_clip
+        too_low = np.abs(Max) < self.Ma_clip
         if too_low.any():
             sign = np.where(Max >= 0.0, 1.0, -1.0)
-            rhoVx_clip = sign * Ma_clip * b_avg.rho_nd * b_avg.a_nd
+            rhoVx_clip = sign * self.Ma_clip * b_avg.rho_nd * b_avg.a_nd
             b_avg.conserved_nd[..., 1] = np.where(
                 too_low, rhoVx_clip, b_avg.conserved_nd[..., 1]
             )

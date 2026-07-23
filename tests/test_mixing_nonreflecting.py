@@ -438,11 +438,12 @@ def test_clip_bounds_the_mean_axial_mach_in_magnitude_only():
 
     b_avg, _ = comm._prepare_pair(patch_up, patch_dn, flip=False)
 
+    Ma_clip = NonReflectingMixingCommunicator.Ma_clip
     Max = np.asarray(b_avg.Max).ravel()
-    assert Max[2] == pytest.approx(-0.01, rel=1e-3)
-    assert Max[4] == pytest.approx(0.01, rel=1e-3)
+    assert Max[2] == pytest.approx(-Ma_clip, rel=1e-3)
+    assert Max[4] == pytest.approx(Ma_clip, rel=1e-3)
     # The untouched stations are above the clip and left alone by it.
-    assert Max[0] > 0.01
+    assert Max[0] > Ma_clip
     assert Max[6] == pytest.approx(Max[0], rel=1e-5)
 
 
