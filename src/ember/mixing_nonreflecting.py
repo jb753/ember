@@ -109,9 +109,35 @@ class NonReflectingMixingPatch(NonReflectingPatch):
 
     _target_seeded = (0, 1, 2, 3, 4)
 
+    # No nodal backflow limiter. The mix variables can express the state it
+    # imposes, unlike the inflow condition's angles, but what it would impose at
+    # a plane is the other row's pitch-uniform mixed-out state, and the axial
+    # velocity it derives from that comes out of an energy balance with no
+    # bearing on how hard the node was actually reversed. On the LISA rotor exit
+    # that turned a wake core reversed at -5 m/s into -31 m/s in one
+    # application, and the correction feeds its own rate through the Mach number
+    # it drives, so the node ran away with the interior held frozen. A station
+    # whose mean reverses is still carried by the characteristic split.
+    _nodal_backflow = False
+
     def _setup(self):
         super()._setup()
         self._flux_avg = None
+        # Relaxation of the cross-plane mismatch, read by the communicator at
+        # every exchange. Held here rather than on the communicator so it
+        # survives the pickle that drops the communicator, and so the two
+        # planes of a multi-row grid can damp at different rates; both sides of
+        # a plane must agree on it. Distinct from
+        # :attr:`~ember.nonreflecting.NonReflectingPatch.sigma`, which relaxes
+        # this side's own characteristic correction.
+        self.rf_exchange = 0.05
+
+    def _copy(self, c):
+        # NonReflectingPatch._copy is shared with the inlet and outlet, neither
+        # of which has an exchange to relax, so extend it here rather than
+        # there.
+        super()._copy(c)
+        c.rf_exchange = self.rf_exchange
 
     def set_flux_avg(self):
         """Compute pitch-averaged node fluxes and store in :attr:`flux_avg_nd`.

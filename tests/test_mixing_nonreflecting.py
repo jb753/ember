@@ -18,9 +18,14 @@ Test cases:
 - Physics: matched flow is a fixed point, a cross-plane mismatch relaxes to
   matched pitch-mean fluxes, a pitchwise harmonic is absorbed rather than
   reflected, and a solver run stays finite
+- Stalled and reversed stations: a station whose cross-plane mean axial velocity
+  is zero survives the exchange, and the clip on that mean bounds it in
+  magnitude without turning a reversed station round
 - Chains: several planes in one grid stay independent of one another, with a
   middle block carrying an inflow side and an outflow side at once
 """
+
+import pickle
 
 import numpy as np
 import pytest
@@ -30,6 +35,7 @@ from ember.grid import Grid
 from ember.mixing_communicator import NonReflectingMixingCommunicator
 from ember.patch import (
     InletPatch,
+    MixingPatch,
     NonReflectingMixingPatch,
     NonReflectingOutletPatch,
     OutletPatch,
@@ -40,7 +46,7 @@ from nonreflecting_util import harmonic, make_block, seed_chic
 # The exchange and the boundary conditions are both heavily under-relaxed by
 # default, which is right for a solver run and far too slow for a test that
 # iterates the boundary alone. These drive the same fixed point, faster.
-RF_MIX_FAST = 0.5
+RF_EXCHANGE_FAST = 0.5
 SIGMA_FAST = 0.5
 
 
@@ -92,20 +98,20 @@ def make_pair(npitch_up=17, npitch_dn=17, up=None, dn=None, **kwargs):
     return grid, patch_up, patch_dn
 
 
-def communicator(grid, rf_mix=RF_MIX_FAST, sigma=SIGMA_FAST):
+def communicator(grid, rf_exchange=RF_EXCHANGE_FAST, sigma=SIGMA_FAST):
     """Communicator for every plane in a grid, with the patches sped up."""
-    comm = NonReflectingMixingCommunicator(
-        grid, grid.connectivity.mixing_nonreflecting.pair(), rf_mix=rf_mix
-    )
     for patch in grid.patches.mixing_nonreflecting:
         patch.sigma = sigma
-    return comm
+        patch.rf_exchange = rf_exchange
+    return NonReflectingMixingCommunicator(
+        grid, grid.connectivity.mixing_nonreflecting.pair()
+    )
 
 
-def exchanged(*args, rf_mix=RF_MIX_FAST, sigma=SIGMA_FAST, **kwargs):
+def exchanged(*args, rf_exchange=RF_EXCHANGE_FAST, sigma=SIGMA_FAST, **kwargs):
     """A single paired plane plus its communicator, ready to exchange."""
     grid, patch_up, patch_dn = make_pair(*args, **kwargs)
-    return grid, patch_up, patch_dn, communicator(grid, rf_mix, sigma)
+    return grid, patch_up, patch_dn, communicator(grid, rf_exchange, sigma)
 
 
 def relax(patches, comm, n_iter):
@@ -114,6 +120,7 @@ def relax(patches, comm, n_iter):
         comm.exchange()
         for patch in patches:
             patch.update_soln()
+            patch.advance()
             patch.apply()
 
 
@@ -272,6 +279,32 @@ def test_copy_keeps_target_views_live():
     assert np.allclose(clone.ho_nd, clone._target[..., 0])
 
 
+def test_update_bconds_refreshes_the_frozen_mean_state():
+    """The plane re-derives its reference every step, like the inlet and outlet.
+
+    apply() builds the reference only if it has none, so without a per-step
+    update_soln the plane stays linearised about whatever state it first saw --
+    for a whole run, that is the initial guess -- and its characteristic split
+    is frozen with it, leaving a station that reverses during the transient
+    still treated as forward-running.
+    """
+    grid, patch_up, patch_dn, comm = exchanged()
+    grid.update_bconds()
+    assert not patch_up._entering[3]
+
+    # Reverse one span station over the upstream block's whole axial extent,
+    # after the plane has already built a reference on the forward flow.
+    block = grid[0]
+    Vx = block.Vx.copy()
+    Vx[:, 3, :] = -20.0
+    block.set_Vx(Vx)
+
+    grid.update_bconds()
+
+    assert patch_up._entering[3]
+    assert not patch_up._entering[[0, 1, 2, 4, 5, 6]].any()
+
+
 def test_reversed_station_takes_its_inflow_state_from_the_exchange():
     """The outflow side needs nothing configured to carry a reversed station.
 
@@ -300,6 +333,7 @@ def test_reversed_station_takes_its_inflow_state_from_the_exchange():
 
     for _ in range(60):
         patch_up.update_soln()
+        patch_up.advance()
         patch_up.apply()
 
     b = patch_up.block_view
@@ -342,11 +376,178 @@ def test_reversed_station_on_the_inflow_side_takes_the_exchanged_pressure():
 
     for _ in range(60):
         patch_dn.update_soln()
+        patch_dn.advance()
         patch_dn.apply()
 
     P_face = np.asarray(patch_dn._pitch_mean(patch_dn.block_view.P_nd)).squeeze()
     assert P_face[3] == pytest.approx(patch_dn.get_target()[3, 4], rel=5e-3)
     assert float(patch_dn._pitch_mean(patch_dn.block_view.Vx_nd).ravel()[3]) < 0.0
+
+
+def test_exchange_survives_a_stalled_span_station():
+    """A station whose cross-plane mean axial velocity is zero goes through exchange.
+
+    The two reversal tests above reverse the flow and then only iterate the
+    patches, so the clip in _prepare_pair that holds the symmetrised mean axial
+    Mach number away from zero is never reached with a stalled mean. It divides
+    by that mean two lines later, so a station sitting exactly at zero is the
+    case that has to stay finite.
+
+    Station 3 and not station 0: _write_targets extrapolates the hub and casing
+    rows from their neighbours, so a fault driven at the hub is overwritten
+    before it can be seen -- and a fault at station 1 is what gets copied into
+    the hub row.
+    """
+    grid, patch_up, patch_dn, comm = exchanged()
+    comm.exchange()
+
+    # Zero on both sides, so their average is exactly zero rather than merely
+    # small: the clip is only wrong at exactly zero.
+    for block in grid:
+        Vx = block.Vx.copy()
+        Vx[:, 3, :] = 0.0
+        block.set_Vx(Vx)
+
+    comm.exchange()
+
+    assert np.all(np.isfinite(patch_up.get_target()))
+    assert np.all(np.isfinite(patch_dn.get_target()))
+
+    for patch in (patch_up, patch_dn):
+        patch.update_soln()
+        patch.advance()
+        patch.apply()
+
+    for block in grid:
+        assert np.all(np.isfinite(block.conserved))
+
+
+def test_clip_bounds_the_mean_axial_mach_in_magnitude_only():
+    """The clip bounds the mean axial Mach number in magnitude, not in direction.
+
+    A station the flow leaves through has to stay reversed in the state the
+    Jacobians are evaluated on, or both sides would be linearised about a flow
+    running the other way. A station sitting exactly at zero has no direction to
+    keep, so it takes the downstream one -- what it must not take is zero, which
+    is the value the clip exists to keep out of the Jacobians.
+    """
+    grid, patch_up, patch_dn, comm = exchanged()
+
+    # Both small enough that |Max| < Ma_clip, so both stations are clipped.
+    for block in grid:
+        Vx = block.Vx.copy()
+        Vx[:, 2, :] = -0.2
+        Vx[:, 4, :] = 0.0
+        block.set_Vx(Vx)
+
+    b_avg, _ = comm._prepare_pair(patch_up, patch_dn, flip=False)
+
+    Ma_clip = NonReflectingMixingCommunicator.Ma_clip
+    Max = np.asarray(b_avg.Max).ravel()
+    assert Max[2] == pytest.approx(-Ma_clip, rel=1e-3)
+    assert Max[4] == pytest.approx(Ma_clip, rel=1e-3)
+    # The untouched stations are above the clip and left alone by it.
+    assert Max[0] > Ma_clip
+    assert Max[6] == pytest.approx(Max[0], rel=1e-5)
+
+
+def test_sides_must_agree_on_rf_exchange():
+    """One plane relaxes at one rate, so a pair holding two is a configuration error.
+
+    The exchange writes a single shared target and reads the factor off the
+    first side, so a disagreement would silently take one side's value.
+    """
+    grid, patch_up, patch_dn = make_pair()
+    patch_up.rf_exchange = 0.5
+    patch_dn.rf_exchange = 0.25
+
+    with pytest.raises(ValueError, match="disagree on rf_exchange"):
+        NonReflectingMixingCommunicator(
+            grid, grid.connectivity.mixing_nonreflecting.pair()
+        )
+
+
+def test_rf_exchange_sets_the_rate_the_target_moves_at():
+    """The factor is read off the patches, so changing it changes the exchange.
+
+    Half the relaxation moves the target half as far from the same baseline, so
+    the increment scales with it directly.
+    """
+    increments = {}
+    for rf_exchange in (0.5, 0.25):
+        grid, patch_up, patch_dn, comm = exchanged(
+            rf_exchange=rf_exchange, up={"P": 1.05e5}, dn={"P": 0.95e5}
+        )
+        comm.exchange()
+        ((key, _),) = comm.pairs.items()
+        increments[rf_exchange] = comm.get_stats(*key)["du"]
+
+    np.testing.assert_allclose(increments[0.25], 0.5 * increments[0.5], rtol=1e-5)
+
+
+def test_rf_exchange_is_read_at_every_exchange_not_cached():
+    """A communicator built before the value changed still picks the change up.
+
+    This is what lets the solver retune a plane on a grid whose communicator was
+    already built and cached by an earlier apply_bconds.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(
+        rf_exchange=0.5, up={"P": 1.05e5}, dn={"P": 0.95e5}
+    )
+    ((key, _),) = comm.pairs.items()
+
+    comm.exchange()
+    du_before = comm.get_stats(*key)["du"].copy()
+
+    # Same baseline again, so only the factor differs between the two calls.
+    grid2, _, _, comm2 = exchanged(
+        rf_exchange=0.5, up={"P": 1.05e5}, dn={"P": 0.95e5}
+    )
+    for patch in grid2.patches.mixing_nonreflecting:
+        patch.rf_exchange = 0.25
+    comm2.exchange()
+    ((key2, _),) = comm2.pairs.items()
+
+    np.testing.assert_allclose(comm2.get_stats(*key2)["du"], 0.5 * du_before, rtol=1e-5)
+
+
+def test_copy_carries_rf_exchange():
+    """It is configuration, so it travels with the patch like the other settings."""
+    _, patch_up, _ = make_pair()
+    patch_up.rf_exchange = 0.123
+
+    assert patch_up.copy().rf_exchange == pytest.approx(0.123)
+
+
+@pytest.mark.parametrize("cls", [NonReflectingMixingPatch, MixingPatch])
+def test_rf_exchange_survives_a_pickle_round_trip(cls):
+    """It lives on the patch precisely so a restart keeps it.
+
+    The communicator that used to hold it is dropped by Grid.__getstate__ and
+    rebuilt from its defaults, so a value held there would silently revert on
+    every restart. Both plane types carry it.
+    """
+    patch = cls(i=-1)
+    patch.rf_exchange = 0.321
+
+    assert pickle.loads(pickle.dumps(patch)).rf_exchange == pytest.approx(0.321)
+
+
+def test_rf_exchange_back_fills_on_a_patch_pickled_without_it():
+    """Old EMB files predate the attribute and must still load.
+
+    BasePatch.__setstate__ runs _setup() before applying the pickled state for
+    exactly this reason, so the default is in place before the old state lands
+    on top of it.
+    """
+    _, patch_up, _ = make_pair()
+    state = patch_up.__getstate__()
+    del state["rf_exchange"]
+
+    revived = NonReflectingMixingPatch(i=-1)
+    revived.__setstate__(state)
+
+    assert revived.rf_exchange == pytest.approx(0.05)
 
 
 @pytest.mark.parametrize(
@@ -410,6 +611,41 @@ def test_mismatch_relaxes_to_matched_mean_fluxes():
     assert gap_after.max() < 1e-4, f"{gap_before} -> {gap_after}"
 
 
+def test_a_reversed_station_relaxes_like_any_other():
+    """The plane converges with a span station reversed, as it does without one.
+
+    The twin of :func:`test_mismatch_relaxes_to_matched_mean_fluxes`, differing
+    only in the reversed station, and held to the same limit.
+
+    It used to diverge: the reversal at that station deepened by an order of
+    magnitude, the target followed it, and the mean state went axially
+    supersonic within about a dozen iterations -- the two-block form of what
+    ended a LISA turbine run. The cause was the target integrating onto its own
+    previous value, so a mismatch that never resolved accumulated without bound
+    and the target walked away from any state the flow was in. Relaxing onto the
+    current symmetrised interface state instead leaves it nothing to wind up.
+
+    Reversed on both blocks, so the mean the exchange symmetrises is genuinely
+    reversed there rather than merely small.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(
+        up={"P": 1.05e5, "Vx": 105.0}, dn={"P": 0.95e5, "Vx": 95.0}
+    )
+    for block in grid:
+        Vx = block.Vx.copy()
+        Vx[:, 3, :] = -20.0
+        block.set_Vx(Vx)
+
+    relax((patch_up, patch_dn), comm, 100)
+
+    # The same limit the all-forward case converges to; that one reaches a few
+    # times 1e-6, so this is not a tight ask.
+    gap = flux_gap(patch_up, patch_dn)
+    assert gap.max() < 1e-4, f"flux gap {gap}"
+    # And the target stays a physical state rather than integrating away.
+    assert np.abs(patch_up.get_target()).max() < 20.0
+
+
 def test_exchange_leaves_harmonics_alone():
     """Only the pitch mean crosses the plane; the exchange must not touch harmonics."""
     grid, patch_up, patch_dn, comm = exchanged()
@@ -448,6 +684,7 @@ def test_harmonic_acoustic_is_absorbed():
 
     amp_before = np.abs(harmonic(patch_up, patch_up.block_view.P_nd)).max()
     comm.exchange()
+    patch_up.advance()
     patch_up.apply()
     amp_after = np.abs(harmonic(patch_up, patch_up.block_view.P_nd)).max()
 
@@ -546,9 +783,9 @@ def test_chain_exchange_matches_planes_taken_one_at_a_time():
         all_pairs = grid_one.connectivity.mixing_nonreflecting.pair()
         keys = [(iplane, 0), (iplane + 1, 0)] if iplane == 0 else [(1, 1), (2, 0)]
         one_pair = {k: all_pairs[k] for k in keys}
-        NonReflectingMixingCommunicator(
-            grid_one, one_pair, rf_mix=RF_MIX_FAST
-        ).exchange()
+        for patch in grid_one.patches.mixing_nonreflecting:
+            patch.rf_exchange = RF_EXCHANGE_FAST
+        NonReflectingMixingCommunicator(grid_one, one_pair).exchange()
 
         for side in (0, 1):
             assert np.allclose(

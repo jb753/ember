@@ -21,27 +21,28 @@ class MixingCommunicator:
 
     Each side's face is pitch-averaged in conserved variables, the two averages
     are averaged across the plane, and the shared target is relaxed towards
-    that with a single constant relaxation factor :math:`\mathrm{rf\_mix}`,
+    that with the plane's relaxation factor :math:`\mathrm{rf\_exchange}`,
 
     .. math::
 
         \mathrm{target}_n = \mathrm{target}_{n-1}
-            + \mathrm{rf\_mix}\,\bigl(\tfrac{1}{2}(U_1 + U_2)
+            + \mathrm{rf\_exchange}\,\bigl(\tfrac{1}{2}(U_1 + U_2)
             - \mathrm{target}_{n-1}\bigr).
 
-    The relaxation factor is the same on every multigrid level. Because
-    :class:`~ember.mixing.MixingPatch` imposes all five conserved variables at
-    its face, this relaxation is the only thing damping the resulting
-    Dirichlet-Dirichlet coupling between the two blocks -- it carries the whole
-    stability margin of the plane. See that class for what the choice of
-    conserved variables costs in conservation.
+    The factor is read from the patches at every exchange, so it is per plane
+    rather than per grid, and a solver run can retune it on a communicator that
+    already exists. Both sides of a plane must agree on it. It is the same on
+    every multigrid level. Because :class:`~ember.mixing.MixingPatch` imposes
+    all five conserved variables at its face, this relaxation is the only thing
+    damping the resulting Dirichlet-Dirichlet coupling between the two blocks --
+    it carries the whole stability margin of the plane. See that class for what
+    the choice of conserved variables costs in conservation.
     """
 
     def __init__(
         self,
         grid,
         mixing_pairs,
-        rf_mix=0.05,
     ):
         """Initialize with grid and mixing patch pairs.
 
@@ -51,20 +52,39 @@ class MixingCommunicator:
             The grid instance.
         mixing_pairs : dict
             Mapping of mixing patch pair information.
-        rf_mix : float, optional
-            Constant relaxation factor applied to the cross-plane mismatch. The
-            same value is used on all grid levels. Defaults to ``0.05``.
+
+        Raises
+        ------
+        ValueError
+            If the two sides of a plane disagree on ``rf_exchange``.
         """
         self._grid = grid
         self.pairs = {}
         self._prune_pairs(mixing_pairs)
+        self._check_rf_exchange()
 
         # Per-pair diagnostic snapshots, lazily allocated on first exchange.
         # Keys: (bid, pid). Values: dict with 'du' (the relaxation increment in
         # the exchanged target's own variables, shape (nspan, 5)).
         self._pair_state = {}
 
-        self._rf_mix = np.float32(rf_mix)
+    def _check_rf_exchange(self):
+        """Raise if either side of a plane would relax the exchange differently.
+
+        The exchange writes one shared target, so a pair holds one relaxation
+        factor; the exchange reads it from the first side. Checked once here
+        rather than per exchange, so a value changed on one side alone
+        afterwards -- which the solver's push cannot do, since it writes the
+        same value to every patch -- goes unnoticed.
+        """
+        for bid, pid in self.pairs:
+            patch1, patch2 = self._get_pair(bid, pid)
+            if patch1.rf_exchange != patch2.rf_exchange:
+                raise ValueError(
+                    f"Mixing plane sides disagree on rf_exchange: "
+                    f"{patch1.label!r} has {patch1.rf_exchange}, "
+                    f"{patch2.label!r} has {patch2.rf_exchange}"
+                )
 
     def _prune_pairs(self, mixing_pairs):
         """Prune bidirectional pairs to unidirectional mapping."""
@@ -127,10 +147,10 @@ class MixingCommunicator:
             target2 = target2[::-1]
         target = 0.5 * (target1 + target2)
 
-        # du = rf_mix * (cross-plane average - baseline).
+        # du = rf_exchange * (cross-plane average - baseline).
         du = 0.5 * (cons1 + cons2)
         du -= target
-        du *= self._rf_mix
+        du *= patch1.rf_exchange
 
         state = self._ensure_pair_state((bid, pid), target.shape[0])
         state["du"][:] = du
@@ -175,7 +195,7 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
     .. math::
 
         \mathrm{target}_n = \tfrac{1}{2}(\mathrm{mix}_1 + \mathrm{mix}_2)
-            + \mathrm{rf\_mix}\,\varepsilon_n.
+            + \mathrm{rf\_exchange}\,\varepsilon_n.
 
     The target is written in the mix variables :math:`[h_0, s, V_r, V_\theta,
     p]`, which are exactly the quantities the two patches take their
@@ -194,6 +214,19 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
     # expresses Saxer's split of the interface jump by direction of propagation
     # as a pair of row masks on the target vector.
     _chic_to_target = staticmethod(perturbation.chic_to_mix)
+
+    Ma_clip = 0.05
+    r"""Floor on :math:`\lvert \mathit{Ma}_x \rvert` of the symmetrised mean
+    state the Jacobians are evaluated on.
+
+    :cite:t:`Holmes2008` Eq. 16: as the mean normal velocity tends to zero the
+    eigenvalues of the transformation matrices grow, so the interface
+    over-controls to make up for the slow advection the small velocity implies.
+    Bounding the magnitude -- not the direction, which a reversed station keeps
+    -- is his remedy and this is ember's form of it. It also keeps
+    :func:`~ember.perturbation.flux_to_primitive`, which divides by the axial
+    velocity, away from zero.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -279,17 +312,32 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         patch1.block_avg.update_cached_conserved()
         patch2.block_avg.update_cached_conserved()
 
+        # The symmetrised interface state in target space, which _write_targets
+        # relaxes the mismatch onto. Taken here because the clip below is about
+        # to move the axial momentum, and a baseline is wanted for the state the
+        # two sides actually share rather than for the one the Jacobians are
+        # evaluated on.
+        b = patch1.block_avg
+        self._baseline = np.stack(
+            [b.ho_nd, b.s_nd, b.Vr_nd, b.Vt_nd, b.P_nd], axis=-1
+        ).reshape(nspan, 5)
+
         # Store the flux difference in v1
         v1[:] = flux2
         v1 -= flux1
 
-        # Clip b_avg axial Mach to Ma_clip before evaluating Jacobians
-        Ma_clip = 0.01
+        # Clip b_avg axial Mach to Ma_clip before evaluating Jacobians.
+        # np.sign is not usable for the direction: it returns 0 at Max == 0, so
+        # a stalled station would be clipped to exactly zero axial momentum --
+        # the one value the clip exists to keep out of flux_to_primitive, which
+        # divides by it two lines below. A station with no direction of its own
+        # takes the downstream one.
         b_avg = patch1.block_avg
         Max = b_avg.Max
-        too_low = np.abs(Max) < Ma_clip
+        too_low = np.abs(Max) < self.Ma_clip
         if too_low.any():
-            rhoVx_clip = np.sign(Max) * Ma_clip * b_avg.rho_nd * b_avg.a_nd
+            sign = np.where(Max >= 0.0, 1.0, -1.0)
+            rhoVx_clip = sign * self.Ma_clip * b_avg.rho_nd * b_avg.a_nd
             b_avg.conserved_nd[..., 1] = np.where(
                 too_low, rhoVx_clip, b_avg.conserved_nd[..., 1]
             )
@@ -321,12 +369,6 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         v2 = self._vec2[:nspan]
         J = self._jac_buf[:nspan]
 
-        # Each side's current target, the baseline the mismatch is relaxed onto.
-        target1 = patch1.get_target()
-        target2 = patch2.get_target()
-        if flip:
-            target2 = target2[::-1]
-
         # Split into upstream/downstream contributions in chic space
         v2[:] = v1  # copy dchic into v2
         v1[..., 1:] = 0.0  # v1 = dchic_up (keep upstream acoustic)
@@ -346,18 +388,22 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         # For some reason need a -ve sign on dtarget_dn here!
         v1 -= v2
 
-        # Relax the target-space mismatch onto the symmetrised baseline. v1
-        # holds the error e_n = dtarget; the increment is du = rf_mix * e_n and
-        # the updated target is target_n = 0.5*(target1 + target2) + du.
+        # Relax the target-space mismatch onto the symmetrised interface state.
+        # v1 holds the error e_n = dtarget; the increment is du = rf_exchange *
+        # e_n and the updated target is target_n = baseline + du.
         state = self._ensure_pair_state(key, nspan)
 
-        v1 *= self._rf_mix  # v1 = du
+        v1 *= patch1.rf_exchange  # v1 = du
         state["du"][:] = v1
 
-        # target_n = baseline + du.
-        v2[:] = target1
-        v2 += target2
-        v2 *= 0.5
+        # The baseline is the state the two sides currently share, not the
+        # previous target. Relaxing onto the previous target makes this an
+        # integrator, which is fine while the mismatch resolves and unbounded
+        # when it does not: at a reversed station the target used to walk away
+        # until it described no state the flow was ever in, and the patches
+        # tracked it there. Saxer applies his correction to the current jump and
+        # keeps no interface state between steps, which is what this is.
+        v2[:] = self._baseline
         v2 += v1
 
         # 0th-order extrapolation of targets at hub/casing walls

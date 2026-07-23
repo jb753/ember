@@ -229,8 +229,9 @@ solver-wide setting:
 - :class:`~ember.mixing.MixingPatch` holds no relaxation of its own: it imposes
   whatever target the exchange last wrote.
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
-  mixing-plane target exchanged between adjacent blocks with ``rf_mix``
-  (default 0.05), which is the only damping the reflecting plane has.
+  mixing-plane target exchanged between adjacent blocks with the patches'
+  ``rf_exchange`` (default 0.05), which is the only damping the reflecting
+  plane has.
 - :class:`~ember.outlet.OutletPatch` takes its own relaxation factor via
   ``set_adjustment(rf=...)``.
 
@@ -347,6 +348,37 @@ class Solver(BaseSolver):
     fac_mgrid: float = 0.2
     """Scaling factor on multigrid corrections. Honored by both integrators
     (:func:`scree_step` and :func:`rk_step`)."""
+
+    rf_inlet: float | None = 0.05
+    """Characteristic under-relaxation
+    (:attr:`~ember.nonreflecting.NonReflectingPatch.sigma`) on every
+    :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch`. Imposed on
+    every such patch at the start of the run, so the default overrides a value
+    the patches carried in; pass None to leave whatever they already hold.
+    Does not touch the plain :class:`~ember.inlet.InletPatch`, whose ``rf``
+    relaxes a pressure datum and is a different quantity. Applied once per
+    Runge-Kutta substage, not once per step, so the effective rate per step is
+    larger by :attr:`n_stage`."""
+
+    rf_outlet: float | None = 0.05
+    """As :attr:`rf_inlet`, for every
+    :class:`~ember.outlet_nonreflecting.NonReflectingOutletPatch`. Does not
+    touch the plain :class:`~ember.outlet.OutletPatch`, which takes its own
+    relaxation via ``set_adjustment(rf=...)``."""
+
+    rf_mix: float | None = 0.01
+    """As :attr:`rf_inlet`, for every
+    :class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch`. This is each
+    side's own characteristic relaxation; :attr:`rf_exchange` is the separate
+    factor on the cross-plane exchange between them."""
+
+    rf_exchange: float | None = 0.01
+    """Relaxation of the cross-plane mismatch on every mixing plane, reflecting
+    (:class:`~ember.mixing.MixingPatch`) and non-reflecting alike. Read from the
+    patches by
+    :class:`~ember.mixing_communicator.MixingCommunicator` at each exchange.
+    As :attr:`rf_inlet`, the default is imposed and None leaves each plane's own
+    value alone."""
 
     def run(self, grid):
         """Drive ``grid`` through ``n_step`` steps in place; return the history.
@@ -682,6 +714,37 @@ def rk_step(grid, conf):
             grid.update_residual(dampin=conf.dampin, sf=conf.sf_resid)
 
 
+def _apply_bcond_relaxation(grid, conf):
+    """Push the configured boundary relaxation factors onto the grid's patches.
+
+    Every one of these lives on the patch rather than on the solver, so that it
+    survives a restart and so that two planes of a multi-row grid can be damped
+    differently. The solver still has the last word: a configured value is
+    imposed on every patch it names, so a run's damping follows from its own
+    configuration rather than from whatever a setup script left behind. Pass
+    None to opt out of that for one setting and keep what the patches carry.
+
+    Called per level from :func:`_run`, so the full-multigrid chain configures
+    each of its separately resampled grids.
+    """
+    for sigma, patches in (
+        (conf.rf_inlet, grid.patches.inlet_nonreflecting),
+        (conf.rf_outlet, grid.patches.outlet_nonreflecting),
+        (conf.rf_mix, grid.patches.mixing_nonreflecting),
+    ):
+        if sigma is not None:
+            for patch in patches:
+                patch.sigma = sigma
+
+    if conf.rf_exchange is not None:
+        # Both plane types carry rf_exchange; the communicators read it from
+        # the patches at every exchange, so a cached communicator picks this up
+        # without being rebuilt.
+        for patches in (grid.patches.mixing, grid.patches.mixing_nonreflecting):
+            for patch in patches:
+                patch.rf_exchange = conf.rf_exchange
+
+
 def _validate_mg(grid, n_levels):
     """Raise if any block cannot be evenly divided into the coarsest MG blocks.
 
@@ -732,6 +795,8 @@ def _run(grid, conf):
 
     # Fail fast if the grid cannot be evenly blocked for multigrid.
     _validate_mg(grid, conf.n_levels)
+
+    _apply_bcond_relaxation(grid, conf)
 
     # Initialise timesteps
     grid.update_timestep(rf=1.0, fac_visc=conf.fac_visc)

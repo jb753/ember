@@ -887,6 +887,19 @@ class Block(ember.struct.StructuredData):
 
         self.clear_cache()
 
+        # A surface-of-revolution patch holds its own averaged block, whose
+        # coordinates were nondimensionalised against the reference length in
+        # force when the patch attached. Rescale those too, or the pitch average
+        # decodes this block's angular momentum -- the one conserved variable
+        # carrying L_ref -- against a stale radius, and every quantity derived
+        # from the resulting tangential velocity comes out wrong. Only
+        # reachable by setting the length scale after attaching the patches;
+        # attach_to_block builds block_avg at the right scale to begin with.
+        for p in self.patches:
+            block_avg = getattr(p, "_block_avg", None)
+            if block_avg is not None:
+                block_avg.set_L_ref(L_ref)
+
         for p in self.patches.inlet:
             p._target_nd = None
             p._V_nd_max = None
