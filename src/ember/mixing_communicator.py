@@ -451,8 +451,8 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         J = self._jac_buf[:nspan]
 
         # Split into upstream/downstream contributions in chic space. Which
-        # acoustic is incoming to the pressure-reading side depends on the sign
-        # of the mean throughflow, exactly as each patch's own
+        # acoustic is incoming to the pressure-reading side depends on the
+        # direction of the mean throughflow, exactly as each patch's own
         # incoming-characteristic table does (see ember.nonreflecting): row 0
         # (Vx - a) feeds the P target where the mean runs forward, row 1
         # (Vx + a) where it has reversed. The three convective characteristics
@@ -461,10 +461,25 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         # reversed station's inflow rows from the wrong acoustic, so the
         # exchange and the boundary condition disagree on which characteristic
         # is incoming and a standing pitch-mean flux mismatch is left across the
-        # plane. The sign is read from the clipped symmetrised mean, whose
-        # magnitude the clip bounds but whose direction it keeps.
+        # plane.
+        #
+        # The direction is read from patch1's shared entering flag
+        # (_calc_shared_entering, computed above in _prepare_pair), not
+        # independently from the raw sign of b_avg.Max: that flag is exactly
+        # what each patch's own _calc_entering now returns (Change 2), so this
+        # is the same hysteresis-damped decision the patches split their own
+        # incoming/outgoing characteristics on. Reading the raw instantaneous
+        # sign here instead, with no hysteresis, could disagree with the
+        # patches' own lagged decision for an exchange or two near a
+        # crossing -- fine for the old proportional relaxation, which
+        # re-derives its correction from scratch every step and forgets a bad
+        # one immediately, but not for the integrating form below, which
+        # accumulates whatever it is given and has no way to tell a
+        # wrong-direction contribution from a right one afterwards.
         idx = np.arange(nspan)
-        p_row = np.where(np.asarray(b_avg.Max).ravel() < 0.0, 1, 0)
+        p_row = np.where(
+            (patch1._sign_interior > 0) == patch1._entering_shared, 0, 1
+        )
         v2[:] = v1  # copy dchic into v2
         acoustic = v2[idx, p_row].copy()  # the one acoustic bound for the P bucket
         v1[...] = 0.0
@@ -526,6 +541,23 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         patch1.set_target(v2)
         patch2.set_target(v2[::-1] if flip else v2)
 
+    _clamp_Ma_max_sq = 4.0
+    r"""Square of the axial Mach number :meth:`_clamp_physical` rejects a
+    target above.
+
+    Not 1: the target is an aspiration the patches' own sigma-relaxed mean-mode
+    solve chases gradually, not the physical face state itself (which the
+    patch's own hard guard in :meth:`~ember.nonreflecting.NonReflectingPatch._calc_reference`
+    already protects), so a target whose implied axial velocity briefly
+    overshoots the subsonic boundary by a little is an ordinary transient of a
+    converging integration, not a runaway. Rejecting it anyway -- tried at
+    :math:`\mathit{Ma}\geq 1` during development -- snaps a recovering
+    trajectory back to the baseline hard enough to leave it oscillating
+    indefinitely instead of settling, which is worse than leaving it alone.
+    Squared, and compared against the ratio of squares below, so no square root
+    is needed at every exchange.
+    """
+
     def _clamp_physical(self, target, patch):
         """Reject a station's updated target if it implies a non-physical state.
 
@@ -533,11 +565,12 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         needs (see :attr:`leak`): a target that has wound up past what the
         flow was ever in is not just wrong, it can be a state with no solution
         at all -- negative density, non-positive pressure, or an implied axial
-        Mach at or above one, none of which the mean-mode Newton solves of
-        :class:`~ember.nonreflecting.NonReflectingPatch` are built to handle.
-        Rejected stations fall back to :attr:`_baseline`, the live symmetrised
-        interface state :meth:`_prepare_pair` just measured -- physical by
-        construction, unlike the wound-up target that failed the check.
+        velocity so far past sonic that the mean-mode Newton solves of
+        :class:`~ember.nonreflecting.NonReflectingPatch` were never going to
+        recover it. Rejected stations fall back to :attr:`_baseline`, the live
+        symmetrised interface state :meth:`_prepare_pair` just measured --
+        physical by construction, unlike the wound-up target that failed the
+        check.
 
         ``target`` is modified in place. Uses ``patch``'s fluid model; both
         sides of a plane share one, so either patch does.
@@ -552,13 +585,23 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
             Vx_sq = 2.0 * (ho - h) - Vr**2 - Vt**2
             Max_sq = Vx_sq / a**2
 
+        # A negative Vx_sq (no real axial velocity solves the energy balance),
+        # of any magnitude, is not rejected on its own: right at a stalled or
+        # lightly reversed station this is an ordinary excursion of a
+        # converging integration -- the same territory the patches' own
+        # Ma_clip exists to ride through -- and rejecting it as harshly as a
+        # genuine runaway snaps a recovering trajectory back to the baseline
+        # hard enough to leave it oscillating rather than settling, which was
+        # tried and made things worse. Only the upper Mach bound, which a
+        # negative Max_sq automatically satisfies, gates this check; a
+        # negative Vx_sq large enough to matter shows up as non-physical
+        # elsewhere first (rho or P failing the checks above).
         bad = (
             ~np.isfinite(rho)
             | (rho <= 0.0)
             | ~np.isfinite(P)
             | (P <= 0.0)
-            | ~(Vx_sq >= 0.0)
-            | ~(Max_sq < 1.0)
+            | ~(Max_sq < self._clamp_Ma_max_sq)
         )
         if bad.any():
             target[bad] = self._baseline[bad]

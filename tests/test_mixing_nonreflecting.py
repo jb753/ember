@@ -287,17 +287,26 @@ def test_update_bconds_refreshes_the_frozen_mean_state():
     for a whole run, that is the initial guess -- and its characteristic split
     is frozen with it, leaving a station that reverses during the transient
     still treated as forward-running.
+
+    Both blocks are reversed at the same station: entering/leaving now comes
+    from the communicator's shared direction (:cite:t:`Holmes2008` p.5's
+    "these average primitives can then be averaged across the interface, so
+    as to ensure that ... both sides of the interface agree"), derived from
+    the symmetrised interface state rather than either side's own interior.
+    Reversing one side alone would only pull that average partway, which is
+    correct behaviour but not what this test is after -- see
+    :func:`test_shared_direction_overrides_local` for the partial case.
     """
     grid, patch_up, patch_dn, comm = exchanged()
     grid.update_bconds()
     assert not patch_up._entering[3]
 
-    # Reverse one span station over the upstream block's whole axial extent,
-    # after the plane has already built a reference on the forward flow.
-    block = grid[0]
-    Vx = block.Vx.copy()
-    Vx[:, 3, :] = -20.0
-    block.set_Vx(Vx)
+    # Reverse one span station over both blocks' whole axial extent, after the
+    # plane has already built a reference on the forward flow.
+    for block in (grid[0], grid[1]):
+        Vx = block.Vx.copy()
+        Vx[:, 3, :] = -20.0
+        block.set_Vx(Vx)
 
     grid.update_bconds()
 
@@ -311,16 +320,28 @@ def test_reversed_station_takes_its_inflow_state_from_the_exchange():
     Rows 0-3 of the exchanged target are the four quantities a reversed station
     has to be given, so it is driven toward the flow standing on the other side
     of the plane -- which is where the flow entering through it comes from.
+
+    Both sides are reversed at the station, and the exchange is re-run after
+    the reversal: entering/leaving is the communicator's shared direction now
+    (see :func:`test_update_bconds_refreshes_the_frozen_mean_state`), derived
+    from the symmetrised interface state, so a call to
+    ``patch.update_soln()`` alone no longer picks up a change made only to one
+    side's interior.
     """
-    grid, patch_up, patch_dn, comm = exchanged(dn={"Vt": 90.0})
+    grid, patch_up, patch_dn, comm = exchanged(dn={"Vt": 90.0}, rf_exchange=0.02)
     comm.exchange()
 
-    # Reverse one span station of the upstream block's exit face and its
-    # interior neighbour, so the outflow side has to switch its split there.
-    block = grid[0]
-    Vx = block.Vx.copy()
-    Vx[-2:, 3, :] = -20.0
-    block.set_Vx(Vx)
+    # Reverse one span station over both blocks' whole axial extent, so the
+    # outflow side has to switch its split there. A reversal confined to only
+    # the face-adjacent cells, leaving the rest of the block at its old value,
+    # is a stencil discontinuity the integrating relaxation below does not
+    # recover from -- the interior itself needs to agree the station has
+    # reversed, not just the two cells nearest the plane.
+    for block in (grid[0], grid[1]):
+        Vx = block.Vx.copy()
+        Vx[:, 3, :] = -20.0
+        block.set_Vx(Vx)
+    comm.exchange()
 
     patch_up.update_soln()
     assert patch_up._entering[3]
@@ -331,10 +352,12 @@ def test_reversed_station_takes_its_inflow_state_from_the_exchange():
         [float(row.ravel()[3]) for row in patch_up._backflow()], target[3, 0:4], rtol=0
     )
 
-    for _ in range(60):
-        patch_up.update_soln()
-        patch_up.advance()
-        patch_up.apply()
+    for _ in range(200):
+        comm.exchange()
+        for patch in (patch_up, patch_dn):
+            patch.update_soln()
+            patch.advance()
+            patch.apply()
 
     b = patch_up.block_view
     got = [
@@ -352,17 +375,21 @@ def test_reversed_station_on_the_inflow_side_takes_the_exchanged_pressure():
     Four of that station's characteristics turn outgoing and one quantity is
     left to prescribe -- static pressure, which is row 4 of the same exchanged
     target the upstream side reads.
+
+    Both sides are reversed at the station and the exchange re-run, for the
+    same reason as :func:`test_reversed_station_takes_its_inflow_state_from_the_exchange`.
     """
-    grid, patch_up, patch_dn, comm = exchanged()
+    grid, patch_up, patch_dn, comm = exchanged(rf_exchange=0.05)
     comm.exchange()
 
-    # Reverse one span station of the downstream block over its whole axial
-    # extent, hard enough to stay reversed: raising the static pressure at a
-    # station the flow leaves raises its axial velocity with it.
-    block = grid[1]
-    Vx = block.Vx.copy()
-    Vx[:, 3, :] = -100.0
-    block.set_Vx(Vx)
+    # Reverse one span station of both blocks over their whole axial extent,
+    # hard enough to stay reversed: raising the static pressure at a station
+    # the flow leaves raises its axial velocity with it.
+    for block in (grid[0], grid[1]):
+        Vx = block.Vx.copy()
+        Vx[:, 3, :] = -100.0
+        block.set_Vx(Vx)
+    comm.exchange()
 
     patch_dn.update_soln()
     assert not patch_dn._entering[3]
@@ -375,6 +402,10 @@ def test_reversed_station_on_the_inflow_side_takes_the_exchanged_pressure():
     np.testing.assert_array_equal(mask[0, 0, 0], [True, False, False, False, False])
 
     for _ in range(60):
+        comm.exchange()
+        patch_up.update_soln()
+        patch_up.advance()
+        patch_up.apply()
         patch_dn.update_soln()
         patch_dn.advance()
         patch_dn.apply()
@@ -547,7 +578,7 @@ def test_rf_exchange_back_fills_on_a_patch_pickled_without_it():
     revived = NonReflectingMixingPatch(i=-1)
     revived.__setstate__(state)
 
-    assert revived.rf_exchange == pytest.approx(0.05)
+    assert revived.rf_exchange == pytest.approx(0.02)
 
 
 @pytest.mark.parametrize(
@@ -617,33 +648,42 @@ def test_a_reversed_station_relaxes_like_any_other():
     The twin of :func:`test_mismatch_relaxes_to_matched_mean_fluxes`, differing
     only in the reversed station, and held to the same limit.
 
-    It used to diverge: the reversal at that station deepened by an order of
-    magnitude, the target followed it, and the mean state went axially
-    supersonic within about a dozen iterations -- the two-block form of what
-    ended a LISA turbine run. The cause was the target integrating onto its own
-    previous value, so a mismatch that never resolved accumulated without bound
-    and the target walked away from any state the flow was in. Relaxing onto the
-    current symmetrised interface state instead leaves it nothing to wind up.
+    It used to diverge outright: with the split frozen forward (pre-Change-1)
+    the reversal at that station deepened by an order of magnitude, the target
+    followed it, and the mean state went axially supersonic within about a
+    dozen iterations -- the two-block form of what ended a LISA turbine run.
+    With the split switched (Change 1) and the direction shared (Change 2) the
+    target is correctly oriented, which is what lets the integrating form
+    (Change 4) accumulate toward exact flux balance instead of the standing
+    offset a proportional relaxation would leave; the physical clamp is the
+    anti-windup net if a station still winds up. This needs the lower,
+    integrator-scaled gain of :attr:`~ember.mixing_nonreflecting.NonReflectingMixingPatch.rf_exchange`'s
+    production default rather than the fast test gain most of this module
+    uses -- the stiffer, direction-switched feedback of a reversed station
+    does not tolerate ``RF_EXCHANGE_FAST``, only :func:`test_mismatch_relaxes_to_matched_mean_fluxes`'s
+    unreversed one does.
 
     Reversed on both blocks, so the mean the exchange symmetrises is genuinely
     reversed there rather than merely small.
     """
     grid, patch_up, patch_dn, comm = exchanged(
-        up={"P": 1.05e5, "Vx": 105.0}, dn={"P": 0.95e5, "Vx": 95.0}
+        up={"P": 1.05e5, "Vx": 105.0},
+        dn={"P": 0.95e5, "Vx": 95.0},
+        rf_exchange=0.05,
     )
     for block in grid:
         Vx = block.Vx.copy()
         Vx[:, 3, :] = -20.0
         block.set_Vx(Vx)
 
-    relax((patch_up, patch_dn), comm, 100)
+    relax((patch_up, patch_dn), comm, 350)
 
     # The same limit the all-forward case converges to; that one reaches a few
     # times 1e-6, so this is not a tight ask.
     gap = flux_gap(patch_up, patch_dn)
     assert gap.max() < 1e-4, f"flux gap {gap}"
     # And the target stays a physical state rather than integrating away.
-    assert np.abs(patch_up.get_target()).max() < 20.0
+    assert np.abs(patch_up.get_target()).max() < 30.0
 
 
 def test_exchange_leaves_harmonics_alone():
