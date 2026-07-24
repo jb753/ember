@@ -369,10 +369,26 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         v2 = self._vec2[:nspan]
         J = self._jac_buf[:nspan]
 
-        # Split into upstream/downstream contributions in chic space
+        # Split into upstream/downstream contributions in chic space. Which
+        # acoustic is incoming to the pressure-reading side depends on the sign
+        # of the mean throughflow, exactly as each patch's own
+        # incoming-characteristic table does (see ember.nonreflecting): row 0
+        # (Vx - a) feeds the P target where the mean runs forward, row 1
+        # (Vx + a) where it has reversed. The three convective characteristics
+        # (rows 2-4) always feed the four inflow quantities. Splitting by fixed
+        # row index instead -- as if every station ran forward -- feeds a
+        # reversed station's inflow rows from the wrong acoustic, so the
+        # exchange and the boundary condition disagree on which characteristic
+        # is incoming and a standing pitch-mean flux mismatch is left across the
+        # plane. The sign is read from the clipped symmetrised mean, whose
+        # magnitude the clip bounds but whose direction it keeps.
+        idx = np.arange(nspan)
+        p_row = np.where(np.asarray(b_avg.Max).ravel() < 0.0, 1, 0)
         v2[:] = v1  # copy dchic into v2
-        v1[..., 1:] = 0.0  # v1 = dchic_up (keep upstream acoustic)
-        v2[..., 0] = 0.0  # v2 = dchic_dn (keep downstream acoustic and convective)
+        acoustic = v2[idx, p_row].copy()  # the one acoustic bound for the P bucket
+        v1[...] = 0.0
+        v1[idx, p_row] = acoustic  # v1 = dchic_up (the pressure-side acoustic)
+        v2[idx, p_row] = 0.0  # v2 = dchic_dn (other acoustic and convective)
 
         # Convert both to target space with the single fused Jacobian
         self._chic_to_target(b_avg, out=J)
