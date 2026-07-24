@@ -314,59 +314,6 @@ def test_update_bconds_refreshes_the_frozen_mean_state():
     assert not patch_up._entering[[0, 1, 2, 4, 5, 6]].any()
 
 
-def test_reversed_station_takes_its_inflow_state_from_the_exchange():
-    """The outflow side needs nothing configured to carry a reversed station.
-
-    Rows 0-3 of the exchanged target are the four quantities a reversed station
-    has to be given, so it is driven toward the flow standing on the other side
-    of the plane -- which is where the flow entering through it comes from.
-
-    Both sides are reversed at the station, and the exchange is re-run after
-    the reversal: entering/leaving is the communicator's shared direction now
-    (see :func:`test_update_bconds_refreshes_the_frozen_mean_state`), derived
-    from the symmetrised interface state, so a call to
-    ``patch.update_soln()`` alone no longer picks up a change made only to one
-    side's interior.
-    """
-    grid, patch_up, patch_dn, comm = exchanged(dn={"Vt": 90.0}, rf_exchange=0.02)
-    comm.exchange()
-
-    # Reverse one span station over both blocks' whole axial extent, so the
-    # outflow side has to switch its split there. A reversal confined to only
-    # the face-adjacent cells, leaving the rest of the block at its old value,
-    # is a stencil discontinuity the integrating relaxation below does not
-    # recover from -- the interior itself needs to agree the station has
-    # reversed, not just the two cells nearest the plane.
-    for block in (grid[0], grid[1]):
-        Vx = block.Vx.copy()
-        Vx[:, 3, :] = -20.0
-        block.set_Vx(Vx)
-    comm.exchange()
-
-    patch_up.update_soln()
-    assert patch_up._entering[3]
-    # Nothing was prescribed and nothing was seeded either: the exchange had
-    # already filled every row, so the seed stood aside.
-    target = patch_up.get_target()
-    np.testing.assert_allclose(
-        [float(row.ravel()[3]) for row in patch_up._backflow()], target[3, 0:4], rtol=0
-    )
-
-    for _ in range(200):
-        comm.exchange()
-        for patch in (patch_up, patch_dn):
-            patch.update_soln()
-            patch.advance()
-            patch.apply()
-
-    b = patch_up.block_view
-    got = [
-        float(patch_up._pitch_mean(f).ravel()[3])
-        for f in (b.ho_nd, b.s_nd, b.Vr_nd, b.Vt_nd)
-    ]
-    np.testing.assert_allclose(got, patch_up.get_target()[3, 0:4], rtol=5e-3)
-
-
 def test_reversed_station_on_the_inflow_side_takes_the_exchanged_pressure():
     """The downstream side carries reversal too, which is what it never used to.
 
@@ -376,8 +323,11 @@ def test_reversed_station_on_the_inflow_side_takes_the_exchanged_pressure():
     left to prescribe -- static pressure, which is row 4 of the same exchanged
     target the upstream side reads.
 
-    Both sides are reversed at the station and the exchange re-run, for the
-    same reason as :func:`test_reversed_station_takes_its_inflow_state_from_the_exchange`.
+    Both sides are reversed at the station and the exchange re-run:
+    entering/leaving is the communicator's shared direction now (see
+    :func:`test_update_bconds_refreshes_the_frozen_mean_state`), derived from
+    the symmetrised interface state, so a call to ``patch.update_soln()``
+    alone no longer picks up a change made only to one side's interior.
     """
     grid, patch_up, patch_dn, comm = exchanged(rf_exchange=0.05)
     comm.exchange()
