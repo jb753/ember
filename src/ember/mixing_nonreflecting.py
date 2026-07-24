@@ -129,8 +129,40 @@ class NonReflectingMixingPatch(NonReflectingPatch):
         # planes of a multi-row grid can damp at different rates; both sides of
         # a plane must agree on it. Distinct from
         # :attr:`~ember.nonreflecting.NonReflectingPatch.sigma`, which relaxes
-        # this side's own characteristic correction.
-        self.rf_exchange = 0.05
+        # this side's own characteristic correction. Lower than the reflecting
+        # plane's default: the direction-switched split (see
+        # :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator`)
+        # is stiffer feedback than the old frozen one, and the integrating form
+        # of the relaxation has a tighter stability limit than the proportional
+        # form it replaced.
+        self.rf_exchange = 0.02
+        # Per-station entering flag the communicator computed from the shared
+        # symmetrised interface state, stamped here by
+        # :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator`
+        # once per exchange; see :meth:`_calc_entering`. ``None`` until the
+        # first exchange has run, so attach-time and pre-exchange solves fall
+        # back to this patch's own local reading.
+        self._entering_shared = None
+
+    def _calc_entering(self, avg):
+        """Span stations the mean flow enters through, from the shared direction.
+
+        Both sides of a mixed-sign station must agree on which characteristic
+        split they are on -- the communicator's own split of the interface jump
+        (see :meth:`~ember.mixing_communicator.NonReflectingMixingCommunicator._write_targets`)
+        already assumes one shared direction, so if each side instead read its
+        own local interior to decide entering/leaving, a station straddling the
+        two could disagree with the split the exchange built for it. The
+        communicator computes one direction from the symmetrised interface
+        state and stamps it here every exchange; only before the first
+        exchange, or on a patch the communicator has not touched (there is
+        none such for this class, but a resized target falls back safely too),
+        is the local computation of the base class used.
+        """
+        shared = self._entering_shared
+        if shared is not None and shared.shape == avg.Vx_nd.reshape(-1).shape:
+            return shared
+        return super()._calc_entering(avg)
 
     def _copy(self, c):
         # NonReflectingPatch._copy is shared with the inlet and outlet, neither

@@ -188,14 +188,21 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
     follows :cite:t:`Saxer1993` (his Section 5.5): it flux-averages each side,
     takes the jump in that state across the plane, converts the jump to
     characteristic variables and splits it by direction of propagation -- the
-    upstream side owning the upstream-running pressure characteristic and the
-    downstream side the other four -- and relaxes the result onto the
-    symmetrised baseline of the two sides' targets,
+    side the mean flow reaches first at each span station owning the
+    upstream-running pressure characteristic and the other the remaining four
+    (:cite:t:`Holmes2008` Eq. 10-11, per station rather than fixed by
+    geometry) -- and integrates the result onto the target itself,
 
     .. math::
 
-        \mathrm{target}_n = \tfrac{1}{2}(\mathrm{mix}_1 + \mathrm{mix}_2)
-            + \mathrm{rf\_exchange}\,\varepsilon_n.
+        \mathrm{target}_n = \mathrm{target}_{n-1}
+            + \mathrm{rf\_exchange}\,\varepsilon_n,
+
+    following Holmes' Eq. 15 rather than re-anchoring to the live interface
+    state every step: the fixed point of the integrating form is exact flux
+    balance, where the proportional form leaves a standing offset the size of
+    the residual mismatch. :attr:`leak` and :meth:`_clamp_physical` are the
+    anti-windup this needs in return.
 
     The target is written in the mix variables :math:`[h_0, s, V_r, V_\theta,
     p]`, which are exactly the quantities the two patches take their
@@ -214,6 +221,24 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
     # expresses Saxer's split of the interface jump by direction of propagation
     # as a pair of row masks on the target vector.
     _chic_to_target = staticmethod(perturbation.chic_to_mix)
+
+    leak = 0.0
+    r"""Anti-windup leak on the integrating relaxation, as a fraction of
+    :attr:`rf_exchange` per exchange.
+
+    :meth:`_write_targets` accumulates its correction onto the previous target
+    rather than re-anchoring to the live interface baseline every step, so
+    that the fixed point is exact flux balance rather than the proportional
+    form's standing offset (:cite:t:`Holmes2008` Eq. 15, applied to the
+    auxiliary cells rather than re-derived each step). A pure integrator can
+    wind up while the mismatch has not yet resolved -- most a reversed station
+    whose own boundary condition has not caught up with a target that has
+    already moved past what the flow was ever in. A positive leak bleeds the
+    target back toward the live baseline each step, trading a
+    ``leak/rf_exchange``-scaled residual flux mismatch for a bound on how far
+    the target can wander. Zero is exact Holmes; engage only if a station is
+    seen to wind up.
+    """
 
     Ma_clip = 0.05
     r"""Floor on :math:`\lvert \mathit{Ma}_x \rvert` of the symmetrised mean
@@ -235,6 +260,11 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         self._vec1 = None
         self._vec2 = None
         self._jac_buf = None
+
+        # Previous entering flag per (bid, pid, side), the hysteresis state for
+        # _calc_shared_entering. Keyed per side because the two patches of a
+        # pair have opposite _sign_interior and so, in general, opposite flags.
+        self._entering_state = {}
 
     def _ensure_buffers(self, nspan):
         """Allocate or resize scratch buffers for the given spanwise size."""
@@ -349,7 +379,58 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         perturbation.primitive_to_chic(b_avg, out=J)
         util.matvec(J, v1, out=v1)  # v1 = dchic
 
+        # Stamp one shared entering direction per span station on both
+        # patches, from the state they now both hold. Each patch's own
+        # _calc_entering would otherwise read its own local interior, and a
+        # mixed-sign station could then have the two sides disagree on which
+        # characteristic split they are on -- the split _write_targets is
+        # about to build assumes one direction shared by both.
+        key = (patch1.label, patch2.label)
+        patch1._entering_shared = self._calc_shared_entering(patch1, (*key, 1))
+        patch2._entering_shared = self._calc_shared_entering(patch2, (*key, 2))
+
         return b_avg, nspan
+
+    def _calc_shared_entering(self, patch, state_key):
+        """One patch's entering flag from the shared symmetrised interface state.
+
+        Mirrors :meth:`~ember.nonreflecting.NonReflectingPatch._calc_entering`,
+        but reads only the interface state both patches now hold in
+        ``patch.block_avg`` (already in this patch's own span order), not the
+        patch's own interior -- the interior can differ between the two sides
+        of a mixed-sign station, which is exactly what a shared direction is
+        for. Hysteresis of :attr:`~ember.nonreflecting.NonReflectingPatch._frac_rev_off`
+        is kept between exchanges, keyed by ``state_key``, so a station
+        hovering about zero still settles into one split instead of
+        alternating.
+
+        Parameters
+        ----------
+        patch : NonReflectingMixingPatch
+            The side to compute the flag for, read for its own
+            ``_sign_interior`` and its already-oriented ``block_avg``.
+        state_key : tuple
+            Key identifying this side's hysteresis state across exchanges.
+
+        Returns
+        -------
+        array
+            Boolean, shape ``(nspan,)``.
+        """
+        avg = patch.block_avg
+        sign = patch._sign_interior
+        u_face = (sign * avg.Vx_nd).reshape(-1)
+        a_nd = avg.a_nd.reshape(-1)
+
+        on = u_face >= 0.0
+        off = u_face < -patch._frac_rev_off * a_nd
+        prev = self._entering_state.get(state_key)
+        if prev is None or prev.shape != on.shape:
+            result = on
+        else:
+            result = np.where(prev, ~off, on)
+        self._entering_state[state_key] = result
+        return result
 
     def _write_targets(self, patch1, patch2, flip, b_avg, nspan, key):
         """Project the characteristic mismatch into target space and write both sides.
@@ -404,23 +485,38 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         # For some reason need a -ve sign on dtarget_dn here!
         v1 -= v2
 
-        # Relax the target-space mismatch onto the symmetrised interface state.
         # v1 holds the error e_n = dtarget; the increment is du = rf_exchange *
-        # e_n and the updated target is target_n = baseline + du.
-        state = self._ensure_pair_state(key, nspan)
-
+        # e_n, recorded for get_stats before it is added onto the target below.
         v1 *= patch1.rf_exchange  # v1 = du
+        state = self._ensure_pair_state(key, nspan)
         state["du"][:] = v1
 
-        # The baseline is the state the two sides currently share, not the
-        # previous target. Relaxing onto the previous target makes this an
-        # integrator, which is fine while the mismatch resolves and unbounded
-        # when it does not: at a reversed station the target used to walk away
-        # until it described no state the flow was ever in, and the patches
-        # tracked it there. Saxer applies his correction to the current jump and
-        # keeps no interface state between steps, which is what this is.
-        v2[:] = self._baseline
-        v2 += v1
+        # Integrate the target-space mismatch onto the previous target, not the
+        # live interface baseline -- Holmes Eq. 15, applied to the auxiliary
+        # cells rather than re-derived each step. At the fixed point
+        # target_n = target_{n-1} forces rf_exchange*e_n = 0, i.e. exact flux
+        # balance; re-anchoring to the baseline every step (the proportional
+        # form this replaces) instead leaves a standing offset of size e_n
+        # itself. The previous target is symmetrised across the two sides the
+        # same way :class:`MixingCommunicator` does, since before the first
+        # exchange each side has only seeded itself from its own interior.
+        target1 = patch1.get_target()
+        target2 = patch2.get_target()
+        if flip:
+            target2 = target2[::-1]
+        v2[:] = target1
+        v2 += target2
+        v2 *= 0.5  # v2 = target_{n-1}
+
+        if self.leak:
+            # Bleed the accumulated target back toward the live baseline, so
+            # windup is bounded rather than merely under-relaxed. Zero by
+            # default: engage only where a station is seen to wind up.
+            v2 -= self.leak * (v2 - self._baseline)
+
+        v2 += v1  # v2 = target_n, before the physical clamp
+
+        self._clamp_physical(v2, patch1)
 
         # 0th-order extrapolation of targets at hub/casing walls
         v2[0] = v2[1]
@@ -429,3 +525,40 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         # Assign targets back to patches with correct flip
         patch1.set_target(v2)
         patch2.set_target(v2[::-1] if flip else v2)
+
+    def _clamp_physical(self, target, patch):
+        """Reject a station's updated target if it implies a non-physical state.
+
+        The anti-windup safety net the integrating form of the relaxation
+        needs (see :attr:`leak`): a target that has wound up past what the
+        flow was ever in is not just wrong, it can be a state with no solution
+        at all -- negative density, non-positive pressure, or an implied axial
+        Mach at or above one, none of which the mean-mode Newton solves of
+        :class:`~ember.nonreflecting.NonReflectingPatch` are built to handle.
+        Rejected stations fall back to :attr:`_baseline`, the live symmetrised
+        interface state :meth:`_prepare_pair` just measured -- physical by
+        construction, unlike the wound-up target that failed the check.
+
+        ``target`` is modified in place. Uses ``patch``'s fluid model; both
+        sides of a plane share one, so either patch does.
+        """
+        fluid = patch.block_view.fluid
+        ho, s, Vr, Vt, P = (target[..., i] for i in range(5))
+
+        with np.errstate(invalid="ignore", divide="ignore"):
+            rho, u = fluid.set_P_s(P, s)
+            a = fluid.get_a(rho, u)
+            h = fluid.get_h(rho, u)
+            Vx_sq = 2.0 * (ho - h) - Vr**2 - Vt**2
+            Max_sq = Vx_sq / a**2
+
+        bad = (
+            ~np.isfinite(rho)
+            | (rho <= 0.0)
+            | ~np.isfinite(P)
+            | (P <= 0.0)
+            | ~(Vx_sq >= 0.0)
+            | ~(Max_sq < 1.0)
+        )
+        if bad.any():
+            target[bad] = self._baseline[bad]
