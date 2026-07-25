@@ -738,12 +738,12 @@ class NonReflectingPatch(RevolutionPatch):
         # change between Runge-Kutta stages.
         self._entering = self._calc_entering(avg)
         self._mask_out = self._calc_mask_out()
-        # Materialised (not a broadcast view) so the fused kernel in
-        # _recombine reads a contiguous float32 array every stage without a
-        # repeated implicit copy; built once per timestep, not per stage.
-        self._mask_out_bcast = np.ascontiguousarray(
-            np.broadcast_to(self._mask_out, self._target_shape()), dtype=util.f32
-        )
+        # Filled in place (not reallocated) so the fused kernel in _recombine
+        # reads a contiguous float32 array every stage without a repeated
+        # implicit copy; refreshed once per timestep, not per stage. Plain
+        # broadcasting assignment, not np.broadcast_to: the buffer is a real
+        # owned array (see attach_to_block), so this is a write, not a view.
+        self._mask_out_bcast[...] = self._mask_out
 
         # Tested on the magnitude, so a station running backwards fast enough
         # to be axially supersonic is caught too: there one of the two acoustic
@@ -763,14 +763,21 @@ class NonReflectingPatch(RevolutionPatch):
             )
 
         c2t = self._chic_to_target(avg)
+        # Filled in place into buffers sized once in attach_to_block, instead
+        # of allocating prim/p2c/c2p fresh every timestep; _span_bcast's
+        # reshape is a view of the same buffer, not a copy, so this remains
+        # zero-allocation on repeat calls.
+        np.stack(
+            (avg.rho_nd, avg.Vx_nd, avg.Vr_nd, avg.Vt_nd, avg.P_nd),
+            axis=-1,
+            out=self._ref_prim_buf,
+        )
+        perturbation.primitive_to_chic(avg, out=self._ref_p2c_buf)
+        perturbation.chic_to_primitive(avg, out=self._ref_c2p_buf)
         self._ref = {
-            "prim": self._span_bcast(
-                np.stack(
-                    (avg.rho_nd, avg.Vx_nd, avg.Vr_nd, avg.Vt_nd, avg.P_nd), axis=-1
-                )
-            ),
-            "p2c": self._span_bcast(perturbation.primitive_to_chic(avg)),
-            "c2p": self._span_bcast(perturbation.chic_to_primitive(avg)),
+            "prim": self._span_bcast(self._ref_prim_buf),
+            "p2c": self._span_bcast(self._ref_p2c_buf),
+            "c2p": self._span_bcast(self._ref_c2p_buf),
             # Both built at every station, whichever split it is on. Neither
             # goes singular anywhere the guards above admit, so there is nothing
             # to gain by building them conditionally and a branch to lose.
@@ -1034,9 +1041,18 @@ class NonReflectingPatch(RevolutionPatch):
         self._recombine_prim = None
         # mask_out broadcast to the full span_dim-broadcast shape (matching
         # _ref["p2c"]/["prim"]) and cast to float32, so the fused kernel can
-        # read it directly without a per-stage broadcast/copy. Rebuilt once
-        # per timestep in _calc_reference, alongside _mask_out itself.
+        # read it directly without a per-stage broadcast/copy. Refilled
+        # in-place once per timestep in _calc_reference, alongside
+        # _mask_out itself; sized in attach_to_block.
         self._mask_out_bcast = None
+        # Unbroadcast (nspan, 5)/(nspan, 5, 5) buffers _calc_reference fills
+        # in-place every timestep for _ref["prim"]/["p2c"]/["c2p"], instead of
+        # allocating fresh arrays each time. _span_bcast reshapes these (a
+        # view, not a copy) into the broadcast shape _ref actually stores.
+        # Sized in attach_to_block from block_avg's span count.
+        self._ref_prim_buf = None
+        self._ref_p2c_buf = None
+        self._ref_c2p_buf = None
         # Which of the two nonreflecting_recombine_bcast_{j,k} kernels
         # matches this patch's span_dim; fixed once on attach.
         self._recombine_kernel = None
@@ -1220,6 +1236,15 @@ class NonReflectingPatch(RevolutionPatch):
             self._target = util.zeros(shape)
             self._target_set = np.zeros(5, dtype=bool)
             self._replay_target_calls()
+
+        if self._mask_out_bcast is None or self._mask_out_bcast.shape != shape:
+            self._mask_out_bcast = util.zeros(shape)
+
+        nspan = self._block_view.shape[self.span_dim]
+        if self._ref_prim_buf is None or self._ref_prim_buf.shape[0] != nspan:
+            self._ref_prim_buf = util.zeros((nspan, 5))
+            self._ref_p2c_buf = util.zeros((nspan, 5, 5))
+            self._ref_c2p_buf = util.zeros((nspan, 5, 5))
 
         recombine_shape = self._block_view.shape + (5,)
         if self._recombine_dchic is None or self._recombine_dchic.shape != recombine_shape:
