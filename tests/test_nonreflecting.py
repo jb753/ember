@@ -226,6 +226,48 @@ def test_chic_round_trip(kind):
     assert np.abs(identity - expect).max() < 1e-5
 
 
+def _reference_recombine(patch):
+    """Independent numpy reimplementation of _recombine's pre-fusion formula.
+
+    Deliberately does not call :meth:`NonReflectingPatch._recombine` (which
+    now dispatches to the fused ``nonreflecting_recombine_bcast_*`` Fortran
+    kernel) so the comparison in :func:`test_recombine_matches_reference_formula`
+    is against an implementation independent of what it is checking.
+    """
+    b = patch.block_view
+    ref = patch._ref
+    prim_marched = np.stack((b.rho_nd, b.Vx_nd, b.Vr_nd, b.Vt_nd, b.P_nd), axis=-1)
+    dchic_prev = util.matvec(ref["p2c"], patch._prim_prev - ref["prim"])
+    dchic_marched = util.matvec(ref["p2c"], prim_marched - ref["prim"])
+    dchic = np.where(patch._mask_out, dchic_marched, dchic_prev)
+    prim = ref["prim"] + util.matvec(ref["c2p"], dchic)
+    return dchic, prim
+
+
+@pytest.mark.parametrize("span_dim", [1, 2])
+def test_recombine_matches_reference_formula(kind, span_dim):
+    """The fused Fortran kernel agrees with the pre-fusion einsum formula.
+
+    Covers both broadcast axes span_dim can take (NonReflectingPatch is
+    restricted to constant-x planes, so span_dim is never the i axis; see
+    nonreflecting.f90's module comment) and both patch kinds.
+    """
+    _, patch = attached(kind, target=MISMATCH[kind], span_dim=span_dim)
+    patch.update_soln()
+    patch.advance()
+    # Deposit a wave so the marched face and _prim_prev differ, exercising
+    # the per-characteristic blend rather than just one branch of it.
+    wave = np.zeros(patch.shape + (5,), dtype=np.float32)
+    wave[..., 0] = 0.02 * np.cos(2.0 * np.pi * patch.block_view.t / PITCH)
+    seed_chic(patch, wave)
+
+    expect_dchic, expect_prim = _reference_recombine(patch)
+    got_dchic, got_prim = patch._recombine()
+
+    np.testing.assert_allclose(got_dchic, expect_dchic, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(got_prim, expect_prim, rtol=1e-5, atol=1e-6)
+
+
 def test_sigma_scales_the_correction_linearly(kind):
     """Halving sigma halves the applied change.
 

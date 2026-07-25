@@ -645,6 +645,7 @@ class NonReflectingPatch(RevolutionPatch):
             mask_leaving,
         )
 
+    @util.profile
     def _calc_override(self, prim):
         """Impose the entering state on nodes the interior is pushing flow in through.
 
@@ -737,6 +738,12 @@ class NonReflectingPatch(RevolutionPatch):
         # change between Runge-Kutta stages.
         self._entering = self._calc_entering(avg)
         self._mask_out = self._calc_mask_out()
+        # Materialised (not a broadcast view) so the fused kernel in
+        # _recombine reads a contiguous float32 array every stage without a
+        # repeated implicit copy; built once per timestep, not per stage.
+        self._mask_out_bcast = np.ascontiguousarray(
+            np.broadcast_to(self._mask_out, self._target_shape()), dtype=util.f32
+        )
 
         # Tested on the magnitude, so a station running backwards fast enough
         # to be axially supersonic is caught too: there one of the two acoustic
@@ -1020,6 +1027,19 @@ class NonReflectingPatch(RevolutionPatch):
         # Face state this patch last authored. The incoming characteristics are
         # carried from here rather than from the marched face; see apply().
         self._prim_prev = None
+        # Output scratch buffers for _recombine's fused Fortran kernel, sized
+        # on attach so the per-stage hot path allocates nothing; see
+        # attach_to_block.
+        self._recombine_dchic = None
+        self._recombine_prim = None
+        # mask_out broadcast to the full span_dim-broadcast shape (matching
+        # _ref["p2c"]/["prim"]) and cast to float32, so the fused kernel can
+        # read it directly without a per-stage broadcast/copy. Rebuilt once
+        # per timestep in _calc_reference, alongside _mask_out itself.
+        self._mask_out_bcast = None
+        # Which of the two nonreflecting_recombine_bcast_{j,k} kernels
+        # matches this patch's span_dim; fixed once on attach.
+        self._recombine_kernel = None
         # Start-of-step density the reversed-node relaxation runs from, taken
         # by update_soln.
         self._rho_nd_soln = None
@@ -1064,6 +1084,7 @@ class NonReflectingPatch(RevolutionPatch):
             self.pitch_dim,
         )
 
+    @util.profile
     def _recombine(self):
         r"""The face state this patch stands behind, given the marched interior.
 
@@ -1091,14 +1112,26 @@ class NonReflectingPatch(RevolutionPatch):
         b = self.block_view
         ref = self._ref
 
-        prim_marched = np.stack((b.rho_nd, b.Vx_nd, b.Vr_nd, b.Vt_nd, b.P_nd), axis=-1)
         if self._prim_prev is None:
-            self._prim_prev = prim_marched.copy()
+            self._prim_prev = np.stack(
+                (b.rho_nd, b.Vx_nd, b.Vr_nd, b.Vt_nd, b.P_nd), axis=-1
+            ).copy()
 
-        dchic_prev = util.matvec(ref["p2c"], self._prim_prev - ref["prim"])
-        dchic_marched = util.matvec(ref["p2c"], prim_marched - ref["prim"])
-        dchic = np.where(self._mask_out, dchic_marched, dchic_prev)
-        return dchic, ref["prim"] + util.matvec(ref["c2p"], dchic)
+        self._recombine_kernel(
+            b.rho_nd,
+            b.Vx_nd,
+            b.Vr_nd,
+            b.Vt_nd,
+            b.P_nd,
+            self._prim_prev,
+            ref["prim"],
+            ref["p2c"],
+            ref["c2p"],
+            self._mask_out_bcast,
+            self._recombine_dchic,
+            self._recombine_prim,
+        )
+        return self._recombine_dchic, self._recombine_prim
 
     def advance(self):
         r"""Take the boundary condition's one step; call once per timestep.
@@ -1130,6 +1163,7 @@ class NonReflectingPatch(RevolutionPatch):
             self._ref["c2p"], self._calc_dchic(dchic, prim)
         )
 
+    @util.profile
     def apply(self):
         r"""Impose the non-reflecting condition on the patch.
 
@@ -1186,6 +1220,21 @@ class NonReflectingPatch(RevolutionPatch):
             self._target = util.zeros(shape)
             self._target_set = np.zeros(5, dtype=bool)
             self._replay_target_calls()
+
+        recombine_shape = self._block_view.shape + (5,)
+        if self._recombine_dchic is None or self._recombine_dchic.shape != recombine_shape:
+            self._recombine_dchic = util.zeros(recombine_shape)
+            self._recombine_prim = util.zeros(recombine_shape)
+
+        import ember.fortran
+
+        # No _bcast_i kernel: _check_plane above restricts this patch family
+        # to constant-x planes, so const_dim is always 0 and span_dim is
+        # always 1 or 2.
+        self._recombine_kernel = {
+            1: ember.fortran.nonreflecting_recombine_bcast_j,
+            2: ember.fortran.nonreflecting_recombine_bcast_k,
+        }[self.span_dim]
 
     def update_ref_scales(self):
         """Re-derive the prescribed target against the block's current fluid.
