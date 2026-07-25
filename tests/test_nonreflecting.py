@@ -348,6 +348,38 @@ def test_copy_preserves_targets_and_drops_caches(kind):
     assert clone._prim_prev is None
 
 
+def test_a_copy_carries_its_targets_onto_a_coarser_block(kind):
+    """A configured patch follows its block through a change of resolution.
+
+    This is what the multigrid hierarchy does: resample the grid, copy the
+    patches onto the coarser blocks. The copied target has the fine block's
+    span shape, so it is rebuilt at the coarse one -- every prescribed row by
+    re-running the setter that filled it, which is the only thing that can
+    restore a value the target array alone no longer holds correctly (the
+    outflow's prescribed pressure level among them).
+    """
+    _, patch = attached(kind, nspan=13)
+    clone = patch.copy()
+    coarse = make_block(nspan=7)
+    coarse.patches.append(clone)
+
+    assert clone._target.shape == clone._target_shape()
+    assert clone._target.shape != patch._target.shape
+
+    # Prescribed rows come back at the coarse shape carrying what they were
+    # given, matching a patch configured on the coarse block from the start.
+    # Seeded rows are left for _seed_target to take from the coarse face.
+    _, fresh = attached(kind, nspan=7)
+    prescribed = list(clone._target_setters)
+    assert clone._target_set[prescribed].all()
+    np.testing.assert_allclose(
+        clone._target[..., prescribed], fresh._target[..., prescribed], rtol=1e-6
+    )
+    clone.update_soln()
+    clone.apply()
+    assert np.isfinite(clone.block_view.P_nd).all()
+
+
 def test_apply_without_targets_raises(kind):
     """Applying before the boundary state is set is an error, not a silent NaN."""
     block, patch_type, i_face = _bare(kind)

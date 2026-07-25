@@ -938,6 +938,16 @@ class NonReflectingPatch(RevolutionPatch):
             f"call {', '.join(dict.fromkeys(unset.values()))} first."
         )
 
+    def _replay_target_calls(self):
+        """Re-run every recorded :func:`replayable` setter, in call order.
+
+        The record is rebuilt as the setters re-record themselves, so the
+        replay order survives any number of replays.
+        """
+        calls, self._target_calls = self._target_calls, {}
+        for name, (args, kwargs) in calls.items():
+            getattr(self, name)(*args, **kwargs)
+
     def _seed_target(self):
         """Fill any seeded target row nothing has prescribed, once.
 
@@ -1153,9 +1163,13 @@ class NonReflectingPatch(RevolutionPatch):
         """Attach to a block, validate the boundary plane and build the transform.
 
         Safe to call repeatedly; a target of the right shape survives
-        re-attachment, and one of the wrong shape is dropped along with the
-        record of what had been set, so it is re-prescribed or re-seeded rather
-        than silently misread.
+        re-attachment, and one of the wrong shape is rebuilt at the new shape
+        rather than silently misread -- every prescribed row by re-running the
+        setter that filled it, the rest by re-seeding. That is what lets a
+        configured patch follow its block onto a coarser grid, as the multigrid
+        hierarchy and :func:`~ember.block_util.resample` do it; a prescribed
+        profile that cannot broadcast to the new shape says so, from the setter
+        that took it.
         """
         super().attach_to_block(block)
 
@@ -1171,7 +1185,7 @@ class NonReflectingPatch(RevolutionPatch):
         if self._target is None or self._target.shape != shape:
             self._target = util.zeros(shape)
             self._target_set = np.zeros(5, dtype=bool)
-            self._target_calls = {}
+            self._replay_target_calls()
 
     def update_ref_scales(self):
         """Re-derive the prescribed target against the block's current fluid.
@@ -1209,9 +1223,7 @@ class NonReflectingPatch(RevolutionPatch):
         for row in self._target_seeded:
             self._target_set[row] = False
 
-        calls, self._target_calls = self._target_calls, {}
-        for name, (args, kwargs) in calls.items():
-            getattr(self, name)(*args, **kwargs)
+        self._replay_target_calls()
 
     def update_soln(self):
         """Refresh the frozen reference state; call once per timestep.
