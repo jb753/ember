@@ -29,6 +29,7 @@ import inspect
 import numpy as np
 import pytest
 
+import ember.grid
 from ember import perturbation, util
 from ember.patch import PERMEABLE_TYPES
 from nonreflecting_util import (
@@ -266,6 +267,34 @@ def test_recombine_matches_reference_formula(kind, span_dim):
 
     np.testing.assert_allclose(got_dchic, expect_dchic, rtol=1e-5, atol=1e-6)
     np.testing.assert_allclose(got_prim, expect_prim, rtol=1e-5, atol=1e-6)
+
+
+def test_attached_patch_survives_write_emb(kind, tmp_path):
+    """An attached patch round-trips through Grid.write_emb/read_emb.
+
+    Regression test: attach_to_block used to cache the resolved
+    nonreflecting_recombine_bcast_{j,k} Fortran function as an instance
+    attribute. f2py-wrapped functions aren't picklable, and unlike
+    _block_ref (a weakref, which write_emb explicitly clears before
+    pickling and restores afterward via attach_to_block -- see
+    Grid.write_emb), nothing clears a cached kernel reference, so it rode
+    straight into the pickle stream. This broke turbine/setup.py in the
+    sibling ember-paper repo the moment a non-reflecting patch was
+    attached, before even running the solver -- not caught here before,
+    since every other write_emb test uses reflecting patches.
+    """
+    block, patch = attached(kind, target=MISMATCH[kind])
+    grid = ember.grid.Grid([block])
+
+    emb_file = tmp_path / "test_nonreflecting_patch.emb"
+    grid.write_emb(str(emb_file))  # must not raise
+
+    reloaded = ember.grid.Grid.read_emb(str(emb_file))
+    reloaded_patch = next(
+        iter(getattr(reloaded[0].patches, f"{kind}_nonreflecting"))
+    )
+    reloaded_patch.apply()  # must not raise (e.g. a stale None kernel reference)
+    assert np.isfinite(face_prim(reloaded_patch)).all()
 
 
 def test_sigma_scales_the_correction_linearly(kind):

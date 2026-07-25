@@ -1053,9 +1053,6 @@ class NonReflectingPatch(RevolutionPatch):
         self._ref_prim_buf = None
         self._ref_p2c_buf = None
         self._ref_c2p_buf = None
-        # Which of the two nonreflecting_recombine_bcast_{j,k} kernels
-        # matches this patch's span_dim; fixed once on attach.
-        self._recombine_kernel = None
         # Start-of-step density the reversed-node relaxation runs from, taken
         # by update_soln.
         self._rho_nd_soln = None
@@ -1133,7 +1130,21 @@ class NonReflectingPatch(RevolutionPatch):
                 (b.rho_nd, b.Vx_nd, b.Vr_nd, b.Vt_nd, b.P_nd), axis=-1
             ).copy()
 
-        self._recombine_kernel(
+        # Resolved by span_dim on every call rather than cached on attach: a
+        # cached bound reference to an f2py-wrapped subroutine isn't
+        # picklable (Grid.write_emb pickles the whole grid, patches
+        # included), and the lookup itself -- a module attribute access -- is
+        # negligible next to the kernel call it selects. No _bcast_i variant:
+        # _check_plane restricts this patch family to constant-x planes, so
+        # const_dim is always 0 and span_dim is always 1 or 2.
+        import ember.fortran
+
+        kernel = (
+            ember.fortran.nonreflecting_recombine_bcast_j
+            if self.span_dim == 1
+            else ember.fortran.nonreflecting_recombine_bcast_k
+        )
+        kernel(
             b.rho_nd,
             b.Vx_nd,
             b.Vr_nd,
@@ -1250,16 +1261,6 @@ class NonReflectingPatch(RevolutionPatch):
         if self._recombine_dchic is None or self._recombine_dchic.shape != recombine_shape:
             self._recombine_dchic = util.zeros(recombine_shape)
             self._recombine_prim = util.zeros(recombine_shape)
-
-        import ember.fortran
-
-        # No _bcast_i kernel: _check_plane above restricts this patch family
-        # to constant-x planes, so const_dim is always 0 and span_dim is
-        # always 1 or 2.
-        self._recombine_kernel = {
-            1: ember.fortran.nonreflecting_recombine_bcast_j,
-            2: ember.fortran.nonreflecting_recombine_bcast_k,
-        }[self.span_dim]
 
     def update_ref_scales(self):
         """Re-derive the prescribed target against the block's current fluid.
