@@ -461,6 +461,35 @@ class Patch(ABC):
         self._copy(c)
         return c
 
+    def update_ref_scales(self):
+        """Re-derive anything this patch holds in nondimensional form.
+
+        Called by :class:`~ember.block.Block` on every attached patch whenever
+        the reference scales change -- :meth:`~ember.block.Block.set_fluid` and
+        :meth:`~ember.block.Block.set_L_ref` -- after the block has swapped the
+        scales and rescaled its own stored field, so an override reads the new
+        scales straight off ``self.block``.
+
+        A patch that caches a nondimensional value must override this and either
+        re-derive it from the raw dimensional quantity it came from, or discard
+        it so it is rebuilt on next use. Leaving a stale nondimensional cache
+        behind does not raise: it silently imposes the wrong physics, which is
+        why this is the one hook a patch subclass has to know about.
+
+        What the base implementation handles is the sliced views of the face
+        this class caches at :meth:`attach_to_block`. They share the block's
+        data, so they see the rescaled field, but they carry derived-property
+        caches of their own that the block's own ``clear_cache`` does not reach
+        -- and a patch reads the face through them.
+        """
+        for view in (
+            self._block_view,
+            self._block_view_offset_1,
+            self._block_view_offset_2,
+        ):
+            if view is not None:
+                view.clear_cache()
+
     @property
     def block(self):
         """Access the parent block this patch is attached to."""
@@ -980,6 +1009,42 @@ class RevolutionPatch(Patch):
         if alpha == 1.0:
             return smoothed
         return alpha * smoothed + (1.0 - alpha) * field
+
+    def update_ref_scales(self):
+        """Re-sync the pitch-averaged block to the parent's reference scales.
+
+        :attr:`block_avg` is a :class:`~ember.block.Block` of its own, holding
+        coordinates and a pitch-mean flow field nondimensionalised against the
+        scales in force when the patch attached. Both have to follow the parent
+        block, or the pitch average decodes this block's state against stale
+        scales -- for the length scale that means angular momentum, the one
+        conserved variable carrying it, and every quantity derived from the
+        resulting tangential velocity.
+
+        Each half is applied only when its scale actually moved, so the
+        commoner call does not put the averaged field through a needless
+        dimensional round trip and its float32 rounding.
+        """
+        super().update_ref_scales()
+
+        avg = self._block_avg
+        if avg is None:
+            return
+
+        block = self.block
+        if avg.L_ref != block.L_ref:
+            avg.set_L_ref(block.L_ref)
+
+        try:
+            fluid_new = block.fluid
+        except ValueError:
+            return
+        try:
+            fluid_old = avg.fluid
+        except ValueError:
+            fluid_old = None
+        if fluid_old is not fluid_new:
+            avg.set_fluid(fluid_new)
 
     @property
     def block_avg(self):

@@ -180,3 +180,15 @@ class MixingPatch(RevolutionPatch):
             return None
 
         return self._check_match_xr(other, rtol)
+
+    def update_ref_scales(self):
+        """Drop the exchanged target so it re-seeds against the new scales.
+
+        The target is a nondimensional conserved state with no dimensional
+        original to reconvert, so the only honest way to re-express it is to
+        take it again: :meth:`set_target` and :meth:`get_target` re-seed it
+        lazily from the block state, which the block has already rescaled by the
+        time this is called.
+        """
+        super().update_ref_scales()
+        self._target = None

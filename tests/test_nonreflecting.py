@@ -42,6 +42,7 @@ from nonreflecting_util import (
     face_prim,
     make_block,
     pitch_coords,
+    reference_state,
     seed_chic,
 )
 
@@ -462,3 +463,135 @@ def test_setting_the_length_scale_after_attaching_rescales_the_averaged_block(ki
     np.testing.assert_allclose(patch.block_avg.Vx, VX_MEAN, rtol=1e-5)
     # The state stays where it was, so the guard it would have tripped passes.
     patch.update_soln()
+
+
+# ---------------------------------------------------------------------------
+# Reference scales moving under a configured patch
+# ---------------------------------------------------------------------------
+
+
+def _rescaled(fluid):
+    """The test fluid with both its datum and its reference scales moved."""
+    fluid_new = fluid.change_datum(2.0e5, 400.0)
+    return fluid_new.change_ref(rho_ref=0.7, V_ref=250.0, Rgas_ref=300.0)
+
+
+def test_target_survives_a_fluid_set_after_it(kind):
+    """A prescribed target means the same thing whenever the fluid is set.
+
+    The failure this closes: the setters convert once, so a set_fluid landing
+    afterwards used to leave the target frozen against the old reference scales
+    and datum. Nothing raised -- the march simply carried the wrong inflow and
+    diverged several steps later.
+
+    Stated as the invariance it is: configuring the patch and then moving the
+    scales must land in the same place as moving the scales and then
+    configuring the patch, which is the order the rest of the codebase
+    conventionally uses.
+    """
+    block, patch = attached(kind)
+    fluid_new = _rescaled(block.fluid)
+
+    reference, reference_patch = attached(kind)
+    reference.set_fluid(fluid_new)
+    # Re-prescribing after the change is the order that always worked.
+    state = reference_state()
+    if kind == "inlet":
+        reference_patch.set_ho_s(float(state.ho), float(state.s))
+        reference_patch.set_Alpha(float(state.Alpha))
+        reference_patch.set_Beta(float(state.Beta))
+    else:
+        reference_patch.set_P(float(state.P))
+
+    block.set_fluid(fluid_new)
+
+    np.testing.assert_allclose(patch._target, reference_patch._target, rtol=1e-6)
+
+
+def test_stagnation_target_reconverts_against_the_new_fluid():
+    """set_Po_To keeps meaning the stagnation state it was given.
+
+    The sharpest case, because the conversion is not a scaling: a change of
+    datum shifts enthalpy and entropy affinely, so a target rescaled by the
+    ratio of the reference scales would be wrong however carefully it was done.
+    Only re-running the conversion recovers the prescribed state.
+    """
+    block, patch = attached("inlet")
+    patch.set_Po_To(2.4e5, 460.0)
+
+    fluid_new = _rescaled(block.fluid)
+    block.set_fluid(fluid_new)
+
+    rhoo_nd, uo_nd = fluid_new.set_P_T(2.4e5 / fluid_new.P_ref, 460.0 / fluid_new.T_ref)
+    np.testing.assert_allclose(patch.ho_nd, fluid_new.get_h(rhoo_nd, uo_nd), rtol=1e-6)
+    np.testing.assert_allclose(patch.s_nd, fluid_new.get_s(rhoo_nd, uo_nd), rtol=1e-6)
+
+
+def test_the_last_setter_called_is_the_one_that_wins():
+    """Replay reproduces the order the caller prescribed things in.
+
+    set_ho_s and set_Po_To fill the same two rows, so a patch configured by one
+    and then the other must come out of a rescale carrying the later one, not
+    whichever the replay happens to run last.
+    """
+    block, patch = attached("inlet")
+    patch.set_Po_To(2.4e5, 460.0)
+    patch.set_ho_s(3.05e5, 12.0)
+
+    block.set_fluid(_rescaled(block.fluid))
+
+    fluid_new = block.fluid
+    np.testing.assert_allclose(patch.ho_nd, 3.05e5 / fluid_new.u_ref, rtol=1e-6)
+    np.testing.assert_allclose(patch.s_nd, 12.0 / fluid_new.Rgas_ref, rtol=1e-6)
+
+
+def test_a_seeded_row_is_taken_again_rather_than_reconverted(kind):
+    """Rows nothing prescribed re-seed from the rescaled face.
+
+    A seeded row is a frozen picture of the flow with no dimensional original
+    to reconvert, so the honest response to a change of scales is to look
+    again. The block has already rescaled its own field by then, so the row
+    comes back at the same dimensional state it held before.
+    """
+    block, patch = attached(kind)
+    patch.update_soln()
+    seeded = patch._target_seeded
+    before = patch.block.fluid, np.copy(patch._target)
+
+    block.set_fluid(_rescaled(block.fluid))
+    assert not patch._target_set[list(seeded)].any()
+
+    patch.update_soln()
+    assert patch._target_set[list(seeded)].all()
+
+    # Row 4 is static pressure in both target spaces; compare it dimensionally.
+    fluid_old, target_old = before
+    if 4 in seeded:
+        np.testing.assert_allclose(
+            patch._target[..., 4] * patch.block.fluid.P_ref,
+            target_old[..., 4] * fluid_old.P_ref,
+            rtol=1e-4,
+        )
+
+
+def test_a_fluid_set_after_the_march_starts_restarts_the_condition(kind):
+    """The characteristic state is dropped rather than carried across scales.
+
+    _prim_prev and the reference state are nondimensional with no dimensional
+    original, so a rescale cannot re-express them and they are rebuilt from the
+    face instead. The condition keeps working; it just resumes from the marched
+    state.
+    """
+    block, patch = attached(kind, target=MISMATCH[kind])
+    patch.update_soln()
+    patch.advance()
+    assert patch._prim_prev is not None
+
+    block.set_fluid(_rescaled(block.fluid))
+    assert patch._prim_prev is None
+    assert patch._ref is None
+
+    patch.update_soln()
+    patch.advance()
+    patch.apply()
+    assert np.isfinite(patch.block_view.P_nd).all()

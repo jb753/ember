@@ -308,3 +308,31 @@ def test_rf_interpolates_between_anchor_and_solution():
     _, V_half = _apply_with(0.5)
 
     assert V_half == pytest.approx(0.5 * (anchor + V_full), rel=1e-4)
+
+
+def test_a_fluid_set_after_the_patch_is_configured_still_imposes_it():
+    """The prescribed stagnation state outlives a change of reference scales.
+
+    The conversion to nondimensional form is cached on first use, so a
+    ``set_fluid`` landing after the patch was configured -- or after the march
+    has started -- would otherwise leave the inlet imposing the old scales'
+    numbers against the new ones. Nothing raises; the inflow is simply wrong.
+    """
+    block = _make_block(0.2)
+    patch = InletPatch(i=0)
+    block.patches.append(patch)
+    patch.set_Po_To_Alpha_Beta(Po=PO, To=TO, Alpha=ALPHA, Beta=BETA)
+    patch.update_soln()
+    patch.apply()
+
+    fluid_new = _FLUID.change_datum(2.0e5, 400.0).change_ref(
+        rho_ref=0.7, V_ref=250.0, Rgas_ref=300.0
+    )
+    block.set_fluid(fluid_new)
+    assert patch._target_nd is None
+
+    patch.update_soln()
+    patch.apply()
+    face = block[patch.slice]
+    np.testing.assert_allclose(face.Po, PO, rtol=1e-4)
+    np.testing.assert_allclose(face.To, TO, rtol=1e-4)

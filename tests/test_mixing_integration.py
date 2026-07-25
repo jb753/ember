@@ -2,6 +2,8 @@
 
 Test cases:
 - test_mixing_plane_no_nan: Two-block mixing-plane run completes without divergence
+- test_target_re_seeds_when_the_reference_scales_move: the exchanged target is
+  taken again rather than carried across a change of fluid
 """
 
 import numpy as np
@@ -130,3 +132,45 @@ def test_mixing_communicator_get_stats(mixing_grid):
     assert stats is not None
     assert set(stats) == {"du"}
     assert stats["du"].shape[1] == 5
+
+
+def test_target_re_seeds_when_the_reference_scales_move():
+    """The exchanged target is dropped and taken again on a change of fluid.
+
+    It is a nondimensional conserved state with no dimensional original to
+    reconvert, so carrying it across would impose the old scales' numbers on
+    the new ones -- an inconsistency at the plane that nothing reports.
+    """
+    fluid = ember.fluid.PerfectFluid(
+        cp=1005.0, gamma=1.4, mu=1.8e-4, Pr=1.0, rho_ref=1.1, V_ref=100.0
+    )
+    shape = (5, 5, 5)
+    xrt = util.linmesh3([0.0, 0.1], [1.0, 1.1], [0.0, 0.05], shape)
+    block = ember.block.Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
+    block.set_Nb(20)
+    block.set_fluid(fluid)
+    block.set_P_T(1.0e5, 300.0)
+    block.set_Vx(100.0)
+    block.set_Vr(0.0)
+    block.set_Vt(0.0)
+
+    patch = ember.patch.MixingPatch(i=-1)
+    block.patches.append(patch)
+    before = patch.get_target().copy()
+    assert patch._target is not None
+
+    block.set_fluid(fluid.change_ref(rho_ref=0.7, V_ref=250.0))
+    assert patch._target is None
+
+    # Re-seeded from the rescaled field, so the plane still carries the state
+    # the block is actually in: the same density and axial mass flux, read
+    # against the new scales.
+    after = patch.get_target()
+    scale_old = np.array([1.1, 1.1 * 100.0])
+    scale_new = np.array([0.7, 0.7 * 250.0])
+    np.testing.assert_allclose(
+        after[:, :2] * scale_new, before[:, :2] * scale_old, rtol=1e-5
+    )

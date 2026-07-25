@@ -803,17 +803,12 @@ class Block(ember.struct.StructuredData):
 
             self.clear_cache()
 
-            for p in self.patches.inlet:
-                p._target_nd = None
-                p._V_nd_max = None
-                p._V_nd_soln = None
-            for p in self.patches.inlet_nonreflecting:
-                p._ref = None
-            for p in self.patches.outlet:
-                p._P_target_nd = None
-            for p in self.patches.outlet_nonreflecting:
-                p._ref = None
-                p.reset_target()
+        # The stored field now reads against the new scales; the patches still
+        # hold values nondimensionalised against the old ones. Re-derive them
+        # before anything can impose a stale target, which raises nothing and
+        # shows up several steps into a march as a diverged boundary.
+        for p in self.patches:
+            p.update_ref_scales()
 
     def set_h_s(self, h, s):
         """Store enthalpy and entropy.
@@ -887,30 +882,13 @@ class Block(ember.struct.StructuredData):
 
         self.clear_cache()
 
-        # A surface-of-revolution patch holds its own averaged block, whose
-        # coordinates were nondimensionalised against the reference length in
-        # force when the patch attached. Rescale those too, or the pitch average
-        # decodes this block's angular momentum -- the one conserved variable
-        # carrying L_ref -- against a stale radius, and every quantity derived
-        # from the resulting tangential velocity comes out wrong. Only
-        # reachable by setting the length scale after attaching the patches;
-        # attach_to_block builds block_avg at the right scale to begin with.
+        # As in set_fluid: the patches hold values nondimensionalised against
+        # the old length scale, including the coordinates of the averaged block
+        # a surface-of-revolution patch carries. Only reachable by setting the
+        # length scale after attaching the patches; attach_to_block builds those
+        # at the right scale to begin with.
         for p in self.patches:
-            block_avg = getattr(p, "_block_avg", None)
-            if block_avg is not None:
-                block_avg.set_L_ref(L_ref)
-
-        for p in self.patches.inlet:
-            p._target_nd = None
-            p._V_nd_max = None
-            p._V_nd_soln = None
-        for p in self.patches.inlet_nonreflecting:
-            p._ref = None
-        for p in self.patches.outlet:
-            p._P_target_nd = None
-        for p in self.patches.outlet_nonreflecting:
-            p._ref = None
-            p.reset_target()
+            p.update_ref_scales()
 
     def set_label(self, label):
         """Set a string label describing the block.

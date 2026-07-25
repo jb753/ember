@@ -70,11 +70,43 @@ ember.mixing_nonreflecting.NonReflectingMixingPatch : Either side of an interfac
 ember.perturbation.chic_to_mix : Jacobian the characteristic solves are built on
 """
 
+import functools
+
 import numpy as np
 
 from ember import perturbation, util
 from ember.basepatch import RevolutionPatch
 from ember.outlet import calc_backflow_rho
+
+
+def replayable(setter):
+    """Record a target setter's raw arguments so it can be replayed.
+
+    Decorates the public setters that convert a dimensional quantity into a
+    target row. The arguments are kept exactly as the caller passed them --
+    physical units, unconverted -- so that
+    :meth:`NonReflectingPatch.update_ref_scales` can re-run the setter against a
+    new fluid and get the target the caller asked for, rather than the old
+    number rescaled. Only reconversion is correct in general: a change of datum
+    shifts enthalpy and entropy affinely, which no scale factor can express.
+
+    Recording the call rather than the value keeps every conversion written once
+    in its own setter, including the coupled two-step one of
+    :meth:`~ember.inlet_nonreflecting.NonReflectingInletPatch.set_Po_To`, whose
+    two rows do not decompose into independent per-row conversions.
+
+    The record is taken only once the setter returns, so a rejected value leaves
+    nothing to replay, and re-recording moves a setter to the end of the replay
+    order, so replay reproduces the order the caller actually set things in.
+    """
+
+    @functools.wraps(setter)
+    def wrapper(self, *args, **kwargs):
+        setter(self, *args, **kwargs)
+        self._target_calls.pop(setter.__name__, None)
+        self._target_calls[setter.__name__] = (args, kwargs)
+
+    return wrapper
 
 
 class _TargetRow:
@@ -861,6 +893,7 @@ class NonReflectingPatch(RevolutionPatch):
     def _copy(self, c):
         c._target = None if self._target is None else np.copy(self._target)
         c._target_set = self._target_set.copy()
+        c._target_calls = dict(self._target_calls)
         c.sigma = self.sigma
         # _hilbert, _ref, _sign_interior and the two splits all derive from the
         # block geometry or solution, so they are rebuilt on the new block
@@ -960,6 +993,11 @@ class NonReflectingPatch(RevolutionPatch):
         # and which of its rows have been filled.
         self._target = None
         self._target_set = np.zeros(5, dtype=bool)
+        # The @replayable setter calls that filled those rows, keyed by setter
+        # name and held in the order they were made, with the arguments as the
+        # caller gave them: dimensional, unconverted. Replayed by
+        # update_ref_scales when the reference scales move under them.
+        self._target_calls = {}
         self._hilbert = None
         self._ref = None
         # The two splits, settled at attach time from the inward normal, and
@@ -1133,6 +1171,47 @@ class NonReflectingPatch(RevolutionPatch):
         if self._target is None or self._target.shape != shape:
             self._target = util.zeros(shape)
             self._target_set = np.zeros(5, dtype=bool)
+            self._target_calls = {}
+
+    def update_ref_scales(self):
+        """Re-derive the prescribed target against the block's current fluid.
+
+        Every :func:`replayable` setter that filled a row is re-run with the
+        dimensional arguments it was given, in the order it was given them, so a
+        prescribed condition keeps meaning what it says: ``set_Po_To(4e5, 300)``
+        is four bar and three hundred kelvin whatever reference scales and datum
+        come to be in force. That makes
+        :meth:`~ember.grid.Grid.set_fluid` safe to call at any point, rather
+        than only before the patches are configured.
+
+        Rows nothing prescribed are cleared instead, to be taken afresh from the
+        rescaled face by :meth:`_seed_target` -- they are a frozen picture of the
+        flow, and the only honest way to re-express one is to look again. They
+        are cleared before the replay so that a row which *is* prescribed, and
+        merely happens to be seedable, is refilled by its own setter.
+
+        The characteristic state (:attr:`_ref`, :attr:`_prim_prev` and the
+        start-of-step density) is nondimensional with no dimensional original to
+        return to, so it is dropped and rebuilt from the face. A fluid changed
+        mid-march therefore restarts the condition from the marched state rather
+        than continuing on the one it was solving: a small perturbation, and the
+        alternative is carrying numbers that mean nothing under the new scales.
+        """
+        super().update_ref_scales()
+
+        self._ref = None
+        self._prim_prev = None
+        self._rho_nd_soln = None
+
+        if self._target is None:
+            return
+
+        for row in self._target_seeded:
+            self._target_set[row] = False
+
+        calls, self._target_calls = self._target_calls, {}
+        for name, (args, kwargs) in calls.items():
+            getattr(self, name)(*args, **kwargs)
 
     def update_soln(self):
         """Refresh the frozen reference state; call once per timestep.

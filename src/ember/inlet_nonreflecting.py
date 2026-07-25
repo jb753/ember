@@ -36,7 +36,7 @@ ember.perturbation.chic_to_bcond : Jacobian this patch's mean-mode solve is buil
 import numpy as np
 
 from ember import perturbation
-from ember.nonreflecting import NonReflectingPatch
+from ember.nonreflecting import NonReflectingPatch, replayable
 
 
 class NonReflectingInletPatch(NonReflectingPatch):
@@ -111,6 +111,7 @@ class NonReflectingInletPatch(NonReflectingPatch):
         Vm = np.sqrt(Vx**2 + Vr**2)
         return ho_nd, s_nd, Vt / Vm, Vr / Vm, prim[..., 4]
 
+    @replayable
     def set_Alpha(self, Alpha):
         r"""Prescribe the inflow yaw angle.
 
@@ -128,6 +129,7 @@ class NonReflectingInletPatch(NonReflectingPatch):
             2, "Alpha", np.tan(np.radians(np.asarray(Alpha, dtype=np.float32)))
         )
 
+    @replayable
     def set_backflow_P(self, P):
         r"""Prescribe the static pressure imposed where the inflow reverses.
 
@@ -165,6 +167,7 @@ class NonReflectingInletPatch(NonReflectingPatch):
             raise ValueError("P must be positive")
         self._set_target_row(4, "P", arr / self.block.fluid.P_ref)
 
+    @replayable
     def set_Beta(self, Beta):
         r"""Prescribe the inflow pitch angle.
 
@@ -182,6 +185,7 @@ class NonReflectingInletPatch(NonReflectingPatch):
             3, "Beta", np.sin(np.radians(np.asarray(Beta, dtype=np.float32)))
         )
 
+    @replayable
     def set_ho_s(self, ho, s):
         r"""Prescribe the inflow stagnation enthalpy and entropy.
 
@@ -205,13 +209,16 @@ class NonReflectingInletPatch(NonReflectingPatch):
         self._set_target_row(0, "ho", np.asarray(ho) / fluid.u_ref)
         self._set_target_row(1, "s", np.asarray(s) / fluid.Rgas_ref)
 
+    @replayable
     def set_Po_To(self, Po, To):
         r"""Prescribe the inflow stagnation pressure and temperature.
 
-        Converted here, once, to the stagnation enthalpy and entropy of
-        :meth:`set_ho_s` using the fluid of the block this patch is attached to;
-        only the result is stored, so a later change of fluid does not
-        re-convert.
+        Converted to the stagnation enthalpy and entropy of :meth:`set_ho_s`
+        using the fluid of the block this patch is attached to. The prescription
+        is what survives, not the conversion: the pressure and temperature given
+        here are kept, and a later change of fluid re-converts them against the
+        new one, so this stays the stagnation state asked for rather than
+        whatever number the old reference scales and datum made of it.
 
         Parameters
         ----------

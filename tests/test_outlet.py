@@ -271,3 +271,28 @@ def test_smooth_pitch_121_alpha_zero_is_noop(attached_patch):
     field = rng.standard_normal(attached_patch.block_view.shape).astype(np.float32)
     out = attached_patch.smooth_pitch_121(field, alpha=0.0)
     assert out is field
+
+
+def test_a_fluid_set_after_the_patch_is_configured_still_imposes_it(swirl_block):
+    """The prescribed exit pressure outlives a change of reference scales.
+
+    The pressure is held dimensionally and converted lazily, so what has to
+    happen on a rescale is that the converted form is dropped: left in place it
+    would impose the old scales' number against the new ones, silently and at
+    whatever pressure that works out to.
+    """
+    patch = OutletPatch(i=-1, j=(0, -1), k=(0, -1))
+    swirl_block.patches.append(patch)
+    patch.set_P(P1)
+    patch.update_soln()
+    patch.apply()
+
+    fluid_new = _FLUID.change_datum(2.0e5, 400.0).change_ref(
+        rho_ref=0.7, V_ref=250.0, Rgas_ref=300.0
+    )
+    swirl_block.set_fluid(fluid_new)
+    assert patch._P_target_nd is None
+
+    patch.update_soln()
+    patch.apply()
+    np.testing.assert_allclose(swirl_block[patch.slice].P, P1, rtol=1e-4)

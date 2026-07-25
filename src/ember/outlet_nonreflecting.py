@@ -44,7 +44,7 @@ ember.perturbation.chic_to_mix : Jacobian the mean-mode solves are built on
 
 import numpy as np
 
-from ember.nonreflecting import NonReflectingPatch
+from ember.nonreflecting import NonReflectingPatch, replayable
 from ember.outlet import calc_radial_equilibrium
 
 
@@ -150,6 +150,7 @@ class NonReflectingOutletPatch(NonReflectingPatch):
         }
         self._P_last_nd = None
 
+    @replayable
     def set_backflow(self, ho, s, Vr, Vt):
         r"""Prescribe the inflow state imposed where the exit flow reverses.
 
@@ -208,6 +209,7 @@ class NonReflectingOutletPatch(NonReflectingPatch):
         self._set_target_row(2, "Vr", np.asarray(Vr) / fluid.V_ref)
         self._set_target_row(3, "Vt", np.asarray(Vt) / fluid.V_ref)
 
+    @replayable
     def set_P(self, P):
         r"""Prescribe the outlet static pressure.
 
@@ -238,22 +240,17 @@ class NonReflectingOutletPatch(NonReflectingPatch):
         self._set_target_row(4, "P", arr / self.block.fluid.P_ref)
         self._P_level_nd = np.copy(self._target[..., 4])
 
-    def reset_target(self):
-        """Drop the solution-derived part of the pressure target.
+    def update_ref_scales(self):
+        """Re-derive the prescribed pressure and drop the spanwise adjustment.
 
-        Called by :class:`~ember.block.Block` when the reference scales change,
-        since the spanwise adjustment :meth:`update_target` built is an integral
-        over a solution and a geometry expressed in the old ones. The prescribed
-        level stands until the next :meth:`update_target` re-derives the
-        profile.
-
-        The seeded backflow rows are deliberately left alone: they are the state
-        the exit plane started from, taken once and frozen, and nothing
-        distinguishes a seeded row from one :meth:`set_backflow` prescribed.
+        The base class replays :meth:`set_P`, which rebuilds both the level and
+        the target row it feeds. What is left is the adjustment relaxation
+        state, an integral over a solution and a geometry expressed in the old
+        scales: it is dropped, and the next :meth:`update_target` re-derives the
+        profile from the rescaled solution.
         """
+        super().update_ref_scales()
         self._P_last_nd = None
-        if self._P_level_nd is not None:
-            self._target[..., 4] = self._P_level_nd
 
     def update_target(self):
         """Recompute the pressure target for the current timestep.

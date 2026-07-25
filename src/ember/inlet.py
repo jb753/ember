@@ -269,6 +269,20 @@ class InletPatch(RevolutionPatch):
             V_new_nd * sinA,
         )
 
+    def update_ref_scales(self):
+        """Drop the nondimensional target so it re-derives from the raw inputs.
+
+        The prescription is held dimensionally in ``_raw`` and converted lazily
+        by ``_calc_target``, so dropping the converted form and the velocity
+        state anchored to it is enough: the next call rebuilds all three against
+        the new reference scales. This is what makes a fluid changed after the
+        march has started safe here, not merely a fluid changed before it.
+        """
+        super().update_ref_scales()
+        self._target_nd = None
+        self._V_nd_max = None
+        self._V_nd_soln = None
+
     def update_soln(self):
         """Update :math:`V_\\mathrm{soln}` from the current inlet-face velocity.
 

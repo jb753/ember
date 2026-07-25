@@ -574,6 +574,20 @@ class OutletPatch(RevolutionPatch):
             b.conserved_nd[...] = np.where(mask, b.conserved_nd, cons_saved)
             b.update_cached_conserved()
 
+    def update_ref_scales(self):
+        """Drop the nondimensional pressure target so it re-derives from :attr:`P`.
+
+        The prescribed pressure is held dimensionally in ``_P_raw`` and
+        converted lazily in :meth:`apply`, so dropping the converted form is all
+        it takes for the next stage to pick up the new reference scales. The
+        relaxation state of the spanwise adjustment goes too: it is an integral
+        over a solution expressed in the old ones, and :meth:`update_target`
+        re-derives it.
+        """
+        super().update_ref_scales()
+        self._P_target_nd = None
+        self._P_last_nd = None
+
     def update_soln(self):
         """Update :math:`\\rho_\\mathrm{soln}` from the current interior density.
 
