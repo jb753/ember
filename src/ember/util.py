@@ -281,6 +281,33 @@ def allocate_or_reuse(out, shape, dtype=np.float32):
         return out
 
 
+def bcast_if_needed(a, shape):
+    """Broadcast ``a`` to ``shape`` only if it doesn't already have it.
+
+    A shape-tuple comparison is far cheaper than :func:`numpy.broadcast_to`
+    itself, so this is a near-zero-cost no-op on the common path where
+    ``a`` is already ``shape`` -- e.g. a hot-path setter that documents its
+    inputs as "must broadcast to X" for callers that need it, but whose
+    actual callers already pass exactly ``X``-shaped arrays.
+
+    Parameters
+    ----------
+    a : array_like
+        Candidate array; may already have ``shape`` or be broadcastable to it.
+    shape : tuple
+        Target shape.
+
+    Returns
+    -------
+    Array
+        ``a`` unchanged if ``a.shape == shape``, otherwise
+        ``np.broadcast_to(a, shape)``.
+    """
+    if getattr(a, "shape", None) == shape:
+        return a
+    return np.broadcast_to(a, shape)
+
+
 def carve_view(buf, *shapes):
     """Carve one or more non-overlapping zero-copy F-order views from a buffer.
 

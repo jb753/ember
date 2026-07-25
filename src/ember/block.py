@@ -1155,36 +1155,31 @@ class Block(ember.struct.StructuredData):
 
         keys = ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
         i0 = self._data_inds["rho"]  # rho..rhoe are consecutive at i0..i0+4
-        d = self._data
 
-        # Write the five conserved columns straight into the backing store with
-        # np.multiply(out=...), avoiding the (..., 5) np.stack and every product/
-        # energy temporary this used to allocate on the bcond hot path. Inputs
-        # are freshly-computed by the caller (never views of these columns), so
-        # read-as-we-write is safe; they may be face-shaped, and out= broadcasts
-        # them up to each column's shape exactly as the old slice-assign did.
-        #
-        # Energy first: e = u + 0.5*(Vx^2 + Vr^2 + Vt^2), written into the rhoe
-        # column. The not-yet-final rhoVr column (i0+2) is borrowed as scratch for
-        # the square terms -- it is overwritten with its real value below, before
-        # return, so the borrow is invisible to callers (incl. the masked proxy).
-        e = d[..., i0 + 4]
-        s = d[..., i0 + 2]
-        np.multiply(Vx_nd, Vx_nd, out=e)
-        np.multiply(Vr_nd, Vr_nd, out=s)
-        e += s
-        np.multiply(Vt_nd, Vt_nd, out=s)
-        e += s
-        e *= 0.5
-        e += u_nd
-        e *= rho_nd  # e now holds rho*e
-
-        # Density + momentum columns (overwrites the borrowed rhoVr scratch last).
-        d[..., i0] = rho_nd
-        np.multiply(rho_nd, Vx_nd, out=d[..., i0 + 1])
-        np.multiply(rho_nd, Vr_nd, out=d[..., i0 + 2])
-        np.multiply(rho_nd, r_nd, out=d[..., i0 + 3])
-        d[..., i0 + 3] *= Vt_nd
+        # Fused Fortran pass into Block.scratch (see its docstring's consumer
+        # list) instead of the chain of np.multiply(out=...) calls this used
+        # to be: on the small, patch-face-sized arrays this runs on, the
+        # per-call numpy dispatch overhead dominated over the actual
+        # arithmetic. scratch can't be written to directly by the kernel
+        # from here -- _data is a non-contiguous slice for a patch's
+        # block_view, which f2py refuses as intent(inout) -- so the kernel
+        # lands in scratch and this does one explicit copy into _data.
+        # util.bcast_if_needed preserves the "inputs may broadcast to block
+        # shape" contract the docstring promises (the kernel itself needs
+        # exact shapes), but skips broadcast_to's own overhead on the common
+        # path where the caller already passed exactly self.shape -- true of
+        # every current caller.
+        shape = self.shape
+        ember.fortran.set_rho_u_vxrt_write(
+            util.bcast_if_needed(rho_nd, shape),
+            util.bcast_if_needed(u_nd, shape),
+            util.bcast_if_needed(Vx_nd, shape),
+            util.bcast_if_needed(Vr_nd, shape),
+            util.bcast_if_needed(Vt_nd, shape),
+            util.bcast_if_needed(r_nd, shape),
+            self.scratch,
+        )
+        self._data[..., i0 : i0 + 5] = self.scratch
 
         for k in keys:
             self._versions[k] += 1
@@ -2440,7 +2435,9 @@ class Block(ember.struct.StructuredData):
           :meth:`ember.grid.Grid.update_sources`;
         - inviscid ``flow`` buffer (all 5 slots) in :attr:`residual_nd`, and the
           per-step increment buffer in ``solver.scree_step`` /
-          ``solver.advance_rk_stage_mg``.
+          ``solver.advance_rk_stage_mg``;
+        - the fused conserved-column write in :meth:`set_rho_u_Vxrt_nd`,
+          which reads the result back into ``_data`` before returning.
 
         Because nothing persists, each consumer owns the whole buffer for the
         duration of its own call and may treat it as freshly-allocated private

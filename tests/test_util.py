@@ -1865,5 +1865,19 @@ class TestCarveView:
             util.carve_view(buf, (cap,), (1,))
 
 
+def test_bcast_if_needed_already_right_shape_returns_same_object():
+    """No broadcast_to call when the shape already matches -- same object back."""
+    a = np.ones((3, 4, 5), dtype=np.float32)
+    assert util.bcast_if_needed(a, (3, 4, 5)) is a
+
+
+def test_bcast_if_needed_broadcasts_when_shape_differs():
+    """A smaller-shaped array is broadcast to the target shape."""
+    a = np.arange(5, dtype=np.float32)
+    out = util.bcast_if_needed(a, (3, 5))
+    assert out.shape == (3, 5)
+    np.testing.assert_array_equal(out, np.broadcast_to(a, (3, 5)))
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

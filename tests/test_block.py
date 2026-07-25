@@ -394,6 +394,40 @@ def test_set_rho_u_Vxrt_nd(block):
     np.testing.assert_allclose(block.Vt, Vt_target, rtol=rtol)
 
 
+def test_set_rho_u_Vxrt_nd_matches_reference_formula(block):
+    """The fused Fortran write-back agrees with the formula directly.
+
+    Checks the raw conserved columns against
+    e = u + 0.5*(Vx^2+Vr^2+Vt^2); [rho, rho*Vx, rho*Vr, rho*r*Vt, rho*e],
+    computed independently in the test rather than via the round-trip
+    through block.rho/u/Vx/Vr/Vt that test_set_rho_u_Vxrt_nd already covers,
+    so this is a genuine second check of set_rho_u_Vxrt_nd's implementation
+    rather than the same assertion restated.
+    """
+    rng = np.random.default_rng(0)
+    shape = block.shape
+    rho_nd = rng.uniform(0.8, 1.2, shape).astype(np.float32)
+    u_nd = rng.uniform(1.0, 2.0, shape).astype(np.float32)
+    Vx_nd = rng.uniform(50.0, 150.0, shape).astype(np.float32)
+    Vr_nd = rng.uniform(-5.0, 5.0, shape).astype(np.float32)
+    Vt_nd = rng.uniform(-5.0, 5.0, shape).astype(np.float32)
+
+    block.set_rho_u_Vxrt_nd(rho_nd, u_nd, Vx_nd, Vr_nd, Vt_nd)
+
+    r_nd = block.r_nd
+    e_nd = u_nd + 0.5 * (Vx_nd**2 + Vr_nd**2 + Vt_nd**2)
+    expect = {
+        "rho": rho_nd,
+        "rhoVx": rho_nd * Vx_nd,
+        "rhoVr": rho_nd * Vr_nd,
+        "rhorVt": rho_nd * r_nd * Vt_nd,
+        "rhoe": rho_nd * e_nd,
+    }
+    for key, val in expect.items():
+        got = block._get_data_by_keys((key,))
+        np.testing.assert_allclose(got, val, rtol=1e-5, atol=1e-6)
+
+
 def test_set_P_rho(block):
     """Test that set_P_rho correctly sets pressure and density."""
     rtol = 1e-6
