@@ -581,21 +581,17 @@ def pitchwise_repeat(blocks, n, symmetric=False):
     >>> isinstance(repeated_grid, Grid)  # Returns Grid
     True
     """
-    # Track input type to return matching output type
-    input_was_grid = False
+    from ember.grid import Grid
 
-    # Handle Grid input
-    if hasattr(blocks, "__class__") and blocks.__class__.__name__ == "Grid":
-        input_was_grid = True
-        # Grid is iterable, no need to convert to list
+    # Track input type to return matching output type
+    input_was_grid = isinstance(blocks, Grid)
+
     # Convert single block to list
-    elif not isinstance(blocks, list):
+    if not input_was_grid and not isinstance(blocks, list):
         blocks = [blocks]
 
     if n == 0:
         if input_was_grid:
-            from ember.grid import Grid
-
             return Grid([])
         return []
 

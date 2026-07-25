@@ -1,6 +1,5 @@
 """Utility functions for Block operations including concatenation, resampling, and I/O."""
 
-import copy as _copy_module
 import logging
 import sys
 
@@ -10,12 +9,6 @@ import ember.collections
 from ember import util
 
 logger = logging.getLogger(__name__)
-
-
-def _copy_patch(p):
-    if hasattr(p, "copy"):
-        return p.copy()
-    return _copy_module.deepcopy(p)
 
 
 def concatenate(*blocks, axis=0):
@@ -308,7 +301,7 @@ def resample(block, factors):
     # empty() shallow-copies _metadata, so new_block.patches is still the original
     # BlockPatchCollection. Replace it with unattached copies; indices will be
     # remapped and patches re-attached in step 5 below.
-    copied_patches = [_copy_patch(p) for p in block.patches]
+    copied_patches = [p.copy() for p in block.patches]
     new_patch_collection = ember.collections.BlockPatchCollection(new_block)
     new_patch_collection._items = copied_patches
     new_block._set_metadata_by_key("patches", new_patch_collection)
@@ -459,7 +452,7 @@ def memory_usage(block):
     # Metadata
     metadata_usage = {}
     for key, val in block._metadata.items():
-        if hasattr(val, "nbytes"):
+        if isinstance(val, np.ndarray):
             metadata_usage[key] = val.nbytes
         else:
             metadata_usage[key] = sys.getsizeof(val)
@@ -468,7 +461,7 @@ def memory_usage(block):
     cache_usage = {}
     for key, entry in block._store.items():
         result = entry[1]
-        if hasattr(result, "nbytes"):
+        if isinstance(result, np.ndarray):
             cache_usage[key] = result.nbytes
         else:
             cache_usage[key] = sys.getsizeof(result)

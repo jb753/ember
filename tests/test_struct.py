@@ -663,17 +663,14 @@ class MockStructuredData(StructuredData):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        if hasattr(self, "_data"):
-            # Initialize data arrays - only works for 2D shapes due to indexing
-            self._data[:, :, 0] = np.arange(np.prod(self.shape)).reshape(
-                self.shape
-            )  # x
-            self._data[:, :, 1] = (
-                np.arange(np.prod(self.shape)).reshape(self.shape) * 2
-            )  # y
-            self._data[:, :, 2] = (
-                np.arange(np.prod(self.shape)).reshape(self.shape) * 3
-            )  # z
+        # Initialize data arrays - only works for 2D shapes due to indexing
+        self._data[:, :, 0] = np.arange(np.prod(self.shape)).reshape(self.shape)  # x
+        self._data[:, :, 1] = (
+            np.arange(np.prod(self.shape)).reshape(self.shape) * 2
+        )  # y
+        self._data[:, :, 2] = (
+            np.arange(np.prod(self.shape)).reshape(self.shape) * 3
+        )  # z
 
 
 def test_structured_data_cannot_be_instantiated_directly():

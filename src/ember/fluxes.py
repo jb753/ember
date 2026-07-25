@@ -57,8 +57,8 @@ def get_flux_node(block):
         flux = mass_flux[:, None] * cons_per_mass[None, :]  # (3, 5)
 
         # Add pressure contributions
-        P = block.P.item() if hasattr(block.P, "item") else block.P
-        r = block.r.item() if hasattr(block.r, "item") else block.r
+        P = float(block.P)
+        r = float(block.r)
         flux[0, 1] += P  # x-momentum flux
         flux[1, 2] += P  # r-momentum flux
         flux[2, 3] += P * r  # angular momentum flux (with radius factor)
