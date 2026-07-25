@@ -134,16 +134,20 @@ def build_duct_grid(
 
     # Boundary conditions consistent with the mean flow: inlet fixes stagnation
     # conditions and swirl angle, outlet fixes static pressure with a backflow
-    # state for any transient reverse flow.
-    block.patches["inlet"] = ember.patch.InletPatch(i=0)
-    block.patches["outlet"] = ember.patch.OutletPatch(i=-1)
+    # state for any transient reverse flow. Non-reflecting throughout, so a wave
+    # the perturbed initial condition throws at either end leaves the domain
+    # instead of bouncing back down the duct.
+    block.patches["inlet"] = ember.patch.NonReflectingInletPatch(i=0)
+    block.patches["outlet"] = ember.patch.NonReflectingOutletPatch(i=-1)
 
     Po_in = block.Po[0].mean()
     To_in = block.To[0].mean()
     Alpha_in = block.Alpha[0].mean()
     P_out = block.P[-1].mean()
     T_out = block.T[-1].mean()
-    block.patches["inlet"].set_Po_To_Alpha_Beta(Po_in, To_in, Alpha_in, 0.0)
+    block.patches["inlet"].set_Po_To(Po_in, To_in)
+    block.patches["inlet"].set_Alpha(Alpha_in)
+    block.patches["inlet"].set_Beta(0.0)
     block.patches["outlet"].set_P(P_out)
     block.patches["outlet"].set_backflow(ho, so, 0.0, 0.0)
 
