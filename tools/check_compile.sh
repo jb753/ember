@@ -37,7 +37,11 @@ echo "gfortran: $GFORTRAN_VERSION"
 # Check Fortran source files syntax (run in temp dir to avoid .mod files in project root)
 ALL_F90_FILES=$(ls src/ember/_fortran/*.f90 2>/dev/null)
 SYNTAX_TMP=$(mktemp -d)
-if ! gfortran -fsyntax-only -J "$SYNTAX_TMP" -Wall -Werror -Warray-temporaries -Wfatal-errors $ALL_F90_FILES 2>&1; then
+# -ffree-line-length-132 pinned explicitly: gfortran >=14 stops enforcing the
+# free-form 132-column limit under plain -Wall (a version-specific
+# regression vs. gfortran 13, which CI still uses), so an over-length line
+# would pass this check silently and only fail in CI.
+if ! gfortran -fsyntax-only -J "$SYNTAX_TMP" -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors $ALL_F90_FILES 2>&1; then
     echo "Error: Fortran syntax/warning errors detected"
     rm -rf "$SYNTAX_TMP"
     exit 1

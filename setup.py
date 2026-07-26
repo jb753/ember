@@ -25,7 +25,11 @@ GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
 # single-file compile it suppressed AVX2 vectorization of the residual face-flux
 # loops (~20% slower), with no offsetting benefit found anywhere. Re-check if the
 # toolchain or the _fortran/ file set changes substantially.
-GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -Wall -Werror -Warray-temporaries -Wfatal-errors"
+# -ffree-line-length-132 pinned explicitly: gfortran 14.2 silently stops
+# enforcing the free-form 132-column limit under plain -Wall (a version-
+# specific regression vs. gfortran 13), so an over-length line built clean
+# here but failed CI's gfortran 13 with -Werror=line-truncation.
+GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
 
 # Set EMBER_OPT_REPORT=<path> to write the compiler's vectorization report
 # (-fopt-info-vec-all) there during the build. The flag is injected at LINK

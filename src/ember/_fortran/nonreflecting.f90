@@ -85,11 +85,16 @@ subroutine nonreflecting_recombine_bcast_j(rho, vx, vr, vt, p, prim_prev, &
                 dchic_out(i,j,k,4) = d4
                 dchic_out(i,j,k,5) = d5
 
-                prim_out(i,j,k,1) = ref_prim(1,j,1,1) + c2p(1,j,1,1,1)*d1 + c2p(1,j,1,1,2)*d2 + c2p(1,j,1,1,3)*d3 + c2p(1,j,1,1,4)*d4 + c2p(1,j,1,1,5)*d5
-                prim_out(i,j,k,2) = ref_prim(1,j,1,2) + c2p(1,j,1,2,1)*d1 + c2p(1,j,1,2,2)*d2 + c2p(1,j,1,2,3)*d3 + c2p(1,j,1,2,4)*d4 + c2p(1,j,1,2,5)*d5
-                prim_out(i,j,k,3) = ref_prim(1,j,1,3) + c2p(1,j,1,3,1)*d1 + c2p(1,j,1,3,2)*d2 + c2p(1,j,1,3,3)*d3 + c2p(1,j,1,3,4)*d4 + c2p(1,j,1,3,5)*d5
-                prim_out(i,j,k,4) = ref_prim(1,j,1,4) + c2p(1,j,1,4,1)*d1 + c2p(1,j,1,4,2)*d2 + c2p(1,j,1,4,3)*d3 + c2p(1,j,1,4,4)*d4 + c2p(1,j,1,4,5)*d5
-                prim_out(i,j,k,5) = ref_prim(1,j,1,5) + c2p(1,j,1,5,1)*d1 + c2p(1,j,1,5,2)*d2 + c2p(1,j,1,5,3)*d3 + c2p(1,j,1,5,4)*d4 + c2p(1,j,1,5,5)*d5
+                prim_out(i,j,k,1) = ref_prim(1,j,1,1) + c2p(1,j,1,1,1)*d1 + c2p(1,j,1,1,2)*d2 &
+                    + c2p(1,j,1,1,3)*d3 + c2p(1,j,1,1,4)*d4 + c2p(1,j,1,1,5)*d5
+                prim_out(i,j,k,2) = ref_prim(1,j,1,2) + c2p(1,j,1,2,1)*d1 + c2p(1,j,1,2,2)*d2 &
+                    + c2p(1,j,1,2,3)*d3 + c2p(1,j,1,2,4)*d4 + c2p(1,j,1,2,5)*d5
+                prim_out(i,j,k,3) = ref_prim(1,j,1,3) + c2p(1,j,1,3,1)*d1 + c2p(1,j,1,3,2)*d2 &
+                    + c2p(1,j,1,3,3)*d3 + c2p(1,j,1,3,4)*d4 + c2p(1,j,1,3,5)*d5
+                prim_out(i,j,k,4) = ref_prim(1,j,1,4) + c2p(1,j,1,4,1)*d1 + c2p(1,j,1,4,2)*d2 &
+                    + c2p(1,j,1,4,3)*d3 + c2p(1,j,1,4,4)*d4 + c2p(1,j,1,4,5)*d5
+                prim_out(i,j,k,5) = ref_prim(1,j,1,5) + c2p(1,j,1,5,1)*d1 + c2p(1,j,1,5,2)*d2 &
+                    + c2p(1,j,1,5,3)*d3 + c2p(1,j,1,5,4)*d4 + c2p(1,j,1,5,5)*d5
             end do
         end do
     end do
@@ -162,11 +167,16 @@ subroutine nonreflecting_recombine_bcast_k(rho, vx, vr, vt, p, prim_prev, &
                 dchic_out(i,j,k,4) = d4
                 dchic_out(i,j,k,5) = d5
 
-                prim_out(i,j,k,1) = ref_prim(1,1,k,1) + c2p(1,1,k,1,1)*d1 + c2p(1,1,k,1,2)*d2 + c2p(1,1,k,1,3)*d3 + c2p(1,1,k,1,4)*d4 + c2p(1,1,k,1,5)*d5
-                prim_out(i,j,k,2) = ref_prim(1,1,k,2) + c2p(1,1,k,2,1)*d1 + c2p(1,1,k,2,2)*d2 + c2p(1,1,k,2,3)*d3 + c2p(1,1,k,2,4)*d4 + c2p(1,1,k,2,5)*d5
-                prim_out(i,j,k,3) = ref_prim(1,1,k,3) + c2p(1,1,k,3,1)*d1 + c2p(1,1,k,3,2)*d2 + c2p(1,1,k,3,3)*d3 + c2p(1,1,k,3,4)*d4 + c2p(1,1,k,3,5)*d5
-                prim_out(i,j,k,4) = ref_prim(1,1,k,4) + c2p(1,1,k,4,1)*d1 + c2p(1,1,k,4,2)*d2 + c2p(1,1,k,4,3)*d3 + c2p(1,1,k,4,4)*d4 + c2p(1,1,k,4,5)*d5
-                prim_out(i,j,k,5) = ref_prim(1,1,k,5) + c2p(1,1,k,5,1)*d1 + c2p(1,1,k,5,2)*d2 + c2p(1,1,k,5,3)*d3 + c2p(1,1,k,5,4)*d4 + c2p(1,1,k,5,5)*d5
+                prim_out(i,j,k,1) = ref_prim(1,1,k,1) + c2p(1,1,k,1,1)*d1 + c2p(1,1,k,1,2)*d2 &
+                    + c2p(1,1,k,1,3)*d3 + c2p(1,1,k,1,4)*d4 + c2p(1,1,k,1,5)*d5
+                prim_out(i,j,k,2) = ref_prim(1,1,k,2) + c2p(1,1,k,2,1)*d1 + c2p(1,1,k,2,2)*d2 &
+                    + c2p(1,1,k,2,3)*d3 + c2p(1,1,k,2,4)*d4 + c2p(1,1,k,2,5)*d5
+                prim_out(i,j,k,3) = ref_prim(1,1,k,3) + c2p(1,1,k,3,1)*d1 + c2p(1,1,k,3,2)*d2 &
+                    + c2p(1,1,k,3,3)*d3 + c2p(1,1,k,3,4)*d4 + c2p(1,1,k,3,5)*d5
+                prim_out(i,j,k,4) = ref_prim(1,1,k,4) + c2p(1,1,k,4,1)*d1 + c2p(1,1,k,4,2)*d2 &
+                    + c2p(1,1,k,4,3)*d3 + c2p(1,1,k,4,4)*d4 + c2p(1,1,k,4,5)*d5
+                prim_out(i,j,k,5) = ref_prim(1,1,k,5) + c2p(1,1,k,5,1)*d1 + c2p(1,1,k,5,2)*d2 &
+                    + c2p(1,1,k,5,3)*d3 + c2p(1,1,k,5,4)*d4 + c2p(1,1,k,5,5)*d5
             end do
         end do
     end do
