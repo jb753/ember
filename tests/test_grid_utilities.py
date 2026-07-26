@@ -1469,6 +1469,43 @@ class TestAlignCartesian:
             assert np.all(indices >= 0)
             assert np.all(indices < xyz_input.shape[0])
 
+    def test_public_wrapper_matches_private(self, align_test_grid):
+        """align_cart_unstr returns exactly what _align_cartesian does."""
+        _f = _flatten(align_test_grid)
+        # A rotated/reflected cloud, so the wrapper is exercised on a case where
+        # perm and signs are not both trivial.
+        xyz_input = np.stack([_f.y, -_f.z, _f.x], axis=-1)
+
+        expected = align_test_grid._align_cartesian(xyz_input)
+        perm, signs, block_indices = align_test_grid.align_cart_unstr(xyz_input)
+
+        assert perm == expected[0]
+        assert signs == expected[1]
+        for actual, want in zip(block_indices, expected[2]):
+            np.testing.assert_array_equal(actual, want)
+
+    def test_scatter_nodal_field_out(self, align_test_grid):
+        """The correspondence can send a nodal field out to unstructured order.
+
+        This is what the public wrapper exists for: exporting to an external
+        unstructured solver on the same mapping used to read its results back,
+        rather than reimplementing the geometric search in the other direction.
+        """
+        _f = _flatten(align_test_grid)
+        xyz_input = np.stack([_f.x, _f.y, _f.z], axis=-1)
+
+        _, _, block_indices = align_test_grid.align_cart_unstr(xyz_input)
+
+        # Scatter a field that is distinct per node, so a mis-mapped index
+        # cannot coincidentally produce the right answer.
+        out = np.full(xyz_input.shape[0], np.nan)
+        for block, indices in zip(align_test_grid, block_indices):
+            out[indices.flatten()] = block.x.flatten()
+
+        # Every unstructured node was written exactly once, with its own value.
+        assert not np.isnan(out).any()
+        np.testing.assert_allclose(out, xyz_input[:, 0], rtol=1e-6)
+
 
 class TestBoundingBoxFunction:
     """Tests for util.bounding_box function."""
