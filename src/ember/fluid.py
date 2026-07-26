@@ -207,9 +207,17 @@ class _Fluid(ABC):
 
     @abstractmethod
     def change_datum(self, P_dtm_new, T_dtm_new):
-        """Return (fluid_new, rho_nd_new, u_nd_new) with datum shifted to (P_dtm_new, T_dtm_new).
+        """Return a new instance with datum shifted to (P_dtm_new, T_dtm_new).
 
-        rho_nd is unchanged for a perfect gas; may differ for real-gas EOS.
+        A pure factory: the returned fluid carries the same properties on the
+        new datum, and no field values are transformed. To move a *stored* flow
+        field onto another datum, pass the new fluid to
+        :meth:`ember.block.Block.set_fluid`, which reads the state out through
+        the old fluid and re-expresses it through the new one.
+
+        Note that ``T_dtm_new = 0`` is not representable: the datum sets
+        ``u = s = 0`` simultaneously, and entropy carries a
+        :math:`\\ln(T/T_\\mathrm{dtm})` term that is singular there.
         """
         raise NotImplementedError()
 

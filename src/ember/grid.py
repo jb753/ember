@@ -550,6 +550,16 @@ class Grid(_LabelledList):
 
         with :math:`\theta = \mathrm{atan2}(-z,\, y)`.
 
+        .. warning::
+
+            The total energy :math:`\rho e` is assumed to be measured from
+            *this grid's* thermodynamic datum. External solvers generally use
+            their own, in which case passing their conserved variables here
+            stores the energy on the wrong datum and silently corrupts
+            temperature. Convert the foreign internal energy to pressure first
+            and use :meth:`set_primitive_cart_unstr`, whose variables are all
+            datum-free. See :ref:`datum-state`.
+
         Parameters
         ----------
         xyz : array_like, shape (N, 3)
@@ -795,6 +805,59 @@ class Grid(_LabelledList):
             avg.flags.writeable = True
             ember.fortran.accumulate_avg(block.conserved_nd, avg, n_step_avg)
             avg.flags.writeable = False
+
+    def align_cart_unstr(self, xyz):
+        r"""Map an unstructured Cartesian point cloud onto this grid's nodes.
+
+        Detects the coordinate permutation and sign flips that bring ``xyz``
+        into the grid's own Cartesian frame, then locates each grid node within
+        the cloud, returning the index correspondence between the two.
+
+        This is the same alignment performed internally by
+        :meth:`set_conserved_cart_unstr` and :meth:`set_primitive_cart_unstr`.
+        It is exposed separately so that data can also be sent *out* to an
+        unstructured solver on the same correspondence -- for example
+        scattering :attr:`~ember.block.Block.wdist` into an external solver's
+        node array -- without reimplementing the geometric search, which would
+        then have to be kept in agreement with this one.
+
+        The match is exact rather than interpolatory: every grid node must
+        coincide with a point of the cloud to within a tolerance scaled by the
+        grid's extent. This holds when the cloud is a format translation of
+        this grid (an unstructured re-expression of the same nodes) and fails
+        when it has been resampled or remeshed.
+
+        Parameters
+        ----------
+        xyz : array_like, shape (N, 3)
+            Cartesian coordinates :math:`(x, y, z)`, where ``N`` must equal
+            :attr:`size`.
+
+        Returns
+        -------
+        perm : tuple of int
+            Permutation mapping the input's axes onto the grid's.
+        signs : tuple of int
+            Sign applied to each permuted axis, each ``+1`` or ``-1``.
+        block_indices : list of ndarray
+            One index array per block, of that block's shape, giving the row of
+            ``xyz`` that each node of the block corresponds to.
+
+        Raises
+        ------
+        ValueError
+            If no transformation aligns the cloud with the grid to tolerance.
+
+        Examples
+        --------
+        Transfer a nodal field out to the unstructured ordering:
+
+        >>> perm, signs, block_indices = grid.align_cart_unstr(xyz)  # doctest: +SKIP
+        >>> out = np.empty(xyz.shape[0])  # doctest: +SKIP
+        >>> for block, ind in zip(grid, block_indices):  # doctest: +SKIP
+        ...     out[ind.flatten()] = block.wdist.flatten()  # doctest: +SKIP
+        """
+        return self._align_cartesian(xyz)
 
     def apply_bconds(self):
         """Apply all boundary conditions across the grid once.
