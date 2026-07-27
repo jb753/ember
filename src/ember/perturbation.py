@@ -562,7 +562,7 @@ def chic_to_bcond(block, out=None):
     c_s] are the characteristic variables. Rows 0-3 against the four incoming
     characteristic columns form the square system a non-reflecting inlet solves
     to drive its boundary condition residuals to zero; see
-    :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch`.
+    :class:`~ember.inlet.InletPatch`.
 
     Returns:
         Array with shape (..., 5, 5) with matrices stacked on trailing dimensions

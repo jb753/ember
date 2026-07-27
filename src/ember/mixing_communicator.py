@@ -477,9 +477,7 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         # accumulates whatever it is given and has no way to tell a
         # wrong-direction contribution from a right one afterwards.
         idx = np.arange(nspan)
-        p_row = np.where(
-            (patch1._sign_interior > 0) == patch1._entering_shared, 0, 1
-        )
+        p_row = np.where((patch1._sign_interior > 0) == patch1._entering_shared, 0, 1)
         v2[:] = v1  # copy dchic into v2
         acoustic = v2[idx, p_row].copy()  # the one acoustic bound for the P bucket
         v1[...] = 0.0

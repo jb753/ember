@@ -283,7 +283,7 @@ class Grid(_LabelledList):
         for group_idx, group in enumerate(row_groups):
             for bid in group:
                 patches = self[bid].patches
-                if len(patches.inlet) + len(patches.inlet_nonreflecting) > 0:
+                if len(patches.inlet) > 0:
                     inlet_row_idx = group_idx
                     break
             if inlet_row_idx is not None:
@@ -294,7 +294,7 @@ class Grid(_LabelledList):
         for group_idx, group in enumerate(row_groups):
             for bid in group:
                 patches = self[bid].patches
-                if len(patches.outlet) + len(patches.outlet_nonreflecting) > 0:
+                if len(patches.outlet) > 0:
                     outlet_row_idx = group_idx
                     break
             if outlet_row_idx is not None:
@@ -493,8 +493,18 @@ class Grid(_LabelledList):
         -------
         Grid
             New grid containing blocks with coordinates and optional patches from files
+
+        Notes
+        -----
+        Plot3D carries coordinates and nothing else, so a block read from one
+        has no blade count and hence no pitch. The inlet and outlet are
+        characteristic conditions and refuse a face that is not a whole pitch,
+        so for any block the FVBND file gives one of those,
+        ``ember.plot3d.infer_Nb`` recovers the blade count from the block's own
+        circumferential extent before the patches are attached.
         """
-        from ember.plot3d import read_plot3d, read_fvbnd
+        from ember.patch import InletPatch, OutletPatch
+        from ember.plot3d import read_plot3d, read_fvbnd, infer_Nb
 
         # Read the grid
         grid = read_plot3d(p3d_file, flip_k=flip_k)
@@ -510,8 +520,16 @@ class Grid(_LabelledList):
                         f"Block ID {block_id} in FVBND file exceeds grid size {len(grid)}"
                     )
 
+                block = grid[block_id]
+                # Before the patches: attaching an inlet or outlet reads the
+                # pitch, which the file did not carry.
+                if any(isinstance(p, (InletPatch, OutletPatch)) for p in patch_list):
+                    Nb = infer_Nb(block)
+                    if Nb is not None:
+                        block.set_Nb(Nb)
+
                 for patch in patch_list:
-                    grid[block_id].patches.append(patch)
+                    block.patches.append(patch)
 
         return grid
 
@@ -734,9 +752,7 @@ class Grid(_LabelledList):
         Returns
         -------
         ConvergenceStep
-            Residual and station monitors for this step, with the outlet PID
-            throttle state taken from
-            :meth:`ember.outlet.OutletPatch.get_throttle_stats`. See
+            Residual and station monitors for this step. See
             :class:`ConvergenceStep` for the meaning of each field.
 
         Notes
@@ -762,16 +778,14 @@ class Grid(_LabelledList):
                 mdot.append(m)
                 ho.append(h)
                 s.append(se)
-        # Throttle monitors come from the first OutletPatch; a grid closed by a
-        # NonReflectingOutletPatch alone has none, and the ConvergenceStep
-        # throttle fields keep their zero defaults.
-        outlets = self.patches.outlet
+        # The ConvergenceStep throttle fields keep their zero defaults: no
+        # boundary condition drives them since the outlet PID was removed, but
+        # the columns are retained so the .cnv record-array layout is stable.
         return ConvergenceStep(
             residual=residual,
             mdot=np.array(mdot),
             ho=np.array(ho),
             s=np.array(s),
-            **(outlets[0].get_throttle_stats() if outlets else {}),
         )
 
     def get_r_ref(self):
@@ -887,11 +901,7 @@ class Grid(_LabelledList):
         for block in self:
             for patch in block.patches.inlet:
                 patch.apply()
-            for patch in block.patches.inlet_nonreflecting:
-                patch.apply()
             for patch in block.patches.outlet:
-                patch.apply()
-            for patch in block.patches.outlet_nonreflecting:
                 patch.apply()
             for patch in block.patches.mixing:
                 patch.apply()
@@ -1398,7 +1408,7 @@ class Grid(_LabelledList):
             self.connectivity.mixing.exchange()
             self.connectivity.mixing_nonreflecting.exchange()
 
-        # Every non-reflecting patch takes update_soln to refresh the frozen
+        # Every characteristic patch takes update_soln to refresh the frozen
         # mean state its Jacobians and characteristic split are built on, then
         # advance for the one under-relaxed step of the condition itself. Both
         # belong here rather than in apply_bconds: Giles bounds that step per
@@ -1406,8 +1416,6 @@ class Grid(_LabelledList):
         # stage count. apply() imposes the result every stage.
         for block in self:
             for patch in block.patches.inlet:
-                patch.update_soln()
-            for patch in block.patches.inlet_nonreflecting:
                 patch.update_soln()
                 patch.advance()
             # No loop over the reflecting plane: MixingPatch holds no per-step
@@ -1423,10 +1431,6 @@ class Grid(_LabelledList):
                 patch.update_soln()
                 patch.advance()
             for patch in block.patches.outlet:
-                patch.update_soln()
-                if not freeze:
-                    patch.update_target()
-            for patch in block.patches.outlet_nonreflecting:
                 patch.update_soln()
                 if not freeze:
                     patch.update_target()
@@ -1927,14 +1931,12 @@ class Grid(_LabelledList):
         from ember.patch import (
             InletPatch,
             MixingPatch,
-            NonReflectingInletPatch,
             NonReflectingMixingPatch,
-            NonReflectingOutletPatch,
             OutletPatch,
         )
 
-        inflow_types = (InletPatch, NonReflectingInletPatch)
-        outflow_types = (OutletPatch, NonReflectingOutletPatch)
+        inflow_types = (InletPatch,)
+        outflow_types = (OutletPatch,)
         rows = self.rows
         n_row = len(rows)
         result = []
@@ -2445,8 +2447,13 @@ class ConvergenceStep:
     """Station specific entropies, shape ``(2 * n_row,)``,
     non-dimensionalised by ``Rgas_ref``."""
 
+    # No boundary condition writes the six throttle fields below: the outlet
+    # PID they reported was removed along with the reflecting outlet, and they
+    # stay at zero. They are retained so the column layout of a pickled
+    # ConvergenceHistory (.cnv) is unchanged in both directions, letting files
+    # written either side of that removal be read by the other.
     mdot_target: float = 0.0
-    """Outlet throttle mass flow setpoint [kg/s]; zero when throttle inactive."""
+    """Outlet throttle mass flow setpoint [kg/s]; always zero, see above."""
 
     mdot_throttle: float = 0.0
     """Mass flow measured at the outlet patch on its last target update [kg/s]."""

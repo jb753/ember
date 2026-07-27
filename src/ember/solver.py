@@ -14,8 +14,7 @@ Overview of one time step
 :meth:`Solver.run` performs the following operations each step:
 
 1. **Boundary conditions**: :meth:`~ember.grid.Grid.update_bconds` updates
-   boundary patch targets (mass flow throttle, radial equilibrium,
-   mixing-plane exchange) and :meth:`~ember.grid.Grid.apply_bconds` imposes
+   boundary patch targets (radial equilibrium, mixing-plane exchange) and :meth:`~ember.grid.Grid.apply_bconds` imposes
    those boundary conditions by modifying :attr:`~ember.block.Block.conserved_nd`.
 2. **NaN check**: :meth:`~ember.grid.Grid.check_nan` aborts the run early if
    the conserved state has gone non-finite. Sets a flag on the returned
@@ -223,21 +222,22 @@ Inlet, outlet, and mixing-plane patches each relax their own state towards a
 target every step, with their own relaxation factor rather than a single
 solver-wide setting:
 
-- :class:`~ember.inlet.InletPatch` relaxes the face velocity from its
-  characteristic solve with ``rf = 1.0`` by default (no relaxation); because
-  that target is well conditioned, ``rf < 1`` only adds startup lag.
+- :class:`~ember.inlet.InletPatch` and :class:`~ember.outlet.OutletPatch` take
+  one under-relaxed step of the characteristic condition per timestep, scaled
+  by :attr:`~ember.nonreflecting.NonReflectingPatch.sigma`; see
+  :attr:`SolverConfig.rf_inlet` and :attr:`SolverConfig.rf_outlet`.
 - :class:`~ember.mixing.MixingPatch` holds no relaxation of its own: it imposes
   whatever target the exchange last wrote.
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
   mixing-plane target exchanged between adjacent blocks with the patches'
   ``rf_exchange`` (default 0.05), which is the only damping the reflecting
   plane has.
-- :class:`~ember.outlet.OutletPatch` takes its own relaxation factor via
-  ``set_adjustment(rf=...)``.
+- :class:`~ember.outlet.OutletPatch` relaxes its spanwise radial-equilibrium
+  profile separately, via ``set_adjustment(rf=...)``.
 
 :meth:`ember.grid.Grid.update_bconds` advances the slowly-varying boundary
-targets once per step (mixing-plane exchange, inlet velocity snapshot,
-outlet PID/spanwise target); :meth:`ember.grid.Grid.apply_bconds` then
+targets once per step (mixing-plane exchange, characteristic mean state,
+outlet spanwise target); :meth:`ember.grid.Grid.apply_bconds` then
 imposes the full set of physical boundary conditions and closes periodic
 seams every time it is called, including between Runge--Kutta substages.
 
@@ -248,8 +248,8 @@ Logging, averaging, and convergence history
 
 Convergence diagnostics are recorded into a
 :class:`~ember.convergence_history.ConvergenceHistory` every
-``Solver.n_step_log`` steps: mean residual, mass flow / stagnation
-enthalpy / entropy at row interfaces, and outlet throttle state
+``Solver.n_step_log`` steps: mean residual and mass flow / stagnation
+enthalpy / entropy at row interfaces
 (:meth:`ember.grid.Grid.get_convergence`).
 
 Pseudotime averaging of the conserved variables accumulates over the final
@@ -352,19 +352,14 @@ class Solver(BaseSolver):
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
     (:attr:`~ember.nonreflecting.NonReflectingPatch.sigma`) on every
-    :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch`. Imposed on
-    every such patch at the start of the run, so the default overrides a value
-    the patches carried in; pass None to leave whatever they already hold.
-    Does not touch the plain :class:`~ember.inlet.InletPatch`, whose ``rf``
-    relaxes a pressure datum and is a different quantity. Applied once per
-    Runge-Kutta substage, not once per step, so the effective rate per step is
-    larger by :attr:`n_stage`."""
+    :class:`~ember.inlet.InletPatch`. Imposed on every such patch at the start
+    of the run, so the default overrides a value the patches carried in; pass
+    None to leave whatever they already hold."""
 
     rf_outlet: float | None = 0.05
-    """As :attr:`rf_inlet`, for every
-    :class:`~ember.outlet_nonreflecting.NonReflectingOutletPatch`. Does not
-    touch the plain :class:`~ember.outlet.OutletPatch`, which takes its own
-    relaxation via ``set_adjustment(rf=...)``."""
+    """As :attr:`rf_inlet`, for every :class:`~ember.outlet.OutletPatch`. This
+    is the characteristic relaxation only; the spanwise radial-equilibrium
+    profile has its own, set via ``set_adjustment(rf=...)``."""
 
     rf_mix: float | None = 0.01
     """As :attr:`rf_inlet`, for every
@@ -728,8 +723,8 @@ def _apply_bcond_relaxation(grid, conf):
     each of its separately resampled grids.
     """
     for sigma, patches in (
-        (conf.rf_inlet, grid.patches.inlet_nonreflecting),
-        (conf.rf_outlet, grid.patches.outlet_nonreflecting),
+        (conf.rf_inlet, grid.patches.inlet),
+        (conf.rf_outlet, grid.patches.outlet),
         (conf.rf_mix, grid.patches.mixing_nonreflecting),
     ):
         if sigma is not None:

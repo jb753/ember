@@ -137,8 +137,8 @@ def build_duct_grid(
     # state for any transient reverse flow. Non-reflecting throughout, so a wave
     # the perturbed initial condition throws at either end leaves the domain
     # instead of bouncing back down the duct.
-    block.patches["inlet"] = ember.patch.NonReflectingInletPatch(i=0)
-    block.patches["outlet"] = ember.patch.NonReflectingOutletPatch(i=-1)
+    block.patches["inlet"] = ember.patch.InletPatch(i=0)
+    block.patches["outlet"] = ember.patch.OutletPatch(i=-1)
 
     Po_in = block.Po[0].mean()
     To_in = block.To[0].mean()
@@ -149,7 +149,9 @@ def build_duct_grid(
     block.patches["inlet"].set_Alpha(Alpha_in)
     block.patches["inlet"].set_Beta(0.0)
     block.patches["outlet"].set_P(P_out)
-    block.patches["outlet"].set_backflow(ho, so, 0.0, 0.0)
+    block.patches["outlet"].set_backflow_ho_s(ho, so)
+    block.patches["outlet"].set_backflow_Vr(0.0)
+    block.patches["outlet"].set_backflow_Vt(0.0)
 
     # Velocity ripple, applied before the non-dimensional reference is set (as in
     # the original example/script ordering).

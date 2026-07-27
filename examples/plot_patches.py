@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch as LegendPatch
 
 import ember.block
+import ember.fluid
 import ember.patch
 from ember import util
 
@@ -31,7 +32,15 @@ from ember import util
 # The coordinates are set first so that patches can attach to it.
 
 block = ember.block.Block(shape=(8, 5, 7))
-block.set_xrt(util.linmesh3((0.0, 1.0), (0.9, 1.1), (0.0, 0.35), block.shape))
+# The inlet and outlet are characteristic conditions and attach only to a whole
+# blade passage, so the circumferential extent is exactly one pitch of the
+# blade count set on the block.
+Nb = 18
+block.set_xrt(
+    util.linmesh3((0.0, 1.0), (0.9, 1.1), (0.0, 2.0 * np.pi / Nb), block.shape)
+)
+block.set_Nb(Nb)
+block.set_fluid(ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7))
 
 # %%
 # Creating and attaching patches
@@ -74,23 +83,26 @@ for patch in block.patches:
 # Configuring boundary data
 # -------------------------
 #
-# Inlet patches take stagnation conditions and flow angles, uniform or varying
-# across the patch (any input broadcasting to the patch shape). Outlet patches
-# take a static pressure, optionally throttled to a target mass flow with a PID
-# controller. Rotating patches take an angular velocity.
+# Inlet patches take a stagnation state and the two flow angles; outlet patches
+# take a static pressure. Rotating patches take an angular velocity.
+#
+# Each of these is imposed on the pitchwise mean at every span station, never
+# node by node, so the values are a scalar or a spanwise profile. A
+# pitchwise-varying value is refused rather than quietly averaged.
 
 inlet = block.patches["inflow"]
-inlet.set_Po_To_Alpha_Beta(Po=2e5, To=1200.0, Alpha=0.0, Beta=0.0)
+inlet.set_Po_To(2e5, 1200.0)
+inlet.set_Alpha(0.0)
+inlet.set_Beta(0.0)
 
 # A radial stagnation-temperature profile across the span (j direction).
 _, nj, _ = inlet.shape
 To_profile = np.linspace(1100.0, 1300.0, nj).reshape(1, nj, 1)
-inlet.set_Po_To_Alpha_Beta(To=To_profile)
-print(f"Inlet To varies {float(inlet.To.min()):.0f}--{float(inlet.To.max()):.0f} K")
+inlet.set_Po_To(2e5, To_profile)
+print(f"Inlet To varies {To_profile.min():.0f}--{To_profile.max():.0f} K")
 
 outlet = block.patches["outflow"]
-outlet.set_P(1e5)  # Static pressure [Pa]; an initial guess if throttling
-outlet.set_throttle(mdot_target=3.0, K_pid=(1.0, 0.1, 0.0))  # PID throttle to mdot
+outlet.set_P(1e5)  # Static pressure [Pa], imposed on the pitchwise mean
 
 hub = block.patches["hub"]
 hub.set_Omega(500.0)  # rad/s

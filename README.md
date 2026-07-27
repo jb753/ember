@@ -62,7 +62,9 @@ block.set_fluid(fluid)
 Po1 = 1e5  # [Pa]
 To1 = 300.0  # [K]
 block.patches["inlet"] = ember.patch.InletPatch(i=0)
-block.patches["inlet"].set_Po_To_Alpha_Beta(Po1, To1, 0.0, 0.0)
+block.patches["inlet"].set_Po_To(Po1, To1)
+block.patches["inlet"].set_Alpha(0.0)
+block.patches["inlet"].set_Beta(0.0)
 
 # Define outlet boundary conditions at i=-1 face
 # Fixed static pressure

@@ -2693,16 +2693,6 @@ class Block(ember.struct.StructuredData):
         return np.sqrt(self.Vx**2 + self.Vr**2)
 
     @derived_array
-    def Vm_nd(self):
-        r"""Nondimensional meridional velocity magnitude :math:`V_m^*` [-].
-
-        .. math::
-            V_m^* = V_m / V_\mathrm{ref}
-
-        """
-        return np.sqrt(self.Vx_nd**2 + self.Vr_nd**2)
-
-    @derived_array
     def vol(self):
         r"""Volume elements for a 3D block :math:`\delta \mathcal{V}` [m^3], cell array.
 

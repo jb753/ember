@@ -70,19 +70,6 @@ class BlockRestart:
         the filtered field is reconstructed as conserved_cell + lag. Stored
         dimensional so reference scales can differ between save and restore.
         None if conserved_filt was never allocated.
-    outlet : tuple of ndarray
-        One read-only array per OutletPatch, in `block.patches.outlet`
-        order. Each array is `_P_target_nd / _P_raw_nd` (a unitless
-        pressure profile). On restore the destination patch's
-        `_P_raw` sets the mean target pressure.
-    outlet_rho_soln : tuple of (ndarray or None)
-        One entry per OutletPatch, in `block.patches.outlet` order. The
-        patch's `_rho_nd_soln` density-relaxation reference, or None if it
-        was never seeded.
-    outlet_P_last : tuple of (ndarray or None)
-        One entry per OutletPatch, in `block.patches.outlet` order. The
-        patch's `_P_last_nd` spanwise-adjustment relaxation profile, or
-        None if `set_adjustment` was not active.
     mixing : tuple of ndarray
         One read-only array per MixingPatch, in `block.patches.mixing`
         order. Each is `_target` dimensionalized so reference
@@ -92,9 +79,6 @@ class BlockRestart:
 
     conserved: np.ndarray
     conserved_filt_lag: np.ndarray | None = None
-    outlet: tuple = ()
-    outlet_rho_soln: tuple = ()
-    outlet_P_last: tuple = ()
     mixing: tuple = ()
 
     def __post_init__(self):
@@ -103,21 +87,6 @@ class BlockRestart:
             object.__setattr__(
                 self, "conserved_filt_lag", _frozen_copy(self.conserved_filt_lag)
             )
-        object.__setattr__(self, "outlet", tuple(_frozen_copy(a) for a in self.outlet))
-        object.__setattr__(
-            self,
-            "outlet_rho_soln",
-            tuple(
-                _frozen_copy(a) if a is not None else None for a in self.outlet_rho_soln
-            ),
-        )
-        object.__setattr__(
-            self,
-            "outlet_P_last",
-            tuple(
-                _frozen_copy(a) if a is not None else None for a in self.outlet_P_last
-            ),
-        )
         object.__setattr__(self, "mixing", tuple(_frozen_copy(a) for a in self.mixing))
 
 
@@ -138,13 +107,6 @@ def make_restart(grid):
     """
     restarts = []
     for block in grid:
-        P_ref = block.fluid.P_ref
-        outlet = tuple(
-            p._P_target_nd / (p._P_raw / P_ref) for p in block.patches.outlet
-        )
-        outlet_rho_soln = tuple(p._rho_nd_soln for p in block.patches.outlet)
-        outlet_P_last = tuple(p._P_last_nd for p in block.patches.outlet)
-
         refs = _cons_refs(block)
         mixing = tuple(p._target * refs for p in block.patches.mixing)
 
@@ -162,9 +124,6 @@ def make_restart(grid):
             BlockRestart(
                 conserved=block.conserved,
                 conserved_filt_lag=cons_filt_lag_dim,
-                outlet=outlet,
-                outlet_rho_soln=outlet_rho_soln,
-                outlet_P_last=outlet_P_last,
                 mixing=mixing,
             )
         )
@@ -176,10 +135,7 @@ def apply_restart(block, restart):
 
     Conserved variables are always restored. dt_vol is not restored — it is a
     fast local quantity recomputed from the restored field by
-    `Grid.update_timestep`. Outlet
-    pressure profiles are interpolated in index space then rescaled by the
-    destination patch's `_P_raw`, so the user can change the mean target
-    pressure between save and restore.
+    `Grid.update_timestep`.
 
     The mixing-plane cross-plane `_target` is deliberately NOT restored: it is
     left unset so `MixingPatch.get_target`/`apply` lazily re-seed it from the
@@ -187,13 +143,14 @@ def apply_restart(block, restart):
     the field on this grid (restoring the saved target leaves a step-0
     inconsistency that makes the reflective plane ring; see the body).
 
-    The outlet spanwise-adjustment relaxation profile (`_P_last_nd`) is
-    restored when present, index-interpolated if shapes differ.
-
-    The outlet density relaxation anchor (`_rho_nd_soln`) is NOT restored: it
-    is a start-of-step reference that `Grid.update_bconds` overwrites via
-    `OutletPatch.update_soln()` before any `apply()` reads it, so restoring it
-    has no effect (see body).
+    No inlet or outlet state is restored at all. Those patches are
+    characteristic conditions carrying their own marched face state
+    (`_prim_prev`) and, where the user has not prescribed them, backflow target
+    rows seeded from the flow at the first timestep. Both are re-derived from
+    the interpolated field, so a restarted boundary re-converges over roughly
+    `1/sigma` steps rather than resuming exactly where it left off. That is the
+    accepted cost of holding no boundary state in the snapshot; the interior
+    field, which is what the restart is for, is unaffected.
 
     The flux-kernel pressure datum `Block.P_offset_nd` is no longer saved or
     restored: it is a cached property keyed on the conserved state, so it
@@ -217,22 +174,6 @@ def apply_restart(block, restart):
         cons_filt[...] = block.conserved_cell_nd + lag_nd
         cons_filt.flags.writeable = False
 
-    P_ref = block.fluid.P_ref
-    for patch, P_shape, P_last in zip(
-        block.patches.outlet,
-        restart.outlet,
-        restart.outlet_P_last,
-        strict=True,
-    ):
-        target_shape = patch.block_view.shape
-        if P_shape.shape != target_shape:
-            P_shape = _index_interp(P_shape, target_shape)
-        patch._P_target_nd = (P_shape * (patch._P_raw / P_ref)).astype(np.float32)
-        if P_last is not None:
-            if P_last.shape != target_shape:
-                P_last = _index_interp(P_last.astype(np.float32), target_shape)
-            patch._P_last_nd = np.array(P_last, dtype=np.float32)
-
     # The mixing-plane cross-plane target is intentionally NOT restored from the
     # snapshot. The saved target and the conserved field arrive through
     # different interpolation paths (separate index-interp + dimensional
@@ -244,12 +185,3 @@ def apply_restart(block, restart):
     # from the interpolated interior pitch mean on first use, which is
     # consistent with the field on this grid by construction. (restart.mixing
     # is still saved for diagnostics/back-compat.)
-    #
-    # The outlet's density relaxation anchor (_rho_nd_soln) is likewise NOT
-    # restored. It is a start-of-step relaxation reference, refreshed every
-    # timestep by OutletPatch.update_soln() in Grid.update_bconds before any
-    # apply() reads it, so a restored value is overwritten before it can take
-    # effect. update_soln() re-anchors it to the boundary-face field that
-    # interp_from_conserved has already populated from restart.conserved,
-    # which is exactly what restoring would have produced. (outlet_rho_soln is
-    # still saved for diagnostics/back-compat.)

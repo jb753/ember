@@ -113,7 +113,6 @@ class Patch(ABC):
         # Store block view
         self._block_view = None
         self._block_view_offset_1 = None
-        self._block_view_offset_2 = None
 
         self._setup()
 
@@ -424,7 +423,6 @@ class Patch(ABC):
         if self._block_ref is not None:
             self._block_view = block[self.slice]
             self._block_view_offset_1 = block[self._get_offset_slice(1)]
-            self._block_view_offset_2 = block[self._get_offset_slice(2)]
 
     def check_match(self, other, rtol=1e-6):
         """Check if this patch matches another patch for pairing purposes.
@@ -482,11 +480,7 @@ class Patch(ABC):
         caches of their own that the block's own ``clear_cache`` does not reach
         -- and a patch reads the face through them.
         """
-        for view in (
-            self._block_view,
-            self._block_view_offset_1,
-            self._block_view_offset_2,
-        ):
+        for view in (self._block_view, self._block_view_offset_1):
             if view is not None:
                 view.clear_cache()
 
@@ -532,22 +526,6 @@ class Patch(ABC):
                 "Patch is not attached to any block. Call attach_to_block() first."
             )
         return self._block_view_offset_1
-
-    @property
-    def block_view_offset_2(self):
-        """Sliced view two layers interior to the patch face; :class:`~ember.block.Block` with shape :attr:`shape`.
-
-        Used together with :attr:`block_view_offset_1` to linearly (two-point)
-        extrapolate the outgoing characteristic state to the boundary face,
-        ``X_face = 2 * X_1 - X_2``. Equivalent to ``block[patch.slice]`` offset
-        by two along the constant dimension. Cached at :meth:`attach_to_block`
-        to avoid repeated sliced Block creation overhead.
-        """
-        if not self._block_view_offset_2:
-            raise ValueError(
-                "Patch is not attached to any block. Call attach_to_block() first."
-            )
-        return self._block_view_offset_2
 
     @property
     def const_dim(self):
@@ -657,7 +635,6 @@ class RevolutionPatch(Patch):
         self._block_avg = None
         self._weight_pitch = None
         self._dA_node = None
-        self._dA_full = None
 
     def _check_attached(self):
         """Raise ValueError if this patch is not attached to a block."""
@@ -913,18 +890,6 @@ class RevolutionPatch(Patch):
         ws[1:-1] = (A_face[:-1] + A_face[1:]) / 2
         ws[-1] = A_face[-1] / 2
         self._dA_node = ws
-
-        def _face_to_node_1d(arr, axis):
-            a = np.moveaxis(arr, axis, 0)
-            out = np.empty((a.shape[0] + 1,) + a.shape[1:], dtype=arr.dtype)
-            out[0] = a[0] / 2
-            out[1:-1] = (a[:-1] + a[1:]) / 2
-            out[-1] = a[-1] / 2
-            return np.moveaxis(out, 0, axis)
-
-        dA_nodes = _face_to_node_1d(dA_raw, self.span_dim)
-        dA_nodes = _face_to_node_1d(dA_nodes, self.pitch_dim)
-        self._dA_full = dA_nodes
 
         x_avg = self._block_view.x.mean(axis=self.pitch_dim).squeeze()
         r_avg = self._block_view.r.mean(axis=self.pitch_dim).squeeze()

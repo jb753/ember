@@ -126,9 +126,7 @@ def _run_phase1():
     halo.fill(0.0)
     tau_cell = halo[..., 0:6]
     q_cell = halo[..., 6:9]
-    mu_turb = block._get_data_by_keys(
-        ("mu_turb",), raise_uninit=False, writeable=True
-    )
+    mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
 
     ember.fortran.set_tau_q_soa(
         cons=block.conserved_nd,

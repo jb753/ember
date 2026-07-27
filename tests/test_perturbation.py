@@ -443,9 +443,9 @@ def test_chic_to_bcond_and_chic_to_mix_share_rows(scalar_blocks):
     entropy and static pressure rows are the same expressions. Several callers
     depend on that:
 
-    * :class:`ember.outlet_nonreflecting.NonReflectingOutletPatch` hardcodes
+    * :class:`ember.outlet.OutletPatch` hardcodes
       ``dp/dc_up = 1/2`` from row 4, so it is correct under either set;
-    * :meth:`ember.inlet_nonreflecting.NonReflectingInletPatch._calc_reference_extra`
+    * :meth:`ember.inlet.InletPatch._calc_reference_extra`
       builds its local Newton system and both coupling columns from rows 0:2,
       so those are the same matrices whichever set the patch prescribes;
     * :meth:`ember.mixing_communicator.MixingCommunicator._write_targets`

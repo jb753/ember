@@ -193,6 +193,58 @@ def read_plot3d(filename, flip_k=True):
     return Grid(blocks)
 
 
+def infer_Nb(block, rtol=1e-4):
+    r"""Recover a block's blade count from its own circumferential extent.
+
+    Plot3D stores coordinates and nothing else, so a block read from one keeps
+    the default :math:`N_\mathrm{b} = 1` and hence a pitch of :math:`2\pi`.
+    That is fatal for the inlet and outlet, which are characteristic conditions
+    and refuse a face spanning less than a whole pitch.
+
+    A turbomachinery block carrying one of those conditions is a single blade
+    passage, so its circumferential extent *is* the pitch and the blade count
+    follows:
+
+    .. math::
+
+        N_\mathrm{b} = \frac{2\pi}{\theta_\mathrm{max} - \theta_\mathrm{min}}
+
+    This is inference, not data recovery, so it is deliberately narrow: the
+    quotient is returned only when it lands on an integer to within ``rtol``,
+    and ``None`` otherwise, leaving the block at its default so the patch
+    raises its own error rather than the march running against a silently
+    invented pitch.
+
+    The one case it gets wrong is a block spanning an exact sub-multiple of a
+    passage -- half a passage of a 20-blade row reads as a whole passage of a
+    40-blade one -- which is indistinguishable from the coordinates alone. Such
+    a block is not periodic and has no business carrying an inlet, but nothing
+    here can tell. Set the blade count explicitly with
+    :meth:`~ember.block.Block.set_Nb` before attaching the patches if in doubt.
+
+    Parameters
+    ----------
+    block : ember.block.Block
+        Block to measure. Coordinates must already be set.
+    rtol : float, optional
+        Relative tolerance on the quotient landing an integer. Default 1e-4.
+
+    Returns
+    -------
+    int or None
+        The inferred blade count, or None if the extent does not divide
+        :math:`2\pi` a whole number of times.
+    """
+    extent = float(np.ptp(block.t))
+    if extent <= 0.0:
+        return None
+    quotient = 2.0 * np.pi / extent
+    Nb = round(quotient)
+    if Nb < 1 or abs(quotient - Nb) > rtol * quotient:
+        return None
+    return Nb
+
+
 def write_plot3d(grid, filename, flip_k=True):
     """Write grid in Plot3D format.
 

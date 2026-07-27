@@ -19,7 +19,7 @@ Test cases:
 
 import numpy as np
 import ember.block
-from ember.patch import NonMatchPatch, PeriodicPatch, InletPatch, MixingPatch
+from ember.patch import NonMatchPatch, PeriodicPatch, InviscidPatch, MixingPatch
 from conftest import _make_block
 
 
@@ -83,7 +83,7 @@ class TestNonMatchPatchCheckMatch:
         """Test that NonMatchPatch doesn't match with other patch types."""
         nonmatch_patch = NonMatchPatch(i=0, j=(5, 15), k=(10, 20))
         periodic_patch = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        inlet_patch = InletPatch(i=0, j=(5, 15), k=(10, 20))
+        inlet_patch = InviscidPatch(i=0, j=(5, 15), k=(10, 20))
         mixing_patch = MixingPatch(i=0, j=(5, 15), k=(10, 20))
 
         nonmatch_patch.attach_to_block(self.block1)

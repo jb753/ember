@@ -19,18 +19,22 @@ Test cases:
 - Cadence: the condition advances once a timestep and apply only imposes, so a
   cycle relaxes the same however many stages impose it, while the outgoing
   characteristics still refresh on every one of them
-- Guards: backflow, axially supersonic, absolutely supersonic, and a length
-  scale set after attachment carrying through to the averaged block
+- Guards: backflow, axially supersonic, absolutely supersonic (both warned
+  rather than raised, once per excursion, with the march carrying on so the
+  solver reports the divergence), and a length scale set after attachment
+  carrying through to the averaged block
 """
 
 import importlib
 import inspect
+import warnings
 
 import numpy as np
 import pytest
 
 import ember.grid
 from ember import perturbation, util
+from ember.nonreflecting import UnsupportedMeanStateWarning
 from ember.patch import PERMEABLE_TYPES
 from nonreflecting_util import (
     PATCH_KINDS,
@@ -280,8 +284,7 @@ def test_attached_patch_survives_write_emb(kind, tmp_path):
     Grid.write_emb), nothing clears a cached kernel reference, so it rode
     straight into the pickle stream. This broke turbine/setup.py in the
     sibling ember-paper repo the moment a non-reflecting patch was
-    attached, before even running the solver -- not caught here before,
-    since every other write_emb test uses reflecting patches.
+    attached, before even running the solver.
     """
     block, patch = attached(kind, target=MISMATCH[kind])
     grid = ember.grid.Grid([block])
@@ -290,9 +293,7 @@ def test_attached_patch_survives_write_emb(kind, tmp_path):
     grid.write_emb(str(emb_file))  # must not raise
 
     reloaded = ember.grid.Grid.read_emb(str(emb_file))
-    reloaded_patch = next(
-        iter(getattr(reloaded[0].patches, f"{kind}_nonreflecting"))
-    )
+    reloaded_patch = next(iter(getattr(reloaded[0].patches, kind)))
     reloaded_patch.apply()  # must not raise (e.g. a stale None kernel reference)
     assert np.isfinite(face_prim(reloaded_patch)).all()
 
@@ -467,11 +468,10 @@ def test_apply_without_targets_raises(kind):
 def test_collection_and_permeable(kind):
     """The patch is discoverable and counts as a permeable, non-wall face."""
     block, patch = attached(kind)
-    collection = getattr(block.patches, f"{kind}_nonreflecting")
-    assert collection == [patch]
-    # Its own collection, not the reflecting one, whose consumers poke
-    # attributes private to those patches.
-    assert getattr(block.patches, kind) == []
+    assert getattr(block.patches, kind) == [patch]
+    # Not the mixing-plane collection: that shares the characteristic base
+    # class but is driven by a cross-plane exchange instead.
+    assert block.patches.mixing_nonreflecting == []
     assert isinstance(patch, PERMEABLE_TYPES)
 
 
@@ -479,8 +479,8 @@ def test_collection_and_permeable(kind):
     "module_name, class_name",
     [
         ("ember.nonreflecting", "NonReflectingPatch"),
-        ("ember.inlet_nonreflecting", "NonReflectingInletPatch"),
-        ("ember.outlet_nonreflecting", "NonReflectingOutletPatch"),
+        ("ember.inlet", "InletPatch"),
+        ("ember.outlet", "OutletPatch"),
         ("ember.mixing_nonreflecting", "NonReflectingMixingPatch"),
     ],
 )
@@ -532,18 +532,55 @@ def test_reversed_mean_does_not_raise(kind):
     assert np.isfinite(face_prim(patch)).all()
 
 
-def test_axially_supersonic_raises(kind):
-    """An axially supersonic mean state is not implemented."""
+def test_axially_supersonic_warns(kind):
+    """An axially supersonic mean state is not implemented, and says so."""
     _, patch = attached(kind, Vx=500.0, Vt=0.0, target={})
-    with pytest.raises(NotImplementedError, match="axially"):
+    with pytest.warns(UnsupportedMeanStateWarning, match="axially"):
         patch.update_soln()
 
 
-def test_absolutely_supersonic_raises(kind):
+def test_absolutely_supersonic_warns(kind):
     """A supersonic but axially subsonic mean state is not implemented."""
     _, patch = attached(kind, Vx=100.0, Vt=400.0, target={})
-    with pytest.raises(NotImplementedError, match="supersonic mean state"):
+    with pytest.warns(UnsupportedMeanStateWarning, match="supersonic mean state"):
         patch.update_soln()
+
+
+def test_supersonic_warns_once_per_excursion(kind):
+    """One warning per excursion, not one per timestep.
+
+    A diverging march calls update_soln every step, and the point of warning
+    rather than raising is to let it run on to the solver's own divergence
+    check; a warning per step would bury that in noise.
+    """
+    block, patch = attached(kind, Vx=500.0, Vt=0.0, target={})
+    with pytest.warns(UnsupportedMeanStateWarning):
+        patch.update_soln()
+
+    # Still supersonic, but already reported.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        patch.update_soln()
+
+    # Back inside the envelope, then out again: news the second time.
+    block.set_Vx(np.full(block.shape, VX_MEAN, dtype=np.float32))
+    patch.update_soln()
+    block.set_Vx(np.full(block.shape, 500.0, dtype=np.float32))
+    with pytest.warns(UnsupportedMeanStateWarning):
+        patch.update_soln()
+
+
+def test_supersonic_marches_on_rather_than_stopping(kind):
+    """After warning, the step is taken: divergence is the solver's to report."""
+    _, patch = attached(kind, Vx=500.0, Vt=0.0, target={})
+    with pytest.warns(UnsupportedMeanStateWarning):
+        patch.update_soln()
+    # No exception out of the condition itself, and no loose numpy warnings
+    # from the invalid values it is now working on either: the patch owns that
+    # noise once it has warned. Whatever it produces is Grid.check_nan's to
+    # catch.
+    patch.advance()
+    patch.apply()
 
 
 def test_setting_the_length_scale_after_attaching_rescales_the_averaged_block(kind):

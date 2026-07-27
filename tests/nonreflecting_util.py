@@ -1,7 +1,7 @@
 """Shared fixtures for the non-reflecting boundary condition tests.
 
-Used by test_nonreflecting.py (the shared machinery), test_inlet_nonreflecting.py
-and test_outlet_nonreflecting.py. Not a test module itself.
+Used by test_nonreflecting.py (the shared machinery), test_inlet.py
+and test_outlet.py. Not a test module itself.
 """
 
 import numpy as np
@@ -9,7 +9,7 @@ import numpy as np
 from ember import perturbation, util
 from ember.block import Block
 from ember.fluid import PerfectFluid
-from ember.patch import NonReflectingInletPatch, NonReflectingOutletPatch
+from ember.patch import InletPatch, OutletPatch
 
 # Reference scales chosen so nondimensional quantities are O(1); with the
 # default unit references P_nd would be O(1e5) and a small perturbation would
@@ -35,8 +35,8 @@ VT_MEAN = 60.0
 # faces of the same block work: the flow runs along +x either way, so the
 # interior is on the +x side of the i=0 face and the -x side of the i=-1 face.
 PATCH_KINDS = {
-    "inlet": (NonReflectingInletPatch, 0),
-    "outlet": (NonReflectingOutletPatch, -1),
+    "inlet": (InletPatch, 0),
+    "outlet": (OutletPatch, -1),
 }
 
 

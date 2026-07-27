@@ -83,12 +83,16 @@ Examples
     from ember.fluid import PerfectFluid
 
     # Build a block with axial (x), radial (r), and circumferential (t) coordinates.
+    # The inlet and outlet are characteristic conditions, so the block has to be
+    # a whole blade passage: t spans exactly one pitch of the set blade count.
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
     block = Block(shape=(4, 5, 6))
     block.set_fluid(fluid)
+    block.set_Nb(12)
+    pitch = 2.0 * np.pi / 12
     block.set_x(np.linspace(0.0, 1.0, 4).reshape(-1, 1, 1) * np.ones((4, 5, 6)))
     block.set_r(np.linspace(0.5, 1.0, 5).reshape(1, -1, 1) * np.ones((4, 5, 6)))
-    block.set_t(np.linspace(0.0, 0.5, 6).reshape(1, 1, -1) * np.ones((4, 5, 6)))
+    block.set_t(np.linspace(0.0, pitch, 6).reshape(1, 1, -1) * np.ones((4, 5, 6)))
 
     # Add inlet, outlet, and periodic patches; appending attaches each to the block.
     inlet  = ember.patch.InletPatch(i=0,  label="inflow")
@@ -122,22 +126,21 @@ Examples
     print(block[inlet.slice].x.shape)   # (1, 5, 6)
     print(block.xrt[inlet.slice].shape) # (1, 5, 6, 3)
 
-    # Set inlet stagnation conditions; values can be scalars or arrays
-    # that broadcast to the patch shape.
-    inlet.set_Po_To_Alpha_Beta(Po=2e5, To=1200.0, Alpha=0.0, Beta=0.0)
-    print(inlet.Po)  # 200000.0
-    print(inlet.To)  # 1200.0
+    # Set inlet stagnation conditions and flow angles. Each is imposed on the
+    # pitchwise mean at every span station, so values are a scalar or a
+    # spanwise profile.
+    inlet.set_Po_To(Po=2e5, To=1200.0)
+    inlet.set_Alpha(0.0)
+    inlet.set_Beta(0.0)
+    print(inlet.ho_nd.shape)  # (1, 5, 1)
 
-    nj, nk = inlet.shape[1], inlet.shape[2]
-    Po_array = np.linspace(1.8e5, 2.2e5, nj * nk).reshape(1, nj, nk)
-    inlet.set_Po_To_Alpha_Beta(Po=Po_array)
-    print(inlet.Po.shape)  # (1, 5, 6)
+    nj = inlet.shape[1]
+    Po_span = np.linspace(1.8e5, 2.2e5, nj).reshape(1, nj, 1)
+    inlet.set_Po_To(Po=Po_span, To=1200.0)
 
-    # Set static pressure on the outlet, or attach a mass-flow PID throttle.
+    # Set static pressure on the outlet.
     outlet.set_P(1e5)
-    print(outlet.P)  # 100000.0
-
-    outlet.set_throttle(mdot_target=3.0, K_pid=(1.0, 0.1, 0.0))
+    print(outlet.P_nd.shape)  # (1, 5, 1)
 
     # Set angular velocity on a rotating wall patch.
     rot_patch = ember.patch.RotatingPatch(j=0, label="hub")
@@ -152,14 +155,12 @@ from ember.collections import BlockPatchCollection, GridPatchCollection
 from ember.cooling import CoolingPatch
 from ember.cusp import CuspPatch
 from ember.inlet import InletPatch
-from ember.inlet_nonreflecting import NonReflectingInletPatch
 from ember.inviscid import InviscidPatch
 from ember.mixing import MixingPatch
 from ember.mixing_nonreflecting import NonReflectingMixingPatch
 from ember.nonmatch import NonMatchPatch
 from ember.nonreflecting import NonReflectingPatch
 from ember.outlet import OutletPatch
-from ember.outlet_nonreflecting import NonReflectingOutletPatch
 from ember.periodic import PeriodicPatch
 from ember.probe import ProbePatch
 from ember.rotating import RotatingPatch
@@ -170,9 +171,7 @@ __all__ = [
     "NonReflectingPatch",
     "PeriodicPatch",
     "InletPatch",
-    "NonReflectingInletPatch",
     "OutletPatch",
-    "NonReflectingOutletPatch",
     "MixingPatch",
     "NonReflectingMixingPatch",
     "NonMatchPatch",
@@ -189,9 +188,7 @@ __all__ = [
 
 PERMEABLE_TYPES = (
     InletPatch,
-    NonReflectingInletPatch,
     OutletPatch,
-    NonReflectingOutletPatch,
     PeriodicPatch,
     MixingPatch,
     # Listed in its own right rather than reached through the two conditions

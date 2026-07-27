@@ -314,15 +314,20 @@ class TestGridFVBNDDelegation:
     def test_write_fvbnd_delegation(self, tmp_path):
         """Test that Grid.write_fvbnd correctly delegates to standalone function."""
         # Create a grid with patches
-        block = Block(shape=(4, 3, 2))
-        xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], (4, 3, 2))
+        # The fvbnd labels come from the patch classes, so these are real
+        # inlet and outlet patches: a whole blade passage, full end faces.
+        shape = (4, 3, 5)
+        Nb = 31
+        block = Block(shape=shape)
+        xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 2.0 * np.pi / Nb], shape)
         block.set_x(xrt[..., 0])
         block.set_r(xrt[..., 1])
         block.set_t(xrt[..., 2])
+        block.set_Nb(Nb)
 
         # Add patches
-        inlet_patch = InletPatch(i=0, j=(1, 2), k=(0, 1), label="inlet")
-        outlet_patch = OutletPatch(i=-1, j=(1, 2), k=(0, 1), label="outlet")
+        inlet_patch = InletPatch(i=0, label="inlet")
+        outlet_patch = OutletPatch(i=-1, label="outlet")
         block.patches.extend([inlet_patch, outlet_patch])
 
         grid = Grid([block])
@@ -347,13 +352,16 @@ class TestGridFVBNDDelegation:
 
     def test_write_fvbnd_parameter_mapping(self, tmp_path):
         """Test parameter mapping from region_id to iregion."""
-        block = Block(shape=(2, 2, 2))
-        xrt = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 1.0], (2, 2, 2))
+        shape = (2, 2, 5)
+        Nb = 31
+        block = Block(shape=shape)
+        xrt = util.linmesh3([0.0, 1.0], [0.5, 1.0], [0.0, 2.0 * np.pi / Nb], shape)
         block.set_x(xrt[..., 0])
         block.set_r(xrt[..., 1])
         block.set_t(xrt[..., 2])
+        block.set_Nb(Nb)
 
-        inlet_patch = InletPatch(i=0, j=(0, 1), k=(0, 1), label="test_inlet")
+        inlet_patch = InletPatch(i=0, label="test_inlet")
         block.patches.append(inlet_patch)
 
         grid = Grid([block])

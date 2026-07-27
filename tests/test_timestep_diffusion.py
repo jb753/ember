@@ -101,8 +101,14 @@ def test_viscous_timestep_matches_max_of_spectral_radii():
 def _avg_cell(x):
     """8-node corner average to cell centres, matching the kernel's avg_cell."""
     return 0.125 * (
-        x[:-1, :-1, :-1] + x[1:, :-1, :-1] + x[:-1, 1:, :-1] + x[1:, 1:, :-1]
-        + x[:-1, :-1, 1:] + x[1:, :-1, 1:] + x[:-1, 1:, 1:] + x[1:, 1:, 1:]
+        x[:-1, :-1, :-1]
+        + x[1:, :-1, :-1]
+        + x[:-1, 1:, :-1]
+        + x[1:, 1:, :-1]
+        + x[:-1, :-1, 1:]
+        + x[1:, :-1, 1:]
+        + x[:-1, 1:, 1:]
+        + x[1:, 1:, 1:]
     )
 
 

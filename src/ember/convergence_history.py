@@ -54,8 +54,10 @@ non-dimensional, hence the ``_nd`` suffix:
 * :attr:`ConvergenceHistory.mdot_nd`, :attr:`ConvergenceHistory.ho_nd`,
   :attr:`ConvergenceHistory.s_nd`
 
-Throttle state, when an outlet is running a PID throttle. Unlike the stations
-above, these are dimensional:
+Throttle state. These six are retained so the on-disk column layout is stable
+across the removal of the outlet PID that used to drive them, and they read
+zero on any history recorded since. Unlike the stations above, they are
+dimensional:
 
 * :attr:`ConvergenceHistory.throttle`, :attr:`ConvergenceHistory.mdot_target`,
   :attr:`ConvergenceHistory.mdot_throttle`
@@ -216,9 +218,8 @@ class ConvergenceHistory(StructuredData):
         cls._set_grid_metadata(out, grid)
 
         # Fluid from the first outlet patch (the grid is the reference frame the
-        # history is projected onto), of either outlet type.
-        outlet_patches = grid.patches.outlet or grid.patches.outlet_nonreflecting
-        outlet_block = outlet_patches[0].block_view
+        # history is projected onto).
+        outlet_block = grid.patches.outlet[0].block_view
         out._set_metadata_by_key("fluid", outlet_block.fluid)
 
         # Initialize timer reference
@@ -591,9 +592,9 @@ class ConvergenceHistory(StructuredData):
         r"""Derivative term of the throttle PID correction [Pa], record array.
 
         The three terms :attr:`dP_P`, :attr:`dP_I` and :attr:`dP_D` sum to the
-        total correction :math:`\Delta p_\mathrm{throttle}` that the outlet adds
-        to its base static pressure. See
-        :meth:`ember.outlet.OutletPatch.get_throttle_stats`.
+        total correction :math:`\Delta p_\mathrm{throttle}` that the outlet
+        used to add to its base static pressure. Zero on any history recorded
+        since the outlet PID was removed; see the module docstring.
         """
         return self._get_data_by_keys(("dP_D",))
 

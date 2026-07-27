@@ -30,7 +30,14 @@ import os
 import inspect
 from ember.grid import Grid
 from ember.block import Block
-from ember.patch import InletPatch, OutletPatch, PeriodicPatch, MixingPatch
+from ember.patch import (
+    CoolingPatch,
+    InletPatch,
+    InviscidPatch,
+    MixingPatch,
+    OutletPatch,
+    PeriodicPatch,
+)
 from ember.plot3d import write_plot3d, read_plot3d, write_fvbnd
 from ember.block_util import to_tm3
 from ember.fluid import PerfectFluid
@@ -141,8 +148,11 @@ def test_emb_with_patches_roundtrip(tmp_path):
     block2 = Block(shape=(4, 5, 6))
 
     # Set coordinates
-    xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.3], (5, 6, 7))
-    xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.1, 0.4], (4, 5, 6))
+    # Whole blade passages, so the characteristic inlet and outlet attach.
+    Nb = 31
+    pitch = 2.0 * np.pi / Nb
+    xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, pitch], (5, 6, 7))
+    xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.0, pitch], (4, 5, 6))
 
     block1.set_x(xrt1[..., 0])
     block1.set_r(xrt1[..., 1])
@@ -150,6 +160,11 @@ def test_emb_with_patches_roundtrip(tmp_path):
     block2.set_x(xrt2[..., 0])
     block2.set_r(xrt2[..., 1])
     block2.set_t(xrt2[..., 2])
+    block1.set_Nb(Nb)
+    block2.set_Nb(Nb)
+    fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
+    block1.set_fluid(fluid)
+    block2.set_fluid(fluid)
 
     # Add patches to blocks
     inlet1 = InletPatch(i=0, j=(0, -1), k=(0, -1), label="inlet_1")
@@ -163,13 +178,11 @@ def test_emb_with_patches_roundtrip(tmp_path):
     block2.patches.append(outlet1)
     block2.patches.append(periodic2)
 
-    # Now set inlet properties after patch is attached to block
-    inlet1.set_Po_To_Alpha_Beta(
-        Po=np.ones(inlet1.shape) * 101325.0,
-        To=np.ones(inlet1.shape) * 288.15,
-        Alpha=np.zeros(inlet1.shape),
-        Beta=np.ones(inlet1.shape) * 10.0,
-    )
+    # Now set inlet properties after patch is attached to block. Only the
+    # pitchwise mean is imposed, so these are scalars.
+    inlet1.set_Po_To(101325.0, 288.15)
+    inlet1.set_Alpha(0.0)
+    inlet1.set_Beta(10.0)
 
     outlet1.set_P(120000.0)
 
@@ -355,9 +368,11 @@ def test_emb_patch_block_shape_restoration(tmp_path):
     block2.set_r(xrt2[..., 1])
     block2.set_t(xrt2[..., 2])
 
-    # Add patches with negative indices (require block shape for resolution)
-    inlet_patch = InletPatch(i=0, j=(1, -2), k=(2, -1), label="inlet_negative")
-    outlet_patch = OutletPatch(i=-1, j=(0, -1), k=(1, -2), label="outlet_negative")
+    # Add patches with negative indices (require block shape for resolution).
+    # Partial faces, so patch types with no geometric preconditions: what is
+    # under test is index resolution across the round trip.
+    inlet_patch = InviscidPatch(i=0, j=(1, -2), k=(2, -1), label="inlet_negative")
+    outlet_patch = CoolingPatch(i=-1, j=(0, -1), k=(1, -2), label="outlet_negative")
     periodic_patch = PeriodicPatch(i=(1, -1), j=0, k=(2, -2), label="periodic_negative")
 
     # Add patches to blocks (this sets their block shapes)
@@ -582,8 +597,11 @@ def test_plot3d_fvbnd_roundtrip(tmp_path):
     block2 = Block(shape=(4, 5, 6))
 
     # Set coordinates
-    xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.3], (5, 6, 7))
-    xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.1, 0.4], (4, 5, 6))
+    # Whole blade passages, so the characteristic inlet and outlet attach.
+    Nb = 31
+    pitch = 2.0 * np.pi / Nb
+    xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, pitch], (5, 6, 7))
+    xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.0, pitch], (4, 5, 6))
 
     block1.set_x(xrt1[..., 0])
     block1.set_r(xrt1[..., 1])
@@ -591,6 +609,8 @@ def test_plot3d_fvbnd_roundtrip(tmp_path):
     block2.set_x(xrt2[..., 0])
     block2.set_r(xrt2[..., 1])
     block2.set_t(xrt2[..., 2])
+    block1.set_Nb(Nb)
+    block2.set_Nb(Nb)
 
     # Add patches to blocks
     inlet1 = InletPatch(i=0, j=(0, -1), k=(0, -1), label="inlet_1")
@@ -645,8 +665,11 @@ def test_grid_write_plot3d_with_fvbnd(tmp_path):
     block2 = Block(shape=(4, 5, 6))
 
     # Set coordinates
-    xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.3], (5, 6, 7))
-    xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.1, 0.4], (4, 5, 6))
+    # Whole blade passages, so the characteristic inlet and outlet attach.
+    Nb = 31
+    pitch = 2.0 * np.pi / Nb
+    xrt1 = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, pitch], (5, 6, 7))
+    xrt2 = util.linmesh3([1.0, 2.0], [1.0, 2.0], [0.0, pitch], (4, 5, 6))
 
     block1.set_x(xrt1[..., 0])
     block1.set_r(xrt1[..., 1])
@@ -654,6 +677,8 @@ def test_grid_write_plot3d_with_fvbnd(tmp_path):
     block2.set_x(xrt2[..., 0])
     block2.set_r(xrt2[..., 1])
     block2.set_t(xrt2[..., 2])
+    block1.set_Nb(Nb)
+    block2.set_Nb(Nb)
 
     # Add patches to blocks
     inlet1 = InletPatch(i=0, j=(0, -1), k=(0, -1), label="inlet_1")
@@ -763,7 +788,6 @@ def test_grid_write_plot3d_interface():
     assert params["iregion"].default == 0
 
 
-
 # ---------------------------------------------------------------------------
 # block_util.to_tm3
 # ---------------------------------------------------------------------------
@@ -840,3 +864,67 @@ def test_to_tm3_shape_mismatch(tmp_path):
     wrong = np.ones((tri.shape[0] + 1, tri.shape[1]))
     with pytest.raises(ValueError, match="shape"):
         to_tm3(tri, str(tmp_path / "out.tm3"), Ma=wrong)
+
+
+# ---------------------------------------------------------------------------
+# Blade count inference on read
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("Nb", [1, 17, 31, 157])
+def test_infer_Nb_recovers_a_whole_passage(Nb):
+    """A block spanning exactly one pitch reports the blade count that made it."""
+    from ember.plot3d import infer_Nb
+
+    shape = (3, 3, 5)
+    block = Block(shape=shape)
+    xrt = util.linmesh3([0.0, 1.0], [1.0, 2.0], [0.0, 2.0 * np.pi / Nb], shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
+
+    assert infer_Nb(block) == Nb
+
+
+@pytest.mark.parametrize("extent", [0.2, 0.3, 1.0])
+def test_infer_Nb_refuses_an_extent_that_is_not_a_whole_pitch(extent):
+    """An arbitrary sector gives None, so the patch raises rather than the
+    march running against an invented pitch."""
+    from ember.plot3d import infer_Nb
+
+    shape = (3, 3, 5)
+    block = Block(shape=shape)
+    xrt = util.linmesh3([0.0, 1.0], [1.0, 2.0], [0.0, extent], shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
+
+    assert infer_Nb(block) is None
+
+
+def test_read_plot3d_infers_Nb_for_blocks_carrying_an_inlet(tmp_path):
+    """The blade count is recovered on read, so an fvbnd inlet attaches.
+
+    Plot3D carries no blade count, so without this the block keeps Nb=1, its
+    pitch is the whole annulus, and the characteristic inlet refuses the face.
+    """
+    shape = (4, 4, 5)
+    Nb = 31
+    block = Block(shape=shape)
+    xrt = util.linmesh3([0.0, 1.0], [1.0, 2.0], [0.0, 2.0 * np.pi / Nb], shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
+    block.set_Nb(Nb)
+    block.patches.append(InletPatch(i=0, label="inlet"))
+    block.patches.append(OutletPatch(i=-1, label="outlet"))
+
+    p3d_file = tmp_path / "passage.p3d"
+    fvbnd_file = tmp_path / "passage.fvbnd"
+    Grid([block]).write_plot3d(str(p3d_file), str(fvbnd_file))
+
+    reloaded = Grid.read_plot3d(str(p3d_file), str(fvbnd_file))
+
+    assert reloaded[0].Nb == Nb
+    assert len(reloaded.patches.inlet) == 1
+    assert len(reloaded.patches.outlet) == 1

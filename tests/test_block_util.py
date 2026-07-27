@@ -40,12 +40,15 @@ def block():
     """Create a configured Block for testing interface velocity functions."""
     shape = (3, 4, 5)
 
-    # Create block with coordinates
+    # Create block with coordinates. Theta spans a whole blade passage, so the
+    # characteristic inlet and outlet conditions attach to the end faces.
+    Nb = 31
     b = ember.block.Block(shape=shape)
-    xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
+    xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 2.0 * np.pi / Nb], shape)
     b.set_x(xrt[..., 0])
     b.set_r(xrt[..., 1])
     b.set_t(xrt[..., 2])
+    b.set_Nb(Nb)
 
     # Set up fluid and thermodynamic state
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
@@ -715,17 +718,23 @@ class TestConcatenateMetadata:
 
 
 class TestConcatenatePatches:
-    """Test patch handling during concatenation."""
+    """Test patch handling during concatenation.
+
+    The patch types here are incidental -- what is under test is how
+    concatenate() moves, drops and reindexes patches -- so they are ones with
+    no geometric preconditions of their own, and some sit on faces the
+    characteristic inlet and outlet could never occupy.
+    """
 
     def test_concatenate_with_safe_patches(self, block1, block2):
         """Test concatenating blocks with patches not on interface."""
         # Add patches that don't interfere with concatenation
-        inlet_patch = ember.patch.InletPatch(
+        inlet_patch = ember.patch.InviscidPatch(
             i=0, j=(0, 3), k=(0, 4)
         )  # i=0 face (not interface)
         block1.patches.append(inlet_patch)
 
-        outlet_patch = ember.patch.OutletPatch(
+        outlet_patch = ember.patch.CoolingPatch(
             j=0, i=(0, 4), k=(0, 4)
         )  # j=0 face (not on concatenation interface)
         block2.patches.append(outlet_patch)
@@ -746,7 +755,7 @@ class TestConcatenatePatches:
     def test_interface_patches_raise_error(self, block1, block2):
         """Test error when blocks have patches on concatenation interface."""
         # Add patch on interface of block1 (i=-1 face, which is the interface for axis=0)
-        interface_patch1 = ember.patch.OutletPatch(i=-1, j=(0, -1), k=(0, -1))
+        interface_patch1 = ember.patch.CoolingPatch(i=-1, j=(0, -1), k=(0, -1))
         block1.patches.append(interface_patch1)
 
         with pytest.raises(
@@ -757,7 +766,7 @@ class TestConcatenatePatches:
 
         # Test with patch on block2 interface (i=0 face)
         block1.patches.clear()
-        interface_patch2 = ember.patch.InletPatch(i=0, j=(0, -1), k=(0, -1))
+        interface_patch2 = ember.patch.InviscidPatch(i=0, j=(0, -1), k=(0, -1))
         block2.patches.append(interface_patch2)
 
         with pytest.raises(
@@ -769,10 +778,10 @@ class TestConcatenatePatches:
     def test_non_interface_patches_preserved(self, block1, block2):
         """Test that non-interface patches are correctly preserved and adjusted."""
         # Add simple patches not on interface (using available patch types)
-        inlet_patch1 = ember.patch.InletPatch(j=0, i=(0, 2), k=(0, 4))  # j=0 face
+        inlet_patch1 = ember.patch.InviscidPatch(j=0, i=(0, 2), k=(0, 4))  # j=0 face
         block1.patches.append(inlet_patch1)
 
-        outlet_patch2 = ember.patch.OutletPatch(j=0, i=(0, 4), k=(0, 4))  # j=0 face
+        outlet_patch2 = ember.patch.CoolingPatch(j=0, i=(0, 4), k=(0, 4))  # j=0 face
         block2.patches.append(outlet_patch2)
 
         result = ember.block_util.concatenate(block1, block2, axis=0)
@@ -791,12 +800,12 @@ class TestConcatenatePatches:
     def test_concatenate_with_negative_indices(self, block1, block2):
         """Test concatenating blocks with patches using negative indices."""
         # Add patches with negative indices that don't interfere with concatenation
-        inlet_patch = ember.patch.InletPatch(
+        inlet_patch = ember.patch.InviscidPatch(
             i=0, j=(0, -1), k=(0, -1)
         )  # Uses -1 for "end"
         block1.patches.append(inlet_patch)
 
-        outlet_patch = ember.patch.OutletPatch(
+        outlet_patch = ember.patch.CoolingPatch(
             j=-1, i=(0, -1), k=(0, -1)
         )  # j=-1 face (last j index)
         block2.patches.append(outlet_patch)
