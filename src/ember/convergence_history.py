@@ -54,10 +54,9 @@ non-dimensional, hence the ``_nd`` suffix:
 * :attr:`ConvergenceHistory.mdot_nd`, :attr:`ConvergenceHistory.ho_nd`,
   :attr:`ConvergenceHistory.s_nd`
 
-Throttle state. These six are retained so the on-disk column layout is stable
-across the removal of the outlet PID that used to drive them, and they read
-zero on any history recorded since. Unlike the stations above, they are
-dimensional:
+Throttle state, driven by :meth:`ember.outlet.OutletPatch.set_throttle` and
+reading zero on a run whose outlets all hold a plain prescribed pressure.
+Unlike the stations above, they are dimensional:
 
 * :attr:`ConvergenceHistory.throttle`, :attr:`ConvergenceHistory.mdot_target`,
   :attr:`ConvergenceHistory.mdot_throttle`
@@ -603,23 +602,24 @@ class ConvergenceHistory(StructuredData):
 
     @property
     def dP_D(self):
-        r"""Derivative term of the throttle PID correction [Pa], record array.
+        r"""Derivative term of the throttle correction [Pa], record array.
 
         The three terms :attr:`dP_P`, :attr:`dP_I` and :attr:`dP_D` sum to the
-        total correction :math:`\Delta p_\mathrm{throttle}` that the outlet
-        used to add to its base static pressure. Zero on any history recorded
-        since the outlet PID was removed; see the module docstring.
+        total correction :math:`\Delta p_\mathrm{throttle}` the outlet adds to
+        its prescribed static pressure. This one is always zero: the throttle is
+        a PI controller, and the column survives so the on-disk layout reads in
+        both directions. See :meth:`ember.outlet.OutletPatch.set_throttle`.
         """
         return self._get_data_by_keys(("dP_D",))
 
     @property
     def dP_I(self):
-        r"""Integral term of the throttle PID correction [Pa], record array."""
+        r"""Integral term of the throttle correction [Pa], record array."""
         return self._get_data_by_keys(("dP_I",))
 
     @property
     def dP_P(self):
-        r"""Proportional term of the throttle PID correction [Pa], record array."""
+        r"""Proportional term of the throttle correction [Pa], record array."""
         return self._get_data_by_keys(("dP_P",))
 
     @property
@@ -695,9 +695,10 @@ class ConvergenceHistory(StructuredData):
         r"""Mass flow :math:`\dot m` [-] at each station, non-dimensional.
 
         Record array of shape ``(n_log, 2*n_row)``; station ``0`` is the inlet
-        and ``-1`` the outlet. Scaled by the fluid mass-flux scale. Not to be
-        confused with :attr:`mdot_target` and :attr:`mdot_throttle`, which are
-        dimensional [kg/s].
+        and ``-1`` the outlet. Scaled by the fluid mass-flux scale, and summed
+        over the whole annulus. Not to be confused with :attr:`mdot_target` and
+        :attr:`mdot_throttle`, which are dimensional [kg/s] and count one
+        passage, so the two differ by the blade count as well as by the scaling.
         """
         return self._station_array("mdot_st")
 
@@ -777,9 +778,10 @@ class ConvergenceHistory(StructuredData):
     def throttle(self):
         r"""Throttle state ``(mdot_target, mdot_throttle, dP_throttle)``, shape ``(n_log, 3)``.
 
-        The first two are mass flows [kg/s]; the third is the total PID pressure
-        correction :math:`\Delta p_\mathrm{throttle}` [Pa], the sum of
-        :attr:`dP_P`, :attr:`dP_I` and :attr:`dP_D`.
+        The first two are mass flows [kg/s], through one passage rather than the
+        whole annulus; the third is the total pressure correction
+        :math:`\Delta p_\mathrm{throttle}` [Pa], the sum of :attr:`dP_P`,
+        :attr:`dP_I` and :attr:`dP_D`.
         """
         return self._get_data_by_keys(("mdot_target", "mdot_throttle", "P_throttle"))
 

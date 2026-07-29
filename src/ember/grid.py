@@ -778,14 +778,19 @@ class Grid(_LabelledList):
                 mdot.append(m)
                 ho.append(h)
                 s.append(se)
-        # The ConvergenceStep throttle fields keep their zero defaults: no
-        # boundary condition drives them since the outlet PID was removed, but
-        # the columns are retained so the .cnv record-array layout is stable.
+        # Throttle monitors come from the throttled outlet, selected by its
+        # target rather than by position: patch zero need not be the one
+        # carrying it. At most one outlet may be throttled, which
+        # ember.solver._validate_throttle enforces at the start of a run. A grid
+        # whose outlets all hold a plain pressure leaves the six throttle fields
+        # at their zero defaults.
+        throttled = [p for p in self.patches.outlet if p.mdot_target is not None]
         return ConvergenceStep(
             residual=residual,
             mdot=np.array(mdot),
             ho=np.array(ho),
             s=np.array(s),
+            **(throttled[0].get_throttle_stats() if throttled else {}),
         )
 
     def get_r_ref(self):
@@ -1388,13 +1393,13 @@ class Grid(_LabelledList):
                 xs=util.carve_view(block.scratch, (ni, nj, kr)),
             )
 
-    def update_bconds(self, freeze=False):
+    def update_bconds(self, freeze=False, cfl=1.0):
         """Refresh boundary-condition targets across the grid once.
 
         Advances the slowly-varying BC state that the per-substep
         :meth:`apply_bconds` then imposes: exchanges mixing-plane data,
         snapshots the inlet pressure datum, and re-derives the outlet
-        PID/spanwise pressure target. Should be called once per outer
+        throttle/spanwise pressure target. Should be called once per outer
         timestep, before the Runge-Kutta stages.
 
         When ``freeze`` is True the targets are held stationary -- the mixing
@@ -1402,6 +1407,13 @@ class Grid(_LabelledList):
         averaging window sees a fixed boundary. The ``update_soln`` snapshots
         still run so backflow density relaxation stays anchored to the current
         step.
+
+        ``cfl`` is handed straight to
+        :meth:`ember.outlet.OutletPatch.update_target`, which weights a mass
+        flow throttle's integral by it so one gain holds across a CFL sweep. It
+        is passed per call rather than held on the patch so that it is always
+        the number the march is running at; the default of 1 integrates per
+        call, for a grid stepped by hand.
 
         """
         if not freeze:
@@ -1433,7 +1445,7 @@ class Grid(_LabelledList):
             for patch in block.patches.outlet:
                 patch.update_soln()
                 if not freeze:
-                    patch.update_target()
+                    patch.update_target(cfl)
                 patch.advance()
 
     def update_cached_conserved(self):
@@ -2447,19 +2459,18 @@ class ConvergenceStep:
     """Station specific entropies, shape ``(2 * n_row,)``,
     non-dimensionalised by ``Rgas_ref``."""
 
-    # No boundary condition writes the six throttle fields below: the outlet
-    # PID they reported was removed along with the reflecting outlet, and they
-    # stay at zero. They are retained so the column layout of a pickled
-    # ConvergenceHistory (.cnv) is unchanged in both directions, letting files
-    # written either side of that removal be read by the other.
+    # The six throttle fields below come from
+    # ember.outlet.OutletPatch.get_throttle_stats, and stay at zero on a grid
+    # whose outlets all hold a plain prescribed pressure.
     mdot_target: float = 0.0
-    """Outlet throttle mass flow setpoint [kg/s]; always zero, see above."""
+    """Outlet throttle mass flow setpoint [kg/s]; zero when no outlet is
+    throttled. Per passage, not per annulus, unlike :attr:`mdot`."""
 
     mdot_throttle: float = 0.0
     """Mass flow measured at the outlet patch on its last target update [kg/s]."""
 
     P_throttle: float = 0.0
-    """Total PID pressure correction applied at the outlet [Pa]."""
+    """Total throttle pressure correction applied at the outlet [Pa]."""
 
     dP_P: float = 0.0
     """Proportional contribution to :attr:`P_throttle` [Pa]."""
@@ -2468,7 +2479,9 @@ class ConvergenceStep:
     """Integral contribution to :attr:`P_throttle` [Pa]."""
 
     dP_D: float = 0.0
-    """Derivative contribution to :attr:`P_throttle` [Pa]."""
+    """Derivative contribution to :attr:`P_throttle` [Pa]. Always zero: the
+    throttle is a PI controller. The column is retained so the pickled
+    ConvergenceHistory (.cnv) layout reads in both directions."""
 
 
 class DivergenceError(RuntimeError):

@@ -14,7 +14,8 @@ Overview of one time step
 :meth:`Solver.run` performs the following operations each step:
 
 1. **Boundary conditions**: :meth:`~ember.grid.Grid.update_bconds` updates
-   boundary patch targets (radial equilibrium, mixing-plane exchange) and :meth:`~ember.grid.Grid.apply_bconds` imposes
+   boundary patch targets (mass-flow throttle, radial equilibrium,
+   mixing-plane exchange) and :meth:`~ember.grid.Grid.apply_bconds` imposes
    those boundary conditions by modifying :attr:`~ember.block.Block.conserved_nd`.
 2. **NaN check**: :meth:`~ember.grid.Grid.check_nan` aborts the run early if
    the conserved state has gone non-finite. Sets a flag on the returned
@@ -233,11 +234,13 @@ solver-wide setting:
   ``rf_exchange`` (default 0.05), which is the only damping the reflecting
   plane has.
 - :class:`~ember.outlet.OutletPatch` relaxes its spanwise radial-equilibrium
-  profile separately, via ``set_adjustment(rf=...)``.
+  profile separately, via ``set_adjustment(rf=...)``, and damps its mass-flow
+  throttle separately again, via the dimensionless gains of
+  ``set_throttle(mdot_target, Kp=..., Ki=...)``.
 
 :meth:`ember.grid.Grid.update_bconds` advances the slowly-varying boundary
 targets once per step (mixing-plane exchange, characteristic mean state,
-outlet spanwise target); :meth:`ember.grid.Grid.apply_bconds` then
+outlet throttle and spanwise target); :meth:`ember.grid.Grid.apply_bconds` then
 imposes the full set of physical boundary conditions and closes periodic
 seams every time it is called, including between Runge--Kutta substages.
 
@@ -248,8 +251,8 @@ Logging, averaging, and convergence history
 
 Convergence diagnostics are recorded into a
 :class:`~ember.convergence_history.ConvergenceHistory` every
-``Solver.n_step_log`` steps: mean residual and mass flow / stagnation
-enthalpy / entropy at row interfaces
+``Solver.n_step_log`` steps: mean residual, mass flow / stagnation
+enthalpy / entropy at row interfaces, and outlet throttle state
 (:meth:`ember.grid.Grid.get_convergence`).
 
 Pseudotime averaging of the conserved variables accumulates over the final
@@ -764,6 +767,30 @@ def _validate_mg(grid, n_levels):
                 )
 
 
+def _validate_throttle(grid):
+    """Raise if more than one outlet patch is throttled to a mass flow.
+
+    Each :class:`~ember.outlet.OutletPatch` runs its own controller on the mass
+    flow through its own face, so two throttles on one exit would each see most
+    of the same error and each apply the whole correction for it, over-throttling
+    by roughly the number of patches. Splitting a target between them is not the
+    fix either: the split is only known once the answer is.
+
+    An exit spread over several blocks therefore has to prescribe pressure on
+    all but one of its patches, or be closed by a single patch. Checked at the
+    start of a run rather than in :meth:`~ember.outlet.OutletPatch.set_throttle`,
+    which sees one patch and cannot know what the rest of the grid carries.
+    """
+    throttled = [p for p in grid.patches.outlet if p.mdot_target is not None]
+    if len(throttled) > 1:
+        labels = ", ".join(repr(p.label) for p in throttled)
+        raise ValueError(
+            f"{len(throttled)} outlet patches are throttled ({labels}); at most "
+            "one may be. Prescribe P on the others with set_P, or clear their "
+            "throttle with set_throttle(None)."
+        )
+
+
 @util.profile
 def _run(grid, conf):
     """Drive a grid through ``n_step`` explicit time-marching steps.
@@ -790,6 +817,7 @@ def _run(grid, conf):
 
     # Fail fast if the grid cannot be evenly blocked for multigrid.
     _validate_mg(grid, conf.n_levels)
+    _validate_throttle(grid)
 
     _apply_bcond_relaxation(grid, conf)
 
@@ -807,7 +835,7 @@ def _run(grid, conf):
         # So flush the cache to recalculate P and T
         grid.update_cached_conserved()
 
-        grid.update_bconds()  # Throttle/radial equilibrium targets
+        grid.update_bconds(cfl=conf.cfl)  # Throttle/radial equilibrium targets
         grid.apply_bconds()
 
         try:

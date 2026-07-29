@@ -9,6 +9,11 @@ itself.
 
 Test cases:
 - Target: what set_P accepts and refuses
+- Throttle: what set_throttle accepts, refuses and clears, the direction and
+  size of the correction, the integral accumulating per timestep, adding to
+  rather than fighting the radial-equilibrium profile, invariance of the
+  dimensionless gains to the reference scales, what survives a copy and a
+  rescale, the derived stats, the frozen step, and the one-throttle rule
 - Physics: fixed point at the target, the mean-mode Newton step, the harmonic
   relation against an independent complex evaluation of Saxer Eq. 57, outgoing
   characteristics left untouched, zero pressure harmonic for pure acoustics, an
@@ -23,6 +28,8 @@ Test cases:
 import numpy as np
 import pytest
 
+import ember.solver
+from ember import average, solver
 from ember.convergence_history import ConvergenceHistory
 from ember.grid import Grid
 from ember.outlet import calc_radial_equilibrium
@@ -52,9 +59,44 @@ def _attached(**kwargs):
     return attached("outlet", **kwargs)
 
 
+def _natural_mdot(patch):
+    """Mass flow the patch face is passing as it stands [kg/s, per passage]."""
+    return float(average.flow_mass(patch.block_view.squeeze()))
+
+
 def _phase(patch, mode):
     """Pitchwise phase of a harmonic, over the patch face."""
     return 2.0 * np.pi * mode * patch.block_view.t / PITCH
+
+
+def _throttled_grid(ratio=0.9, **kwargs):
+    """Marchable single-block duct whose outlet is throttled off its natural flow."""
+    block = make_block(ni=9, nspan=5, npitch=9)
+    inlet = InletPatch(i=0)
+    outlet = OutletPatch(i=-1, label="outlet_a")
+    block.patches.extend(
+        [
+            inlet,
+            outlet,
+            PeriodicPatch(k=0),
+            PeriodicPatch(k=-1),
+            InviscidPatch(j=0),
+            InviscidPatch(j=-1),
+        ]
+    )
+    state = reference_state()
+    inlet.set_Po_To(float(state.Po), float(state.To))
+    inlet.set_Alpha(float(state.Alpha))
+    inlet.set_Beta(float(state.Beta))
+    outlet.set_P(P_MEAN)
+
+    grid = Grid([block])
+    grid.set_L_ref(0.4)
+    grid.calculate_wdist()
+    grid.connectivity.periodic.pair()
+
+    outlet.set_throttle(_natural_mdot(outlet) * ratio, **kwargs)
+    return grid, outlet
 
 
 def _seed_harmonic(patch, mode, amp_t=0.0, amp_down=0.0):
@@ -322,6 +364,348 @@ def test_copy_carries_the_adjustment_and_drops_its_caches():
     np.testing.assert_array_equal(clone._P_raw, patch._P_raw)
     np.testing.assert_array_equal(clone._P_level_nd, patch._P_level_nd)
     assert clone._P_last_nd is None
+
+
+# ---------------------------------------------------------------------------
+# Throttle
+# ---------------------------------------------------------------------------
+
+
+def test_set_throttle_stores_the_setpoint_and_gains():
+    """A fresh patch holds a pressure; set_throttle turns that into a target."""
+    _, patch = _attached()
+    assert patch.mdot_target is None
+    patch.set_throttle(2.0, Kp=0.4, Ki=0.02)
+    assert patch.mdot_target == 2.0
+    assert (patch._Kp, patch._Ki) == (0.4, 0.02)
+    assert patch._eps_int == 0.0
+
+
+@pytest.mark.parametrize(
+    "value, error, match",
+    [
+        (0.0, ValueError, "positive"),
+        (-1.0, ValueError, "positive"),
+        (np.nan, ValueError, "finite"),
+        (np.inf, ValueError, "finite"),
+        (np.ones(3), TypeError, "scalar"),
+    ],
+)
+def test_set_throttle_rejects_invalid(value, error, match):
+    """A setpoint that is not one positive finite number is refused."""
+    _, patch = _attached()
+    with pytest.raises(error, match=match):
+        patch.set_throttle(value)
+
+
+def test_throttle_and_nonscalar_P_are_incompatible():
+    """The throttle moves a single level, so there is no profile for it to move."""
+    block = make_block()
+    patch = OutletPatch(i=-1)
+    block.patches.append(patch)
+    nspan = patch.shape[patch.span_dim]
+    profile = np.full((1, nspan, 1), P_MEAN)
+
+    patch.set_P(profile)
+    with pytest.raises(ValueError, match="incompatible"):
+        patch.set_throttle(1.0)
+
+    # ... and refused in the other order too, rather than silently clearing one
+    # of the two prescriptions.
+    patch.set_P(P_MEAN)
+    patch.set_throttle(1.0)
+    with pytest.raises(ValueError, match="incompatible"):
+        patch.set_P(profile)
+    assert patch.mdot_target == 1.0
+
+
+def test_set_throttle_none_clears_the_controller():
+    """Clearing leaves the pressure standing where the controller put it."""
+    _, patch = _attached()
+    patch.set_throttle(_natural_mdot(patch) * 0.9)
+    patch.update_soln()
+    patch.update_target()
+    held = patch.P_nd.copy()
+    assert patch._eps_int != 0.0
+
+    patch.set_throttle(None)
+    assert patch.mdot_target is None
+    assert patch._eps_int == 0.0
+
+    # The level set_P prescribed is what the patch falls back to, so a run that
+    # throttled to an operating point must re-prescribe to hold the pressure it
+    # arrived at -- clearing does not freeze the correction.
+    patch.update_target()
+    np.testing.assert_array_equal(patch.P_nd, patch._P_level_nd)
+    assert not np.array_equal(patch.P_nd, held)
+
+
+@pytest.mark.parametrize("ratio, sign", [(0.9, +1.0), (1.1, -1.0)])
+def test_throttle_pushes_the_pressure_the_right_way(ratio, sign):
+    """Too much flow raises the back pressure; too little lowers it."""
+    _, patch = _attached()
+    mdot = _natural_mdot(patch)
+    patch.set_throttle(mdot * ratio, Kp=0.5, Ki=0.002)
+    before = patch.P_nd.copy()
+
+    patch.update_soln()
+    patch.update_target()
+    moved = float((patch.P_nd - before).mean())
+
+    assert np.sign(moved) == sign
+    # The correction is the closed form, with no scale factor of its own: the
+    # nondimensional pressure unit is already the dynamic-head scale.
+    eps = 1.0 / ratio - 1.0
+    assert moved == pytest.approx(0.5 * eps + 0.002 * eps, rel=1e-4)
+
+
+def test_throttle_integral_accumulates_over_steps():
+    """The integral counts timesteps, and is what removes a standing error."""
+    _, patch = _attached()
+    mdot = _natural_mdot(patch)
+    patch.set_throttle(mdot * 0.9, Kp=0.0, Ki=0.05)
+
+    eps = 1.0 / 0.9 - 1.0
+    for i_step in range(1, 4):
+        patch.update_soln()
+        patch.update_target()
+        assert patch._eps_int == pytest.approx(i_step * eps, rel=1e-4)
+        # With Kp zero the whole correction is the integral, so it grows step
+        # on step rather than sitting at a fixed offset.
+        moved = float((patch.P_nd - patch._P_level_nd).mean())
+        assert moved == pytest.approx(0.05 * i_step * eps, rel=1e-4)
+
+
+@pytest.mark.parametrize("cfl", [1.0, 2.5, 5.0])
+def test_throttle_integral_is_weighted_by_the_cfl(cfl):
+    """One Ki has to mean the same thing across a CFL sweep.
+
+    A march at twice the CFL covers the same ground in half the steps, so an
+    integral counting bare steps would wind twice as far on the same error.
+    Weighting by the cfl cancels that; the proportional term, being memoryless,
+    is untouched.
+    """
+    _, patch = _attached()
+    patch.set_throttle(_natural_mdot(patch) * 0.9, Kp=0.5, Ki=0.05)
+    eps = 1.0 / 0.9 - 1.0
+
+    patch.update_soln()
+    patch.update_target(cfl)
+
+    assert patch._eps_int == pytest.approx(eps * cfl, rel=1e-4)
+    moved = float((patch.P_nd - patch._P_level_nd).mean())
+    assert moved == pytest.approx(0.5 * eps + 0.05 * eps * cfl, rel=1e-4)
+
+
+def test_update_bconds_passes_the_cfl_down():
+    """The march's cfl reaches the throttle, rather than being held on it.
+
+    The removed PID had this same weighting and never received a cfl, so its
+    pseudo-time was a constant that paced nothing. Guard the plumbing, not just
+    the arithmetic.
+    """
+    grid, outlet = _throttled_grid(Kp=0.0, Ki=0.05)
+    grid.update_bconds(cfl=4.0)
+    eps = outlet._mdot / outlet.mdot_target - 1.0
+    assert outlet._eps_int == pytest.approx(eps * 4.0, rel=1e-4)
+
+    # The solver is what supplies it in a real march.
+    conf = ember.solver.Solver(n_step=1, n_step_log=1, n_step_avg=1, cfl=3.0)
+    outlet.set_throttle(outlet.mdot_target, Kp=0.0, Ki=0.05)
+    conf.run(grid)
+    assert outlet._eps_int != 0.0
+    assert abs(outlet._eps_int) == pytest.approx(3.0 * abs(eps), rel=0.2)
+
+
+def test_throttle_adds_to_the_radial_equilibrium_profile():
+    """The throttle moves the level; radial equilibrium shapes it about that."""
+    _, patch = _attached(Vt=VT_MEAN)
+    patch.set_adjustment(radial_equilibrium=True, rf=1.0)
+    patch.set_throttle(_natural_mdot(patch) * 0.9)
+    patch.update_soln()
+    patch.update_target()
+
+    offset = patch.P_nd - patch._P_level_nd
+    profile = _span_profile(patch, offset)
+    # The spanwise shape is still exactly the radial-equilibrium profile ...
+    expect = calc_radial_equilibrium(patch)
+    assert np.abs((profile - profile[0]) - expect).max() < 1e-5 * np.abs(expect).max()
+    # ... sitting on the level the throttle chose, which is what the hub carries.
+    eps = 1.0 / 0.9 - 1.0
+    assert profile[0] == pytest.approx(0.5 * eps + 0.002 * eps, rel=1e-4)
+
+
+def test_throttle_correction_is_formed_nondimensionally():
+    """The error and the correction are dimensionless, whatever the scales are.
+
+    Neither depends on the reference scales, which is why update_ref_scales has
+    nothing to do to the throttle. The *pressure* that correction comes to is
+    ``dP_nd * P_ref``, and it follows P_ref, because P_ref is deliberately the
+    gain scale: the whole reason Kp is O(1) is that the nondimensional pressure
+    unit is the dynamic-head scale rho_ref * V_ref**2. Choose a V_ref that is
+    not a typical convection velocity and the loop gain moves with it, which is
+    the price of a scale fixed independently of the solution.
+    """
+    _, patch = _attached()
+    patch.set_throttle(_natural_mdot(patch) * 0.9)
+    patch.update_soln()
+    patch.update_target()
+    dP_nd = float((patch.P_nd - patch._P_level_nd).mean())
+
+    _, rescaled = _attached()
+    rescaled.block.set_fluid(FLUID.change_ref(rho_ref=2.2, V_ref=250.0))
+    rescaled.set_throttle(_natural_mdot(rescaled) * 0.9)
+    rescaled.update_soln()
+    rescaled.update_target()
+
+    ratio = float(rescaled.block.fluid.P_ref / FLUID.P_ref)
+    assert ratio != 1.0
+    assert rescaled._eps_int == pytest.approx(patch._eps_int, rel=1e-5)
+    got = float((rescaled.P_nd - rescaled._P_level_nd).mean())
+    assert got == pytest.approx(dP_nd, rel=1e-4)
+    # The reported pressure tracks P_ref exactly, no more and no less.
+    assert rescaled.get_throttle_stats()["P_throttle"] == pytest.approx(
+        patch.get_throttle_stats()["P_throttle"] * ratio, rel=1e-4
+    )
+
+
+def test_reference_scale_change_leaves_the_throttle_alone():
+    """Unlike the derived spanwise profile, the controller state means the same.
+
+    update_ref_scales drops _P_last_nd because it is an integral over a geometry
+    in the old scales. The throttle has no such original to return to and none
+    is needed, so a throttled run keeps the operating point it wound out to.
+    """
+    _, patch = _attached()
+    patch.set_throttle(_natural_mdot(patch) * 0.9)
+    patch.update_soln()
+    patch.update_target()
+    eps_int, mdot = patch._eps_int, patch._mdot
+
+    patch.block.set_fluid(FLUID.change_ref(rho_ref=2.2, V_ref=250.0))
+
+    assert patch.mdot_target is not None
+    assert patch._eps_int == eps_int
+    assert patch._mdot == mdot
+
+
+def test_copy_carries_the_throttle_state():
+    """A copy resumes the controller rather than restarting its integral.
+
+    That is what lets a throttled patch follow its block onto a finer multigrid
+    level without unwinding back to the prescribed pressure.
+    """
+    _, patch = _attached()
+    patch.set_throttle(_natural_mdot(patch) * 0.9, Kp=0.4, Ki=0.02)
+    patch.update_soln()
+    patch.update_target()
+
+    clone = patch.copy()
+    assert clone.mdot_target == patch.mdot_target
+    assert (clone._Kp, clone._Ki) == (0.4, 0.02)
+    assert clone._eps_int == patch._eps_int
+    assert clone._mdot == patch._mdot
+
+
+def test_get_throttle_stats_derives_the_correction_terms():
+    """Only the measurement and the error sum are stored; the rest follows."""
+    _, patch = _attached()
+    mdot_target = _natural_mdot(patch) * 0.9
+    patch.set_throttle(mdot_target, Kp=0.4, Ki=0.02)
+    patch.update_soln()
+    patch.update_target()
+
+    stats = patch.get_throttle_stats()
+    P_ref = float(FLUID.P_ref)
+    eps = patch._mdot / mdot_target - 1.0
+
+    assert stats["mdot_target"] == mdot_target
+    assert stats["mdot_throttle"] == pytest.approx(_natural_mdot(patch))
+    assert stats["dP_P"] == pytest.approx(0.4 * eps * P_ref)
+    assert stats["dP_I"] == pytest.approx(0.02 * patch._eps_int * P_ref)
+    assert stats["P_throttle"] == pytest.approx(stats["dP_P"] + stats["dP_I"])
+    # PI, so there is no derivative term; the column survives for the .cnv
+    # layout alone.
+    assert stats["dP_D"] == 0.0
+    # And the correction the target actually carries is that pressure.
+    moved = float((patch.P_nd - patch._P_level_nd).mean()) * P_ref
+    assert moved == pytest.approx(stats["P_throttle"], rel=1e-4)
+
+
+def test_unthrottled_outlet_reports_zeros():
+    """A patch holding a plain pressure leaves all six columns at zero."""
+    _, patch = _attached()
+    patch.update_soln()
+    patch.update_target()
+    assert patch.get_throttle_stats() == dict(
+        mdot_target=0.0,
+        mdot_throttle=0.0,
+        P_throttle=0.0,
+        dP_P=0.0,
+        dP_I=0.0,
+        dP_D=0.0,
+    )
+
+
+def test_frozen_update_does_not_advance_the_controller():
+    """update_bconds(freeze=True) skips update_target, so the throttle holds.
+
+    An averaging window has to see a fixed boundary, and reporting the last
+    values the controller acted on is the honest thing to show for a step in
+    which it did not act.
+    """
+    grid, outlet = _throttled_grid()
+    grid.update_bconds()
+    eps_int, held = outlet._eps_int, outlet.P_nd.copy()
+    assert eps_int != 0.0
+
+    grid.update_bconds(freeze=True)
+    assert outlet._eps_int == eps_int
+    np.testing.assert_array_equal(outlet.P_nd, held)
+    assert outlet.get_throttle_stats()["mdot_throttle"] == outlet._mdot
+
+
+def test_grid_convergence_reports_the_throttled_outlet():
+    """get_convergence finds the throttle by its target, not by patch order."""
+    grid, outlet = _throttled_grid()
+    grid.update_bconds()
+
+    step = grid.get_convergence()
+    stats = outlet.get_throttle_stats()
+    assert step.mdot_target == pytest.approx(stats["mdot_target"])
+    assert step.mdot_throttle == pytest.approx(stats["mdot_throttle"])
+    assert step.P_throttle == pytest.approx(stats["P_throttle"])
+    assert step.dP_D == 0.0
+    # The station monitor is a different quantity, per annulus rather than per
+    # passage, and is not disturbed by the throttle reporting alongside it.
+    assert len(step.mdot) == 2
+
+
+def test_two_throttled_outlets_are_refused():
+    """Each patch controls on its own face, so two would double the correction.
+
+    The case the check exists for is an exit spread over more than one block,
+    where both halves see most of the same error and each would apply the whole
+    correction for it.
+    """
+    grid, outlet = _throttled_grid()
+    solver._validate_throttle(grid)  # one is fine
+
+    other = make_block()
+    second = OutletPatch(i=-1, label="outlet_b")
+    other.patches.append(second)
+    second.set_P(P_MEAN)
+    grid.append(other)
+    solver._validate_throttle(grid)  # a second outlet holding a pressure is fine
+
+    second.set_throttle(1.0)
+    with pytest.raises(ValueError, match="throttled"):
+        solver._validate_throttle(grid)
+
+    # Clearing one of them is the way out, and is enough.
+    second.set_throttle(None)
+    solver._validate_throttle(grid)
+    assert outlet.mdot_target is not None
 
 
 # ---------------------------------------------------------------------------
@@ -622,10 +1006,12 @@ def test_grid_closed_by_this_patch_alone():
     up_idx, dn_idx = grid.row_station_bid_pid[0]
     assert up_idx and dn_idx
 
-    # Convergence monitors work with no throttle to report on.
+    # Convergence monitors work with no throttle to report on: all six of its
+    # columns stay at the zero defaults rather than going unwritten.
     step = grid.get_convergence()
     assert len(step.mdot) == 2
-    assert step.mdot_target == 0.0 and step.P_throttle == 0.0
+    for field in ("mdot_target", "mdot_throttle", "P_throttle", "dP_P", "dP_I", "dP_D"):
+        assert getattr(step, field) == 0.0
     assert ConvergenceHistory.from_grid(1, grid) is not None
 
     # And a full boundary-condition cycle runs: the patch is visited by both

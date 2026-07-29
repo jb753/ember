@@ -14,7 +14,10 @@ quantity is prescribed: the pitchwise mean of the static pressure at each span
 station.
 
 That pressure is imposed on the pitchwise mean alone, never node by node, and
-nothing is extrapolated from the interior. A swirling exit flow still needs a
+nothing is extrapolated from the interior. :meth:`OutletPatch.set_throttle`
+leaves all of that alone and only chooses the level, moving it each timestep
+until the patch passes a prescribed mass flow, so a characteristic can be swept
+by mass flow rather than by back pressure. A swirling exit flow still needs a
 radial-equilibrium adjustment, supplied by :func:`calc_radial_equilibrium`:
 prescribing the pitchwise mean at every span station holds the exit plane off
 radial equilibrium just as firmly as prescribing it node by node would.
@@ -41,6 +44,7 @@ ember.perturbation.chic_to_mix : Jacobian the mean-mode solves are built on
 
 import numpy as np
 
+from ember import average
 from ember.nonreflecting import NonReflectingPatch, replayable
 
 
@@ -119,6 +123,12 @@ class OutletPatch(NonReflectingPatch):
     every span station alike, which for a swirling exit flow fights the
     centrifugal pressure gradient the flow is trying to establish.
 
+    :meth:`set_throttle` turns the prescribed pressure into a starting point
+    rather than the condition: a proportional-integral controller moves the
+    level each timestep until the patch passes a target mass flow. The pressure
+    is still what the boundary imposes -- the throttle only chooses which
+    pressure -- so the characteristic treatment is untouched by it.
+
     :meth:`set_backflow_ho_s` (or :meth:`set_backflow_Po_To`),
     :meth:`set_backflow_Vr` and :meth:`set_backflow_Vt` prescribe the inflow
     state a reversed span station is driven to; see those methods and the module
@@ -143,6 +153,14 @@ class OutletPatch(NonReflectingPatch):
         c._P_raw = None if self._P_raw is None else np.copy(self._P_raw)
         c._P_level_nd = None if self._P_level_nd is None else np.copy(self._P_level_nd)
         c._adjustment = self._adjustment.copy()
+        c._mdot_target = self._mdot_target
+        c._Kp = self._Kp
+        c._Ki = self._Ki
+        # Carried, not reset: a throttle that has already wound its integral out
+        # to an operating point hands it to the copy, so a patch following its
+        # block onto a finer multigrid level resumes rather than starts again.
+        c._eps_int = self._eps_int
+        c._mdot = self._mdot
         # _P_last_nd is derived from the solution, so it is rebuilt by
         # update_target on the new block rather than copied, as _ref is.
 
@@ -159,6 +177,16 @@ class OutletPatch(NonReflectingPatch):
         self._adjustment = {}
         # Relaxation state of that adjustment, built by update_target.
         self._P_last_nd = None
+        # None means no throttle and the prescribed pressure stands as set.
+        self._mdot_target = None
+        self._Kp = 0.0
+        self._Ki = 0.0
+        # The controller's whole memory: the running sum of the fractional
+        # mass-flow error, and the mass flow last measured. Every throttle
+        # quantity reported by get_throttle_stats is derived from these two, so
+        # neither the split correction terms nor a previous error is stored.
+        self._eps_int = 0.0
+        self._mdot = 0.0
 
     def set_adjustment(self, radial_equilibrium=True, rf=0.1):
         r"""Configure the spanwise adjustment to the prescribed pressure.
@@ -353,6 +381,8 @@ class OutletPatch(NonReflectingPatch):
             raise ValueError("P must be positive")
         if self._adjustment and arr.ndim > 0 and arr.size > 1:
             raise ValueError("Non-scalar P is incompatible with the adjustment")
+        if self._mdot_target is not None and arr.ndim > 0 and arr.size > 1:
+            raise ValueError("Non-scalar P is incompatible with the throttle")
         self._P_raw = arr
         # The level is the whole target until update_target folds in the
         # spanwise adjustment, so a patch driven directly rather than by the
@@ -360,31 +390,242 @@ class OutletPatch(NonReflectingPatch):
         self._set_target_row(4, "P", arr / self.block.fluid.P_ref)
         self._P_level_nd = np.copy(self._target[..., 4])
 
+    def set_throttle(self, mdot_target, Kp=0.5, Ki=0.002):
+        r"""Throttle the outlet to a target mass flow.
+
+        Turns :meth:`set_P` from the condition into a starting point. Each
+        timestep :meth:`update_target` measures the mass flow through the patch
+        and a proportional-integral controller moves the prescribed level until
+        the two agree:
+
+        .. math::
+
+            \varepsilon = \frac{\dot m - \dot m_\mathrm{target}}
+                               {\dot m_\mathrm{target}}, \qquad
+            \frac{\Delta p_\mathrm{throttle}}{p_\mathrm{ref}} =
+                K_p\, \varepsilon
+                + K_i \sum \varepsilon \,\mathrm{cfl}
+
+        the sum running over timesteps. Raising the back pressure reduces the
+        flow, so the sign is as written: a mass flow above target pushes the
+        pressure up. What the boundary imposes is still a pressure, and the
+        characteristic treatment is untouched -- the throttle only chooses which
+        pressure.
+
+        **The gains are dimensionless and should not need tuning.** For a duct
+        or blade row passing :math:`\dot m \sim A\sqrt{2\rho(p_0 - p)}`, the
+        steady sensitivity of mass flow to exit pressure is
+
+        .. math::
+
+            \frac{d\dot m}{\dot m} = -\frac{dp}{2q}, \qquad
+            q = \tfrac{1}{2}\rho V_m^2
+
+        so a correction of :math:`2q\,\varepsilon` cancels the error outright: a
+        Newton step whose natural scale is the exit dynamic head. That is
+        exactly the scale the nondimensionalisation already works in, since
+        :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2` with
+        :math:`V_\mathrm{ref}` a typical convection velocity. Hence the
+        correction above is formed nondimensionally with no scale factor
+        written anywhere, and :math:`K_p = 1` is the notional Newton step.
+
+        The default is half that, because a pure Newton step overshoots and
+        rings: the mass flow answers a change in exit pressure only after a wave
+        has crossed the domain. Proportional action alone would then settle at a
+        standing droop, since it can hold a correction only in proportion to an
+        error, and the correction wanted at the target is not zero; the integral
+        is what removes it. Because the scale is a fixed reference quantity
+        rather than the dynamic head of the current solution, neither gain
+        depends on the flow field or on how good the initial guess was.
+
+        **The integral is weighted by the CFL, not by the step.** The
+        proportional term is memoryless and safe under any lag: it holds a fixed
+        correction until the flow answers. The integral is not -- over the steps
+        the domain takes to respond it keeps piling on correction for an error
+        it has already acted on -- so its gain has to be paced against how much
+        ground each step covers. Under local timestepping that is the Courant
+        number, so a march at twice the CFL needs half as many steps and
+        :math:`K_i \sum \varepsilon\,\mathrm{cfl}` keeps one gain valid across a
+        CFL sweep. :meth:`ember.grid.Grid.update_bconds` passes the march's cfl
+        down; nothing is held on the patch.
+
+        The step count also scales with mesh density, and with whatever
+        multigrid and residual smoothing are doing, and none of that is
+        knowable from here: a patch can count the cells along its own normal
+        but not along the flow path, which for a multi-block machine, or a
+        patch that is not on a streamwise face, is not the same number.
+        Refining the mesh may therefore want :math:`K_i` revisited. Changing the
+        CFL does not.
+
+        The price of the fixed pressure scale is a loop gain of
+        :math:`p_\mathrm{ref} / 2q = (\rho_\mathrm{ref}/\rho)
+        (V_\mathrm{ref}/V_m)^2` rather than exactly one, so the gains do assume
+        the references are representative of the flow, as
+        :func:`ember.cases.build_duct_grid` sets them. A ``V_ref`` far from the
+        exit velocity moves the loop gain by its square, and is the one case
+        where these want retuning.
+
+        Only one outlet patch in a grid may be throttled;
+        ``ember.solver._validate_throttle`` refuses more. Two patches
+        driving independent controllers at the same target would each apply the
+        full correction for an error they share.
+
+        Parameters
+        ----------
+        mdot_target : float or None
+            Target mass flow :math:`\dot m_\mathrm{target}` [kg/s], through one
+            passage rather than the whole annulus, matching what
+            :func:`ember.average.flow_mass` returns for this patch. Must be
+            positive and finite. Pass None to clear the throttle and leave the
+            prescribed pressure standing wherever the controller last put it,
+            which is how a run throttles to find an operating point and then
+            holds it.
+        Kp : float, optional
+            Proportional gain, dimensionless. Default 0.5, half the Newton step
+            of 1 above.
+        Ki : float, optional
+            Integral gain, dimensionless. Default 0.002, from a sweep on the
+            square duct of :func:`ember.cases.build_duct_grid` at ``cfl=5``:
+            ten times that rings, with six crossings of the target at a period
+            of 360 steps, and a third of it never arrives. Since the integral
+            only has to remove the droop, erring low costs settling time while
+            erring high costs stability.
+
+        See Also
+        --------
+        ember.outlet.OutletPatch.get_throttle_stats : Controller state, as
+            logged to the convergence history
+        """
+        if mdot_target is None:
+            self._mdot_target = None
+            self._Kp = 0.0
+            self._Ki = 0.0
+            self._eps_int = 0.0
+            self._mdot = 0.0
+            return
+
+        if not np.isscalar(mdot_target):
+            raise TypeError("mdot_target must be a scalar")
+        if not (np.isfinite(mdot_target) and mdot_target > 0.0):
+            raise ValueError("mdot_target must be positive and finite")
+        if self._P_raw is not None and self._P_raw.ndim > 0 and self._P_raw.size > 1:
+            raise ValueError("Non-scalar P is incompatible with the throttle")
+
+        self._mdot_target = float(mdot_target)
+        self._Kp = float(Kp)
+        self._Ki = float(Ki)
+        self._eps_int = 0.0
+        self._mdot = 0.0
+
+    def get_throttle_stats(self):
+        r"""Return the throttle state, for the convergence history.
+
+        All six values are zero when no throttle is set, which is what
+        :meth:`ember.grid.Grid.get_convergence` records for a grid whose outlet
+        holds a plain pressure.
+
+        Only :attr:`_mdot` and the running error sum are stored; the correction
+        terms below are derived here from them and the gains, so there is no
+        second copy of the controller state to keep in step. The values are
+        those of the last :meth:`update_target`, so under
+        ``Grid.update_bconds(freeze=True)``, which skips it, they stay at the
+        last step the controller actually acted on.
+
+        Returns
+        -------
+        dict
+            ``mdot_target`` the setpoint [kg/s]; ``mdot_throttle`` the mass flow
+            last measured at the patch [kg/s]; ``P_throttle`` the total
+            correction :math:`\Delta p_\mathrm{throttle}` [Pa]; ``dP_P`` and
+            ``dP_I`` its proportional and integral parts [Pa]; ``dP_D`` always
+            zero, the controller being PI. The derivative column is retained so
+            the ``.cnv`` record layout stays readable in both directions.
+        """
+        if self._mdot_target is None:
+            return dict(
+                mdot_target=0.0,
+                mdot_throttle=0.0,
+                P_throttle=0.0,
+                dP_P=0.0,
+                dP_I=0.0,
+                dP_D=0.0,
+            )
+
+        P_ref = float(self.block.fluid.P_ref)
+        eps = self._mdot / self._mdot_target - 1.0
+        dP_P = self._Kp * eps * P_ref
+        dP_I = self._Ki * self._eps_int * P_ref
+        return dict(
+            mdot_target=self._mdot_target,
+            mdot_throttle=self._mdot,
+            P_throttle=dP_P + dP_I,
+            dP_P=dP_P,
+            dP_I=dP_I,
+            dP_D=0.0,
+        )
+
     def update_ref_scales(self):
-        """Re-derive the prescribed pressure and drop the spanwise adjustment.
+        r"""Re-derive the prescribed pressure and drop the spanwise adjustment.
 
         The base class replays :meth:`set_P`, which rebuilds both the level and
         the target row it feeds. What is left is the adjustment relaxation
         state, an integral over a solution and a geometry expressed in the old
         scales: it is dropped, and the next :meth:`update_target` re-derives the
         profile from the rescaled solution.
+
+        The throttle needs nothing done to it. Its error is a ratio of two
+        dimensional mass flows and its correction is nondimensional by
+        construction, so neither has a dimensional original to return to and the
+        wound-out integral carries over intact. The pressure that correction
+        comes to does follow the new :math:`p_\mathrm{ref}`, which is the same
+        rule the gains obey in the first place; see :meth:`set_throttle`.
         """
         super().update_ref_scales()
         self._P_last_nd = None
 
-    def update_target(self):
-        """Recompute the pressure target for the current timestep.
+    def update_target(self, cfl=1.0):
+        r"""Recompute the pressure target for the current timestep.
 
-        Applies the spanwise adjustment of :meth:`set_adjustment`, if
-        configured. Should be called once per outer timestep before the
-        Runge-Kutta stages; :meth:`ember.grid.Grid.update_bconds` does so.
+        Advances the throttle of :meth:`set_throttle` and applies the spanwise
+        adjustment of :meth:`set_adjustment`, if either is configured. Should be
+        called once per outer timestep before the Runge-Kutta stages;
+        :meth:`ember.grid.Grid.update_bconds` does so. The throttle's integral
+        advances once per call, so calling this per Runge-Kutta stage instead
+        would scale the integral gain with the stage count.
+
+        The two adjustments are orthogonal and simply add: the throttle moves
+        the level of the pitchwise-mean pressure, and radial equilibrium shapes
+        its spanwise profile about that level.
+
+        Parameters
+        ----------
+        cfl : float, optional
+            CFL number of the march, weighting the throttle's integral so that
+            one :math:`K_i` holds across a CFL sweep; see :meth:`set_throttle`.
+            Passed down by :meth:`ember.grid.Grid.update_bconds` rather than
+            held on the patch, so it is always the number the march is actually
+            running at. Default 1, integrating per call, which is all a patch
+            stepped by hand outside a march can mean. Unused without a throttle.
         """
         if self._P_level_nd is None:
             # Nothing prescribed yet; apply() reports the missing setter.
             return
 
+        dP_nd = 0.0
+        if self._mdot_target is not None:
+            # The mass flow is read from the marched face rather than the
+            # pitchwise mean in block_avg, so a canted or radial exit plane is
+            # integrated as rho*V.dA rather than assumed axial.
+            self._mdot = float(average.flow_mass(self.block_view.squeeze()))
+            eps = self._mdot / self._mdot_target - 1.0
+            # Weighted by the CFL, not by the step: a march at twice the CFL
+            # covers the same ground in half the steps, so integrating per step
+            # would make the same Ki twice as hot.
+            self._eps_int += eps * cfl
+            dP_nd = self._Kp * eps + self._Ki * self._eps_int
+
         if not self._adjustment:
-            self._target[..., 4] = self._P_level_nd
+            self._target[..., 4] = self._P_level_nd + dP_nd
             return
 
         if self._adjustment["radial_equilibrium"]:
@@ -398,4 +639,14 @@ class OutletPatch(NonReflectingPatch):
             self._P_last_nd = profile.copy()
         rf = self._adjustment["rf"]
         self._P_last_nd = rf * profile + (1.0 - rf) * self._P_last_nd
-        self._target[..., 4] = self._P_level_nd + self._P_last_nd
+        self._target[..., 4] = self._P_level_nd + dP_nd + self._P_last_nd
+
+    @property
+    def mdot_target(self):
+        """Throttle setpoint [kg/s], or None when the patch holds a pressure.
+
+        Read by :meth:`ember.grid.Grid.get_convergence` and
+        ``ember.solver._validate_throttle`` to find the throttled outlet;
+        set through :meth:`set_throttle`.
+        """
+        return self._mdot_target
