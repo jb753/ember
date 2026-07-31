@@ -50,9 +50,12 @@ face-flow directions, because `accum_corners`' 4-corner average vectorizes
 over the corners rather than over `i`. This is the same gather pathology
 that sank the node-buffer attempt (section 8's postmortem) -- except it
 turns out to already be present in the unmodified production kernel, not
-something that attempt introduced. No fix implemented or proposed this
-pass; see section 16 for why a source change is not obviously safe to
-attempt from this evidence alone.**
+something that attempt introduced. The cheapest follow-up candidate,
+`-qopt-zmm-usage=high` (a build-flag-only trial, no source change), was
+tried and **rejected** (section 16.6): +13% to +16% regression at
+small/mid sizes, only a single unconfirmed win at the largest size
+tested -- fails the adoption rule. No source-level fix implemented or
+proposed this pass.**
 
 ---
 
@@ -1573,3 +1576,55 @@ gfortran's fully scalar loop by a wide margin.
   `perf_gfortran_500k.data`), and the annotated disassembly dumps used
   above (`annotate_iface.txt`, `annotate_jface.txt`, `annotate_kface.txt`,
   `annotate_gf_accum4390.txt`).
+
+### 16.6 Tried and rejected: `-qopt-zmm-usage=high`
+
+The cheapest candidate from 16.5(b) -- a build-flag-only change, no source
+edit -- was tried and **rejected**: it regresses at small/mid sizes and
+shows only a single-rep, unconfirmed win at the largest size tested.
+
+**Method**: `INTEL_FLAGS` temporarily gained `-qopt-zmm-usage=high`
+(`setup.py`, reverted immediately after building the candidate `.so`, so
+the repo sits clean during the timed runs). Baseline and candidate `.so`s
+were built via the real `make compile` path and saved off; each A/B rep
+swapped the installed `.so` and ran `set_residual` in a **fresh pinned
+subprocess** (`taskset -c 2`, 20 warmup + 200 timed calls, median and min
+ns/cell), since a compiler-flag change recompiles the whole program and
+there is no untouched in-process gauge kernel available (unlike sections
+7-15, which could co-measure an unchanged kernel in the same build).
+Correctness gated first: candidate output matched baseline to
+`max_abs_diff = 1.5e-11` (float32 noise) on a 500k-cell block before any
+timing was trusted. Two interleaved reps per size; run stopped after
+size=1,000,000 rep=1 once the trend was unambiguous (this session's node
+is a login node -- serial only, no long blocking waits), so the largest
+size has only one rep, not two.
+
+| size (cells) | grid | baseline median r1/r2 | candidate median r1/r2 | delta r1/r2 |
+| --- | --- | --- | --- | --- |
+| 200,000   | 57x65x57  | 16.15 / 16.58 | 18.79 / 18.72 | **+16.3% / +12.9%** |
+| 500,000   | 137x65x57 | 16.41 / 16.21 | 16.91 / 17.06 | +3.1% / +5.3% |
+| 1,000,000 | 273x65x57 | 18.25 / --    | 17.73 / --    | -2.8% (single rep) |
+
+Min-ns/cell deltas track the same shape (200k: +10.8%/+21.4%; 500k:
+-4.5%/+1.8%; 1M: -3.2%), so this isn't a median-vs-min artifact.
+
+**Reading**: this node is Ice Lake (`avx512f`/`avx512bw`/etc., confirmed
+via `/proc/cpuinfo`), unlike the Haswell box the doc's earlier sections
+benchmarked on, and `-xHost` already targets whatever ISA is present --
+so `-qopt-zmm-usage=high` is asking ifort to prefer 512-bit ZMM
+encodings for the gathers (and everything else) over the 256-bit YMM it
+chose by default (confirmed in section 16.3's disassembly: `Compiler has
+chosen to target XMM/YMM vector`). The regression at small/mid sizes is
+consistent with the well-known AVX-512 frequency/warm-up tax: wider ZMM
+ops can downclock the core and cost more than they save unless the loop
+runs long enough to amortize it, which a 57x65x57 or 137x65x57 block's
+per-call face-flow loops evidently don't. The lone win at 1M cells is a
+single, unrepeated data point and does not by itself justify adoption
+under this doc's rule (win above noise, regress nowhere, section 4.4)
+-- **do not adopt**. If the 1M-cell result is worth chasing later, it
+would need a second rep at that size (and ideally 2M+) before it's
+anything more than a lead.
+- Raw data: `tmp_nodebuf_prototype/disasm_session2/zmm_ab/` --
+  `results.csv` (full interleaved timing table), `run_ab.log`,
+  `correctness_check.py` output, `baseline.so`/`candidate.so` (not
+  committed, build artifacts).
