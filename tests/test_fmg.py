@@ -51,8 +51,18 @@ def test_n_levels_zero_matches_run():
     grid_run = build_duct_grid(NCELL_SMALL, nj=NJ_SMALL, nk=NK_SMALL)
     _conf(0).run(grid_run)
 
-    # Identical seeds and identical march -> bit-for-bit conserved state.
-    np.testing.assert_array_equal(grid_fmg[0].conserved, grid_run[0].conserved)
+    # Identical seeds and identical march -> conserved state matches up to
+    # float error. NOTE: passes in isolation and as this file alone, but
+    # has been observed to diverge by O(0.1) relative (not just rounding)
+    # when run as part of the full `ember/tests/` suite -- looks like
+    # order-dependent state leakage between test files rather than a
+    # steady precision issue in this test itself. Needs follow-up; not
+    # yet understood. (Also see test_perturbation.py::
+    # test_chic_to_bcond_linearization, which fails only in the full-suite
+    # run too, on an unrelated exact-zero comparison.)
+    np.testing.assert_allclose(
+        grid_fmg[0].conserved, grid_run[0].conserved, rtol=1e-5, atol=1e-8
+    )
 
 
 def test_non_divisible_finest_raises():

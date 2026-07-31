@@ -32,20 +32,19 @@ GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
 GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
 
 # Set EMBER_OPT_REPORT=<path> to write the compiler's vectorization report
-# (-fopt-info-vec-all) there during the build. The flag is injected at LINK
-# time (via LDFLAGS, which meson passes to the linker driver): under -flto
-# the real whole-program codegen happens in the LTO backend at link, so the
-# link-stage report describes the code that actually runs, whereas a
-# compile-stage report reflects discarded per-TU codegen and can flag
-# spurious misses (see docs/dev/viscous_kernels.md section 4.6). The file is
-# truncated at build start (-fopt-info appends per LTRANS partition).
+# there during the build. The flag is injected at LINK time (via LDFLAGS,
+# which meson passes to the linker driver): under gfortran's -flto or
+# ifort's -ipo, the real whole-program codegen happens in the LTO/IPO
+# backend at link, so the link-stage report describes the code that
+# actually runs, whereas a compile-stage report reflects discarded per-TU
+# codegen and can flag spurious misses (see docs/dev/viscous_kernels.md
+# section 4.6). The file is truncated at build start (gfortran's
+# -fopt-info appends per LTRANS partition; ifort overwrites, but truncate
+# unconditionally for consistent behaviour across compilers).
 _OPT_REPORT = os.environ.get("EMBER_OPT_REPORT")
 if _OPT_REPORT:
     _OPT_REPORT = os.path.abspath(_OPT_REPORT)
     open(_OPT_REPORT, "w").close()
-    os.environ["LDFLAGS"] = (
-        os.environ.get("LDFLAGS", "") + f" -fopt-info-vec-all={_OPT_REPORT}"
-    ).strip()
 GFORTRAN_DEBUG_FLAGS = "-O0 -g -fcheck=all -fbounds-check -fbacktrace -Wall -Werror -Warray-temporaries -Wfatal-errors"
 # Intel flags: close equivalents of gfortran flags
 INTEL_FLAGS = "-O3 -xHost -ipo -no-prec-div -fp-model fast=2 -funroll-loops -inline-forceinline -inline-factor=10000 -fast-transcendentals"
@@ -119,8 +118,26 @@ class F2PyBuildExt(build_ext):
             os.environ.setdefault("FC", "ifort")
             os.environ.setdefault("CC", "icc")
             os.environ.setdefault("CXX", "icpc")
+            if _OPT_REPORT:
+                # Level 2 is deliberately pinned, not the max (5): at this
+                # program's size, ifort 2022.1.0's IPO backend segfaults
+                # (internal error, "multi-file optimization compilation")
+                # generating the link-stage report at level 3 and above.
+                # Level 2 still includes the "loop was not vectorized:
+                # <reason>" remarks needed for diagnosis, just without the
+                # extra dependence-chain detail level 5 would add.
+                os.environ["LDFLAGS"] = (
+                    os.environ.get("LDFLAGS", "")
+                    + f" -qopt-report=2 -qopt-report-phase=vec,ipo"
+                    f" -qopt-report-file={_OPT_REPORT}"
+                ).strip()
         elif ember_compiler == "gfortran":
             flags = GFORTRAN_DEBUG_FLAGS if GFORTRAN_DEBUG else GFORTRAN_FLAGS
+            if _OPT_REPORT:
+                os.environ["LDFLAGS"] = (
+                    os.environ.get("LDFLAGS", "")
+                    + f" -fopt-info-vec-all={_OPT_REPORT}"
+                ).strip()
         else:
             raise RuntimeError(
                 f"Unknown EMBER_COMPILER '{ember_compiler}', expected "

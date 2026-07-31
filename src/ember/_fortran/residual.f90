@@ -34,65 +34,78 @@ contains
         real, intent(inout) :: row(ni, 5)
 
         integer :: i
-        real :: pm(6), mf(3)
+        real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot
+
+        ! accum()/put() are inlined by hand throughout this routine (no
+        ! longer left as calls), and pm/mf are scalarized (no longer
+        ! length-6/length-3 arrays): ifort 2022.1.0 declines to inline
+        ! put() even under -ipo -inline-forceinline, and separately its
+        ! vectorizer treats the pm(:)/mf(:) arrays as a cross-iteration
+        ! aliasing hazard it can't disprove, blocking vectorization of the
+        ! interior loop either way (opt-report: "vector dependence
+        ! prevents vectorization"). gfortran vectorizes the original
+        ! array/call form fine, so this rewrite is ifort-motivated.
+        !   pm = (Vx, Vr, r*Vt_abs, ho, P-P_offset, r*(P-P_offset))
+        !   mf = (rho*Vx, rho*Vr, rho*Vt_rel)
 
         ! Low boundary i=1
-        pm = 0.0e0; mf = 0.0e0
-        call accum(pm, mf, 1, j,   k,   wall_lo)
-        call accum(pm, mf, 1, j+1, k,   wall_lo)
-        call accum(pm, mf, 1, j,   k+1, wall_lo)
-        call accum(pm, mf, 1, j+1, k+1, wall_lo)
-        call put(row, 1, pm, mf)
+        call accum_corners(1, j, k, wall_lo, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+        mdot = mf1*dA(1,1,j,k) + mf2*dA(2,1,j,k) + mf3*dA(3,1,j,k)
+        row(1,1) = mdot
+        row(1,2) = pm1*mdot + pm5*dA(1,1,j,k)
+        row(1,3) = pm2*mdot + pm5*dA(2,1,j,k)
+        row(1,4) = pm3*mdot + pm6*dA(3,1,j,k)
+        row(1,5) = pm4*mdot + Omega*pm6*dA(3,1,j,k)
 
         ! Interior i=2..ni-1
+        !DIR$ IVDEP
         do i = 2, ni-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, i, j,   k,   1.0e0)
-            call accum(pm, mf, i, j+1, k,   1.0e0)
-            call accum(pm, mf, i, j,   k+1, 1.0e0)
-            call accum(pm, mf, i, j+1, k+1, 1.0e0)
-            call put(row, i, pm, mf)
+            call accum_corners(i, j, k, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+            mdot = mf1*dA(1,i,j,k) + mf2*dA(2,i,j,k) + mf3*dA(3,i,j,k)
+            row(i,1) = mdot
+            row(i,2) = pm1*mdot + pm5*dA(1,i,j,k)
+            row(i,3) = pm2*mdot + pm5*dA(2,i,j,k)
+            row(i,4) = pm3*mdot + pm6*dA(3,i,j,k)
+            row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,j,k)
         end do
 
         ! High boundary i=ni
-        pm = 0.0e0; mf = 0.0e0
-        call accum(pm, mf, ni, j,   k,   wall_hi)
-        call accum(pm, mf, ni, j+1, k,   wall_hi)
-        call accum(pm, mf, ni, j,   k+1, wall_hi)
-        call accum(pm, mf, ni, j+1, k+1, wall_hi)
-        call put(row, ni, pm, mf)
+        call accum_corners(ni, j, k, wall_hi, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+        mdot = mf1*dA(1,ni,j,k) + mf2*dA(2,ni,j,k) + mf3*dA(3,ni,j,k)
+        row(ni,1) = mdot
+        row(ni,2) = pm1*mdot + pm5*dA(1,ni,j,k)
+        row(ni,3) = pm2*mdot + pm5*dA(2,ni,j,k)
+        row(ni,4) = pm3*mdot + pm6*dA(3,ni,j,k)
+        row(ni,5) = pm4*mdot + Omega*pm6*dA(3,ni,j,k)
 
     contains
-        pure subroutine accum(pm, mf, i, j, k, wfac)
-            real, intent(inout) :: pm(6), mf(3)
+        pure subroutine accum_corners(i, j, k, wfac, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+            ! Accumulates the 4 face corners (i,j:j+1,k:k+1), same
+            ! summation order as the original sequential accum() calls.
             integer, intent(in) :: i, j, k
             real, intent(in) :: wfac
-            real :: dp, w
-            dp = P(i,j,k) - P_offset
-            pm(1) = pm(1) + 0.25e0*vx(i,j,k)
-            pm(2) = pm(2) + 0.25e0*vr(i,j,k)
-            pm(3) = pm(3) + 0.25e0*r(i,j,k)*vt(i,j,k)
-            pm(4) = pm(4) + 0.25e0*ho(i,j,k)
-            pm(5) = pm(5) + 0.25e0*dp
-            pm(6) = pm(6) + 0.25e0*r(i,j,k)*dp
+            real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3
+            real :: dp1, dp2, dp3, dp4, w
+            dp1 = P(i,j,k)     - P_offset
+            dp2 = P(i,j+1,k)   - P_offset
+            dp3 = P(i,j,k+1)   - P_offset
+            dp4 = P(i,j+1,k+1) - P_offset
+            pm1 = 0.25e0*vx(i,j,k) + 0.25e0*vx(i,j+1,k) + 0.25e0*vx(i,j,k+1) + 0.25e0*vx(i,j+1,k+1)
+            pm2 = 0.25e0*vr(i,j,k) + 0.25e0*vr(i,j+1,k) + 0.25e0*vr(i,j,k+1) + 0.25e0*vr(i,j+1,k+1)
+            pm3 = 0.25e0*r(i,j,k)*vt(i,j,k) + 0.25e0*r(i,j+1,k)*vt(i,j+1,k) &
+                + 0.25e0*r(i,j,k+1)*vt(i,j,k+1) + 0.25e0*r(i,j+1,k+1)*vt(i,j+1,k+1)
+            pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i,j+1,k) + 0.25e0*ho(i,j,k+1) + 0.25e0*ho(i,j+1,k+1)
+            pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
+            pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i,j+1,k)*dp2 &
+                + 0.25e0*r(i,j,k+1)*dp3 + 0.25e0*r(i,j+1,k+1)*dp4
             w = 0.25e0*wfac
-            mf(1) = mf(1) + w*cons(i,j,k,2)
-            mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
-        end subroutine accum
-
-        pure subroutine put(row, i, pm, mf)
-            real, intent(inout) :: row(ni, 5)
-            integer, intent(in) :: i
-            real, intent(in) :: pm(6), mf(3)
-            real :: mdot
-            mdot = mf(1)*dA(1,i,j,k) + mf(2)*dA(2,i,j,k) + mf(3)*dA(3,i,j,k)
-            row(i,1) = mdot
-            row(i,2) = pm(1)*mdot + pm(5)*dA(1,i,j,k)
-            row(i,3) = pm(2)*mdot + pm(5)*dA(2,i,j,k)
-            row(i,4) = pm(3)*mdot + pm(6)*dA(3,i,j,k)
-            row(i,5) = pm(4)*mdot + Omega*pm(6)*dA(3,i,j,k)
-        end subroutine put
+            mf1 = w*cons(i,j,k,2) + w*cons(i,j+1,k,2) + w*cons(i,j,k+1,2) + w*cons(i,j+1,k+1,2)
+            mf2 = w*cons(i,j,k,3) + w*cons(i,j+1,k,3) + w*cons(i,j,k+1,3) + w*cons(i,j+1,k+1,3)
+            mf3 = w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k)) &
+                + w*cons(i,j+1,k,1)*(vt(i,j+1,k) - Omega*r(i,j+1,k)) &
+                + w*cons(i,j,k+1,1)*(vt(i,j,k+1) - Omega*r(i,j,k+1)) &
+                + w*cons(i,j+1,k+1,1)*(vt(i,j+1,k+1) - Omega*r(i,j+1,k+1))
+        end subroutine accum_corners
     end subroutine iface_flow_row
 
 
@@ -116,71 +129,83 @@ contains
         real, intent(inout) :: row(ni, 5)
 
         integer :: i
-        real :: pm(6), mf(3)
+        real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot
 
+        ! accum()/put() are inlined by hand throughout this routine (no
+        ! longer left as calls), and pm/mf are scalarized (no longer
+        ! length-6/length-3 arrays): ifort 2022.1.0 declines to inline
+        ! put() even under -ipo -inline-forceinline, and separately its
+        ! vectorizer treats the pm(:)/mf(:) arrays as a cross-iteration
+        ! aliasing hazard it can't disprove, blocking vectorization of
+        ! these loops either way (opt-report: "vector dependence prevents
+        ! vectorization"). gfortran vectorizes the original array/call
+        ! form fine, so this rewrite is ifort-motivated.
         if (jf == 1) then
             ! Low boundary j=1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   1, k,   wall_lo(i,k))
-                call accum(pm, mf, i+1, 1, k,   wall_lo(i,k))
-                call accum(pm, mf, i,   1, k+1, wall_lo(i,k))
-                call accum(pm, mf, i+1, 1, k+1, wall_lo(i,k))
-                call put(row, i, pm, mf)
+                call accum_corners(i, 1, k, wall_lo(i,k), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
+                row(i,1) = mdot
+                row(i,2) = pm1*mdot + pm5*dA(1,i,jf,k)
+                row(i,3) = pm2*mdot + pm5*dA(2,i,jf,k)
+                row(i,4) = pm3*mdot + pm6*dA(3,i,jf,k)
+                row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,jf,k)
             end do
         else if (jf == nj) then
             ! High boundary j=nj
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   nj, k,   wall_hi(i,k))
-                call accum(pm, mf, i+1, nj, k,   wall_hi(i,k))
-                call accum(pm, mf, i,   nj, k+1, wall_hi(i,k))
-                call accum(pm, mf, i+1, nj, k+1, wall_hi(i,k))
-                call put(row, i, pm, mf)
+                call accum_corners(i, nj, k, wall_hi(i,k), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
+                row(i,1) = mdot
+                row(i,2) = pm1*mdot + pm5*dA(1,i,jf,k)
+                row(i,3) = pm2*mdot + pm5*dA(2,i,jf,k)
+                row(i,4) = pm3*mdot + pm6*dA(3,i,jf,k)
+                row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,jf,k)
             end do
         else
             ! Interior 2 <= jf <= nj-1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   jf, k,   1.0e0)
-                call accum(pm, mf, i+1, jf, k,   1.0e0)
-                call accum(pm, mf, i,   jf, k+1, 1.0e0)
-                call accum(pm, mf, i+1, jf, k+1, 1.0e0)
-                call put(row, i, pm, mf)
+                call accum_corners(i, jf, k, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
+                row(i,1) = mdot
+                row(i,2) = pm1*mdot + pm5*dA(1,i,jf,k)
+                row(i,3) = pm2*mdot + pm5*dA(2,i,jf,k)
+                row(i,4) = pm3*mdot + pm6*dA(3,i,jf,k)
+                row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,jf,k)
             end do
         end if
 
     contains
-        pure subroutine accum(pm, mf, i, j, k, wfac)
-            real, intent(inout) :: pm(6), mf(3)
+        pure subroutine accum_corners(i, j, k, wfac, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+            ! Accumulates the 4 face corners (i:i+1,j,k:k+1), same
+            ! summation order as the original sequential accum() calls.
             integer, intent(in) :: i, j, k
             real, intent(in) :: wfac
-            real :: dp, w
-            dp = P(i,j,k) - P_offset
-            pm(1) = pm(1) + 0.25e0*vx(i,j,k)
-            pm(2) = pm(2) + 0.25e0*vr(i,j,k)
-            pm(3) = pm(3) + 0.25e0*r(i,j,k)*vt(i,j,k)
-            pm(4) = pm(4) + 0.25e0*ho(i,j,k)
-            pm(5) = pm(5) + 0.25e0*dp
-            pm(6) = pm(6) + 0.25e0*r(i,j,k)*dp
+            real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3
+            real :: dp1, dp2, dp3, dp4, w
+            dp1 = P(i,j,k)     - P_offset
+            dp2 = P(i+1,j,k)   - P_offset
+            dp3 = P(i,j,k+1)   - P_offset
+            dp4 = P(i+1,j,k+1) - P_offset
+            pm1 = 0.25e0*vx(i,j,k) + 0.25e0*vx(i+1,j,k) + 0.25e0*vx(i,j,k+1) + 0.25e0*vx(i+1,j,k+1)
+            pm2 = 0.25e0*vr(i,j,k) + 0.25e0*vr(i+1,j,k) + 0.25e0*vr(i,j,k+1) + 0.25e0*vr(i+1,j,k+1)
+            pm3 = 0.25e0*r(i,j,k)*vt(i,j,k) + 0.25e0*r(i+1,j,k)*vt(i+1,j,k) &
+                + 0.25e0*r(i,j,k+1)*vt(i,j,k+1) + 0.25e0*r(i+1,j,k+1)*vt(i+1,j,k+1)
+            pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i+1,j,k) + 0.25e0*ho(i,j,k+1) + 0.25e0*ho(i+1,j,k+1)
+            pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
+            pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i+1,j,k)*dp2 &
+                + 0.25e0*r(i,j,k+1)*dp3 + 0.25e0*r(i+1,j,k+1)*dp4
             w = 0.25e0*wfac
-            mf(1) = mf(1) + w*cons(i,j,k,2)
-            mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
-        end subroutine accum
-
-        pure subroutine put(row, i, pm, mf)
-            real, intent(inout) :: row(ni, 5)
-            integer, intent(in) :: i
-            real, intent(in) :: pm(6), mf(3)
-            real :: mdot
-            mdot = mf(1)*dA(1,i,jf,k) + mf(2)*dA(2,i,jf,k) + mf(3)*dA(3,i,jf,k)
-            row(i,1) = mdot
-            row(i,2) = pm(1)*mdot + pm(5)*dA(1,i,jf,k)
-            row(i,3) = pm(2)*mdot + pm(5)*dA(2,i,jf,k)
-            row(i,4) = pm(3)*mdot + pm(6)*dA(3,i,jf,k)
-            row(i,5) = pm(4)*mdot + Omega*pm(6)*dA(3,i,jf,k)
-        end subroutine put
+            mf1 = w*cons(i,j,k,2) + w*cons(i+1,j,k,2) + w*cons(i,j,k+1,2) + w*cons(i+1,j,k+1,2)
+            mf2 = w*cons(i,j,k,3) + w*cons(i+1,j,k,3) + w*cons(i,j,k+1,3) + w*cons(i+1,j,k+1,3)
+            mf3 = w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k)) &
+                + w*cons(i+1,j,k,1)*(vt(i+1,j,k) - Omega*r(i+1,j,k)) &
+                + w*cons(i,j,k+1,1)*(vt(i,j,k+1) - Omega*r(i,j,k+1)) &
+                + w*cons(i+1,j,k+1,1)*(vt(i+1,j,k+1) - Omega*r(i+1,j,k+1))
+        end subroutine accum_corners
     end subroutine jface_flow_row
 
 
@@ -206,77 +231,89 @@ contains
         real, intent(inout) :: plane(ni, njp, 5)
 
         integer :: i, j
-        real :: pm(6), mf(3)
+        real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot
 
+        ! accum()/put() are inlined by hand throughout this routine (no
+        ! longer left as calls), and pm/mf are scalarized (no longer
+        ! length-6/length-3 arrays): ifort 2022.1.0 declines to inline
+        ! put() even under -ipo -inline-forceinline, and separately its
+        ! vectorizer treats the pm(:)/mf(:) arrays as a cross-iteration
+        ! aliasing hazard it can't disprove, blocking vectorization of
+        ! these loops either way (opt-report: "vector dependence prevents
+        ! vectorization"). gfortran vectorizes the original array/call
+        ! form fine, so this rewrite is ifort-motivated.
         if (kf == 1) then
             ! Low boundary k=1
             do j = 1, nj-1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   j,   1, wall_lo(i,j))
-                call accum(pm, mf, i+1, j,   1, wall_lo(i,j))
-                call accum(pm, mf, i,   j+1, 1, wall_lo(i,j))
-                call accum(pm, mf, i+1, j+1, 1, wall_lo(i,j))
-                call put(plane, i, j, pm, mf)
+                call accum_corners(i, j, 1, wall_lo(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
+                plane(i,j,1) = mdot
+                plane(i,j,2) = pm1*mdot + pm5*dA(1,i,j,kf)
+                plane(i,j,3) = pm2*mdot + pm5*dA(2,i,j,kf)
+                plane(i,j,4) = pm3*mdot + pm6*dA(3,i,j,kf)
+                plane(i,j,5) = pm4*mdot + Omega*pm6*dA(3,i,j,kf)
             end do
             end do
         else if (kf == nk) then
             ! High boundary k=nk
             do j = 1, nj-1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   j,   nk, wall_hi(i,j))
-                call accum(pm, mf, i+1, j,   nk, wall_hi(i,j))
-                call accum(pm, mf, i,   j+1, nk, wall_hi(i,j))
-                call accum(pm, mf, i+1, j+1, nk, wall_hi(i,j))
-                call put(plane, i, j, pm, mf)
+                call accum_corners(i, j, nk, wall_hi(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
+                plane(i,j,1) = mdot
+                plane(i,j,2) = pm1*mdot + pm5*dA(1,i,j,kf)
+                plane(i,j,3) = pm2*mdot + pm5*dA(2,i,j,kf)
+                plane(i,j,4) = pm3*mdot + pm6*dA(3,i,j,kf)
+                plane(i,j,5) = pm4*mdot + Omega*pm6*dA(3,i,j,kf)
             end do
             end do
         else
             ! Interior 2 <= kf <= nk-1
             do j = 1, nj-1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   j,   kf, 1.0e0)
-                call accum(pm, mf, i+1, j,   kf, 1.0e0)
-                call accum(pm, mf, i,   j+1, kf, 1.0e0)
-                call accum(pm, mf, i+1, j+1, kf, 1.0e0)
-                call put(plane, i, j, pm, mf)
+                call accum_corners(i, j, kf, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
+                plane(i,j,1) = mdot
+                plane(i,j,2) = pm1*mdot + pm5*dA(1,i,j,kf)
+                plane(i,j,3) = pm2*mdot + pm5*dA(2,i,j,kf)
+                plane(i,j,4) = pm3*mdot + pm6*dA(3,i,j,kf)
+                plane(i,j,5) = pm4*mdot + Omega*pm6*dA(3,i,j,kf)
             end do
             end do
         end if
 
     contains
-        pure subroutine accum(pm, mf, i, j, k, wfac)
-            real, intent(inout) :: pm(6), mf(3)
+        pure subroutine accum_corners(i, j, k, wfac, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+            ! Accumulates the 4 face corners (i:i+1,j:j+1,k), same
+            ! summation order as the original sequential accum() calls.
             integer, intent(in) :: i, j, k
             real, intent(in) :: wfac
-            real :: dp, w
-            dp = P(i,j,k) - P_offset
-            pm(1) = pm(1) + 0.25e0*vx(i,j,k)
-            pm(2) = pm(2) + 0.25e0*vr(i,j,k)
-            pm(3) = pm(3) + 0.25e0*r(i,j,k)*vt(i,j,k)
-            pm(4) = pm(4) + 0.25e0*ho(i,j,k)
-            pm(5) = pm(5) + 0.25e0*dp
-            pm(6) = pm(6) + 0.25e0*r(i,j,k)*dp
+            real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3
+            real :: dp1, dp2, dp3, dp4, w
+            dp1 = P(i,j,k)     - P_offset
+            dp2 = P(i+1,j,k)   - P_offset
+            dp3 = P(i,j+1,k)   - P_offset
+            dp4 = P(i+1,j+1,k) - P_offset
+            pm1 = 0.25e0*vx(i,j,k) + 0.25e0*vx(i+1,j,k) + 0.25e0*vx(i,j+1,k) + 0.25e0*vx(i+1,j+1,k)
+            pm2 = 0.25e0*vr(i,j,k) + 0.25e0*vr(i+1,j,k) + 0.25e0*vr(i,j+1,k) + 0.25e0*vr(i+1,j+1,k)
+            pm3 = 0.25e0*r(i,j,k)*vt(i,j,k) + 0.25e0*r(i+1,j,k)*vt(i+1,j,k) &
+                + 0.25e0*r(i,j+1,k)*vt(i,j+1,k) + 0.25e0*r(i+1,j+1,k)*vt(i+1,j+1,k)
+            pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i+1,j,k) + 0.25e0*ho(i,j+1,k) + 0.25e0*ho(i+1,j+1,k)
+            pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
+            pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i+1,j,k)*dp2 &
+                + 0.25e0*r(i,j+1,k)*dp3 + 0.25e0*r(i+1,j+1,k)*dp4
             w = 0.25e0*wfac
-            mf(1) = mf(1) + w*cons(i,j,k,2)
-            mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
-        end subroutine accum
-
-        pure subroutine put(plane, i, j, pm, mf)
-            real, intent(inout) :: plane(ni, njp, 5)
-            integer, intent(in) :: i, j
-            real, intent(in) :: pm(6), mf(3)
-            real :: mdot
-            mdot = mf(1)*dA(1,i,j,kf) + mf(2)*dA(2,i,j,kf) + mf(3)*dA(3,i,j,kf)
-            plane(i,j,1) = mdot
-            plane(i,j,2) = pm(1)*mdot + pm(5)*dA(1,i,j,kf)
-            plane(i,j,3) = pm(2)*mdot + pm(5)*dA(2,i,j,kf)
-            plane(i,j,4) = pm(3)*mdot + pm(6)*dA(3,i,j,kf)
-            plane(i,j,5) = pm(4)*mdot + Omega*pm(6)*dA(3,i,j,kf)
-        end subroutine put
+            mf1 = w*cons(i,j,k,2) + w*cons(i+1,j,k,2) + w*cons(i,j+1,k,2) + w*cons(i+1,j+1,k,2)
+            mf2 = w*cons(i,j,k,3) + w*cons(i+1,j,k,3) + w*cons(i,j+1,k,3) + w*cons(i+1,j+1,k,3)
+            mf3 = w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k)) &
+                + w*cons(i+1,j,k,1)*(vt(i+1,j,k) - Omega*r(i+1,j,k)) &
+                + w*cons(i,j+1,k,1)*(vt(i,j+1,k) - Omega*r(i,j+1,k)) &
+                + w*cons(i+1,j+1,k,1)*(vt(i+1,j+1,k) - Omega*r(i+1,j+1,k))
+        end subroutine accum_corners
     end subroutine kface_flow_plane
 
 
