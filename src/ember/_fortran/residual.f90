@@ -561,20 +561,33 @@ subroutine set_residual( &
     real, intent(inout) :: rows(ni, 5, 3)
     integer, intent(in) :: kb, njp, ni, nj, nk
 
-    integer :: i, j, k, m, k0, k1, kf0, ja, jb, pa, pb, stmp
+    integer :: i, j, k, m, k0, k1, ja, jb, pa, pb, stmp
 
     pa = 1
     pb = 2
 
+    ! Prime the rolling k-face plane with face k=1 before the slab sweep
+    ! (the fused loop below always has plane k in slot pa on entry to cell
+    ! k, needing only face k+1 freshly computed into pb).
+    call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
+                          Omega, dAk, wallk1, wallnk, planes(:,:,:,pa), &
+                          1, njp, ni, nj, nk)
+
     do k0 = 1, nk-1, kb
     k1 = min(k0 + kb - 1, nk-1)
 
-    ! --- i+j directions fused per (j,k) row ---
-    ! For each cell row (j,k): compute the i-face row (slot 1) and advance
-    ! the rolling j-face pair (slots ja/jb), then write dU once with both
-    ! contributions folded in (i-diff + f_body + j-diff). This cuts dU from
-    ! three touches per slab (write, RMW, RMW) to two; the i-face slot and
-    ! the j-face pair are disjoint slots that already coexist in rows.
+    ! --- i+j+k fused per (j,k) row: single touch on dU ---
+    ! For each cell row (j,k): compute the i-face row (slot 1), advance the
+    ! rolling j-face pair (slots ja/jb), and advance the rolling k-face
+    ! pair (slots pa/pb, one plane ahead of the current cell layer -- pa
+    ! holds face k, pb gets face k+1 computed fresh each k). All three
+    ! contributions are folded into dU in one write, so each dU element is
+    ! touched exactly once per residual evaluation (previously two full
+    ! sweeps: the i/j write, then a separate k-direction read-modify-write).
+    ! The k-face pair carries across slab boundaries the same way the
+    ! un-fused version did (plane k0 of a slab is the previous slab's k1+1,
+    ! already resident in pa), so only the very first cell (k=1 overall)
+    ! computes its own low face before the loop.
     do k = k0, k1
         ja = 2
         jb = 3
@@ -582,6 +595,12 @@ subroutine set_residual( &
         call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
                             Omega, dAj, wallj1, wallnj, rows(:,:,ja), &
                             1, k, ni, nj, nk)
+        ! Advance the rolling k-face pair: pa already holds face k (primed
+        ! before the sweep, or carried from the previous k iteration); pb
+        ! gets face k+1 computed fresh.
+        call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
+                              Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
+                              k+1, njp, ni, nj, nk)
         do j = 1, nj-1
             call iface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
                                 Omega, dAi, walli1(j,k), wallni(j,k), &
@@ -592,42 +611,14 @@ subroutine set_residual( &
             do m = 1, 5
             do i = 1, ni-1
                 dU(i,j,k,m) = rows(i,m,1) - rows(i+1,m,1) + f_body(i,j,k,m) &
-                            + rows(i,m,ja) - rows(i,m,jb)
+                            + rows(i,m,ja) - rows(i,m,jb) &
+                            + planes(i,j,m,pa) - planes(i,j,m,pb)
             end do
             end do
             stmp = ja
             ja = jb
             jb = stmp
         end do
-    end do
-
-    ! --- k-direction: faces k0..k1+1, fused with a rolling plane pair ---
-    ! Slot pa holds the previous face plane k-1; face k is computed into
-    ! slot pb, then cell plane k-1 is differenced and the slots swap. The
-    ! slab's low face plane k0 is the previous slab's high plane and is
-    ! still in slot pa -- the intervening i/j phases touch only rows -- so
-    ! the carry is automatic and only the first slab computes its own k=1
-    ! face plane.
-    if (k0 == 1) then
-        kf0 = 1
-    else
-        kf0 = k0 + 1
-    end if
-    do k = kf0, k1+1
-        call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
-                              Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
-                              k, njp, ni, nj, nk)
-        ! Accumulate cell plane k-1 between faces k-1 (pa) and k (pb)
-        if (k > k0) then
-            do m = 1, 5
-            do j = 1, nj-1
-            do i = 1, ni-1
-                dU(i,j,k-1,m) = dU(i,j,k-1,m) &
-                              + planes(i,j,m,pa) - planes(i,j,m,pb)
-            end do
-            end do
-            end do
-        end if
         stmp = pa
         pa = pb
         pb = stmp
