@@ -42,7 +42,17 @@ prolongation hop (`mg_prolong2x_fine`) is fused with the cell->node scatter
 (`cell_to_node_generic`) into a rolling two-plane `mg_prolong2x_fine_scatter`,
 eliminating the full-volume increment `tmp` write+read round-trip. Wins -11%
 to -30% on the full RK stage (raw, both `rk_mg_irs` and `rk_mg_noirs`, every
-size, both repeats), ~1 ulp scatter reassociation, no golden regeneration.**
+size, both repeats), ~1 ulp scatter reassociation, no golden regeneration.
+Section 16 profiles the current production `set_residual` directly (`perf
+record`/`perf annotate` on the real ifort `.so`, no source change): ~45% of
+all samples are `vgatherdps`, spread almost evenly across all three
+face-flow directions, because `accum_corners`' 4-corner average vectorizes
+over the corners rather than over `i`. This is the same gather pathology
+that sank the node-buffer attempt (section 8's postmortem) -- except it
+turns out to already be present in the unmodified production kernel, not
+something that attempt introduced. No fix implemented or proposed this
+pass; see section 16 for why a source change is not obviously safe to
+attempt from this evidence alone.**
 
 ---
 
@@ -1415,3 +1425,151 @@ size, both repeats.
   A/B.
 - Raw data: `scripts/bench_mgfuse_ab.csv`, labels `base_r1`/`base_r2` (unfused)
   and `cand_r1`/`cand_r2` (fused); `plain` variant rows are the rk_plain gauge.
+
+---
+
+## 16. Disassembly finding: current production `set_residual` is ~45% `vgatherdps`
+
+Investigation only, no source change. Prompted by the section 8/9 node-buffer
+episode, whose postmortem attributed a slow-gather regression to that
+attempt's specific per-node buffer layout. This section profiles the
+**current, unmodified production kernel** (the section 9/11/13 kernel, post
+the `884644f` revert) directly, to check whether the gather pathology is
+actually confined to the reverted attempt or already present. It is already
+present, and dominates the runtime.
+
+### 16.1 Method
+
+`make compile` (`EMBER_COMPILER=ifort`, real production `INTEL_FLAGS`, no
+source changes) plus `EMBER_OPT_REPORT` for the link-stage vectorization
+report (section 4.6 protocol). Profiled with `perf record -F 999
+--call-graph fp` driving `ember.fortran.set_residual` from Python through
+the real f2py call path (20 warmup calls, then 20000 timed calls, pattern
+copied from `tmp_nodebuf_prototype/bench_residual_compare.py`), single
+block, 137x65x57 (`build_duct_grid(500_000)`), single-threaded on the
+session's node. `perf annotate` on the resulting profile maps hot
+instructions to symbols (debug info was not available for source-line
+mapping, so lines are inferred from disassembly context rather than a
+direct `perf annotate -s` mapping). Cross-checked with an equivalent
+gfortran build/profile of the same driver.
+
+### 16.2 What the opt-report says
+
+`set_residual`'s three face-flow helpers all report clean vectorization at
+the loop level (`remark #15300: LOOP WAS VECTORIZED`, XMM/YMM target) for
+their interior loops. `iface_flow_row`'s peel/remainder loops are flagged
+distinctly from `jface_flow_row`/`kface_flow_plane`'s: `remark #15335:
+... vectorization possible but seems inefficient` vs. `#15301: ... WAS
+VECTORIZED`. This flagged `iface_flow_row` as worth a closer look, but the
+opt-report text alone (as section 4.6 warns) says nothing about *how* the
+"successful" vectorization was achieved -- it does not distinguish
+efficient unit-stride SIMD from gather/scatter-based SIMD, both of which
+satisfy "LOOP WAS VECTORIZED".
+
+### 16.3 What `perf annotate` shows
+
+Flat (self-time) sample distribution across `set_residual`'s call tree,
+ifort build, 500k-cell block:
+
+| symbol | % of total samples |
+| --- | --- |
+| `iface_flow_row` | 30.3% |
+| `kface_flow_plane` | 24.7% |
+| `jface_flow_row` | 24.2% |
+| `set_residual` (fused accumulate) | 16.9% |
+| `iface_flow_row`'s `accum_corners` (not inlined into the row loop's hot path) | 3.2% |
+
+Within **each** of the three face-flow helpers, three `vgatherdps`
+instructions dominate their own self-time:
+
+| helper | gather instructions, % of that helper's own samples |
+| --- | --- |
+| `iface_flow_row` | 16.85 + 16.64 + 16.61 = **50.1%** |
+| `jface_flow_row` | 24.47 + 20.39 + 16.17 = **61.0%** |
+| `kface_flow_plane` | 23.04 + 22.53 + 16.08 = **61.7%** |
+
+Weighted by each helper's share of total `set_residual` time, gathers
+account for **~45% of all samples in the kernel** (15.2% + 14.8% + 15.2%
+across i/j/k respectively -- almost perfectly even across the three
+directions, which makes sense since `accum_corners`' 4-corner-average
+arithmetic is structurally identical in all three, just permuted over
+which axis is offset by 1).
+
+Disassembly context around the gathers (`iface_flow_row`, address
+`0x3bd5f`): the loads immediately before the gather cluster are plain
+`vmovups` at `(reg, %r10, 4)` -- ordinary unit-stride vector loads over the
+`i` index, exactly as expected for `vx(i,j,k)`-style reads. The three
+gathers immediately following use a **vector register as the gather
+index** (`vgatherdps (%r14,%ymm6,4),%ymm27{%k3}` etc., with `%k1`/`%k2`/
+`%k3` all-ones masks from `vpcmpeqb`), i.e. ifort chose to assemble some
+of the nine `pm`/`mf` corner-sum ingredients via a gather rather than a
+second unit-stride load -- consistent with the section 8 postmortem's
+diagnosis of the node-buffer attempt (`vgatherdps`/`vscatterdps` from
+`perf annotate`, confirmed there as "the dominant cost"), except here it
+occurs with the plain nodal-array reads of the **current, unmodified**
+kernel, not a node-buffer.
+
+### 16.4 Cross-check: gfortran
+
+Same driver, gfortran build: **78.5 ns/cell vs. ifort's ~16.7 ns/cell** at
+this size -- ifort is ~4.7x faster overall despite the gathers. gfortran
+does not inline `accum_corners` (it appears as three separate symbols,
+`accum_corners.{4051,4228,4390}`, one per direction, ~23-26% of samples
+each) and, per `perf annotate`, uses scalar `vmulss`/`vaddss`/`vsubss`
+throughout with **zero packed-vector (`ymm`) instructions** -- confirming
+this is the same "gfortran doesn't vectorize this loop at all" behaviour
+the section 8 postmortem found for the node-buffer's corner-sum loop,
+now shown to hold for the *current* corner-sum loop too. ifort's
+gather-based vectorization, slow per-instruction as it is, still beats
+gfortran's fully scalar loop by a wide margin.
+
+### 16.5 Reading
+
+- **This is not a new problem introduced by section 8's node-buffer
+  attempt.** The gather pathology is a property of the `accum_corners`
+  4-corner-average pattern itself (reading `vx(i,j,k)`, `vx(i,j+1,k)`,
+  `vx(i,j,k+1)`, `vx(i,j+1,k+1)` and five siblings, then combining), and
+  it is already the majority of `set_residual`'s runtime in the
+  **unmodified production kernel** under the **production compiler**.
+  Section 8's finding ("ifort's old (un-buffered) kernel ... already
+  vectorizes cleanly with ordinary contiguous loads and no such
+  conflict") was written from the standalone factorial harness at the
+  time and does not hold for the real whole-program build measured here
+  -- a reminder that even a same-session standalone comparison can
+  mislead (matching section 2's original lesson, now recurring one level
+  deeper).
+- **No fix is proposed in this pass.** The section 8/9 history is a
+  direct warning: the one design tried so far that explicitly targeted
+  this redundant-corner-read pattern (the node-buffer) made the gather
+  problem *worse*, not better, under ifort -- and the untried
+  face-average-precompute idea in
+  `tmp_nodebuf_prototype/PLAN_face_average_precompute.md` was scoped
+  specifically because the node-buffer's per-node layout was suspected
+  as the trigger. This section's finding undercuts that premise: the
+  trigger is the corner-average operation itself, present with plain
+  nodal arrays too, so there's no strong reason yet to believe a
+  precompute pass would avoid it either (the precompute pass would
+  perform the identical 4-corner average, just once instead of ~4 times
+  -- if ifort gathers to do it once, the *total* gather traffic would
+  fall roughly 4x, which is a real hypothesis worth testing, but it is a
+  hypothesis, not a finding from this session's evidence).
+- ifort already vectorizes-with-gathers a pattern gfortran doesn't
+  vectorize at all, and still comes out ~4.7x faster. Any future attempt
+  to "fix" the gathers needs an ifort A/B against *this* production
+  baseline (not the gfortran baseline, and not a standalone harness) or
+  it risks repeating section 8's exact mistake in the opposite direction.
+- Candidate follow-ups, not attempted here: (a) measure whether the
+  existing face-average-precompute plan's hypothesis above actually holds
+  (precompute reduces gather *count* even if it can't eliminate gathers
+  structurally); (b) try `-qopt-zmm-usage=high` (the opt-report's own
+  suggestion, unrelated to any source change) to see whether wider
+  ZMM/AVX-512 gathers change the picture -- cheap to test, changes only a
+  build flag; (c) an explicit `!DIR$ SIMD` or restructured corner-read
+  order to see if ifort can be steered off the gather path onto four
+  separate unit-stride loads instead (a source change, would need its own
+  correctness + A/B pass per the section 4 protocol).
+- Raw data: `tmp_nodebuf_prototype/disasm_session2/` -- ifort opt-report
+  (`opt_report_ifort.txt`), both perf profiles (`perf_ifort_500k.data`,
+  `perf_gfortran_500k.data`), and the annotated disassembly dumps used
+  above (`annotate_iface.txt`, `annotate_jface.txt`, `annotate_kface.txt`,
+  `annotate_gf_accum4390.txt`).
