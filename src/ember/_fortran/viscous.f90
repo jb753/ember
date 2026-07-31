@@ -545,8 +545,8 @@ end subroutine set_tau_q_soa
 ! the pre-accumulation flux averaging the unblocked version used; see the
 ! comment at the correction loop.
 subroutine set_visc_force( &
-    cons, vol, dAi, dAj, dAk, &
-    Omega_block, r, mu, &
+    cons, cons_cell, vol, dAi, dAj, dAk, &
+    Omega_block, r, mu, P, P_offset, &
     fvisc, &
     Vx, Vr, Vt, &
     tau_cell, &
@@ -564,12 +564,20 @@ subroutine set_visc_force( &
 
     integer, intent(in) :: ni, nj, nk, kb
     real, intent(in) :: cons(ni, nj, nk, 5)
+    real, intent(in) :: cons_cell(ni-1, nj-1, nk-1, 5)
     real, intent(in) :: vol(ni-1, nj-1, nk-1)
     real, intent(in) :: dAi(3, ni, nj-1, nk-1)
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
     real, intent(in) :: Omega_block, mu
+    real, intent(in) :: P(ni, nj, nk)
+    real, intent(in) :: P_offset
+    ! fvisc components 1-4 = x-mom/r-mom/t-mom/energy (F_body_nd's own
+    ! components 2-5, mass excluded); the polar source's radial-momentum
+    ! term is folded into component 2 alongside the viscous accumulation
+    ! below (was a separate set_polar_source call touching the same
+    ! full-volume buffer a second time).
     real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
     real, intent(in) :: Vx(ni, nj, nk)
     real, intent(in) :: Vr(ni, nj, nk)
@@ -597,6 +605,7 @@ subroutine set_visc_force( &
     real :: tauf(6), qf(3), Vf(3), rf
     real :: wvisc(3), Vabs, wf(4), wfac
     real :: flow1(4), flownk(4), fcorr(4)
+    real :: rhoc, Pc, rc, Vtc, rhorVtc, S_polar
 
     ! ===== Scale boundary halos by (2*wall-1) =====
     ! wall=0 (wall face): factor=-1, giving -edge so face average is zero.
@@ -698,12 +707,16 @@ subroutine set_visc_force( &
         rows(ni-1,2,1) = wallni(j,k)*rows(ni-1,2,1) + wfac*wf(2)
         rows(ni-1,3,1) = wallni(j,k)*rows(ni-1,3,1) + wfac*wf(3)
         rows(ni-1,4,1) = wallni(j,k)*rows(ni-1,4,1) + wfac*wf(4)
-        ! Accumulate the row (first direction: assignment)
+        ! Accumulate the row (first direction: assignment). Sign is
+        ! high-minus-low (not the usual low-minus-high divergence), which
+        ! produces the residual's sign convention directly -- see the
+        ! header note above set_visc_force's signature: this replaces a
+        ! separate full-array negation pass that used to run at the end.
         do i = 1, ni-1
-            fvisc(i,j,k,1) = rows(i,1,1) - rows(i+1,1,1)
-            fvisc(i,j,k,2) = rows(i,2,1) - rows(i+1,2,1)
-            fvisc(i,j,k,3) = rows(i,3,1) - rows(i+1,3,1)
-            fvisc(i,j,k,4) = rows(i,4,1) - rows(i+1,4,1)
+            fvisc(i,j,k,1) = rows(i+1,1,1) - rows(i,1,1)
+            fvisc(i,j,k,2) = rows(i+1,2,1) - rows(i,2,1)
+            fvisc(i,j,k,3) = rows(i+1,3,1) - rows(i,3,1)
+            fvisc(i,j,k,4) = rows(i+1,4,1) - rows(i,4,1)
         end do
     end do
     end do
@@ -764,13 +777,14 @@ subroutine set_visc_force( &
                 rows(i,4,sb) = wallnj(i,k)*rows(i,4,sb) + wfac*wf(4)
             end do
         end if
-        ! Accumulate cell row j-1 between faces j-1 (sa) and j (sb)
+        ! Accumulate cell row j-1 between faces j-1 (sa) and j (sb). Sign
+        ! flipped to match the i-direction pass (high-minus-low).
         if (j > 1) then
             do i = 1, ni-1
-                fvisc(i,j-1,k,1) = fvisc(i,j-1,k,1) + rows(i,1,sa) - rows(i,1,sb)
-                fvisc(i,j-1,k,2) = fvisc(i,j-1,k,2) + rows(i,2,sa) - rows(i,2,sb)
-                fvisc(i,j-1,k,3) = fvisc(i,j-1,k,3) + rows(i,3,sa) - rows(i,3,sb)
-                fvisc(i,j-1,k,4) = fvisc(i,j-1,k,4) + rows(i,4,sa) - rows(i,4,sb)
+                fvisc(i,j-1,k,1) = fvisc(i,j-1,k,1) + rows(i,1,sb) - rows(i,1,sa)
+                fvisc(i,j-1,k,2) = fvisc(i,j-1,k,2) + rows(i,2,sb) - rows(i,2,sa)
+                fvisc(i,j-1,k,3) = fvisc(i,j-1,k,3) + rows(i,3,sb) - rows(i,3,sa)
+                fvisc(i,j-1,k,4) = fvisc(i,j-1,k,4) + rows(i,4,sb) - rows(i,4,sa)
             end do
         end if
         stmp = sa
@@ -850,14 +864,15 @@ subroutine set_visc_force( &
         end do
         end do
     end if
-    ! Accumulate cell plane k-1 between faces k-1 (pa) and k (pb)
+    ! Accumulate cell plane k-1 between faces k-1 (pa) and k (pb). Sign
+    ! flipped to match the i/j-direction passes (high-minus-low).
     if (k > k0) then
         do j = 1, nj-1
         do i = 1, ni-1
-            fvisc(i,j,k-1,1) = fvisc(i,j,k-1,1) + planes(i,j,1,pa) - planes(i,j,1,pb)
-            fvisc(i,j,k-1,2) = fvisc(i,j,k-1,2) + planes(i,j,2,pa) - planes(i,j,2,pb)
-            fvisc(i,j,k-1,3) = fvisc(i,j,k-1,3) + planes(i,j,3,pa) - planes(i,j,3,pb)
-            fvisc(i,j,k-1,4) = fvisc(i,j,k-1,4) + planes(i,j,4,pa) - planes(i,j,4,pb)
+            fvisc(i,j,k-1,1) = fvisc(i,j,k-1,1) + planes(i,j,1,pb) - planes(i,j,1,pa)
+            fvisc(i,j,k-1,2) = fvisc(i,j,k-1,2) + planes(i,j,2,pb) - planes(i,j,2,pa)
+            fvisc(i,j,k-1,3) = fvisc(i,j,k-1,3) + planes(i,j,3,pb) - planes(i,j,3,pa)
+            fvisc(i,j,k-1,4) = fvisc(i,j,k-1,4) + planes(i,j,4,pb) - planes(i,j,4,pa)
         end do
         end do
     end if
@@ -885,6 +900,10 @@ subroutine set_visc_force( &
     ! unchanged since the entry halo scaling and neither seam plane takes a
     ! wall-function injection, so the recompute matches the sweep's values.
     ! Same arithmetic as the unblocked version up to float reassociation.
+    ! fcorr's high(nk)-minus-low(1) sign already matches the k-direction
+    ! accumulate's convention above (pb-minus-pa, also high-minus-low), so
+    ! it needs no adjustment for the sign flip that removed the separate
+    ! negation pass.
     ! (nk=2, where the two seam cells coincide, is not supported here.)
     if (i_cusp_start > 0 .and. nk > 2) then
         do j = 1, nj-1
@@ -950,17 +969,28 @@ subroutine set_visc_force( &
     end do
     end do
 
-    ! ===== Negate so the polar source / body forces are not flipped =====
-    ! The accumulated flux is the divergence as +flux; the residual wants its
-    ! negation. Doing it here (rather than in the Python caller) keeps F_body_nd's
-    ! sign convention internal to the kernel and saves a separate array pass.
+    ! ===== Polar (radial-momentum) source, fused into fvisc's final pass =====
+    ! Was a separate set_polar_source call/full-array pass in the Python
+    ! caller (grid.py's update_sources); folded in here since the sign flip
+    ! above (high-minus-low face differences, replacing what used to be a
+    ! separate negate-everything pass) already leaves fvisc in the
+    ! residual's sign convention, so this is now the only remaining full
+    ! sweep over fvisc, saving a whole extra touch of the buffer.
+    !   S = (rho*Vt^2 + (P-P_offset)) / r * vol
     do k = 1, nk-1
     do j = 1, nj-1
     do i = 1, ni-1
-        fvisc(i,j,k,1) = -fvisc(i,j,k,1)
-        fvisc(i,j,k,2) = -fvisc(i,j,k,2)
-        fvisc(i,j,k,3) = -fvisc(i,j,k,3)
-        fvisc(i,j,k,4) = -fvisc(i,j,k,4)
+        rhoc    = cons_cell(i, j, k, 1)
+        rhorVtc = cons_cell(i, j, k, 4)
+        rc = 0.125e0 * ( &
+            r(i,j,k) + r(i+1,j,k) + r(i,j+1,k) + r(i+1,j+1,k) + &
+            r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))
+        Pc = 0.125e0 * ( &
+            P(i,j,k) + P(i+1,j,k) + P(i,j+1,k) + P(i+1,j+1,k) + &
+            P(i,j,k+1) + P(i+1,j,k+1) + P(i,j+1,k+1) + P(i+1,j+1,k+1))
+        Vtc = rhorVtc / (rhoc * rc)
+        S_polar = ((Pc - P_offset) + rhoc * Vtc**2) / rc
+        fvisc(i,j,k,2) = fvisc(i,j,k,2) + vol(i,j,k) * S_polar
     end do
     end do
     end do

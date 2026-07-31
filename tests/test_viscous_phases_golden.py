@@ -5,13 +5,18 @@ Fortran passes (see :mod:`test_set_F_body_golden` for the composed force):
 
   * phase 1 -- ``ember.fortran.set_tau_q_soa`` fills the per-cell stress tensor
     ``tau_cell``, heat flux ``q_cell`` and mixing-length ``mu_turb``; then
-  * phase 2 -- ``ember.fortran.set_visc_force`` turns tau/q into face fluxes and
-    accumulates the (negated) viscous force into ``F_body_nd``.
+  * phase 2 -- ``ember.fortran.set_visc_force`` turns tau/q into face fluxes,
+    accumulates the viscous force into ``F_body_nd``, and also folds in the
+    polar (radial-momentum) source in the same final pass (an optimisation:
+    both write the same ``F_body_nd`` slots, so this saves a whole separate
+    full-array touch -- see the kernel's header comment).
 
-``test_set_F_body_golden`` only locks the *composition* of these two passes with
-the polar and SFD terms, so a change in one pass that is masked by the other --
-or by the polar/SFD force -- would slip through, and a failure there cannot be
-attributed to a single subroutine. These tests lock each pass independently:
+``test_set_F_body_golden`` only locks the *composition* of these passes with
+the (inviscid-only, now) polar call and the SFD term, so a change masked by
+another pass would slip through there, and a failure cannot be attributed to
+a single subroutine. These tests lock each pass independently -- phase 2's
+golden below is viscous+polar combined, not viscous alone, since that is now
+what ``set_visc_force`` computes:
 
   * phase 1 is called directly and its tau/q/mu_turb output is compared to a
     committed golden; and
@@ -186,6 +191,12 @@ def _synthetic_tau_q(shape):
 def _run_phase2(kb=None):
     """Call ``set_visc_force`` on a synthetic tau/q; return the fvisc output.
 
+    ``set_visc_force`` now folds the polar (radial-momentum) source into its
+    own final pass over ``fvisc`` (see the kernel's header comment), so this
+    golden locks viscous+polar combined, not viscous alone -- the previous
+    isolation from polar no longer applies to this kernel; the pass-1/pass-2
+    independence (analytic tau/q, not phase-1 output) is unaffected.
+
     ``kb`` is the k-slab depth of the tiled kernel; ``None`` mirrors the
     production clamp in :meth:`ember.grid.Grid.update_sources`.
     """
@@ -211,6 +222,7 @@ def _run_phase2(kb=None):
     planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
+        cons_cell=block.conserved_cell_nd,
         vol=block.vol_nd,
         dai=block.dAi_nd,
         daj=block.dAj_nd,
@@ -218,6 +230,8 @@ def _run_phase2(kb=None):
         omega_block=block.Omega_nd,
         r=block.r_nd,
         mu=block.mu_nd,
+        p=block.P_nd,
+        p_offset=block.P_offset_nd,
         fvisc=fbody[..., 1:],
         vx=block.Vx_nd,
         vr=block.Vr_nd,

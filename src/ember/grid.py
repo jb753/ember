@@ -1673,10 +1673,11 @@ class Grid(_LabelledList):
             self.connectivity.periodic.exchange_halos()
 
             # Second viscous phase: face fluxes from tau/q, accumulated into
-            # F_body_nd. Viscous terms are negated in-kernel so the polar/SFD
-            # forces added below are not flipped. No separate halo exchange is
-            # needed for the cusp seam -- the kernel couples the seam flux
-            # internally by averaging the two one-sided fluxes there.
+            # F_body_nd, with the polar (radial-momentum) source fused into
+            # the same kernel's final pass over fvisc -- see set_visc_force's
+            # header comment. No separate halo exchange is needed for the
+            # cusp seam -- the kernel couples the seam flux internally by
+            # averaging the two one-sided fluxes there.
             for block in self:
                 halo = block.tau_q_halo
                 tau_cell = halo[..., 0:6]
@@ -1694,6 +1695,7 @@ class Grid(_LabelledList):
                 )
                 ember.fortran.set_visc_force(
                     cons=block.conserved_nd,
+                    cons_cell=block.conserved_cell_nd,
                     vol=block.vol_nd,
                     dai=block.dAi_nd,
                     daj=block.dAj_nd,
@@ -1701,6 +1703,8 @@ class Grid(_LabelledList):
                     omega_block=block.Omega_nd,
                     r=block.r_nd,
                     mu=block.mu_nd,
+                    p=block.P_nd,
+                    p_offset=block.P_offset_nd,
                     fvisc=block.F_body_nd[..., 1:],
                     vx=block.Vx_nd,
                     vr=block.Vr_nd,
@@ -1715,17 +1719,20 @@ class Grid(_LabelledList):
                     i_cusp_start=i_cusp_start,
                     i_cusp_end=i_cusp_end,
                 )
+        else:
+            # Inviscid: set_visc_force never runs, so the polar source (not
+            # otherwise fused anywhere) needs its own pass here.
+            for block in self:
+                ember.fortran.set_polar_source(
+                    cons_cell=block.conserved_cell_nd,
+                    r=block.r_nd,
+                    p=block.P_nd,
+                    p_offset=block.P_offset_nd,
+                    vol=block.vol_nd,
+                    net_flow=block.F_body_nd,
+                )
 
         for block in self:
-            # Polar source accumulates into F_body_nd[..., 2] (radial momentum).
-            ember.fortran.set_polar_source(
-                cons_cell=block.conserved_cell_nd,
-                r=block.r_nd,
-                p=block.P_nd,
-                p_offset=block.P_offset_nd,
-                vol=block.vol_nd,
-                net_flow=block.F_body_nd,
-            )
             if gain_filt != 0.0:
                 # SFD body force runs pre-step so it drives the RK integration,
                 # not just the post-step residual.
