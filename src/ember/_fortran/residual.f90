@@ -475,257 +475,39 @@ end module residual_helpers
 
 
 ! =====================================================================
-! Node-buffered face-flow helpers, sharing a precomputed per-node scalar
-! buffer across the i/j/k direction sweeps instead of each independently
-! re-reading vx/vr/vt/ho/P/r/cons at every corner (residual_helpers'
-! iface_flow_row/jface_flow_row/kface_flow_plane each ran their own
-! accum_corners per call, so a single nodal value was read redundantly by
-! every adjacent face-flow call in all 3 directions -- up to ~6x per
-! residual evaluation). fill_node_plane below computes 9 derived scalars
-! per node once per k-plane; the three _nb face-flow routines then just
-! sum 4 entries from a rolling 2-plane buffer (node_a=k, node_b=k+1)
-! instead of re-deriving them from raw fields.
+! v3 unscaled residual: single pass over precomputed nodal primitives.
+! Per-mass (perm) and mass-flux (mflux) factors are read directly from
+! cached nodal arrays (vx, vr, vt, ho) and assembled per face; the
+! relative tangential velocity (Vt - Omega*r) is derived inline rather
+! than read from its own stored array (see accum() in each face helper).
 !
-! Buffer layout: node(ni, nj, 9) per plane. Per (i,j):
-!   1: vx        2: vr        3: r*vt      4: ho
-!   5: dp = P - P_offset      6: r*dp
-!   7: cons(:,2) (rho*Vx)     8: cons(:,3) (rho*Vr)
-!   9: cons(:,1)*(vt - Omega*r)  (mass-flux tangential term, unscaled by wfac)
-! wfac (wall mask) is not baked into the buffer -- it varies per boundary
-! call, so it is applied at the call site exactly as accum_corners does in
-! residual_helpers.
+! k-slab cache blocking and rolling-buffer fusion
+! -----------------------------------------------
+! The three face-direction sweeps are tiled over slabs of kb cell planes
+! (1 <= kb <= nk-1) so a slab's nodal input planes stay cache-resident
+! across all three directions. Within a slab each direction fuses its
+! face-flow computation with its dU accumulate through a rolling buffer,
+! so no slab-sized flow scratch exists:
+!   - i+j-directions: fused per (j,k) row into a single dU write -- the
+!     i-face row (rows slot 1) and the rolling j-face pair (rows slots
+!     2/3) are both consumed in one expression (i-diff + f_body + j-diff),
+!     cutting dU from three touches per slab (write, RMW, RMW) to two;
+!   - k-direction: an alternating face-plane pair (planes slots 1/2),
+!     persisting across the slab boundary (the intervening i/j phases
+!     touch only rows), so the shared face plane carries automatically.
 !
-! Benchmarked ~1.46x faster than the un-buffered set_residual on a
-! 129x65x57 block (gfortran -O3 -march=native, standalone harness); see
-! ember/tmp_nodebuf_prototype/bench_nb.f90 for the comparison.
-! =====================================================================
-module residual_nodebuf
-    implicit none
-    private
-    public :: fill_node_plane, iface_flow_row_nb, jface_flow_row_nb, kface_flow_plane_nb
-
-contains
-
-    pure subroutine fill_node_plane(vx, vr, vt, ho, P, P_offset, r, cons, Omega, &
-                                    node, k, ni, nj, nk)
-        integer, intent(in) :: k, ni, nj, nk
-        real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
-        real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
-        real, intent(in) :: P_offset, Omega
-        real, intent(in) :: cons(ni, nj, nk, 5)
-        real, intent(out) :: node(ni, nj, 9)
-        integer :: i, j
-        real :: dp
-
-        do j = 1, nj
-        !DIR$ IVDEP
-        do i = 1, ni
-            dp = P(i,j,k) - P_offset
-            node(i,j,1) = vx(i,j,k)
-            node(i,j,2) = vr(i,j,k)
-            node(i,j,3) = r(i,j,k) * vt(i,j,k)
-            node(i,j,4) = ho(i,j,k)
-            node(i,j,5) = dp
-            node(i,j,6) = r(i,j,k) * dp
-            node(i,j,7) = cons(i,j,k,2)
-            node(i,j,8) = cons(i,j,k,3)
-            node(i,j,9) = cons(i,j,k,1) * (vt(i,j,k) - Omega*r(i,j,k))
-        end do
-        end do
-    end subroutine fill_node_plane
-
-
-    ! i-face corners (i, j:j+1, k:k+1): 2 nodes from plane a (k), 2 from
-    ! plane b (k+1).
-    pure subroutine iface_flow_row_nb(node_a, node_b, dA, Omega, &
-                                       wall_lo, wall_hi, row, j, ni, nj)
-        integer, intent(in) :: j, ni, nj
-        real, intent(in) :: node_a(ni, nj, 9), node_b(ni, nj, 9)
-        real, intent(in) :: dA(3, ni, nj-1)
-        real, intent(in) :: Omega, wall_lo, wall_hi
-        real, intent(inout) :: row(ni, 5)
-
-        integer :: i
-        real :: pm1, pm2, pm3, pm4, pm5, pm6, mdot
-
-        call corner4(1, wall_lo, pm1, pm2, pm3, pm4, pm5, pm6, mdot)
-        row(1,1) = mdot
-        row(1,2) = pm1*mdot + pm5*dA(1,1,j)
-        row(1,3) = pm2*mdot + pm5*dA(2,1,j)
-        row(1,4) = pm3*mdot + pm6*dA(3,1,j)
-        row(1,5) = pm4*mdot + Omega*pm6*dA(3,1,j)
-
-        !DIR$ IVDEP
-        do i = 2, ni-1
-            call corner4(i, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mdot)
-            row(i,1) = mdot
-            row(i,2) = pm1*mdot + pm5*dA(1,i,j)
-            row(i,3) = pm2*mdot + pm5*dA(2,i,j)
-            row(i,4) = pm3*mdot + pm6*dA(3,i,j)
-            row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,j)
-        end do
-
-        call corner4(ni, wall_hi, pm1, pm2, pm3, pm4, pm5, pm6, mdot)
-        row(ni,1) = mdot
-        row(ni,2) = pm1*mdot + pm5*dA(1,ni,j)
-        row(ni,3) = pm2*mdot + pm5*dA(2,ni,j)
-        row(ni,4) = pm3*mdot + pm6*dA(3,ni,j)
-        row(ni,5) = pm4*mdot + Omega*pm6*dA(3,ni,j)
-
-    contains
-        pure subroutine corner4(ii, wfac, pm1, pm2, pm3, pm4, pm5, pm6, mdot)
-            integer, intent(in) :: ii
-            real, intent(in) :: wfac
-            real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mdot
-            real :: mf1, mf2, mf3, w
-            w = 0.25e0 * wfac
-            pm1 = 0.25e0*(node_a(ii,j,1)+node_a(ii,j+1,1)+node_b(ii,j,1)+node_b(ii,j+1,1))
-            pm2 = 0.25e0*(node_a(ii,j,2)+node_a(ii,j+1,2)+node_b(ii,j,2)+node_b(ii,j+1,2))
-            pm3 = 0.25e0*(node_a(ii,j,3)+node_a(ii,j+1,3)+node_b(ii,j,3)+node_b(ii,j+1,3))
-            pm4 = 0.25e0*(node_a(ii,j,4)+node_a(ii,j+1,4)+node_b(ii,j,4)+node_b(ii,j+1,4))
-            pm5 = 0.25e0*(node_a(ii,j,5)+node_a(ii,j+1,5)+node_b(ii,j,5)+node_b(ii,j+1,5))
-            pm6 = 0.25e0*(node_a(ii,j,6)+node_a(ii,j+1,6)+node_b(ii,j,6)+node_b(ii,j+1,6))
-            mf1 = w*(node_a(ii,j,7)+node_a(ii,j+1,7)+node_b(ii,j,7)+node_b(ii,j+1,7))
-            mf2 = w*(node_a(ii,j,8)+node_a(ii,j+1,8)+node_b(ii,j,8)+node_b(ii,j+1,8))
-            mf3 = w*(node_a(ii,j,9)+node_a(ii,j+1,9)+node_b(ii,j,9)+node_b(ii,j+1,9))
-            mdot = mf1*dA(1,ii,j) + mf2*dA(2,ii,j) + mf3*dA(3,ii,j)
-        end subroutine corner4
-    end subroutine iface_flow_row_nb
-
-
-    ! j-face corners (i:i+1, jf, k:k+1): same shape as iface but offset in i
-    ! instead of j; needs both k-planes (node_a=k, node_b=k+1). wall_lo/hi
-    ! are the (i,k)-indexed slices at this k already applied by the caller
-    ! (1D of length ni-1), matching jface_flow_row's wall_lo(i,k) lookup.
-    pure subroutine jface_flow_row_nb(node_a, node_b, dA, Omega, &
-                                       wall_lo, wall_hi, row, jf, ni, nj)
-        integer, intent(in) :: jf, ni, nj
-        real, intent(in) :: node_a(ni, nj, 9), node_b(ni, nj, 9)
-        real, intent(in) :: dA(3, ni-1, nj)
-        real, intent(in) :: Omega
-        real, intent(in) :: wall_lo(ni-1), wall_hi(ni-1)
-        real, intent(inout) :: row(ni, 5)
-        integer :: i
-        real :: pm1, pm2, pm3, pm4, pm5, pm6, mdot
-
-        if (jf == 1) then
-            !DIR$ IVDEP
-            do i = 1, ni-1
-                call corner4(i, wall_lo(i), pm1, pm2, pm3, pm4, pm5, pm6, mdot)
-                row(i,1) = mdot
-                row(i,2) = pm1*mdot + pm5*dA(1,i,jf)
-                row(i,3) = pm2*mdot + pm5*dA(2,i,jf)
-                row(i,4) = pm3*mdot + pm6*dA(3,i,jf)
-                row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,jf)
-            end do
-        else if (jf == nj) then
-            !DIR$ IVDEP
-            do i = 1, ni-1
-                call corner4(i, wall_hi(i), pm1, pm2, pm3, pm4, pm5, pm6, mdot)
-                row(i,1) = mdot
-                row(i,2) = pm1*mdot + pm5*dA(1,i,jf)
-                row(i,3) = pm2*mdot + pm5*dA(2,i,jf)
-                row(i,4) = pm3*mdot + pm6*dA(3,i,jf)
-                row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,jf)
-            end do
-        else
-            !DIR$ IVDEP
-            do i = 1, ni-1
-                call corner4(i, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mdot)
-                row(i,1) = mdot
-                row(i,2) = pm1*mdot + pm5*dA(1,i,jf)
-                row(i,3) = pm2*mdot + pm5*dA(2,i,jf)
-                row(i,4) = pm3*mdot + pm6*dA(3,i,jf)
-                row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,jf)
-            end do
-        end if
-
-    contains
-        pure subroutine corner4(i, wfac, pm1, pm2, pm3, pm4, pm5, pm6, mdot)
-            integer, intent(in) :: i
-            real, intent(in) :: wfac
-            real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mdot
-            real :: mf1, mf2, mf3, w
-            w = 0.25e0 * wfac
-            pm1 = 0.25e0*(node_a(i,jf,1)+node_a(i+1,jf,1)+node_b(i,jf,1)+node_b(i+1,jf,1))
-            pm2 = 0.25e0*(node_a(i,jf,2)+node_a(i+1,jf,2)+node_b(i,jf,2)+node_b(i+1,jf,2))
-            pm3 = 0.25e0*(node_a(i,jf,3)+node_a(i+1,jf,3)+node_b(i,jf,3)+node_b(i+1,jf,3))
-            pm4 = 0.25e0*(node_a(i,jf,4)+node_a(i+1,jf,4)+node_b(i,jf,4)+node_b(i+1,jf,4))
-            pm5 = 0.25e0*(node_a(i,jf,5)+node_a(i+1,jf,5)+node_b(i,jf,5)+node_b(i+1,jf,5))
-            pm6 = 0.25e0*(node_a(i,jf,6)+node_a(i+1,jf,6)+node_b(i,jf,6)+node_b(i+1,jf,6))
-            mf1 = w*(node_a(i,jf,7)+node_a(i+1,jf,7)+node_b(i,jf,7)+node_b(i+1,jf,7))
-            mf2 = w*(node_a(i,jf,8)+node_a(i+1,jf,8)+node_b(i,jf,8)+node_b(i+1,jf,8))
-            mf3 = w*(node_a(i,jf,9)+node_a(i+1,jf,9)+node_b(i,jf,9)+node_b(i+1,jf,9))
-            mdot = mf1*dA(1,i,jf) + mf2*dA(2,i,jf) + mf3*dA(3,i,jf)
-        end subroutine corner4
-    end subroutine jface_flow_row_nb
-
-
-    ! k-face corners (i:i+1, j:j+1, k): single node plane. wfac(ni-1,nj-1) is
-    ! the per-cell wall mask (wall_lo/wall_hi at kf=1/nk, all-ones for
-    ! interior kf) -- must scale only the mf-derived mdot term, matching
-    ! accum_corners' w=0.25*wfac scoped to mf1/mf2/mf3 only; pm1..pm6 (and
-    ! the pmM*dA terms in plane(:,:,2:5)) are never wfac-scaled.
-    pure subroutine kface_flow_plane_nb(node, dA, Omega, wfac, plane, ni, nj)
-        integer, intent(in) :: ni, nj
-        real, intent(in) :: node(ni, nj, 9)
-        real, intent(in) :: dA(3, ni-1, nj-1)
-        real, intent(in) :: Omega
-        real, intent(in) :: wfac(ni-1, nj-1)
-        real, intent(inout) :: plane(ni-1, nj-1, 5)
-        integer :: i, j
-        real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot, w
-
-        do j = 1, nj-1
-        !DIR$ IVDEP
-        do i = 1, ni-1
-            w = 0.25e0 * wfac(i,j)
-            pm1 = 0.25e0*(node(i,j,1)+node(i+1,j,1)+node(i,j+1,1)+node(i+1,j+1,1))
-            pm2 = 0.25e0*(node(i,j,2)+node(i+1,j,2)+node(i,j+1,2)+node(i+1,j+1,2))
-            pm3 = 0.25e0*(node(i,j,3)+node(i+1,j,3)+node(i,j+1,3)+node(i+1,j+1,3))
-            pm4 = 0.25e0*(node(i,j,4)+node(i+1,j,4)+node(i,j+1,4)+node(i+1,j+1,4))
-            pm5 = 0.25e0*(node(i,j,5)+node(i+1,j,5)+node(i,j+1,5)+node(i+1,j+1,5))
-            pm6 = 0.25e0*(node(i,j,6)+node(i+1,j,6)+node(i,j+1,6)+node(i+1,j+1,6))
-            mf1 = w*(node(i,j,7)+node(i+1,j,7)+node(i,j+1,7)+node(i+1,j+1,7))
-            mf2 = w*(node(i,j,8)+node(i+1,j,8)+node(i,j+1,8)+node(i+1,j+1,8))
-            mf3 = w*(node(i,j,9)+node(i+1,j,9)+node(i,j+1,9)+node(i+1,j+1,9))
-            mdot = mf1*dA(1,i,j) + mf2*dA(2,i,j) + mf3*dA(3,i,j)
-            plane(i,j,1) = mdot
-            plane(i,j,2) = pm1*mdot + pm5*dA(1,i,j)
-            plane(i,j,3) = pm2*mdot + pm5*dA(2,i,j)
-            plane(i,j,4) = pm3*mdot + pm6*dA(3,i,j)
-            plane(i,j,5) = pm4*mdot + Omega*pm6*dA(3,i,j)
-        end do
-        end do
-    end subroutine kface_flow_plane_nb
-
-end module residual_nodebuf
-
-
-! =====================================================================
-! v4: node-buffered residual -- shares a precomputed per-node scalar
-! buffer (residual_nodebuf) across the i/j/k face-flow sweeps instead of
-! each independently re-reading raw nodal fields at every corner (see
-! that module's header for the buffer layout and rationale).
-!
-! Structure otherwise unchanged from the previous (v3) fused kernel: a
-! single k-loop rolls a 2-plane node buffer (slots pa/pb, node(:,:,:,pa)
-! = plane k, node(:,:,:,pb) = plane k+1, swapped by index at the end of
-! each iteration -- no data copy) alongside the existing rolling j-face
-! row pair and k-face plane pair, so dU is still touched exactly once per
-! cell per residual evaluation.
-!
-! Benchmarked ~1.46x faster than the previous fused kernel on a
-! 129x65x57 block (gfortran -O3 -march=native, standalone harness); see
-! ember/tmp_nodebuf_prototype/bench_nb.f90 for the comparison and
-! ember/tmp_nodebuf_prototype/test_set_residual_nb.f90 for the
-! correctness cross-check against the previous kernel (matches to
-! float32 rounding, ~1e-7 relative).
+! Unlike the staged version, dU accumulates in two stages (the fused i+j
+! write dU = i-diff + f_body + j-diff, then += k-diff) instead of one
+! fused seven-term expression: the per-face flow values are identical, but
+! the final sum is reassociated, so results differ from the staged kernel
+! by a few ulp on near-cancelling cells. This is a deliberate, bounded
+! float32 tolerance in exchange for keeping the slab tiling together
+! with the rolling buffers (the bitwise-preserving alternative needed a
+! single all-direction sweep, which measured slower at large planes).
 !
 ! The cusp seam (k=1 face coupled to k=nk) is non-local in k and is
 ! applied as a deferred O(surface) correction to dU after the sweep
-! (see correct_cusp_kface_du, unchanged, still reads raw nodal fields
-! directly rather than the node buffer).
+! (see correct_cusp_kface_du).
 ! =====================================================================
 subroutine set_residual( &
     cons, P, P_offset, &
@@ -733,15 +515,14 @@ subroutine set_residual( &
     f_body, &
     dU, &
     vx, vr, vt, ho, &
-    planes, rows, node, &
+    planes, rows, &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
     i_cusp_start, i_cusp_end, &
-    ni, nj, nk &
+    kb, njp, ni, nj, nk &
     )
 
-    use residual_helpers, only: correct_cusp_kface_du
-    use residual_nodebuf
+    use residual_helpers
 
     implicit none
 
@@ -766,28 +547,34 @@ subroutine set_residual( &
     real, intent(in) :: wallnk(ni-1, nj-1)
     integer, intent(in) :: i_cusp_start, i_cusp_end
     real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    ! Three transient rolling flow-scratch buffers: planes holds the k-face
+    ! Two transient rolling flow-scratch buffers: planes holds the k-face
     ! plane pair (slots pa/pb), rows holds the i-face row (slot 1) and the
-    ! j-face row pair (slots ja/jb alternating 2/3), node holds the
-    ! precomputed per-node scalar pair (slots pa/pb, k and k+1 -- see
-    ! residual_nodebuf). Caller backs these with block._tau_q_halo, which
-    ! is pure transient scratch -- the layout here is private to this call.
-    real, intent(inout) :: planes(ni-1, nj-1, 5, 2)
+    ! j-face row pair (slots ja/jb alternating 2/3). Caller backs these with
+    ! block._tau_q_halo, which is pure transient scratch -- the layout here
+    ! is private to this call. njp is planes' padded j-extent, chosen by the
+    ! caller: nj+1 whenever ni*nj*4 bytes is a whole page multiple (e.g.
+    ! ni=128, nj=96: 48 KB exactly), so the ten concurrent component streams
+    ! of the k-accumulate (5 components x pa/pb) never 4K-alias into the
+    ! same L1 sets; nj otherwise (measured: an unconditional pad costs ~5%
+    ! at small blocks it does not help).
+    real, intent(inout) :: planes(ni, njp, 5, 2)
     real, intent(inout) :: rows(ni, 5, 3)
-    real, intent(inout) :: node(ni, nj, 9, 2)
-    integer, intent(in) :: ni, nj, nk
+    integer, intent(in) :: kb, njp, ni, nj, nk
 
-    integer :: i, j, k, m, ja, jb, pa, pb, stmp
-    real :: wfac_one(ni-1, nj-1)
+    integer :: i, j, k, m, k0, k1, ja, jb, pa, pb, stmp
 
     pa = 1
     pb = 2
-    wfac_one = 1.0e0
 
-    ! Prime node plane k=1 into slot pa; the loop below always fills the
-    ! OTHER slot fresh as k+1 and rolls (index swap, no data copy).
-    call fill_node_plane(vx, vr, vt, ho, P, P_offset, r, cons, Omega, node(:,:,:,pa), 1, ni, nj, nk)
-    call kface_flow_plane_nb(node(:,:,:,pa), dAk(:,:,:,1), Omega, wallk1, planes(:,:,:,pa), ni, nj)
+    ! Prime the rolling k-face plane with face k=1 before the slab sweep
+    ! (the fused loop below always has plane k in slot pa on entry to cell
+    ! k, needing only face k+1 freshly computed into pb).
+    call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
+                          Omega, dAk, wallk1, wallnk, planes(:,:,:,pa), &
+                          1, njp, ni, nj, nk)
+
+    do k0 = 1, nk-1, kb
+    k1 = min(k0 + kb - 1, nk-1)
 
     ! --- i+j+k fused per (j,k) row: single touch on dU ---
     ! For each cell row (j,k): compute the i-face row (slot 1), advance the
@@ -795,33 +582,32 @@ subroutine set_residual( &
     ! pair (slots pa/pb, one plane ahead of the current cell layer -- pa
     ! holds face k, pb gets face k+1 computed fresh each k). All three
     ! contributions are folded into dU in one write, so each dU element is
-    ! touched exactly once per residual evaluation. The face-flow helpers
-    ! (residual_nodebuf) share a precomputed per-node scalar buffer across
-    ! all 3 directions instead of each independently re-reading raw
-    ! vx/vr/vt/ho/P/r/cons at every corner -- see that module's header.
-    do k = 1, nk-1
+    ! touched exactly once per residual evaluation (previously two full
+    ! sweeps: the i/j write, then a separate k-direction read-modify-write).
+    ! The k-face pair carries across slab boundaries the same way the
+    ! un-fused version did (plane k0 of a slab is the previous slab's k1+1,
+    ! already resident in pa), so only the very first cell (k=1 overall)
+    ! computes its own low face before the loop.
+    do k = k0, k1
         ja = 2
         jb = 3
-        call fill_node_plane(vx, vr, vt, ho, P, P_offset, r, cons, Omega, node(:,:,:,pb), k+1, ni, nj, nk)
-
         ! Prime the rolling j-face pair with the j=1 boundary face.
-        call jface_flow_row_nb(node(:,:,:,pa), node(:,:,:,pb), dAj(:,:,:,k), Omega, &
-                                wallj1(:,k), wallnj(:,k), rows(:,:,ja), 1, ni, nj)
-
+        call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+                            Omega, dAj, wallj1, wallnj, rows(:,:,ja), &
+                            1, k, ni, nj, nk)
         ! Advance the rolling k-face pair: pa already holds face k (primed
         ! before the sweep, or carried from the previous k iteration); pb
-        ! gets face k+1 computed fresh (wall-masked if k+1 == nk).
-        if (k+1 == nk) then
-            call kface_flow_plane_nb(node(:,:,:,pb), dAk(:,:,:,k+1), Omega, wallnk, planes(:,:,:,pb), ni, nj)
-        else
-            call kface_flow_plane_nb(node(:,:,:,pb), dAk(:,:,:,k+1), Omega, wfac_one, planes(:,:,:,pb), ni, nj)
-        end if
-
+        ! gets face k+1 computed fresh.
+        call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
+                              Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
+                              k+1, njp, ni, nj, nk)
         do j = 1, nj-1
-            call iface_flow_row_nb(node(:,:,:,pa), node(:,:,:,pb), dAi(:,:,:,k), Omega, &
-                                    walli1(j,k), wallni(j,k), rows(:,:,1), j, ni, nj)
-            call jface_flow_row_nb(node(:,:,:,pa), node(:,:,:,pb), dAj(:,:,:,k), Omega, &
-                                    wallj1(:,k), wallnj(:,k), rows(:,:,jb), j+1, ni, nj)
+            call iface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+                                Omega, dAi, walli1(j,k), wallni(j,k), &
+                                rows(:,:,1), j, k, ni, nj, nk)
+            call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+                                Omega, dAj, wallj1, wallnj, rows(:,:,jb), &
+                                j+1, k, ni, nj, nk)
             do m = 1, 5
             do i = 1, ni-1
                 dU(i,j,k,m) = rows(i,m,1) - rows(i+1,m,1) + f_body(i,j,k,m) &
@@ -833,18 +619,16 @@ subroutine set_residual( &
             ja = jb
             jb = stmp
         end do
-
-        ! Roll: slot pb (k+1, just consumed) becomes pa for the next
-        ! iteration -- a plain index swap, no data movement.
         stmp = pa
         pa = pb
         pb = stmp
     end do
 
+    end do  ! ===== end slab sweep =====
+
     ! Cusp seam: non-local in k (couples the k=1 and k=nk faces), applied as
     ! a deferred O(surface) correction to dU after the sweep. nk=2 (the two
-    ! seam cells coincide) is not supported. Reads raw nodal fields
-    ! directly (unchanged from residual_helpers), not the node buffer.
+    ! seam cells coincide) is not supported.
     if (i_cusp_start > 0 .and. nk > 2) then
         call correct_cusp_kface_du(vx, vr, vt, ho, P, P_offset, r, cons, &
                                    Omega, dAk, wallk1, wallnk, dU, &
