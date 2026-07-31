@@ -352,6 +352,10 @@ class Solver(BaseSolver):
     """Scaling factor on multigrid corrections. Honored by both integrators
     (:func:`scree_step` and :func:`rk_step`)."""
 
+    expon_mgrid: float = 2.0
+    """Base of the per-level multigrid decay, ``coef_l ~ expon_mgrid**-(l-1)``.
+    Honored by both integrators (:func:`scree_step` and :func:`rk_step`)."""
+
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
     (:attr:`~ember.nonreflecting.NonReflectingPatch.sigma`) on every
@@ -396,7 +400,7 @@ class Solver(BaseSolver):
         return _run_fmg(grid, self)
 
 
-def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
+def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0):
     """Advance every block one Denton scree step in place."""
     # Preconditions: dt_vol_nd populated and cached P/T consistent with
     # conserved_nd on entry. The caller invalidates caches and applies boundary
@@ -431,7 +435,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
             # verified against multall's TSTEP, which sums the lagged
             # STORE = F1*DELTA + F2*DIFF into its block accumulators. For coarse
             # level l = 1..n_levels (block size b = 2**l) the correction scales by
-            # coef_l = cfl*fac_mgrid/b**2 * 2**-(l-1) (advance_rk_stage_mg's
+            # coef_l = cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1) (advance_rk_stage_mg's
             # formula at alpha=1, since scree takes one full-weight step), with
             # the coarse timestep the volume-weighted mean of dt_vol over the
             # block. sf_irs > 0 selects the coarse-IRS kernel; sf_irs == 0 selects
@@ -454,6 +458,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
                 vol=block.vol_nd,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
+                expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 tmp=tmp,
@@ -536,7 +541,7 @@ def _mg_coarse_carve(block, ni, nj, nk, n_levels_eff):
     )
 
 
-def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
+def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
     The single RK stage integrator. Each stage marches every block off its
@@ -554,9 +559,12 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     is the trivial subcase: the coarse loop is empty, so the stage reduces to a
     plain Jameson RK step ``cons = snapshot + alpha*cfl*dt_vol*residual``. For
     ``l = 1..n_levels`` the coarse block has ``b = 2**l`` and
-    ``coef_l = alpha*cfl*fac_mgrid/b**2 * 2**-(l-1)``. The ``2**-(l-1)`` damps
-    successively coarser levels: level 1 (finest coarse, ``b=2``) carries the
-    full ``fac_mgrid``, level 2 ``fac_mgrid/2``, level 3 ``fac_mgrid/4``, and so on.
+    ``coef_l = alpha*cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1)``. The
+    ``expon_mgrid**-(l-1)`` term damps successively coarser levels: level 1
+    (finest coarse, ``b=2``) carries the full ``fac_mgrid``, level 2
+    ``fac_mgrid/expon_mgrid``, level 3 ``fac_mgrid/expon_mgrid**2``, and so on
+    (the default ``expon_mgrid=2.0`` reproduces the original fixed factor-2
+    decay).
 
     ``dt_coarse_l`` is the volume-weighted mean of ``dt_vol`` over the coarse
     block, ``sum(dt_vol*vol)/sum(vol)``, which is why the kernels take
@@ -659,6 +667,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
                 alpha=alpha,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
+                expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 rbuf=rbuf,
@@ -699,7 +708,13 @@ def rk_step(grid, conf):
         # refreshed below before the next advance.
         alpha = 1.0 / (conf.n_stage - i_stage)
         advance_rk_stage_mg(
-            grid, alpha, conf.cfl, conf.fac_mgrid, conf.n_levels, conf.sf_resid
+            grid,
+            alpha,
+            conf.cfl,
+            conf.fac_mgrid,
+            conf.n_levels,
+            expon_mgrid=conf.expon_mgrid,
+            sf_irs=conf.sf_resid,
         )
         grid.update_cached_conserved()
         grid.apply_bconds()
@@ -872,7 +887,14 @@ def _run(grid, conf):
         # Take a step with the selected integrator.  Both reuse the first
         # residual evaluated above, RK then recalculates each substep
         if conf.n_stage == 0:
-            scree_step(grid, conf.cfl, conf.fac_mgrid, conf.n_levels, conf.sf_resid)
+            scree_step(
+                grid,
+                conf.cfl,
+                fac_mgrid=conf.fac_mgrid,
+                expon_mgrid=conf.expon_mgrid,
+                n_levels=conf.n_levels,
+                sf_irs=conf.sf_resid,
+            )
         else:
             rk_step(grid, conf)
 

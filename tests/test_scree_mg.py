@@ -85,6 +85,7 @@ def _run_mg(
     nk,
     n_levels,
     fmgrid=FAC_MGRID,
+    expon_mgrid=2.0,
     sf_irs=0.0,
     kernel=None,
 ):
@@ -116,6 +117,7 @@ def _run_mg(
         vol=vol,
         cfl=CFL,
         fmgrid=fmgrid,
+        expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
         tmp=Z(ni - 1, nj - 1, nk - 1, NP),

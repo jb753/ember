@@ -489,7 +489,7 @@ end subroutine scree_roll_and_scatter
 ! genuine operator change from a direct factor-b prolong -- cascaded factor-2
 ! trilinear interpolations are not equal to it.
 ! ============================================================================
-subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, &
+subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
         sf_irs, n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, smoother, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
@@ -503,7 +503,7 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, &
     real, intent(in)    :: q(ni-1, nj-1, nk-1, np)
     real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
     real, intent(in)    :: vol(ni-1, nj-1, nk-1)
-    real, intent(in)    :: scale, fmgrid, sf_irs
+    real, intent(in)    :: scale, fmgrid, expon_mgrid, sf_irs
     real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
     real, intent(inout) :: aplane(ni-1, nc1j)
     real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
@@ -539,7 +539,7 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, &
     nib = (ni-1)/b
     njb = (nj-1)/b
     nkb = (nk-1)/b
-    coef = scale * fmgrid / real(b*b) * 2e0**(-(lvl-1))
+    coef = scale * fmgrid / real(b*b) * expon_mgrid**(-(lvl-1))
     slot = n_levels - lvl + 1
     cnt  = nib*njb*nkb*np
 
@@ -596,7 +596,7 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, &
         nib = (ni-1)/b
         njb = (nj-1)/b
         nkb = (nk-1)/b
-        coef = scale * fmgrid / real(b*b) * 2e0**(-(lvl-1))
+        coef = scale * fmgrid / real(b*b) * expon_mgrid**(-(lvl-1))
         slot = n_levels - lvl + 1
         cnt  = nib*njb*nkb*np
 
@@ -698,7 +698,7 @@ end subroutine scree_plain
 
 ! scree, multigrid on, coarse-level IRS.
 subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
-        fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        fmgrid, expon_mgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -707,7 +707,7 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: cfl, fmgrid, sf_irs
+    real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
     real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
@@ -725,7 +725,7 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     external :: smooth_residual_tri_tiled
 
     call scree_form_q(store, residual, ni, nj, nk, np)
-    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, sf_irs, n_levels, &
+    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, &
                        dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
@@ -737,7 +737,7 @@ end subroutine scree_mg_irs
 
 ! scree, multigrid on, no smoothing.
 subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
-        fmgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        fmgrid, expon_mgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -746,7 +746,7 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: cfl, fmgrid, sf_irs
+    real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
     real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
@@ -764,7 +764,7 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     external :: mg_smooth_noop
 
     call scree_form_q(store, residual, ni, nj, nk, np)
-    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, sf_irs, n_levels, &
+    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, &
                        dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
@@ -794,7 +794,7 @@ end subroutine rk_plain
 
 ! RK stage, multigrid on, coarse-level IRS. q = residual (passed directly).
 subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
+        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
         rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -803,7 +803,7 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: alpha, cfl, fmgrid, sf_irs
+    real,    intent(in) :: alpha, cfl, fmgrid, expon_mgrid, sf_irs
     real,    intent(in) :: snapshot(ni, nj, nk, np)
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
@@ -820,7 +820,7 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     real, intent(inout) :: triw(n_tri)
     external :: smooth_residual_tri_tiled
 
-    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, sf_irs, &
+    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, sf_irs, &
                        n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
@@ -832,7 +832,7 @@ end subroutine rk_mg_irs
 
 ! RK stage, multigrid on, no smoothing. q = residual (passed directly).
 subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
+        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
         rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -841,7 +841,7 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: alpha, cfl, fmgrid, sf_irs
+    real,    intent(in) :: alpha, cfl, fmgrid, expon_mgrid, sf_irs
     real,    intent(in) :: snapshot(ni, nj, nk, np)
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
@@ -858,7 +858,7 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     real, intent(inout) :: triw(n_tri)
     external :: mg_smooth_noop
 
-    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, sf_irs, &
+    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, sf_irs, &
                        n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)

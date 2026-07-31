@@ -53,6 +53,7 @@ def _run(
     sf_irs=0.0,
     kernel=None,
     fmgrid=0.2,
+    expon_mgrid=2.0,
 ):
     """Call the RK MG kernel with freshly zeroed scratch (the size args are
     inferred by f2py from the array shapes, exactly as ember.solver does).
@@ -80,6 +81,7 @@ def _run(
         alpha=1.0,
         cfl=0.4,
         fmgrid=fmgrid,
+        expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
         rbuf=Z(ni - 1, nj - 1, NP, 2),
