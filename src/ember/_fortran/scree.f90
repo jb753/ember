@@ -543,9 +543,15 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     slot = n_levels - lvl + 1
     cnt  = nib*njb*nkb*np
 
-    ! dt restriction (volume-weighted mean) from the fine grid.
+    ! dt restriction (volume-weighted mean) from the fine grid. ifort declines
+    ! to auto-vectorize the ib loop (remark #15541: "consider using SIMD
+    ! directive") because its body is a manual 8-corner scalar reduction with
+    ! stride-2 reads -- not an aliasing hazard (ib writes are all disjoint), so
+    ! !DIR$ SIMD is a safe hint. gfortran already vectorizes this loop
+    ! unaided.
     do kb = 1, nkb
         do jb = 1, njb
+            !DIR$ SIMD
             do ib = 1, nib
                 s_dt = 0e0
                 s_v  = 0e0
@@ -565,9 +571,11 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     end do
 
     ! residual (fine quantity q) restriction from the fine grid into rawbuf.
+    ! Same ifort vectorization gap and rationale as the dt restriction above.
     do ip = 1, np
         do kb = 1, nkb
             do jb = 1, njb
+                !DIR$ SIMD
                 do ib = 1, nib
                     s = 0e0
                     do kk = 2*kb-1, 2*kb
