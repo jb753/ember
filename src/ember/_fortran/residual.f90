@@ -728,7 +728,17 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
     integer :: i, j, k, m, nci, ncj, nck
     integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
     real    :: cc, mm
-    integer, parameter :: BJ = 8            ! tile width (AVX = 8 float32 lanes)
+    ! Tile width: sized to fill L1d without spilling it, NOT to match the
+    ! SIMD lane count. The tile is BJ*(ni-1)*4 bytes; at ni=273 that is
+    ! 34 KB for BJ=32, the largest that fits Sapphire Rapids' 48 KB L1d.
+    ! Swept on the production build (ifort, Xeon 8480+, 1M duct): BJ=32 is
+    ! -26% serial / -8% at 100-rank saturation against the previous BJ=8,
+    ! while BJ=64 (68 KB, L1-spilling) gives back most of the win. Bitwise
+    ! identical for every BJ -- the tile only groups independent j-lines.
+    ! Machine-dependent: re-sweep on new hardware, in the real build (a
+    ! gfortran sweep picked BJ=64, the wrong constant). See
+    ! docs/dev/viscous_kernels.md section 23.
+    integer, parameter :: BJ = 32
     integer :: jj, j0, nb
     real    :: tile(BJ, ni-1)               ! (lane, i) transposed i-solve pad
 

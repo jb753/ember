@@ -2204,3 +2204,168 @@ in-process gauge: 8.114 (serial) / 31.573 (saturated), stable across arms.
   goldens pass without regeneration.
 - Raw data: `tools/bench_damp_fused.log`, `tools/bench_damp_ab.jsonl`.
   Harness: `tools/bench_damp_fused.py`, `tools/submit_damp_bench.sh`.
+
+---
+
+## 22. Tried and rejected: merging the IRS k-solve's component loop
+
+Section 21 ended by naming `smooth_residual_tri_tiled` as the next target:
+it became the largest single item in `Grid.update_residual` (31.6 ns/cell
+saturated, against `set_residual`'s 22.6), and it loops the component index
+`m` outside its direction solves, the same shape that made `damp_residual`
+worth merging. Tried, and **rejected**: it regresses +9.8% saturated,
+losing in all 100 ranks.
+
+### 22.1 First correction: only one of the three solves is redundant
+
+Section 21.5 asserted the IRS smoother "has the same structural weakness"
+in all three solves. Inspecting them, that is wrong:
+
+| solve | structure | merge value |
+| --- | --- | --- |
+| i-solve | transpose-tiled; each dU element is read and written once per solve already | nothing to gain |
+| j-solve | operates one (i,j) plane at a time (~68 KB, L2-resident); the forward and back passes reuse it from cache | nothing to gain |
+| k-solve | recurrence runs along k, so k must be outermost and each pass streams the whole 3.7 MB per-component volume; wrapped in `do m` that is **ten full-volume streams** | apparently 5x |
+
+So `smooth_residual_tri_km` (`_fortran/residual_irs_km.f90`) changes only
+the k-solve, merging `m` into the k sweeps (`m` outside the `i` loop, per
+section 21.2). Ten streams -> two, ~30 MB less traffic per call at 1M cells.
+
+**Bitwise identical** (`max_abs_diff` exactly 0): it only reorders visits to
+independent components, leaving every line's recurrence order untouched.
+Gate 1 is also unchanged from production -- both report vec=9 and the same
+six dependence remarks, all inside `tri_coeffs`' genuine `CP(II)` <-
+`CP(II-1)` recurrence (~272 elements, once per call; pre-existing and
+negligible).
+
+### 22.2 Results
+
+ifort 2022.1.0, Xeon 8480+, 1M-cell duct, `sf = 1.0`, median ns/cell:
+
+| | serial | saturated (100 ranks) |
+| --- | --- | --- |
+| `smooth_residual_tri_tiled` (prod) | 8.175 | 31.634 |
+| `smooth_residual_tri_km` | 8.332 | 34.704 |
+| delta | **+1.9%** | **+9.8%**, loses 100/100 ranks |
+
+The co-measured damp pair reproduced section 21 in the same build
+(-29.6% serial, -28.0% saturated, 100/100), confirming the run is sound and
+the IRS regression is real.
+
+### 22.3 Why -- and why `damp` was different
+
+The traffic count was right and irrelevant. What matters is the working set
+of the *active* step:
+
+- Production, `m` outermost: the forward sweep at step `k` needs planes
+  `k-1` and `k` for **one** component -- 2 x 68 KB = **136 KB**, 7% of a
+  2 MB L2. Ten such streams, but each is a tight, prefetch-friendly walk.
+- Merged, `m` inside: step `k` needs those planes for **all five**
+  components -- 10 x 68 KB = **680 KB**, 33% of L2, spread over five
+  regions 3.7 MB apart. One stream instead of ten, but five times the
+  concurrent stream pressure and far worse locality per step, at exactly
+  the point where 100 ranks already contend for L3 and DRAM.
+
+The distinction from section 21 is what the components *share*. In
+`damp_residual` the five components genuinely share `dt_vol(i,j,k)` -- one
+loaded value used five times, so merging removes four fifths of a real
+input stream. In the k-solve they share only the scalars `mm`/`cc`, already
+in registers. **Merging component loops pays only when the components have
+a common per-cell input; otherwise it just multiplies the working set.**
+
+That is the general rule this pair of experiments establishes, and it is
+more useful than either result alone.
+
+### 22.4 Reading
+
+- Sections 21 and 22 are the same transformation applied to two routines,
+  with opposite outcomes (-30% and +10%). Neither could have been predicted
+  from the loop structure alone -- only from what the merged loops share.
+- `smooth_residual_tri_tiled` therefore stands as production. Its 31.6
+  ns/cell is *not* obviously wasteful: the ten streams are the price of a
+  k-direction recurrence on component-last data, and the alternative is
+  worse.
+- The kernel is kept at `_fortran/residual_irs_km.f90` for re-measurement,
+  since it is bitwise identical and its cost may differ on a machine with a
+  larger L2.
+- Raw data: `tools/bench_irs_km.log`, `tools/bench_damp_ab.jsonl`.
+
+---
+
+## 23. Adopted candidate: retune the IRS transpose-tile width (BJ = 8 -> 32)
+
+Section 22 rejected merging the IRS k-solve's component loop. Before trying
+anything else on the smoother, this pass did what section 22 should have
+done first: **measured which of the three solves actually costs the time.**
+
+### 23.1 Measure first -- and section 22's premise was wrong
+
+A per-direction diagnostic (`_fortran/residual_irs_dirs.f90`, switches to
+skip individual solves; identical arithmetic) on the 1M duct:
+
+| solve | ns/cell | share of IRS |
+| --- | --- | --- |
+| **i-solve** | **9.02** | **68%** |
+| j-solve | 2.03 | 15% |
+| k-solve | 2.41 | 18% |
+
+Section 22.1 asserted the i-solve had "nothing to gain" because each dU
+element is read and written once per solve, and spent the whole effort on
+the k-solve. The k-solve is in fact the *smallest* of the three. The
+i-solve, dismissed on a structural argument, is more than the other two
+combined.
+
+Traffic counting is not a cost model. **Measure per-component before
+choosing a target.**
+
+### 23.2 Why the i-solve is expensive, and the one-line lever
+
+Its transpose gather writes `tile(jj,i) <- dU(i, j0+jj-1, k, m)` with `jj`
+innermost, i.e. stride `nci` (272 floats, ~1088 B): every element lands on a
+fresh cache line, and the scatter pays the same again. That traffic is
+inherent to transposing; what is tunable is how much solve work amortises
+it, which is exactly what `BJ` sets.
+
+Production fixes `BJ = 8`, commented *"AVX = 8 float32 lanes"*. That was
+right for the AVX2 Haswell machine sections 5-15 were measured on. This is
+Sapphire Rapids: **AVX-512, 16 float32 lanes**, so the lane loop fills half
+a zmm register.
+
+`BJ` only groups independent j-lines, so every width is **bitwise
+identical** -- verified for all five (`maxdiff` exactly 0).
+
+### 23.3 Results (ifort, Xeon 8480+, 1M duct, sf = 1.0, median ns/cell)
+
+| BJ | serial | vs prod | saturated | vs prod |
+| --- | --- | --- | --- | --- |
+| 8 (prod) | 8.122 | -- | 31.775 | -- |
+| 16 | 6.800 | -16.3% | 29.637 | -6.7% (100/100) |
+| **32** | **5.980** | **-26.4%** | **29.196** | **-8.1%** (98/100) |
+| 64 | 7.733 | -4.8% | 31.072 | -2.2% |
+| 128 | 7.856 | -3.3% | 31.188 | -1.9% |
+
+BJ=32 paired per-rank: median -8.06%, p10 -8.50%, p90 -7.54%, worst
++1.82%, 98/100 ranks win.
+
+### 23.4 Reading
+
+- **The optimum is set by L1, not by vector width.** The tile is
+  `BJ * nci * 4` bytes: BJ=32 -> 34 KB, the largest that fits Sapphire's
+  48 KB L1d. BJ=64 -> 68 KB spills L1 and the win collapses (-26.4% ->
+  -4.8% serial). So the right rule is not "match the SIMD lanes" but
+  "fill L1 without spilling it", which makes BJ genuinely
+  machine-dependent and worth re-checking on new hardware.
+- **The local gfortran sweep picked the wrong constant**, not merely the
+  wrong magnitude: it ranked BJ=64 best (-32.9%) where ifort ranks BJ=32.
+  Sections 2 and 17 established that the wrong compiler inverts
+  comparisons; this adds that it also mis-tunes parameters. Tuning
+  constants must be swept in the production build.
+- Serial gains (-26%) far exceed saturated (-8%), because under 100-rank
+  contention DRAM is the limiter and better L1 behaviour is partly masked.
+  Both are wins, and the saturated figure is the one that matters.
+- Adoption is a one-character change to a `parameter` in production
+  `residual.f90`, bitwise-safe by construction -- the cheapest change
+  measured in this whole sequence.
+- Raw data: `tools/bench_irs_bj.log`, `tools/bench_irs_bj.jsonl`.
+  Harness: `tools/bench_irs_bj.py`, `tools/submit_irs_bj.sh`. Per-direction
+  diagnostic: `_fortran/residual_irs_dirs.f90`.

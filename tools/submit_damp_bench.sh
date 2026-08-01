@@ -31,7 +31,7 @@ txt = open(sys.argv[1], errors="replace").read()
 FATAL = ("15344", "15346", "15522", "15523")
 for s in re.split(r"\nBegin optimization report for: ", txt):
     name = s.split("\n", 1)[0].strip()
-    if "damp_residual" not in name:
+    if not any(t in name for t in ("damp_residual", "smooth_residual_tri")):
         continue
     vec = len(re.findall(r"remark #15300: LOOP WAS VECTORIZED", s))
     main = re.findall(r"remark #15335: loop was not vectorized[^\n]*", s)
@@ -67,11 +67,10 @@ for mode in ("serial", "saturated"):
         v = [r["results"][n]["median"] for r in sel]
         print(f"  {n:12s} median-of-ranks {statistics.median(v):7.3f} ns/cell"
               f"   spread {min(v):.2f}-{max(v):.2f}")
-    pair = sorted((r["results"]["damp_merged"]["median"]
-                   / r["results"]["damp_prod"]["median"] - 1) * 100 for r in sel)
-    print(f"  => merged vs prod: median {statistics.median(pair):+.2f}%"
-          f"  wins {sum(1 for x in pair if x < 0)}/{len(pair)}"
-          f"  worst {max(pair):+.2f}%")
-    g = sorted(r["results"]["irs_gauge"]["median"] for r in sel)
-    print(f"  (irs gauge, unchanged in both arms: median {statistics.median(g):.3f})")
+    for cand, base in (("damp_merged", "damp_prod"), ("irs_km", "irs_prod")):
+        pair = sorted((r["results"][cand]["median"]
+                       / r["results"][base]["median"] - 1) * 100 for r in sel)
+        print(f"  => {cand} vs {base}: median {statistics.median(pair):+.2f}%"
+              f"  wins {sum(1 for x in pair if x < 0)}/{len(pair)}"
+              f"  worst {max(pair):+.2f}%")
 PY

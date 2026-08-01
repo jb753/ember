@@ -81,10 +81,38 @@ def check_correctness(b, ref_du):
     bitwise = bool(np.array_equal(merged, prod))
     print(f"  damp: |dU|_max = {scale:.6e}")
     print(
-        f"  merged vs prod: max_abs_diff = {diff:.6e} "
+        f"  damp_merged vs damp_prod: max_abs_diff = {diff:.6e} "
         f"({diff / scale if scale else 0.0:.3e} of scale)  bitwise={bitwise}"
     )
-    return dict(bitwise=bitwise, max_abs_diff=diff, rel=diff / scale if scale else 0.0)
+    out = dict(
+        damp=dict(
+            bitwise=bitwise, max_abs_diff=diff, rel=diff / scale if scale else 0.0
+        )
+    )
+
+    # IRS: the merged k-solve only reorders independent components, so this
+    # one is expected to be bitwise.
+    nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
+    work = util.carve_view(b.scratch, (nwork,))
+    du[...] = ref_du
+    ember.fortran.smooth_residual_tri_tiled(
+        du=du, sf=SF, work=work, ni=ni, nj=nj, nk=nk
+    )
+    iprod = np.array(du, copy=True)
+    du[...] = ref_du
+    ember.fortran.smooth_residual_tri_km(du=du, sf=SF, work=work, ni=ni, nj=nj, nk=nk)
+    ikm = np.array(du, copy=True)
+    iscale = float(np.abs(iprod).max())
+    idiff = float(np.abs(ikm - iprod).max())
+    ibit = bool(np.array_equal(ikm, iprod))
+    print(
+        f"  irs_km vs irs_prod: max_abs_diff = {idiff:.6e} "
+        f"({idiff / iscale if iscale else 0.0:.3e} of scale)  bitwise={ibit}"
+    )
+    out["irs"] = dict(
+        bitwise=ibit, max_abs_diff=idiff, rel=idiff / iscale if iscale else 0.0
+    )
+    return out
 
 
 def time_variants(b, ref_du, reps, warmup):
@@ -110,7 +138,17 @@ def time_variants(b, ref_du, reps, warmup):
             du=du, sf=SF, work=work, ni=ni, nj=nj, nk=nk
         )
 
-    variants = {"damp_prod": call_prod, "damp_merged": call_merged, "irs_gauge": call_irs}
+    def call_irs_km():
+        ember.fortran.smooth_residual_tri_km(
+            du=du, sf=SF, work=work, ni=ni, nj=nj, nk=nk
+        )
+
+    variants = {
+        "damp_prod": call_prod,
+        "damp_merged": call_merged,
+        "irs_prod": call_irs,
+        "irs_km": call_irs_km,
+    }
 
     for _ in range(warmup):
         for fn in variants.values():
@@ -169,11 +207,12 @@ def main():
         wait_until(start)
 
     res = time_variants(b, ref_du, args.reps, args.warmup)
-    base = res["damp_prod"]["median"]
+    ref = {"damp_merged": "damp_prod", "irs_km": "irs_prod"}
     for n, r in res.items():
         line = f"rank {rank:3d}  {n:12s} median {r['median']:7.3f} ns/cell  min {r['min']:7.3f}"
-        if n == "damp_merged":
-            line += f"   vs damp_prod: {(r['median'] / base - 1) * 100:+.1f}%"
+        if n in ref:
+            basel = res[ref[n]]["median"]
+            line += f"   vs {ref[n]}: {(r['median'] / basel - 1) * 100:+.1f}%"
         print(line, flush=True)
 
     if args.json:
