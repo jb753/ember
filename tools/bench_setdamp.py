@@ -53,6 +53,12 @@ def main():
     def fused():
         F.set_residual_damp(du=du, dt_vol=b.dt_vol_nd, dampin=DAMPIN, **kw)
 
+    def fused_ivdep():
+        F.set_residual_damp_ivdep(du=du, dt_vol=b.dt_vol_nd, dampin=DAMPIN, **kw)
+
+    def fused_split():
+        F.set_residual_damp_split(du=du, dt_vol=b.dt_vol_nd, dampin=DAMPIN, **kw)
+
     if rank == 0:
         x = np.zeros_like(b.residual_nd); du[...] = x; unfused(); ref = np.array(du, copy=True)
         du[...] = x; fused(); got = np.array(du, copy=True)
@@ -67,6 +73,9 @@ def main():
             time.sleep(min(t0 - time.time(), 0.05))
 
     variants = {"unfused": unfused, "fused": fused}
+    for nm, fn in (("fused_ivdep", fused_ivdep), ("fused_split", fused_split)):
+        if hasattr(F, "set_residual_damp_" + nm.split("_")[1]):
+            variants[nm] = fn
     for _ in range(4):
         for fn in variants.values():
             fn()
@@ -79,7 +88,7 @@ def main():
     base = res["unfused"]["median"]
     for n in variants:
         line = f"rank {rank:3d}  {n:8s} median {res[n]['median']:7.3f}  min {res[n]['min']:7.3f}"
-        if n == "fused":
+        if n != "unfused":
             line += f"   vs unfused: {100 * (res[n]['median'] / base - 1):+.1f}%"
         print(line, flush=True)
     if a.json:

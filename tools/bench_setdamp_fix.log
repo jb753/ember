@@ -1,0 +1,430 @@
+sapphire modules
+=== node: cpu-r-82  model name	: Intel(R) Xeon(R) Platinum 8480+ ===
+ ~ pyyaml==6.0.3
+Package installed successfully
+
+=== serial ===
+grid 273x65x57  cusp=False  dampin=2.0
+correctness: maxdiff 1.4552e-11 (2.156e-07 of scale) bitwise=False
+rank   0  unfused  median  17.248  min  10.919
+rank   0  fused    median  16.218  min  10.041   vs unfused: -6.0%
+rank   0  fused_ivdep median  16.210  min   9.959   vs unfused: -6.0%
+rank   0  fused_split median  16.205  min   9.984   vs unfused: -6.0%
+
+=== saturated (100 ranks) ===
+rank  66  unfused  median  42.517  min  41.325
+rank  66  fused    median  37.170  min  35.753   vs unfused: -12.6%
+rank  66  fused_ivdep median  37.142  min  36.440   vs unfused: -12.6%
+rank  66  fused_split median  37.249  min  36.419   vs unfused: -12.4%
+rank  68  unfused  median  42.834  min  39.746
+rank  68  fused    median  37.679  min  34.656   vs unfused: -12.0%
+rank  68  fused_ivdep median  37.345  min  35.674   vs unfused: -12.8%
+rank  68  fused_split median  37.747  min  35.993   vs unfused: -11.9%
+rank  42  unfused  median  43.133  min  39.695
+rank  42  fused    median  37.755  min  34.728   vs unfused: -12.5%
+rank  42  fused_ivdep median  37.659  min  35.732   vs unfused: -12.7%
+rank  42  fused_split median  37.929  min  35.917   vs unfused: -12.1%
+rank  98  unfused  median  43.627  min  40.694
+rank  98  fused    median  37.463  min  34.937   vs unfused: -14.1%
+rank  98  fused_ivdep median  37.579  min  35.882   vs unfused: -13.9%
+rank  98  fused_split median  37.848  min  36.148   vs unfused: -13.2%
+rank  40  unfused  median  42.704  min  41.534
+rank  40  fused    median  37.327  min  36.807   vs unfused: -12.6%
+rank  40  fused_ivdep median  37.805  min  37.203   vs unfused: -11.5%
+rank  40  fused_split median  37.914  min  36.720   vs unfused: -11.2%
+rank  48  unfused  median  42.743  min  40.208
+rank  48  fused    median  37.494  min  35.237   vs unfused: -12.3%
+rank  48  fused_ivdep median  37.945  min  36.054   vs unfused: -11.2%
+rank  48  fused_split median  37.975  min  35.864   vs unfused: -11.2%
+rank  52  unfused  median  42.656  min  41.710
+rank  52  fused    median  37.444  min  36.828   vs unfused: -12.2%
+rank  52  fused_ivdep median  37.805  min  37.344   vs unfused: -11.4%
+rank  52  fused_split median  37.836  min  36.016   vs unfused: -11.3%
+rank  60  unfused  median  43.203  min  40.081
+rank  60  fused    median  37.745  min  34.789   vs unfused: -12.6%
+rank  60  fused_ivdep median  37.899  min  35.694   vs unfused: -12.3%
+rank  60  fused_split median  38.270  min  36.370   vs unfused: -11.4%
+rank  96  unfused  median  42.406  min  41.896
+rank  96  fused    median  37.452  min  37.078   vs unfused: -11.7%
+rank  96  fused_ivdep median  37.857  min  36.956   vs unfused: -10.7%
+rank  96  fused_split median  37.787  min  35.970   vs unfused: -10.9%
+rank  24  unfused  median  42.662  min  41.796
+rank  24  fused    median  37.571  min  37.058   vs unfused: -11.9%
+rank  24  fused_ivdep median  37.895  min  37.366   vs unfused: -11.2%
+rank  24  fused_split median  37.929  min  35.705   vs unfused: -11.1%
+rank  90  unfused  median  42.656  min  41.852
+rank  90  fused    median  37.609  min  36.611   vs unfused: -11.8%
+rank  90  fused_ivdep median  37.945  min  37.169   vs unfused: -11.0%
+rank  90  fused_split median  37.969  min  35.470   vs unfused: -11.0%
+rank  94  unfused  median  42.657  min  41.854
+rank  94  fused    median  37.764  min  37.368   vs unfused: -11.5%
+rank  94  fused_ivdep median  37.758  min  36.765   vs unfused: -11.5%
+rank  94  fused_split median  37.729  min  34.912   vs unfused: -11.6%
+rank  99  unfused  median  42.727  min  42.055
+rank  99  fused    median  37.292  min  36.902   vs unfused: -12.7%
+rank  99  fused_ivdep median  37.913  min  37.343   vs unfused: -11.3%
+rank  99  fused_split median  38.143  min  37.811   vs unfused: -10.7%
+rank  47  unfused  median  43.017  min  40.227
+rank  47  fused    median  37.285  min  35.765   vs unfused: -13.3%
+rank  47  fused_ivdep median  37.834  min  36.453   vs unfused: -12.0%
+rank  47  fused_split median  38.101  min  36.613   vs unfused: -11.4%
+rank  74  unfused  median  42.496  min  41.827
+rank  74  fused    median  37.809  min  37.206   vs unfused: -11.0%
+rank  74  fused_ivdep median  38.107  min  36.937   vs unfused: -10.3%
+rank  74  fused_split median  37.978  min  34.515   vs unfused: -10.6%
+rank  75  unfused  median  42.524  min  41.103
+rank  75  fused    median  37.388  min  36.722   vs unfused: -12.1%
+rank  75  fused_ivdep median  37.942  min  37.463   vs unfused: -10.8%
+rank  75  fused_split median  38.126  min  36.952   vs unfused: -10.3%
+rank  79  unfused  median  42.591  min  41.081
+rank  79  fused    median  37.414  min  36.839   vs unfused: -12.2%
+rank  79  fused_ivdep median  37.972  min  37.367   vs unfused: -10.8%
+rank  79  fused_split median  38.073  min  36.989   vs unfused: -10.6%
+rank  84  unfused  median  42.396  min  41.812
+rank  84  fused    median  37.782  min  37.355   vs unfused: -10.9%
+rank  84  fused_ivdep median  38.001  min  36.987   vs unfused: -10.4%
+rank  84  fused_split median  37.953  min  34.228   vs unfused: -10.5%
+rank  36  unfused  median  42.560  min  40.817
+rank  36  fused    median  37.827  min  36.604   vs unfused: -11.1%
+rank  36  fused_ivdep median  38.070  min  37.263   vs unfused: -10.5%
+rank  36  fused_split median  38.025  min  34.302   vs unfused: -10.7%
+rank  58  unfused  median  42.403  min  40.953
+rank  58  fused    median  37.840  min  37.033   vs unfused: -10.8%
+rank  58  fused_ivdep median  37.993  min  36.852   vs unfused: -10.4%
+rank  58  fused_split median  37.992  min  33.668   vs unfused: -10.4%
+rank  20  unfused  median  42.540  min  41.840
+rank  20  fused    median  37.740  min  37.348   vs unfused: -11.3%
+rank  20  fused_ivdep median  38.081  min  37.022   vs unfused: -10.5%
+rank  20  fused_split median  38.087  min  33.825   vs unfused: -10.5%
+rank  91  unfused  median  42.550  min  41.812
+rank  91  fused    median  37.459  min  36.824   vs unfused: -12.0%
+rank  91  fused_ivdep median  38.042  min  37.539   vs unfused: -10.6%
+rank  91  fused_split median  38.178  min  37.649   vs unfused: -10.3%
+rank  92  unfused  median  42.499  min  41.086
+rank  92  fused    median  37.844  min  36.997   vs unfused: -11.0%
+rank  92  fused_ivdep median  37.974  min  36.848   vs unfused: -10.6%
+rank  92  fused_split median  38.013  min  33.329   vs unfused: -10.6%
+rank  15  unfused  median  42.768  min  40.502
+rank  15  fused    median  37.463  min  36.225   vs unfused: -12.4%
+rank  15  fused_ivdep median  38.086  min  36.581   vs unfused: -10.9%
+rank  15  fused_split median  38.212  min  36.670   vs unfused: -10.7%
+rank  63  unfused  median  42.518  min  41.372
+rank  63  fused    median  37.537  min  37.192   vs unfused: -11.7%
+rank  63  fused_ivdep median  37.982  min  37.629   vs unfused: -10.7%
+rank  63  fused_split median  38.164  min  37.295   vs unfused: -10.2%
+rank  80  unfused  median  42.615  min  41.136
+rank  80  fused    median  37.921  min  37.256   vs unfused: -11.0%
+rank  80  fused_ivdep median  38.075  min  36.505   vs unfused: -10.7%
+rank  80  fused_split median  37.873  min  31.943   vs unfused: -11.1%
+rank  26  unfused  median  42.665  min  41.776
+rank  26  fused    median  37.856  min  37.219   vs unfused: -11.3%
+rank  26  fused_ivdep median  38.141  min  36.518   vs unfused: -10.6%
+rank  26  fused_split median  38.092  min  32.195   vs unfused: -10.7%
+rank  78  unfused  median  42.561  min  41.739
+rank  78  fused    median  37.969  min  37.220   vs unfused: -10.8%
+rank  78  fused_ivdep median  38.116  min  36.624   vs unfused: -10.4%
+rank  78  fused_split median  37.950  min  31.875   vs unfused: -10.8%
+rank  30  unfused  median  42.615  min  40.970
+rank  30  fused    median  37.950  min  36.596   vs unfused: -10.9%
+rank  30  fused_ivdep median  38.204  min  36.662   vs unfused: -10.3%
+rank  30  fused_split median  38.089  min  31.959   vs unfused: -10.6%
+rank  65  unfused  median  42.576  min  41.781
+rank  95  unfused  median  42.551  min  41.391
+rank  95  fused    median  37.544  min  37.149   vs unfused: -11.8%
+rank  95  fused_ivdep median  38.064  min  37.760   vs unfused: -10.5%
+rank  95  fused_split median  38.256  min  37.078   vs unfused: -10.1%
+rank  65  fused    median  37.606  min  37.173   vs unfused: -11.7%
+rank  65  fused_ivdep median  38.022  min  37.695   vs unfused: -10.7%
+rank  65  fused_split median  38.166  min  37.139   vs unfused: -10.4%
+rank  43  unfused  median  42.391  min  41.726
+rank  43  fused    median  37.675  min  37.250   vs unfused: -11.1%
+rank  43  fused_ivdep median  38.080  min  37.693   vs unfused: -10.2%
+rank  43  fused_split median  38.192  min  36.836   vs unfused: -9.9%
+rank  14  unfused  median  42.646  min  41.857
+rank  14  fused    median  37.936  min  37.510   vs unfused: -11.0%
+rank  14  fused_ivdep median  38.210  min  36.312   vs unfused: -10.4%
+rank  14  fused_split median  38.085  min  30.811   vs unfused: -10.7%
+rank  59  unfused  median  42.467  min  41.825
+rank  59  fused    median  37.589  min  37.041   vs unfused: -11.5%
+rank  59  fused_ivdep median  38.106  min  37.827   vs unfused: -10.3%
+rank  59  fused_split median  38.257  min  36.805   vs unfused: -9.9%
+rank  64  unfused  median  42.569  min  41.826
+rank  64  fused    median  37.951  min  37.282   vs unfused: -10.8%
+rank  64  fused_ivdep median  38.052  min  35.886   vs unfused: -10.6%
+rank  64  fused_split median  37.918  min  29.888   vs unfused: -10.9%
+rank  85  unfused  median  42.625  min  41.409
+rank  85  fused    median  37.677  min  37.235   vs unfused: -11.6%
+rank  85  fused_ivdep median  38.142  min  37.026   vs unfused: -10.5%
+rank  85  fused_split median  38.241  min  36.365   vs unfused: -10.3%
+rank  16  unfused  median  42.762  min  40.779
+rank  16  fused    median  38.194  min  35.862   vs unfused: -10.7%
+rank  16  fused_ivdep median  38.358  min  35.731   vs unfused: -10.3%
+rank  16  fused_split median  38.185  min  29.288   vs unfused: -10.7%
+rank  19  unfused  median  42.451  min  41.635
+rank  19  fused    median  37.546  min  37.074   vs unfused: -11.6%
+rank  19  fused_ivdep median  38.293  min  37.900   vs unfused: -9.8%
+rank  19  fused_split median  38.382  min  36.102   vs unfused: -9.6%
+rank  46  unfused  median  42.787  min  40.748
+rank  46  fused    median  38.035  min  36.797   vs unfused: -11.1%
+rank  46  fused_ivdep median  38.247  min  35.264   vs unfused: -10.6%
+rank  46  fused_split median  38.036  min  28.638   vs unfused: -11.1%
+rank  18  unfused  median  42.781  min  42.054
+rank  18  fused    median  38.099  min  37.271   vs unfused: -10.9%
+rank  18  fused_ivdep median  38.310  min  34.910   vs unfused: -10.5%
+rank  18  fused_split median  38.112  min  27.790   vs unfused: -10.9%
+rank  82  unfused  median  42.798  min  41.119
+rank  82  fused    median  38.252  min  37.135   vs unfused: -10.6%
+rank  82  fused_ivdep median  38.199  min  34.609   vs unfused: -10.7%
+rank  82  fused_split median  37.976  min  27.247   vs unfused: -11.3%
+rank  93  unfused  median  42.421  min  42.017
+rank  93  fused    median  37.814  min  37.438   vs unfused: -10.9%
+rank  93  fused_ivdep median  38.236  min  37.919   vs unfused: -9.9%
+rank  93  fused_split median  38.288  min  34.610   vs unfused: -9.7%
+rank  12  unfused  median  42.801  min  41.918
+rank  12  fused    median  38.127  min  37.264   vs unfused: -10.9%
+rank  12  fused_ivdep median  38.194  min  34.278   vs unfused: -10.8%
+rank  12  fused_split median  37.998  min  27.270   vs unfused: -11.2%
+rank  67  unfused  median  42.465  min  41.546
+rank  67  fused    median  37.928  min  37.406   vs unfused: -10.7%
+rank  67  fused_ivdep median  38.223  min  37.078   vs unfused: -10.0%
+rank  67  fused_split median  38.301  min  34.133   vs unfused: -9.8%
+rank  89  unfused  median  42.523  min  41.996
+rank  89  fused    median  37.936  min  37.395   vs unfused: -10.8%
+rank  89  fused_ivdep median  38.254  min  38.012   vs unfused: -10.0%
+rank  89  fused_split median  38.366  min  34.099   vs unfused: -9.8%
+rank  27  unfused  median  42.533  min  41.700
+rank  27  fused    median  37.964  min  37.168   vs unfused: -10.7%
+rank  27  fused_ivdep median  38.229  min  37.043   vs unfused: -10.1%
+rank  27  fused_split median  38.211  min  33.160   vs unfused: -10.2%
+rank  13  unfused  median  42.608  min  40.593
+rank  13  fused    median  37.931  min  36.334   vs unfused: -11.0%
+rank  13  fused_ivdep median  38.292  min  37.074   vs unfused: -10.1%
+rank  13  fused_split median  38.375  min  33.037   vs unfused: -9.9%
+rank  22  unfused  median  42.853  min  41.483
+rank  22  fused    median  38.228  min  37.126   vs unfused: -10.8%
+rank  22  fused_ivdep median  38.359  min  32.324   vs unfused: -10.5%
+rank  22  fused_split median  38.014  min  25.712   vs unfused: -11.3%
+rank   3  unfused  median  42.604  min  42.018
+rank   3  fused    median  37.970  min  37.620   vs unfused: -10.9%
+rank   3  fused_ivdep median  38.303  min  37.832   vs unfused: -10.1%
+rank   3  fused_split median  38.168  min  32.653   vs unfused: -10.4%
+rank  44  unfused  median  42.961  min  42.108
+rank  44  fused    median  38.261  min  36.672   vs unfused: -10.9%
+rank  44  fused_ivdep median  38.275  min  31.940   vs unfused: -10.9%
+rank  44  fused_split median  37.915  min  25.355   vs unfused: -11.7%
+rank  17  unfused  median  42.610  min  41.453
+rank  17  fused    median  38.024  min  37.645   vs unfused: -10.8%
+rank  17  fused_ivdep median  38.347  min  37.586   vs unfused: -10.0%
+rank  17  fused_split median  38.275  min  31.708   vs unfused: -10.2%
+rank  32  unfused  median  43.063  min  42.096
+rank  32  fused    median  38.361  min  36.565   vs unfused: -10.9%
+rank  32  fused_ivdep median  38.291  min  31.185   vs unfused: -11.1%
+rank  32  fused_split median  37.904  min  24.931   vs unfused: -12.0%
+rank  21  unfused  median  42.732  min  40.801
+rank  21  fused    median  38.022  min  36.371   vs unfused: -11.0%
+rank  21  fused_ivdep median  38.407  min  36.600   vs unfused: -10.1%
+rank  21  fused_split median  38.359  min  31.042   vs unfused: -10.2%
+rank  49  unfused  median  42.531  min  41.473
+rank  49  fused    median  38.102  min  37.512   vs unfused: -10.4%
+rank  49  fused_ivdep median  38.296  min  37.306   vs unfused: -10.0%
+rank  49  fused_split median  38.236  min  31.027   vs unfused: -10.1%
+rank  76  unfused  median  43.039  min  41.560
+rank  76  fused    median  38.395  min  36.230   vs unfused: -10.8%
+rank  76  fused_ivdep median  38.255  min  30.218   vs unfused: -11.1%
+rank  76  fused_split median  37.912  min  24.419   vs unfused: -11.9%
+rank  83  unfused  median  42.612  min  41.707
+rank  83  fused    median  38.108  min  36.518   vs unfused: -10.6%
+rank  83  fused_ivdep median  38.356  min  37.136   vs unfused: -10.0%
+rank  83  fused_split median  38.242  min  33.668   vs unfused: -10.3%
+rank  61  unfused  median  42.820  min  40.341
+rank  61  fused    median  38.117  min  36.329   vs unfused: -11.0%
+rank  61  fused_ivdep median  38.491  min  36.774   vs unfused: -10.1%
+rank  61  fused_split median  38.361  min  29.881   vs unfused: -10.4%
+rank  31  unfused  median  42.619  min  41.866
+rank  31  fused    median  38.186  min  37.767   vs unfused: -10.4%
+rank  31  fused_ivdep median  38.401  min  36.881   vs unfused: -9.9%
+rank  31  fused_split median  38.033  min  29.931   vs unfused: -10.8%
+rank  69  unfused  median  42.643  min  41.686
+rank  69  fused    median  38.147  min  37.754   vs unfused: -10.5%
+rank  69  fused_ivdep median  38.373  min  36.800   vs unfused: -10.0%
+rank  69  fused_split median  38.113  min  29.624   vs unfused: -10.6%
+rank  51  unfused  median  42.696  min  40.594
+rank  51  fused    median  38.189  min  36.588   vs unfused: -10.6%
+rank  51  fused_ivdep median  38.421  min  36.507   vs unfused: -10.0%
+rank  51  fused_split median  38.235  min  29.430   vs unfused: -10.4%
+rank  88  unfused  median  43.298  min  42.109
+rank  88  fused    median  38.477  min  34.734   vs unfused: -11.1%
+rank  88  fused_ivdep median  38.284  min  27.701   vs unfused: -11.6%
+rank  88  fused_split median  37.943  min  23.346   vs unfused: -12.4%
+rank  37  unfused  median  42.671  min  41.825
+rank  37  fused    median  38.171  min  37.748   vs unfused: -10.5%
+rank  37  fused_ivdep median  38.433  min  36.489   vs unfused: -9.9%
+rank  37  fused_split median  38.262  min  29.441   vs unfused: -10.3%
+rank  81  unfused  median  42.751  min  41.980
+rank  81  fused    median  38.215  min  37.835   vs unfused: -10.6%
+rank  81  fused_ivdep median  38.409  min  36.105   vs unfused: -10.2%
+rank  81  fused_split median  37.979  min  28.976   vs unfused: -11.2%
+rank   2  unfused  median  43.230  min  42.092
+rank   2  fused    median  38.294  min  34.638   vs unfused: -11.4%
+rank   2  fused_ivdep median  38.171  min  27.470   vs unfused: -11.7%
+rank   2  fused_split median  37.968  min  23.411   vs unfused: -12.2%
+rank  34  unfused  median  43.107  min  41.407
+rank  34  fused    median  38.471  min  35.003   vs unfused: -10.8%
+rank  34  fused_ivdep median  38.398  min  27.700   vs unfused: -10.9%
+rank  34  fused_split median  38.089  min  23.470   vs unfused: -11.6%
+rank  50  unfused  median  43.176  min  42.173
+rank  50  fused    median  38.508  min  34.361   vs unfused: -10.8%
+rank  50  fused_ivdep median  38.369  min  27.120   vs unfused: -11.1%
+rank  50  fused_split median  38.069  min  23.177   vs unfused: -11.8%
+rank   8  unfused  median  43.268  min  42.039
+rank   8  fused    median  38.211  min  33.937   vs unfused: -11.7%
+rank   8  fused_ivdep median  38.026  min  27.027   vs unfused: -12.1%
+rank   8  fused_split median  37.913  min  23.069   vs unfused: -12.4%
+rank  53  unfused  median  42.734  min  41.709
+rank  53  fused    median  38.157  min  37.841   vs unfused: -10.7%
+rank  53  fused_ivdep median  38.478  min  35.654   vs unfused: -10.0%
+rank  53  fused_split median  38.183  min  28.295   vs unfused: -10.6%
+rank  33  unfused  median  42.996  min  41.729
+rank  33  fused    median  38.213  min  37.847   vs unfused: -11.1%
+rank  33  fused_ivdep median  38.463  min  34.994   vs unfused: -10.5%
+rank  33  fused_split median  38.016  min  27.807   vs unfused: -11.6%
+rank  35  unfused  median  42.812  min  40.606
+rank  35  fused    median  38.369  min  36.635   vs unfused: -10.4%
+rank  35  fused_ivdep median  38.553  min  34.318   vs unfused: -9.9%
+rank  35  fused_split median  38.220  min  27.135   vs unfused: -10.7%
+rank   9  unfused  median  42.764  min  40.320
+rank   9  fused    median  38.374  min  36.407   vs unfused: -10.3%
+rank   9  fused_ivdep median  38.564  min  34.098   vs unfused: -9.8%
+rank   9  fused_split median  38.264  min  26.877   vs unfused: -10.5%
+rank  70  unfused  median  43.426  min  42.085
+rank  70  fused    median  38.400  min  31.568   vs unfused: -11.6%
+rank  70  fused_ivdep median  38.130  min  25.228   vs unfused: -12.2%
+rank  70  fused_split median  38.076  min  22.039   vs unfused: -12.3%
+rank  77  unfused  median  42.929  min  42.150
+rank  77  fused    median  38.344  min  38.133   vs unfused: -10.7%
+rank  77  fused_ivdep median  38.501  min  33.350   vs unfused: -10.3%
+rank  77  fused_split median  37.986  min  26.408   vs unfused: -11.5%
+rank  54  unfused  median  43.417  min  42.234
+rank  54  fused    median  38.529  min  31.148   vs unfused: -11.3%
+rank  54  fused_ivdep median  38.284  min  24.913   vs unfused: -11.8%
+rank  54  fused_split median  38.122  min  21.839   vs unfused: -12.2%
+rank  56  unfused  median  43.577  min  41.707
+rank  56  fused    median  38.464  min  30.482   vs unfused: -11.7%
+rank  56  fused_ivdep median  38.255  min  24.622   vs unfused: -12.2%
+rank  56  fused_split median  38.065  min  21.456   vs unfused: -12.6%
+rank  45  unfused  median  43.086  min  41.827
+rank  45  fused    median  38.524  min  37.533   vs unfused: -10.6%
+rank  45  fused_ivdep median  38.587  min  30.210   vs unfused: -10.4%
+rank  45  fused_split median  38.116  min  24.235   vs unfused: -11.5%
+rank   4  unfused  median  43.621  min  41.886
+rank   4  fused    median  38.501  min  29.247   vs unfused: -11.7%
+rank   4  fused_ivdep median  38.307  min  24.134   vs unfused: -12.2%
+rank   4  fused_split median  38.360  min  20.960   vs unfused: -12.1%
+rank   7  unfused  median  43.226  min  41.973
+rank   7  fused    median  38.582  min  37.045   vs unfused: -10.7%
+rank   7  fused_ivdep median  38.599  min  29.732   vs unfused: -10.7%
+rank   7  fused_split median  37.920  min  23.590   vs unfused: -12.3%
+rank  71  unfused  median  43.459  min  41.967
+rank  71  fused    median  38.691  min  35.037   vs unfused: -11.0%
+rank  71  fused_ivdep median  38.595  min  27.715   vs unfused: -11.2%
+rank  71  fused_split median  38.001  min  22.495   vs unfused: -12.6%
+rank   6  unfused  median  43.729  min  37.493
+rank   6  fused    median  38.479  min  25.353   vs unfused: -12.0%
+rank   6  fused_ivdep median  38.332  min  22.144   vs unfused: -12.3%
+rank   6  fused_split median  38.451  min  18.855   vs unfused: -12.1%
+rank  29  unfused  median  43.490  min  41.953
+rank  29  fused    median  38.656  min  34.926   vs unfused: -11.1%
+rank  29  fused_ivdep median  38.601  min  27.392   vs unfused: -11.2%
+rank  29  fused_split median  38.127  min  22.279   vs unfused: -12.3%
+rank  23  unfused  median  43.632  min  42.288
+rank  23  fused    median  38.727  min  33.806   vs unfused: -11.2%
+rank  23  fused_ivdep median  38.556  min  26.837   vs unfused: -11.6%
+rank  23  fused_split median  37.935  min  22.147   vs unfused: -13.1%
+rank   5  unfused  median  43.589  min  41.902
+rank   5  fused    median  38.685  min  33.563   vs unfused: -11.2%
+rank   5  fused_ivdep median  38.621  min  26.589   vs unfused: -11.4%
+rank   5  fused_split median  38.079  min  22.077   vs unfused: -12.6%
+rank  11  unfused  median  43.519  min  40.785
+rank  11  fused    median  38.783  min  32.078   vs unfused: -10.9%
+rank  11  fused_ivdep median  38.696  min  25.295   vs unfused: -11.1%
+rank  11  fused_split median  38.215  min  21.644   vs unfused: -12.2%
+rank  55  unfused  median  43.747  min  41.003
+rank  55  fused    median  38.767  min  31.688   vs unfused: -11.4%
+rank  55  fused_ivdep median  38.686  min  25.210   vs unfused: -11.6%
+rank  55  fused_split median  38.106  min  21.615   vs unfused: -12.9%
+rank  86  unfused  median  43.796  min  33.293
+rank  86  fused    median  38.264  min  23.250   vs unfused: -12.6%
+rank  86  fused_ivdep median  38.254  min  19.805   vs unfused: -12.7%
+rank  86  fused_split median  38.399  min  17.901   vs unfused: -12.3%
+rank  10  unfused  median  43.972  min  33.822
+rank  10  fused    median  38.426  min  23.929   vs unfused: -12.6%
+rank  10  fused_ivdep median  38.800  min  20.155   vs unfused: -11.8%
+rank  10  fused_split median  38.686  min  18.186   vs unfused: -12.0%
+rank  41  unfused  median  43.727  min  40.794
+rank  41  fused    median  38.756  min  30.584   vs unfused: -11.4%
+rank  41  fused_ivdep median  38.691  min  24.392   vs unfused: -11.5%
+rank  41  fused_split median  38.334  min  20.930   vs unfused: -12.3%
+rank  57  unfused  median  43.677  min  41.172
+rank  57  fused    median  38.796  min  30.532   vs unfused: -11.2%
+rank  57  fused_ivdep median  38.664  min  24.346   vs unfused: -11.5%
+rank  57  fused_split median  38.251  min  20.913   vs unfused: -12.4%
+rank  87  unfused  median  43.759  min  42.826
+rank  87  fused    median  38.685  min  30.164   vs unfused: -11.6%
+rank  87  fused_ivdep median  38.281  min  23.569   vs unfused: -12.5%
+rank  87  fused_split median  38.107  min  20.369   vs unfused: -12.9%
+rank  72  unfused  median  43.694  min  27.781
+rank  72  fused    median  38.589  min  20.909   vs unfused: -11.7%
+rank  72  fused_ivdep median  38.486  min  18.357   vs unfused: -11.9%
+rank  72  fused_split median  38.643  min  17.043   vs unfused: -11.6%
+rank  97  unfused  median  43.869  min  37.680
+rank  97  fused    median  38.979  min  25.154   vs unfused: -11.1%
+rank  97  fused_ivdep median  38.626  min  21.571   vs unfused: -12.0%
+rank  97  fused_split median  38.626  min  18.357   vs unfused: -12.0%
+rank  38  unfused  median  43.762  min  26.296
+rank  38  fused    median  38.181  min  19.449   vs unfused: -12.8%
+rank  38  fused_ivdep median  38.490  min  17.698   vs unfused: -12.0%
+rank  38  fused_split median  38.613  min  16.655   vs unfused: -11.8%
+rank  25  unfused  median  44.296  min  35.973
+rank  25  fused    median  38.694  min  23.513   vs unfused: -12.6%
+rank  25  fused_ivdep median  38.451  min  20.323   vs unfused: -13.2%
+rank  25  fused_split median  38.246  min  17.419   vs unfused: -13.7%
+rank  39  unfused  median  44.049  min  36.155
+rank  39  fused    median  38.741  min  23.471   vs unfused: -12.1%
+rank  39  fused_ivdep median  38.433  min  20.309   vs unfused: -12.7%
+rank  39  fused_split median  38.269  min  17.350   vs unfused: -13.1%
+rank  28  unfused  median  43.726  min  25.989
+rank  28  fused    median  38.287  min  19.150   vs unfused: -12.4%
+rank  28  fused_ivdep median  38.559  min  17.547   vs unfused: -11.8%
+rank  28  fused_split median  38.683  min  16.526   vs unfused: -11.5%
+rank  73  unfused  median  43.998  min  26.168
+rank  73  fused    median  38.691  min  19.145   vs unfused: -12.1%
+rank  73  fused_ivdep median  38.736  min  16.833   vs unfused: -12.0%
+rank  73  fused_split median  38.875  min  15.889   vs unfused: -11.6%
+rank  62  unfused  median  44.986  min  18.536
+rank  62  fused    median  39.489  min  15.500   vs unfused: -12.2%
+rank  62  fused_ivdep median  39.551  min  14.029   vs unfused: -12.1%
+rank  62  fused_split median  39.144  min  12.966   vs unfused: -13.0%
+grid 273x65x57  cusp=False  dampin=2.0
+correctness: maxdiff 1.4552e-11 (2.156e-07 of scale) bitwise=False
+rank   0  unfused  median  47.683  min  10.999
+rank   0  fused    median  42.177  min  10.042   vs unfused: -11.5%
+rank   0  fused_ivdep median  42.203  min   9.958   vs unfused: -11.5%
+rank   0  fused_split median  42.184  min   9.920   vs unfused: -11.5%
+rank   1  unfused  median  47.685  min  10.891
+rank   1  fused    median  42.513  min  10.100   vs unfused: -10.8%
+rank   1  fused_ivdep median  42.626  min  10.084   vs unfused: -10.6%
+rank   1  fused_split median  42.648  min  10.063   vs unfused: -10.6%
+
+=== aggregate ===
+
+--- serial (1 rank(s)) ---
+  unfused       17.248 ns/cell   vs unfused: median  +0.00%  wins 0/1
+  fused         16.218 ns/cell   vs unfused: median  -5.97%  wins 1/1
+  fused_ivdep   16.210 ns/cell   vs unfused: median  -6.02%  wins 1/1
+  fused_split   16.205 ns/cell   vs unfused: median  -6.05%  wins 1/1
+
+--- saturated (100 rank(s)) ---
+  unfused       42.775 ns/cell   vs unfused: median  +0.00%  wins 0/100
+  fused         38.122 ns/cell   vs unfused: median -11.14%  wins 100/100
+  fused_ivdep   38.278 ns/cell   vs unfused: median -10.76%  wins 100/100
+  fused_split   38.113 ns/cell   vs unfused: median -11.16%  wins 100/100

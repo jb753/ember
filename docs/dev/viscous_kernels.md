@@ -2369,3 +2369,105 @@ BJ=32 paired per-rank: median -8.06%, p10 -8.50%, p90 -7.54%, worst
 - Raw data: `tools/bench_irs_bj.log`, `tools/bench_irs_bj.jsonl`.
   Harness: `tools/bench_irs_bj.py`, `tools/submit_irs_bj.sh`. Per-direction
   diagnostic: `_fortran/residual_irs_dirs.f90`.
+
+---
+
+## 24. The `PARTIAL LOOP WAS VECTORIZED` in `set_residual_damp` -- fixed, and worth nothing
+
+Section 23's candidate `set_residual_damp` (`_fortran/residual_setdamp.f90`)
+folds the change limiter's global reduction into `set_residual`'s dU write
+and wins -11% saturated. Its opt-report carried one blemish: the scaling
+loop reached only `#15301 PARTIAL LOOP WAS VECTORIZED`, where production's
+standalone `damp_residual` gets a clean `#15300` on a structurally
+identical nest.
+
+This pass diagnoses it, fixes it, and finds the fix is worth nothing --
+which is itself the useful result.
+
+### 24.1 Diagnosis: scope, not the loop
+
+ifort reported `#15346: vector dependence: assumed OUTPUT dependence
+between J (186:9) and J (194:9)` and distributed the nest. The loop body is
+identical to `damp_residual`'s, so the difference had to be context: inside
+the fused kernel the *main sweep* also writes `dU`, and ifort cannot
+disprove that the sweep's write region and the scaling loop's overlap.
+
+Two candidate fixes, both bitwise-identical to the parent (verified
+`np.array_equal` under **ifort**, not just gfortran -- sections 17/19
+establish the two compilers disagree on exactly this class of question):
+
+- `set_residual_damp_ivdep`: `!DIR$ IVDEP` on the inner i loop.
+- `set_residual_damp_split`: the scaling pass moved into a contained
+  subroutine, so `dU` is the only array in scope -- reconstructing the
+  context that already vectorizes cleanly.
+
+### 24.2 Gate 1: the diagnosis was right
+
+| variant | vec | partial | dependence remarks |
+| --- | --- | --- | --- |
+| `set_residual_damp` | 6 | 1 | 2 (`OUTPUT J/J`) |
+| `set_residual_damp_ivdep` | 6 | 1 | 2 (`OUTPUT J/J`) |
+| **`set_residual_damp_split`** | **6** | **0** | **0** |
+
+`_split` removes both the `PARTIAL` and the dependence remark; its inlined
+`scale_du` inner loop reports a clean `LOOP WAS VECTORIZED`. `_ivdep`
+changes nothing at all.
+
+That contrast is the durable lesson, and it was predicted before the run:
+**`IVDEP` asserts the absence of a *loop-carried* dependence, but the
+dependence ifort could not disprove was between two *different loop nests*
+writing the same array.** A directive aimed at the wrong dependence class
+is a no-op, however plausible it looks. Match the directive to the remark.
+
+### 24.3 Results: the fix is a tie
+
+ifort, Xeon 8480+, 1M duct, `dampin = 2.0`, median ns/cell:
+
+| variant | serial | vs unfused | saturated | vs unfused |
+| --- | --- | --- | --- | --- |
+| unfused (`set_residual` + `damp_residual`) | 17.248 | -- | 42.775 | -- |
+| `fused` | 16.218 | -6.0% | 38.122 | -11.1% |
+| `fused_ivdep` | 16.210 | -6.0% | 38.278 | -10.8% |
+| `fused_split` | 16.205 | -6.1% | 38.113 | -11.2% |
+
+Paired per-rank against `fused`: `_split` **+0.20%** median (p10 -1.26%,
+p90 +1.67%, 43/100 ranks win); `_ivdep` +0.49% (31/100). Both are ties
+inside the noise band.
+
+The `fused` arm reproduced its section 23 figure (-11.1% here vs -10.7%
+there), so the run is sound and the null result is real rather than a bad
+measurement.
+
+### 24.4 Reading
+
+- **A `PARTIAL` in the opt-report is not automatically a cost.** The
+  scaling loop is one pass over dU inside a kernel dominated by the face
+  sweeps; making its codegen perfect moves nothing measurable. Sections
+  16.2 and 23 warned that a *clean* report does not prove good codegen;
+  this is the converse -- a *blemished* report does not prove bad
+  performance. Both directions need a measurement.
+- **`_split` is adopted anyway.** It costs nothing, is bitwise identical,
+  removes a known weakness, and the contained subroutine is arguably the
+  clearer structure. Adopting a tie for codegen hygiene is defensible;
+  adopting it while *claiming* a speedup would not be.
+- The remaining `#15335` peel/remainder remarks in `_split` are benign
+  (they sit beside a vectorized main loop), consistent with section 18.2.
+
+### 24.5 Status of `set_residual_damp` overall: still not adoptable
+
+Unchanged by this pass, and worth restating because the speed number is
+attractive: fusing damp into `set_residual` **reorders the
+post-processing** (production runs IRS then damp; fused is necessarily damp
+then IRS). IRS is linear, the limiter is nonlinear with a global mean, so
+the composed operator changes. That is a numerics change and **no timing
+result addresses it** -- it needs a convergence comparison (e.g. the duct
+CFL-descend case both ways, comparing convergence history and CFL limit).
+
+Also open: the reduction is accumulated before `correct_cusp_kface_du`
+modifies dU on the two seam planes, so on a cusped block the block mean
+omits that O(surface) correction. The duct has no cusp, which is the only
+reason the bitwise checks pass.
+
+- Raw data: `tools/bench_setdamp_fix.log`, `tools/bench_setdamp.jsonl`,
+  `tools/opt_report_setdamp.txt`. Variants:
+  `_fortran/residual_setdamp_fix.f90`.
