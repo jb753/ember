@@ -35,7 +35,16 @@ GFORTRAN_VERSION=$(gfortran --version | head -n 1)
 echo "gfortran: $GFORTRAN_VERSION"
 
 # Check Fortran source files syntax (run in temp dir to avoid .mod files in project root)
-ALL_F90_FILES=$(ls src/ember/_fortran/*.f90 2>/dev/null)
+# Module-defining files must be compiled before their users: gfortran
+# resolves `use` against a .mod produced earlier in the same invocation, and
+# a plain alphabetical glob puts consumers (residual_cand, residual_consa,
+# ...) ahead of the providers (residual.f90, viscous.f90). This used to be
+# masked by stale .mod files left in the source tree by ad-hoc syntax
+# checks -- the hazard docs/dev/viscous_kernels.md section 6.4 warns about.
+# f2py/meson does its own dependency ordering, so this only affects this
+# pre-flight check.
+F90_PROVIDERS="src/ember/_fortran/residual.f90 src/ember/_fortran/viscous.f90"
+ALL_F90_FILES="$F90_PROVIDERS $(ls src/ember/_fortran/*.f90 2>/dev/null | grep -vE '/(residual|viscous)\.f90$')"
 SYNTAX_TMP=$(mktemp -d)
 # -ffree-line-length-132 pinned explicitly: gfortran >=14 stops enforcing the
 # free-form 132-column limit under plain -Wall (a version-specific

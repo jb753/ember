@@ -15,7 +15,7 @@ contains
     ! Granularity is one row (i/j directions) or one plane (k direction) so
     ! the caller can roll small buffers instead of staging full volumes.
 
-    pure subroutine iface_flow_row(vx, vr, vt, ho, P, P_offset, r, &
+    pure subroutine iface_flow_row(ho, P, P_offset, r, &
                                    cons, Omega, dA, &
                                    wall_lo, wall_hi, row, j, k, ni, nj, nk)
         ! Compute inviscid face flows on the ni i-faces of cell row (j,k);
@@ -24,7 +24,6 @@ contains
 
         implicit none
         integer, intent(in) :: j, k, ni, nj, nk
-        real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
@@ -96,14 +95,29 @@ contains
             real, intent(in) :: wfac
             real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3
             real :: dp1, dp2, dp3, dp4, w
+            real :: g1, g2, g3, g4
             dp1 = P(i,j,k)     - P_offset
             dp2 = P(i,j+1,k)   - P_offset
             dp3 = P(i,j,k+1)   - P_offset
             dp4 = P(i,j+1,k+1) - P_offset
-            pm1 = 0.25e0*vx(i,j,k) + 0.25e0*vx(i,j+1,k) + 0.25e0*vx(i,j,k+1) + 0.25e0*vx(i,j+1,k+1)
-            pm2 = 0.25e0*vr(i,j,k) + 0.25e0*vr(i,j+1,k) + 0.25e0*vr(i,j,k+1) + 0.25e0*vr(i,j+1,k+1)
-            pm3 = 0.25e0*r(i,j,k)*vt(i,j,k) + 0.25e0*r(i,j+1,k)*vt(i,j+1,k) &
-                + 0.25e0*r(i,j,k+1)*vt(i,j,k+1) + 0.25e0*r(i,j+1,k+1)*vt(i,j+1,k+1)
+            ! Vx, Vr and r*Vt come from the conserved state rather than
+            ! their own nodal arrays: cons = (rho, rho*Vx, rho*Vr,
+            ! rho*r*Vt, rho*e), so Vx = c2/c1, Vr = c3/c1, r*Vt = c4/c1
+            ! exactly. That drops three streamed fields (9 nodal -> 7,
+            ! ~12.5 B/cell) for one reciprocal per corner, which is the
+            ! right trade on a kernel that runs at DRAM bandwidth.
+            ! Recomputed here, never precomputed into a buffer: a buffer
+            ! would write more than it saves. See section 20.
+            g1 = 1.0e0/cons(i,j,k,1)
+            g2 = 1.0e0/cons(i,j+1,k,1)
+            g3 = 1.0e0/cons(i,j,k+1,1)
+            g4 = 1.0e0/cons(i,j+1,k+1,1)
+            pm1 = 0.25e0*cons(i,j,k,2)*g1 + 0.25e0*cons(i,j+1,k,2)*g2 &
+                + 0.25e0*cons(i,j,k+1,2)*g3 + 0.25e0*cons(i,j+1,k+1,2)*g4
+            pm2 = 0.25e0*cons(i,j,k,3)*g1 + 0.25e0*cons(i,j+1,k,3)*g2 &
+                + 0.25e0*cons(i,j,k+1,3)*g3 + 0.25e0*cons(i,j+1,k+1,3)*g4
+            pm3 = 0.25e0*cons(i,j,k,4)*g1 + 0.25e0*cons(i,j+1,k,4)*g2 &
+                + 0.25e0*cons(i,j,k+1,4)*g3 + 0.25e0*cons(i,j+1,k+1,4)*g4
             pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i,j+1,k) + 0.25e0*ho(i,j,k+1) + 0.25e0*ho(i,j+1,k+1)
             pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
             pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i,j+1,k)*dp2 &
@@ -111,15 +125,16 @@ contains
             w = 0.25e0*wfac
             mf1 = w*cons(i,j,k,2) + w*cons(i,j+1,k,2) + w*cons(i,j,k+1,2) + w*cons(i,j+1,k+1,2)
             mf2 = w*cons(i,j,k,3) + w*cons(i,j+1,k,3) + w*cons(i,j,k+1,3) + w*cons(i,j+1,k+1,3)
-            mf3 = w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k)) &
-                + w*cons(i,j+1,k,1)*(vt(i,j+1,k) - Omega*r(i,j+1,k)) &
-                + w*cons(i,j,k+1,1)*(vt(i,j,k+1) - Omega*r(i,j,k+1)) &
-                + w*cons(i,j+1,k+1,1)*(vt(i,j+1,k+1) - Omega*r(i,j+1,k+1))
+            ! rho*Vt_rel = rho*Vt - Omega*rho*r = c4/r - Omega*c1*r
+            mf3 = w*(cons(i,j,k,4)/r(i,j,k) - Omega*cons(i,j,k,1)*r(i,j,k)) &
+                + w*(cons(i,j+1,k,4)/r(i,j+1,k) - Omega*cons(i,j+1,k,1)*r(i,j+1,k)) &
+                + w*(cons(i,j,k+1,4)/r(i,j,k+1) - Omega*cons(i,j,k+1,1)*r(i,j,k+1)) &
+                + w*(cons(i,j+1,k+1,4)/r(i,j+1,k+1) - Omega*cons(i,j+1,k+1,1)*r(i,j+1,k+1))
         end subroutine accum_corners
     end subroutine iface_flow_row
 
 
-    pure subroutine jface_flow_row(vx, vr, vt, ho, P, P_offset, r, &
+    pure subroutine jface_flow_row(ho, P, P_offset, r, &
                                    cons, Omega, dA, &
                                    wall_lo, wall_hi, row, jf, k, ni, nj, nk)
         ! Compute inviscid face flows on the (ni-1) j-faces of face row jf at
@@ -128,7 +143,6 @@ contains
 
         implicit none
         integer, intent(in) :: jf, k, ni, nj, nk
-        real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
@@ -190,14 +204,29 @@ contains
             real, intent(in) :: wfac
             real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3
             real :: dp1, dp2, dp3, dp4, w
+            real :: g1, g2, g3, g4
             dp1 = P(i,j,k)     - P_offset
             dp2 = P(i+1,j,k)   - P_offset
             dp3 = P(i,j,k+1)   - P_offset
             dp4 = P(i+1,j,k+1) - P_offset
-            pm1 = 0.25e0*vx(i,j,k) + 0.25e0*vx(i+1,j,k) + 0.25e0*vx(i,j,k+1) + 0.25e0*vx(i+1,j,k+1)
-            pm2 = 0.25e0*vr(i,j,k) + 0.25e0*vr(i+1,j,k) + 0.25e0*vr(i,j,k+1) + 0.25e0*vr(i+1,j,k+1)
-            pm3 = 0.25e0*r(i,j,k)*vt(i,j,k) + 0.25e0*r(i+1,j,k)*vt(i+1,j,k) &
-                + 0.25e0*r(i,j,k+1)*vt(i,j,k+1) + 0.25e0*r(i+1,j,k+1)*vt(i+1,j,k+1)
+            ! Vx, Vr and r*Vt come from the conserved state rather than
+            ! their own nodal arrays: cons = (rho, rho*Vx, rho*Vr,
+            ! rho*r*Vt, rho*e), so Vx = c2/c1, Vr = c3/c1, r*Vt = c4/c1
+            ! exactly. That drops three streamed fields (9 nodal -> 7,
+            ! ~12.5 B/cell) for one reciprocal per corner, which is the
+            ! right trade on a kernel that runs at DRAM bandwidth.
+            ! Recomputed here, never precomputed into a buffer: a buffer
+            ! would write more than it saves. See section 20.
+            g1 = 1.0e0/cons(i,j,k,1)
+            g2 = 1.0e0/cons(i+1,j,k,1)
+            g3 = 1.0e0/cons(i,j,k+1,1)
+            g4 = 1.0e0/cons(i+1,j,k+1,1)
+            pm1 = 0.25e0*cons(i,j,k,2)*g1 + 0.25e0*cons(i+1,j,k,2)*g2 &
+                + 0.25e0*cons(i,j,k+1,2)*g3 + 0.25e0*cons(i+1,j,k+1,2)*g4
+            pm2 = 0.25e0*cons(i,j,k,3)*g1 + 0.25e0*cons(i+1,j,k,3)*g2 &
+                + 0.25e0*cons(i,j,k+1,3)*g3 + 0.25e0*cons(i+1,j,k+1,3)*g4
+            pm3 = 0.25e0*cons(i,j,k,4)*g1 + 0.25e0*cons(i+1,j,k,4)*g2 &
+                + 0.25e0*cons(i,j,k+1,4)*g3 + 0.25e0*cons(i+1,j,k+1,4)*g4
             pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i+1,j,k) + 0.25e0*ho(i,j,k+1) + 0.25e0*ho(i+1,j,k+1)
             pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
             pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i+1,j,k)*dp2 &
@@ -205,15 +234,16 @@ contains
             w = 0.25e0*wfac
             mf1 = w*cons(i,j,k,2) + w*cons(i+1,j,k,2) + w*cons(i,j,k+1,2) + w*cons(i+1,j,k+1,2)
             mf2 = w*cons(i,j,k,3) + w*cons(i+1,j,k,3) + w*cons(i,j,k+1,3) + w*cons(i+1,j,k+1,3)
-            mf3 = w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k)) &
-                + w*cons(i+1,j,k,1)*(vt(i+1,j,k) - Omega*r(i+1,j,k)) &
-                + w*cons(i,j,k+1,1)*(vt(i,j,k+1) - Omega*r(i,j,k+1)) &
-                + w*cons(i+1,j,k+1,1)*(vt(i+1,j,k+1) - Omega*r(i+1,j,k+1))
+            ! rho*Vt_rel = rho*Vt - Omega*rho*r = c4/r - Omega*c1*r
+            mf3 = w*(cons(i,j,k,4)/r(i,j,k) - Omega*cons(i,j,k,1)*r(i,j,k)) &
+                + w*(cons(i+1,j,k,4)/r(i+1,j,k) - Omega*cons(i+1,j,k,1)*r(i+1,j,k)) &
+                + w*(cons(i,j,k+1,4)/r(i,j,k+1) - Omega*cons(i,j,k+1,1)*r(i,j,k+1)) &
+                + w*(cons(i+1,j,k+1,4)/r(i+1,j,k+1) - Omega*cons(i+1,j,k+1,1)*r(i+1,j,k+1))
         end subroutine accum_corners
     end subroutine jface_flow_row
 
 
-    pure subroutine kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, &
+    pure subroutine kface_flow_plane(ho, P, P_offset, r, &
                                      cons, Omega, dA, &
                                      wall_lo, wall_hi, plane, kf, njp, &
                                      ni, nj, nk)
@@ -224,7 +254,6 @@ contains
 
         implicit none
         integer, intent(in) :: kf, njp, ni, nj, nk
-        real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
@@ -292,14 +321,29 @@ contains
             real, intent(in) :: wfac
             real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3
             real :: dp1, dp2, dp3, dp4, w
+            real :: g1, g2, g3, g4
             dp1 = P(i,j,k)     - P_offset
             dp2 = P(i+1,j,k)   - P_offset
             dp3 = P(i,j+1,k)   - P_offset
             dp4 = P(i+1,j+1,k) - P_offset
-            pm1 = 0.25e0*vx(i,j,k) + 0.25e0*vx(i+1,j,k) + 0.25e0*vx(i,j+1,k) + 0.25e0*vx(i+1,j+1,k)
-            pm2 = 0.25e0*vr(i,j,k) + 0.25e0*vr(i+1,j,k) + 0.25e0*vr(i,j+1,k) + 0.25e0*vr(i+1,j+1,k)
-            pm3 = 0.25e0*r(i,j,k)*vt(i,j,k) + 0.25e0*r(i+1,j,k)*vt(i+1,j,k) &
-                + 0.25e0*r(i,j+1,k)*vt(i,j+1,k) + 0.25e0*r(i+1,j+1,k)*vt(i+1,j+1,k)
+            ! Vx, Vr and r*Vt come from the conserved state rather than
+            ! their own nodal arrays: cons = (rho, rho*Vx, rho*Vr,
+            ! rho*r*Vt, rho*e), so Vx = c2/c1, Vr = c3/c1, r*Vt = c4/c1
+            ! exactly. That drops three streamed fields (9 nodal -> 7,
+            ! ~12.5 B/cell) for one reciprocal per corner, which is the
+            ! right trade on a kernel that runs at DRAM bandwidth.
+            ! Recomputed here, never precomputed into a buffer: a buffer
+            ! would write more than it saves. See section 20.
+            g1 = 1.0e0/cons(i,j,k,1)
+            g2 = 1.0e0/cons(i+1,j,k,1)
+            g3 = 1.0e0/cons(i,j+1,k,1)
+            g4 = 1.0e0/cons(i+1,j+1,k,1)
+            pm1 = 0.25e0*cons(i,j,k,2)*g1 + 0.25e0*cons(i+1,j,k,2)*g2 &
+                + 0.25e0*cons(i,j+1,k,2)*g3 + 0.25e0*cons(i+1,j+1,k,2)*g4
+            pm2 = 0.25e0*cons(i,j,k,3)*g1 + 0.25e0*cons(i+1,j,k,3)*g2 &
+                + 0.25e0*cons(i,j+1,k,3)*g3 + 0.25e0*cons(i+1,j+1,k,3)*g4
+            pm3 = 0.25e0*cons(i,j,k,4)*g1 + 0.25e0*cons(i+1,j,k,4)*g2 &
+                + 0.25e0*cons(i,j+1,k,4)*g3 + 0.25e0*cons(i+1,j+1,k,4)*g4
             pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i+1,j,k) + 0.25e0*ho(i,j+1,k) + 0.25e0*ho(i+1,j+1,k)
             pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
             pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i+1,j,k)*dp2 &
@@ -307,10 +351,11 @@ contains
             w = 0.25e0*wfac
             mf1 = w*cons(i,j,k,2) + w*cons(i+1,j,k,2) + w*cons(i,j+1,k,2) + w*cons(i+1,j+1,k,2)
             mf2 = w*cons(i,j,k,3) + w*cons(i+1,j,k,3) + w*cons(i,j+1,k,3) + w*cons(i+1,j+1,k,3)
-            mf3 = w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k)) &
-                + w*cons(i+1,j,k,1)*(vt(i+1,j,k) - Omega*r(i+1,j,k)) &
-                + w*cons(i,j+1,k,1)*(vt(i,j+1,k) - Omega*r(i,j+1,k)) &
-                + w*cons(i+1,j+1,k,1)*(vt(i+1,j+1,k) - Omega*r(i+1,j+1,k))
+            ! rho*Vt_rel = rho*Vt - Omega*rho*r = c4/r - Omega*c1*r
+            mf3 = w*(cons(i,j,k,4)/r(i,j,k) - Omega*cons(i,j,k,1)*r(i,j,k)) &
+                + w*(cons(i+1,j,k,4)/r(i+1,j,k) - Omega*cons(i+1,j,k,1)*r(i+1,j,k)) &
+                + w*(cons(i,j+1,k,4)/r(i,j+1,k) - Omega*cons(i,j+1,k,1)*r(i,j+1,k)) &
+                + w*(cons(i+1,j+1,k,4)/r(i+1,j+1,k) - Omega*cons(i+1,j+1,k,1)*r(i+1,j+1,k))
         end subroutine accum_corners
     end subroutine kface_flow_plane
 
@@ -567,7 +612,7 @@ subroutine set_residual( &
     ! Prime the rolling k-face plane with face k=1 before the slab sweep
     ! (the fused loop below always has plane k in slot pa on entry to cell
     ! k, needing only face k+1 freshly computed into pb).
-    call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
+    call kface_flow_plane(ho, P, P_offset, r, cons, &
                           Omega, dAk, wallk1, wallnk, planes(:,:,:,pa), &
                           1, njp, ni, nj, nk)
 
@@ -590,20 +635,20 @@ subroutine set_residual( &
         ja = 2
         jb = 3
         ! Prime the rolling j-face pair with the j=1 boundary face.
-        call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+        call jface_flow_row(ho, P, P_offset, r, cons, &
                             Omega, dAj, wallj1, wallnj, rows(:,:,ja), &
                             1, k, ni, nj, nk)
         ! Advance the rolling k-face pair: pa already holds face k (primed
         ! before the sweep, or carried from the previous k iteration); pb
         ! gets face k+1 computed fresh.
-        call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
+        call kface_flow_plane(ho, P, P_offset, r, cons, &
                               Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
                               k+1, njp, ni, nj, nk)
         do j = 1, nj-1
-            call iface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+            call iface_flow_row(ho, P, P_offset, r, cons, &
                                 Omega, dAi, walli1(j,k), wallni(j,k), &
                                 rows(:,:,1), j, k, ni, nj, nk)
-            call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+            call jface_flow_row(ho, P, P_offset, r, cons, &
                                 Omega, dAj, wallj1, wallnj, rows(:,:,jb), &
                                 j+1, k, ni, nj, nk)
             do m = 1, 5
@@ -646,6 +691,27 @@ end subroutine set_residual
 ! fdamp = |change|/avg. Cells near the mean are barely touched; large
 ! outliers saturate towards dampin*avg. Operates in place on dU.
 ! =====================================================================
+! Negative-feedback change limiter (ported from multall's DAMP loop).
+!
+! Soft-clips outlier per-cell changes so the explicit march stays stable
+! without globally cutting the timestep. The per-step change is
+! dU * dt_vol; per conserved variable, the block mean of its magnitude is
+! avg, and each cell is shrunk by 1/(1 + fdamp/dampin) with
+! fdamp = |change|/avg. Cells near the mean are barely touched; large
+! outliers saturate towards dampin*avg. Operates in place on dU.
+!
+! The five components share each (j,k) plane traversal rather than each
+! getting its own full-volume sweep: the reduction and the scaling are one
+! pass apiece instead of five, so dt_vol is loaded once per plane instead
+! of five times. -28.7% serial, -30.8% at 100-rank saturation
+! (docs/dev/viscous_kernels.md section 21).
+!
+! m stays OUTSIDE the i loop. dU is component-last, so dU(:,j,k,m) is
+! contiguous in i only for fixed m; making m innermost strides the i reads
+! by the whole volume and measured +208%. The flat-field guard is folded
+! into ravg (0 for a flat component => identity soft-clip) so the swept
+! region stays branch-free.
+! =====================================================================
 subroutine damp_residual(dU, dt_vol, dampin, ni, nj, nk)
 
     implicit none
@@ -656,31 +722,59 @@ subroutine damp_residual(dU, dt_vol, dampin, ni, nj, nk)
     real, intent(in)    :: dampin
 
     integer :: i, j, k, m, ncell
-    real :: avg, chg, fdamp
+    real :: avg(5), ravg(5), chg, fdamp
 
     ncell = (ni-1)*(nj-1)*(nk-1)
+
+    ! ---- Sweep 1: all five block means in one pass over dU/dt_vol ----
     do m = 1, 5
-        ! Pass 1: block mean of the per-step change magnitude for variable m.
-        avg = 0.0e0
-        do k = 1, nk-1
-        do j = 1, nj-1
-        do i = 1, ni-1
-            avg = avg + abs(dU(i,j,k,m) * dt_vol(i,j,k))
-        end do
-        end do
-        end do
-        avg = avg / ncell
-        if (avg <= 0.0e0) cycle          ! flat field: nothing to limit
-        ! Pass 2: soft-clip each cell's change relative to the block mean.
-        do k = 1, nk-1
-        do j = 1, nj-1
+        avg(m) = 0.0e0
+    end do
+    ! m stays OUTSIDE the i loop: dU is component-LAST, so dU(:,j,k,m) is
+    ! contiguous in i only for fixed m. Putting m innermost would make each
+    ! (i,j,k) touch five locations ~(ni-1)*(nj-1)*(nk-1) elements apart and
+    ! destroy the i-vectorization -- measured at +208% before this was fixed
+    ! (section 2's "any layout change that strides the i reads is suspect").
+    ! The saving here is therefore NOT fewer dU sweeps but fewer dt_vol
+    ! reads: the k/j planes of dt_vol are hoisted and shared across m.
+    do k = 1, nk-1
+    do j = 1, nj-1
+    do m = 1, 5
+    do i = 1, ni-1
+        avg(m) = avg(m) + abs(dU(i,j,k,m) * dt_vol(i,j,k))
+    end do
+    end do
+    end do
+    end do
+
+    ! A flat field (avg = 0) would divide by zero. Production guards this
+    ! with `cycle`; here the reciprocal is folded into a factor that is
+    ! simply 0 for such a component, which makes fdamp 0 and the soft-clip
+    ! the identity -- same outcome, no branch inside the sweep. Branch-free
+    ! matters because the caller already skips this routine entirely when
+    ! damping is off, so every execution here is one that does real work.
+    do m = 1, 5
+        avg(m) = avg(m) / ncell
+        if (avg(m) > 0.0e0) then
+            ravg(m) = 1.0e0 / avg(m)
+        else
+            ravg(m) = 0.0e0
+        end if
+    end do
+
+    ! ---- Sweep 2: soft-clip every component in one pass ----
+    do k = 1, nk-1
+    do j = 1, nj-1
+    do m = 1, 5
         do i = 1, ni-1
             chg   = abs(dU(i,j,k,m) * dt_vol(i,j,k))
-            fdamp = chg / avg
+            fdamp = chg * ravg(m)
+            ! fdamp/dampin kept as a division, not a hoisted reciprocal
+            ! multiply, so the arithmetic matches production exactly.
             dU(i,j,k,m) = dU(i,j,k,m) / (1.0e0 + fdamp/dampin)
         end do
-        end do
-        end do
+    end do
+    end do
     end do
 
 end subroutine damp_residual
