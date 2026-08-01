@@ -1,0 +1,224 @@
+sapphire modules
+=== node: cpu-r-77  model name	: Intel(R) Xeon(R) Platinum 8480+ ===
+ ~ pyyaml==6.0.3
+Package installed successfully
+
+=== serial ===
+grid 273x65x57  cusp=False  dampin=2.0
+correctness: maxdiff 1.4552e-11 (2.156e-07 of scale) bitwise=False
+rank   0  unfused  median  10.708  min  10.674
+rank   0  fused    median  10.024  min   9.964   vs unfused: -6.4%
+
+=== saturated (100 ranks) ===
+rank  68  unfused  median  42.287  min  41.180
+rank  68  fused    median  36.721  min  36.221   vs unfused: -13.2%
+rank  90  unfused  median  42.453  min  41.533
+rank  90  fused    median  36.922  min  36.567   vs unfused: -13.0%
+rank  92  unfused  median  42.234  min  41.403
+rank  92  fused    median  36.949  min  36.633   vs unfused: -12.5%
+rank  21  unfused  median  42.531  min  41.318
+rank  21  fused    median  36.686  min  36.298   vs unfused: -13.7%
+rank  76  unfused  median  42.442  min  41.532
+rank  76  fused    median  36.895  min  36.528   vs unfused: -13.1%
+rank  64  unfused  median  42.248  min  41.049
+rank  64  fused    median  36.942  min  36.607   vs unfused: -12.6%
+rank  62  unfused  median  42.381  min  41.576
+rank  62  fused    median  37.010  min  36.640   vs unfused: -12.7%
+rank  58  unfused  median  42.217  min  41.374
+rank  58  fused    median  37.047  min  36.437   vs unfused: -12.2%
+rank  87  unfused  median  42.340  min  41.424
+rank  87  fused    median  37.108  min  36.718   vs unfused: -12.4%
+rank  59  unfused  median  42.276  min  41.260
+rank  59  fused    median  37.118  min  36.675   vs unfused: -12.2%
+rank  63  unfused  median  42.357  min  41.455
+rank  63  fused    median  37.059  min  36.677   vs unfused: -12.5%
+rank  80  unfused  median  42.233  min  41.410
+rank  80  fused    median  37.175  min  36.319   vs unfused: -12.0%
+rank  52  unfused  median  42.083  min  41.317
+rank  52  fused    median  37.276  min  36.285   vs unfused: -11.4%
+rank  88  unfused  median  42.047  min  41.398
+rank  88  fused    median  37.296  min  36.065   vs unfused: -11.3%
+rank  65  unfused  median  42.294  min  41.354
+rank  65  fused    median  37.217  min  36.778   vs unfused: -12.0%
+rank  40  unfused  median  42.084  min  41.417
+rank  40  fused    median  37.294  min  36.003   vs unfused: -11.4%
+rank  79  unfused  median  42.361  min  41.342
+rank  79  fused    median  37.279  min  36.718   vs unfused: -12.0%
+rank  85  unfused  median  42.448  min  41.433
+rank  85  fused    median  37.297  min  36.752   vs unfused: -12.1%
+rank  43  unfused  median  42.442  min  41.679
+rank  43  fused    median  37.343  min  36.888   vs unfused: -12.0%
+rank  94  unfused  median  42.074  min  41.541
+rank  94  fused    median  37.435  min  35.670   vs unfused: -11.0%
+rank  60  unfused  median  42.050  min  41.561
+rank  60  fused    median  37.481  min  35.057   vs unfused: -10.9%
+rank  81  unfused  median  42.339  min  41.180
+rank  81  fused    median  37.388  min  36.647   vs unfused: -11.7%
+rank  47  unfused  median  42.463  min  41.623
+rank  47  fused    median  37.447  min  36.694   vs unfused: -11.8%
+rank  75  unfused  median  42.068  min  41.268
+rank  75  fused    median  37.510  min  36.333   vs unfused: -10.8%
+rank  74  unfused  median  41.954  min  41.298
+rank  74  fused    median  37.703  min  34.705   vs unfused: -10.1%
+rank  99  unfused  median  41.956  min  41.571
+rank  99  fused    median  37.590  min  36.279   vs unfused: -10.4%
+rank  91  unfused  median  41.997  min  41.446
+rank  91  fused    median  37.584  min  35.975   vs unfused: -10.5%
+rank  69  unfused  median  42.020  min  41.509
+rank  69  fused    median  37.539  min  35.696   vs unfused: -10.7%
+rank  53  unfused  median  41.909  min  41.531
+rank  53  fused    median  37.549  min  35.590   vs unfused: -10.4%
+rank  20  unfused  median  42.048  min  41.698
+rank  20  fused    median  37.747  min  34.057   vs unfused: -10.2%
+rank  36  unfused  median  42.107  min  41.622
+rank  36  fused    median  37.706  min  34.151   vs unfused: -10.5%
+rank  22  unfused  median  42.058  min  41.589
+rank  22  fused    median  37.731  min  34.022   vs unfused: -10.3%
+rank  30  unfused  median  41.889  min  41.444
+rank  30  fused    median  37.795  min  34.192   vs unfused: -9.8%
+rank  46  unfused  median  41.983  min  41.505
+rank  46  fused    median  37.719  min  33.817   vs unfused: -10.2%
+rank  19  unfused  median  42.020  min  41.593
+rank  19  fused    median  37.745  min  35.104   vs unfused: -10.2%
+rank  72  unfused  median  42.164  min  41.715
+rank  72  fused    median  37.778  min  33.803   vs unfused: -10.4%
+rank  93  unfused  median  41.975  min  41.637
+rank  93  fused    median  37.660  min  35.403   vs unfused: -10.3%
+rank  27  unfused  median  41.862  min  41.370
+rank  27  fused    median  37.782  min  35.400   vs unfused: -9.7%
+rank  34  unfused  median  42.208  min  41.771
+rank  34  fused    median  37.701  min  33.752   vs unfused: -10.7%
+rank  83  unfused  median  42.352  min  41.773
+rank  83  fused    median  37.697  min  35.293   vs unfused: -11.0%
+rank  84  unfused  median  41.993  min  41.681
+rank  84  fused    median  37.773  min  32.921   vs unfused: -10.0%
+rank   2  unfused  median  42.000  min  41.758
+rank   2  fused    median  37.843  min  32.167   vs unfused: -9.9%
+rank  18  unfused  median  42.086  min  41.734
+rank  18  fused    median  37.860  min  32.086   vs unfused: -10.0%
+rank  24  unfused  median  42.068  min  41.633
+rank  24  fused    median  37.810  min  31.994   vs unfused: -10.1%
+rank  78  unfused  median  42.000  min  41.769
+rank  78  fused    median  37.866  min  31.790   vs unfused: -9.8%
+rank  33  unfused  median  41.988  min  41.557
+rank  33  fused    median  37.780  min  34.001   vs unfused: -10.0%
+rank  61  unfused  median  42.185  min  41.854
+rank  61  fused    median  37.662  min  33.878   vs unfused: -10.7%
+rank  48  unfused  median  42.134  min  41.792
+rank  48  fused    median  37.879  min  31.201   vs unfused: -10.1%
+rank  49  unfused  median  41.862  min  41.625
+rank  49  fused    median  37.846  min  33.691   vs unfused: -9.6%
+rank  67  unfused  median  42.111  min  41.631
+rank  67  fused    median  37.857  min  33.889   vs unfused: -10.1%
+rank  37  unfused  median  41.984  min  41.700
+rank  37  fused    median  37.845  min  33.639   vs unfused: -9.9%
+rank  12  unfused  median  42.097  min  41.748
+rank  12  fused    median  37.935  min  30.262   vs unfused: -9.9%
+rank  98  unfused  median  42.068  min  41.769
+rank  98  fused    median  37.943  min  29.900   vs unfused: -9.8%
+rank  50  unfused  median  42.076  min  41.829
+rank  50  fused    median  37.930  min  29.824   vs unfused: -9.9%
+rank  82  unfused  median  42.030  min  41.724
+rank  82  fused    median  37.982  min  29.982   vs unfused: -9.6%
+rank  95  unfused  median  42.025  min  41.724
+rank  95  fused    median  37.969  min  32.287   vs unfused: -9.7%
+rank   3  unfused  median  42.133  min  41.785
+rank   3  fused    median  37.924  min  31.790   vs unfused: -10.0%
+rank   8  unfused  median  42.118  min  41.787
+rank   8  fused    median  37.933  min  29.229   vs unfused: -9.9%
+rank  13  unfused  median  42.071  min  41.780
+rank  13  fused    median  37.999  min  31.250   vs unfused: -9.7%
+rank  32  unfused  median  42.179  min  41.733
+rank  32  fused    median  37.943  min  28.899   vs unfused: -10.0%
+rank  77  unfused  median  42.177  min  41.796
+rank  77  fused    median  38.034  min  30.902   vs unfused: -9.8%
+rank   6  unfused  median  42.171  min  41.721
+rank   6  fused    median  37.949  min  28.393   vs unfused: -10.0%
+rank  31  unfused  median  41.916  min  41.649
+rank  31  fused    median  37.823  min  30.379   vs unfused: -9.8%
+rank  66  unfused  median  42.114  min  41.872
+rank  66  fused    median  37.922  min  28.171   vs unfused: -10.0%
+rank  51  unfused  median  42.126  min  41.857
+rank  51  fused    median  37.991  min  30.204   vs unfused: -9.8%
+rank   9  unfused  median  42.078  min  41.774
+rank   9  fused    median  38.016  min  30.235   vs unfused: -9.7%
+rank   7  unfused  median  42.142  min  41.826
+rank   7  fused    median  38.005  min  30.092   vs unfused: -9.8%
+rank  56  unfused  median  42.276  min  41.713
+rank  56  fused    median  38.039  min  27.557   vs unfused: -10.0%
+rank  16  unfused  median  42.517  min  41.204
+rank  16  fused    median  37.806  min  26.719   vs unfused: -11.1%
+rank  35  unfused  median  42.184  min  41.887
+rank  35  fused    median  38.077  min  28.786   vs unfused: -9.7%
+rank  44  unfused  median  42.277  min  41.305
+rank  44  fused    median  37.996  min  26.706   vs unfused: -10.1%
+rank  89  unfused  median  42.219  min  41.925
+rank  89  fused    median  38.020  min  27.978   vs unfused: -9.9%
+rank  71  unfused  median  42.134  min  41.886
+rank  71  fused    median  38.060  min  27.729   vs unfused: -9.7%
+rank  45  unfused  median  42.133  min  41.921
+rank  45  fused    median  38.093  min  27.559   vs unfused: -9.6%
+rank   4  unfused  median  42.674  min  40.666
+rank   4  fused    median  37.796  min  25.561   vs unfused: -11.4%
+rank   5  unfused  median  42.249  min  41.916
+rank   5  fused    median  38.171  min  27.172   vs unfused: -9.7%
+rank  38  unfused  median  42.504  min  41.860
+rank  38  fused    median  38.037  min  25.496   vs unfused: -10.5%
+rank  23  unfused  median  42.433  min  41.893
+rank  23  fused    median  37.857  min  25.905   vs unfused: -10.8%
+rank  26  unfused  median  42.765  min  40.110
+rank  26  fused    median  37.846  min  23.666   vs unfused: -11.5%
+rank  17  unfused  median  42.415  min  41.454
+rank  17  fused    median  37.823  min  25.102   vs unfused: -10.8%
+rank  54  unfused  median  42.756  min  39.747
+rank  54  fused    median  37.855  min  23.324   vs unfused: -11.5%
+rank  10  unfused  median  42.794  min  39.699
+rank  10  fused    median  37.803  min  23.565   vs unfused: -11.7%
+rank  29  unfused  median  42.301  min  41.252
+rank  29  fused    median  37.921  min  24.913   vs unfused: -10.4%
+rank  11  unfused  median  42.459  min  41.238
+rank  11  fused    median  37.922  min  24.760   vs unfused: -10.7%
+rank  41  unfused  median  42.307  min  40.741
+rank  41  fused    median  37.942  min  24.229   vs unfused: -10.3%
+rank  70  unfused  median  42.787  min  38.941
+rank  70  fused    median  37.823  min  22.654   vs unfused: -11.6%
+rank  55  unfused  median  42.828  min  39.908
+rank  55  fused    median  37.752  min  22.964   vs unfused: -11.9%
+rank  28  unfused  median  43.051  min  34.827
+rank  28  fused    median  37.817  min  20.592   vs unfused: -12.2%
+rank  86  unfused  median  42.963  min  35.132
+rank  86  fused    median  37.848  min  20.597   vs unfused: -11.9%
+rank  57  unfused  median  43.116  min  37.479
+rank  57  fused    median  37.785  min  21.779   vs unfused: -12.4%
+rank  25  unfused  median  42.982  min  36.085
+rank  25  fused    median  38.027  min  20.823   vs unfused: -11.5%
+rank  97  unfused  median  43.263  min  36.407
+rank  97  fused    median  37.841  min  21.162   vs unfused: -12.5%
+rank  15  unfused  median  43.453  min  34.979
+rank  15  fused    median  37.764  min  20.653   vs unfused: -13.1%
+rank  73  unfused  median  43.208  min  35.025
+rank  73  fused    median  37.897  min  20.674   vs unfused: -12.3%
+rank  14  unfused  median  43.409  min  31.680
+rank  14  fused    median  37.946  min  19.932   vs unfused: -12.6%
+rank  39  unfused  median  43.499  min  32.787
+rank  39  fused    median  37.871  min  19.790   vs unfused: -12.9%
+rank  42  unfused  median  43.577  min  28.429
+rank  42  fused    median  37.979  min  19.360   vs unfused: -12.8%
+rank  96  unfused  median  43.716  min  26.032
+rank  96  fused    median  38.067  min  19.210   vs unfused: -12.9%
+grid 273x65x57  cusp=False  dampin=2.0
+correctness: maxdiff 1.4552e-11 (2.156e-07 of scale) bitwise=False
+rank   0  unfused  median  47.026  min  11.898
+rank   0  fused    median  41.727  min  10.746   vs unfused: -11.3%
+rank   1  unfused  median  47.129  min  11.386
+rank   1  fused    median  41.770  min  10.326   vs unfused: -11.4%
+
+=== aggregate ===
+
+--- serial (1 rank(s)) ---
+  unfused       10.708 ns/cell   vs unfused: median  +0.00%  wins 0/1
+  fused         10.024 ns/cell   vs unfused: median  -6.39%  wins 1/1
+
+--- saturated (100 rank(s)) ---
+  unfused       42.196 ns/cell   vs unfused: median  +0.00%  wins 0/100
+  fused         37.813 ns/cell   vs unfused: median -10.67%  wins 100/100
