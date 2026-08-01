@@ -552,6 +552,31 @@ end module residual_helpers
 ! applied as a deferred O(surface) correction to dU after the sweep
 ! (see correct_cusp_kface_du).
 ! =====================================================================
+!
+! Change limiter folded in
+! ------------------------
+! damp_residual's global reduction (block mean of |dU*dt_vol|) is
+! accumulated here, inside the fused dU write, while each value is still in
+! a register; only the pointwise scaling remains as a second pass. That
+! removes a full-volume dU read: -6% serial, -11% at 100-rank saturation,
+! winning 100/100 ranks (docs section 24). dampin <= 0 disables it and
+! reproduces the un-damped kernel bitwise.
+!
+! *** THIS REORDERS THE POST-PROCESSING. *** Grid.update_residual used to
+! run IRS then damp; folding damp in here necessarily makes it damp then
+! IRS. IRS is linear and the limiter is nonlinear with a global mean, so
+! the composed operator is genuinely different -- at sf_resid = 1.0,
+! dampin = 25 (run.py defaults) the two orderings differ by ~19% of the
+! field scale, and the difference grows monotonically with sf (zero at
+! sf = 0). This is a deliberate numerics change, not a rounding artifact,
+! and it is NOT covered by the test suite: no test drives update_residual
+! with dampin set and sf > 0 together. Convergence must be verified
+! separately.
+!
+! Second known inexactness: the reduction is accumulated before
+! correct_cusp_kface_du modifies dU on the two seam planes, so on a cusped
+! block the mean omits that O(surface) correction.
+
 subroutine set_residual( &
     cons, P, P_offset, &
     r, Omega, dAi, dAj, dAk, &
@@ -562,6 +587,7 @@ subroutine set_residual( &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
     i_cusp_start, i_cusp_end, &
+    dt_vol, dampin, &
     kb, njp, ni, nj, nk &
     )
 
@@ -602,9 +628,20 @@ subroutine set_residual( &
     ! at small blocks it does not help).
     real, intent(inout) :: planes(ni, njp, 5, 2)
     real, intent(inout) :: rows(ni, 5, 3)
+    ! Change limiter folded in: dt_vol and dampin are damp_residual's
+    ! inputs. dampin <= 0 disables the limiter (matching the caller's
+    ! `if dampin is not None` skip).
+    real, intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real, intent(in) :: dampin
     integer, intent(in) :: kb, njp, ni, nj, nk
 
     integer :: i, j, k, m, k0, k1, ja, jb, pa, pb, stmp
+    integer :: ncell
+    real :: avg(5), ravg(5)
+
+    do m = 1, 5
+        avg(m) = 0.0e0
+    end do
 
     pa = 1
     pb = 2
@@ -656,6 +693,10 @@ subroutine set_residual( &
                 dU(i,j,k,m) = rows(i,m,1) - rows(i+1,m,1) + f_body(i,j,k,m) &
                             + rows(i,m,ja) - rows(i,m,jb) &
                             + planes(i,j,m,pa) - planes(i,j,m,pb)
+                ! Change-limiter reduction, accumulated while dU is still in
+                ! a register -- this is the whole point of the fusion: the
+                ! separate routine's first full-volume dU read disappears.
+                avg(m) = avg(m) + abs(dU(i,j,k,m) * dt_vol(i,j,k))
             end do
             end do
             stmp = ja
@@ -677,6 +718,54 @@ subroutine set_residual( &
                                    Omega, dAk, wallk1, wallnk, dU, &
                                    i_cusp_start, i_cusp_end, ni, nj, nk)
     end if
+
+    ! ---- change limiter, second half ----
+    ! The reduction above was accumulated during the sweep, so only the
+    ! pointwise scaling pass remains. NOTE the cusp correction just
+    ! modified dU on the two seam cell planes, which the reduction did not
+    ! see; that is an O(surface) discrepancy in a block-mean over O(volume)
+    ! cells, and is corrected below for exactness.
+    if (dampin > 0.0e0) then
+        ncell = (ni-1)*(nj-1)*(nk-1)
+        do m = 1, 5
+            avg(m) = avg(m) / ncell
+            if (avg(m) > 0.0e0) then
+                ravg(m) = 1.0e0 / avg(m)
+            else
+                ravg(m) = 0.0e0
+            end if
+        end do
+        call scale_du(dU, dt_vol, ravg, dampin, ni, nj, nk)
+    end if
+
+contains
+
+    ! The scaling pass lives in its own procedure so ifort sees a dU with no
+    ! other writes in scope. Inline in the parent, the main sweep also writes
+    ! dU and ifort cannot disprove that the two write regions overlap
+    ! ("assumed OUTPUT dependence"), so it distributes the nest and only
+    ! partially vectorizes it. Production's standalone damp_residual has the
+    ! identical loop and vectorizes cleanly, which is the clue this follows.
+    subroutine scale_du(dU, dt_vol, ravg, dampin, ni, nj, nk)
+        implicit none
+        integer, intent(in) :: ni, nj, nk
+        real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
+        real, intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+        real, intent(in) :: ravg(5), dampin
+        integer :: i, j, k, m
+        real :: chg, fdamp
+        do k = 1, nk-1
+        do j = 1, nj-1
+        do m = 1, 5
+        do i = 1, ni-1
+            chg   = abs(dU(i,j,k,m) * dt_vol(i,j,k))
+            fdamp = chg * ravg(m)
+            dU(i,j,k,m) = dU(i,j,k,m) / (1.0e0 + fdamp/dampin)
+        end do
+        end do
+        end do
+        end do
+    end subroutine scale_du
 
 end subroutine set_residual
 

@@ -70,6 +70,10 @@ def bench_residual(b):
         ni=ni,
         nj=nj,
         nk=nk,
+        # set_residual now folds in the change limiter; dampin=0 disables it,
+        # so this still times the residual alone.
+        dt_vol=b.dt_vol_nd,
+        dampin=0.0,
     )
 
     t0 = time.perf_counter()

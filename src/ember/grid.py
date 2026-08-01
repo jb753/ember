@@ -1501,8 +1501,17 @@ class Grid(_LabelledList):
         force. Purely per-block (no inter-block exchange), so it simply loops.
 
         Optional post-processing runs in place on each block's residual, in
-        order: implicit residual smoothing (``sf``), then the change limiter
-        (``dampin``).
+        order: the change limiter (``dampin``, folded into ``set_residual``
+        itself), then implicit residual smoothing (``sf``).
+
+        .. note::
+           The limiter used to run *after* the smoother. Folding it into
+           ``set_residual`` -- which removes a full-volume residual read --
+           necessarily reverses that. Since IRS is linear and the limiter is
+           nonlinear in a global block mean, the composed operator differs:
+           at ``sf=1.0, dampin=25`` the two orderings differ by ~19% of the
+           field scale, growing with ``sf``. This is a deliberate numerics
+           change.
 
         Parameters
         ----------
@@ -1569,6 +1578,14 @@ class Grid(_LabelledList):
                 ni=ni,
                 nj=nj,
                 nk=nk,
+                # The change limiter is folded into set_residual: its block-mean
+                # reduction is accumulated during the dU write, removing a
+                # full-volume dU read. dampin=0 disables it. NOTE this reorders
+                # the post-processing -- the limiter now runs BEFORE the IRS
+                # smoother below, where it used to run after. See the kernel
+                # header in residual.f90 and docs section 24.5.
+                dt_vol=block.dt_vol_nd,
+                dampin=0.0 if dampin is None else dampin,
             )
             if sf > 0.0:
                 # Exact factored-tridiagonal IRS (Jameson ADI): a direct solve.
@@ -1581,15 +1598,6 @@ class Grid(_LabelledList):
                     du=block.residual_nd,
                     sf=sf,
                     work=util.carve_view(block.scratch, (nwork,)),
-                    ni=ni,
-                    nj=nj,
-                    nk=nk,
-                )
-            if dampin is not None:
-                ember.fortran.damp_residual(
-                    du=block.residual_nd,
-                    dt_vol=block.dt_vol_nd,
-                    dampin=dampin,
                     ni=ni,
                     nj=nj,
                     nk=nk,
