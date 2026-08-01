@@ -1,0 +1,811 @@
+sapphire modules
+=== node: cpu-r-97  model name	: Intel(R) Xeon(R) Platinum 8480+ ===
+=== building with ifort ON THIS NODE (-xHost targets sapphire) ===
+gfortran: GNU Fortran (GCC) 8.5.0 20210514 (Red Hat 8.5.0-28)
+Fortran syntax passed
+Installing package...
+Package installed successfully
+
+=== Gate 1: did the candidate vectorize? ===
+  iface_flow_row: 18 mentions
+  jface_flow_row: 22 mentions
+  kface_flow_plane: 21 mentions
+  node_quantities: 3 mentions
+  avg_along_i: 3 mentions
+  avg_along_j: 4 mentions
+  avg_along_k: 4 mentions
+  face_flux: 5 mentions
+  (full report: /rds/project/rds-7OSWtyyYICQ/jb753/ember-paper/ember/tools/opt_report_residual_ab.txt)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+
+=== Gate 2 + serial regime (1 rank, pinned) ===
+variants present: ['prod', 'clean', 'tiled@96x16x8', 'tiled@64x16x8', 'tiled@48x24x8', 'tiled@32x32x8', 'tiled@128x16x4']
+mode=serial  ranks=1  reps=50
+grid 273 x 65 x 57
+
+correctness gate (vs production, zeroed scratch dU):
+  prod      (reference)  |dU|_max = 2.320116e-04
+  clean     max_abs_diff = 0.000000e+00  (0.000e+00 of scale)  bitwise=True
+  tiled@96x16x8  max_abs_diff = 2.328306e-09  (1.004e-05 of scale)  bitwise=False
+  tiled@64x16x8  max_abs_diff = 2.328306e-09  (1.004e-05 of scale)  bitwise=False
+  tiled@48x24x8  max_abs_diff = 2.361048e-09  (1.018e-05 of scale)  bitwise=False
+  tiled@32x32x8  max_abs_diff = 2.328306e-09  (1.004e-05 of scale)  bitwise=False
+  tiled@128x16x4  max_abs_diff = 2.328306e-09  (1.004e-05 of scale)  bitwise=False
+  note: non-bitwise variants are expected if they reassociate;
+  judge by 'of scale' (~1e-7 is float32 ulp noise, not a bug).
+rank   0  prod      median   9.508 ns/cell   min   9.459
+rank   0  clean     median  25.722 ns/cell   min  24.702   vs prod: median +170.5%  min +161.1%
+rank   0  tiled@96x16x8  median  25.531 ns/cell   min  25.438   vs prod: median +168.5%  min +168.9%
+rank   0  tiled@64x16x8  median  24.948 ns/cell   min  24.873   vs prod: median +162.4%  min +163.0%
+rank   0  tiled@48x24x8  median  27.067 ns/cell   min  26.939   vs prod: median +184.7%  min +184.8%
+rank   0  tiled@32x32x8  median  32.236 ns/cell   min  32.053   vs prod: median +239.0%  min +238.9%
+rank   0  tiled@128x16x4  median  23.528 ns/cell   min  23.432   vs prod: median +147.5%  min +147.7%
+
+=== saturated regime (100 ranks, each with its own 1M-cell grid) ===
+rank  90  prod      median  23.290 ns/cell   min  22.415
+rank  90  clean     median  48.364 ns/cell   min  44.159   vs prod: median +107.7%  min +97.0%
+rank  90  tiled@96x16x8  median  67.786 ns/cell   min  66.147   vs prod: median +191.0%  min +195.1%
+rank  90  tiled@64x16x8  median  63.898 ns/cell   min  62.131   vs prod: median +174.4%  min +177.2%
+rank  90  tiled@48x24x8  median  71.455 ns/cell   min  70.328   vs prod: median +206.8%  min +213.8%
+rank  90  tiled@32x32x8  median  84.832 ns/cell   min  83.508   vs prod: median +264.2%  min +272.6%
+rank  90  tiled@128x16x4  median  57.001 ns/cell   min  55.655   vs prod: median +144.7%  min +148.3%
+rank  92  prod      median  23.384 ns/cell   min  21.925
+rank  92  clean     median  48.283 ns/cell   min  44.469   vs prod: median +106.5%  min +102.8%
+rank  92  tiled@96x16x8  median  67.889 ns/cell   min  66.060   vs prod: median +190.3%  min +201.3%
+rank  92  tiled@64x16x8  median  64.207 ns/cell   min  62.262   vs prod: median +174.6%  min +184.0%
+rank  92  tiled@48x24x8  median  71.418 ns/cell   min  69.907   vs prod: median +205.4%  min +218.8%
+rank  92  tiled@32x32x8  median  85.039 ns/cell   min  83.599   vs prod: median +263.7%  min +281.3%
+rank  92  tiled@128x16x4  median  56.848 ns/cell   min  55.417   vs prod: median +143.1%  min +152.8%
+rank  80  prod      median  23.132 ns/cell   min  21.676
+rank  80  clean     median  47.999 ns/cell   min  43.092   vs prod: median +107.5%  min +98.8%
+rank  80  tiled@96x16x8  median  68.581 ns/cell   min  66.118   vs prod: median +196.5%  min +205.0%
+rank  80  tiled@64x16x8  median  63.710 ns/cell   min  61.901   vs prod: median +175.4%  min +185.6%
+rank  80  tiled@48x24x8  median  71.804 ns/cell   min  69.644   vs prod: median +210.4%  min +221.3%
+rank  80  tiled@32x32x8  median  85.806 ns/cell   min  84.047   vs prod: median +270.9%  min +287.7%
+rank  80  tiled@128x16x4  median  57.269 ns/cell   min  55.209   vs prod: median +147.6%  min +154.7%
+rank  94  prod      median  23.070 ns/cell   min  21.763
+rank  94  clean     median  48.115 ns/cell   min  43.589   vs prod: median +108.6%  min +100.3%
+rank  94  tiled@96x16x8  median  68.190 ns/cell   min  66.073   vs prod: median +195.6%  min +203.6%
+rank  94  tiled@64x16x8  median  63.997 ns/cell   min  61.966   vs prod: median +177.4%  min +184.7%
+rank  94  tiled@48x24x8  median  71.582 ns/cell   min  69.870   vs prod: median +210.3%  min +221.1%
+rank  94  tiled@32x32x8  median  85.619 ns/cell   min  83.813   vs prod: median +271.1%  min +285.1%
+rank  94  tiled@128x16x4  median  57.400 ns/cell   min  55.272   vs prod: median +148.8%  min +154.0%
+rank  88  prod      median  23.196 ns/cell   min  22.042
+rank  88  clean     median  48.270 ns/cell   min  46.295   vs prod: median +108.1%  min +110.0%
+rank  88  tiled@96x16x8  median  68.625 ns/cell   min  66.911   vs prod: median +195.8%  min +203.6%
+rank  88  tiled@64x16x8  median  64.088 ns/cell   min  62.728   vs prod: median +176.3%  min +184.6%
+rank  88  tiled@48x24x8  median  71.615 ns/cell   min  70.075   vs prod: median +208.7%  min +217.9%
+rank  88  tiled@32x32x8  median  85.837 ns/cell   min  83.771   vs prod: median +270.1%  min +280.0%
+rank  88  tiled@128x16x4  median  57.381 ns/cell   min  54.929   vs prod: median +147.4%  min +149.2%
+rank  87  prod      median  23.373 ns/cell   min  22.398
+rank  87  clean     median  48.306 ns/cell   min  43.821   vs prod: median +106.7%  min +95.6%
+rank  87  tiled@96x16x8  median  68.400 ns/cell   min  66.347   vs prod: median +192.6%  min +196.2%
+rank  87  tiled@64x16x8  median  64.157 ns/cell   min  61.530   vs prod: median +174.5%  min +174.7%
+rank  87  tiled@48x24x8  median  72.234 ns/cell   min  70.438   vs prod: median +209.1%  min +214.5%
+rank  87  tiled@32x32x8  median  86.297 ns/cell   min  84.626   vs prod: median +269.2%  min +277.8%
+rank  87  tiled@128x16x4  median  57.105 ns/cell   min  54.388   vs prod: median +144.3%  min +142.8%
+rank  99  prod      median  23.562 ns/cell   min  22.310
+rank  99  clean     median  48.400 ns/cell   min  42.333   vs prod: median +105.4%  min +89.7%
+rank  99  tiled@96x16x8  median  68.141 ns/cell   min  66.351   vs prod: median +189.2%  min +197.4%
+rank  99  tiled@64x16x8  median  64.324 ns/cell   min  62.136   vs prod: median +173.0%  min +178.5%
+rank  99  tiled@48x24x8  median  72.199 ns/cell   min  70.405   vs prod: median +206.4%  min +215.6%
+rank  99  tiled@32x32x8  median  86.313 ns/cell   min  84.528   vs prod: median +266.3%  min +278.9%
+rank  99  tiled@128x16x4  median  57.535 ns/cell   min  54.646   vs prod: median +144.2%  min +144.9%
+rank  98  prod      median  23.299 ns/cell   min  21.741
+rank  98  clean     median  48.242 ns/cell   min  43.693   vs prod: median +107.1%  min +101.0%
+rank  98  tiled@96x16x8  median  67.964 ns/cell   min  66.697   vs prod: median +191.7%  min +206.8%
+rank  98  tiled@64x16x8  median  64.054 ns/cell   min  62.599   vs prod: median +174.9%  min +187.9%
+rank  98  tiled@48x24x8  median  72.236 ns/cell   min  70.103   vs prod: median +210.0%  min +222.4%
+rank  98  tiled@32x32x8  median  86.551 ns/cell   min  83.313   vs prod: median +271.5%  min +283.2%
+rank  98  tiled@128x16x4  median  57.280 ns/cell   min  53.787   vs prod: median +145.8%  min +147.4%
+rank  36  prod      median  23.554 ns/cell   min  21.902
+rank  36  clean     median  48.138 ns/cell   min  41.755   vs prod: median +104.4%  min +90.6%
+rank  36  tiled@96x16x8  median  68.270 ns/cell   min  66.885   vs prod: median +189.8%  min +205.4%
+rank  36  tiled@64x16x8  median  64.229 ns/cell   min  62.791   vs prod: median +172.7%  min +186.7%
+rank  36  tiled@48x24x8  median  72.319 ns/cell   min  70.349   vs prod: median +207.0%  min +221.2%
+rank  36  tiled@32x32x8  median  86.254 ns/cell   min  83.168   vs prod: median +266.2%  min +279.7%
+rank  36  tiled@128x16x4  median  57.445 ns/cell   min  53.886   vs prod: median +143.9%  min +146.0%
+rank  84  prod      median  23.474 ns/cell   min  22.141
+rank  84  clean     median  48.864 ns/cell   min  41.788   vs prod: median +108.2%  min +88.7%
+rank  84  tiled@96x16x8  median  68.427 ns/cell   min  67.004   vs prod: median +191.5%  min +202.6%
+rank  84  tiled@64x16x8  median  64.034 ns/cell   min  62.506   vs prod: median +172.8%  min +182.3%
+rank  84  tiled@48x24x8  median  72.027 ns/cell   min  69.965   vs prod: median +206.8%  min +216.0%
+rank  84  tiled@32x32x8  median  86.268 ns/cell   min  81.472   vs prod: median +267.5%  min +268.0%
+rank  84  tiled@128x16x4  median  57.624 ns/cell   min  53.456   vs prod: median +145.5%  min +141.4%
+rank  91  prod      median  23.293 ns/cell   min  22.117
+rank  91  clean     median  48.150 ns/cell   min  43.203   vs prod: median +106.7%  min +95.3%
+rank  91  tiled@96x16x8  median  68.094 ns/cell   min  65.557   vs prod: median +192.3%  min +196.4%
+rank  91  tiled@64x16x8  median  64.498 ns/cell   min  62.640   vs prod: median +176.9%  min +183.2%
+rank  91  tiled@48x24x8  median  72.469 ns/cell   min  70.999   vs prod: median +211.1%  min +221.0%
+rank  91  tiled@32x32x8  median  86.674 ns/cell   min  85.027   vs prod: median +272.1%  min +284.4%
+rank  91  tiled@128x16x4  median  57.520 ns/cell   min  54.293   vs prod: median +146.9%  min +145.5%
+rank  74  prod      median  23.352 ns/cell   min  22.143
+rank  74  clean     median  48.075 ns/cell   min  42.934   vs prod: median +105.9%  min +93.9%
+rank  74  tiled@96x16x8  median  68.700 ns/cell   min  66.919   vs prod: median +194.2%  min +202.2%
+rank  74  tiled@64x16x8  median  64.269 ns/cell   min  62.675   vs prod: median +175.2%  min +183.0%
+rank  74  tiled@48x24x8  median  72.406 ns/cell   min  69.441   vs prod: median +210.1%  min +213.6%
+rank  74  tiled@32x32x8  median  86.636 ns/cell   min  80.912   vs prod: median +271.0%  min +265.4%
+rank  74  tiled@128x16x4  median  58.041 ns/cell   min  52.799   vs prod: median +148.5%  min +138.4%
+rank  93  prod      median  23.686 ns/cell   min  22.054
+rank  93  clean     median  48.104 ns/cell   min  40.223   vs prod: median +103.1%  min +82.4%
+rank  93  tiled@96x16x8  median  68.690 ns/cell   min  66.358   vs prod: median +190.0%  min +200.9%
+rank  93  tiled@64x16x8  median  64.663 ns/cell   min  63.025   vs prod: median +173.0%  min +185.8%
+rank  93  tiled@48x24x8  median  72.488 ns/cell   min  70.935   vs prod: median +206.0%  min +221.6%
+rank  93  tiled@32x32x8  median  86.824 ns/cell   min  83.989   vs prod: median +266.6%  min +280.8%
+rank  93  tiled@128x16x4  median  57.474 ns/cell   min  54.971   vs prod: median +142.6%  min +149.3%
+rank  14  prod      median  23.312 ns/cell   min  21.975
+rank  14  clean     median  48.299 ns/cell   min  44.347   vs prod: median +107.2%  min +101.8%
+rank  14  tiled@96x16x8  median  68.699 ns/cell   min  67.399   vs prod: median +194.7%  min +206.7%
+rank  14  tiled@64x16x8  median  64.764 ns/cell   min  62.241   vs prod: median +177.8%  min +183.2%
+rank  14  tiled@48x24x8  median  72.248 ns/cell   min  67.291   vs prod: median +209.9%  min +206.2%
+rank  14  tiled@32x32x8  median  87.204 ns/cell   min  79.739   vs prod: median +274.1%  min +262.9%
+rank  14  tiled@128x16x4  median  57.834 ns/cell   min  52.233   vs prod: median +148.1%  min +137.7%
+rank  21  prod      median  23.605 ns/cell   min  21.947
+rank  21  clean     median  48.085 ns/cell   min  44.251   vs prod: median +103.7%  min +101.6%
+rank  21  tiled@96x16x8  median  68.611 ns/cell   min  66.717   vs prod: median +190.7%  min +204.0%
+rank  21  tiled@64x16x8  median  64.528 ns/cell   min  62.549   vs prod: median +173.4%  min +185.0%
+rank  21  tiled@48x24x8  median  72.721 ns/cell   min  71.006   vs prod: median +208.1%  min +223.5%
+rank  21  tiled@32x32x8  median  87.172 ns/cell   min  84.283   vs prod: median +269.3%  min +284.0%
+rank  21  tiled@128x16x4  median  57.551 ns/cell   min  54.561   vs prod: median +143.8%  min +148.6%
+rank  71  prod      median  23.616 ns/cell   min  22.241
+rank  71  clean     median  47.737 ns/cell   min  45.817   vs prod: median +102.1%  min +106.0%
+rank  71  tiled@96x16x8  median  68.714 ns/cell   min  66.684   vs prod: median +191.0%  min +199.8%
+rank  71  tiled@64x16x8  median  64.930 ns/cell   min  62.751   vs prod: median +174.9%  min +182.1%
+rank  71  tiled@48x24x8  median  73.129 ns/cell   min  70.767   vs prod: median +209.7%  min +218.2%
+rank  71  tiled@32x32x8  median  87.647 ns/cell   min  83.410   vs prod: median +271.1%  min +275.0%
+rank  71  tiled@128x16x4  median  57.455 ns/cell   min  52.614   vs prod: median +143.3%  min +136.6%
+rank  24  prod      median  23.586 ns/cell   min  22.147
+rank  24  clean     median  48.549 ns/cell   min  43.093   vs prod: median +105.8%  min +94.6%
+rank  24  tiled@96x16x8  median  68.679 ns/cell   min  66.191   vs prod: median +191.2%  min +198.9%
+rank  24  tiled@64x16x8  median  65.054 ns/cell   min  60.674   vs prod: median +175.8%  min +174.0%
+rank  24  tiled@48x24x8  median  73.096 ns/cell   min  65.890   vs prod: median +209.9%  min +197.5%
+rank  24  tiled@32x32x8  median  87.276 ns/cell   min  75.961   vs prod: median +270.0%  min +243.0%
+rank  24  tiled@128x16x4  median  57.240 ns/cell   min  50.117   vs prod: median +142.7%  min +126.3%
+rank  89  prod      median  23.302 ns/cell   min  21.903
+rank  89  clean     median  47.824 ns/cell   min  46.013   vs prod: median +105.2%  min +110.1%
+rank  89  tiled@96x16x8  median  69.625 ns/cell   min  67.793   vs prod: median +198.8%  min +209.5%
+rank  89  tiled@64x16x8  median  64.913 ns/cell   min  63.280   vs prod: median +178.6%  min +188.9%
+rank  89  tiled@48x24x8  median  73.015 ns/cell   min  70.411   vs prod: median +213.3%  min +221.5%
+rank  89  tiled@32x32x8  median  87.248 ns/cell   min  81.793   vs prod: median +274.4%  min +273.4%
+rank  89  tiled@128x16x4  median  57.847 ns/cell   min  52.217   vs prod: median +148.2%  min +138.4%
+rank  19  prod      median  23.337 ns/cell   min  21.991
+rank  19  clean     median  48.452 ns/cell   min  46.765   vs prod: median +107.6%  min +112.7%
+rank  19  tiled@96x16x8  median  68.935 ns/cell   min  67.255   vs prod: median +195.4%  min +205.8%
+rank  19  tiled@64x16x8  median  65.106 ns/cell   min  63.633   vs prod: median +179.0%  min +189.4%
+rank  19  tiled@48x24x8  median  73.127 ns/cell   min  69.757   vs prod: median +213.4%  min +217.2%
+rank  19  tiled@32x32x8  median  87.463 ns/cell   min  82.175   vs prod: median +274.8%  min +273.7%
+rank  19  tiled@128x16x4  median  57.459 ns/cell   min  51.792   vs prod: median +146.2%  min +135.5%
+rank  20  prod      median  23.472 ns/cell   min  22.265
+rank  20  clean     median  48.377 ns/cell   min  45.160   vs prod: median +106.1%  min +102.8%
+rank  20  tiled@96x16x8  median  69.162 ns/cell   min  65.837   vs prod: median +194.7%  min +195.7%
+rank  20  tiled@64x16x8  median  65.248 ns/cell   min  60.360   vs prod: median +178.0%  min +171.1%
+rank  20  tiled@48x24x8  median  72.877 ns/cell   min  66.471   vs prod: median +210.5%  min +198.5%
+rank  20  tiled@32x32x8  median  86.970 ns/cell   min  75.898   vs prod: median +270.5%  min +240.9%
+rank  20  tiled@128x16x4  median  57.773 ns/cell   min  49.481   vs prod: median +146.1%  min +122.2%
+rank  78  prod      median  23.245 ns/cell   min  22.320
+rank  78  clean     median  48.202 ns/cell   min  45.126   vs prod: median +107.4%  min +102.2%
+rank  78  tiled@96x16x8  median  69.107 ns/cell   min  64.062   vs prod: median +197.3%  min +187.0%
+rank  78  tiled@64x16x8  median  65.290 ns/cell   min  59.691   vs prod: median +180.9%  min +167.4%
+rank  78  tiled@48x24x8  median  73.209 ns/cell   min  65.063   vs prod: median +215.0%  min +191.5%
+rank  78  tiled@32x32x8  median  86.952 ns/cell   min  74.476   vs prod: median +274.1%  min +233.7%
+rank  78  tiled@128x16x4  median  57.544 ns/cell   min  48.480   vs prod: median +147.6%  min +117.2%
+rank  16  prod      median  23.580 ns/cell   min  22.354
+rank  16  clean     median  48.467 ns/cell   min  45.974   vs prod: median +105.5%  min +105.7%
+rank  16  tiled@96x16x8  median  69.432 ns/cell   min  64.684   vs prod: median +194.5%  min +189.4%
+rank  16  tiled@64x16x8  median  65.268 ns/cell   min  60.424   vs prod: median +176.8%  min +170.3%
+rank  16  tiled@48x24x8  median  73.091 ns/cell   min  64.226   vs prod: median +210.0%  min +187.3%
+rank  16  tiled@32x32x8  median  86.539 ns/cell   min  74.664   vs prod: median +267.0%  min +234.0%
+rank  16  tiled@128x16x4  median  58.124 ns/cell   min  48.251   vs prod: median +146.5%  min +115.9%
+rank  18  prod      median  24.073 ns/cell   min  22.467
+rank  18  clean     median  48.477 ns/cell   min  45.458   vs prod: median +101.4%  min +102.3%
+rank  18  tiled@96x16x8  median  69.473 ns/cell   min  64.582   vs prod: median +188.6%  min +187.5%
+rank  18  tiled@64x16x8  median  65.708 ns/cell   min  59.286   vs prod: median +173.0%  min +163.9%
+rank  18  tiled@48x24x8  median  72.726 ns/cell   min  64.414   vs prod: median +202.1%  min +186.7%
+rank  18  tiled@32x32x8  median  86.461 ns/cell   min  74.793   vs prod: median +259.2%  min +232.9%
+rank  18  tiled@128x16x4  median  58.175 ns/cell   min  48.205   vs prod: median +141.7%  min +114.6%
+rank  95  prod      median  23.525 ns/cell   min  22.400
+rank  95  clean     median  48.414 ns/cell   min  46.291   vs prod: median +105.8%  min +106.7%
+rank  95  tiled@96x16x8  median  69.559 ns/cell   min  68.090   vs prod: median +195.7%  min +204.0%
+rank  95  tiled@64x16x8  median  65.450 ns/cell   min  62.058   vs prod: median +178.2%  min +177.1%
+rank  95  tiled@48x24x8  median  72.973 ns/cell   min  68.441   vs prod: median +210.2%  min +205.5%
+rank  95  tiled@32x32x8  median  87.229 ns/cell   min  78.984   vs prod: median +270.8%  min +252.6%
+rank  95  tiled@128x16x4  median  57.283 ns/cell   min  50.874   vs prod: median +143.5%  min +127.1%
+rank  58  prod      median  23.611 ns/cell   min  22.283
+rank  58  clean     median  48.474 ns/cell   min  46.507   vs prod: median +105.3%  min +108.7%
+rank  58  tiled@96x16x8  median  69.459 ns/cell   min  65.220   vs prod: median +194.2%  min +192.7%
+rank  58  tiled@64x16x8  median  65.536 ns/cell   min  58.648   vs prod: median +177.6%  min +163.2%
+rank  58  tiled@48x24x8  median  73.210 ns/cell   min  63.587   vs prod: median +210.1%  min +185.4%
+rank  58  tiled@32x32x8  median  86.779 ns/cell   min  73.310   vs prod: median +267.5%  min +229.0%
+rank  58  tiled@128x16x4  median  57.830 ns/cell   min  47.249   vs prod: median +144.9%  min +112.0%
+rank  12  prod      median  23.673 ns/cell   min  22.159
+rank  12  clean     median  48.701 ns/cell   min  44.782   vs prod: median +105.7%  min +102.1%
+rank  12  tiled@96x16x8  median  69.761 ns/cell   min  64.283   vs prod: median +194.7%  min +190.1%
+rank  12  tiled@64x16x8  median  65.310 ns/cell   min  59.059   vs prod: median +175.9%  min +166.5%
+rank  12  tiled@48x24x8  median  72.852 ns/cell   min  63.218   vs prod: median +207.7%  min +185.3%
+rank  12  tiled@32x32x8  median  86.582 ns/cell   min  73.528   vs prod: median +265.7%  min +231.8%
+rank  12  tiled@128x16x4  median  58.369 ns/cell   min  47.774   vs prod: median +146.6%  min +115.6%
+rank  81  prod      median  23.173 ns/cell   min  22.049
+rank  81  clean     median  48.223 ns/cell   min  46.544   vs prod: median +108.1%  min +111.1%
+rank  81  tiled@96x16x8  median  69.900 ns/cell   min  67.658   vs prod: median +201.6%  min +206.8%
+rank  81  tiled@64x16x8  median  65.330 ns/cell   min  62.179   vs prod: median +181.9%  min +182.0%
+rank  81  tiled@48x24x8  median  73.328 ns/cell   min  68.191   vs prod: median +216.4%  min +209.3%
+rank  81  tiled@32x32x8  median  87.886 ns/cell   min  79.465   vs prod: median +279.3%  min +260.4%
+rank  81  tiled@128x16x4  median  57.209 ns/cell   min  49.649   vs prod: median +146.9%  min +125.2%
+rank  52  prod      median  23.518 ns/cell   min  22.572
+rank  52  clean     median  48.389 ns/cell   min  43.351   vs prod: median +105.8%  min +92.1%
+rank  52  tiled@96x16x8  median  70.141 ns/cell   min  62.871   vs prod: median +198.2%  min +178.5%
+rank  52  tiled@64x16x8  median  65.353 ns/cell   min  57.481   vs prod: median +177.9%  min +154.7%
+rank  52  tiled@48x24x8  median  72.863 ns/cell   min  62.998   vs prod: median +209.8%  min +179.1%
+rank  52  tiled@32x32x8  median  87.263 ns/cell   min  71.954   vs prod: median +271.0%  min +218.8%
+rank  52  tiled@128x16x4  median  57.749 ns/cell   min  46.224   vs prod: median +145.5%  min +104.8%
+rank  76  prod      median  23.403 ns/cell   min  22.422
+rank  76  clean     median  48.368 ns/cell   min  43.052   vs prod: median +106.7%  min +92.0%
+rank  76  tiled@96x16x8  median  70.609 ns/cell   min  61.288   vs prod: median +201.7%  min +173.3%
+rank  76  tiled@64x16x8  median  65.417 ns/cell   min  56.451   vs prod: median +179.5%  min +151.8%
+rank  76  tiled@48x24x8  median  73.058 ns/cell   min  62.679   vs prod: median +212.2%  min +179.5%
+rank  76  tiled@32x32x8  median  86.793 ns/cell   min  71.143   vs prod: median +270.9%  min +217.3%
+rank  76  tiled@128x16x4  median  58.171 ns/cell   min  46.173   vs prod: median +148.6%  min +105.9%
+rank  63  prod      median  23.905 ns/cell   min  22.805
+rank  63  clean     median  48.596 ns/cell   min  47.188   vs prod: median +103.3%  min +106.9%
+rank  63  tiled@96x16x8  median  69.611 ns/cell   min  66.805   vs prod: median +191.2%  min +192.9%
+rank  63  tiled@64x16x8  median  65.725 ns/cell   min  61.353   vs prod: median +174.9%  min +169.0%
+rank  63  tiled@48x24x8  median  73.222 ns/cell   min  66.823   vs prod: median +206.3%  min +193.0%
+rank  63  tiled@32x32x8  median  87.317 ns/cell   min  77.446   vs prod: median +265.3%  min +239.6%
+rank  63  tiled@128x16x4  median  57.268 ns/cell   min  48.187   vs prod: median +139.6%  min +111.3%
+rank  53  prod      median  23.895 ns/cell   min  22.699
+rank  53  clean     median  48.533 ns/cell   min  45.948   vs prod: median +103.1%  min +102.4%
+rank  53  tiled@96x16x8  median  69.701 ns/cell   min  67.035   vs prod: median +191.7%  min +195.3%
+rank  53  tiled@64x16x8  median  65.866 ns/cell   min  61.423   vs prod: median +175.6%  min +170.6%
+rank  53  tiled@48x24x8  median  73.056 ns/cell   min  66.379   vs prod: median +205.7%  min +192.4%
+rank  53  tiled@32x32x8  median  87.091 ns/cell   min  77.131   vs prod: median +264.5%  min +239.8%
+rank  53  tiled@128x16x4  median  57.211 ns/cell   min  48.202   vs prod: median +139.4%  min +112.4%
+rank  26  prod      median  24.006 ns/cell   min  22.593
+rank  26  clean     median  48.616 ns/cell   min  43.449   vs prod: median +102.5%  min +92.3%
+rank  26  tiled@96x16x8  median  70.368 ns/cell   min  62.306   vs prod: median +193.1%  min +175.8%
+rank  26  tiled@64x16x8  median  65.185 ns/cell   min  56.540   vs prod: median +171.5%  min +150.3%
+rank  26  tiled@48x24x8  median  72.696 ns/cell   min  62.456   vs prod: median +202.8%  min +176.4%
+rank  26  tiled@32x32x8  median  87.440 ns/cell   min  72.071   vs prod: median +264.2%  min +219.0%
+rank  26  tiled@128x16x4  median  58.146 ns/cell   min  45.318   vs prod: median +142.2%  min +100.6%
+rank  85  prod      median  23.632 ns/cell   min  22.551
+rank  85  clean     median  48.543 ns/cell   min  45.813   vs prod: median +105.4%  min +103.2%
+rank  85  tiled@96x16x8  median  69.857 ns/cell   min  66.120   vs prod: median +195.6%  min +193.2%
+rank  85  tiled@64x16x8  median  65.680 ns/cell   min  61.030   vs prod: median +177.9%  min +170.6%
+rank  85  tiled@48x24x8  median  73.264 ns/cell   min  66.668   vs prod: median +210.0%  min +195.6%
+rank  85  tiled@32x32x8  median  87.134 ns/cell   min  76.663   vs prod: median +268.7%  min +240.0%
+rank  85  tiled@128x16x4  median  57.788 ns/cell   min  47.714   vs prod: median +144.5%  min +111.6%
+rank  61  prod      median  23.949 ns/cell   min  22.810
+rank  61  clean     median  48.971 ns/cell   min  45.218   vs prod: median +104.5%  min +98.2%
+rank  61  tiled@96x16x8  median  70.384 ns/cell   min  66.216   vs prod: median +193.9%  min +190.3%
+rank  61  tiled@64x16x8  median  65.554 ns/cell   min  59.172   vs prod: median +173.7%  min +159.4%
+rank  61  tiled@48x24x8  median  72.863 ns/cell   min  65.155   vs prod: median +204.2%  min +185.6%
+rank  61  tiled@32x32x8  median  86.415 ns/cell   min  74.745   vs prod: median +260.8%  min +227.7%
+rank  61  tiled@128x16x4  median  58.174 ns/cell   min  46.817   vs prod: median +142.9%  min +105.2%
+rank  22  prod      median  23.786 ns/cell   min  22.426
+rank  22  clean     median  49.022 ns/cell   min  46.355   vs prod: median +106.1%  min +106.7%
+rank  22  tiled@96x16x8  median  70.134 ns/cell   min  61.389   vs prod: median +194.9%  min +173.7%
+rank  22  tiled@64x16x8  median  65.141 ns/cell   min  56.405   vs prod: median +173.9%  min +151.5%
+rank  22  tiled@48x24x8  median  72.566 ns/cell   min  60.095   vs prod: median +205.1%  min +168.0%
+rank  22  tiled@32x32x8  median  87.338 ns/cell   min  70.208   vs prod: median +267.2%  min +213.1%
+rank  22  tiled@128x16x4  median  58.464 ns/cell   min  43.138   vs prod: median +145.8%  min +92.4%
+rank  59  prod      median  23.919 ns/cell   min  22.571
+rank  59  clean     median  48.542 ns/cell   min  45.768   vs prod: median +102.9%  min +102.8%
+rank  59  tiled@96x16x8  median  70.712 ns/cell   min  65.578   vs prod: median +195.6%  min +190.5%
+rank  59  tiled@64x16x8  median  65.851 ns/cell   min  59.352   vs prod: median +175.3%  min +163.0%
+rank  59  tiled@48x24x8  median  72.970 ns/cell   min  64.581   vs prod: median +205.1%  min +186.1%
+rank  59  tiled@32x32x8  median  86.318 ns/cell   min  74.024   vs prod: median +260.9%  min +228.0%
+rank  59  tiled@128x16x4  median  58.127 ns/cell   min  46.139   vs prod: median +143.0%  min +104.4%
+rank  32  prod      median  24.004 ns/cell   min  22.077
+rank  32  clean     median  48.868 ns/cell   min  43.139   vs prod: median +103.6%  min +95.4%
+rank  32  tiled@96x16x8  median  69.944 ns/cell   min  61.587   vs prod: median +191.4%  min +179.0%
+rank  32  tiled@64x16x8  median  65.523 ns/cell   min  56.667   vs prod: median +173.0%  min +156.7%
+rank  32  tiled@48x24x8  median  72.541 ns/cell   min  60.771   vs prod: median +202.2%  min +175.3%
+rank  32  tiled@32x32x8  median  87.386 ns/cell   min  68.242   vs prod: median +264.0%  min +209.1%
+rank  32  tiled@128x16x4  median  58.161 ns/cell   min  42.312   vs prod: median +142.3%  min +91.7%
+rank  65  prod      median  23.779 ns/cell   min  22.708
+rank  65  clean     median  48.399 ns/cell   min  45.981   vs prod: median +103.5%  min +102.5%
+rank  65  tiled@96x16x8  median  70.176 ns/cell   min  65.019   vs prod: median +195.1%  min +186.3%
+rank  65  tiled@64x16x8  median  65.678 ns/cell   min  58.709   vs prod: median +176.2%  min +158.5%
+rank  65  tiled@48x24x8  median  73.267 ns/cell   min  64.472   vs prod: median +208.1%  min +183.9%
+rank  65  tiled@32x32x8  median  86.883 ns/cell   min  73.416   vs prod: median +265.4%  min +223.3%
+rank  65  tiled@128x16x4  median  58.485 ns/cell   min  45.095   vs prod: median +145.9%  min +98.6%
+rank  17  prod      median  23.765 ns/cell   min  22.382
+rank  17  clean     median  49.183 ns/cell   min  46.101   vs prod: median +107.0%  min +106.0%
+rank  17  tiled@96x16x8  median  70.669 ns/cell   min  65.418   vs prod: median +197.4%  min +192.3%
+rank  17  tiled@64x16x8  median  65.492 ns/cell   min  58.978   vs prod: median +175.6%  min +163.5%
+rank  17  tiled@48x24x8  median  72.814 ns/cell   min  64.850   vs prod: median +206.4%  min +189.7%
+rank  17  tiled@32x32x8  median  86.634 ns/cell   min  73.323   vs prod: median +264.5%  min +227.6%
+rank  17  tiled@128x16x4  median  58.096 ns/cell   min  45.739   vs prod: median +144.5%  min +104.4%
+rank  23  prod      median  23.803 ns/cell   min  22.702
+rank  23  clean     median  48.643 ns/cell   min  45.212   vs prod: median +104.4%  min +99.1%
+rank  23  tiled@96x16x8  median  70.743 ns/cell   min  65.903   vs prod: median +197.2%  min +190.3%
+rank  23  tiled@64x16x8  median  65.832 ns/cell   min  59.150   vs prod: median +176.6%  min +160.5%
+rank  23  tiled@48x24x8  median  73.139 ns/cell   min  64.909   vs prod: median +207.3%  min +185.9%
+rank  23  tiled@32x32x8  median  86.831 ns/cell   min  73.192   vs prod: median +264.8%  min +222.4%
+rank  23  tiled@128x16x4  median  58.217 ns/cell   min  45.666   vs prod: median +144.6%  min +101.1%
+rank  37  prod      median  23.875 ns/cell   min  22.555
+rank  37  clean     median  48.649 ns/cell   min  45.845   vs prod: median +103.8%  min +103.3%
+rank  37  tiled@96x16x8  median  70.843 ns/cell   min  65.478   vs prod: median +196.7%  min +190.3%
+rank  37  tiled@64x16x8  median  65.585 ns/cell   min  58.661   vs prod: median +174.7%  min +160.1%
+rank  37  tiled@48x24x8  median  73.091 ns/cell   min  64.861   vs prod: median +206.1%  min +187.6%
+rank  37  tiled@32x32x8  median  87.090 ns/cell   min  72.863   vs prod: median +264.8%  min +223.1%
+rank  37  tiled@128x16x4  median  57.901 ns/cell   min  45.233   vs prod: median +142.5%  min +100.6%
+rank  68  prod      median  23.921 ns/cell   min  21.587
+rank  68  clean     median  48.793 ns/cell   min  44.718   vs prod: median +104.0%  min +107.2%
+rank  68  tiled@96x16x8  median  69.753 ns/cell   min  58.784   vs prod: median +191.6%  min +172.3%
+rank  68  tiled@64x16x8  median  65.029 ns/cell   min  53.582   vs prod: median +171.9%  min +148.2%
+rank  68  tiled@48x24x8  median  73.351 ns/cell   min  58.601   vs prod: median +206.6%  min +171.5%
+rank  68  tiled@32x32x8  median  88.741 ns/cell   min  65.847   vs prod: median +271.0%  min +205.0%
+rank  68  tiled@128x16x4  median  58.000 ns/cell   min  41.312   vs prod: median +142.5%  min +91.4%
+rank  42  prod      median  23.885 ns/cell   min  21.826
+rank  42  clean     median  49.046 ns/cell   min  45.025   vs prod: median +105.3%  min +106.3%
+rank  42  tiled@96x16x8  median  70.249 ns/cell   min  59.932   vs prod: median +194.1%  min +174.6%
+rank  42  tiled@64x16x8  median  64.760 ns/cell   min  54.010   vs prod: median +171.1%  min +147.5%
+rank  42  tiled@48x24x8  median  73.216 ns/cell   min  58.937   vs prod: median +206.5%  min +170.0%
+rank  42  tiled@32x32x8  median  87.883 ns/cell   min  65.726   vs prod: median +267.9%  min +201.1%
+rank  42  tiled@128x16x4  median  58.360 ns/cell   min  41.570   vs prod: median +144.3%  min +90.5%
+rank  73  prod      median  23.840 ns/cell   min  22.794
+rank  73  clean     median  48.674 ns/cell   min  45.059   vs prod: median +104.2%  min +97.7%
+rank  73  tiled@96x16x8  median  70.749 ns/cell   min  64.213   vs prod: median +196.8%  min +181.7%
+rank  73  tiled@64x16x8  median  65.848 ns/cell   min  58.731   vs prod: median +176.2%  min +157.7%
+rank  73  tiled@48x24x8  median  72.865 ns/cell   min  63.617   vs prod: median +205.6%  min +179.1%
+rank  73  tiled@32x32x8  median  87.099 ns/cell   min  71.668   vs prod: median +265.3%  min +214.4%
+rank  73  tiled@128x16x4  median  58.600 ns/cell   min  43.512   vs prod: median +145.8%  min +90.9%
+rank  49  prod      median  23.945 ns/cell   min  22.620
+rank  49  clean     median  48.787 ns/cell   min  42.496   vs prod: median +103.7%  min +87.9%
+rank  49  tiled@96x16x8  median  70.810 ns/cell   min  63.433   vs prod: median +195.7%  min +180.4%
+rank  49  tiled@64x16x8  median  65.486 ns/cell   min  58.207   vs prod: median +173.5%  min +157.3%
+rank  49  tiled@48x24x8  median  72.564 ns/cell   min  62.336   vs prod: median +203.0%  min +175.6%
+rank  49  tiled@32x32x8  median  87.215 ns/cell   min  71.410   vs prod: median +264.2%  min +215.7%
+rank  49  tiled@128x16x4  median  59.058 ns/cell   min  43.671   vs prod: median +146.6%  min +93.1%
+rank   3  prod      median  23.865 ns/cell   min  22.786
+rank   3  clean     median  48.796 ns/cell   min  42.613   vs prod: median +104.5%  min +87.0%
+rank   3  tiled@96x16x8  median  70.629 ns/cell   min  63.473   vs prod: median +196.0%  min +178.6%
+rank   3  tiled@64x16x8  median  65.869 ns/cell   min  58.714   vs prod: median +176.0%  min +157.7%
+rank   3  tiled@48x24x8  median  72.681 ns/cell   min  63.147   vs prod: median +204.6%  min +177.1%
+rank   3  tiled@32x32x8  median  86.635 ns/cell   min  71.000   vs prod: median +263.0%  min +211.6%
+rank   3  tiled@128x16x4  median  59.240 ns/cell   min  44.104   vs prod: median +148.2%  min +93.6%
+rank   2  prod      median  24.045 ns/cell   min  22.496
+rank   2  clean     median  49.148 ns/cell   min  42.571   vs prod: median +104.4%  min +89.2%
+rank   2  tiled@96x16x8  median  70.614 ns/cell   min  60.191   vs prod: median +193.7%  min +167.6%
+rank   2  tiled@64x16x8  median  64.864 ns/cell   min  53.844   vs prod: median +169.8%  min +139.3%
+rank   2  tiled@48x24x8  median  72.736 ns/cell   min  59.097   vs prod: median +202.5%  min +162.7%
+rank   2  tiled@32x32x8  median  87.117 ns/cell   min  64.069   vs prod: median +262.3%  min +184.8%
+rank   2  tiled@128x16x4  median  59.066 ns/cell   min  41.531   vs prod: median +145.7%  min +84.6%
+rank  34  prod      median  24.180 ns/cell   min  22.542
+rank  34  clean     median  49.051 ns/cell   min  42.402   vs prod: median +102.9%  min +88.1%
+rank  34  tiled@96x16x8  median  70.368 ns/cell   min  59.304   vs prod: median +191.0%  min +163.1%
+rank  34  tiled@64x16x8  median  65.009 ns/cell   min  53.832   vs prod: median +168.9%  min +138.8%
+rank  34  tiled@48x24x8  median  72.680 ns/cell   min  58.182   vs prod: median +200.6%  min +158.1%
+rank  34  tiled@32x32x8  median  87.713 ns/cell   min  63.804   vs prod: median +262.7%  min +183.0%
+rank  34  tiled@128x16x4  median  58.937 ns/cell   min  40.756   vs prod: median +143.7%  min +80.8%
+rank  77  prod      median  23.856 ns/cell   min  22.359
+rank  77  clean     median  48.671 ns/cell   min  42.649   vs prod: median +104.0%  min +90.8%
+rank  77  tiled@96x16x8  median  71.319 ns/cell   min  64.135   vs prod: median +199.0%  min +186.8%
+rank  77  tiled@64x16x8  median  65.160 ns/cell   min  57.686   vs prod: median +173.1%  min +158.0%
+rank  77  tiled@48x24x8  median  72.981 ns/cell   min  62.822   vs prod: median +205.9%  min +181.0%
+rank  77  tiled@32x32x8  median  87.321 ns/cell   min  69.764   vs prod: median +266.0%  min +212.0%
+rank  77  tiled@128x16x4  median  58.648 ns/cell   min  42.712   vs prod: median +145.8%  min +91.0%
+rank  64  prod      median  23.994 ns/cell   min  21.480
+rank  64  clean     median  48.681 ns/cell   min  41.797   vs prod: median +102.9%  min +94.6%
+rank  64  tiled@96x16x8  median  70.196 ns/cell   min  57.868   vs prod: median +192.6%  min +169.4%
+rank  64  tiled@64x16x8  median  65.318 ns/cell   min  53.435   vs prod: median +172.2%  min +148.8%
+rank  64  tiled@48x24x8  median  73.495 ns/cell   min  56.171   vs prod: median +206.3%  min +161.5%
+rank  64  tiled@32x32x8  median  87.383 ns/cell   min  62.581   vs prod: median +264.2%  min +191.3%
+rank  64  tiled@128x16x4  median  59.102 ns/cell   min  39.178   vs prod: median +146.3%  min +82.4%
+rank  60  prod      median  23.957 ns/cell   min  21.442
+rank  60  clean     median  48.877 ns/cell   min  41.116   vs prod: median +104.0%  min +91.8%
+rank  60  tiled@96x16x8  median  70.241 ns/cell   min  57.777   vs prod: median +193.2%  min +169.5%
+rank  60  tiled@64x16x8  median  65.102 ns/cell   min  53.506   vs prod: median +171.8%  min +149.5%
+rank  60  tiled@48x24x8  median  73.599 ns/cell   min  56.471   vs prod: median +207.2%  min +163.4%
+rank  60  tiled@32x32x8  median  87.356 ns/cell   min  62.816   vs prod: median +264.6%  min +193.0%
+rank  60  tiled@128x16x4  median  59.486 ns/cell   min  39.661   vs prod: median +148.3%  min +85.0%
+rank   8  prod      median  24.130 ns/cell   min  21.782
+rank   8  clean     median  48.834 ns/cell   min  43.268   vs prod: median +102.4%  min +98.6%
+rank   8  tiled@96x16x8  median  70.277 ns/cell   min  59.044   vs prod: median +191.2%  min +171.1%
+rank   8  tiled@64x16x8  median  65.044 ns/cell   min  54.133   vs prod: median +169.6%  min +148.5%
+rank   8  tiled@48x24x8  median  73.256 ns/cell   min  56.578   vs prod: median +203.6%  min +159.7%
+rank   8  tiled@32x32x8  median  87.468 ns/cell   min  63.170   vs prod: median +262.5%  min +190.0%
+rank   8  tiled@128x16x4  median  59.346 ns/cell   min  39.384   vs prod: median +145.9%  min +80.8%
+rank  75  prod      median  23.898 ns/cell   min  22.363
+rank  75  clean     median  48.924 ns/cell   min  43.015   vs prod: median +104.7%  min +92.3%
+rank  75  tiled@96x16x8  median  70.763 ns/cell   min  62.544   vs prod: median +196.1%  min +179.7%
+rank  75  tiled@64x16x8  median  65.768 ns/cell   min  58.116   vs prod: median +175.2%  min +159.9%
+rank  75  tiled@48x24x8  median  72.750 ns/cell   min  60.899   vs prod: median +204.4%  min +172.3%
+rank  75  tiled@32x32x8  median  87.505 ns/cell   min  68.450   vs prod: median +266.2%  min +206.1%
+rank  75  tiled@128x16x4  median  58.543 ns/cell   min  40.884   vs prod: median +145.0%  min +82.8%
+rank  45  prod      median  24.269 ns/cell   min  22.625
+rank  45  clean     median  49.350 ns/cell   min  44.840   vs prod: median +103.3%  min +98.2%
+rank  45  tiled@96x16x8  median  70.612 ns/cell   min  61.409   vs prod: median +190.9%  min +171.4%
+rank  45  tiled@64x16x8  median  65.095 ns/cell   min  55.968   vs prod: median +168.2%  min +147.4%
+rank  45  tiled@48x24x8  median  72.401 ns/cell   min  60.031   vs prod: median +198.3%  min +165.3%
+rank  45  tiled@32x32x8  median  87.734 ns/cell   min  67.210   vs prod: median +261.5%  min +197.1%
+rank  45  tiled@128x16x4  median  58.771 ns/cell   min  40.116   vs prod: median +142.2%  min +77.3%
+rank  43  prod      median  24.124 ns/cell   min  22.167
+rank  43  clean     median  49.170 ns/cell   min  44.272   vs prod: median +103.8%  min +99.7%
+rank  43  tiled@96x16x8  median  71.234 ns/cell   min  62.122   vs prod: median +195.3%  min +180.2%
+rank  43  tiled@64x16x8  median  65.085 ns/cell   min  55.411   vs prod: median +169.8%  min +150.0%
+rank  43  tiled@48x24x8  median  72.597 ns/cell   min  59.547   vs prod: median +200.9%  min +168.6%
+rank  43  tiled@32x32x8  median  87.377 ns/cell   min  66.182   vs prod: median +262.2%  min +198.6%
+rank  43  tiled@128x16x4  median  58.850 ns/cell   min  39.640   vs prod: median +143.9%  min +78.8%
+rank  31  prod      median  23.896 ns/cell   min  22.009
+rank  31  clean     median  48.967 ns/cell   min  40.288   vs prod: median +104.9%  min +83.1%
+rank  31  tiled@96x16x8  median  70.806 ns/cell   min  61.576   vs prod: median +196.3%  min +179.8%
+rank  31  tiled@64x16x8  median  65.511 ns/cell   min  55.889   vs prod: median +174.2%  min +153.9%
+rank  31  tiled@48x24x8  median  72.691 ns/cell   min  59.258   vs prod: median +204.2%  min +169.2%
+rank  31  tiled@32x32x8  median  88.003 ns/cell   min  64.754   vs prod: median +268.3%  min +194.2%
+rank  31  tiled@128x16x4  median  58.641 ns/cell   min  38.563   vs prod: median +145.4%  min +75.2%
+rank  27  prod      median  24.194 ns/cell   min  22.143
+rank  27  clean     median  49.018 ns/cell   min  40.347   vs prod: median +102.6%  min +82.2%
+rank  27  tiled@96x16x8  median  71.084 ns/cell   min  61.470   vs prod: median +193.8%  min +177.6%
+rank  27  tiled@64x16x8  median  65.355 ns/cell   min  55.676   vs prod: median +170.1%  min +151.4%
+rank  27  tiled@48x24x8  median  72.589 ns/cell   min  59.017   vs prod: median +200.0%  min +166.5%
+rank  27  tiled@32x32x8  median  87.811 ns/cell   min  64.676   vs prod: median +262.9%  min +192.1%
+rank  27  tiled@128x16x4  median  58.707 ns/cell   min  38.875   vs prod: median +142.7%  min +75.6%
+rank  66  prod      median  24.081 ns/cell   min  21.720
+rank  66  clean     median  48.865 ns/cell   min  45.027   vs prod: median +102.9%  min +107.3%
+rank  66  tiled@96x16x8  median  70.184 ns/cell   min  58.014   vs prod: median +191.4%  min +167.1%
+rank  66  tiled@64x16x8  median  65.245 ns/cell   min  52.313   vs prod: median +170.9%  min +140.8%
+rank  66  tiled@48x24x8  median  73.353 ns/cell   min  54.145   vs prod: median +204.6%  min +149.3%
+rank  66  tiled@32x32x8  median  88.042 ns/cell   min  61.094   vs prod: median +265.6%  min +181.3%
+rank  66  tiled@128x16x4  median  59.521 ns/cell   min  38.232   vs prod: median +147.2%  min +76.0%
+rank  44  prod      median  24.207 ns/cell   min  21.754
+rank  44  clean     median  48.936 ns/cell   min  43.979   vs prod: median +102.2%  min +102.2%
+rank  44  tiled@96x16x8  median  70.397 ns/cell   min  56.356   vs prod: median +190.8%  min +159.1%
+rank  44  tiled@64x16x8  median  65.309 ns/cell   min  50.584   vs prod: median +169.8%  min +132.5%
+rank  44  tiled@48x24x8  median  73.065 ns/cell   min  52.398   vs prod: median +201.8%  min +140.9%
+rank  44  tiled@32x32x8  median  88.283 ns/cell   min  59.182   vs prod: median +264.7%  min +172.1%
+rank  44  tiled@128x16x4  median  59.278 ns/cell   min  37.239   vs prod: median +144.9%  min +71.2%
+rank  79  prod      median  24.001 ns/cell   min  22.165
+rank  79  clean     median  48.862 ns/cell   min  43.779   vs prod: median +103.6%  min +97.5%
+rank  79  tiled@96x16x8  median  71.117 ns/cell   min  61.454   vs prod: median +196.3%  min +177.3%
+rank  79  tiled@64x16x8  median  65.103 ns/cell   min  54.615   vs prod: median +171.3%  min +146.4%
+rank  79  tiled@48x24x8  median  72.768 ns/cell   min  57.856   vs prod: median +203.2%  min +161.0%
+rank  79  tiled@32x32x8  median  88.247 ns/cell   min  63.662   vs prod: median +267.7%  min +187.2%
+rank  79  tiled@128x16x4  median  58.852 ns/cell   min  38.164   vs prod: median +145.2%  min +72.2%
+rank   4  prod      median  24.104 ns/cell   min  21.062
+rank   4  clean     median  48.505 ns/cell   min  43.646   vs prod: median +101.2%  min +107.2%
+rank   4  tiled@96x16x8  median  70.724 ns/cell   min  56.098   vs prod: median +193.4%  min +166.4%
+rank   4  tiled@64x16x8  median  65.417 ns/cell   min  48.865   vs prod: median +171.4%  min +132.0%
+rank   4  tiled@48x24x8  median  73.150 ns/cell   min  52.048   vs prod: median +203.5%  min +147.1%
+rank   4  tiled@32x32x8  median  88.323 ns/cell   min  57.105   vs prod: median +266.4%  min +171.1%
+rank   4  tiled@128x16x4  median  59.263 ns/cell   min  36.625   vs prod: median +145.9%  min +73.9%
+rank  82  prod      median  24.105 ns/cell   min  20.790
+rank  82  clean     median  48.424 ns/cell   min  43.619   vs prod: median +100.9%  min +109.8%
+rank  82  tiled@96x16x8  median  70.418 ns/cell   min  55.276   vs prod: median +192.1%  min +165.9%
+rank  82  tiled@64x16x8  median  65.400 ns/cell   min  48.789   vs prod: median +171.3%  min +134.7%
+rank  82  tiled@48x24x8  median  73.067 ns/cell   min  51.945   vs prod: median +203.1%  min +149.8%
+rank  82  tiled@32x32x8  median  88.696 ns/cell   min  57.321   vs prod: median +268.0%  min +175.7%
+rank  82  tiled@128x16x4  median  59.454 ns/cell   min  36.961   vs prod: median +146.7%  min +77.8%
+rank  62  prod      median  23.918 ns/cell   min  20.340
+rank  62  clean     median  48.285 ns/cell   min  43.817   vs prod: median +101.9%  min +115.4%
+rank  62  tiled@96x16x8  median  70.523 ns/cell   min  54.706   vs prod: median +194.9%  min +169.0%
+rank  62  tiled@64x16x8  median  65.204 ns/cell   min  47.729   vs prod: median +172.6%  min +134.7%
+rank  62  tiled@48x24x8  median  73.478 ns/cell   min  51.222   vs prod: median +207.2%  min +151.8%
+rank  62  tiled@32x32x8  median  88.652 ns/cell   min  55.815   vs prod: median +270.7%  min +174.4%
+rank  62  tiled@128x16x4  median  59.466 ns/cell   min  36.072   vs prod: median +148.6%  min +77.3%
+rank   7  prod      median  24.026 ns/cell   min  22.160
+rank   7  clean     median  48.954 ns/cell   min  44.665   vs prod: median +103.8%  min +101.6%
+rank   7  tiled@96x16x8  median  70.841 ns/cell   min  60.057   vs prod: median +194.9%  min +171.0%
+rank   7  tiled@64x16x8  median  65.167 ns/cell   min  53.538   vs prod: median +171.2%  min +141.6%
+rank   7  tiled@48x24x8  median  72.644 ns/cell   min  56.866   vs prod: median +202.4%  min +156.6%
+rank   7  tiled@32x32x8  median  88.228 ns/cell   min  60.903   vs prod: median +267.2%  min +174.8%
+rank   7  tiled@128x16x4  median  59.864 ns/cell   min  36.783   vs prod: median +149.2%  min +66.0%
+rank   5  prod      median  24.394 ns/cell   min  22.092
+rank   5  clean     median  48.811 ns/cell   min  44.709   vs prod: median +100.1%  min +102.4%
+rank   5  tiled@96x16x8  median  70.342 ns/cell   min  59.542   vs prod: median +188.4%  min +169.5%
+rank   5  tiled@64x16x8  median  65.131 ns/cell   min  53.303   vs prod: median +167.0%  min +141.3%
+rank   5  tiled@48x24x8  median  72.562 ns/cell   min  56.381   vs prod: median +197.5%  min +155.2%
+rank   5  tiled@32x32x8  median  88.807 ns/cell   min  60.927   vs prod: median +264.1%  min +175.8%
+rank   5  tiled@128x16x4  median  59.289 ns/cell   min  36.173   vs prod: median +143.0%  min +63.7%
+rank  11  prod      median  24.319 ns/cell   min  21.798
+rank  11  clean     median  48.713 ns/cell   min  44.379   vs prod: median +100.3%  min +103.6%
+rank  11  tiled@96x16x8  median  70.241 ns/cell   min  58.292   vs prod: median +188.8%  min +167.4%
+rank  11  tiled@64x16x8  median  64.805 ns/cell   min  51.858   vs prod: median +166.5%  min +137.9%
+rank  11  tiled@48x24x8  median  72.935 ns/cell   min  54.573   vs prod: median +199.9%  min +150.4%
+rank  11  tiled@32x32x8  median  88.646 ns/cell   min  57.773   vs prod: median +264.5%  min +165.0%
+rank  11  tiled@128x16x4  median  59.929 ns/cell   min  34.606   vs prod: median +146.4%  min +58.8%
+rank  51  prod      median  24.403 ns/cell   min  21.716
+rank  51  clean     median  48.619 ns/cell   min  44.206   vs prod: median +99.2%  min +103.6%
+rank  51  tiled@96x16x8  median  69.933 ns/cell   min  57.469   vs prod: median +186.6%  min +164.6%
+rank  51  tiled@64x16x8  median  65.106 ns/cell   min  51.680   vs prod: median +166.8%  min +138.0%
+rank  51  tiled@48x24x8  median  73.416 ns/cell   min  53.282   vs prod: median +200.9%  min +145.4%
+rank  51  tiled@32x32x8  median  89.034 ns/cell   min  56.642   vs prod: median +264.9%  min +160.8%
+rank  51  tiled@128x16x4  median  59.038 ns/cell   min  34.030   vs prod: median +141.9%  min +56.7%
+rank  30  prod      median  24.019 ns/cell   min  20.415
+rank  30  clean     median  48.724 ns/cell   min  43.276   vs prod: median +102.9%  min +112.0%
+rank  30  tiled@96x16x8  median  70.968 ns/cell   min  51.512   vs prod: median +195.5%  min +152.3%
+rank  30  tiled@64x16x8  median  65.161 ns/cell   min  46.376   vs prod: median +171.3%  min +127.2%
+rank  30  tiled@48x24x8  median  73.582 ns/cell   min  48.062   vs prod: median +206.4%  min +135.4%
+rank  30  tiled@32x32x8  median  88.618 ns/cell   min  53.624   vs prod: median +269.0%  min +162.7%
+rank  30  tiled@128x16x4  median  59.794 ns/cell   min  34.118   vs prod: median +148.9%  min +67.1%
+rank  33  prod      median  24.362 ns/cell   min  21.878
+rank  33  clean     median  48.562 ns/cell   min  43.869   vs prod: median +99.3%  min +100.5%
+rank  33  tiled@96x16x8  median  70.446 ns/cell   min  57.218   vs prod: median +189.2%  min +161.5%
+rank  33  tiled@64x16x8  median  65.487 ns/cell   min  51.543   vs prod: median +168.8%  min +135.6%
+rank  33  tiled@48x24x8  median  73.192 ns/cell   min  51.959   vs prod: median +200.4%  min +137.5%
+rank  33  tiled@32x32x8  median  88.700 ns/cell   min  54.671   vs prod: median +264.1%  min +149.9%
+rank  33  tiled@128x16x4  median  60.054 ns/cell   min  33.601   vs prod: median +146.5%  min +53.6%
+rank  35  prod      median  24.207 ns/cell   min  21.356
+rank  35  clean     median  48.540 ns/cell   min  43.196   vs prod: median +100.5%  min +102.3%
+rank  35  tiled@96x16x8  median  70.307 ns/cell   min  55.599   vs prod: median +190.4%  min +160.3%
+rank  35  tiled@64x16x8  median  65.206 ns/cell   min  48.725   vs prod: median +169.4%  min +128.2%
+rank  35  tiled@48x24x8  median  73.581 ns/cell   min  49.347   vs prod: median +204.0%  min +131.1%
+rank  35  tiled@32x32x8  median  89.275 ns/cell   min  51.701   vs prod: median +268.8%  min +142.1%
+rank  35  tiled@128x16x4  median  60.099 ns/cell   min  32.381   vs prod: median +148.3%  min +51.6%
+rank  39  prod      median  24.370 ns/cell   min  21.527
+rank  39  clean     median  48.489 ns/cell   min  43.396   vs prod: median +99.0%  min +101.6%
+rank  39  tiled@96x16x8  median  70.572 ns/cell   min  55.843   vs prod: median +189.6%  min +159.4%
+rank  39  tiled@64x16x8  median  64.765 ns/cell   min  49.033   vs prod: median +165.8%  min +127.8%
+rank  39  tiled@48x24x8  median  73.352 ns/cell   min  49.699   vs prod: median +201.0%  min +130.9%
+rank  39  tiled@32x32x8  median  88.908 ns/cell   min  52.233   vs prod: median +264.8%  min +142.6%
+rank  39  tiled@128x16x4  median  60.403 ns/cell   min  33.020   vs prod: median +147.9%  min +53.4%
+rank  13  prod      median  24.368 ns/cell   min  21.383
+rank  13  clean     median  48.510 ns/cell   min  43.222   vs prod: median +99.1%  min +102.1%
+rank  13  tiled@96x16x8  median  69.973 ns/cell   min  55.545   vs prod: median +187.2%  min +159.8%
+rank  13  tiled@64x16x8  median  65.303 ns/cell   min  49.182   vs prod: median +168.0%  min +130.0%
+rank  13  tiled@48x24x8  median  73.219 ns/cell   min  49.638   vs prod: median +200.5%  min +132.1%
+rank  13  tiled@32x32x8  median  88.825 ns/cell   min  51.878   vs prod: median +264.5%  min +142.6%
+rank  13  tiled@128x16x4  median  60.622 ns/cell   min  33.438   vs prod: median +148.8%  min +56.4%
+rank  48  prod      median  24.208 ns/cell   min  19.792
+rank  48  clean     median  48.322 ns/cell   min  40.103   vs prod: median +99.6%  min +102.6%
+rank  48  tiled@96x16x8  median  70.275 ns/cell   min  48.180   vs prod: median +190.3%  min +143.4%
+rank  48  tiled@64x16x8  median  65.732 ns/cell   min  42.892   vs prod: median +171.5%  min +116.7%
+rank  48  tiled@48x24x8  median  74.013 ns/cell   min  44.940   vs prod: median +205.7%  min +127.1%
+rank  48  tiled@32x32x8  median  89.893 ns/cell   min  49.234   vs prod: median +271.3%  min +148.8%
+rank  48  tiled@128x16x4  median  59.347 ns/cell   min  31.269   vs prod: median +145.2%  min +58.0%
+rank  47  prod      median  24.189 ns/cell   min  20.431
+rank  47  clean     median  48.507 ns/cell   min  41.650   vs prod: median +100.5%  min +103.9%
+rank  47  tiled@96x16x8  median  69.773 ns/cell   min  53.250   vs prod: median +188.4%  min +160.6%
+rank  47  tiled@64x16x8  median  65.421 ns/cell   min  46.737   vs prod: median +170.5%  min +128.8%
+rank  47  tiled@48x24x8  median  73.947 ns/cell   min  46.992   vs prod: median +205.7%  min +130.0%
+rank  47  tiled@32x32x8  median  89.563 ns/cell   min  48.889   vs prod: median +270.3%  min +139.3%
+rank  47  tiled@128x16x4  median  60.556 ns/cell   min  31.754   vs prod: median +150.3%  min +55.4%
+rank   9  prod      median  24.066 ns/cell   min  20.563
+rank   9  clean     median  48.386 ns/cell   min  41.413   vs prod: median +101.1%  min +101.4%
+rank   9  tiled@96x16x8  median  69.985 ns/cell   min  53.985   vs prod: median +190.8%  min +162.5%
+rank   9  tiled@64x16x8  median  65.507 ns/cell   min  46.920   vs prod: median +172.2%  min +128.2%
+rank   9  tiled@48x24x8  median  73.793 ns/cell   min  47.273   vs prod: median +206.6%  min +129.9%
+rank   9  tiled@32x32x8  median  89.693 ns/cell   min  49.255   vs prod: median +272.7%  min +139.5%
+rank   9  tiled@128x16x4  median  60.836 ns/cell   min  32.057   vs prod: median +152.8%  min +55.9%
+rank   6  prod      median  24.333 ns/cell   min  20.264
+rank   6  clean     median  48.791 ns/cell   min  40.399   vs prod: median +100.5%  min +99.4%
+rank   6  tiled@96x16x8  median  70.185 ns/cell   min  48.571   vs prod: median +188.4%  min +139.7%
+rank   6  tiled@64x16x8  median  65.493 ns/cell   min  42.785   vs prod: median +169.2%  min +111.1%
+rank   6  tiled@48x24x8  median  73.727 ns/cell   min  44.855   vs prod: median +203.0%  min +121.4%
+rank   6  tiled@32x32x8  median  89.892 ns/cell   min  48.732   vs prod: median +269.4%  min +140.5%
+rank   6  tiled@128x16x4  median  59.525 ns/cell   min  31.377   vs prod: median +144.6%  min +54.8%
+rank  46  prod      median  24.248 ns/cell   min  18.598
+rank  46  clean     median  48.480 ns/cell   min  40.120   vs prod: median +99.9%  min +115.7%
+rank  46  tiled@96x16x8  median  70.410 ns/cell   min  45.823   vs prod: median +190.4%  min +146.4%
+rank  46  tiled@64x16x8  median  65.857 ns/cell   min  40.788   vs prod: median +171.6%  min +119.3%
+rank  46  tiled@48x24x8  median  74.148 ns/cell   min  42.511   vs prod: median +205.8%  min +128.6%
+rank  46  tiled@32x32x8  median  89.802 ns/cell   min  45.411   vs prod: median +270.3%  min +144.2%
+rank  46  tiled@128x16x4  median  59.885 ns/cell   min  30.086   vs prod: median +147.0%  min +61.8%
+rank  29  prod      median  24.267 ns/cell   min  20.443
+rank  29  clean     median  48.563 ns/cell   min  40.759   vs prod: median +100.1%  min +99.4%
+rank  29  tiled@96x16x8  median  70.359 ns/cell   min  47.609   vs prod: median +189.9%  min +132.9%
+rank  29  tiled@64x16x8  median  65.689 ns/cell   min  41.651   vs prod: median +170.7%  min +103.7%
+rank  29  tiled@48x24x8  median  73.962 ns/cell   min  40.741   vs prod: median +204.8%  min +99.3%
+rank  29  tiled@32x32x8  median  90.477 ns/cell   min  44.905   vs prod: median +272.8%  min +119.7%
+rank  29  tiled@128x16x4  median  60.201 ns/cell   min  29.263   vs prod: median +148.1%  min +43.1%
+rank  50  prod      median  24.141 ns/cell   min  18.624
+rank  50  clean     median  48.261 ns/cell   min  38.618   vs prod: median +99.9%  min +107.4%
+rank  50  tiled@96x16x8  median  70.381 ns/cell   min  42.980   vs prod: median +191.5%  min +130.8%
+rank  50  tiled@64x16x8  median  66.110 ns/cell   min  39.638   vs prod: median +173.9%  min +112.8%
+rank  50  tiled@48x24x8  median  74.402 ns/cell   min  39.457   vs prod: median +208.2%  min +111.9%
+rank  50  tiled@32x32x8  median  90.115 ns/cell   min  43.669   vs prod: median +273.3%  min +134.5%
+rank  50  tiled@128x16x4  median  60.206 ns/cell   min  29.477   vs prod: median +149.4%  min +58.3%
+rank  97  prod      median  24.156 ns/cell   min  16.632
+rank  97  clean     median  48.580 ns/cell   min  32.919   vs prod: median +101.1%  min +97.9%
+rank  97  tiled@96x16x8  median  71.621 ns/cell   min  37.382   vs prod: median +196.5%  min +124.8%
+rank  97  tiled@64x16x8  median  66.729 ns/cell   min  33.299   vs prod: median +176.2%  min +100.2%
+rank  97  tiled@48x24x8  median  75.351 ns/cell   min  33.865   vs prod: median +211.9%  min +103.6%
+rank  97  tiled@32x32x8  median  89.953 ns/cell   min  39.834   vs prod: median +272.4%  min +139.5%
+rank  97  tiled@128x16x4  median  60.158 ns/cell   min  28.814   vs prod: median +149.0%  min +73.2%
+variants present: ['prod', 'clean', 'tiled@96x16x8', 'tiled@64x16x8', 'tiled@48x24x8', 'tiled@32x32x8', 'tiled@128x16x4']
+mode=saturated  ranks=100  reps=50
+grid 273 x 65 x 57
+
+correctness gate (vs production, zeroed scratch dU):
+  prod      (reference)  |dU|_max = 2.320116e-04
+  clean     max_abs_diff = 0.000000e+00  (0.000e+00 of scale)  bitwise=True
+  tiled@96x16x8  max_abs_diff = 2.328306e-09  (1.004e-05 of scale)  bitwise=False
+  tiled@64x16x8  max_abs_diff = 2.328306e-09  (1.004e-05 of scale)  bitwise=False
+  tiled@48x24x8  max_abs_diff = 2.328306e-09  (1.004e-05 of scale)  bitwise=False
+  tiled@32x32x8  max_abs_diff = 2.328306e-09  (1.004e-05 of scale)  bitwise=False
+  tiled@128x16x4  max_abs_diff = 2.328306e-09  (1.004e-05 of scale)  bitwise=False
+  note: non-bitwise variants are expected if they reassociate;
+  judge by 'of scale' (~1e-7 is float32 ulp noise, not a bug).
+rank   0  prod      median  25.050 ns/cell   min  16.070
+rank   0  clean     median  48.794 ns/cell   min  31.834   vs prod: median +94.8%  min +98.1%
+rank   0  tiled@96x16x8  median  72.505 ns/cell   min  35.714   vs prod: median +189.4%  min +122.2%
+rank   0  tiled@64x16x8  median  66.934 ns/cell   min  32.491   vs prod: median +167.2%  min +102.2%
+rank   0  tiled@48x24x8  median  74.259 ns/cell   min  33.458   vs prod: median +196.4%  min +108.2%
+rank   0  tiled@32x32x8  median  87.380 ns/cell   min  38.914   vs prod: median +248.8%  min +142.1%
+rank   0  tiled@128x16x4  median  62.212 ns/cell   min  29.034   vs prod: median +148.3%  min +80.7%
+rank  67  prod      median  24.974 ns/cell   min  14.687
+rank  67  clean     median  48.659 ns/cell   min  28.673   vs prod: median +94.8%  min +95.2%
+rank  67  tiled@96x16x8  median  72.381 ns/cell   min  31.774   vs prod: median +189.8%  min +116.3%
+rank  67  tiled@64x16x8  median  67.041 ns/cell   min  29.691   vs prod: median +168.4%  min +102.2%
+rank  67  tiled@48x24x8  median  74.867 ns/cell   min  32.366   vs prod: median +199.8%  min +120.4%
+rank  67  tiled@32x32x8  median  89.651 ns/cell   min  39.143   vs prod: median +259.0%  min +166.5%
+rank  67  tiled@128x16x4  median  59.955 ns/cell   min  28.083   vs prod: median +140.1%  min +91.2%
+rank  96  prod      median  24.446 ns/cell   min  14.234
+rank  96  clean     median  49.308 ns/cell   min  28.731   vs prod: median +101.7%  min +101.9%
+rank  96  tiled@96x16x8  median  72.673 ns/cell   min  32.331   vs prod: median +197.3%  min +127.1%
+rank  96  tiled@64x16x8  median  67.045 ns/cell   min  30.640   vs prod: median +174.3%  min +115.3%
+rank  96  tiled@48x24x8  median  75.258 ns/cell   min  33.078   vs prod: median +207.8%  min +132.4%
+rank  96  tiled@32x32x8  median  90.318 ns/cell   min  39.755   vs prod: median +269.5%  min +179.3%
+rank  96  tiled@128x16x4  median  60.205 ns/cell   min  28.485   vs prod: median +146.3%  min +100.1%
+rank   1  prod      median  25.289 ns/cell   min  14.180
+rank   1  clean     median  48.605 ns/cell   min  26.636   vs prod: median +92.2%  min +87.8%
+rank   1  tiled@96x16x8  median  73.229 ns/cell   min  31.793   vs prod: median +189.6%  min +124.2%
+rank   1  tiled@64x16x8  median  67.710 ns/cell   min  30.329   vs prod: median +167.7%  min +113.9%
+rank   1  tiled@48x24x8  median  74.544 ns/cell   min  32.637   vs prod: median +194.8%  min +130.2%
+rank   1  tiled@32x32x8  median  87.397 ns/cell   min  38.067   vs prod: median +245.6%  min +168.5%
+rank   1  tiled@128x16x4  median  62.734 ns/cell   min  29.022   vs prod: median +148.1%  min +104.7%
+rank  55  prod      median  24.389 ns/cell   min  13.275
+rank  55  clean     median  48.671 ns/cell   min  26.343   vs prod: median +99.6%  min +98.4%
+rank  55  tiled@96x16x8  median  71.970 ns/cell   min  30.920   vs prod: median +195.1%  min +132.9%
+rank  55  tiled@64x16x8  median  67.338 ns/cell   min  29.709   vs prod: median +176.1%  min +123.8%
+rank  55  tiled@48x24x8  median  75.813 ns/cell   min  32.426   vs prod: median +210.9%  min +144.3%
+rank  55  tiled@32x32x8  median  90.972 ns/cell   min  38.877   vs prod: median +273.0%  min +192.9%
+rank  55  tiled@128x16x4  median  61.214 ns/cell   min  28.317   vs prod: median +151.0%  min +113.3%
+rank  40  prod      median  24.606 ns/cell   min  13.107
+rank  40  clean     median  49.020 ns/cell   min  26.416   vs prod: median +99.2%  min +101.5%
+rank  40  tiled@96x16x8  median  72.976 ns/cell   min  31.497   vs prod: median +196.6%  min +140.3%
+rank  40  tiled@64x16x8  median  67.715 ns/cell   min  30.084   vs prod: median +175.2%  min +129.5%
+rank  40  tiled@48x24x8  median  75.976 ns/cell   min  32.559   vs prod: median +208.8%  min +148.4%
+rank  40  tiled@32x32x8  median  91.063 ns/cell   min  39.132   vs prod: median +270.1%  min +198.6%
+rank  40  tiled@128x16x4  median  60.326 ns/cell   min  28.329   vs prod: median +145.2%  min +116.1%
+rank  41  prod      median  24.671 ns/cell   min  13.040
+rank  41  clean     median  49.241 ns/cell   min  26.726   vs prod: median +99.6%  min +104.9%
+rank  41  tiled@96x16x8  median  72.359 ns/cell   min  31.144   vs prod: median +193.3%  min +138.8%
+rank  41  tiled@64x16x8  median  67.508 ns/cell   min  29.724   vs prod: median +173.6%  min +127.9%
+rank  41  tiled@48x24x8  median  75.607 ns/cell   min  32.186   vs prod: median +206.5%  min +146.8%
+rank  41  tiled@32x32x8  median  90.953 ns/cell   min  38.585   vs prod: median +268.7%  min +195.9%
+rank  41  tiled@128x16x4  median  61.605 ns/cell   min  28.340   vs prod: median +149.7%  min +117.3%
+rank  15  prod      median  24.521 ns/cell   min  13.154
+rank  15  clean     median  48.813 ns/cell   min  26.306   vs prod: median +99.1%  min +100.0%
+rank  15  tiled@96x16x8  median  72.196 ns/cell   min  31.246   vs prod: median +194.4%  min +137.5%
+rank  15  tiled@64x16x8  median  67.543 ns/cell   min  30.151   vs prod: median +175.5%  min +129.2%
+rank  15  tiled@48x24x8  median  75.795 ns/cell   min  32.510   vs prod: median +209.1%  min +147.2%
+rank  15  tiled@32x32x8  median  90.879 ns/cell   min  39.121   vs prod: median +270.6%  min +197.4%
+rank  15  tiled@128x16x4  median  61.873 ns/cell   min  28.694   vs prod: median +152.3%  min +118.1%
+rank  56  prod      median  25.321 ns/cell   min  13.080
+rank  56  clean     median  49.659 ns/cell   min  27.384   vs prod: median +96.1%  min +109.4%
+rank  56  tiled@96x16x8  median  72.990 ns/cell   min  30.866   vs prod: median +188.3%  min +136.0%
+rank  56  tiled@64x16x8  median  67.966 ns/cell   min  29.744   vs prod: median +168.4%  min +127.4%
+rank  56  tiled@48x24x8  median  76.560 ns/cell   min  32.139   vs prod: median +202.4%  min +145.7%
+rank  56  tiled@32x32x8  median  90.398 ns/cell   min  38.729   vs prod: median +257.0%  min +196.1%
+rank  56  tiled@128x16x4  median  61.066 ns/cell   min  28.114   vs prod: median +141.2%  min +114.9%
+rank  57  prod      median  25.194 ns/cell   min  12.904
+rank  57  clean     median  49.393 ns/cell   min  26.261   vs prod: median +96.1%  min +103.5%
+rank  57  tiled@96x16x8  median  73.159 ns/cell   min  30.600   vs prod: median +190.4%  min +137.1%
+rank  57  tiled@64x16x8  median  67.971 ns/cell   min  29.486   vs prod: median +169.8%  min +128.5%
+rank  57  tiled@48x24x8  median  76.568 ns/cell   min  31.950   vs prod: median +203.9%  min +147.6%
+rank  57  tiled@32x32x8  median  91.268 ns/cell   min  38.087   vs prod: median +262.3%  min +195.2%
+rank  57  tiled@128x16x4  median  61.486 ns/cell   min  28.277   vs prod: median +144.1%  min +119.1%
+rank  70  prod      median  24.706 ns/cell   min  12.977
+rank  70  clean     median  49.173 ns/cell   min  26.618   vs prod: median +99.0%  min +105.1%
+rank  70  tiled@96x16x8  median  72.997 ns/cell   min  30.693   vs prod: median +195.5%  min +136.5%
+rank  70  tiled@64x16x8  median  68.949 ns/cell   min  30.039   vs prod: median +179.1%  min +131.5%
+rank  70  tiled@48x24x8  median  76.815 ns/cell   min  32.316   vs prod: median +210.9%  min +149.0%
+rank  70  tiled@32x32x8  median  91.274 ns/cell   min  38.384   vs prod: median +269.4%  min +195.8%
+rank  70  tiled@128x16x4  median  61.729 ns/cell   min  28.628   vs prod: median +149.9%  min +120.6%
+rank  54  prod      median  24.815 ns/cell   min  13.030
+rank  54  clean     median  48.745 ns/cell   min  26.336   vs prod: median +96.4%  min +102.1%
+rank  54  tiled@96x16x8  median  73.929 ns/cell   min  30.761   vs prod: median +197.9%  min +136.1%
+rank  54  tiled@64x16x8  median  69.071 ns/cell   min  29.866   vs prod: median +178.3%  min +129.2%
+rank  54  tiled@48x24x8  median  76.881 ns/cell   min  32.865   vs prod: median +209.8%  min +152.2%
+rank  54  tiled@32x32x8  median  92.236 ns/cell   min  38.799   vs prod: median +271.7%  min +197.8%
+rank  54  tiled@128x16x4  median  61.935 ns/cell   min  28.457   vs prod: median +149.6%  min +118.4%
+rank  83  prod      median  25.980 ns/cell   min  12.861
+rank  83  clean     median  49.119 ns/cell   min  26.196   vs prod: median +89.1%  min +103.7%
+rank  83  tiled@96x16x8  median  74.403 ns/cell   min  30.828   vs prod: median +186.4%  min +139.7%
+rank  83  tiled@64x16x8  median  69.000 ns/cell   min  29.798   vs prod: median +165.6%  min +131.7%
+rank  83  tiled@48x24x8  median  76.995 ns/cell   min  32.067   vs prod: median +196.4%  min +149.3%
+rank  83  tiled@32x32x8  median  91.358 ns/cell   min  38.091   vs prod: median +251.6%  min +196.2%
+rank  83  tiled@128x16x4  median  62.617 ns/cell   min  28.090   vs prod: median +141.0%  min +118.4%
+rank  10  prod      median  24.686 ns/cell   min  13.095
+rank  10  clean     median  49.111 ns/cell   min  26.387   vs prod: median +98.9%  min +101.5%
+rank  10  tiled@96x16x8  median  74.061 ns/cell   min  31.032   vs prod: median +200.0%  min +137.0%
+rank  10  tiled@64x16x8  median  68.683 ns/cell   min  30.640   vs prod: median +178.2%  min +134.0%
+rank  10  tiled@48x24x8  median  77.121 ns/cell   min  32.511   vs prod: median +212.4%  min +148.3%
+rank  10  tiled@32x32x8  median  93.064 ns/cell   min  39.174   vs prod: median +277.0%  min +199.2%
+rank  10  tiled@128x16x4  median  62.216 ns/cell   min  28.549   vs prod: median +152.0%  min +118.0%
+rank  86  prod      median  26.633 ns/cell   min  12.873
+rank  86  clean     median  49.803 ns/cell   min  26.310   vs prod: median +87.0%  min +104.4%
+rank  86  tiled@96x16x8  median  75.157 ns/cell   min  30.176   vs prod: median +182.2%  min +134.4%
+rank  86  tiled@64x16x8  median  68.915 ns/cell   min  29.246   vs prod: median +158.8%  min +127.2%
+rank  86  tiled@48x24x8  median  77.154 ns/cell   min  31.636   vs prod: median +189.7%  min +145.8%
+rank  86  tiled@32x32x8  median  91.149 ns/cell   min  37.731   vs prod: median +242.2%  min +193.1%
+rank  86  tiled@128x16x4  median  63.484 ns/cell   min  27.922   vs prod: median +138.4%  min +116.9%
+rank  28  prod      median  27.970 ns/cell   min  12.665
+rank  28  clean     median  50.511 ns/cell   min  26.150   vs prod: median +80.6%  min +106.5%
+rank  28  tiled@96x16x8  median  78.110 ns/cell   min  30.756   vs prod: median +179.3%  min +142.9%
+rank  28  tiled@64x16x8  median  71.271 ns/cell   min  29.815   vs prod: median +154.8%  min +135.4%
+rank  28  tiled@48x24x8  median  79.364 ns/cell   min  32.157   vs prod: median +183.7%  min +153.9%
+rank  28  tiled@32x32x8  median  92.682 ns/cell   min  38.139   vs prod: median +231.4%  min +201.1%
+rank  28  tiled@128x16x4  median  66.100 ns/cell   min  28.408   vs prod: median +136.3%  min +124.3%
+rank  69  prod      median  28.260 ns/cell   min  12.027
+rank  69  clean     median  50.728 ns/cell   min  26.373   vs prod: median +79.5%  min +119.3%
+rank  69  tiled@96x16x8  median  77.995 ns/cell   min  30.281   vs prod: median +176.0%  min +151.8%
+rank  69  tiled@64x16x8  median  71.254 ns/cell   min  29.389   vs prod: median +152.1%  min +144.4%
+rank  69  tiled@48x24x8  median  79.346 ns/cell   min  32.070   vs prod: median +180.8%  min +166.6%
+rank  69  tiled@32x32x8  median  93.115 ns/cell   min  37.817   vs prod: median +229.5%  min +214.4%
+rank  69  tiled@128x16x4  median  66.238 ns/cell   min  28.272   vs prod: median +134.4%  min +135.1%
+rank  25  prod      median  27.630 ns/cell   min  12.022
+rank  25  clean     median  50.048 ns/cell   min  26.322   vs prod: median +81.1%  min +119.0%
+rank  25  tiled@96x16x8  median  78.841 ns/cell   min  30.297   vs prod: median +185.3%  min +152.0%
+rank  25  tiled@64x16x8  median  71.711 ns/cell   min  29.392   vs prod: median +159.5%  min +144.5%
+rank  25  tiled@48x24x8  median  79.425 ns/cell   min  31.738   vs prod: median +187.5%  min +164.0%
+rank  25  tiled@32x32x8  median  94.053 ns/cell   min  37.665   vs prod: median +240.4%  min +213.3%
+rank  25  tiled@128x16x4  median  66.251 ns/cell   min  28.221   vs prod: median +139.8%  min +134.7%
+rank  38  prod      median  28.046 ns/cell   min  12.556
+rank  38  clean     median  49.893 ns/cell   min  26.268   vs prod: median +77.9%  min +109.2%
+rank  38  tiled@96x16x8  median  78.329 ns/cell   min  30.476   vs prod: median +179.3%  min +142.7%
+rank  38  tiled@64x16x8  median  72.036 ns/cell   min  29.586   vs prod: median +156.9%  min +135.6%
+rank  38  tiled@48x24x8  median  79.436 ns/cell   min  31.924   vs prod: median +183.2%  min +154.3%
+rank  38  tiled@32x32x8  median  93.679 ns/cell   min  38.023   vs prod: median +234.0%  min +202.8%
+rank  38  tiled@128x16x4  median  66.179 ns/cell   min  28.240   vs prod: median +136.0%  min +124.9%
+rank  72  prod      median  29.437 ns/cell   min   9.752
+rank  72  clean     median  51.096 ns/cell   min  25.007   vs prod: median +73.6%  min +156.4%
+rank  72  tiled@96x16x8  median  82.894 ns/cell   min  26.615   vs prod: median +181.6%  min +172.9%
+rank  72  tiled@64x16x8  median  75.426 ns/cell   min  26.679   vs prod: median +156.2%  min +173.6%
+rank  72  tiled@48x24x8  median  82.559 ns/cell   min  29.095   vs prod: median +180.5%  min +198.3%
+rank  72  tiled@32x32x8  median  96.845 ns/cell   min  34.307   vs prod: median +229.0%  min +251.8%
+rank  72  tiled@128x16x4  median  70.263 ns/cell   min  25.369   vs prod: median +138.7%  min +160.1%
+
+=== aggregate ===
+
+--- serial (1 rank(s)) ---
+  prod     median-of-ranks   9.508 ns/cell   min-across-ranks   9.459   spread 9.51-9.51
+  clean    median-of-ranks  25.722 ns/cell   min-across-ranks  24.702   spread 25.72-25.72
+  tiled@96x16x8 median-of-ranks  25.531 ns/cell   min-across-ranks  25.438   spread 25.53-25.53
+  tiled@64x16x8 median-of-ranks  24.948 ns/cell   min-across-ranks  24.873   spread 24.95-24.95
+  tiled@48x24x8 median-of-ranks  27.067 ns/cell   min-across-ranks  26.939   spread 27.07-27.07
+  tiled@32x32x8 median-of-ranks  32.236 ns/cell   min-across-ranks  32.053   spread 32.24-32.24
+  tiled@128x16x4 median-of-ranks  23.528 ns/cell   min-across-ranks  23.432   spread 23.53-23.53
+  => clean vs prod: +170.5% (median of ranks)
+  => tiled@96x16x8 vs prod: +168.5% (median of ranks)
+  => tiled@64x16x8 vs prod: +162.4% (median of ranks)
+  => tiled@48x24x8 vs prod: +184.7% (median of ranks)
+  => tiled@32x32x8 vs prod: +239.0% (median of ranks)
+  => tiled@128x16x4 vs prod: +147.5% (median of ranks)
+
+--- saturated (100 rank(s)) ---
+  prod     median-of-ranks  24.003 ns/cell   min-across-ranks   9.752   spread 23.07-29.44
+  clean    median-of-ranks  48.646 ns/cell   min-across-ranks  25.007   spread 47.74-51.10
+  tiled@96x16x8 median-of-ranks  70.363 ns/cell   min-across-ranks  26.615   spread 67.79-82.89
+  tiled@64x16x8 median-of-ranks  65.377 ns/cell   min-across-ranks  26.679   spread 63.71-75.43
+  tiled@48x24x8 median-of-ranks  73.128 ns/cell   min-across-ranks  29.095   spread 71.42-82.56
+  tiled@32x32x8 median-of-ranks  87.487 ns/cell   min-across-ranks  34.307   spread 84.83-96.84
+  tiled@128x16x4 median-of-ranks  58.851 ns/cell   min-across-ranks  25.369   spread 56.85-70.26
+  => clean vs prod: +102.7% (median of ranks)
+  => tiled@96x16x8 vs prod: +193.1% (median of ranks)
+  => tiled@64x16x8 vs prod: +172.4% (median of ranks)
+  => tiled@48x24x8 vs prod: +204.7% (median of ranks)
+  => tiled@32x32x8 vs prod: +264.5% (median of ranks)
+  => tiled@128x16x4 vs prod: +145.2% (median of ranks)
+
+done. raw rows: /rds/project/rds-7OSWtyyYICQ/jb753/ember-paper/ember/tools/bench_residual_ab.jsonl

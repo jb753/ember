@@ -1628,3 +1628,579 @@ anything more than a lead.
   `results.csv` (full interleaved timing table), `run_ab.log`,
   `correctness_check.py` output, `baseline.so`/`candidate.so` (not
   committed, build artifacts).
+
+---
+
+## 17. Priced and rejected: the idiomatic `set_residual` rewrite
+
+The hand-optimisations in `set_residual`'s three face-flow helpers (nine
+scalarized `pm1..pm6`/`mf1..mf3` locals with the four face corners
+hand-unrolled, three duplicated loop bodies per helper) rest on a comment
+at `residual.f90:39-47` citing ifort 2022.1.0. That justification had
+never been re-tested, and section 16's finding -- that the *current*
+kernel is ~45% `vgatherdps` -- raised the possibility that the
+hand-unrolling was itself the trigger rather than a workaround.
+
+So the ugliness was **priced**: an idiomatic rewrite was written, measured
+against production in the same `.so`, and **rejected**. It is 2.7x slower
+serially and 2.0x slower under saturated bandwidth. The comment's claim is
+re-confirmed, with one part of it now obsolete.
+
+### 17.1 What was written
+
+`src/ember/_fortran/residual_cand.f90`, exposed as `set_residual_clean`:
+the kernel someone would write from scratch knowing the algorithm but not
+the optimisation history. Same algorithmic structure (rolling face
+buffers, one `dU` touch, deferred cusp correction, shared
+`correct_cusp_kface_du`); three hand-optimisations dropped:
+
+1. `pm(6)`/`mf(3)` restored as arrays accumulated by one `accum()` call
+   per corner -- the style `correct_cusp_kface_du` still uses, so this is
+   the house form, not an invention;
+2. one loop body per helper instead of three, the wall factor read per-`i`
+   from a contiguous `wfac` row the caller selects;
+3. no `kb` dummy and no slab loop (in production that nest is already a
+   pure re-nesting of `do k = 1, nk-1` -- `pa/pb` and the k=1 face prime
+   sit outside both loops, there is no per-slab prologue or epilogue).
+
+**The rewrite is bitwise identical to production** (`np.array_equal`
+`True` on a 1M-cell duct block, 99.98% of cells nonzero, identical sums),
+so this prices codegen alone, with the arithmetic held exactly fixed.
+
+### 17.2 Protocol -- two improvements worth keeping
+
+- **Same-`.so` A/B.** Both kernels compile into one module (`setup.py`
+  globs `_fortran/*.f90`), so they are compared **in one process,
+  round-robin interleaved**. No cross-build LTO drift, and none of the
+  gauge-kernel correction sections 7-15 all needed. Production
+  `set_residual` was never edited.
+- **Compile on the compute node.** `INTEL_FLAGS` carries `-xHost`, which
+  tunes to whatever runs the compiler. The login nodes are Ice Lake (Xeon
+  8368Q: no `avx512_bf16`, no `amx`); the benchmark node was a Xeon 8480+
+  (Sapphire Rapids). A login-node build silently produces an Ice Lake
+  binary -- so `make compile` runs inside the allocation, before timing.
+- **New: a saturated-bandwidth regime.** Every A/B in sections 5-15 was a
+  single pinned core. Production runs 100+ ranks per node, so this A/B
+  adds 100 concurrent single-threaded ranks, each holding its own 1M-cell
+  grid, rendezvousing on a shared wall-clock start. Harness:
+  `tools/bench_residual_variants.py`; job wrapper
+  `tools/submit_residual_bench.sh` (`--qos=intr`).
+
+`build_duct_grid(1_000_000)` = 273x65x57. Note `ni*nj = 17745` is not a
+multiple of 1024, so section 9.2's conditional anti-aliasing pad is
+**inactive** here -- these runs say nothing about it.
+
+### 17.3 Results (ifort 2022.1.0, Xeon Platinum 8480+, median ns/cell)
+
+| regime | prod | clean | delta |
+| --- | --- | --- | --- |
+| serial (1 rank, pinned) | 9.37 | 25.72 | **+174%** |
+| saturated (100 ranks) | 24.08 | 47.95 | **+99%** |
+
+Across-rank spread is tight in both cases (prod p10-p90 23.67-26.19,
+clean 47.76-48.79 over 100 ranks), so the saturated figure is not a
+straggler artifact. Min ns/cell agrees (+168% serial, +113% saturated).
+
+Note the regime itself costs production 2.6x (9.37 -> 24.08): this kernel
+is substantially memory-bound at production concurrency, which is the
+answer to the compute-vs-memory-bound question section 12.2 raised and
+never settled. The clean version's penalty *shrinks* from +174% to +99%
+under saturation precisely because DRAM becomes the shared limiter and
+partially masks its extra instruction cost -- but it never stops losing.
+
+### 17.4 Why -- the mechanism, from the link-stage report
+
+The clean helpers **do not vectorize at all**. Every face loop reports:
+
+```
+remark #15344: loop was not vectorized: vector dependence prevents vectorization
+remark #15346: vector dependence: assumed FLOW dependence between PM(:) and PM(1)
+```
+
+while production's three helpers report `LOOP WAS VECTORIZED` (plus
+vectorized peel and remainder loops) in the same build.
+
+This **splits the `residual.f90:39-47` comment into a live half and a dead
+half**, which is the durable finding here:
+
+- **Dead:** "ifort declines to inline `accum()`/`put()`". It now inlines
+  fine -- the report shows all four `accum` calls inlined per helper and
+  the standalone symbol marked `DEAD STATIC FUNCTION`. `-inline-forceinline
+  -inline-factor=10000` evidently handles it.
+- **Alive, and decisive:** ifort cannot disprove a flow dependence on the
+  `pm(:)`/`mf(:)` *arrays* across iterations, so it refuses to vectorize.
+  The hand-scalarization into nine independent scalars is what removes
+  that assumed dependence. This is the load-bearing part, and it is
+  entirely about the arrays, not the calls.
+
+### 17.5 Reading
+
+- **The hand-scalarization is still earning its keep**, by 2-2.7x. It
+  should not be tidied away, and `residual.f90:39-47` now records the
+  ifort version, flags, and hardware it was re-confirmed on.
+- **Section 16's gather pathology is not caused by the hand-unrolling.**
+  The idiomatic form does not trade gathers for unit-stride loads -- it
+  gets no SIMD whatsoever. So gathers-with-SIMD remains far better than
+  clean-and-scalar, and section 16.5's refusal to "fix" the gathers
+  without an ifort A/B against production is reinforced.
+- **Compiler-specific, and sharply so.** Built with gfortran 8.5.0 the
+  ranking *inverts*: clean 15.7 vs prod 72.2 ns/cell (-78%), because
+  gfortran fails to vectorize production's `accum_corners` and runs it
+  scalar (section 16.4's finding, reproduced). Anyone reading this kernel
+  under gfortran will conclude the hand-optimisation is harmful; under the
+  production compiler it is worth 2-2.7x. **This is the strongest
+  restatement yet of section 2.5's lesson**: measure in the real build,
+  with the real compiler.
+- The `kb` removal (item 3) is free and bitwise, but it rode along inside
+  a rejected variant, so it is *not* adopted here. If wanted it should be
+  landed on its own, gated on `np.array_equal`. `kb` remains inert in
+  production meanwhile -- `tools/bench_kb_sweep.py` documents this and no
+  longer sweeps it for `set_residual`.
+- Raw data: `tools/bench_residual_ab.jsonl` (101 rows: 1 serial + 100
+  saturated), `tools/bench_residual_ab.log` (full job output),
+  `tools/opt_report_residual_ab.txt` (link-stage report, both kernels in
+  one build). The candidate kernel is kept at
+  `src/ember/_fortran/residual_cand.f90` so the comparison can be re-run
+  without reconstructing it.
+
+---
+
+## 18. Tried and rejected: the separable-box-filter tiled rewrite
+
+Section 17 priced an idiomatic *restyling* of `set_residual` and found it
+2-2.7x slower. That rewrite kept the algorithm and changed only the
+notation, so it was always going to lose: same traffic, same flops, minus
+the SIMD. This section prices a genuinely **different algorithm** --
+and it loses harder, for an instructive reason.
+
+### 18.1 The idea
+
+Strip away the hand-unrolling and every `accum_corners` computes the same
+**nine per-node quantities** averaged over a face's 4 corners:
+
+```
+pm1..pm6 = <Vx>, <Vr>, <r*Vt>, <ho>, <dP>, <r*dP>
+mf1..mf3 = <rho*Vx>, <rho*Vr>, <rho*Vt_rel>
+```
+
+The nine are identical in all three directions; only *which* 4 corners
+differ. Two consequences:
+
+1. **A 12.1x redundancy factor.** Every interior node is a corner of ~12
+   faces across the three sweeps, and production recomputes its nine
+   quantities from the raw fields every time: 11.8M corner-evaluations for
+   975k cells, where 975k would do.
+2. **The 4-corner average is a 2D box filter, and box filters separate**
+   (verified numerically, max deviation 5.96e-08):
+   ```
+   i-face = avg_k(avg_j(q))    j-face = avg_k(avg_i(q))    k-face = avg_j(avg_i(q))
+   ```
+   so `avg_i` computed once serves **both** the j- and k-faces.
+
+Implemented as `set_residual_tiled` (`_fortran/residual_tiled.f90`): six
+small helpers (`node_quantities`, `avg_along_i/j/k`, `face_flux`,
+`diff_into_du`) and a triple tile loop. No hand-unrolled corners, no
+scalarized `pm1..pm6`, no rolling buffers or alternating slot indices.
+Scratch is flat, caller-carved from `tau_q_halo`; `IB/JB/KB` are runtime
+arguments.
+
+Working set is held in L2 by tiling **all three** axes. A k-slab is not
+enough: at ni=273, nj=65 one node plane is ~71 KB per quantity, so nine of
+them exceed a 2 MB L2 for any kb. A 96x16x8 cell tile is ~1.5 MB and
+re-reads each node only 1.21x, against 2.04x for production's rolling
+planes -- better locality on paper.
+
+### 18.2 Both gates passed
+
+**Gate 1 (vectorization), ifort on the sapphire node:** every hot loop
+reports `LOOP WAS VECTORIZED` with **zero dependence misses** --
+`node_quantities`, `avg_along_i/j/k`, `face_flux`, `diff_into_du`. The
+design's structural claim holds: writing `qn(i,j,k,m)` with `m` a literal
+avoids the `assumed FLOW dependence between PM(:) and PM(1)` that left
+section 17's rewrite with no SIMD at all, and 2-point single-axis stencils
+give unit-stride loads with no corner axis to gather over.
+
+(The only main-loop `#15335` remarks are in `set_wall_row`'s i-boundary
+fill, which writes `wf(1,j,k)` at stride `fi` -- ifort is right to leave
+that scalar, and it is O(surface) work on edge tiles only. Note `#15335`
+is a *cost* decision, not a dependence miss; on peel/remainder loops beside
+a vectorized main loop it is benign, and a gate that treats it as fatal
+will report false failures.)
+
+**Gate 2 (correctness):** all five tile geometries agree with production to
+**1.0e-05 of scale** (single-tile: 2.5e-09), the bounded float32
+reassociation predicted from replacing one 4-term sum with two 2-point
+averages.
+
+### 18.3 Results -- rejected
+
+ifort 2022.1.0, Xeon Platinum 8480+, 1M-cell duct, median ns/cell:
+
+| variant | serial | vs prod | saturated (100 ranks) | vs prod |
+| --- | --- | --- | --- | --- |
+| **prod** | **9.51** | -- | **24.00** | -- |
+| clean (section 17) | 25.72 | +170% | 48.65 | +103% |
+| tiled 128x16x4 | 23.53 | +148% | 58.85 | +145% |
+| tiled 64x16x8 | 24.95 | +162% | 65.38 | +172% |
+| tiled 96x16x8 | 25.53 | +169% | 70.36 | +193% |
+| tiled 48x24x8 | 27.07 | +185% | 73.13 | +205% |
+| tiled 32x32x8 | 32.24 | +239% | 87.49 | +265% |
+
+### 18.4 Reading -- why a fully-vectorized, cache-resident kernel still loses
+
+- **The tile ranking correlates with `IB` alone**, not with working-set
+  size or halo ratio: 128 > 96 > 64 > 48 > 32 in both regimes. `32x32x8`
+  has the *smallest* working set (1.01 MB) and the *best* halo ratio
+  (1.196) and is the *worst* performer. So L2 residency was never the
+  binding constraint -- **vector loop length was**. Cutting `i` into tiles
+  shortens every SIMD loop and multiplies peel/remainder overhead, and that
+  cost swamps the locality it buys. This is the same lesson section 10's
+  rejected j-panel tile taught, now with the mechanism isolated.
+- **The trade was backwards.** The redundant corner work it eliminates is
+  ~5 flops per evaluation -- cheap, and already vectorized. What it costs
+  is materialising `qn`/`ai`/`t1`/`fa`/`fl` for every node: ~573 B/cell of
+  scratch write+read against production's ~125 B/cell, a **4.6x traffic
+  increase**. Section 17 established this kernel is memory-bound at
+  production concurrency (prod: 9.5 -> 24.0 ns/cell from serial to
+  saturated), so trading cheap arithmetic for expensive traffic is exactly
+  the wrong direction.
+- **The regime confirms it.** The clean variant's penalty *shrinks* under
+  saturation (+170% -> +103%): it is instruction-bound, so DRAM contention
+  partially masks it. The tiled variant's penalty *grows* (+148% -> +145%
+  at best, +239% -> +265% at worst): it is traffic-bound, so contention
+  compounds it. The direction of that shift is the cleanest available
+  diagnostic for which resource a variant is spending.
+- **Production's design is now well-explained rather than merely
+  measured.** Recomputing 9 node quantities 12x from cache-resident nodal
+  fields is *cheaper* than computing them once and storing them, because
+  on this machine flops are abundant and memory traffic is not. The
+  hand-unrolling that makes those recomputations vectorize is what converts
+  a 12.1x redundancy into a win.
+- Raw data: `tools/bench_residual_tiled.log`, `tools/gate1_tiled.log`,
+  `tools/bench_residual_ab.jsonl`. Kernel kept at
+  `_fortran/residual_tiled.f90` for re-measurement.
+
+---
+
+## 19. The baseline that was never measured: the naive textbook kernel
+
+Sections 17 and 18 priced two rewrites against the *optimised* production
+kernel, but neither established what the **unoptimised starting point**
+costs -- so neither could say what the machinery accumulated across
+sections 6-13 actually bought. This section measures that, with the most
+boring kernel that could work.
+
+### 19.1 What was written
+
+`set_residual_naive` (`_fortran/residual_naive.f90`): four full-volume
+passes, as a textbook would write them.
+
+```
+1. compute ALL i-face flows -> flow_i(ni,   nj-1, nk-1, 5)
+2. compute ALL j-face flows -> flow_j(ni-1, nj,   nk-1, 5)
+3. compute ALL k-face flows -> flow_k(ni-1, nj-1, nk,   5)
+4. dU = i-diff + f_body + j-diff + k-diff
+```
+
+No tiling, no rolling buffers, no direction fusion, no hand-unrolled
+corners, no scalarized pm/mf, no slab bookkeeping. The three face routines
+are near-identical copies (deduplicating them is the kind of cleverness
+this variant exists to omit); `pm(6)`/`mf(3)` are accumulated by a plain
+`accum()` per corner; the wall factor is chosen by an `if` inside the
+innermost loop. Scratch is ~56 MB -- more than `tau_q_halo` holds, so
+`flow_i`/`flow_j` are carved from it and `flow_k` from `block.scratch`.
+
+**Bitwise identical to production** (`np.array_equal` True): the fused
+seven-term dU expression is unchanged, so the arithmetic and summation
+order match exactly. That makes this the cleanest comparison of the set --
+any timing difference is purely structural, with no numerical confound.
+
+### 19.2 Gate 1: fails, exactly as section 17 predicts
+
+All three face routines report **zero vectorized loops**, with the same
+signature section 17 diagnosed:
+
+```
+remark #15346: vector dependence: assumed FLOW dependence between PM(:) and PM(1)
+```
+
+The `pm(:)`/`mf(:)` accumulator arrays defeat ifort's dependence analysis
+here just as they did in the section 17 rewrite. This is now the third
+independent confirmation, and the mechanism is no longer in doubt.
+
+### 19.3 The complete table (ifort, Xeon 8480+, 1M-cell duct, median ns/cell)
+
+| variant | serial | vs prod | saturated | vs prod | ser->sat |
+| --- | --- | --- | --- | --- | --- |
+| **prod** | **10.22** | -- | **23.40** | -- | 2.29x |
+| clean (s17) | 25.47 | +149% | 41.39 | +77% | 1.63x |
+| **naive (s19)** | **27.68** | **+171%** | **46.95** | **+101%** | 1.70x |
+| tiled 128x16x4 | 24.41 | +139% | 53.72 | +130% | 2.20x |
+| tiled 64x16x8 | 26.27 | +157% | 60.64 | +159% | 2.31x |
+| tiled 96x16x8 | 26.72 | +161% | 65.69 | +181% | 2.46x |
+| tiled 48x24x8 | 28.40 | +178% | 67.60 | +189% | 2.38x |
+| tiled 32x32x8 | 33.06 | +223% | 82.59 | +253% | 2.50x |
+
+### 19.4 Reading
+
+- **The total value of the optimisation work is ~2.7x serial and ~2.0x
+  under production concurrency.** That is what sections 6-13 bought over
+  the naive starting point. Substantial, and now measured rather than
+  assumed.
+- **The naive kernel beats the clever one.** This is the result worth
+  keeping. `naive` (+101% saturated) is faster than *every* tiled geometry
+  (+130% to +253%), despite doing no vectorization at all and streaming
+  ~450 B/cell of full-volume face flows. Section 18's kernel vectorizes
+  perfectly, is L2-resident by construction, and still loses to four
+  full-volume passes written without a thought for performance. Being
+  clever in the wrong dimension is worse than not being clever.
+- **The penalty-direction diagnostic (section 18.4) sorts the variants
+  cleanly.** `clean` and `naive` are instruction-bound: their penalties
+  *shrink* under saturation (+149->+77%, +171->+101%) because DRAM
+  contention masks scalar-loop cost. The tiled geometries are
+  traffic-bound: penalties hold or *grow* (+161->+181%, +223->+253%), and
+  their serial->saturated ratios (2.20-2.50x) exceed production's own
+  2.29x machine ratio at the wide-tile end. The one tiled variant that
+  behaves like the others, `128x16x4`, is the one with the longest vector
+  runs.
+- **Two independent penalties, cleanly separated.** `naive` vs `clean`
+  (+171% vs +149% serial) isolates the cost of full-volume flow staging
+  alone -- both are scalar, both use `pm(:)`, and they differ only in
+  whether face flows are staged full-volume or rolled. That is ~22
+  percentage points for the staging. The remaining ~149% is the
+  vectorization loss. So of production's ~2.7x advantage, roughly
+  three-quarters is SIMD and one-quarter is traffic staging.
+- Raw data: `tools/bench_residual_naive.log`, `tools/opt_report_naive.txt`,
+  `tools/bench_residual_ab.jsonl`. Kernel kept at
+  `_fortran/residual_naive.f90`.
+
+---
+
+## 20. Adopted candidate: derive Vx/Vr/r*Vt from `cons` (stage A)
+
+Sections 17-19 established that `set_residual` runs at DRAM bandwidth in the
+regime production actually uses (~522 GB/s aggregate at 100 ranks, against
+~430-490 GB/s realistic STREAM for this node), and that every rewrite which
+added instructions or traffic lost. That leaves exactly one lever: **move
+fewer bytes**. This is the first variant to do so, and the first this
+session to beat production.
+
+### 20.1 The observation
+
+`cons = (rho, rho*Vx, rho*Vr, rho*r*Vt, rho*e)`, so the kernel's own inputs
+already contain the velocities it separately streams from `vx`/`vr`/`vt`:
+
+```
+Vx = c2/c1        Vr = c3/c1        r*Vt = c4/c1
+```
+
+exact, verified against the cached arrays on a swirling rotating grid
+(rel diff 2.7e-08 to 5.6e-08, i.e. float32 epsilon). The mass-flux term
+needs `rho*Vt_rel = rho*Vt - Omega*rho*r`, and since `rho*Vt = c4/r` that is
+`c4/r - Omega*c1*r` -- no reciprocal of `c1` required there at all.
+
+This drops three streamed nodal fields (9 -> 7, ~12.5 B/cell, ~11% of
+compulsory traffic) for one reciprocal per corner. `pm3` also gets
+*cheaper*: `r*Vt` is `c4/c1` directly, so the multiply by `r` disappears.
+
+**Recomputed in place, never precomputed.** Each node is a corner of ~12
+faces, so this pays ~12x redundant reciprocals -- but writes no new bytes. A
+per-node precompute buffer would write more than it saves; that is exactly
+the shape section 18 lost with. Trading redundant flops for streamed bytes
+is the correct direction on a bandwidth-bound kernel, and the exact inverse
+of section 18's mistake.
+
+`set_residual_consa` (`_fortran/residual_consa.f90`) is generated by
+mechanically transforming production, so the hand-scalarized
+`pm1..pm6`/`mf1..mf3`, hand-unrolled corners, rolling buffers and fused dU
+write are all retained verbatim (sections 17/19 measured that structure as
+worth 2-2.7x). The O(surface) cusp pass reuses `residual_helpers`'
+`correct_cusp_kface_du` unchanged.
+
+### 20.2 Gates
+
+**Gate 1 PASS.** All three `_ca` helpers report `dependence=0`,
+`main-miss=0`, 1-3 vectorized loops each. Both anticipated failure modes --
+a scalar divide in the hot loop, and register spill from four extra live
+values in an already register-hungry routine -- did not occur.
+
+**Gate 2 PASS.** Deviation is float32 rounding from the divide:
+1.25e-06 of scale on the 1M duct, and **7.3e-08 of scale on the swirling
+golden grid** (Omega=50, genuinely nonzero Vr/Vt). The same magnitude as
+sections 11 and 13, both of which held their goldens without regeneration.
+
+Benchmark-grid caveat worth recording: **the duct case has Vr and Vt
+identically zero**, so it cannot exercise those code paths at all. Any
+future velocity-related change must be correctness-checked on the swirling
+golden grid, not the duct.
+
+### 20.3 Results (ifort, Xeon 8480+, 1M-cell duct, median ns/cell)
+
+| variant | serial | vs prod | saturated | vs prod |
+| --- | --- | --- | --- | --- |
+| prod | 9.83 | -- | 23.67 | -- |
+| **consa** | **9.80** | **-0.3%** | **22.61** | **-4.5%** |
+| clean (s17) | 25.74 | +162% | 41.80 | +77% |
+| naive (s19) | 27.50 | +180% | 47.02 | +99% |
+| tiled 128x16x4 (s18) | 23.69 | +141% | 57.00 | +141% |
+
+Two independent repeat processes (r1/r2):
+
+| rep | serial | saturated | ranks won | median | p10 | p90 |
+| --- | --- | --- | --- | --- | --- | --- |
+| r1 | -0.3% | -4.5% | 89/100 | -4.09% | -7.35% | +0.40% |
+| r2 | -0.6% | -5.1% | 90/100 | -5.24% | -7.66% | +0.03% |
+
+Paired per-rank (candidate vs production in the *same* rank and process, so
+drift cancels). Both repeats agree within 0.6 percentage points, 179 of 200
+rank-pairs win, and the worst single rank in either repeat is +4.4% (r1) /
++1.1% (r2) -- inside the alignment noise section 9.4 documents. This clears
+the section 4.4 adoption rule: **win above noise, regress nowhere.**
+
+### 20.4 Reading
+
+- **The shape is the prediction.** Flat serial (-0.3%), win saturated
+  (-4.5%): no help where bandwidth is not the constraint, real gain where it
+  is. That is the signature of a genuine traffic reduction, and it confirms
+  the section 18.4 penalty-direction diagnostic from the winning side.
+- **But the magnitude undershoots.** The traffic model predicted -11%;
+  measured is -4.1%. Most likely the dropped `vx`/`vr`/`vt` planes were
+  partly L3-resident (each node is re-read ~12x across the sweeps), so
+  compulsory-byte accounting overstates the saving for well-reused arrays.
+  Also, `cons(4)` becomes newly live, so the stream count falls 8 -> 7
+  rather than 9 -> 7. Recorded because the model is otherwise useful and
+  its bias should be known: **treat compulsory-traffic estimates as an upper
+  bound on the win, roughly 2x optimistic for heavily-reused fields.**
+- Full suite: **1725 passed, 2 failed**. The two failures
+  (`test_perturbation.py::test_chic_to_bcond_linearization[d_rho]` and
+  `[d_P]`) are **pre-existing and unrelated** -- verified by stashing every
+  candidate kernel out, rebuilding, and reproducing them on the clean tree.
+  `test_perturbation.py` does not reference the residual path at all. The
+  residual goldens pass without regeneration.
+- Raw data: `tools/bench_residual_consa.log` (r1),
+  `tools/bench_residual_consa_r2.log` (r2), `tools/bench_residual_ab.jsonl`.
+
+### 20.5 Stage B (deriving `P` and `ho` from `cons` too) -- rejected on design
+
+The natural continuation is to derive `P` and `ho` from `cons` as well,
+taking the kernel to `cons(1:5) + r` (6 fields, ~33% less nodal traffic).
+For a perfect gas the closed forms are exact and were verified
+(`P = (gamma-1)*rho*u + rho*R*T_dtm`, `ho = gamma*u + R*T_dtm + V^2/2`,
+with `u = c5/c1 - V^2/2`; rel err 1.0e-08 and 7.6e-08).
+
+**Not implemented: it would break EOS-agnosticism.** No kernel in
+`_fortran/` references `gamma`, `Rgas`, `cv` or `T_dtm` -- the equation of
+state lives entirely behind `_Fluid.get_P`/`get_h` (`fluid.py`), an ABC
+whose abstract methods exist precisely so other fluids can be added.
+`set_residual` receives `P` and `ho` as pre-evaluated arrays for that
+reason. Hard-coding perfect-gas relations into the kernel would make a
+real-gas or tabulated EOS produce silently wrong pressures rather than
+failing loudly.
+
+Velocities are different in kind and remain fair game: `Vx = c2/c1` is the
+*definition* of the conserved momentum variable, true for any fluid, with
+no thermodynamic content. That is why stage A is sound and stage B is not.
+
+If the stage-B traffic is ever wanted, the honest route is a fluid-dispatched
+`accum_corners` (an EOS callback or a per-fluid kernel variant), not
+constants smuggled through the argument list.
+
+---
+
+## 21. Adopted candidate: merge `damp_residual`'s full-volume sweeps
+
+Section 20 got `set_residual` itself to within ~5% of the DRAM roofline.
+The next question was where the remaining time in `Grid.update_residual`
+actually goes -- and the answer is: **not in `set_residual`**. The
+post-passes that run immediately afterwards move more bytes than the
+residual kernel does, over an array (`dU`) that never leaves the pipeline.
+
+### 21.1 The finding
+
+`damp_residual` (`residual.f90`) loops the component index `m` **outside**
+the `(i,j,k)` nest. With 5 components that is **ten full-volume passes over
+dU** -- five to reduce (block mean of `|dU*dt_vol|`) and five to scale --
+plus `dt_vol` read five times over. At 20 B/cell per dU touch that is
+~200 B/cell, against `set_residual`'s own ~101 B/cell of compulsory
+traffic.
+
+`damp_residual_merged` (`_fortran/residual_damp_fused.f90`) restructures
+the sweeps so the five components share one traversal of each (j,k) plane,
+with **`i` still innermost and `m` still outside it**. `dt_vol(i,j,k)` is
+then loaded once per plane instead of five times, and the dU planes for all
+five components are touched while the corresponding `dt_vol` plane is hot.
+
+### 21.2 The mistake worth recording
+
+The first attempt put `m` **innermost**, expecting "one pass instead of
+ten". It measured **+208%** -- three times slower.
+
+`dU` is `(ni-1, nj-1, nk-1, 5)`, component-**last**, so the component
+stride is `(ni-1)*(nj-1)*(nk-1)` ~ 975k elements (3.9 MB). Putting `m`
+innermost turns five clean unit-stride streams into five concurrent streams
+3.9 MB apart, and makes the innermost loop a length-5 walk along the
+*non*-contiguous axis -- destroying the i-vectorization completely.
+
+This is section 2.5's rule ("any layout change that strides the i reads is
+suspect") recurring in a routine that has nothing to do with tau/q layout.
+**The rule is about loop nesting as much as about array layout.**
+
+### 21.3 Branch-free by construction
+
+The merged reduction needs a guard: a flat field has `avg = 0` and would
+divide by zero. Production handles it with `cycle`, i.e. a branch inside
+the swept region. Here the reciprocal is precomputed into `ravg(m)`, set to
+`0` for a flat component, which makes `fdamp = 0` and the soft-clip the
+identity -- same outcome, no branch in the sweep.
+
+The caller's own skip logic (`if sf > 0.0`, `dampin is not None` in
+`grid.py`) is deliberately **kept**: skipping the routine entirely when
+damping is off avoids all of this traffic, which is worth more than any
+fusion. Branch-free belongs inside the kernel, not at the dispatch.
+
+### 21.4 Gates and results
+
+**Gate 1 PASS**: `damp_residual_merged` reports `dependence=0`,
+`main-miss=0`, and **8 vectorized loops** against production's 2.
+
+**Gate 2 PASS**: not bitwise -- `chg/avg(m)` became `chg*ravg(m)` to remove
+the branch -- but the deviation is 2.7e-07 to 4.3e-07 of the field scale,
+inside the goldens' `rtol=1e-4`.
+
+ifort 2022.1.0, Xeon 8480+, 1M-cell duct, `dampin=2.0`, median ns/cell:
+
+| | serial | saturated (100 ranks) |
+| --- | --- | --- |
+| `damp_residual` (prod) | 2.434 | 19.386 |
+| `damp_residual_merged` | **1.736** | **13.385** |
+| delta | **-28.7%** | **-30.8%** |
+| | | wins **100/100** ranks, worst -27.0% |
+
+The co-measured IRS smoother is unchanged in both arms and serves as the
+in-process gauge: 8.114 (serial) / 31.573 (saturated), stable across arms.
+
+### 21.5 Reading
+
+- **-30.8% saturated, winning in every one of 100 ranks**, with the worst
+  rank still -27.0%. The largest single win measured this session.
+- Unlike section 20's `consa` (flat serial, win saturated), this wins in
+  *both* regimes -- because it removes redundant *work* (four fifths of the
+  `dt_vol` loads, and the loop overhead of eight extra full traversals), not
+  only bytes. The extra vectorized loops in the opt-report say the same.
+- **The IRS smoother is now the largest item in the path** at 31.57 ns/cell
+  saturated -- bigger than `set_residual` itself (22.61 with `consa`). It
+  has the *same* structural weakness: `smooth_residual_tri_tiled` loops `m`
+  outside each of its three direction solves, so each solve is five separate
+  full-volume sweeps. That is the obvious next target, and this section's
+  result is the evidence it is worth attacking.
+- Whole path (`sf>0`, `dampin` set), saturated: ~73.6 -> ~67.6 ns/cell,
+  **-8.2%**, from this change alone.
+- Full suite: 1725 passed, 2 failed. The two failures
+  (`test_perturbation.py::test_chic_to_bcond_linearization[d_rho]`/`[d_P]`)
+  are pre-existing and unrelated -- reproduced on a clean stashed tree in
+  section 20.4. `test_fmg.py::test_n_levels_zero_matches_run` is known
+  flaky (order-dependent shared state): it passes in isolation and appeared
+  in only one of three consecutive runs of the *same* tree. Residual
+  goldens pass without regeneration.
+- Raw data: `tools/bench_damp_fused.log`, `tools/bench_damp_ab.jsonl`.
+  Harness: `tools/bench_damp_fused.py`, `tools/submit_damp_bench.sh`.

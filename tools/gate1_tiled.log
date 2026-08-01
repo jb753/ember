@@ -1,0 +1,31 @@
+sapphire modules
+=== node: cpu-r-5  Intel(R) Xeon(R) Platinum 8480+ ===
+ ~ pykdtree==1.4.3
+ ~ pyyaml==6.0.3
+Package installed successfully
+
+=== vectorization of the tiled kernel's hot loops ===
+[MISS] set_residual_tiled_: 47 vectorized (+20 peel/rem), 15 hard miss
+         #15335
+         #15335
+         #15335
+         #15335
+         #15335
+         #15335
+[OK ] residual_tiled_helpers_mp_diff_into_du_: 4 vectorized (+2 peel/rem), 0 hard miss
+[MISS] residual_tiled_helpers_mp_set_wall_row_: 5 vectorized (+0 peel/rem), 9 hard miss
+         #15335
+         #15335
+         #15335
+         #15335
+         #15335
+         #15335
+[MISS] residual_tiled_helpers_mp_face_flux_: 2 vectorized (+1 peel/rem), 1 hard miss
+         #15335
+[OK ] residual_tiled_helpers_mp_avg_along_k_: 2 vectorized (+1 peel/rem), 0 hard miss
+[OK ] residual_tiled_helpers_mp_avg_along_j_: 2 vectorized (+1 peel/rem), 0 hard miss
+[OK ] residual_tiled_helpers_mp_avg_along_i_: 2 vectorized (+1 peel/rem), 0 hard miss
+[MISS] residual_tiled_helpers_mp_node_quantities_: 2 vectorized (+1 peel/rem), 1 hard miss
+         #15335
+
+GATE 1: FAIL -- 26 miss remark(s); fix before benchmarking

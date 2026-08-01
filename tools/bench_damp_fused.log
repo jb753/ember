@@ -1,0 +1,341 @@
+sapphire modules
+=== node: cpu-r-69  model name	: Intel(R) Xeon(R) Platinum 8480+ ===
+ ~ pyyaml==6.0.3
+Package installed successfully
+
+=== Gate 1: vectorization of damp_residual_merged ===
+  damp_residual_: vec=2 main-miss=0 dependence=0
+  damp_residual_merged_: vec=8 main-miss=0 dependence=0
+
+=== serial ===
+grid 273 x 65 x 57  dampin=2.0 sf=1.0
+
+correctness gate:
+  damp: |dU|_max = 6.748931e-05
+  merged vs prod: max_abs_diff = 2.910383e-11 (4.312e-07 of scale)  bitwise=False
+rank   0  damp_prod    median   2.434 ns/cell  min   2.413
+rank   0  damp_merged  median   1.736 ns/cell  min   1.724   vs damp_prod: -28.7%
+rank   0  irs_gauge    median   8.114 ns/cell  min   8.080
+
+=== saturated (100 ranks) ===
+rank  63  damp_prod    median  19.316 ns/cell  min  19.067
+rank  63  damp_merged  median  12.966 ns/cell  min  12.763   vs damp_prod: -32.9%
+rank  63  irs_gauge    median  30.218 ns/cell  min  29.787
+rank  21  damp_prod    median  19.104 ns/cell  min  19.001
+rank  21  damp_merged  median  13.118 ns/cell  min  12.931   vs damp_prod: -31.3%
+rank  21  irs_gauge    median  30.676 ns/cell  min  30.024
+rank  69  damp_prod    median  19.142 ns/cell  min  18.999
+rank  69  damp_merged  median  13.057 ns/cell  min  12.893   vs damp_prod: -31.8%
+rank  69  irs_gauge    median  30.596 ns/cell  min  30.351
+rank  91  damp_prod    median  19.206 ns/cell  min  19.064
+rank  91  damp_merged  median  13.112 ns/cell  min  12.986   vs damp_prod: -31.7%
+rank  91  irs_gauge    median  30.808 ns/cell  min  30.451
+rank  75  damp_prod    median  19.112 ns/cell  min  18.969
+rank  75  damp_merged  median  13.191 ns/cell  min  13.011   vs damp_prod: -31.0%
+rank  75  irs_gauge    median  30.988 ns/cell  min  30.616
+rank  99  damp_prod    median  19.125 ns/cell  min  18.941
+rank  99  damp_merged  median  13.070 ns/cell  min  12.958   vs damp_prod: -31.7%
+rank  99  irs_gauge    median  30.714 ns/cell  min  30.339
+rank   9  damp_prod    median  19.124 ns/cell  min  18.982
+rank   9  damp_merged  median  13.199 ns/cell  min  13.065   vs damp_prod: -31.0%
+rank   9  irs_gauge    median  30.978 ns/cell  min  30.771
+rank  59  damp_prod    median  19.078 ns/cell  min  18.940
+rank  59  damp_merged  median  13.218 ns/cell  min  13.054   vs damp_prod: -30.7%
+rank  59  irs_gauge    median  30.996 ns/cell  min  30.770
+rank   1  damp_prod    median  19.067 ns/cell  min  18.915
+rank   1  damp_merged  median  12.784 ns/cell  min  12.630   vs damp_prod: -32.9%
+rank   1  irs_gauge    median  31.230 ns/cell  min  30.846
+rank  19  damp_prod    median  19.282 ns/cell  min  19.087
+rank  19  damp_merged  median  13.267 ns/cell  min  13.109   vs damp_prod: -31.2%
+rank  19  irs_gauge    median  31.170 ns/cell  min  30.846
+rank  27  damp_prod    median  19.197 ns/cell  min  19.013
+rank  27  damp_merged  median  13.197 ns/cell  min  13.018   vs damp_prod: -31.3%
+rank  27  irs_gauge    median  31.207 ns/cell  min  30.828
+rank  65  damp_prod    median  19.185 ns/cell  min  19.002
+rank  65  damp_merged  median  13.264 ns/cell  min  13.108   vs damp_prod: -30.9%
+rank  65  irs_gauge    median  31.177 ns/cell  min  30.981
+rank  85  damp_prod    median  19.171 ns/cell  min  19.014
+rank  85  damp_merged  median  13.176 ns/cell  min  13.074   vs damp_prod: -31.3%
+rank  85  irs_gauge    median  31.154 ns/cell  min  30.896
+rank  15  damp_prod    median  19.123 ns/cell  min  18.950
+rank  15  damp_merged  median  13.200 ns/cell  min  13.015   vs damp_prod: -31.0%
+rank  15  irs_gauge    median  31.176 ns/cell  min  30.864
+rank  49  damp_prod    median  19.112 ns/cell  min  18.997
+rank  49  damp_merged  median  13.226 ns/cell  min  13.117   vs damp_prod: -30.8%
+rank  49  irs_gauge    median  31.293 ns/cell  min  31.048
+rank  79  damp_prod    median  19.324 ns/cell  min  19.149
+rank  79  damp_merged  median  13.344 ns/cell  min  13.172   vs damp_prod: -30.9%
+rank  79  irs_gauge    median  31.527 ns/cell  min  31.084
+rank  81  damp_prod    median  19.204 ns/cell  min  19.075
+rank  81  damp_merged  median  13.278 ns/cell  min  13.180   vs damp_prod: -30.9%
+rank  81  irs_gauge    median  31.336 ns/cell  min  31.114
+rank  47  damp_prod    median  19.207 ns/cell  min  18.951
+rank  47  damp_merged  median  13.284 ns/cell  min  13.181   vs damp_prod: -30.8%
+rank  47  irs_gauge    median  31.358 ns/cell  min  31.070
+rank   3  damp_prod    median  19.289 ns/cell  min  19.142
+rank   3  damp_merged  median  13.320 ns/cell  min  13.171   vs damp_prod: -30.9%
+rank   3  irs_gauge    median  31.271 ns/cell  min  31.073
+rank  53  damp_prod    median  19.196 ns/cell  min  19.002
+rank  53  damp_merged  median  13.328 ns/cell  min  13.197   vs damp_prod: -30.6%
+rank  53  irs_gauge    median  31.523 ns/cell  min  31.236
+rank  17  damp_prod    median  19.173 ns/cell  min  19.012
+rank  17  damp_merged  median  13.266 ns/cell  min  13.086   vs damp_prod: -30.8%
+rank  17  irs_gauge    median  31.330 ns/cell  min  31.017
+rank  31  damp_prod    median  19.303 ns/cell  min  19.118
+rank  31  damp_merged  median  13.331 ns/cell  min  13.172   vs damp_prod: -30.9%
+rank  31  irs_gauge    median  31.365 ns/cell  min  31.045
+rank  37  damp_prod    median  19.318 ns/cell  min  19.120
+rank  37  damp_merged  median  13.319 ns/cell  min  13.147   vs damp_prod: -31.1%
+rank  37  irs_gauge    median  31.369 ns/cell  min  31.087
+rank  43  damp_prod    median  19.342 ns/cell  min  19.162
+rank  43  damp_merged  median  13.341 ns/cell  min  13.216   vs damp_prod: -31.0%
+rank  43  irs_gauge    median  31.486 ns/cell  min  31.241
+rank   7  damp_prod    median  19.545 ns/cell  min  19.353
+rank   7  damp_merged  median  13.520 ns/cell  min  13.341   vs damp_prod: -30.8%
+rank   7  irs_gauge    median  31.722 ns/cell  min  31.325
+rank  35  damp_prod    median  19.458 ns/cell  min  19.270
+rank  35  damp_merged  median  13.432 ns/cell  min  13.295   vs damp_prod: -31.0%
+rank  35  irs_gauge    median  31.496 ns/cell  min  31.195
+rank  67  damp_prod    median  19.282 ns/cell  min  19.107
+rank  67  damp_merged  median  13.373 ns/cell  min  13.191   vs damp_prod: -30.6%
+rank  67  irs_gauge    median  31.577 ns/cell  min  31.294
+rank  61  damp_prod    median  19.262 ns/cell  min  19.048
+rank  61  damp_merged  median  13.332 ns/cell  min  13.197   vs damp_prod: -30.8%
+rank  61  irs_gauge    median  31.680 ns/cell  min  31.314
+rank  23  damp_prod    median  19.321 ns/cell  min  19.168
+rank  23  damp_merged  median  13.474 ns/cell  min  13.306   vs damp_prod: -30.3%
+rank  23  irs_gauge    median  31.515 ns/cell  min  31.159
+rank  93  damp_prod    median  19.376 ns/cell  min  19.119
+rank  93  damp_merged  median  13.438 ns/cell  min  13.274   vs damp_prod: -30.6%
+rank  93  irs_gauge    median  31.486 ns/cell  min  31.152
+rank  33  damp_prod    median  19.512 ns/cell  min  19.193
+rank  33  damp_merged  median  13.459 ns/cell  min  13.304   vs damp_prod: -31.0%
+rank  33  irs_gauge    median  31.660 ns/cell  min  31.202
+rank  83  damp_prod    median  19.420 ns/cell  min  19.239
+rank  83  damp_merged  median  13.501 ns/cell  min  13.337   vs damp_prod: -30.5%
+rank  83  irs_gauge    median  31.841 ns/cell  min  31.403
+rank  77  damp_prod    median  19.597 ns/cell  min  19.472
+rank  77  damp_merged  median  13.629 ns/cell  min  13.516   vs damp_prod: -30.5%
+rank  77  irs_gauge    median  31.800 ns/cell  min  31.335
+rank  29  damp_prod    median  19.492 ns/cell  min  19.372
+rank  29  damp_merged  median  13.575 ns/cell  min  13.421   vs damp_prod: -30.4%
+rank  29  irs_gauge    median  31.855 ns/cell  min  31.437
+rank  51  damp_prod    median  19.496 ns/cell  min  19.380
+rank  51  damp_merged  median  13.473 ns/cell  min  13.285   vs damp_prod: -30.9%
+rank  51  irs_gauge    median  31.731 ns/cell  min  31.457
+rank   5  damp_prod    median  19.417 ns/cell  min  19.261
+rank   5  damp_merged  median  13.620 ns/cell  min  13.430   vs damp_prod: -29.9%
+rank   5  irs_gauge    median  31.895 ns/cell  min  31.385
+rank  45  damp_prod    median  19.536 ns/cell  min  19.383
+rank  45  damp_merged  median  13.572 ns/cell  min  13.407   vs damp_prod: -30.5%
+rank  45  irs_gauge    median  31.888 ns/cell  min  31.412
+rank  95  damp_prod    median  19.555 ns/cell  min  19.424
+rank  95  damp_merged  median  13.642 ns/cell  min  13.437   vs damp_prod: -30.2%
+rank  95  irs_gauge    median  31.998 ns/cell  min  31.450
+rank  87  damp_prod    median  19.466 ns/cell  min  19.358
+rank  87  damp_merged  median  13.669 ns/cell  min  13.453   vs damp_prod: -29.8%
+rank  87  irs_gauge    median  31.992 ns/cell  min  31.422
+rank  39  damp_prod    median  19.472 ns/cell  min  19.359
+rank  39  damp_merged  median  13.630 ns/cell  min  13.471   vs damp_prod: -30.0%
+rank  39  irs_gauge    median  32.005 ns/cell  min  31.423
+rank  13  damp_prod    median  19.629 ns/cell  min  19.535
+rank  13  damp_merged  median  13.844 ns/cell  min  13.697   vs damp_prod: -29.5%
+rank  57  damp_prod    median  19.730 ns/cell  min  19.595
+rank  57  damp_merged  median  13.832 ns/cell  min  13.674   vs damp_prod: -29.9%
+rank  57  irs_gauge    median  31.983 ns/cell  min  31.279
+rank  13  irs_gauge    median  32.081 ns/cell  min  31.367
+rank  25  damp_prod    median  19.571 ns/cell  min  19.441
+rank  25  damp_merged  median  13.851 ns/cell  min  13.658   vs damp_prod: -29.2%
+rank  25  irs_gauge    median  32.129 ns/cell  min  31.309
+rank  97  damp_prod    median  19.608 ns/cell  min  19.427
+rank  97  damp_merged  median  13.854 ns/cell  min  13.559   vs damp_prod: -29.3%
+rank  97  irs_gauge    median  32.131 ns/cell  min  31.309
+rank  71  damp_prod    median  19.689 ns/cell  min  19.576
+rank  71  damp_merged  median  13.974 ns/cell  min  13.822   vs damp_prod: -29.0%
+rank  71  irs_gauge    median  32.282 ns/cell  min  31.358
+rank  89  damp_prod    median  19.547 ns/cell  min  19.387
+rank  89  damp_merged  median  13.817 ns/cell  min  13.488   vs damp_prod: -29.3%
+rank  89  irs_gauge    median  32.181 ns/cell  min  31.402
+rank  41  damp_prod    median  19.587 ns/cell  min  19.458
+rank  41  damp_merged  median  13.938 ns/cell  min  13.806   vs damp_prod: -28.8%
+rank  41  irs_gauge    median  32.252 ns/cell  min  31.350
+rank  55  damp_prod    median  19.617 ns/cell  min  19.439
+rank  55  damp_merged  median  13.907 ns/cell  min  13.785   vs damp_prod: -29.1%
+rank  55  irs_gauge    median  32.267 ns/cell  min  31.385
+rank  11  damp_prod    median  19.641 ns/cell  min  19.517
+rank  11  damp_merged  median  13.985 ns/cell  min  13.773   vs damp_prod: -28.8%
+rank  11  irs_gauge    median  32.236 ns/cell  min  31.345
+rank  73  damp_prod    median  19.607 ns/cell  min  19.496
+rank  73  damp_merged  median  13.929 ns/cell  min  13.773   vs damp_prod: -29.0%
+rank  73  irs_gauge    median  32.211 ns/cell  min  31.336
+rank  80  damp_prod    median  19.112 ns/cell  min  18.898
+rank  80  damp_merged  median  13.117 ns/cell  min  12.942   vs damp_prod: -31.4%
+rank  80  irs_gauge    median  30.766 ns/cell  min  30.487
+grid 273 x 65 x 57  dampin=2.0 sf=1.0
+
+correctness gate:
+  damp: |dU|_max = 6.748932e-05
+  merged vs prod: max_abs_diff = 1.818989e-11 (2.695e-07 of scale)  bitwise=False
+rank   0  damp_prod    median  19.134 ns/cell  min  18.991
+rank   0  damp_merged  median  12.716 ns/cell  min  12.566   vs damp_prod: -33.5%
+rank   0  irs_gauge    median  30.815 ns/cell  min  30.369
+rank  42  damp_prod    median  19.186 ns/cell  min  18.945
+rank  42  damp_merged  median  13.056 ns/cell  min  12.897   vs damp_prod: -31.9%
+rank  42  irs_gauge    median  30.763 ns/cell  min  30.356
+rank  58  damp_prod    median  19.163 ns/cell  min  19.018
+rank  58  damp_merged  median  13.136 ns/cell  min  12.954   vs damp_prod: -31.5%
+rank  58  irs_gauge    median  30.878 ns/cell  min  30.595
+rank  62  damp_prod    median  19.137 ns/cell  min  18.954
+rank  62  damp_merged  median  13.104 ns/cell  min  12.922   vs damp_prod: -31.5%
+rank  62  irs_gauge    median  30.859 ns/cell  min  30.368
+rank  52  damp_prod    median  19.079 ns/cell  min  18.983
+rank  52  damp_merged  median  13.130 ns/cell  min  12.948   vs damp_prod: -31.2%
+rank  52  irs_gauge    median  30.999 ns/cell  min  30.712
+rank  72  damp_prod    median  19.066 ns/cell  min  18.884
+rank  72  damp_merged  median  13.135 ns/cell  min  13.019   vs damp_prod: -31.1%
+rank  72  irs_gauge    median  31.101 ns/cell  min  30.815
+rank  76  damp_prod    median  19.123 ns/cell  min  18.911
+rank  76  damp_merged  median  13.197 ns/cell  min  13.036   vs damp_prod: -31.0%
+rank  76  irs_gauge    median  31.207 ns/cell  min  30.938
+rank  92  damp_prod    median  19.173 ns/cell  min  19.011
+rank  92  damp_merged  median  13.210 ns/cell  min  13.062   vs damp_prod: -31.1%
+rank  92  irs_gauge    median  31.159 ns/cell  min  30.922
+rank  90  damp_prod    median  19.139 ns/cell  min  19.009
+rank  90  damp_merged  median  13.191 ns/cell  min  12.976   vs damp_prod: -31.1%
+rank  90  irs_gauge    median  31.058 ns/cell  min  30.579
+rank   6  damp_prod    median  19.249 ns/cell  min  19.054
+rank   6  damp_merged  median  13.233 ns/cell  min  13.095   vs damp_prod: -31.3%
+rank   6  irs_gauge    median  31.269 ns/cell  min  30.943
+rank  18  damp_prod    median  19.248 ns/cell  min  19.062
+rank  18  damp_merged  median  13.228 ns/cell  min  13.049   vs damp_prod: -31.3%
+rank  18  irs_gauge    median  31.133 ns/cell  min  30.730
+rank  48  damp_prod    median  19.246 ns/cell  min  19.102
+rank  48  damp_merged  median  13.227 ns/cell  min  13.068   vs damp_prod: -31.3%
+rank  48  irs_gauge    median  31.271 ns/cell  min  30.997
+rank  64  damp_prod    median  19.133 ns/cell  min  19.003
+rank  64  damp_merged  median  13.213 ns/cell  min  13.065   vs damp_prod: -30.9%
+rank  64  irs_gauge    median  31.465 ns/cell  min  31.197
+rank  22  damp_prod    median  19.176 ns/cell  min  19.024
+rank  22  damp_merged  median  13.241 ns/cell  min  13.080   vs damp_prod: -31.0%
+rank  60  damp_prod    median  19.065 ns/cell  min  18.905
+rank  60  damp_merged  median  13.280 ns/cell  min  13.167   vs damp_prod: -30.3%
+rank  60  irs_gauge    median  31.385 ns/cell  min  31.099
+rank  88  damp_prod    median  19.185 ns/cell  min  19.035
+rank  88  damp_merged  median  13.303 ns/cell  min  13.157   vs damp_prod: -30.7%
+rank  88  irs_gauge    median  31.383 ns/cell  min  31.079
+rank  22  irs_gauge    median  31.291 ns/cell  min  31.052
+rank  20  damp_prod    median  19.283 ns/cell  min  19.126
+rank  20  damp_merged  median  13.290 ns/cell  min  13.192   vs damp_prod: -31.1%
+rank  20  irs_gauge    median  31.450 ns/cell  min  31.199
+rank  46  damp_prod    median  19.262 ns/cell  min  19.077
+rank  46  damp_merged  median  13.323 ns/cell  min  13.176   vs damp_prod: -30.8%
+rank  46  irs_gauge    median  31.473 ns/cell  min  30.969
+rank  30  damp_prod    median  19.418 ns/cell  min  19.213
+rank  30  damp_merged  median  13.344 ns/cell  min  13.223   vs damp_prod: -31.3%
+rank  30  irs_gauge    median  31.475 ns/cell  min  31.221
+rank  32  damp_prod    median  19.221 ns/cell  min  19.114
+rank  32  damp_merged  median  13.305 ns/cell  min  13.167   vs damp_prod: -30.8%
+rank  32  irs_gauge    median  31.487 ns/cell  min  31.262
+rank  36  damp_prod    median  19.307 ns/cell  min  19.112
+rank  36  damp_merged  median  13.352 ns/cell  min  13.246   vs damp_prod: -30.8%
+rank  36  irs_gauge    median  31.565 ns/cell  min  31.367
+rank  74  damp_prod    median  19.440 ns/cell  min  19.160
+rank  74  damp_merged  median  13.370 ns/cell  min  13.238   vs damp_prod: -31.2%
+rank  74  irs_gauge    median  31.688 ns/cell  min  31.442
+rank  34  damp_prod    median  19.395 ns/cell  min  19.257
+rank  34  damp_merged  median  13.428 ns/cell  min  13.264   vs damp_prod: -30.8%
+rank  34  irs_gauge    median  31.720 ns/cell  min  31.526
+rank  78  damp_prod    median  19.433 ns/cell  min  19.281
+rank  78  damp_merged  median  13.358 ns/cell  min  13.239   vs damp_prod: -31.3%
+rank  78  irs_gauge    median  31.590 ns/cell  min  31.270
+rank  94  damp_prod    median  19.371 ns/cell  min  19.235
+rank  94  damp_merged  median  13.402 ns/cell  min  13.178   vs damp_prod: -30.8%
+rank  94  irs_gauge    median  31.569 ns/cell  min  31.356
+rank  28  damp_prod    median  19.479 ns/cell  min  19.314
+rank  28  damp_merged  median  13.398 ns/cell  min  13.245   vs damp_prod: -31.2%
+rank  28  irs_gauge    median  31.712 ns/cell  min  31.440
+rank  26  damp_prod    median  19.484 ns/cell  min  19.302
+rank  26  damp_merged  median  13.534 ns/cell  min  13.400   vs damp_prod: -30.5%
+rank  26  irs_gauge    median  31.856 ns/cell  min  31.431
+rank  98  damp_prod    median  19.489 ns/cell  min  19.360
+rank  98  damp_merged  median  13.518 ns/cell  min  13.401   vs damp_prod: -30.6%
+rank  98  irs_gauge    median  31.720 ns/cell  min  31.447
+rank  56  damp_prod    median  19.543 ns/cell  min  19.379
+rank  56  damp_merged  median  13.464 ns/cell  min  13.320   vs damp_prod: -31.1%
+rank  56  irs_gauge    median  31.841 ns/cell  min  31.560
+rank  82  damp_prod    median  19.560 ns/cell  min  19.395
+rank  82  damp_merged  median  13.584 ns/cell  min  13.330   vs damp_prod: -30.6%
+rank  82  irs_gauge    median  31.968 ns/cell  min  31.552
+rank  84  damp_prod    median  19.475 ns/cell  min  19.307
+rank  84  damp_merged  median  13.579 ns/cell  min  13.389   vs damp_prod: -30.3%
+rank  84  irs_gauge    median  31.975 ns/cell  min  31.534
+rank   2  damp_prod    median  19.435 ns/cell  min  19.326
+rank   2  damp_merged  median  13.504 ns/cell  min  13.381   vs damp_prod: -30.5%
+rank   2  irs_gauge    median  31.681 ns/cell  min  31.370
+rank   8  damp_prod    median  19.562 ns/cell  min  19.360
+rank   8  damp_merged  median  13.535 ns/cell  min  13.412   vs damp_prod: -30.8%
+rank   8  irs_gauge    median  31.815 ns/cell  min  31.503
+rank  12  damp_prod    median  19.445 ns/cell  min  19.260
+rank  12  damp_merged  median  13.537 ns/cell  min  13.300   vs damp_prod: -30.4%
+rank  12  irs_gauge    median  31.960 ns/cell  min  31.596
+rank  44  damp_prod    median  19.513 ns/cell  min  19.338
+rank  44  damp_merged  median  13.493 ns/cell  min  13.373   vs damp_prod: -30.8%
+rank  44  irs_gauge    median  31.830 ns/cell  min  31.474
+rank   4  damp_prod    median  19.459 ns/cell  min  19.337
+rank   4  damp_merged  median  13.517 ns/cell  min  13.293   vs damp_prod: -30.5%
+rank   4  irs_gauge    median  31.832 ns/cell  min  31.506
+rank  50  damp_prod    median  19.416 ns/cell  min  19.133
+rank  50  damp_merged  median  13.490 ns/cell  min  13.322   vs damp_prod: -30.5%
+rank  50  irs_gauge    median  31.834 ns/cell  min  31.462
+rank  68  damp_prod    median  19.605 ns/cell  min  19.468
+rank  68  damp_merged  median  13.626 ns/cell  min  13.389   vs damp_prod: -30.5%
+rank  68  irs_gauge    median  31.919 ns/cell  min  31.382
+rank  24  damp_prod    median  19.538 ns/cell  min  19.426
+rank  24  damp_merged  median  13.747 ns/cell  min  13.611   vs damp_prod: -29.6%
+rank  24  irs_gauge    median  32.091 ns/cell  min  31.491
+rank  66  damp_prod    median  19.633 ns/cell  min  19.511
+rank  66  damp_merged  median  13.649 ns/cell  min  13.558   vs damp_prod: -30.5%
+rank  66  irs_gauge    median  32.014 ns/cell  min  31.582
+rank  10  damp_prod    median  19.683 ns/cell  min  19.594
+rank  10  damp_merged  median  13.868 ns/cell  min  13.749   vs damp_prod: -29.5%
+rank  10  irs_gauge    median  32.159 ns/cell  min  31.465
+rank  86  damp_prod    median  19.544 ns/cell  min  19.374
+rank  86  damp_merged  median  13.764 ns/cell  min  13.607   vs damp_prod: -29.6%
+rank  86  irs_gauge    median  32.292 ns/cell  min  31.549
+rank  96  damp_prod    median  19.581 ns/cell  min  19.433
+rank  96  damp_merged  median  13.844 ns/cell  min  13.692   vs damp_prod: -29.3%
+rank  96  irs_gauge    median  32.317 ns/cell  min  31.579
+rank  40  damp_prod    median  19.675 ns/cell  min  19.560
+rank  40  damp_merged  median  13.853 ns/cell  min  13.660   vs damp_prod: -29.6%
+rank  40  irs_gauge    median  32.110 ns/cell  min  31.589
+rank  38  damp_prod    median  19.633 ns/cell  min  19.500
+rank  38  damp_merged  median  13.788 ns/cell  min  13.619   vs damp_prod: -29.8%
+rank  38  irs_gauge    median  32.177 ns/cell  min  31.578
+rank  54  damp_prod    median  19.681 ns/cell  min  19.569
+rank  54  damp_merged  median  13.896 ns/cell  min  13.769   vs damp_prod: -29.4%
+rank  54  irs_gauge    median  32.319 ns/cell  min  31.494
+rank  70  damp_prod    median  19.662 ns/cell  min  19.456
+rank  70  damp_merged  median  13.821 ns/cell  min  13.623   vs damp_prod: -29.7%
+rank  70  irs_gauge    median  32.266 ns/cell  min  31.548
+rank  14  damp_prod    median  19.702 ns/cell  min  19.558
+rank  14  damp_merged  median  14.047 ns/cell  min  13.802   vs damp_prod: -28.7%
+rank  14  irs_gauge    median  32.386 ns/cell  min  31.464
+rank  16  damp_prod    median  19.682 ns/cell  min  19.440
+rank  16  damp_merged  median  14.362 ns/cell  min  14.073   vs damp_prod: -27.0%
+rank  16  irs_gauge    median  32.822 ns/cell  min  31.449
+
+=== aggregate ===
+
+--- serial (1 rank(s)) ---
+  damp_prod    median-of-ranks   2.434 ns/cell   spread 2.43-2.43
+  damp_merged  median-of-ranks   1.736 ns/cell   spread 1.74-1.74
+  irs_gauge    median-of-ranks   8.114 ns/cell   spread 8.11-8.11
+  => merged vs prod: median -28.66%  wins 1/1  worst -28.66%
+  (irs gauge, unchanged in both arms: median 8.114)
+
+--- saturated (100 rank(s)) ---
+  damp_prod    median-of-ranks  19.386 ns/cell   spread 19.07-19.73
+  damp_merged  median-of-ranks  13.385 ns/cell   spread 12.72-14.36
+  irs_gauge    median-of-ranks  31.573 ns/cell   spread 30.22-32.82
+  => merged vs prod: median -30.81%  wins 100/100  worst -27.03%
+  (irs gauge, unchanged in both arms: median 31.573)

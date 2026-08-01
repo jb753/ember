@@ -36,15 +36,25 @@ contains
         integer :: i
         real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot
 
-        ! accum()/put() are inlined by hand throughout this routine (no
-        ! longer left as calls), and pm/mf are scalarized (no longer
-        ! length-6/length-3 arrays): ifort 2022.1.0 declines to inline
-        ! put() even under -ipo -inline-forceinline, and separately its
-        ! vectorizer treats the pm(:)/mf(:) arrays as a cross-iteration
-        ! aliasing hazard it can't disprove, blocking vectorization of the
-        ! interior loop either way (opt-report: "vector dependence
-        ! prevents vectorization"). gfortran vectorizes the original
-        ! array/call form fine, so this rewrite is ifort-motivated.
+        ! pm/mf are scalarized (no longer length-6/length-3 arrays) and the
+        ! four face corners are unrolled by hand: ifort's vectorizer treats
+        ! the pm(:)/mf(:) arrays as a cross-iteration aliasing hazard it
+        ! can't disprove, blocking vectorization of the interior loop
+        ! (opt-report: "vector dependence: assumed FLOW dependence between
+        ! PM(:) and PM(1)"). gfortran vectorizes the original array/call
+        ! form fine, so this rewrite is ifort-motivated.
+        !
+        ! Re-confirmed July 2026 on ifort 2022.1.0 / Xeon Platinum 8480+
+        ! (Sapphire Rapids) under the production INTEL_FLAGS, by building an
+        ! idiomatic rewrite alongside this kernel and A/B-ing them in one
+        ! .so: the array form gets no SIMD at all and costs +174% serial /
+        ! +99% under 100-rank saturated bandwidth. Do not "tidy" this away.
+        ! One half of the original justification is now obsolete, though:
+        ! ifort DOES inline accum()/put() under -inline-forceinline
+        ! -inline-factor=10000 (the report marks the standalone symbol DEAD
+        ! STATIC FUNCTION), so the calls were never the problem -- the
+        ! arrays are. See docs/dev/viscous_kernels.md section 17;
+        ! the rewrite is kept at _fortran/residual_cand.f90.
         !   pm = (Vx, Vr, r*Vt_abs, ho, P-P_offset, r*(P-P_offset))
         !   mf = (rho*Vx, rho*Vr, rho*Vt_rel)
 
@@ -131,15 +141,9 @@ contains
         integer :: i
         real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot
 
-        ! accum()/put() are inlined by hand throughout this routine (no
-        ! longer left as calls), and pm/mf are scalarized (no longer
-        ! length-6/length-3 arrays): ifort 2022.1.0 declines to inline
-        ! put() even under -ipo -inline-forceinline, and separately its
-        ! vectorizer treats the pm(:)/mf(:) arrays as a cross-iteration
-        ! aliasing hazard it can't disprove, blocking vectorization of
-        ! these loops either way (opt-report: "vector dependence prevents
-        ! vectorization"). gfortran vectorizes the original array/call
-        ! form fine, so this rewrite is ifort-motivated.
+        ! pm/mf scalarized and the four corners hand-unrolled for the same
+        ! ifort vectorizer reason as iface_flow_row above -- see the comment
+        ! there for the full justification and its July 2026 re-measurement.
         if (jf == 1) then
             ! Low boundary j=1
             !DIR$ IVDEP
@@ -233,15 +237,9 @@ contains
         integer :: i, j
         real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot
 
-        ! accum()/put() are inlined by hand throughout this routine (no
-        ! longer left as calls), and pm/mf are scalarized (no longer
-        ! length-6/length-3 arrays): ifort 2022.1.0 declines to inline
-        ! put() even under -ipo -inline-forceinline, and separately its
-        ! vectorizer treats the pm(:)/mf(:) arrays as a cross-iteration
-        ! aliasing hazard it can't disprove, blocking vectorization of
-        ! these loops either way (opt-report: "vector dependence prevents
-        ! vectorization"). gfortran vectorizes the original array/call
-        ! form fine, so this rewrite is ifort-motivated.
+        ! pm/mf scalarized and the four corners hand-unrolled for the same
+        ! ifort vectorizer reason as iface_flow_row above -- see the comment
+        ! there for the full justification and its July 2026 re-measurement.
         if (kf == 1) then
             ! Low boundary k=1
             do j = 1, nj-1
