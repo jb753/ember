@@ -2471,3 +2471,376 @@ reason the bitwise checks pass.
 - Raw data: `tools/bench_setdamp_fix.log`, `tools/bench_setdamp.jsonl`,
   `tools/opt_report_setdamp.txt`. Variants:
   `_fortran/residual_setdamp_fix.f90`.
+
+---
+
+## 25. Priced and rejected: the multall/multall staged 5-pass residual
+
+> **SUPERSEDED IN PART BY SECTION 26.** The ruling below ("both arms
+> rejected") stands for the two arms actually built, but the generalisation
+> drawn from it does not. Both arms here inherit ember's own nodal
+> representation and AoS geometry, which a real five-pass code would never
+> use. Section 26 builds the faithful design and it **beats production by
+> 13-50%** in both regimes. In particular the claim in 25.1 that "one kernel
+> bounds the whole staged family" is WRONG: it bounds the family only at a
+> fixed nodal representation.
+
+Investigation prompted by a direct comparison with multall's `SUMFLUX`
+(`multall-p-2_3_1.f:7473`). multall evaluates the five conserved-variable
+residuals in **five passes**: `SET_FLUX` (:6296) stages the face mass
+fluxes `FIMAS`/`FJMAS`/`FKMAS` once, then calls `SUMFLUX` once per
+variable (:6624, :6817, :6915, :7043, :7141), each pass rebuilding
+full-volume `FLUXI`/`FLUXJ`/`FLUXK` arrays and differencing them (:7626).
+Production ember does the opposite: one fused sweep holding the shared face
+mass flux `mdot` in a register and consuming it for all five components
+before discarding it.
+
+Two arms built, in `_fortran/residual_staged.f90`; nothing calls either.
+Both **rejected**. A third result fell out that is more interesting than
+either: production has an L2 pathology in the 150k-700k per-block range on
+this machine.
+
+### 25.1 What was built, and what deliberately was not
+
+| arm | entry point | mdot |
+| --- | --- | --- |
+| `staged` | `set_residual_staged` | staged into `fi/fj/fk`, read back by five narrow passes |
+| `split` | `set_residual_split` | recomputed inline in every one of the five passes |
+
+`split` is the attribution control. Without it a loss cannot be attributed
+to the 5-way split rather than to the staging itself, and -- see 25.5 --
+the prediction about which of the two would win was wrong.
+
+**Not built: multall's literal structure**, which also materializes
+`FLUXI/FLUXJ/FLUXK` per variable and re-reads them. That is strictly
+dominated by fusing the flux build with the 6-face difference, as both arms
+here do, so if these lose the literal form loses harder. **One kernel
+bounds the whole staged family.**
+
+Both arms keep production's rolling-buffer structure, narrowed to one
+component (`planes(ni,njp,2)`, `rows(ni,3)` against production's 5-wide).
+A plain 3D nest per component would recompute each face's `pm` twice, once
+per adjacent cell -- 10x the face work rather than 5x -- and would not be
+multall-faithful either, since staging `FLUXI` is precisely how multall keeps
+each face computed once.
+
+### 25.2 Gates
+
+**Gate 1 PASS**: link-stage `-fopt-info-vec-all` reports every innermost
+`i` loop vectorized across all nine helpers, both drivers' accumulate
+loops, and `scale_du_all`. The misses are outer j/k/m loops only, which
+section 4.6 says is normal. The `m=1` plane copy in the split arm became a
+`memcpy`, which is better than vectorizing it.
+
+**Gate 2 PASS**, and one part of it is exact:
+
+| | max abs diff | of dU scale |
+| --- | --- | --- |
+| `staged`, m=1 (mass) | **0 -- bitwise** | -- |
+| everything else | <= 1.2e-09 | <= 2.3e-06 |
+
+The mass residual is the pure six-point sum of the staged mass fluxes, so
+its being bitwise identical **proves all three `mflux_*` helpers reproduce
+production's `mdot` exactly**, both cross-stream directions and the wall
+masks included. Storing and reloading `mdot` in float32 does not round, so
+staging is exact by construction.
+
+That check needed a fix to the harness worth recording: **`build_duct_grid`
+cannot see an error in the j- or k-face mass flux at all.** The duct is
+axially straight with `Vr = Vt = 0`, so `dAj(1) = dAk(1) = 0` and its
+cross-stream mass fluxes are *identically zero* -- zero times a wrong
+number is still zero. `tools/bench_residual_staged.py` therefore seeds
+cross-stream momentum (`swirl()`) before the gate. Any future kernel touching
+these paths needs the same treatment.
+
+The residual differences are confined to the `pm*mdot + press*dA` step,
+where `-Ofast` contracts and reassociates differently when `pm` is formed in
+a dedicated per-component helper than when production's `accum_corners`
+forms all six `pm` factors together. Aligning the source form (`dp1..dp4`
+temporaries, matching production verbatim) was tried and does not remove
+it. The deviation is ~1e-5 of one ulp of the face flows being differenced,
+two orders inside the goldens' `rtol=1e-4`. Residual goldens pass without
+regeneration; full suite 1727 passed.
+
+### 25.3 Results
+
+gfortran 14.2, `-march=native`, Xeon E5-2640 v3 (Haswell, 8 cores/socket,
+256 KB L2/core, 20 MB L3/socket). Median ns/cell. The contended arm is 6
+local processes pinned to cores 0-5, i.e. one socket -- 6 Haswell cores ask
+for more than that socket's controller can deliver, so it is genuinely
+bandwidth-contended. It is **not** the 100-rank sapphire regime.
+
+serial:
+
+| ncell | prod | staged | split |
+| --- | --- | --- | --- |
+| 100k | 41.9 | 47.4 (+13.1%) | 85.4 (+103.7%) |
+| 300k | 52.9 | **42.2 (-20.3%)** | 67.2 (+26.9%) |
+| 1M | 44.6 | 51.4 (+15.3%) | 69.8 (+56.7%) |
+| 2M | 39.3 | 44.4 (+12.9%) | 64.2 (+63.2%) |
+
+6-rank socket-contended, median of ranks:
+
+| ncell | prod | staged | split |
+| --- | --- | --- | --- |
+| 100k | 60.3 | 71.5 (+19.2%, 0/6) | 115.2 (+90.7%, 0/6) |
+| 300k | 83.0 | **74.8 (-10.5%, 6/6)** | 95.9 (+15.0%, 0/6) |
+| 1M | 57.4 | 66.1 (+15.1%, 0/6) | 88.4 (+53.8%, 0/6) |
+| 2M | 52.5 | 66.4 (+26.7%, 0/6) | 88.1 (+67.9%, 0/6) |
+
+**Ruling: both arms rejected.** `staged` loses at three of four sizes in
+both regimes, winning zero of six ranks each time; `split` loses
+everywhere, by up to +104%. The multall design point is not competitive on
+this hardware, and the literal multall form is bounded below by these
+numbers.
+
+### 25.4 The 300k inversion is production's problem, not the staged arm's
+
+The one size where `staged` wins is not noise -- it reproduced exactly on
+re-run and in 6/6 contended ranks -- and it is a **band**, not a spike. A
+dense serial sweep, and then production timed **alone in its own process**
+with no other arm to pollute the cache:
+
+| ncell | ni | `planes(ni,njp,5,2)` | prod alone |
+| --- | --- | --- | --- |
+| 100k | 25 | 63 KB | 41.4 |
+| 150k | 41 | 104 KB | 39.2 |
+| 200k | 57 | 145 KB | 48.8 |
+| 250k | 65 | 165 KB | 52.0 |
+| 300k | 81 | 206 KB | **55.4** |
+| 400k | 105 | 267 KB | 49.9 |
+| 500k | 137 | 348 KB | 47.7 |
+| 1M | 273 | 693 KB | 41.1 |
+| 2M | 537 | 1363 KB | 39.6 |
+
+Production is ~40% slower per cell at 300k than at either 150k or 1M. The
+peak sits where its 5-wide rolling k-plane pair is ~80% of the 256 KB L2:
+big enough to evict the nodal slab it must stream alongside, not big enough
+for the prefetcher to have given up on it and simply streamed it, as it
+does at 693 KB. The narrow one-component buffer is a fifth of the size and
+never enters that regime, which is the whole of the staged arm's advantage
+here -- `staged` is flat at 39-47 ns/cell across the entire range while
+production has a hump.
+
+**This is a lead about production, not an argument for the staged design**,
+and it is very likely specific to this machine: sapphire's L2 is 2 MB, so
+the same buffer would stay comfortably inside it out to ~6M cells and the
+hump should not exist there at all. Worth a look under ifort on sapphire
+before anyone acts on it. The obvious cheap probe is a k-slab `kb` sweep
+(`tools/bench_kb_sweep.py`) in the 200k-400k range, since shortening the
+slab is what bounds the live plane pair.
+
+### 25.5 The traffic model was right about the ranking and wrong about the mechanism
+
+Predicted per-cell compulsory traffic, counting `dA` at its full 36 B/cell
+in every pass that touches it (it is component-first `(3,i,j,k)`, so any one
+axis pulls the line containing all three):
+
+| | prod | staged | split |
+| --- | --- | --- | --- |
+| predicted B/cell | ~152 | ~384 | ~372 |
+
+Three predictions were made in advance. Scoring them:
+
+1. *"Both split arms ~2.5x prod contended."* **Wrong** -- observed +15% to
+   +91%, never 2.5x. Compulsory traffic over-predicts the penalty because
+   the staged arrays are re-read from cache, not DRAM, at the smaller
+   sizes.
+2. *"Serial gap much smaller, possibly under 1.5x, because staging removes
+   four fifths of the reciprocals and r-divides."* **Right** for `staged`
+   (+13-15%), and badly under-stated for `split`, which pays those divides
+   five times and lands at +57-104%.
+3. *"`staged` loses to `split` when contended, because writing plus five
+   times re-reading `fi/fj/fk` (72 B/cell) costs more than the ~80 B/cell of
+   `cons` re-reads it saves."* **Wrong, and the most useful of the three.**
+   `staged` beats `split` by 21-45% in *every* size and *both* regimes.
+
+Prediction 3 failed for the reason section 22 already established and this
+section confirms from the other direction: **what the passes share decides
+the outcome, and here what they share is compute, not bytes.** The four
+reciprocals and four `cons(...,4)/r` divides per face corner are the
+expensive shared quantity; staging them costs 72 B/cell of traffic and buys
+back four fifths of a divide-bound inner loop, which is a good trade even
+though the byte count says otherwise. Counting bytes ranked the two 5-pass
+arms backwards.
+
+The corollary for production is the one already in place: it shares those
+divides across all five components *without* paying any traffic to do it,
+which is why it beats both arms outside the L2 hump.
+
+### 25.6 Reading
+
+- The paper question -- "why doesn't ember do it the way multall does" --
+  now has a measured answer rather than an argument: **+15% to +27%
+  contended at production-scale blocks, and that is the *better* of the two
+  5-pass designs.**
+- These are gfortran/Haswell numbers. Sections 17/19 measured gfortran ~4.7x
+  slower than ifort on this kernel with a different bottleneck mix, so they
+  are good enough for a kill decision (a loss this size shows up under any
+  compiler) but must not be transferred to the ifort/sapphire ruling. The
+  25.4 hump in particular is expected to be Haswell-only.
+- Both kernels are kept for re-measurement, following section 22's
+  precedent: the mass component is bitwise, the rest is inside golden
+  tolerance, and the ruling can differ on hardware with a larger L2.
+- Raw data: `tools/bench_residual_staged.jsonl`,
+  `tools/bench_staged_dip.jsonl`, `tools/opt_report_staged.txt`, plot
+  `tools/bench_residual_staged.pdf`. Harness:
+  `tools/bench_residual_staged.py`, `tools/run_residual_staged.sh` (local,
+  no SLURM -- this machine is not in a cluster).
+
+---
+
+## 26. The faithful multall residual beats production by 13-50%
+
+Section 25 rejected the multall/multall five-pass residual. That result was
+compromised, and this section corrects it. Both arms there kept ember's
+nodal representation and its component-first `dA`, so what was measured was
+multall's *pass structure* bolted onto ember's *data structures* -- the worst
+of both. `set_residual_multall` (`_fortran/residual_multall.f90`) removes both
+handicaps and **wins in every size and both regimes, by 13.4% to 49.5%**,
+taking 6/6 ranks at every contended size.
+
+Prompted by the obvious question section 25 could not answer: if the
+five-pass design is 15-27% slower, how is multall competitive in production?
+
+### 26.1 The two things a real five-pass code does differently
+
+**Primitives are staged per node, not derived per face.** multall's
+`SET_FLUX` block-copy loop (`multall-p-2_3_1.f:6357`) computes `VX`, `VR`,
+`VT`, `WT`, `ROWT`, `HO` and `P` once per node per timestep, so its
+per-variable flux loops contain no divides at all (`:6825`):
+
+```fortran
+AVGVX        = VX(I,J,K)+VX(I,J+1,K)+VX(I,J+1,K+1)+VX(I,J,K+1)
+FLUXI(I,J,K) = 0.25*(AVGVX*FIMAS(I,J,K) + AIX(N)*AVGPI(I,J,K))
+```
+
+Production ember does the opposite deliberately: section 20's `consa`
+derives `Vx/Vr/r*Vt` from `cons` at every face corner, paying **~12x
+redundant reciprocals** to drop three streamed fields. Right for one fused
+bandwidth-bound pass; ruinous split five ways, which is what section 25's
+`split` arm measured at +57 to +104%.
+
+This arm reads the nodal `vx/vr/ho` ember already carries and stages the two
+it does not -- `rowt = cons4/r - Omega*cons1*r` (one divide per node) and
+`rvt = r*vt` (one multiply). Stage 1 then has no divides, and every stage-2
+pass is a four-point average of **one** nodal array times a staged mass
+flux. Four components collapse to two helper shapes, because `vx`, `vr`,
+`rvt` and `ho` become interchangeable arguments to a single `q` dummy. That
+uniformity is what staging buys, and it is why multall's flux loops are six
+lines long.
+
+**Geometry is SoA, not AoS.** multall stores `AIX/AIR/AIT` (and `AJ*`, `AK*`)
+separately, so its axial-momentum pass reads only `AIX/AJX/AKX` -- one
+component per direction. Ember's `dA(3,i,j,k)` is component-first, so
+touching one axis pulls the line holding all three; section 25's traffic
+model charged every pass the full 36 B/cell for exactly that reason. **That
+is a cost of ember's layout, not of the five-pass idea.** Splitting the
+components is free in a real port -- face areas are grid geometry, built
+once in `FIND_AREAS`, never rebuilt per step -- so the harness allocates the
+nine arrays outside the timed region.
+
+Deliberately **not** reproduced: multall also stages the face-averaged
+pressures `AVGPI/AVGPJ/AVGPK` (`:6455`). Leaving them out keeps this arm a
+clean isolation of the two differences above. It is the obvious next thing
+to add.
+
+### 26.2 The comparison is fair, and one check makes it so
+
+The arm reads `vx/vr/vt/ho` as inputs. That would be a free lunch if ember
+did not already compute them -- but it does: `Grid.update_residual`
+(`grid.py:1567-1570`) passes `block.Vx_nd/Vr_nd/Vt_nd/ho_nd` into
+`set_residual` on **every** residual evaluation, and they are cached derived
+arrays invalidated each step. Ember therefore already pays to build these
+arrays and then declines to use them in the hot loop, re-deriving the same
+quantities ~12x redundantly inside the face helpers. Reading them costs the
+solver nothing extra.
+
+A harness bug this exposed, worth remembering: section 25's `swirl()` gate
+writes `conserved_nd` directly. Production re-derives its primitives from
+`cons` so it never noticed, but this arm reads the nodal arrays -- without a
+`update_cached_conserved()` call after the write, the two arms solve
+*different states* and the gate reports a spurious failure. Any future arm
+that reads cached primitives needs the same care.
+
+### 26.3 Results
+
+Same protocol, build and machine as section 25 (gfortran 14.2,
+`-march=native`, Xeon E5-2640 v3, all four arms in one `.so`, round-robin
+interleaved). Median ns/cell.
+
+serial:
+
+| ncell | prod | staged | split | **multall** |
+| --- | --- | --- | --- | --- |
+| 100k | 41.7 | 43.9 | 83.4 | **26.6 (-36.2%)** |
+| 300k | 51.8 | 39.8 | 64.6 | **26.2 (-49.5%)** |
+| 1M | 42.3 | 44.7 | 64.8 | **32.5 (-23.1%)** |
+| 2M | 38.9 | 41.4 | 61.8 | **30.9 (-20.6%)** |
+
+6-rank socket-contended, median of ranks:
+
+| ncell | prod | staged | split | **multall** |
+| --- | --- | --- | --- | --- |
+| 100k | 59.3 | 62.9 | 112.7 | **39.2 (-33.9%, 6/6)** |
+| 300k | 75.6 | 62.9 | 90.0 | **43.4 (-42.5%, 6/6)** |
+| 1M | 58.4 | 64.9 | 87.3 | **48.1 (-17.7%, 6/6)** |
+| 2M | 53.6 | 62.3 | 88.8 | **46.4 (-13.4%, 6/6)** |
+
+It wins at 100k and at 2M, where production has no L2 hump, so this is **not**
+section 25.4's mid-size pathology -- the advantage is general.
+
+Gates: Gate 1 clean (all fourteen helper inner `i` loops plus both driver
+accumulate loops vectorized, zero missed inner loops). Gate 2 at the same
+~1e-6-of-scale reassociation level as the other arms (`max_abs_diff`
+1.1e-09, 7.7e-07 of scale) -- no worse, which is itself evidence the arm is
+right. It cannot be bitwise anywhere and is not expected to be: `r*Vt` is
+staged per node here and formed as `cons4/cons1` per corner in production.
+
+### 26.4 Why -- and why it survives the bandwidth-contended arm
+
+The arm moves *more* bytes than production (~336 B/cell modelled against
+~152) and still wins under contention. So the kernel is not
+bandwidth-limited on this machine at these sizes; it is **divide-limited**.
+
+Production issues ~8 divides per face (four reciprocals `g1..g4` plus four
+`cons4/r` in `mf3`) and each cell owns ~3 faces: ~24 divides/cell. Haswell's
+256-bit `vdivps` runs at roughly 10-13 cycles throughput, so at 8 lanes that
+is ~33 cycles/cell of divider-port pressure alone -- about 13 ns/cell at
+2.6 GHz, a quarter to a third of production's measured 39-52. The multall arm
+issues **one divide per node**, roughly one per cell. That is where the time
+goes.
+
+**This is the strongest possible caveat on transferring the result.**
+Sapphire Rapids' AVX-512 divider is several times faster per element than
+Haswell's, so production's redundant divides cost far less there -- and
+section 20 measured `consa` (the change that *introduced* this redundancy) as
+a win on exactly that machine, which is consistent. The ranking here may
+well invert on the production target. It must be re-measured under ifort on
+sapphire before anyone acts on it.
+
+### 26.5 Reading
+
+- **The paper question now has the opposite answer to section 25's.**
+  multall is competitive because its residual design is genuinely better on
+  hardware where divides are expensive, and ember's is co-optimised for the
+  opposite assumption. Neither code is naive; they target different machines.
+- Section 25's "one kernel bounds the whole staged family" was wrong, and the
+  reason is worth keeping: **the nodal representation and the pass structure
+  are not independent choices.** Ember has co-optimised them (fused sweep +
+  derive-from-`cons`); multall has co-optimised them differently (five passes
+  + staged primitives). Benchmarking one code's pass structure against the
+  other's data layout measures neither design.
+- This arm bundles **three** changes (staged primitives, five passes, SoA
+  geometry) and cannot attribute the win among them. The highest-value next
+  probe is the smallest: production's **single fused sweep reading the nodal
+  primitives** -- i.e. undo section 20 only. That isolates the divide effect
+  from the pass structure, and if it carries most of the 20-50% it is a small
+  change to production rather than a rewrite.
+- Raw data: `tools/bench_residual_staged.jsonl`,
+  plus `tools/opt_report_multall.txt` and the plot
+  `tools/bench_residual_staged.pdf` -- both untracked and regenerated (the
+  report by the build, the plot by `run_residual_staged.sh`).
+- **The protocol behind sections 25 and 26, and the methodological error
+  that made 25 wrong, are written up in `kernel_benchmark_methodology.md`.**
+  Read it before running the next kernel A/B.
