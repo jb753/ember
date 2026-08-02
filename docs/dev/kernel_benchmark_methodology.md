@@ -11,11 +11,36 @@ The study asked: multall/multall evaluates the five conserved-variable
 residuals in five passes over the mesh; ember does it in one fused sweep.
 Which is faster, and why is multall competitive in production?
 
-- First answer (section 25): the five-pass design loses by 15-27%. **Wrong.**
+- First answer (section 25): the five-pass design loses by 15-27%.
 - Second answer (section 26): the *faithful* five-pass design wins by 13-50%.
+- Third answer (section 27, after the harness and the build were fixed): the
+  five-pass design loses by **65%**, and every other candidate loses too.
 
-Same machine, same build, same harness, same protocol. The difference was
-entirely in what the arms were allowed to change.
+> ## READ THIS FIRST: the third answer invalidated the instrument, not just
+> ## the ruling
+>
+> Sections 25 and 26 were measured on a harness and a build that could not
+> support the precision they were quoted at. Two independent faults, either of
+> which alone would have been enough to invert a ranking:
+>
+> 1. **The baseline was compiled wrong.** Production's `set_residual` was
+>    inline-budget-limited, and the benchmark build was accidentally relieving
+>    that by adding files. Compiled properly it runs **73.2 -> 46.7 ns/cell,
+>    -36%**. Every arm in sections 25 and 26 was racing a handicapped
+>    production. See section 2.1.
+> 2. **The harness leaked.** Round-robin interleaving in one process made a
+>    ratio depend on which *other* arms were in the build -- a 16-point swing
+>    at fixed binary, size and rank count -- and free-running ranks made the
+>    contention state an unrecorded variable. See sections 6.1 and 6.2.
+>
+> On the corrected instrument, at 1M cells and 16 ranks, **production beats
+> everything tested**: `prodsoa` +5.3%, `rinv` +6.4%, `nodal` +11.3%,
+> `multall` +65.6%, `tbaos` +98.6%, `staged` +104.9%, `split` +110.5%.
+>
+> The rules below marked **[REVISED]** are ones sections 25/26 followed and
+> that are now known to be wrong. The rest still stand: none of the *design*
+> reasoning was at fault, and Rules 1-8 all survived. What failed was the
+> measurement apparatus, and it failed silently for two studies.
 
 ---
 
@@ -68,12 +93,15 @@ isolated two-file build once inverted the sign of a result (section 2).
   compiles every `src/ember/_fortran/*.f90` together with `-flto
   -fwhole-program`. A standalone `gfortran one_kernel.f90` does not reproduce
   whole-program IPA and will mis-rank arms.
-- **All arms in one `.so`.** `setup.py` globs the `_fortran` directory, so a
-  new `residual_*.f90` is picked up automatically. This is the single most
-  valuable structural choice in the harness: arms are compared **within one
-  process, round-robin interleaved**, so there is no cross-build LTO drift, no
-  gauge-kernel correction, and a surprising result can be re-checked against
-  the exact binary that produced it.
+- **[REVISED] Arms are no longer all built into one `.so`.** The original rule
+  said they must be, so that a single process could compare them round-robin
+  with no cross-build drift. That reasoning was sound about drift and wrong
+  about everything else: putting the arms in one program makes them perturb
+  *each other's compilation*, and comparing them in one process makes them
+  perturb each other's *cache and phase*. Both effects are larger than the
+  differences being measured. `setup.py` now excludes benchmark-only sources
+  by default; `EMBER_ARMS=nodal,multall` builds specific ones back in. See
+  section 2.1 for the mechanism and the gate that replaces the old rule.
 - **Hold flags fixed across arms** -- automatic, given the above. Set
   `EMBER_MARCH="-march=native -mtune=native"` for a tuned run and keep it
   constant.
@@ -92,6 +120,65 @@ break the commit hook without breaking the build.
 
 Sharing a routine like `scale_du_all` across arms is deliberate: it guarantees
 identical codegen for the part that is *not* under test.
+
+### 2.1 The build is a variable. Treat it as one.
+
+> **Rule 9. A kernel's machine code depends on what else is in the program.
+> Verify that the baseline is byte-identical between the builds you are
+> comparing, or the comparison is meaningless.**
+
+The build is `-Ofast -flto -fwhole-program`, and GCC's inline budgets --
+`inline-unit-growth`, `large-unit-insns`, `large-function-growth` -- are
+**unit-level**. Growing the program grows the absolute inlining budget, which
+silently changes decisions for functions that did not change. Measured on
+production's own `set_residual`, varying only which benchmark files existed in
+`_fortran/`:
+
+| build | insns | `vrcpps` | fingerprint |
+| --- | --- | --- | --- |
+| production only (what ships) | 7,818 | 50 | `81b468af` |
+| + `residual_nodal.f90` | 7,421 | 49 | `9acc8829` |
+| + all benchmark arms | 10,726 | 101 | `63c75ac1` |
+
+Sections 25 and 26 ran in the bottom row. Their `prod` had 37% more
+instructions and twice the reciprocals of the shipped kernel, and was ~20%
+*faster* than what ships -- so the arms were measured against a baseline that
+existed nowhere else.
+
+Three consequences, all now enforced:
+
+- **Benchmark sources are excluded by default** (`setup.py`'s
+  `BENCHMARK_ONLY`, a denylist so the failure mode is building too much rather
+  than shipping a broken package). This also stopped the wheel carrying ten
+  dead residual kernels.
+- **Fingerprint the baseline, don't time it.** `tools/codegen_gauge.py` hashes
+  the recursive closure of a symbol's machine code, normalised so that
+  layout-only differences do not register. Timing cannot do this job: the
+  launch-to-launch noise floor is ~0.4%, the same order as the effects being
+  chased. Codegen identity is exact.
+- **Pinning the unit budgets decouples the build entirely.** With
+  `--param=inline-unit-growth=1000000` and the `large-*` equivalents,
+  `set_residual` fingerprints identically under `EMBER_ARMS` unset / `nodal` /
+  `all`. Note the syntax: f2py re-splits `--param X=Y`, so the `--param=X=Y`
+  form is required. Available via `EMBER_FFLAGS_EXTRA`; **not** a default,
+  because it changes production codegen and that is a production decision.
+
+**And it is worth 36%.** Production-only build, 1M cells, 16 ranks, 10
+launches each: default flags **73.248 ns/cell**, pinned budgets **46.733**.
+Goldens pass unregenerated, full suite passes. The face helpers were simply
+not being inlined. This is probably gfortran-specific -- `INTEL_FLAGS` already
+carries `-inline-factor=10000`, which scales ifort's size limits including
+`-inline-max-per-compile` -- but it means this box was not a valid proxy for
+production until it was fixed, and it may account for part of sections 17/19's
+"gfortran ~4.7x slower than ifort", which has been read as a compiler-quality
+fact rather than a build-configuration artefact.
+
+> **Corollary, learned the hard way.** If a Gate 1 failure is fixed by *hand*
+> inlining in the candidate (as `residual_nodal.f90`, `residual_prod_soa.f90`
+> and `residual_rinv.f90` all did), the candidate now has forced inlining that
+> the incumbent does not. `nodal` measured **-4.4%** that way and **+11.3%**
+> once the budgets were pinned and both kernels were inlined by the same
+> rules. A codegen fix applied to one arm is a thumb on the scale.
 
 ---
 
@@ -251,14 +338,52 @@ full suite. Never report a speed number from a kernel that fails a golden.
   the same window. This is the production-representative regime: ember runs
   many ranks per node, where DRAM bandwidth is contended.
 
-### Contention without a job scheduler
+### 6.1 [REVISED] Contention without a job scheduler -- and why a shared start time is not enough
 
 This machine is not in a SLURM cluster, so the contended arm is N background
-processes pinned with `taskset`, rendezvousing on a shared wall-clock start
-time (`EMBER_BENCH_START`) rather than an MPI barrier. Ranks are independent
-processes with no communicator; a spin-until-T gate is enough to overlap the
-timed windows and avoids an mpi4py dependency. Rank index arrives by
-environment variable in place of `SLURM_PROCID`.
+processes pinned with `taskset`. The original design had them rendezvous on a
+shared wall-clock start time (`EMBER_BENCH_START`, a 180 s fixed sleep) and
+then free-run. **That is not sufficient, and it silently corrupted two
+studies.**
+
+Free-running ranks drift out of phase, so each rank is timed against a
+different, unrecorded mixture of what its neighbours happen to be doing. The
+symptom: sweeping the *arm set* at fixed binary, size and rank count moved
+`multall` vs `prod` at 1M contended from **-17.5% (four arms) to -1.1% (two
+arms)** -- a 16-point swing generated entirely by the harness. With only two
+arms the ranks stay roughly in phase, so the bandwidth-hungry arm is scored
+against six concurrent copies of itself; with more arms that self-contention
+is diluted.
+
+> **Rule 10. In a contended run, synchronise the ranks before every timed
+> call.** Otherwise the contention state is a free variable, and it is a
+> larger effect than the kernel differences being measured.
+
+`tools/bench_prod_baseline.py` implements a lock-free shared-memory barrier
+(one `int64` slot per rank, each rank writing only its own, spin never sleep;
+microseconds against a ~41 ms call). It does double duty:
+
+- **as the startup rendezvous**, replacing the 180 s sleep. That constant was
+  ~11x oversized -- the slowest of 16 ranks was ready at 16.2 s -- and was
+  ~98% of the wall clock of every contended configuration ever run, which is
+  what made repeat launches look unaffordable;
+- **before every timed call**, so every rank is inside the same kernel at the
+  same time. That is both a defined condition and what production does.
+
+Two implementation notes. CPython's `resource_tracker` unlinks a shared
+segment when *any* attaching process exits, so non-owners must
+`resource_tracker.unregister` or the owner's segment vanishes underneath it.
+And use a unique segment name per launch, so a crashed run cannot poison the
+next one.
+
+### 6.2 [REVISED] One arm per process
+
+Round-robin interleaving was introduced to cancel drift between arms. With one
+arm per process there is no drift to cancel, and the coupling it introduced --
+each arm running with its neighbours' footprints in cache -- disappears.
+Cancel drift at the **launch** level instead: run launch-outer, arm-inner, so
+each arm is sampled across the whole time window rather than in one contiguous
+block (`tools/run_all_arms.sh`).
 
 **Pin all ranks to one socket.** Six Haswell cores ask for more than one
 socket's memory controller can deliver (~10-15 GB/s sustained per core against
@@ -283,16 +408,55 @@ slower per cell at 300k than at 150k or 1M, a reproducible L2 hump where its
 5-wide rolling plane buffer is ~80% of a 256 KB L2. A four-point ladder found
 it; a single size would have hidden it or mistaken it for noise.
 
-### Stabilising
+### 6.3 [REVISED] Stabilising, and where the replication belongs
 
-- `OMP_NUM_THREADS=1`; pin with `taskset`.
-- >= 10 warmup calls -- this also first-touches staged arrays, keeping page
-  faults out of the timed window.
-- 50 reps, report **median and min** ns/cell, plus the spread across ranks.
-- Interleave arms round-robin within each rep so thermal and frequency drift
-  hits all arms equally.
+- `OMP_NUM_THREADS=1`; pin with `taskset`. On this box, 16 ranks means cores
+  0-15, which is 8 physical cores on *each* socket -- SMT siblings are 16-31
+  and are left idle. That is a different regime from 6 ranks on one socket
+  (two memory controllers, plus NUMA), not a bigger one; never splice them.
+- >= 5 warmup calls, each behind the barrier.
+- **20-50 reps, and no more.** See below.
+- **Repeat the LAUNCH 5-10 times.** This is the replication that matters.
 - Restore any input an arm mutates, **untimed**, between reps. (Not needed
   here: every `dU` element is assigned before it is read.)
+
+> **Rule 11. Replicate at the launch, not the rep. N reps in one process are
+> N correlated views of a single draw.**
+
+The old rule -- 50 reps, report median and min, quote the spread across ranks
+-- treated rep count as the precision knob and rank spread as the error bar.
+Both are wrong. All 50 reps share one draw of page placement, allocation
+alignment, core assignment, thermal state and rank phase; so do all the ranks
+in a launch. Section 20 got this right (two independent repeat processes,
+r1/r2, agreeing within 0.6 points) and this document dropped it, which is how
+sections 25 and 26 came to quote single draws to two decimal places.
+
+The arithmetic, measured rather than assumed (`tools/bench_rep_convergence.py`,
+2000-rep traces):
+
+- per-rep scatter is ~3% of the median, but the trace is **right-skewed** with
+  rare severe outliers (p95 +5.5%, p99 +8.6%, p100 +49%) and drifts <1% over
+  2000 reps. The outliers, not drift, are what make short runs unreliable;
+- a contiguous-block bootstrap (**not** i.i.d. -- consecutive reps are
+  correlated and shuffling understates the reps required) gives, for +/-1%
+  within one launch: **500 reps** for the median, **10** for the min;
+- `Var = sigma^2_launch + sigma^2_rep/n`. With sigma_launch ~3% and a 50-rep
+  standard error of ~0.8%, going 50 -> 500 reps moves the total from 3.1% to
+  3.01%. Ten times the wall clock for a tenth of a point. Five launches gives
+  1.4%; ten gives 1.0%.
+
+> **Rule 12. Use `min` for serial and `median` for contended.** `min` is
+> ~2x more precise at 10 reps than the median is at 500, because interference
+> only ever adds time -- but under contention it preferentially samples the
+> instants when neighbouring ranks were *between* calls, i.e. it erases the
+> contention the regime exists to measure. Ranking `multall` on `min` turned a
+> -1.1% into -17.8%. Also note `min` is biased low and the bias grows with n,
+> so mins may only be compared at equal rep count.
+
+**Result of applying all of this**: `prod` at 1M / 16 ranks reproduces to
+**+/-0.40% launch-to-launch** (10 launches, 30 reps), against +/-6% for the
+same quantity under the old harness. Cross-build, with the codegen
+fingerprint identical, two independent launch sets agreed to **0.18%**.
 
 ### Isolating a suspicious result
 
@@ -391,28 +555,53 @@ Production runs ifort on Sapphire Rapids. Concretely:
 **Keep rejected kernels.** Section 22's precedent: a bitwise-or-near-bitwise
 rejected variant is retained for re-measurement, because the ruling can differ
 on other hardware. Section 25's arms are retained for exactly the reason
-section 26 then demonstrated.
+section 26 then demonstrated -- and section 27 then demonstrated again, in the
+other direction.
+
+**The build configuration does not transfer either.** The -36% from pinning
+the unit-level inline budgets is almost certainly gfortran-only:
+`INTEL_FLAGS` already carries `-inline-factor=10000`, which scales ifort's
+size limits including `-inline-max-per-compile`. The check on the production
+machine is cheap and worth doing: build with and without that flag and diff
+`set_residual`'s fingerprint. Identical means ifort was never budget-limited
+and the win is ours alone; different means there is a real production win
+sitting untouched.
 
 ---
 
 ## 10. Reproducing this study
 
 ```bash
-# build all arms into one .so, with the link-stage vectorization report
+PIN="--param=inline-unit-growth=1000000 --param=large-unit-insns=1000000 \
+--param=large-function-growth=1000000 --param=large-function-insns=1000000"
+
+# build the arms you want, with the budgets pinned so the baseline is
+# invariant, plus the link-stage vectorization report
+EMBER_ARMS=all EMBER_FFLAGS_EXTRA="$PIN" \
 EMBER_MARCH="-march=native -mtune=native" \
 EMBER_OPT_REPORT=tools/opt_report_staged.txt make compile
 
-# Gate 2 only (fast)
+# Rule 9 gate: the baseline must fingerprint identically to the build you are
+# comparing against. If it does not, stop -- the comparison is not valid.
+uv run python tools/codegen_gauge.py set_residual_
+
+# Gate 2 (fast), then goldens and the full suite
 taskset -c 0 uv run python tools/bench_residual_staged.py \
     --mode serial --ncell 300000 --check-only
-
-# goldens, then full suite
 uv run pytest tests/test_residual_golden.py -q
 uv run pytest tests -q
 
-# full ladder: serial + 6-rank socket-contended, four sizes, aggregate + PDF
-./tools/run_residual_staged.sh 6 100000 300000 1000000 2000000
+# every arm, 16 ranks, 10 interleaved launches, barriered (~30 min)
+./tools/run_all_arms.sh
+
+# one arm on its own (~4 min), and how many reps a launch needs
+RESULTS=tools/bench_x.jsonl ./tools/run_prod_baseline.sh 10 16 1000000 30 nodal
+taskset -c 0 uv run python tools/bench_rep_convergence.py --arm prod --reps 2000
 ```
+
+The old ladder (`run_residual_staged.sh`) is kept only to reproduce the
+superseded sections 25/26 numbers. **Do not use it for new rulings**: it
+interleaves arms in one process and free-runs the ranks.
 
 Artifacts:
 
@@ -420,11 +609,24 @@ Artifacts:
 | --- | --- |
 | `src/ember/_fortran/residual_staged.f90` | `staged` and `split` arms |
 | `src/ember/_fortran/residual_multall.f90` | faithful `multall` arm |
-| `tools/bench_residual_staged.py` | gates, kwargs plumbing, interleaved timing |
-| `tools/run_residual_staged.sh` | local (no-SLURM) ladder driver, aggregation, plot |
-| `tools/bench_residual_staged.jsonl` | raw per-rank results |
-| `tools/bench_staged_dip.jsonl` | dense serial sweep isolating the L2 hump |
-| `tools/bench_residual_staged.pdf` | ns/cell vs block size, all arms, both regimes |
+| `src/ember/_fortran/residual_multall_aos.f90` | `tbaos`: multall design on ember's AoS `dA` |
+| `src/ember/_fortran/residual_nodal.f90` | `nodal`: fused sweep reading nodal primitives |
+| `src/ember/_fortran/residual_prod_soa.f90` | `prodsoa`: production on SoA geometry (bitwise) |
+| `src/ember/_fortran/residual_rinv.f90` | `rinv`: `1/r` staged as geometry |
+| `tools/bench_residual_staged.py` | gates, kwargs plumbing (**superseded for timing**) |
+| `tools/run_residual_staged.sh` | old ladder driver (**superseded**) |
+
+**Corrected instrument** -- use these, not the two marked superseded:
+
+| file | role |
+| --- | --- |
+| `tools/bench_prod_baseline.py` | one arm per process, rank barrier, launch-replicated |
+| `tools/run_prod_baseline.sh` | launch-repeat driver for a single arm |
+| `tools/run_all_arms.sh` | launch-outer/arm-inner sweep over every arm |
+| `tools/codegen_gauge.py` | machine-code fingerprint; the gate for cross-build A/B |
+| `tools/bench_rep_convergence.py` | how many reps a launch actually needs |
+| `tools/run_harness_isolation.sh` | arm-set sweep that exposed the harness fault |
+| `tools/bench_all_arms.jsonl` | the corrected results in section 10.1 |
 
 Two of those are **not tracked**, and are regenerated rather than committed:
 `tools/opt_report_*.txt` (rebuilt by `EMBER_OPT_REPORT=... make compile`,
@@ -435,6 +637,45 @@ from the committed jsonl in seconds).
 Note that `tools/bench_residual_variants.py` and `tools/bench_setdamp.py` are
 **stale**: both call `set_residual` without `dt_vol`/`dampin` and predate the
 change-limiter fold. Do not copy their kwargs dict without fixing it.
+
+---
+
+## 10.1 The corrected result, and what it cost to get
+
+At 1M cells, 16 ranks, 10 interleaved launches per arm, 30 reps, barriered,
+one fingerprint-verified binary with the inline budgets pinned:
+
+| arm | ns/cell | half-range | vs `prod` | section 26 said |
+| --- | --- | --- | --- | --- |
+| **`prod`** | **46.342** | 1.01% | -- | -- |
+| `prodsoa` | 48.790 | 0.89% | +5.3% | (not built) |
+| `rinv` | 49.292 | 0.78% | +6.4% | (not built) |
+| `nodal` | 51.592 | 0.52% | +11.3% | (not built) |
+| `multall` | 76.726 | 0.12% | **+65.6%** | **-17.7%** |
+| `tbaos` | 92.024 | 0.20% | +98.6% | (not built) |
+| `staged` | 94.955 | 0.25% | +104.9% | +11.1% |
+| `split` | 97.550 | 0.42% | +110.5% | +49.5% |
+
+Ratios carry ~0.9%, so every gap is resolved many times over. Reading:
+
+- **Ember's fused single-pass residual wins, and not narrowly.** The paper
+  question "why is multall competitive?" needs no exotic answer on this
+  hardware: with both kernels compiled properly and measured on an instrument
+  that does not leak, it is not competitive here.
+- **Section 20 is vindicated three times.** Every attempt to undo it loses:
+  `nodal` +11.3%, and both cheaper variants proposed as "the smallest possible
+  production change" lose too -- `rinv` +6.4% (staging `1/r` costs more
+  traffic than the reciprocal chain costs; the disassembly had already shown
+  `-Ofast -freciprocal-math` compiles those divides to `vrcpps`, so section
+  26.4's "~13 ns/cell of divider pressure" never described this binary) and
+  `prodsoa` +5.3% (SoA geometry hurts a fused sweep, which reads all three
+  components in one expression).
+- **Nothing tested beat production.**
+
+Still open: this is 1M only, and section 26's largest claims were at 100k and
+300k where `multall`'s staged volumes go L3-resident. Those sizes need the same
+treatment before the reversal is called general. And it remains gfortran on
+Haswell.
 
 ---
 
@@ -453,12 +694,26 @@ Before trusting a gate:
 - [ ] Is there a component whose bitwise agreement proves something specific?
 - [ ] Are deviations quantified in ulps of the quantities differenced?
 
+Before trusting the instrument (new -- this is where two studies died):
+
+- [ ] Is the **baseline** compiled the same in every build being compared?
+      Fingerprint it, don't time it (Rule 9)
+- [ ] Did a Gate 1 fix give one arm hand-forced inlining the incumbent lacks?
+- [ ] Are the ranks **barriered** before every timed call (Rule 10)?
+- [ ] Is the replication at the **launch**, with the spread across launches
+      quoted as the error bar (Rule 11)?
+- [ ] Right estimator for the regime: `min` serial, `median` contended
+      (Rule 12)?
+- [ ] Is the quoted precision actually achievable? Measure it on the baseline
+      before quoting any difference smaller than it
+
 Before reporting a number:
 
 - [ ] Link-stage vectorization report, not compile-stage
-- [ ] All arms in one `.so`, interleaved, flags fixed
+- [ ] Flags fixed; benchmark sources excluded from the default build
 - [ ] Size ladder, not a single size
-- [ ] Contended ranks pinned to one socket, regime named honestly
+- [ ] Contended regime named honestly, including which sockets and whether
+      SMT siblings are idle
 - [ ] Anything anomalous re-run, densified, and re-measured without the harness
 - [ ] Predictions scored, including the failures
 - [ ] Machine and compiler stated, with what does not transfer

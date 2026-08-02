@@ -7,15 +7,39 @@ called once per variable. Production ember does it in ONE fused sweep, holding
 the shared face mass flux in a register and consuming it for all five
 components before discarding it.
 
-Three arms, all in the same .so (setup.py globs _fortran/*.f90), compared
+Seven arms, all in the same .so (setup.py globs _fortran/*.f90), compared
 round-robin interleaved in one process so there is no cross-build LTO drift:
 
   prod    set_residual         -- one fused sweep
   staged  set_residual_staged  -- stage mdot into fi/fj/fk, five narrow passes
   split   set_residual_split   -- five narrow passes, mdot recomputed inline
+  multall  set_residual_multall  -- the faithful design: staged nodal primitives
+                                  + SoA geometry + five passes
+  nodal   set_residual_nodal   -- production's fused sweep reading the nodal
+                                  primitives (section 20 undone, alone)
+  tbaos   set_residual_multall_aos -- the multall design on ember's own AoS
+                                  dA(3,i,j,k) geometry
+
+prod -> nodal -> tbaos -> multall is an incremental chain: each adjacent pair
+differs by exactly one thing (nodal primitives, then the five-pass split with
+its forced per-node staging, then the SoA geometry), so the ladder attributes
+section 26's bundled win instead of just reproducing it. `tbaos` is also the
+only one of the three steps that is honest about ember's constraints: dA is
+built in geometry.f90 and consumed by the viscous, multigrid and bcond paths,
+so a residual port gets `tbaos` and only a wider layout change gets `multall`.
 
 `split` is the attribution control: without it a loss cannot be attributed to
 the 5-way split rather than to the staging itself.
+
+`nodal` is the attribution control for `multall`, which bundles three changes
+and cannot say which one wins. Section 26.4 credits the divides, i.e. the
+nodal representation alone; this arm applies exactly that, to production's own
+sweep. Its ~24 divides/cell go to zero while everything else stays verbatim.
+See docs/dev/plan_nodal_primitives.md.
+
+NOTE adding an arm changes the round-robin cache footprint every other arm
+sees, so numbers from a run may only be compared with each other, never
+spliced against a jsonl written by an earlier arm set.
 
 Two regimes. `serial` is the diagnostic number. `contended` is one of several
 independent processes each holding its own grid, all timing the same window,
@@ -28,6 +52,11 @@ not be reported as "saturated".
 Predicted per-cell compulsory traffic (docs section 25): prod ~152 B/cell,
 staged ~384, split ~372 -- so ~2.5x, with the serial gap much smaller because
 staging removes four fifths of the reciprocals and r-divides.
+
+`nodal` adds vx/vr/vt (+12 B/cell) and drops cons(...,4), which is dead in its
+hot sweep (cons is component-last, so that is a real dropped stream): ~+8
+B/cell, ~+5%. Predicted to beat prod in both regimes despite that, by more
+serially than contended, and to land between prod and multall at every size.
 """
 
 import argparse
@@ -49,7 +78,21 @@ from ember.cases import build_duct_grid
 # every arm, so even the damped result should agree, but 0 isolates the sweep.
 DAMPIN = 2.0
 
-ARMS = ("prod", "staged", "split", "multall")
+ARMS = ("prod", "staged", "split", "multall", "nodal", "tbaos", "prodsoa", "rinv")
+
+# Arm name -> entry point in the .so. Not derivable from the arm name: `tbaos`
+# is short for the ladder tables, but the kernel is set_residual_multall_aos so
+# that its file sorts next to the arm it varies.
+ENTRY = {
+    "prod": "set_residual",
+    "staged": "set_residual_staged",
+    "split": "set_residual_split",
+    "multall": "set_residual_multall",
+    "nodal": "set_residual_nodal",
+    "tbaos": "set_residual_multall_aos",
+    "prodsoa": "set_residual_prod_soa",
+    "rinv": "set_residual_rinv",
+}
 
 # The `multall` arm's nine face-area component arrays are grid GEOMETRY: built
 # once at startup in a real port (multall sets AIX/AIR/AIT up in FIND_AREAS),
@@ -57,6 +100,34 @@ ARMS = ("prod", "staged", "split", "multall")
 # therefore happens outside the timed region, which is faithful, not a cheat.
 # Cached per block id so a repeated build_kwargs call does not re-transpose.
 _DA_SOA = {}
+
+
+# This box: 20 MB L3 per socket. 48 MB is comfortably past it even when a
+# rank has the socket to itself, and the buffer is per-process so contended
+# runs evict for each other too -- which is what a real timestep does.
+FLUSH_MB = 48
+_FLUSH = None
+
+
+def flush_llc():
+    """Evict the LLC between timed calls, UNTIMED.
+
+    Without this, an arm's time depends on which OTHER arms are in the
+    round-robin: they run between its reps and evict its working set. That is
+    not a detail -- sweeping the arm set moved `multall` vs `prod` at 1M
+    contended from -15.5% (four arms) to -2.1% (two arms), a 13-point swing
+    with the binary, size and rank count all fixed. Streaming a buffer past
+    the LLC before every call makes every arm start from the same cold state,
+    so the measurement depends on the kernel and not on its neighbours.
+
+    Cold start is also the honest condition for the sizes we care about: a
+    1M-cell block streams ~152 MB through set_residual, and production calls
+    it with a whole timestep (IRS, viscous, bconds) in between.
+    """
+    global _FLUSH
+    if _FLUSH is None:
+        _FLUSH = np.ones(FLUSH_MB * 1024 * 1024 // 4, dtype=np.float32)
+    _FLUSH += 1.0
 
 
 def build_case(ncell):
@@ -117,6 +188,10 @@ def build_kwargs(b):
         for d, src in (("i", b.dAi_nd), ("j", b.dAj_nd), ("k", b.dAk_nd)):
             for c in range(3):
                 soa[f"da{d}{c + 1}"] = np.asfortranarray(src[c])
+        # 1/r for the `rinv` arm. Built once here because r is grid
+        # geometry -- rebuilt only on adapt, never per step -- so a real
+        # port would build it alongside the face areas (Rule 3).
+        soa["rinv"] = np.asfortranarray(1.0 / b.r_nd, dtype=b.r_nd.dtype)
         soa["rowt"] = np.zeros((ni, nj, nk), dtype=b.r_nd.dtype, order="F")
         soa["rvt"] = np.zeros((ni, nj, nk), dtype=b.r_nd.dtype, order="F")
         _DA_SOA[key] = soa
@@ -153,28 +228,71 @@ def build_kwargs(b):
         # The AoS dai/daj are stripped for this arm in callers(); dak stays,
         # because the cusp seam correction is production's own routine,
         # called unmodified by every arm, and it wants AoS.
-        multall=dict(planes=planes, rows=rows, fi=fi, fj=fj, fk=fk, **_DA_SOA[key]),
+        # NB explicit filter, not a bare **_DA_SOA splat: that cache also
+        # holds `rinv`, which is another arm's input and is not in this
+        # kernel's signature.
+        multall=dict(
+            planes=planes,
+            rows=rows,
+            fi=fi,
+            fj=fj,
+            fk=fk,
+            **{k: v for k, v in _DA_SOA[key].items() if k != "rinv"},
+        ),
+        # `nodal` is production's own sweep with the nodal primitives read
+        # instead of derived, so it takes production's 5-wide carve and kb
+        # unchanged: no new scratch, no SoA geometry, nothing else to vary.
+        nodal=dict(planes=planes5, rows=rows5, kb=nk - 1),
+        # `tbaos` is the multall design on ember's own AoS dA, so it takes
+        # the same staging scratch as `multall` (sharing rowt/rvt is safe --
+        # both arms recompute them from cons on every call) but reads
+        # dai/daj/dak from `common` instead of the nine SoA components.
+        tbaos=dict(
+            planes=planes,
+            rows=rows,
+            fi=fi,
+            fj=fj,
+            fk=fk,
+            rowt=_DA_SOA[key]["rowt"],
+            rvt=_DA_SOA[key]["rvt"],
+        ),
+        # `prodsoa` is production's kernel on the same nine component arrays:
+        # production's 5-wide carve and kb, plus the SoA geometry, and no
+        # staging scratch of any kind.
+        prodsoa=dict(
+            planes=planes5,
+            rows=rows5,
+            kb=nk - 1,
+            **{k: v for k, v in _DA_SOA[key].items() if k.startswith("da")},
+        ),
+        # `rinv` is production's kernel plus one static geometry array: same
+        # 5-wide carve, same kb, AoS dA untouched.
+        rinv=dict(
+            planes=planes5, rows=rows5, kb=nk - 1, rinv=_DA_SOA[key]["rinv"]
+        ),
     )
     return common, private
 
 
+# Arms active in this process. --arms narrows it, which is how a result is
+# re-measured with the harness removed as a suspect (methodology Rule 7): the
+# round-robin interleave means every arm runs with the other arms' footprints
+# in cache, so the arm SET is part of the experiment, not neutral scaffolding.
+ACTIVE_ARMS = list(ARMS)
+
+
 def callers(b, du, dampin):
-    """One zero-argument callable per available arm, writing into `du`."""
+    """One zero-argument callable per active arm, writing into `du`."""
     common, private = build_kwargs(b)
-    entry = dict(
-        prod=F.set_residual,
-        staged=getattr(F, "set_residual_staged", None),
-        split=getattr(F, "set_residual_split", None),
-        multall=getattr(F, "set_residual_multall", None),
-    )
+    entry = {name: getattr(F, sym, None) for name, sym in ENTRY.items()}
     out = {}
-    for name in ARMS:
+    for name in ACTIVE_ARMS:
         fn = entry[name]
         if fn is None:
             continue
         base = dict(common)
-        if name == "multall":
-            # This arm takes the nine SoA components instead; only dak
+        if name in ("multall", "prodsoa"):
+            # These arms take the nine SoA components instead; only dak
             # survives, for the shared cusp correction.
             del base["dai"], base["daj"]
         kw = dict(base, **private[name], du=du, dampin=dampin)
@@ -245,18 +363,22 @@ def check_correctness(b, du, ref):
     return results
 
 
-def time_arms(b, du, reps, warmup):
+def time_arms(b, du, reps, warmup, flush):
     ni, nj, nk = b.shape
     ncell = (ni - 1) * (nj - 1) * (nk - 1)
     fns = callers(b, du, DAMPIN)
 
     for _ in range(warmup):
         for fn in fns.values():
+            if flush:
+                flush_llc()
             fn()
 
     samples = {n: [] for n in fns}
     for _ in range(reps):
         for name, fn in fns.items():
+            if flush:
+                flush_llc()          # untimed
             t0 = time.perf_counter()
             fn()
             samples[name].append((time.perf_counter() - t0) / ncell * 1e9)
@@ -283,12 +405,33 @@ def main():
     ap.add_argument("--start-delay", type=float, default=20.0)
     ap.add_argument("--check-only", action="store_true")
     ap.add_argument("--json", default=None)
+    ap.add_argument(
+        "--no-flush",
+        action="store_true",
+        help="do NOT evict the LLC between timed calls. Restores the old "
+        "behaviour, in which an arm's time depends on which other arms share "
+        "the process; kept only to reproduce pre-flush numbers.",
+    )
+    ap.add_argument(
+        "--arms",
+        default=None,
+        help="comma-separated subset to run (default: all). `prod` is always "
+        "included, since every comparison is against it.",
+    )
     args = ap.parse_args()
+
+    if args.arms:
+        want = [a.strip() for a in args.arms.split(",")]
+        bad = [a for a in want if a not in ARMS]
+        if bad:
+            print(f"unknown arms: {bad}; known: {list(ARMS)}", file=sys.stderr)
+            return 1
+        ACTIVE_ARMS[:] = [a for a in ARMS if a == "prod" or a in want]
 
     # No SLURM here: the driver script hands each local process its index.
     rank = int(os.environ.get("EMBER_BENCH_RANK", "0"))
 
-    missing = [n for n in ARMS[1:] if not hasattr(F, "set_residual_" + n)]
+    missing = [n for n in ACTIVE_ARMS[1:] if getattr(F, ENTRY[n], None) is None]
     if missing:
         print(f"not in this build: {missing}", file=sys.stderr)
         return 1
@@ -319,7 +462,7 @@ def main():
         )
         wait_until(start)
 
-    res = time_arms(b, du, args.reps, args.warmup)
+    res = time_arms(b, du, args.reps, args.warmup, not args.no_flush)
     for n, rr in res.items():
         line = f"rank {rank:3d}  {n:8s} median {rr['median']:8.3f} ns/cell  min {rr['min']:8.3f}"
         if n != "prod":
@@ -337,6 +480,7 @@ def main():
                         mode=args.mode,
                         ncell=args.ncell,
                         shape=list(b.shape),
+                        flush=not args.no_flush,
                         results=res,
                         correctness=check,
                     )

@@ -43,8 +43,16 @@ echo "gfortran: $GFORTRAN_VERSION"
 # checks -- the hazard docs/dev/viscous_kernels.md section 6.4 warns about.
 # f2py/meson does its own dependency ordering, so this only affects this
 # pre-flight check.
-F90_PROVIDERS="src/ember/_fortran/residual.f90 src/ember/_fortran/viscous.f90"
-ALL_F90_FILES="$F90_PROVIDERS $(ls src/ember/_fortran/*.f90 2>/dev/null | grep -vE '/(residual|viscous)\.f90$')"
+#
+# residual_staged.f90 and residual_multall.f90 are providers too: the benchmark
+# arms share helpers rather than copying them, so that the parts NOT under test
+# have identical codegen (residual_multall uses staged's scale_du_all;
+# residual_multall_aos uses multall's stage_primitives). Do not rely on the glob
+# to order those -- `ls` collates locale-aware and ignores the underscore, so
+# residual_multall_aos.f90 sorts BEFORE residual_multall.f90 here.
+F90_PROVIDERS="src/ember/_fortran/residual.f90 src/ember/_fortran/viscous.f90 \
+src/ember/_fortran/residual_staged.f90 src/ember/_fortran/residual_multall.f90"
+ALL_F90_FILES="$F90_PROVIDERS $(ls src/ember/_fortran/*.f90 2>/dev/null | grep -vE '/(residual|viscous|residual_staged|residual_multall)\.f90$')"
 SYNTAX_TMP=$(mktemp -d)
 # -ffree-line-length-132 pinned explicitly: gfortran >=14 stops enforcing the
 # free-form 132-column limit under plain -Wall (a version-specific

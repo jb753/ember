@@ -69,7 +69,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 rows = [json.loads(l) for l in open(sys.argv[1])]
-arms = ["prod", "staged", "split", "multall"]
+arms = ["prod", "staged", "split", "multall", "nodal", "tbaos", "prodsoa"]
 sizes = sorted({r["ncell"] for r in rows})
 curves = {m: {a: [] for a in arms} for m in ("serial", "contended")}
 

@@ -30,6 +30,10 @@ GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
 # specific regression vs. gfortran 13), so an over-length line built clean
 # here but failed CI's gfortran 13 with -Werror=line-truncation.
 GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
+# Appended verbatim to the gfortran flags. Used to test whether pinning
+# GCC's UNIT-level inline budgets makes production codegen invariant to
+# what else is in the build -- see tools/codegen_gauge.py.
+GFORTRAN_FLAGS += " " + os.environ.get("EMBER_FFLAGS_EXTRA", "")
 
 # Set EMBER_OPT_REPORT=<path> to write the compiler's vectorization report
 # there during the build. The flag is injected at LINK time (via LDFLAGS,
@@ -48,6 +52,103 @@ if _OPT_REPORT:
 GFORTRAN_DEBUG_FLAGS = "-O0 -g -fcheck=all -fbounds-check -fbacktrace -Wall -Werror -Warray-temporaries -Wfatal-errors"
 # Intel flags: close equivalents of gfortran flags
 INTEL_FLAGS = "-O3 -xHost -ipo -no-prec-div -fp-model fast=2 -funroll-loops -inline-forceinline -inline-factor=10000 -fast-transcendentals"
+
+
+# ---------------------------------------------------------------------------
+# Benchmark-only Fortran sources.
+#
+# These implement A/B variants of production kernels (docs/dev/viscous_kernels.md)
+# and nothing in src/ember/ calls them. They are EXCLUDED from the build by
+# default, for two reasons:
+#
+#   1. They are dead code in a shipped wheel.
+#   2. They change production's codegen. The build is -flto -fwhole-program,
+#      and GCC's inline budgets (inline-unit-growth, large-unit-insns,
+#      large-function-growth) are UNIT-level: growing the program grows the
+#      absolute inlining budget and silently changes decisions for functions
+#      that did not change. Measured: set_residual's inlined body went from
+#      9,177 to 10,759 instructions, and its scalar divide count from 50 to
+#      70, purely because unrelated arms were added to this directory.
+#
+# EMBER_ARMS selects which to build back in:
+#     (unset)              production only -- the shipped build
+#     EMBER_ARMS=nodal     production plus set_residual_nodal
+#     EMBER_ARMS=nodal,rinv
+#     EMBER_ARMS=all       everything (the historical behaviour)
+#
+# Module dependencies between arms are resolved automatically, so asking for
+# `multall` also pulls in residual_staged.f90 for scale_du_all.
+#
+# This is a DENYLIST on purpose: a benchmark file omitted from it is merely
+# built unnecessarily, whereas an allowlist that missed a production file
+# would ship a broken package. Regenerate with the audit in
+# docs/dev/plan_nodal_primitives.md.
+BENCHMARK_ONLY = {
+    "perfect.f90",
+    "residual_cand.f90",
+    "residual_consa.f90",
+    "residual_damp_fused.f90",
+    "residual_irs_bj.f90",
+    "residual_irs_dirs.f90",
+    "residual_irs_km.f90",
+    "residual_naive.f90",
+    "residual_nodal.f90",
+    "residual_prod_soa.f90",
+    "residual_rinv.f90",
+    "residual_setdamp.f90",
+    "residual_setdamp_fix.f90",
+    "residual_staged.f90",
+    "residual_multall.f90",
+    "residual_multall_aos.f90",
+    "residual_tiled.f90",
+}
+
+
+def select_fortran_sources(sources):
+    """Drop benchmark-only sources unless EMBER_ARMS asks for them."""
+    import re
+
+    wanted = os.environ.get("EMBER_ARMS", "").strip()
+    keep = [s for s in sources if os.path.basename(s) not in BENCHMARK_ONLY]
+    if not wanted:
+        return keep
+    if wanted == "all":
+        return sources
+
+    by_name = {os.path.basename(s): s for s in sources}
+    extra = set()
+    for tok in (t.strip() for t in wanted.split(",") if t.strip()):
+        for cand in (tok, f"{tok}.f90", f"residual_{tok}.f90"):
+            if cand in by_name and cand in BENCHMARK_ONLY:
+                extra.add(cand)
+                break
+        else:
+            raise RuntimeError(
+                f"EMBER_ARMS: unknown arm {tok!r}. Known: "
+                + ", ".join(sorted(BENCHMARK_ONLY))
+            )
+
+    # Close over `use` dependencies among the benchmark files.
+    def modules(path):
+        txt = open(path).read()
+        return (set(m.lower() for m in re.findall(r"(?im)^\s*module\s+(\w+)\s*$", txt)),
+                set(m.lower() for m in re.findall(r"(?im)^\s*use\s+(\w+)", txt)))
+
+    owner = {}
+    for name in BENCHMARK_ONLY:
+        if name in by_name:
+            for m in modules(by_name[name])[0]:
+                owner[m] = name
+    pending = list(extra)
+    while pending:
+        _, needs = modules(by_name[pending.pop()])
+        for m in needs:
+            dep = owner.get(m)
+            if dep and dep not in extra:
+                extra.add(dep)
+                pending.append(dep)
+
+    return sorted(keep + [by_name[n] for n in extra])
 
 
 class F2PyExtension(Extension):
@@ -97,6 +198,11 @@ class F2PyBuildExt(build_ext):
 
         # Sort to ensure consistent build order
         fortran_sources.sort()
+
+        # Benchmark-only arms are excluded unless EMBER_ARMS asks for them:
+        # they are dead code in production AND they perturb production's
+        # codegen through whole-program inline budgets. See BENCHMARK_ONLY.
+        fortran_sources = select_fortran_sources(fortran_sources)
 
         if not fortran_sources:
             raise RuntimeError(f"No Fortran source files found in {ext.sourcedirs}")
