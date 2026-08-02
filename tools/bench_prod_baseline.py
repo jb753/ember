@@ -168,7 +168,8 @@ def main():
             fh.write(json.dumps(dict(
                 arm=args.arm, launch=args.launch, rank=rank, nranks=args.nranks,
                 ncell=ncell, shape=[ni, nj, nk], reps=args.reps,
-                median=med, mean=float(samples.mean()), std=float(samples.std()),
+                median=med, min=float(samples.min()),
+                mean=float(samples.mean()), std=float(samples.std()),
                 p5=float(np.percentile(samples, 5)),
                 p95=float(np.percentile(samples, 95)),
                 build_s=t_build,
@@ -216,16 +217,16 @@ def analyze(path):
           f"(half-range {half:.2f}%)")
 
 
-def _launch_medians(rows, arm):
+def _launch_medians(rows, arm, stat="median"):
     out = {}
     for L in sorted({r["launch"] for r in rows if r.get("arm", "prod") == arm}):
-        v = [r["median"] for r in rows
+        v = [r.get(stat, r["median"]) for r in rows
              if r["launch"] == L and r.get("arm", "prod") == arm]
         out[L] = statistics.median(v)
     return out
 
 
-def analyze_multi(rows, arms):
+def analyze_multi(rows, arms, stat="median"):
     """Compare arms measured in SEPARATE launch sets from the same build.
 
     Legitimate only because prod's launch-to-launch half-range is ~0.4%: the
@@ -233,7 +234,7 @@ def analyze_multi(rows, arms):
     under the differences being resolved. It is NOT legitimate across builds
     -- see the gauge note in the module docstring.
     """
-    base = _launch_medians(rows, "prod")
+    base = _launch_medians(rows, "prod", stat)
     if not base:
         print("no `prod` rows: nothing to compare against")
         return
@@ -242,7 +243,7 @@ def analyze_multi(rows, arms):
     print(f"\n{'arm':>8} {'launches':>9} {'median':>9} {'half-range':>11} "
           f"{'stdev':>8} {'vs prod':>9}")
     for arm in arms:
-        m = _launch_medians(rows, arm)
+        m = _launch_medians(rows, arm, stat)
         if not m:
             continue
         v = list(m.values())

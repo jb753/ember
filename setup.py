@@ -1,6 +1,7 @@
 """Custom setup.py for building Fortran extensions with f2py."""
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -29,11 +30,53 @@ GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
 # enforcing the free-form 132-column limit under plain -Wall (a version-
 # specific regression vs. gfortran 13), so an over-length line built clean
 # here but failed CI's gfortran 13 with -Werror=line-truncation.
-GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
+# --param=inline-unit-growth / large-function-growth: GCC's inline budgets are
+# UNIT-level, and at this program's size the defaults bind hard -- set_residual's
+# face helpers were simply not being inlined. Lifting them is worth -53% serial,
+# -36% at 16 ranks and -17% on a full timestep, with the goldens unregenerated
+# (docs/dev/viscous_kernels.md section 28). This exact PAIR is the minimal set:
+# it produces codegen bit-identical to lifting all four related budgets, and
+# inline-unit-growth is necessary even though it is worth only 2.3% alone.
+# Portable (no -march dependence), hence a default rather than opt-in.
+# NOTE the --param=X=Y spelling: f2py re-splits "--param X=Y" on the space.
+GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 --param=inline-unit-growth=1000000 --param=large-function-growth=1000000 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
 # Appended verbatim to the gfortran flags. Used to test whether pinning
 # GCC's UNIT-level inline budgets makes production codegen invariant to
 # what else is in the build -- see tools/codegen_gauge.py.
 GFORTRAN_FLAGS += " " + os.environ.get("EMBER_FFLAGS_EXTRA", "")
+
+# Profile-guided optimisation, opt-in via EMBER_PGO=generate|use.
+#
+# Deliberately NOT a default and never shippable: -fprofile-use needs a
+# training run, which a manylinux wheel build cannot do. This is for HPC and
+# local performance builds.
+#
+# The profile directory is absolute and OUTSIDE build/, which `make compile`
+# wipes. Combined with the deterministic f2py scratch dir (see
+# build_extension), that is what makes the .gcda from the generate build
+# findable by the use build.
+#
+# Both stages need the flag: under -flto the real codegen happens in the LTO
+# backend at link, so it goes into LDFLAGS as well -- same reason as
+# EMBER_OPT_REPORT below.
+_PGO = os.environ.get("EMBER_PGO", "").strip()
+_PGO_DIR = os.path.abspath(os.environ.get("EMBER_PGO_DIR", ".pgo"))
+if _PGO == "generate":
+    _PGO_FLAGS = f"-fprofile-generate -fprofile-dir={_PGO_DIR} -fprofile-update=single"
+elif _PGO == "use":
+    # -Wno-missing-profile: -Werror is on, and any translation unit the
+    # training run did not exercise would otherwise fail the build.
+    _PGO_FLAGS = (
+        f"-fprofile-use -fprofile-dir={_PGO_DIR} -fprofile-correction"
+        " -Wno-missing-profile -Wno-coverage-mismatch"
+    )
+elif _PGO:
+    raise RuntimeError(f"EMBER_PGO must be 'generate' or 'use', got {_PGO!r}")
+else:
+    _PGO_FLAGS = ""
+if _PGO_FLAGS:
+    os.makedirs(_PGO_DIR, exist_ok=True)
+    GFORTRAN_FLAGS += " " + _PGO_FLAGS
 
 # Set EMBER_OPT_REPORT=<path> to write the compiler's vectorization report
 # there during the build. The flag is injected at LINK time (via LDFLAGS,
@@ -239,6 +282,12 @@ class F2PyBuildExt(build_ext):
                 ).strip()
         elif ember_compiler == "gfortran":
             flags = GFORTRAN_DEBUG_FLAGS if GFORTRAN_DEBUG else GFORTRAN_FLAGS
+            if _PGO_FLAGS:
+                # LTO does the real codegen at link, so the profile flags must
+                # reach the linker driver as well as the compiler.
+                os.environ["LDFLAGS"] = (
+                    os.environ.get("LDFLAGS", "") + " " + _PGO_FLAGS
+                ).strip()
             if _OPT_REPORT:
                 os.environ["LDFLAGS"] = (
                     os.environ.get("LDFLAGS", "")
@@ -249,6 +298,11 @@ class F2PyBuildExt(build_ext):
                 f"Unknown EMBER_COMPILER '{ember_compiler}', expected "
                 "'gfortran' or 'ifort'"
             )
+
+        build_tmp = os.path.abspath(os.path.join("build", "f2py-tmp"))
+        if os.path.isdir(build_tmp):
+            shutil.rmtree(build_tmp)
+        os.makedirs(build_tmp, exist_ok=True)
 
         # Build f2py command. Force the meson backend explicitly: on Python
         # versions that still ship stdlib distutils (<=3.11), f2py -c
@@ -266,17 +320,27 @@ class F2PyBuildExt(build_ext):
             "-m",
             "fortran",  # Always use 'fortran' as module name
             f"--f90flags={flags}",
+            # DETERMINISTIC build directory, in both senses that matter.
+            #
+            # cwd keeps .mod files out of the project root; --build-dir is the
+            # one that matters for PGO. Without it f2py's meson backend calls
+            # tempfile.mkdtemp() itself, so object files land in a fresh random
+            # path every build -- and GCC mangles the OBJECT path into the
+            # .gcda filename, so -fprofile-use can never find what
+            # -fprofile-generate wrote. Passing it also makes f2py keep the
+            # directory instead of deleting it (remove_build_dir = 0).
+            #
+            # Found the hard way: the first PGO attempt "worked", and only
+            # -Werror=missing-profile (with the -Wno- suppression removed)
+            # revealed that not one profile had been read.
+            "--build-dir",
+            os.path.join(build_tmp, "f2py"),
         ] + fortran_sources
 
         # Run f2py from the output directory, but with a clean environment
         # to avoid Python finding ember's collections.py instead of stdlib collections.
         # The issue is that ember has a collections.py that shadows the stdlib module.
         # We work around this by running from the project root, not the build dir.
-
-        # Run f2py in a temp dir so .mod files don't pollute the project root
-        import tempfile
-
-        build_tmp = tempfile.mkdtemp()
 
         print(f"Running f2py command: {' '.join(f2py_cmd)}")
         print(f"Working directory: {build_tmp}")
@@ -294,8 +358,6 @@ class F2PyBuildExt(build_ext):
             )
 
         # Move the compiled extension to the correct location
-        import shutil
-
         so_pattern = "fortran*.so"
         so_files = glob.glob(os.path.join(build_tmp, so_pattern))
         if not so_files:

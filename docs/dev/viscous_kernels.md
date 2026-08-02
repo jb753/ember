@@ -2844,3 +2844,166 @@ sapphire before anyone acts on it.
 - **The protocol behind sections 25 and 26, and the methodological error
   that made 25 wrong, are written up in `kernel_benchmark_methodology.md`.**
   Read it before running the next kernel A/B.
+
+---
+
+## 27. The instrument was wrong: every ranking in sections 25-26 inverts
+
+Sections 25 and 26 disagreed with each other. They were both measured on a
+harness and a build that could not support the precision they were quoted at,
+and when those are fixed the answer changes a third time -- decisively, and in
+the direction section 25 originally guessed for reasons better than the ones
+it gave.
+
+At 1M cells, 16 ranks, 10 interleaved launches per arm, 30 reps, rank-barriered,
+one fingerprint-verified binary:
+
+| arm | ns/cell | half-range | vs `prod` | section 26 said |
+| --- | --- | --- | --- | --- |
+| **`prod`** | **46.342** | 1.01% | -- | -- |
+| `prodsoa` | 48.790 | 0.89% | +5.3% | (not built) |
+| `rinv` | 49.292 | 0.78% | +6.4% | (not built) |
+| `nodal` | 51.592 | 0.52% | +11.3% | (not built) |
+| `multall` | 76.726 | 0.12% | **+65.6%** | **-17.7%** |
+| `tbaos` | 92.024 | 0.20% | +98.6% | (not built) |
+| `staged` | 94.955 | 0.25% | +104.9% | +11.1% |
+| `split` | 97.550 | 0.42% | +110.5% | +49.5% |
+
+Ratios carry ~0.9%, so every gap is resolved many times over.
+
+### 27.1 Two independent faults
+
+**The baseline was compiled wrong.** The build is `-flto -fwhole-program` and
+GCC's inline budgets are *unit*-level, so adding benchmark files to
+`_fortran/` enlarged the absolute inlining budget and changed production's
+codegen. `set_residual` went 7,818 insns (production-only) -> 10,726 (all arms
+present), and the benchmark build's `prod` was ~20% faster than the kernel
+that actually shipped. Every arm in sections 25 and 26 raced a baseline that
+existed nowhere else. See section 28 for the fix and its size.
+
+**The harness leaked.** Round-robin interleaving in one process made a ratio
+depend on which *other* arms were in the build: `multall` vs `prod` moved
+-17.5% (four arms) -> -1.1% (two arms) at fixed binary, size and rank count.
+Free-running ranks left the contention state unrecorded. Replacing that with
+one arm per process, a shared-memory barrier before every timed call and
+replication at the *launch* took `prod` from +/-6% to **+/-0.40%**
+launch-to-launch.
+
+### 27.2 Reading
+
+- **Ember's fused single-pass residual wins, and not narrowly.** The paper
+  question "why is multall competitive?" needs no exotic answer on this
+  hardware: measured properly, it is not competitive here.
+- **Section 20 is vindicated three times.** Every attempt to undo it loses --
+  `nodal` +11.3%, and both cheaper variants built as "the smallest possible
+  production change" lose too: `rinv` +6.4% (staging `1/r` costs more traffic
+  than the reciprocal chain costs) and `prodsoa` +5.3% (SoA geometry hurts a
+  fused sweep, which consumes all three components in one expression).
+- **Section 26.4's mechanism was wrong about this binary.** `-Ofast
+  -freciprocal-math` compiles the packed divides to `vrcpps`; production
+  issues **zero** `vdivps`. The "~13 ns/cell of divider pressure" never
+  existed.
+- `nodal` measured **-4.4%** before the budgets were pinned and **+11.3%**
+  after, because the manual inlining added to it (and to `prod_soa`, `rinv`)
+  to clear Gate 1 gave those arms forced inlining the incumbent lacked. A
+  codegen fix applied to one arm is a thumb on the scale.
+- Still open: this is 1M only. Section 26's largest claims were at 100k and
+  300k, where `multall`'s staged volumes go L3-resident.
+
+---
+
+## 28. Adopted: pin GCC's unit-level inline budgets (-53% serial, -17% end-to-end)
+
+The largest single effect ever found on this kernel, and it is not a kernel
+change. Two `--param`s, no source edit:
+
+```
+--param=inline-unit-growth=1000000 --param=large-function-growth=1000000
+```
+
+| measurement | before | after | delta |
+| --- | --- | --- | --- |
+| 1M, serial (min, 10 launches) | 53.2 | 24.7 | **-53%** |
+| 1M, 16 ranks (median, 10 launches) | 73.2 | 46.7 | **-36%** |
+| full timestep, 1M (`bench_timestep.py`) | 151.7 | 125.6 | **-17.2%** |
+
+`set_residual`'s face helpers were simply not being inlined: the shipped build
+compiled it to 7,818 instructions across 6 functions, the pinned build to
+13,034 in one. Goldens pass unregenerated; suite 1727 passed.
+
+### 28.1 Attribution -- the pair is minimal, and one member is a surprise
+
+Four related budgets were pinned when this was found by accident. Sweeping
+them individually and by leave-one-out, with `tools/codegen_gauge.py`
+fingerprinting each build:
+
+| flags | serial ns/cell | vs base | note |
+| --- | --- | --- | --- |
+| `large-function-growth` | 26.245 | -50.8% | 95% of the effect on its own |
+| `large-function-insns` | 40.921 | -23.4% | |
+| `inline-unit-growth` | 52.137 | -2.3% | but *necessary* -- see below |
+| `large-unit-insns` | -- | -- | codegen bit-identical to `inline-unit-growth` |
+| all four | 24.715 | -53.7% | |
+| any **three** of the four | -- | -- | bit-identical to all four |
+| **`unit-growth` + `function-growth`** | -- | -- | **bit-identical to all four** |
+| `function-growth` + `function-insns` | 41.699 | -21.7% | collapses to `function-insns` alone |
+
+The budgets are overlapping caps, so leave-one-out is flat -- any three
+relieve the binding constraint completely. The minimal *exact* set is a pair,
+and `inline-unit-growth` is in it despite being worth 2.3% alone: without it
+the other two collapse to the weaker of them. That interaction is
+non-monotonic and is real, not noise -- the fingerprints are exact.
+
+### 28.2 What did not work, recorded with the same weight
+
+- **PGO: a 2.7x REGRESSION, +169%** (68.07 vs 25.31 ns/cell serial). It is
+  worse than the pre-section-28 shipped build, let alone the new default.
+  Profile data made GCC's inlining decisions actively *worse*: the fingerprint
+  went from 13,034 instructions in one function to **4,453 across nine** --
+  PGO un-inlined precisely the face helpers whose inlining is worth 53%.
+  Plausibly because a real `Solver.run` march spreads its counts across every
+  kernel, so the residual's helpers no longer look hot enough to justify
+  aggressive inlining, whereas a flat `-finline-limit=10000` with the unit
+  budgets lifted inlines them unconditionally. Goldens and suite pass; it is
+  simply slow. **Do not use `EMBER_PGO=use` on this code.**
+
+  *This result was wrong the first time, and the way it was wrong is the
+  lesson.* The initial PGO attempt reported a harmless "+0.6%, no effect". It
+  was measuring a build in which **not one profile had been read**: f2py's
+  meson backend calls `tempfile.mkdtemp()` itself, so object paths differed
+  between the generate and use builds, and GCC mangles the object path into
+  the `.gcda` filename. The build carried `-Wno-missing-profile` -- added so
+  that unexercised translation units would not trip `-Werror` -- and that
+  suppression hid `profile count data file not found` on *every* file. What
+  was actually measured was `-fprofile-use` with no data, which still enables
+  peeling, tracer and value-profiling transforms, hence a plausible-looking
+  small delta. Passing `--build-dir` to f2py fixes the paths; the real number
+  is above.
+- **`-flto-partition=none`: no-op**, bit-identical to base. LTO partitioning
+  was not inhibiting the inlining.
+- **`-fipa-pta`: still a no-op**, bit-identical. This re-verifies the comment
+  at `setup.py:23` now that the `_fortran/` file set has changed twice.
+- **`-fno-semantic-interposition`, unroll/peel `--param`s: no-ops.**
+- **`-fprefetch-loop-arrays` (-0.2%), `-falign-loops=32 -falign-functions=64`
+  (+0.6%): no effect**, both inside +/-1.2%.
+
+Five of ten Phase-2 configurations never needed timing at all: the codegen
+fingerprint showed them to be bit-identical to something already measured,
+turning a ~5 minute point into ~70 seconds. That screen is the reason a sweep
+this wide was affordable.
+
+### 28.3 Threats to validity
+
+- **Probably gfortran-only.** `INTEL_FLAGS` already carries
+  `-inline-factor=10000`, which scales ifort's size limits including
+  `-inline-max-per-compile`, so ifort was likely never budget-limited. **The
+  cheap check on the production machine: build with and without that flag and
+  diff `set_residual`'s fingerprint.** Identical means the win is ours alone;
+  different means a second win of this size is sitting untouched.
+- It may also explain part of sections 17/19's "gfortran ~4.7x slower than
+  ifort on this kernel", which has been read as a compiler-quality fact rather
+  than a build-configuration artefact.
+- The end-to-end -17.2% is measured at `dampin=25, sf_resid=0.5`, where the
+  IRS solves are active. Back-solving Amdahl from -53% kernel / -17.2% total
+  puts `set_residual` at ~1/3 of that step, so the figure will differ for
+  configurations with the smoother off.

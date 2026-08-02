@@ -445,6 +445,18 @@ The arithmetic, measured rather than assumed (`tools/bench_rep_convergence.py`,
   3.01%. Ten times the wall clock for a tenth of a point. Five launches gives
   1.4%; ten gives 1.0%.
 
+> **Rule 13. Never suppress a build diagnostic to make a comparison run.
+> Verify the thing you suppressed, or the measurement is of something else.**
+
+Section 28's PGO study reported "+0.6%, no effect" and was wrong: the build
+carried `-Wno-missing-profile`, added so unexercised translation units would
+not trip `-Werror`, and it hid `profile count data file not found` on *every*
+file. Not one profile had been read; what was measured was `-fprofile-use`
+with no data, which still enables enough transforms to produce a
+plausible-looking small delta. Re-run properly, PGO is a **+169% regression**.
+The suppression was reasonable in isolation and fatal in context: it silenced
+exactly the signal that distinguished "PGO did nothing" from "PGO never ran".
+
 > **Rule 12. Use `min` for serial and `median` for contended.** `min` is
 > ~2x more precise at 10 reps than the median is at 500, because interference
 > only ever adds time -- but under contention it preferentially samples the

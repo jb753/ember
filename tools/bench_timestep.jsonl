@@ -1,0 +1,10 @@
+{"label": "pair(2 params)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 126.28154049774395}
+{"label": "pair(2 params)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 126.57077452532201}
+{"label": "pair(2 params)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 125.50559651864596}
+{"label": "pair(2 params)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 125.62776385707633}
+{"label": "pair(2 params)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 124.72438308296822}
+{"label": "base(shipped)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 150.76469352351057}
+{"label": "base(shipped)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 151.73197719142624}
+{"label": "base(shipped)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 150.67785742702722}
+{"label": "base(shipped)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 152.23776234934655}
+{"label": "base(shipped)", "launch": 0, "shape": [273, 65, 57], "ncell": 974848, "steps": 20, "ns_per_cell_step": 153.2563322754157}

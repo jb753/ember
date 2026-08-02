@@ -60,3 +60,6 @@ for-reference/
 archive/
 
 matplotlibrc
+
+# PGO profile data (EMBER_PGO=generate); regenerate with tools/pgo_train.py
+.pgo/
