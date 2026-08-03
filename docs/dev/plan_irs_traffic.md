@@ -509,6 +509,57 @@ L1-capacity-bound to issue-bound, so the constant stops mattering. It needs far
 less care on a new target than the older notes imply -- provided the transpose
 is blocked.
 
+## Follow-up: the 1980s scheme (Jacobi IRS) -- tried, rejected
+
+"What would Jameson have done in the 80s?" is a sharp question here, because
+the answer attacks exactly the cost we could not shift. Jameson's IRS applies
+the same factored operator ember uses, but the Thomas recurrence does not
+vectorise along the unit-stride axis -- which is the whole reason for our
+transpose. Contemporaries on Cray vector hardware took the other branch: solve
+each 1D system APPROXIMATELY, by two Jacobi iterations (Blazek sec. 6.2.4,
+"two iterations are usually sufficient"). IRS only has to damp high-frequency
+residual content; it never needed to invert the operator exactly. Jacobi turns
+each direction into a 3-point stencil -- no recurrence, no transpose,
+vectorises everywhere.
+
+Built as `bench/subroutines/residual_irs_jacobi.f90`, two arms:
+
+| arm | | vs production |
+| --- | --- | --- |
+| `jaci` | Jacobi in i, production's exact strip-fused j+k | **+0.27% +/- 0.33%, 3/8** |
+| `jac` | Jacobi in all three directions | **+83.2% +/- 0.59%, 0/8** |
+
+**Not adopted.** `jaci` is the controlled test -- identical memory traffic, one
+direction changed, no transpose at all -- and it is a dead tie. So on AVX2,
+*with the transpose blocked*, the exact solve is already as cheap as the
+approximate stencil that exists to avoid it. The historical trade was right for
+its hardware and is not right for ours; Phase 1 is what removed the reason for
+it. Had this been tried before Phase 1, against the scalar transpose, Jacobi
+would very likely have won -- which is a good argument for fixing codegen
+before changing numerics.
+
+Keeping the exact solve is then strictly better: it is bitwise-preserving,
+needs no convergence re-verification, and does not retune `sf`. The Jacobi arms
+satisfy the properties that make IRS safe either way -- `IRS(0) = 0` exactly,
+constants preserved (`jac` bitwise, `jaci` to 1.5 ulp from its exact j/k legs)
+-- but they are a real numerics change: the smoothed residual differs from
+exact by 4.8% RMS (`jaci`) and 26% RMS (`jac`), so a given `sf` damps less and
+would need retuning.
+
+**Caveat, stated so the number is not over-read:** `jac`'s +83% is partly an
+unoptimised implementation -- it ping-pongs through three buffers with explicit
+copies after every sweep, which the scheme does not require. A tuned version
+would be much closer. It is not worth building, because `jaci` already answers
+the question at identical traffic and with a clean implementation.
+
+**What this closes off.** The truncated-FIR idea below is the same family --
+replace the exact solve with a short local stencil -- and this is direct
+evidence it would not pay either. The one variant NOT tested is the structural
+prize Jacobi uniquely enables: because the operator becomes local (support +-2
+per direction at two sweeps), all three directions could fuse into a SINGLE
+streaming pass with rolling k-planes, 1R+1W instead of 2R+2W. That is the only
+remaining reason to revisit this.
+
 ## Out of scope
 
 - **Scattering the final k back-substitution into the march** (the shape of

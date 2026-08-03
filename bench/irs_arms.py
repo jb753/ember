@@ -59,6 +59,8 @@ IRS_ARMS = (
     "irsna",
     "irsnat",
     "irstr",
+    "jaci",
+    "jac",
     "irsi",
     "irsj",
     "irsk",
@@ -70,6 +72,8 @@ ENTRY = {
     "irsna": "smooth_residual_tri_na",
     "irsnat": "smooth_residual_tri_nat",
     "irstr": "smooth_residual_tri_tr",
+    "jaci": "smooth_residual_jac_i",
+    "jac": "smooth_residual_jac",
     # Per-direction diagnostic arms (residual_irs_dirs.f90): the same kernel
     # with whole direction solves switched off, so the three can be timed
     # apart. `irsijk` runs all three and exists as the control -- it should
@@ -88,6 +92,15 @@ _DIRS = {
     "irsk": (0, 0, 1),
     "irsijk": (1, 1, 1),
 }
+
+# Jacobi (approximate) arms: they solve each 1D operator by NJAC Jacobi sweeps
+# instead of an exact Thomas recurrence, so they are DELIBERATELY not bitwise
+# against production -- see residual_irs_jacobi.f90. Two sweeps is the textbook
+# 1980s choice. `jac` needs no Thomas coefficients at all.
+_JACOBI = ("jaci", "jac")
+_NO_WORK = ("jac",)
+NJAC = 2
+
 
 # Arms that carry the i-solve tile inside `work` and take its length as an
 # argument, so they need the longer buffer.
@@ -161,6 +174,10 @@ def callers_irs(b, du, sf=SF, active_arms=IRS_ARMS):
         kw = dict(du=du, sf=sf, work=work, ni=ni, nj=nj, nk=nk)
         if tiled:
             kw["nwork"] = nwork
+        if name in _JACOBI:
+            kw["njac"] = NJAC
+        if name in _NO_WORK:
+            del kw["work"]
         if name in _DIRS:
             kw["do_i"], kw["do_j"], kw["do_k"] = _DIRS[name]
         out[name] = lambda fn=fn, kw=kw: fn(**kw)
@@ -171,6 +188,10 @@ def callers_irs(b, du, sf=SF, active_arms=IRS_ARMS):
 # production bitwise. The per-direction diagnostics deliberately do not --
 # skipping a solve is the point of them -- so gating them against `irs` would
 # report a bug that is not one.
+# Arms that compute the EXACT operator and so must agree with production
+# bitwise. The Jacobi arms approximate it by construction and the per-direction
+# diagnostics skip whole solves, so gating either against `irs` would report a
+# bug that is not one -- they get check_jacobi() instead.
 FULL_ARMS = ("irs", "irsna", "irsnat", "irstr", "irsijk")
 
 
@@ -242,6 +263,56 @@ def check_correctness(b, du, ref, active_arms=FULL_ARMS):
             max_ulp=float(np.nanmax(ulps)),
         )
     return results
+
+
+def check_jacobi(b, du, ref, njac=NJAC):
+    """Quantify how far the Jacobi arms sit from the exact solve, and check the
+    two properties that make IRS safe regardless of how it is solved.
+
+    The Jacobi arms are not bitwise and must not be gated as such. What they DO
+    have to satisfy, or the scheme is wrong rather than merely approximate:
+
+      IRS(0) = 0          -- the smoother must not manufacture a residual, or
+                             the converged solution moves.
+      IRS(const) = const  -- a constant field is a fixed point of the Jacobi
+                             iteration exactly as it is of the exact inverse,
+                             so uniform residuals pass through untouched at any
+                             sweep count.
+
+    Everything else is reported, not asserted: the point of the comparison is
+    to say HOW different the smoothed residual is, since that difference is a
+    numerics change needing its own convergence verification.
+    """
+    fns = callers_irs(b, du, SF, ("irs",) + _JACOBI)
+    du[...] = ref
+    fns["irs"]()
+    exact = np.array(du, copy=True)
+    scale = float(np.abs(exact).max())
+
+    out = {}
+    for name in _JACOBI:
+        if name not in fns:
+            continue
+        du[...] = 0.0
+        fns[name]()
+        zero_ok = not np.any(du)
+
+        du[...] = 1.0
+        fns[name]()
+        const_err = float(np.abs(np.asarray(du) - 1.0).max())
+
+        du[...] = ref
+        fns[name]()
+        got = np.array(du, copy=True)
+        out[name] = dict(
+            irs_zero_is_zero=bool(zero_ok),
+            const_max_err=const_err,
+            rel_vs_exact=float(np.abs(got - exact).max() / scale),
+            rms_vs_exact=float(
+                np.sqrt(np.mean((got - exact) ** 2)) / np.sqrt(np.mean(exact**2))
+            ),
+        )
+    return out
 
 
 def check_denormals(du):
