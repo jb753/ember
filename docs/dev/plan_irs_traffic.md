@@ -463,6 +463,52 @@ number and the reasoning in `bench/README.md`'s history section either way.
 A rejected arm with a measured number is a result worth keeping -- most of
 that section is rejections.
 
+## Follow-up: the i-solve's residual excess (investigated, no change)
+
+After all three phases the i-solve is still ~48% of the smoother's time while
+moving 20% of its traffic -- 2.4x the j-solve's cost per byte. The hypothesis
+was the tile recurrence's inner loop length: at `IRS_BJ = 32` it runs over only
+4 AVX2 chains against the j-solve's 34, so the FMA->MUL dependency would not be
+covered and the loop would stall.
+
+**Tested by re-sweeping `IRS_BJ`** (1M, 2 P-cores, 5 launches each, control arm
+fingerprinting identically in all four builds so the cross-build comparison is
+exact):
+
+| `IRS_BJ` | tile | ns/cell | vs 32 |
+| --- | --- | --- | --- |
+| 16 | 17 KB | 7.400 | +19.5% |
+| 32 | 34 KB | 6.206 | -- |
+| 64 | 68 KB | 6.172 | +0.34% |
+| 128 | 136 KB | 6.180 | -2.02% |
+
+**Hypothesis half right, and no win either way.** 16 really is latency-bound,
+so the mechanism is real -- but 32 is already past the knee and widening buys
+nothing. Nothing adopted; -2.02% at 128 is ~1.5 sigma against a ~1.3% ratio
+uncertainty, on a machine that is not the production target, and acting on it
+would repeat the mistake the harness notes already record (a gfortran sweep
+once picked the wrong `BJ` for Sapphire).
+
+This also **kills a follow-up idea before it was built**: reassociating the
+forward recurrence to `x_i = A_i*x_{i-1} + B_i` puts one FMA on the critical
+path instead of an FMA and a multiply, halving it -- but if the loop is not
+latency-bound at 32, a shorter chain buys nothing, and it would have cost the
+bitwise property to find that out.
+
+**What the excess actually is:** work, not stalls. Per element the i-solve does
+a transpose in, three tile passes, and a transpose out; the j-solve does three
+passes straight over dU. Roughly twice the L1 traffic for the same arithmetic,
+which is about the observed ratio. The only remaining lever is removing the
+transpose altogether -- see the truncated-FIR note below -- and that is not
+bitwise.
+
+**Useful side result for porting:** `IRS_BJ`'s optimum is now FLAT above 32,
+where it used to be sharply peaked (8 -> 32 was worth -26% serial on Sapphire,
+and 64 gave most of it back). Blocking the transpose moved the tile passes from
+L1-capacity-bound to issue-bound, so the constant stops mattering. It needs far
+less care on a new target than the older notes imply -- provided the transpose
+is blocked.
+
 ## Out of scope
 
 - **Scattering the final k back-substitution into the march** (the shape of

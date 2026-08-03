@@ -17,6 +17,21 @@ module residual_helpers
     ! groups independent j-lines. Machine-dependent: re-sweep on new
     ! hardware, in the real build (a gfortran sweep picked 64, the wrong
     ! constant).
+    !
+    ! RE-SWEPT after the transpose was blocked, and the picture changed:
+    ! the optimum is now FLAT above 32, not sharply peaked. At 1M on 2
+    ! P-cores, against a fixed control arm that fingerprinted identically
+    ! in all four builds: 16 is +19.5%, 32 is the reference, 64 is +0.3%
+    ! and 128 is -2.0% (about 1.5 sigma, not worth acting on). So 16 is
+    ! genuinely too narrow -- two AVX2 chains cannot cover the recurrence's
+    ! FMA->MUL dependency and it goes latency-bound -- but 32 is already
+    ! past the knee and widening buys nothing, L1 spill or not. When the
+    ! transpose was scalar, L1 residency of the tile dominated and the
+    ! optimum was sharp; with it blocked, the tile passes are issue-bound
+    ! instead and BJ stops mattering. Useful for porting: this constant now
+    ! needs far less care than the note above implies, PROVIDED the
+    ! transpose is blocked. Do not raise it chasing the -2% -- that is a
+    ! marginal result on a machine that is not the production target.
     integer, parameter :: IRS_BJ = 32
 
     ! Transpose block edge. 8 = the AVX2 float32 lane count, so one staged
