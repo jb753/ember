@@ -99,7 +99,8 @@ INTEL_FLAGS = "-O3 -xHost -ipo -no-prec-div -fp-model fast=2 -funroll-loops -inl
 
 
 # ---------------------------------------------------------------------------
-# Benchmark-only Fortran sources.
+# Benchmark-only Fortran sources, under bench/subroutines/ (NOT under
+# src/ember/_fortran/, so the production glob below never sees them).
 #
 # These implement A/B variants of production kernels (see bench/README.md)
 # and nothing in src/ember/ calls them. They are EXCLUDED from the build by
@@ -112,77 +113,59 @@ INTEL_FLAGS = "-O3 -xHost -ipo -no-prec-div -fp-model fast=2 -funroll-loops -inl
 #      absolute inlining budget and silently changes decisions for functions
 #      that did not change. Measured: set_residual's inlined body went from
 #      9,177 to 10,759 instructions, and its scalar divide count from 50 to
-#      70, purely because unrelated arms were added to this directory.
+#      70, purely because unrelated arms were added to the same build.
 #
-# EMBER_ARMS selects which to build back in:
-#     (unset)              production only -- the shipped build
-#     EMBER_ARMS=nodal     production plus set_residual_nodal
-#     EMBER_ARMS=nodal,rinv
-#     EMBER_ARMS=all       everything (the historical behaviour)
+# EMBER_BENCH_KERNELS selects which to build back in:
+#     (unset)                     production only -- the shipped build
+#     EMBER_BENCH_KERNELS=nodal   production plus set_residual_nodal
+#     EMBER_BENCH_KERNELS=nodal,rinv
+#     EMBER_BENCH_KERNELS=all     everything under bench/subroutines/
 #
-# Module dependencies between arms are resolved automatically, so asking for
-# `multall` also pulls in residual_staged.f90 for scale_du_all.
+# Module dependencies between kernels are resolved automatically, so asking
+# for `multall` also pulls in residual_staged.f90 for scale_du_all.
 #
-# This is a DENYLIST on purpose: a benchmark file omitted from it is merely
-# built unnecessarily, whereas an allowlist that missed a production file
-# would ship a broken package. Regenerate with the audit in
-# docs/dev/plan_nodal_primitives.md.
-BENCHMARK_ONLY = {
-    "perfect.f90",
-    "residual_cand.f90",
-    "residual_consa.f90",
-    "residual_damp_fused.f90",
-    "residual_irs_bj.f90",
-    "residual_irs_dirs.f90",
-    "residual_irs_km.f90",
-    "residual_naive.f90",
-    "residual_nodal.f90",
-    "residual_prod_soa.f90",
-    "residual_rinv.f90",
-    "residual_setdamp.f90",
-    "residual_setdamp_fix.f90",
-    "residual_staged.f90",
-    "residual_multall.f90",
-    "residual_multall_aos.f90",
-    "residual_tiled.f90",
-}
+# Nothing here is a curated list: any file placed in bench/subroutines/ is
+# automatically selectable by name (see BENCH_SUBROUTINES_DIR below) and
+# automatically excluded from the default build simply by living outside
+# src/ember/_fortran/. There is no allow/deny list to keep in sync.
+BENCH_SUBROUTINES_DIR = "bench/subroutines"
 
 
-def select_fortran_sources(sources):
-    """Drop benchmark-only sources unless EMBER_ARMS asks for them."""
+def select_bench_kernels():
+    """Which bench/subroutines/*.f90 files EMBER_BENCH_KERNELS asks for, if any."""
     import re
 
-    wanted = os.environ.get("EMBER_ARMS", "").strip()
-    keep = [s for s in sources if os.path.basename(s) not in BENCHMARK_ONLY]
+    wanted = os.environ.get("EMBER_BENCH_KERNELS", "").strip()
     if not wanted:
-        return keep
-    if wanted == "all":
-        return sources
+        return []
 
-    by_name = {os.path.basename(s): s for s in sources}
+    all_sources = glob.glob(os.path.join(os.path.abspath(BENCH_SUBROUTINES_DIR), "*.f90"))
+    by_name = {os.path.basename(s): s for s in all_sources}
+    if wanted == "all":
+        return all_sources
+
     extra = set()
     for tok in (t.strip() for t in wanted.split(",") if t.strip()):
         for cand in (tok, f"{tok}.f90", f"residual_{tok}.f90"):
-            if cand in by_name and cand in BENCHMARK_ONLY:
+            if cand in by_name:
                 extra.add(cand)
                 break
         else:
             raise RuntimeError(
-                f"EMBER_ARMS: unknown arm {tok!r}. Known: "
-                + ", ".join(sorted(BENCHMARK_ONLY))
+                f"EMBER_BENCH_KERNELS: unknown kernel {tok!r}. Known: "
+                + ", ".join(sorted(by_name))
             )
 
-    # Close over `use` dependencies among the benchmark files.
+    # Close over `use` dependencies among the bench/subroutines files.
     def modules(path):
         txt = open(path).read()
         return (set(m.lower() for m in re.findall(r"(?im)^\s*module\s+(\w+)\s*$", txt)),
                 set(m.lower() for m in re.findall(r"(?im)^\s*use\s+(\w+)", txt)))
 
     owner = {}
-    for name in BENCHMARK_ONLY:
-        if name in by_name:
-            for m in modules(by_name[name])[0]:
-                owner[m] = name
+    for name, path in by_name.items():
+        for m in modules(path)[0]:
+            owner[m] = name
     pending = list(extra)
     while pending:
         _, needs = modules(by_name[pending.pop()])
@@ -192,15 +175,15 @@ def select_fortran_sources(sources):
                 extra.add(dep)
                 pending.append(dep)
 
-    return sorted(keep + [by_name[n] for n in extra])
+    return sorted(by_name[n] for n in extra)
 
 
 class F2PyExtension(Extension):
     """Custom extension class for f2py compilation."""
 
-    def __init__(self, name, sourcedirs):
+    def __init__(self, name, sourcedir):
         Extension.__init__(self, name, sources=[])
-        self.sourcedirs = sourcedirs
+        self.sourcedir = sourcedir
 
 
 class F2PyBuildExt(build_ext):
@@ -233,23 +216,18 @@ class F2PyBuildExt(build_ext):
         if not isinstance(ext, F2PyExtension):
             return super().build_extension(ext)
 
-        # Find only .f90 Fortran source files using absolute paths
-        fortran_sources = []
-        for sourcedir in ext.sourcedirs:
-            abs_sourcedir = os.path.abspath(sourcedir)
-            sources = glob.glob(os.path.join(abs_sourcedir, "*.f90"))
-            fortran_sources.extend(sources)
+        # Production sources: everything under src/ember/_fortran/, always.
+        fortran_sources = glob.glob(os.path.join(os.path.abspath(ext.sourcedir), "*.f90"))
 
-        # Sort to ensure consistent build order
+        # Benchmark-only kernels from bench/subroutines/ are excluded unless
+        # EMBER_BENCH_KERNELS asks for them: they are dead code in production
+        # AND they perturb production's codegen through whole-program inline
+        # budgets. See select_bench_kernels().
+        fortran_sources += select_bench_kernels()
         fortran_sources.sort()
 
-        # Benchmark-only arms are excluded unless EMBER_ARMS asks for them:
-        # they are dead code in production AND they perturb production's
-        # codegen through whole-program inline budgets. See BENCHMARK_ONLY.
-        fortran_sources = select_fortran_sources(fortran_sources)
-
         if not fortran_sources:
-            raise RuntimeError(f"No Fortran source files found in {ext.sourcedirs}")
+            raise RuntimeError(f"No Fortran source files found in {ext.sourcedir}")
 
         # Strip unicode characters from all Fortran sources in place
         for source in fortran_sources:
@@ -374,7 +352,7 @@ class F2PyBuildExt(build_ext):
 
 def build_extensions():
     """Configure the extensions to build."""
-    return [F2PyExtension("ember.fortran", sourcedirs=["src/ember/_fortran"])]
+    return [F2PyExtension("ember.fortran", sourcedir="src/ember/_fortran")]
 
 
 if __name__ == "__main__":

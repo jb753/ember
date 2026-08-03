@@ -60,20 +60,31 @@ on a Haswell workstation, not the production ifort/Sapphire target -- see
 | `residual_arms.py` | Shared library: grid/state setup (`build_case`), the scratch-carving kwargs builder (`build_kwargs`), one callable per arm (`callers`), the non-degenerate correctness state (`swirl`), the correctness gate (`check_correctness`), and an LLC-flush helper. Import this rather than copying any of it. Run standalone (`uv run python bench/residual_arms.py --ncell 300000`) for a fast Gate-2 correctness pre-flight; it does **not** time anything -- that's `bench_prod_baseline.py`. |
 | `bench_prod_baseline.py` | The corrected instrument: one arm per process, rank-barriered before every timed call, replication at the launch. `--analyze` summarises a results file. Normally driven by the two scripts below rather than invoked directly. |
 | `run_prod_baseline.sh` | Launch-repeat driver for a **single** arm (default `prod`). `bench/run_prod_baseline.sh [launches] [nranks] [ncell] [reps] [arm]`. |
-| `run_all_arms.sh` | Launch-outer/arm-inner sweep over every arm, on one fingerprint-verified binary (`EMBER_ARMS=all` build with the inline budgets pinned). This is what produced the table above. |
+| `run_all_arms.sh` | Launch-outer/arm-inner sweep over every arm, on one fingerprint-verified binary (`EMBER_BENCH_KERNELS=all` build with the inline budgets pinned). This is what produced the table above. |
 | `bench_rep_convergence.py` | Answers "how many reps does one launch need?" via a contiguous-block bootstrap over a long single-process trace. Orthogonal question to launch-replication -- see its docstring. |
 | `codegen_gauge.py` | Fingerprints a compiled symbol's machine code (recursive call closure, layout-normalised, hashed). The gate for any cross-build comparison: **`prod` must fingerprint identically between the builds you're comparing, or the comparison is meaningless** (Rule 9 below). |
 | `run_flag_sweep.sh` | One-factor-at-a-time compiler flag sweep, fingerprint-gated so a no-op flag is never timed. `MODE=serial\|contended`, `CONFIGS="name1 name2"` to run a subset. |
+| `subroutines/` | The non-production Fortran arms themselves (see below) -- not compiled by default, only via `EMBER_BENCH_KERNELS`. |
 | `results/` | Tracked `.jsonl` result files from the corrected instrument (`bench_all_arms.jsonl`, `bench_prod_baseline.jsonl`, `bench_flagsweep_{serial,phase2}.jsonl`) plus wherever you point `--json`/`--out`/`RESULTS`/`OUT`. Untracked `.pdf`/`.npz` plots regenerate from the jsonl in seconds; don't commit them. |
 
-Two adjacent Fortran files this harness exercises live in
-`src/ember/_fortran/`: `residual.f90` (production `set_residual`, always
-built) and the non-production arms (`residual_staged.f90`, `residual_multall.f90`,
-`residual_multall_aos.f90`, `residual_nodal.f90`, `residual_prod_soa.f90`,
-`residual_rinv.f90`, `residual_consa.f90`, `residual_irs_dirs.f90`,
-`residual_irs_km.f90`, `perfect.f90`) which are excluded from the shipped
-wheel by default (`setup.py`'s `BENCHMARK_ONLY` denylist) and built back in
-with `EMBER_ARMS=<name>[,<name>...]` or `EMBER_ARMS=all`.
+The production kernel this harness exercises, `set_residual`, lives in
+`src/ember/_fortran/residual.f90` and is always built. Its non-production
+arms (`residual_staged.f90`, `residual_multall.f90`, `residual_multall_aos.f90`,
+`residual_nodal.f90`, `residual_prod_soa.f90`, `residual_rinv.f90`,
+`residual_consa.f90`, `residual_irs_dirs.f90`, `residual_irs_km.f90`,
+`perfect.f90`, and others) live in `bench/subroutines/` instead of
+`src/ember/_fortran/`, so the default build's glob never sees them at all --
+no denylist to keep in sync, and no cross-file provider-ordering problem for
+`tools/check_compile.sh`'s pre-commit syntax check (which only ever globs
+`src/ember/_fortran/`). Build a kernel back in with
+`EMBER_BENCH_KERNELS=<name>[,<name>...]` or `EMBER_BENCH_KERNELS=all`; any
+`.f90` file dropped into `bench/subroutines/` is automatically selectable by
+name (`setup.py`'s `select_bench_kernels()` resolves its `use` dependencies
+within that directory too, so e.g. asking for `multall` also pulls in
+`residual_staged.f90` for `scale_du_all`). `make compile` itself (f2py's
+meson backend) does real dependency-graph resolution regardless of file
+order, so nothing in `bench/subroutines/` needs a naming convention either --
+name new files however reads best.
 
 ## Dos and don'ts
 
@@ -92,7 +103,7 @@ cross-references still resolve.
 - **Arms are not all built into one `.so`.** Putting every arm in the same
   program perturbs each other's compilation (unit-level inline budgets) and,
   if timed round-robin in one process, perturbs each other's cache/phase too.
-  `setup.py` excludes benchmark sources by default; `EMBER_ARMS=nodal,multall`
+  `setup.py` excludes `bench/subroutines/` by default; `EMBER_BENCH_KERNELS=nodal,multall`
   builds specific ones back in for a targeted comparison.
 - **Rule 9 -- fingerprint the baseline, don't time it.** `codegen_gauge.py`
   hashes a symbol's normalised machine code. Launch-to-launch timing noise is
@@ -238,8 +249,8 @@ uv run python bench/codegen_gauge.py set_residual_
 # One arm, launch-replicated (the diagnostic number)
 taskset -c 0 bench/run_prod_baseline.sh 10 1 1000000 30 prod
 
-# Every arm, on one fingerprint-verified binary (needs EMBER_ARMS=all)
-EMBER_ARMS=all EMBER_MARCH="-march=native -mtune=native" make compile
+# Every arm, on one fingerprint-verified binary (needs EMBER_BENCH_KERNELS=all)
+EMBER_BENCH_KERNELS=all EMBER_MARCH="-march=native -mtune=native" make compile
 bench/run_all_arms.sh
 
 # How many reps does a launch actually need?
@@ -432,8 +443,9 @@ the headline number, and where it lives.
   `multall`, `nodal`, `tbaos`, `prodsoa`, `rinv`). See the harness-fix summary
   at the top of this file -- every one of these loses to production once
   measured on a correctly-compiled baseline with a non-leaking harness. Kept
-  in `_fortran/` (excluded from the shipped build by `EMBER_ARMS`) because
-  the ranking is expected to differ on ifort/Sapphire, where the AVX-512
+  in `bench/subroutines/` (excluded from the shipped build by default,
+  available via `EMBER_BENCH_KERNELS`) because the ranking is expected to
+  differ on ifort/Sapphire, where the AVX-512
   divider is several times faster per element than Haswell's and production's
   redundant reciprocals cost much less.
 

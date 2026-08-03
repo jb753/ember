@@ -11,9 +11,10 @@
 # into a ~70 second one. This is how -fipa-pta was originally judged
 # (setup.py:23) and it is what makes a wide sweep affordable.
 #
-# PRODUCTION-ONLY BUILDS. EMBER_ARMS is unset throughout, so what is measured
-# is the kernel that actually ships -- not the benchmark build, whose extra
-# files inflate the inline budget and made prod ~20% faster than reality.
+# PRODUCTION-ONLY BUILDS. EMBER_BENCH_KERNELS is unset throughout, so what is
+# measured is the kernel that actually ships -- not the benchmark build,
+# whose extra files inflate the inline budget and made prod ~20% faster than
+# reality.
 #
 # NOTE since section 28, the inline-budget pair is a DEFAULT in setup.py, so
 # the 'base' config below is no longer the pre-section-28 baseline -- it is
@@ -86,7 +87,7 @@ for NAME in $ORDER; do
     FLAGS="${CFG[$NAME]}"
     echo
     echo "########## $NAME :: ${FLAGS:-<shipped flags>}"
-    if ! EMBER_ARMS="" EMBER_FFLAGS_EXTRA="$FLAGS" \
+    if ! EMBER_BENCH_KERNELS="" EMBER_FFLAGS_EXTRA="$FLAGS" \
          EMBER_MARCH="-march=native -mtune=native" make compile >/dev/null 2>&1; then
         echo "  BUILD FAILED -- skipped"
         continue

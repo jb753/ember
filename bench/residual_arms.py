@@ -6,9 +6,11 @@ called once per variable. Production ember does it in ONE fused sweep, holding
 the shared face mass flux in a register and consuming it for all five
 components before discarding it.
 
-Eight arms, all in the same .so (setup.py globs _fortran/*.f90 -- build with
-EMBER_ARMS=all or EMBER_ARMS=<comma-list> to get the non-production ones back
-in, see setup.py's BENCHMARK_ONLY):
+Eight arms, all in the same .so (production `set_residual` lives in
+src/ember/_fortran/residual.f90 and is always built; the rest live in
+bench/subroutines/ and are excluded by default -- build with
+EMBER_BENCH_KERNELS=all or EMBER_BENCH_KERNELS=<comma-list> to get them back
+in, see setup.py's select_bench_kernels()):
 
   prod    set_residual         -- one fused sweep
   staged  set_residual_staged  -- stage mdot into fi/fj/fk, five narrow passes

@@ -4,7 +4,8 @@
 # One build, all arms. That is only safe because pinning GCC's unit-level
 # inline budgets makes each kernel's codegen independent of what else is in
 # the program -- verified with bench/codegen_gauge.py, which reports an
-# identical fingerprint for set_residual under EMBER_ARMS unset / nodal / all.
+# identical fingerprint for set_residual under EMBER_BENCH_KERNELS unset /
+# nodal / all.
 # Without that pinning, the arms perturb each other's compilation and no
 # ranking means anything (production's set_residual went 7,818 -> 10,726
 # instructions purely from adding benchmark files).
