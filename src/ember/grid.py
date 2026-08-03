@@ -1553,7 +1553,17 @@ class Grid(_LabelledList):
                 block.tau_q_halo, (ni, njp, 5, 2), (ni, 5, 3)
             )
             block.residual_nd.flags.writeable = True
-            ember.fortran.set_residual(
+            # When IRS is on, the limiter's SCALING pass is deferred to the
+            # smoother, which applies it inside its i-solve gather instead of
+            # paying a full-volume traversal of its own (-1R-1W). set_residual
+            # still accumulates the block means during its dU sweep either
+            # way, and returns them as ravg; passing dampin=0 here suppresses
+            # only the scaling, not the reduction. The composed operation is
+            # bitwise identical, and the order the header of set_residual
+            # cares about -- limiter BEFORE IRS -- is unchanged.
+            fuse_damp = sf > 0.0
+            dampin_kernel = 0.0 if (dampin is None or fuse_damp) else dampin
+            ravg = ember.fortran.set_residual(
                 cons=block.conserved_nd,
                 p=block.P_nd,
                 p_offset=block.P_offset_nd,
@@ -1585,17 +1595,21 @@ class Grid(_LabelledList):
                 # smoother below, where it used to run after. See the kernel
                 # header in residual.f90 and docs section 24.5.
                 dt_vol=block.dt_vol_nd,
-                dampin=0.0 if dampin is None else dampin,
+                dampin=dampin_kernel,
             )
             if sf > 0.0:
-                # Exact factored-tridiagonal IRS (Jameson ADI): a direct solve.
-                # Scratch is just the Thomas coefficients, 2*(nci+ncj+nck) floats;
-                # carve a 1D leading view of block.scratch (nodal (ni,nj,nk,5),
-                # vastly oversized). Free here: set_residual does not touch it
-                # and the march reuses it only after this returns.
+                # Exact factored-tridiagonal IRS (Jameson ADI): a direct solve,
+                # with the limiter's scaling fused into its i-solve. Scratch is
+                # just the Thomas coefficients, 2*(nci+ncj+nck) floats; carve a
+                # 1D leading view of block.scratch (nodal (ni,nj,nk,5), vastly
+                # oversized). Free here: set_residual does not touch it and the
+                # march reuses it only after this returns.
                 nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
-                ember.fortran.smooth_residual_tri_tiled(
+                ember.fortran.smooth_residual_scale_tri(
                     du=block.residual_nd,
+                    dt_vol=block.dt_vol_nd,
+                    ravg=ravg,
+                    dampin=0.0 if dampin is None else dampin,
                     sf=sf,
                     work=util.carve_view(block.scratch, (nwork,)),
                     ni=ni,

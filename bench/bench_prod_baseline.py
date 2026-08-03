@@ -133,7 +133,7 @@ def main():
     ap.add_argument(
         "--kernel",
         default="residual",
-        choices=("residual", "irs"),
+        choices=("residual", "irs", "update"),
         help="which kernel's arm set to time: set_residual "
         "(residual_arms.py) or the IRS smoother (irs_arms.py)",
     )
@@ -154,7 +154,15 @@ def main():
     grid, b = build_case(args.ncell)
     du = b.residual_nd
     du.flags.writeable = True
-    if args.kernel == "irs":
+    if args.kernel == "update":
+        # Phase 3: the limiter+IRS fusion spans set_residual and the smoother,
+        # so the pair is timed together. dU is an output of the first call, so
+        # unlike --kernel irs there is nothing to seed.
+        import irs_arms
+
+        irs_arms.swirl_state(b)
+        built = irs_arms.callers_update(b, du)
+    elif args.kernel == "irs":
         # The smoother consumes the residual, so seed dU with a real one
         # (untimed: it is the previous kernel's output, and pricing it here
         # would be timing set_residual). See irs_arms.seed_du.
@@ -315,7 +323,7 @@ def analyze_multi(rows, arms, stat="median"):
     """
     # The incumbent is `prod` for the set_residual arms and `irs` for the
     # smoother arms; a results file only ever holds one kernel's arms.
-    baseline = "prod" if "prod" in arms else "irs"
+    baseline = next((a for a in ("prod", "irs", "unfused") if a in arms), arms[0])
     base = _launch_medians(rows, baseline, stat)
     if not base:
         print(f"no `{baseline}` rows: nothing to compare against")

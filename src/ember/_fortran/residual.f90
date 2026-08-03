@@ -3,6 +3,35 @@ module residual_helpers
     private
     public :: iface_flow_row, jface_flow_row, kface_flow_plane
     public :: correct_cusp_kface_du
+    public :: irs_tri_coeffs, irs_gather_tile, irs_gather_tile_scaled
+    public :: irs_scatter_tile, irs_tile_solve, irs_jk_strips
+    public :: IRS_BJ, IRS_TB, IRS_W
+
+    ! Tile width for the i-solve transpose pad: sized to fill L1d without
+    ! spilling it, NOT to match the SIMD lane count. The tile is
+    ! IRS_BJ*nci*4 bytes; at nci=272 that is 34 KB for 32, the largest
+    ! that fits Sapphire Rapids' 48 KB L1d. Swept on the production build
+    ! (ifort, Xeon 8480+, 1M duct): 32 is -26% serial / -8% at 100-rank
+    ! saturation against the previous 8, while 64 (68 KB, L1-spilling)
+    ! gives most of it back. Bitwise identical for every value -- it only
+    ! groups independent j-lines. Machine-dependent: re-sweep on new
+    ! hardware, in the real build (a gfortran sweep picked 64, the wrong
+    ! constant).
+    integer, parameter :: IRS_BJ = 32
+
+    ! Transpose block edge. 8 = the AVX2 float32 lane count, so one staged
+    ! row is exactly one vector load and the in-block transpose becomes a
+    ! register shuffle network. Steeply optimal for that reason: swept at
+    ! 1M on 2 P-cores, 4 is +43.8% and 16 is +9.0% against 8. Re-sweep on
+    ! an AVX-512 target, where the natural width is 16.
+    integer, parameter :: IRS_TB = 8
+
+    ! i-strip width for the fused j+k pass. A strip spans the full j and k
+    ! extent for one component: IRS_W*ncj*nck*4 bytes, 917 KB at 64 on a
+    ! 273x65x57 block, inside a 2 MB L2. Sets both the block size and the
+    ! vector loop length, so likewise steeply optimal: 32 (458 KB, 4 AVX2
+    ! iterations) -5.6%, 64 -11.0%, 128 (1.83 MB, past L2) -1.2%.
+    integer, parameter :: IRS_W = 64
 
 contains
 
@@ -514,6 +543,340 @@ contains
     end subroutine correct_cusp_kface_du
 
 
+    ! =================================================================
+    ! Implicit residual smoothing primitives, shared by every consumer:
+    ! smooth_residual_tri_tiled (the standalone three-direction smoother
+    ! that scree.f90's coarse-MG path hands to its `smoother` dummy
+    ! argument) and smooth_residual_scale_tri (the fine-grid path, which
+    ! folds the change limiter's scaling into the i-solve's gather).
+    ! They live here rather than being contained in one of them so the
+    ! two cannot drift apart -- an earlier version of this file had the
+    ! j/k sweeps duplicated into a bench arm, and identical-code folding
+    ! then merged the two symbols and silently corrupted every timing
+    ! that involved either. See docs/dev/plan_irs_traffic.md.
+    ! =================================================================
+
+
+
+    ! Thomas forward-sweep factors for the constant-coefficient Neumann
+    ! tridiagonal along a line of length n: a = c = -sf, b = 1+2sf interior,
+    ! b = 1+sf at the two ends. Returns cp (eliminated super-diagonal) and
+    ! minv = 1/pivot, so a line solve is:
+    !   x(1)   = d(1)*minv(1)
+    !   x(i)   = (d(i) + sf*x(i-1))*minv(i)          i = 2..n   (forward)
+    !   x(i)   = x(i) - cp(i)*x(i+1)                 i = n-1..1 (back-sub)
+    ! An n=1 line has no neighbours -> operator is the identity (minv=1).
+    subroutine irs_tri_coeffs(e, n, cp, minv)
+        implicit none
+        real, intent(in)     :: e
+        integer, intent(in)  :: n
+        real, intent(out)    :: cp(n), minv(n)
+        integer :: ii
+
+        if (n == 1) then
+            minv(1) = 1.0e0
+            cp(1)   = 0.0e0
+            return
+        end if
+
+        minv(1) = 1.0e0 / (1.0e0 + e)
+        cp(1)   = -e * minv(1)
+        do ii = 2, n-1
+            minv(ii) = 1.0e0 / ((1.0e0 + 2.0e0*e) + e*cp(ii-1))
+            cp(ii)   = -e * minv(ii)
+        end do
+        minv(n) = 1.0e0 / ((1.0e0 + e) + e*cp(n-1))
+        cp(n)   = 0.0e0
+    end subroutine irs_tri_coeffs
+
+
+    ! ---- line kernels -----------------------------------------------
+    ! Each takes its two operands as SEPARATE dummies, one defined and one
+    ! not. Written inline as dU(i,j,k,m) against dU(i,j-1,k,m), GCC cannot
+    ! prove the rows disjoint and emits a runtime overlap test plus two
+    ! copies of every body ("loop versioned for vectorization because of
+    ! possible aliasing"). As dummies the standard forbids the caller from
+    ! aliasing them, so the test disappears: -1.95%, bitwise.
+
+    subroutine irs_line_scale(x, mm, n)
+        implicit none
+        integer, intent(in) :: n
+        real, intent(in)    :: mm
+        real, intent(inout) :: x(n)
+        integer :: ii
+        do ii = 1, n
+            x(ii) = x(ii) * mm
+        end do
+    end subroutine irs_line_scale
+
+    subroutine irs_line_fwd(x, xprev, e, mm, n)
+        implicit none
+        integer, intent(in) :: n
+        real, intent(in)    :: e, mm
+        real, intent(in)    :: xprev(n)
+        real, intent(inout) :: x(n)
+        integer :: ii
+        do ii = 1, n
+            x(ii) = (x(ii) + e*xprev(ii)) * mm
+        end do
+    end subroutine irs_line_fwd
+
+    subroutine irs_line_back(x, xnext, cc, n)
+        implicit none
+        integer, intent(in) :: n
+        real, intent(in)    :: cc
+        real, intent(in)    :: xnext(n)
+        real, intent(inout) :: x(n)
+        integer :: ii
+        do ii = 1, n
+            x(ii) = x(ii) - cc*xnext(ii)
+        end do
+    end subroutine irs_line_back
+
+
+    ! ---- blocked transpose ------------------------------------------
+    ! src(i,jj) -> tl(jj,i) through IRS_TB x IRS_TB blocks. The staging
+    ! read is IRS_TB contiguous floats per lane (one vector load); the
+    ! write-out is IRS_TB contiguous lanes per i (one vector store). Only
+    ! the in-block transpose is strided, over 256 bytes that never leave
+    ! the register file.
+    !
+    ! Written the obvious way -- do i; do jj; tl(jj,i) = src(i,jj) -- the
+    ! inner loop strides src by nci elements (1088 bytes at nci=272) and
+    ! the compiler emits one scalar load per element. That is invisible in
+    ! the vectorization report, which calls the surrounding loop
+    ! "vectorized": the i-solve took 53.6% of the smoother's time while
+    ! moving 20% of its traffic, and the disassembly showed 266 scalar
+    ! vmovss against 190 vector vmovups with no gather instructions at all.
+
+    ! ldt is the tile's leading dimension, always IRS_BJ. Passed rather
+    ! than taken from the module parameter because f2py wraps every public
+    ! module procedure and cannot resolve a parameter used in a dummy's
+    ! dimension.
+    subroutine irs_gather_tile(src, tl, ldt, n, nb_in)
+        implicit none
+        integer, intent(in) :: ldt, n, nb_in
+        real, intent(in)    :: src(n, nb_in)
+        real, intent(inout) :: tl(ldt, n)
+        real    :: blk(IRS_TB, IRS_TB)
+        integer :: ib, jb, ii, jj, nfull_i, nfull_j
+
+        nfull_i = (n / IRS_TB) * IRS_TB
+        nfull_j = (nb_in / IRS_TB) * IRS_TB
+        do jb = 1, nfull_j, IRS_TB
+            do ib = 1, nfull_i, IRS_TB
+                do jj = 1, IRS_TB
+                    do ii = 1, IRS_TB
+                        blk(ii,jj) = src(ib+ii-1, jb+jj-1)
+                    end do
+                end do
+                do ii = 1, IRS_TB
+                    do jj = 1, IRS_TB
+                        tl(jb+jj-1, ib+ii-1) = blk(ii,jj)
+                    end do
+                end do
+            end do
+        end do
+        do jj = 1, nfull_j
+            do ii = nfull_i+1, n
+                tl(jj,ii) = src(ii,jj)
+            end do
+        end do
+        do jj = nfull_j+1, nb_in
+            do ii = 1, n
+                tl(jj,ii) = src(ii,jj)
+            end do
+        end do
+    end subroutine irs_gather_tile
+
+    ! As irs_gather_tile, but applies the change limiter's pointwise
+    ! scaling on the way through, while each value is already in a
+    ! register. That is the whole point of the fine-grid path: the scaling
+    ! pass and the i-solve each cost a full-volume read and write on their
+    ! own, and fused they cost one between them.
+    !
+    ! The arithmetic is byte-for-byte set_residual's scale_du, INCLUDING
+    ! keeping fdamp/dampin as a division rather than a hoisted reciprocal
+    ! multiply -- the two do not agree bitwise and the exactness of this
+    ! whole path depends on them matching.
+    subroutine irs_gather_tile_scaled(src, dtv, tl, ldt, n, nb_in, rav, dampin)
+        implicit none
+        integer, intent(in) :: ldt, n, nb_in
+        real, intent(in)    :: src(n, nb_in)
+        real, intent(in)    :: dtv(n, nb_in)
+        real, intent(inout) :: tl(ldt, n)
+        real, intent(in)    :: rav, dampin
+        real    :: blk(IRS_TB, IRS_TB)
+        real    :: v, chg, fdamp
+        integer :: ib, jb, ii, jj, nfull_i, nfull_j
+
+        nfull_i = (n / IRS_TB) * IRS_TB
+        nfull_j = (nb_in / IRS_TB) * IRS_TB
+        do jb = 1, nfull_j, IRS_TB
+            do ib = 1, nfull_i, IRS_TB
+                do jj = 1, IRS_TB
+                    do ii = 1, IRS_TB
+                        v     = src(ib+ii-1, jb+jj-1)
+                        chg   = abs(v * dtv(ib+ii-1, jb+jj-1))
+                        fdamp = chg * rav
+                        blk(ii,jj) = v / (1.0e0 + fdamp/dampin)
+                    end do
+                end do
+                do ii = 1, IRS_TB
+                    do jj = 1, IRS_TB
+                        tl(jb+jj-1, ib+ii-1) = blk(ii,jj)
+                    end do
+                end do
+            end do
+        end do
+        do jj = 1, nfull_j
+            do ii = nfull_i+1, n
+                v     = src(ii,jj)
+                chg   = abs(v * dtv(ii,jj))
+                fdamp = chg * rav
+                tl(jj,ii) = v / (1.0e0 + fdamp/dampin)
+            end do
+        end do
+        do jj = nfull_j+1, nb_in
+            do ii = 1, n
+                v     = src(ii,jj)
+                chg   = abs(v * dtv(ii,jj))
+                fdamp = chg * rav
+                tl(jj,ii) = v / (1.0e0 + fdamp/dampin)
+            end do
+        end do
+    end subroutine irs_gather_tile_scaled
+
+    subroutine irs_scatter_tile(dst, tl, ldt, n, nb_in)
+        implicit none
+        integer, intent(in) :: ldt, n, nb_in
+        real, intent(inout) :: dst(n, nb_in)
+        real, intent(in)    :: tl(ldt, n)
+        real    :: blk(IRS_TB, IRS_TB)
+        integer :: ib, jb, ii, jj, nfull_i, nfull_j
+
+        nfull_i = (n / IRS_TB) * IRS_TB
+        nfull_j = (nb_in / IRS_TB) * IRS_TB
+        do jb = 1, nfull_j, IRS_TB
+            do ib = 1, nfull_i, IRS_TB
+                do ii = 1, IRS_TB
+                    do jj = 1, IRS_TB
+                        blk(ii,jj) = tl(jb+jj-1, ib+ii-1)
+                    end do
+                end do
+                do jj = 1, IRS_TB
+                    do ii = 1, IRS_TB
+                        dst(ib+ii-1, jb+jj-1) = blk(ii,jj)
+                    end do
+                end do
+            end do
+        end do
+        do jj = 1, nfull_j
+            do ii = nfull_i+1, n
+                dst(ii,jj) = tl(jj,ii)
+            end do
+        end do
+        do jj = nfull_j+1, nb_in
+            do ii = 1, n
+                dst(ii,jj) = tl(jj,ii)
+            end do
+        end do
+    end subroutine irs_scatter_tile
+
+
+    ! ---- the tile recurrence, one i-column against the previous -------
+    subroutine irs_tile_solve(tl, ldt, e, cpi, minvi, nci, nb_in)
+        implicit none
+        integer, intent(in) :: ldt, nci, nb_in
+        real, intent(in)    :: e
+        real, intent(in)    :: cpi(nci), minvi(nci)
+        real, intent(inout) :: tl(ldt, nci)
+        integer :: i
+
+        call irs_line_scale(tl(1,1), minvi(1), nb_in)
+        do i = 2, nci
+            call irs_line_fwd(tl(1,i), tl(1,i-1), e, minvi(i), nb_in)
+        end do
+        do i = nci-1, 1, -1
+            call irs_line_back(tl(1,i), tl(1,i+1), cpi(i), nb_in)
+        end do
+    end subroutine irs_tile_solve
+
+
+    ! ---- j+k solves, fused over i-strips ------------------------------
+    ! Each strip is carried through BOTH direction solves before the next
+    ! strip is touched, so it is read from and written to memory once for
+    ! the pair instead of once each.
+    !
+    ! The saving is smaller than the touch count suggests, and it is worth
+    ! knowing why. Run separately, the j-solve's back-substitution
+    ! re-reads what its forward pass just wrote out of one (nci,ncj)
+    ! plane -- 70 KB, L2-resident -- not out of DRAM, and the k-solve gets
+    ! the same plane-to-plane reuse. So each already cost ~1R+1W of DRAM
+    ! and fusing them saves one of two, not three of four. Measured
+    ! -12.2% on the whole smoother, bitwise. A second effect probably
+    ! contributes: the k back-substitution DESCENDS over a 3.9 MB
+    ! per-component volume against prefetchers that favour ascending
+    ! streams, and inside a strip that descent stays in L2.
+    !
+    ! Bitwise: for fixed (i,k,m) the j-recurrence touches only that j-line
+    ! and lines at different i are independent, so restricting to a strip
+    ! changes only the order in which independent lines are solved; same
+    ! for k. Inside a strip the k-solve consumes columns the j-solve has
+    ! already finished, so the dependency is respected exactly.
+    subroutine irs_jk_strips(dU, e, cpj, minvj, cpk, minvk, nci, ncj, nck)
+        implicit none
+        integer, intent(in) :: nci, ncj, nck
+        real, intent(in)    :: e
+        real, intent(in)    :: cpj(ncj), minvj(ncj), cpk(nck), minvk(nck)
+        real, intent(inout) :: dU(nci, ncj, nck, 5)
+        integer :: i0, nw, j, k, m
+        real    :: mm, cc
+
+        do m = 1, 5
+        do i0 = 1, nci, IRS_W
+            nw = min(IRS_W, nci - i0 + 1)
+
+            if (ncj >= 2) then
+                do k = 1, nck
+                    call irs_line_scale(dU(i0,1,k,m), minvj(1), nw)
+                    do j = 2, ncj
+                        call irs_line_fwd(dU(i0,j,k,m), dU(i0,j-1,k,m), e, &
+                                          minvj(j), nw)
+                    end do
+                    do j = ncj-1, 1, -1
+                        call irs_line_back(dU(i0,j,k,m), dU(i0,j+1,k,m), &
+                                           cpj(j), nw)
+                    end do
+                end do
+            end if
+
+            if (nck >= 2) then
+                mm = minvk(1)
+                do j = 1, ncj
+                    call irs_line_scale(dU(i0,j,1,m), mm, nw)
+                end do
+                do k = 2, nck
+                    mm = minvk(k)
+                    do j = 1, ncj
+                        call irs_line_fwd(dU(i0,j,k,m), dU(i0,j,k-1,m), e, &
+                                          mm, nw)
+                    end do
+                end do
+                do k = nck-1, 1, -1
+                    cc = cpk(k)
+                    do j = 1, ncj
+                        call irs_line_back(dU(i0,j,k,m), dU(i0,j,k+1,m), &
+                                           cc, nw)
+                    end do
+                end do
+            end if
+
+        end do
+        end do
+    end subroutine irs_jk_strips
+
+
 end module residual_helpers
 
 
@@ -587,7 +950,7 @@ subroutine set_residual( &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
     i_cusp_start, i_cusp_end, &
-    dt_vol, dampin, &
+    dt_vol, dampin, ravg_out, &
     kb, njp, ni, nj, nk &
     )
 
@@ -633,6 +996,14 @@ subroutine set_residual( &
     ! `if dampin is not None` skip).
     real, intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real, intent(in) :: dampin
+    ! Reciprocal block means of |dU*dt_vol| per conserved variable, the
+    ! change limiter's own scaling factors. Always returned, because the
+    ! reduction that produces them is accumulated during the dU sweep
+    ! whatever dampin is. The fine-grid IRS path (smooth_residual_scale_tri)
+    ! takes them and applies the limiter itself, fused into its i-solve, so
+    ! that the scaling does not need a full-volume traversal of its own --
+    ! call this with dampin <= 0 to get the factors without the scaling.
+    real, intent(out) :: ravg_out(5)
     integer, intent(in) :: kb, njp, ni, nj, nk
 
     integer :: i, j, k, m, k0, k1, ja, jb, pa, pb, stmp
@@ -725,16 +1096,19 @@ subroutine set_residual( &
     ! modified dU on the two seam cell planes, which the reduction did not
     ! see; that is an O(surface) discrepancy in a block-mean over O(volume)
     ! cells, and is corrected below for exactness.
+    ncell = (ni-1)*(nj-1)*(nk-1)
+    do m = 1, 5
+        avg(m) = avg(m) / ncell
+        if (avg(m) > 0.0e0) then
+            ravg(m) = 1.0e0 / avg(m)
+        else
+            ravg(m) = 0.0e0
+        end if
+    end do
+    do m = 1, 5
+        ravg_out(m) = ravg(m)
+    end do
     if (dampin > 0.0e0) then
-        ncell = (ni-1)*(nj-1)*(nk-1)
-        do m = 1, 5
-            avg(m) = avg(m) / ncell
-            if (avg(m) > 0.0e0) then
-                ravg(m) = 1.0e0 / avg(m)
-            else
-                ravg(m) = 0.0e0
-            end if
-        end do
         call scale_du(dU, dt_vol, ravg, dampin, ni, nj, nk)
     end if
 
@@ -886,19 +1260,29 @@ end subroutine damp_residual
 ! direction by tri_coeffs and reused for all lines. Constant fields are
 ! preserved exactly and IRS(0)=0, so the converged solution is unchanged.
 !
-! The j- and k-solves run their recurrence along j (resp. k) with the
-! innermost loop over the stride-1 i index, so they vectorise as-is. The
-! i-solve recurrence runs along the unit-stride axis and cannot vectorise
-! directly, so a BJ-wide block of j-lines is transposed into a small
-! (BJ,nci) pad; the recurrence's innermost loop then runs over the BJ
-! contiguous, independent lanes -- vectorises and hides the FMA-latency
-! chain -- and the tile is scattered back.
+! The j- and k-solves run their recurrences over operands contiguous in the
+! stride-1 i index, so they vectorise as-is, and they are FUSED over
+! i-strips so a strip is read and written once for the pair rather than
+! once each (irs_jk_strips). The i-solve recurrence runs along the
+! unit-stride axis and cannot vectorise directly, so an IRS_BJ-wide block
+! of j-lines is transposed into a small (IRS_BJ,nci) pad; the recurrence's
+! innermost loop then runs over the IRS_BJ contiguous, independent lanes --
+! vectorises and hides the FMA-latency chain -- and the tile is scattered
+! back. Both transposes are themselves blocked (irs_gather_tile).
+!
+! This routine is now a driver: every primitive lives in residual_helpers,
+! shared with smooth_residual_scale_tri, which is the fine-grid path and
+! folds the change limiter's scaling into the i-solve's gather. THIS one is
+! what scree.f90's coarse-MG path hands to its `smoother` dummy argument,
+! where there is no limiter to fold in.
 !
 ! Scratch: the Thomas solve is in place on dU; work is a 1D buffer holding
 ! the six coefficient vectors back-to-back, >= 2*((ni-1)+(nj-1)+(nk-1))
 ! elements (e.g. a leading slice of block.scratch via util.carve_view).
 ! =====================================================================
 subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
+
+    use residual_helpers
 
     implicit none
 
@@ -908,22 +1292,9 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
     ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
     real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
 
-    integer :: i, j, k, m, nci, ncj, nck
+    integer :: k, m, nci, ncj, nck, j0, nb
     integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
-    real    :: cc, mm
-    ! Tile width: sized to fill L1d without spilling it, NOT to match the
-    ! SIMD lane count. The tile is BJ*(ni-1)*4 bytes; at ni=273 that is
-    ! 34 KB for BJ=32, the largest that fits Sapphire Rapids' 48 KB L1d.
-    ! Swept on the production build (ifort, Xeon 8480+, 1M duct): BJ=32 is
-    ! -26% serial / -8% at 100-rank saturation against the previous BJ=8,
-    ! while BJ=64 (68 KB, L1-spilling) gives back most of the win. Bitwise
-    ! identical for every BJ -- the tile only groups independent j-lines.
-    ! Machine-dependent: re-sweep on new hardware, in the real build (a
-    ! gfortran sweep picked BJ=64, the wrong constant). See
-    ! docs/dev/viscous_kernels.md section 23.
-    integer, parameter :: BJ = 32
-    integer :: jj, j0, nb
-    real    :: tile(BJ, ni-1)               ! (lane, i) transposed i-solve pad
+    real    :: tile(IRS_BJ, ni-1)           ! (lane, i) transposed i-solve pad
 
     if (sf <= 0.0e0) return
 
@@ -940,136 +1311,131 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
     bmij = 2*nci + ncj
     bcpk = 2*nci + 2*ncj
     bmik = 2*nci + 2*ncj + nck
-    call tri_coeffs(sf, nci, work(bcpi+1:bcpi+nci), work(bmii+1:bmii+nci))
-    call tri_coeffs(sf, ncj, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj))
-    call tri_coeffs(sf, nck, work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck))
+    call irs_tri_coeffs(sf, nci, work(bcpi+1:bcpi+nci), work(bmii+1:bmii+nci))
+    call irs_tri_coeffs(sf, ncj, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj))
+    call irs_tri_coeffs(sf, nck, work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck))
 
-    ! ---- i-direction: transpose-tiled. A BJ-wide block of j-lines is gathered
-    ! into tile(lane, i); the recurrence then runs along i with the innermost
-    ! loop over the BJ contiguous, independent lanes -> vectorises + hides the
-    ! recurrence latency. Scatter back afterwards. (nci >= 2) ----
+    ! ---- i-direction: blocked-transpose gather, solve in the tile,
+    ! blocked-transpose scatter back. ----
     if (nci >= 2) then
         do m = 1, 5
         do k = 1, nck
-        do j0 = 1, ncj, BJ
-            nb = min(BJ, ncj - j0 + 1)
-            do i = 1, nci
-                do jj = 1, nb
-                    tile(jj,i) = dU(i, j0+jj-1, k, m)
-                end do
-            end do
-            mm = work(bmii+1)
-            do jj = 1, nb
-                tile(jj,1) = tile(jj,1) * mm
-            end do
-            do i = 2, nci
-                mm = work(bmii+i)
-                do jj = 1, nb
-                    tile(jj,i) = (tile(jj,i) + sf*tile(jj,i-1)) * mm
-                end do
-            end do
-            do i = nci-1, 1, -1
-                cc = work(bcpi+i)
-                do jj = 1, nb
-                    tile(jj,i) = tile(jj,i) - cc*tile(jj,i+1)
-                end do
-            end do
-            do i = 1, nci
-                do jj = 1, nb
-                    dU(i, j0+jj-1, k, m) = tile(jj,i)
-                end do
-            end do
+        do j0 = 1, ncj, IRS_BJ
+            nb = min(IRS_BJ, ncj - j0 + 1)
+            ! dU(:, j0:j0+nb-1, k, m) is contiguous with leading dimension
+            ! nci, so it binds to a (nci, nb) dummy by sequence association --
+            ! no array temporary, and the block kernels see plain 2D arrays.
+            call irs_gather_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
+            call irs_tile_solve(tile, IRS_BJ, sf, work(bcpi+1:bcpi+nci), &
+                                work(bmii+1:bmii+nci), nci, nb)
+            call irs_scatter_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
         end do
         end do
         end do
     end if
 
-    ! ---- j-direction: recurrence along j, innermost vector loop over i.
-    ! The per-plane factors are loop-invariant over i, so hoist to scalars. ----
-    if (ncj >= 2) then
-        do m = 1, 5
-        do k = 1, nck
-            mm = work(bmij+1)
-            do i = 1, nci
-                dU(i,1,k,m) = dU(i,1,k,m) * mm
-            end do
-            do j = 2, ncj
-                mm = work(bmij+j)
-                do i = 1, nci
-                    dU(i,j,k,m) = (dU(i,j,k,m) + sf*dU(i,j-1,k,m)) * mm
-                end do
-            end do
-            do j = ncj-1, 1, -1
-                cc = work(bcpj+j)
-                do i = 1, nci
-                    dU(i,j,k,m) = dU(i,j,k,m) - cc*dU(i,j+1,k,m)
-                end do
-            end do
-        end do
-        end do
-    end if
-
-    ! ---- k-direction: recurrence along k, innermost vector loop over i ----
-    if (nck >= 2) then
-        do m = 1, 5
-            mm = work(bmik+1)
-            do j = 1, ncj
-            do i = 1, nci
-                dU(i,j,1,m) = dU(i,j,1,m) * mm
-            end do
-            end do
-            do k = 2, nck
-                mm = work(bmik+k)
-                do j = 1, ncj
-                do i = 1, nci
-                    dU(i,j,k,m) = (dU(i,j,k,m) + sf*dU(i,j,k-1,m)) * mm
-                end do
-                end do
-            end do
-            do k = nck-1, 1, -1
-                cc = work(bcpk+k)
-                do j = 1, ncj
-                do i = 1, nci
-                    dU(i,j,k,m) = dU(i,j,k,m) - cc*dU(i,j,k+1,m)
-                end do
-                end do
-            end do
-        end do
-    end if
-
-contains
-
-    ! Thomas forward-sweep factors for the constant-coefficient Neumann
-    ! tridiagonal along a line of length n: a = c = -sf, b = 1+2sf interior,
-    ! b = 1+sf at the two ends. Returns cp (eliminated super-diagonal) and
-    ! minv = 1/pivot, so a line solve is:
-    !   x(1)   = d(1)*minv(1)
-    !   x(i)   = (d(i) + sf*x(i-1))*minv(i)          i = 2..n   (forward)
-    !   x(i)   = x(i) - cp(i)*x(i+1)                 i = n-1..1 (back-sub)
-    ! An n=1 line has no neighbours -> operator is the identity (minv=1).
-    subroutine tri_coeffs(e, n, cp, minv)
-        implicit none
-        real, intent(in)     :: e
-        integer, intent(in)  :: n
-        real, intent(out)    :: cp(n), minv(n)
-        integer :: ii
-
-        if (n == 1) then
-            minv(1) = 1.0e0
-            cp(1)   = 0.0e0
-            return
-        end if
-
-        ! Row 1: b = 1 + sf (single neighbour), c = -sf.
-        minv(1) = 1.0e0 / (1.0e0 + e)
-        cp(1)   = -e * minv(1)
-        do ii = 2, n-1
-            minv(ii) = 1.0e0 / ((1.0e0 + 2.0e0*e) + e*cp(ii-1))
-            cp(ii)   = -e * minv(ii)
-        end do
-        ! Row n: b = 1 + sf (single neighbour), c = 0.
-        minv(n) = 1.0e0 / ((1.0e0 + e) + e*cp(n-1))
-        cp(n)   = 0.0e0
-    end subroutine tri_coeffs
+    ! ---- j- and k-directions, fused over i-strips ----
+    call irs_jk_strips(dU, sf, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj), &
+                       work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck), &
+                       nci, ncj, nck)
 
 end subroutine smooth_residual_tri_tiled
+
+
+! =====================================================================
+! Fine-grid IRS: the change limiter's scaling pass FUSED into the
+! i-direction solve, then the strip-fused j and k solves.
+!
+! Grid.update_residual used to run set_residual (whose trailing scale_du
+! applies the limiter over the whole volume) and then
+! smooth_residual_tri_tiled. That is three full-volume read/write pairs
+! downstream of the residual sweep: scale, then i, then j+k. The scaling
+! is pointwise and the i-solve for a row depends only on that row's
+! scaled values, so the two can share one traversal -- the tile gather IS
+! the scale's read and the tile scatter IS its write:
+!
+!   scale (1R+1W) + i (1R+1W) + j+k (1R+1W)  ->  scale(x)i (1R+1W) + j+k (1R+1W)
+!
+! set_residual therefore hands out the block means it already accumulates
+! during its sweep (ravg), and skips its own scaling pass; this routine
+! applies it. dampin <= 0 means no limiter, and the plain gather is used.
+!
+! BITWISE against the unfused pair, and that is not a nicety: the scaling
+! arithmetic here is byte-for-byte scale_du's, the i-solve is unchanged,
+! and applying the two per (k, j0-block, m) rather than volume-then-volume
+! is the same computation on the same operands because the scaling is
+! pointwise and the blocks are disjoint. The ORDER that matters is
+! preserved exactly -- sweep, cusp correction, limiter, IRS-i, IRS-j,
+! IRS-k -- so this does not reopen the damp-vs-IRS ordering question
+! documented at the head of set_residual.
+!
+! Loop nest is (k, j0, m), NOT (m, k, j0) as the standalone smoother uses:
+! dt_vol is component-independent, so putting m innermost lets one
+! (nci,nb) block of it serve all five components out of cache. With m
+! outermost dt_vol would be streamed five times, which is most of what the
+! fusion just saved -- the same trap damp_residual documents.
+! =====================================================================
+subroutine smooth_residual_scale_tri(dU, dt_vol, ravg, dampin, sf, work, &
+                                     ni, nj, nk)
+
+    use residual_helpers
+
+    implicit none
+
+    integer, intent(in) :: ni, nj, nk
+    real, intent(in)    :: sf, dampin
+    real, intent(in)    :: ravg(5)
+    real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
+    real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
+    ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
+    real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
+
+    integer :: k, m, nci, ncj, nck, j0, nb
+    integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
+    real    :: tile(IRS_BJ, ni-1)
+
+    if (sf <= 0.0e0) return
+
+    nci = ni-1
+    ncj = nj-1
+    nck = nk-1
+    if (nci < 1 .or. ncj < 1 .or. nck < 1) return
+
+    bcpi = 0
+    bmii = nci
+    bcpj = 2*nci
+    bmij = 2*nci + ncj
+    bcpk = 2*nci + 2*ncj
+    bmik = 2*nci + 2*ncj + nck
+    call irs_tri_coeffs(sf, nci, work(bcpi+1:bcpi+nci), work(bmii+1:bmii+nci))
+    call irs_tri_coeffs(sf, ncj, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj))
+    call irs_tri_coeffs(sf, nck, work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck))
+
+    if (nci >= 2) then
+        do k = 1, nck
+        do j0 = 1, ncj, IRS_BJ
+            nb = min(IRS_BJ, ncj - j0 + 1)
+            do m = 1, 5
+                ! The dampin test is loop-invariant over the whole nest and
+                ! sits outside every vector loop, so it costs a predicted
+                ! branch per block and keeps one code path for both cases.
+                if (dampin > 0.0e0) then
+                    call irs_gather_tile_scaled(dU(1,j0,k,m), dt_vol(1,j0,k), &
+                                                tile, IRS_BJ, nci, nb, &
+                                                ravg(m), dampin)
+                else
+                    call irs_gather_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
+                end if
+                call irs_tile_solve(tile, IRS_BJ, sf, work(bcpi+1:bcpi+nci), &
+                                    work(bmii+1:bmii+nci), nci, nb)
+                call irs_scatter_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
+            end do
+        end do
+        end do
+    end if
+
+    call irs_jk_strips(dU, sf, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj), &
+                       work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck), &
+                       nci, ncj, nck)
+
+end subroutine smooth_residual_scale_tri

@@ -32,7 +32,7 @@ RESULTS="${RESULTS:-bench/results/bench_all_arms.jsonl}"
 # Which kernel's arm set to time: `residual` (bench/residual_arms.py) or
 # `irs` (bench/irs_arms.py). Also picks the symbol fingerprinted below.
 KERNEL="${KERNEL:-residual}"
-if [ "$KERNEL" = "irs" ]; then
+if [ "$KERNEL" = "irs" ] || [ "$KERNEL" = "update" ]; then
     GAUGE_SYM="${GAUGE_SYM:-smooth_residual_tri_tiled_}"
 else
     GAUGE_SYM="${GAUGE_SYM:-set_residual_}"

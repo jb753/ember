@@ -40,7 +40,12 @@ import numpy as np
 
 from ember import util
 
-from residual_arms import DAMPIN, build_case, callers  # noqa: F401  (re-export)
+from residual_arms import (  # noqa: F401  (re-export)
+    DAMPIN,
+    build_case,
+    build_kwargs,
+    callers,
+)
 
 # Jameson IRS coefficient. Production's default is sf_resid=0.0 (IRS off), so
 # there is no "production value" to inherit; 0.5 is the middle of the usual
@@ -167,6 +172,46 @@ def callers_irs(b, du, sf=SF, active_arms=IRS_ARMS):
 # skipping a solve is the point of them -- so gating them against `irs` would
 # report a bug that is not one.
 FULL_ARMS = ("irs", "irsna", "irsnat", "irstr", "irsijk")
+
+
+# Arms for the FUSED-LIMITER study (Phase 3). The saving spans two kernels --
+# set_residual's trailing scaling pass and the smoother's i-solve -- so neither
+# can be timed alone; these arms time the pair.
+UPDATE_ARMS = ("unfused", "fused")
+
+
+def callers_update(b, du, dampin=DAMPIN, sf=SF):
+    """Time set_residual + IRS as a unit, unfused vs fused.
+
+    Both arms are two f2py calls against pre-built kwargs, so the Python
+    scaffolding either side of the kernels is identical and does not favour
+    one. `unfused` is the historical sequence: set_residual applies the change
+    limiter itself over the whole volume, then the standalone three-direction
+    smoother runs. `fused` defers the limiter's scaling to the smoother, which
+    applies it inside its i-solve gather -- one full-volume read/write pair
+    fewer. The two are bitwise identical (tests/test_irs_fused_damp.py).
+    """
+    import ember.fortran as F
+
+    ni, nj, nk = b.shape
+    common, private = build_kwargs(b)
+    kw_damped = dict(common, **private["prod"], du=du, dampin=dampin)
+    kw_plain = dict(common, **private["prod"], du=du, dampin=0.0)
+    work = util.carve_view(b.scratch, (work_len((ni, nj, nk)),))
+    shape = dict(ni=ni, nj=nj, nk=nk)
+
+    def unfused():
+        F.set_residual(**kw_damped)
+        F.smooth_residual_tri_tiled(du=du, sf=sf, work=work, **shape)
+
+    def fused():
+        ravg = F.set_residual(**kw_plain)
+        F.smooth_residual_scale_tri(
+            du=du, dt_vol=b.dt_vol_nd, ravg=ravg, dampin=dampin, sf=sf,
+            work=work, **shape
+        )
+
+    return dict(unfused=unfused, fused=fused)
 
 
 def check_correctness(b, du, ref, active_arms=FULL_ARMS):

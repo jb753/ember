@@ -415,6 +415,47 @@ residual sweep.
   `set_residual` and confirm the IRS-off path is unchanged, or measure it
   directly.
 
+**RESULT: adopted, but built differently from the design above.** The plan had
+`set_residual` gain `sf` and a work buffer and do the fused pass itself. That
+would have put the fusion inside the hottest kernel in the code for a benefit
+that only exists when IRS is on -- and **every current entry point defaults
+`sf_resid=0.0`** (`tools/run_duct.py`, `tools/run_throttle.py`,
+`SolverConfig`); only `pgo_train.py` enables it, deliberately, to exercise it.
+(`residual.f90` cited "run.py defaults sf_resid=1.0, dampin=25"; `run.py` no
+longer exists, so that comment was stale.)
+
+Built instead so the fusion lives in the SMOOTHER, not in `set_residual`:
+
+- `set_residual` gains one `intent(out) ravg(5)` -- the block means it already
+  accumulates during its sweep -- and nothing else. Its hot sweep is untouched.
+- `grid.update_residual` passes `dampin=0` when `sf > 0`, which suppresses the
+  scaling pass but not the reduction, and hands `ravg` to the new
+  `smooth_residual_scale_tri`, which applies the limiter inside its i-solve
+  gather.
+- The standalone `smooth_residual_tri_tiled` is unchanged for `scree.f90`.
+- Every IRS primitive moved into `residual_helpers` so the two smoothers share
+  one copy. That is also the structural fix for the folding hazard above: code
+  that exists once cannot be folded with itself.
+
+**-5.02% +/- 0.44%, faster in 8/8 launches** on the combined `set_residual`+IRS
+path (19.882 -> 18.903 ns/cell), bitwise.
+
+**The default path is unaffected**, which was the risk worth checking:
+`set_residual` alone measures 12.671 -> 12.646 ns/cell (-0.2%, inside noise)
+and grows by 6 instructions (13034 -> 13040), the five divides and the store.
+
+**The traffic model overestimated a third time.** One full-volume read/write
+pair at ~22 GB/s should have been ~1.8 ns/cell; the measured saving is
+0.98 ns/cell, about half. Three for three now -- treat a DRAM-traffic estimate
+on this code as an upper bound of roughly twice the achievable saving.
+
+**Coverage gap closed.** `residual.f90` recorded that no test drove
+`update_residual` with `dampin` set and `sf > 0` together -- exactly the
+combination this changes. `tests/test_irs_fused_damp.py` now gates all four
+(`dampin`, `sf`) combinations bitwise against the unfused sequence, plus a
+guard that both flags actually alter the result so the gate cannot pass
+vacuously.
+
 ### Phase 4 -- adopt, document, or revert
 
 Per phase: adopt if it wins at every size with no regression; record the
