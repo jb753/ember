@@ -32,23 +32,24 @@ page placement, allocation alignment, thermal state at start) and needs
 repeat launches to measure -- see docs/dev/plan_nodal_primitives.md.
 
 Usage:
-    taskset -c 0 uv run python tools/bench_rep_convergence.py \
-        --ncell 1000000 --reps 2000 --arm prod --out tools/bench_repconv.npz
-    uv run python tools/bench_rep_convergence.py --analyze tools/bench_repconv.npz
+    taskset -c 0 uv run python bench/bench_rep_convergence.py \
+        --ncell 1000000 --reps 2000 --arm prod --out bench/results/bench_repconv.npz
+    uv run python bench/bench_rep_convergence.py --analyze bench/results/bench_repconv.npz
 """
 
 import argparse
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, "tools")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 def collect(ncell, arm, reps, warmup, flush):
     """Time `reps` calls of one arm, keeping every sample."""
-    from bench_residual_staged import DAMPIN, build_case, callers, flush_llc
+    from residual_arms import DAMPIN, build_case, callers, flush_llc
 
     grid, b = build_case(ncell)
     du = b.residual_nd
@@ -177,7 +178,7 @@ def main():
     ap.add_argument("--reps", type=int, default=2000)
     ap.add_argument("--warmup", type=int, default=20)
     ap.add_argument("--no-flush", action="store_true")
-    ap.add_argument("--out", default="tools/bench_repconv.npz")
+    ap.add_argument("--out", default="bench/results/bench_repconv.npz")
     ap.add_argument("--analyze", default=None)
     args = ap.parse_args()
 

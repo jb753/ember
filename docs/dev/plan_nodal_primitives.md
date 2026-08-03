@@ -1,5 +1,20 @@
 # Plan: attributing section 26's win (`nodal` and `tbaos` arms)
 
+> **Status: this plan's run completed and its outcome is superseded.** The
+> `viscous_kernels.md`/`kernel_benchmark_methodology.md` sections this plan
+> refers to ("section 20", "section 26", "methodology section N") have been
+> replaced by `bench/README.md`, whose "corrected instrument" table gives the
+> final numbers for every arm named here (`nodal` +11.3%, `tbaos` +98.6%
+> vs `prod`, both on the corrected harness -- production wins outright). The
+> harness this plan drives (`tools/bench_residual_staged.py`,
+> `tools/run_residual_staged.sh`) was retired along with it; use
+> `bench/residual_arms.py` (Gate-2 correctness) and `bench/run_all_arms.sh` /
+> `bench/run_prod_baseline.sh` (timing) instead, per `bench/README.md`. This
+> document is kept for the attribution reasoning (section 1) and the
+> pre-registered predictions (section 5), which are still a useful worked
+> example of the methodology; its own run commands below are historical and
+> point at tools that no longer exist.
+
 The first intermediate step towards acting on section 26. Section 26.5 names
 it: production's **single fused sweep reading the nodal primitives** -- undo
 section 20 only, keep everything else. That is the `nodal` arm. A second arm,
@@ -13,8 +28,8 @@ run is planned here. That bounds what the experiment can conclude -- see
 section 6 -- and the bound is the main thing to keep straight while running
 it.
 
-Protocol throughout: `kernel_benchmark_methodology.md`. Rules cited by number
-are from that document.
+Protocol throughout: `bench/README.md` (formerly `kernel_benchmark_methodology.md`).
+Rules cited by number are from that document.
 
 ---
 

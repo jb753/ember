@@ -39,10 +39,13 @@ echo "gfortran: $GFORTRAN_VERSION"
 # resolves `use` against a .mod produced earlier in the same invocation, and
 # a plain alphabetical glob puts consumers (residual_cand, residual_consa,
 # ...) ahead of the providers (residual.f90, viscous.f90). This used to be
-# masked by stale .mod files left in the source tree by ad-hoc syntax
-# checks -- the hazard docs/dev/viscous_kernels.md section 6.4 warns about.
-# f2py/meson does its own dependency ordering, so this only affects this
-# pre-flight check.
+# masked by stale .mod files left in the source tree by ad-hoc syntax checks:
+# running `gfortran -fsyntax-only` from the repo root drops .mod files there,
+# and a later check can resolve `use` against a stale .mod and pass (or fail)
+# wrongly even after the source was reverted or changed. Delete stray *.mod
+# from the repo root before builds, or run syntax checks in a temp directory
+# (which is what this script does). f2py/meson does its own dependency
+# ordering, so this only affects this pre-flight check.
 #
 # residual_staged.f90 and residual_multall.f90 are providers too: the benchmark
 # arms share helpers rather than copying them, so that the parts NOT under test

@@ -134,7 +134,7 @@ import ember.nonmatch_communicator
 # k-slab depth for the tiled kernels (set_visc_force, set_residual): cell
 # planes per slab, so that a slab's input planes stay cache-resident across
 # all three face directions. Clamped per block to nk-1. Value chosen by
-# benchmark sweep (see docs/dev/viscous_kernels.md).
+# benchmark sweep (see bench/README.md, "k-slab cache blocking").
 _KB_SLAB = 8
 
 

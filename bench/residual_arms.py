@@ -1,5 +1,4 @@
-#!/usr/bin/env -S uv run
-"""A/B production set_residual against the multall/multall staged design.
+"""Shared case-builder and arm definitions for the `set_residual` A/B study.
 
 multall evaluates the five conserved-variable residuals in FIVE passes:
 SET_FLUX stages the face mass fluxes FIMAS/FJMAS/FKMAS once, then SUMFLUX is
@@ -7,66 +6,36 @@ called once per variable. Production ember does it in ONE fused sweep, holding
 the shared face mass flux in a register and consuming it for all five
 components before discarding it.
 
-Seven arms, all in the same .so (setup.py globs _fortran/*.f90), compared
-round-robin interleaved in one process so there is no cross-build LTO drift:
+Eight arms, all in the same .so (setup.py globs _fortran/*.f90 -- build with
+EMBER_ARMS=all or EMBER_ARMS=<comma-list> to get the non-production ones back
+in, see setup.py's BENCHMARK_ONLY):
 
   prod    set_residual         -- one fused sweep
   staged  set_residual_staged  -- stage mdot into fi/fj/fk, five narrow passes
   split   set_residual_split   -- five narrow passes, mdot recomputed inline
-  multall  set_residual_multall  -- the faithful design: staged nodal primitives
-                                  + SoA geometry + five passes
+  multall  set_residual_multall  -- the faithful multall/multall design: staged
+                                  nodal primitives + SoA geometry + five passes
   nodal   set_residual_nodal   -- production's fused sweep reading the nodal
-                                  primitives (section 20 undone, alone)
+                                  primitives instead of deriving them from cons
   tbaos   set_residual_multall_aos -- the multall design on ember's own AoS
                                   dA(3,i,j,k) geometry
+  prodsoa set_residual_prod_soa   -- production's kernel on SoA geometry
+  rinv    set_residual_rinv       -- production's kernel plus a staged 1/r
 
-prod -> nodal -> tbaos -> multall is an incremental chain: each adjacent pair
-differs by exactly one thing (nodal primitives, then the five-pass split with
-its forced per-node staging, then the SoA geometry), so the ladder attributes
-section 26's bundled win instead of just reproducing it. `tbaos` is also the
-only one of the three steps that is honest about ember's constraints: dA is
-built in geometry.f90 and consumed by the viscous, multigrid and bcond paths,
-so a residual port gets `tbaos` and only a wider layout change gets `multall`.
+This module holds only what every driver needs to build a comparable case and
+call each arm: the grid/state setup, the scratch-carving kwargs builder, the
+correctness gate, and an LLC-flush helper. It is deliberately NOT a timing
+driver -- see bench/README.md's "what's in this directory" for why the old
+round-robin-in-one-process timing loop that used to live here was dropped
+(it's the harness bug documented in the "Two independent faults" section:
+sweeping the arm set moved a ranking by double digits). Use
+bench_prod_baseline.py (one arm per process, barriered, launch-replicated)
+for real timing.
 
-`split` is the attribution control: without it a loss cannot be attributed to
-the 5-way split rather than to the staging itself.
-
-`nodal` is the attribution control for `multall`, which bundles three changes
-and cannot say which one wins. Section 26.4 credits the divides, i.e. the
-nodal representation alone; this arm applies exactly that, to production's own
-sweep. Its ~24 divides/cell go to zero while everything else stays verbatim.
-See docs/dev/plan_nodal_primitives.md.
-
-NOTE adding an arm changes the round-robin cache footprint every other arm
-sees, so numbers from a run may only be compared with each other, never
-spliced against a jsonl written by an earlier arm set.
-
-Two regimes. `serial` is the diagnostic number. `contended` is one of several
-independent processes each holding its own grid, all timing the same window,
-rendezvousing on a wall-clock start time (no MPI needed). On this box the
-contended arm is meant to be run with every rank pinned to a core of ONE
-socket, which does saturate that socket's memory controller -- see
-tools/run_residual_staged.sh. It is NOT the 100-rank sapphire regime and must
-not be reported as "saturated".
-
-Predicted per-cell compulsory traffic (docs section 25): prod ~152 B/cell,
-staged ~384, split ~372 -- so ~2.5x, with the serial gap much smaller because
-staging removes four fifths of the reciprocals and r-divides.
-
-`nodal` adds vx/vr/vt (+12 B/cell) and drops cons(...,4), which is dead in its
-hot sweep (cons is component-last, so that is a real dropped stream): ~+8
-B/cell, ~+5%. Predicted to beat prod in both regimes despite that, by more
-serially than contended, and to land between prod and multall at every size.
+See docs/dev/plan_nodal_primitives.md for the nodal/tbaos attribution study
+these arms were built to support.
 """
 
-import argparse
-import json
-import os
-import statistics
-import sys
-import time
-
-import ember.fortran as F
 import numpy as np
 
 from ember import util
@@ -145,8 +114,7 @@ def build_kwargs(b):
 
     Every buffer for a given call comes from ONE carve_view call, which
     guarantees the spans are disjoint -- block.tau_q_halo's docstring forbids
-    aliasing two arrays into the same kernel call, and this is how
-    bench_residual_variants.py already satisfies that.
+    aliasing two arrays into the same kernel call.
     """
     ni, nj, nk = b.shape
     i_cusp_start, i_cusp_end = b.i_cusp
@@ -274,19 +242,14 @@ def build_kwargs(b):
     return common, private
 
 
-# Arms active in this process. --arms narrows it, which is how a result is
-# re-measured with the harness removed as a suspect (methodology Rule 7): the
-# round-robin interleave means every arm runs with the other arms' footprints
-# in cache, so the arm SET is part of the experiment, not neutral scaffolding.
-ACTIVE_ARMS = list(ARMS)
-
-
-def callers(b, du, dampin):
+def callers(b, du, dampin, active_arms=ARMS):
     """One zero-argument callable per active arm, writing into `du`."""
+    import ember.fortran as F
+
     common, private = build_kwargs(b)
     entry = {name: getattr(F, sym, None) for name, sym in ENTRY.items()}
     out = {}
-    for name in ACTIVE_ARMS:
+    for name in active_arms:
         fn = entry[name]
         if fn is None:
             continue
@@ -329,7 +292,7 @@ def swirl(b):
     return saved
 
 
-def check_correctness(b, du, ref):
+def check_correctness(b, du, ref, active_arms=ARMS):
     """Compare each arm against production on identical input.
 
     dU is intent(inout) but every element is assigned before it is read, so no
@@ -337,7 +300,7 @@ def check_correctness(b, du, ref):
     """
     results = {}
     for dampin in (0.0, DAMPIN):
-        fns = callers(b, du, dampin)
+        fns = callers(b, du, dampin, active_arms)
         du[...] = ref
         fns["prod"]()
         base = np.array(du, copy=True)
@@ -363,132 +326,31 @@ def check_correctness(b, du, ref):
     return results
 
 
-def time_arms(b, du, reps, warmup, flush):
-    ni, nj, nk = b.shape
-    ncell = (ni - 1) * (nj - 1) * (nk - 1)
-    fns = callers(b, du, DAMPIN)
+if __name__ == "__main__":
+    # Fast Gate-2 correctness pre-flight, standalone: build the swirled
+    # state, run every arm this build exposes against production, print the
+    # deviations. This is deliberately the ONLY thing this module runs
+    # standalone -- for timing, use bench_prod_baseline.py.
+    import argparse
 
-    for _ in range(warmup):
-        for fn in fns.values():
-            if flush:
-                flush_llc()
-            fn()
+    import ember.fortran as F
 
-    samples = {n: [] for n in fns}
-    for _ in range(reps):
-        for name, fn in fns.items():
-            if flush:
-                flush_llc()          # untimed
-            t0 = time.perf_counter()
-            fn()
-            samples[name].append((time.perf_counter() - t0) / ncell * 1e9)
-
-    return {
-        n: dict(median=statistics.median(s), min=min(s)) for n, s in samples.items()
-    }
-
-
-def wait_until(t):
-    while True:
-        rem = t - time.time()
-        if rem <= 0:
-            return
-        time.sleep(min(rem, 0.05))
-
-
-def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--mode", choices=["serial", "contended"], default="serial")
-    ap.add_argument("--ncell", type=int, default=1_000_000)
-    ap.add_argument("--reps", type=int, default=50)
-    ap.add_argument("--warmup", type=int, default=10)
-    ap.add_argument("--start-delay", type=float, default=20.0)
-    ap.add_argument("--check-only", action="store_true")
-    ap.add_argument("--json", default=None)
-    ap.add_argument(
-        "--no-flush",
-        action="store_true",
-        help="do NOT evict the LLC between timed calls. Restores the old "
-        "behaviour, in which an arm's time depends on which other arms share "
-        "the process; kept only to reproduce pre-flush numbers.",
-    )
-    ap.add_argument(
-        "--arms",
-        default=None,
-        help="comma-separated subset to run (default: all). `prod` is always "
-        "included, since every comparison is against it.",
-    )
+    ap.add_argument("--ncell", type=int, default=300_000)
     args = ap.parse_args()
 
-    if args.arms:
-        want = [a.strip() for a in args.arms.split(",")]
-        bad = [a for a in want if a not in ARMS]
-        if bad:
-            print(f"unknown arms: {bad}; known: {list(ARMS)}", file=sys.stderr)
-            return 1
-        ACTIVE_ARMS[:] = [a for a in ARMS if a == "prod" or a in want]
-
-    # No SLURM here: the driver script hands each local process its index.
-    rank = int(os.environ.get("EMBER_BENCH_RANK", "0"))
-
-    missing = [n for n in ACTIVE_ARMS[1:] if getattr(F, ENTRY[n], None) is None]
-    if missing:
-        print(f"not in this build: {missing}", file=sys.stderr)
-        return 1
-
+    active = [a for a in ARMS if a == "prod" or getattr(F, ENTRY[a], None)]
     grid, b = build_case(args.ncell)
     du = b.residual_nd
     du.flags.writeable = True
     ref = np.array(du, copy=True)
 
-    check = {}
-    if rank == 0:
-        print(
-            f"grid {b.ni} x {b.nj} x {b.nk}  ncell={args.ncell}  cusp={b.i_cusp[0] > 0}"
-        )
-        print("\ncorrectness gate (swirled state, so j/k mass fluxes are non-zero):")
-        saved = swirl(b)
-        try:
-            check = check_correctness(b, du, ref)
-        finally:
-            b.conserved_nd[...] = saved
-            b.update_cached_conserved()
-    if args.check_only:
-        return 0
-
-    if args.mode == "contended":
-        start = float(os.environ.get("EMBER_BENCH_START", "0")) or (
-            time.time() + args.start_delay
-        )
-        wait_until(start)
-
-    res = time_arms(b, du, args.reps, args.warmup, not args.no_flush)
-    for n, rr in res.items():
-        line = f"rank {rank:3d}  {n:8s} median {rr['median']:8.3f} ns/cell  min {rr['min']:8.3f}"
-        if n != "prod":
-            line += (
-                f"   vs prod: {(rr['median'] / res['prod']['median'] - 1) * 100:+.1f}%"
-            )
-        print(line, flush=True)
-
-    if args.json:
-        with open(args.json, "a") as fh:
-            fh.write(
-                json.dumps(
-                    dict(
-                        rank=rank,
-                        mode=args.mode,
-                        ncell=args.ncell,
-                        shape=list(b.shape),
-                        flush=not args.no_flush,
-                        results=res,
-                        correctness=check,
-                    )
-                )
-                + "\n"
-            )
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    print(f"grid {b.ni} x {b.nj} x {b.nk}  ncell={args.ncell}  cusp={b.i_cusp[0] > 0}")
+    print(f"arms in this build: {active}")
+    print("\ncorrectness gate (swirled state, so j/k mass fluxes are non-zero):")
+    saved = swirl(b)
+    try:
+        check_correctness(b, du, ref, active)
+    finally:
+        b.conserved_nd[...] = saved
+        b.update_cached_conserved()

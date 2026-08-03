@@ -21,16 +21,16 @@
 # comparison, add the negated params (e.g. --param=inline-unit-growth=20).
 #
 # Usage:
-#   tools/run_flag_sweep.sh              # serial screen (fast, uses min)
-#   MODE=contended tools/run_flag_sweep.sh
-#   CONFIGS="base all4" tools/run_flag_sweep.sh    # subset by name
+#   bench/run_flag_sweep.sh              # serial screen (fast, uses min)
+#   MODE=contended bench/run_flag_sweep.sh
+#   CONFIGS="base all4" bench/run_flag_sweep.sh    # subset by name
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 MODE="${MODE:-serial}"
 NCELL="${NCELL:-1000000}"
-OUT="${OUT:-tools/bench_flagsweep_$MODE.jsonl}"
-FPDIR="${FPDIR:-tools/.flagsweep_fp}"
+OUT="${OUT:-bench/results/bench_flagsweep_$MODE.jsonl}"
+FPDIR="${FPDIR:-bench/.flagsweep_fp}"
 
 if [ "$MODE" = serial ]; then
     NRANKS=1; LAUNCHES="${LAUNCHES:-10}"; REPS="${REPS:-30}"; STAT=min
@@ -92,7 +92,7 @@ for NAME in $ORDER; do
         continue
     fi
 
-    uv run python tools/codegen_gauge.py set_residual_ --json "$FPDIR/$NAME.json" \
+    uv run python bench/codegen_gauge.py set_residual_ --json "$FPDIR/$NAME.json" \
         2>/dev/null | sed 's/^/  /'
     FP=$(uv run python -c "import json;print(json.load(open('$FPDIR/$NAME.json'))['sha256'])")
 
@@ -122,7 +122,7 @@ for NAME in $ORDER; do
         pids=()
         for ((rk = 0; rk < NRANKS; rk++)); do
             EMBER_BENCH_RANK=$rk EMBER_BARRIER="$BARRIER" \
-                taskset -c "$rk" uv run python tools/bench_prod_baseline.py \
+                taskset -c "$rk" uv run python bench/bench_prod_baseline.py \
                 --nranks "$NRANKS" --ncell "$NCELL" --reps "$REPS" --arm prod \
                 --launch "$L" --json "$RESULTS" >/dev/null &
             pids+=($!)

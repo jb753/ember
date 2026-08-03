@@ -34,7 +34,8 @@ GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
 # UNIT-level, and at this program's size the defaults bind hard -- set_residual's
 # face helpers were simply not being inlined. Lifting them is worth -53% serial,
 # -36% at 16 ranks and -17% on a full timestep, with the goldens unregenerated
-# (docs/dev/viscous_kernels.md section 28). This exact PAIR is the minimal set:
+# (see bench/README.md, "Adopted: pin GCC's unit-level inline budgets"). This
+# exact PAIR is the minimal set:
 # it produces codegen bit-identical to lifting all four related budgets, and
 # inline-unit-growth is necessary even though it is worth only 2.3% alone.
 # Portable (no -march dependence), hence a default rather than opt-in.
@@ -42,7 +43,7 @@ GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
 GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 --param=inline-unit-growth=1000000 --param=large-function-growth=1000000 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
 # Appended verbatim to the gfortran flags. Used to test whether pinning
 # GCC's UNIT-level inline budgets makes production codegen invariant to
-# what else is in the build -- see tools/codegen_gauge.py.
+# what else is in the build -- see bench/codegen_gauge.py.
 GFORTRAN_FLAGS += " " + os.environ.get("EMBER_FFLAGS_EXTRA", "")
 
 # Profile-guided optimisation, opt-in via EMBER_PGO=generate|use.
@@ -84,8 +85,8 @@ if _PGO_FLAGS:
 # ifort's -ipo, the real whole-program codegen happens in the LTO/IPO
 # backend at link, so the link-stage report describes the code that
 # actually runs, whereas a compile-stage report reflects discarded per-TU
-# codegen and can flag spurious misses (see docs/dev/viscous_kernels.md
-# section 4.6). The file is truncated at build start (gfortran's
+# codegen and can flag spurious misses (see bench/README.md, Gate 1). The
+# file is truncated at build start (gfortran's
 # -fopt-info appends per LTRANS partition; ifort overwrites, but truncate
 # unconditionally for consistent behaviour across compilers).
 _OPT_REPORT = os.environ.get("EMBER_OPT_REPORT")
@@ -100,7 +101,7 @@ INTEL_FLAGS = "-O3 -xHost -ipo -no-prec-div -fp-model fast=2 -funroll-loops -inl
 # ---------------------------------------------------------------------------
 # Benchmark-only Fortran sources.
 #
-# These implement A/B variants of production kernels (docs/dev/viscous_kernels.md)
+# These implement A/B variants of production kernels (see bench/README.md)
 # and nothing in src/ember/ calls them. They are EXCLUDED from the build by
 # default, for two reasons:
 #

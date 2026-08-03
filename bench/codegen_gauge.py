@@ -20,8 +20,8 @@ do not register, then hashed. Also reported: instruction count and the
 arithmetic mix, so a mismatch is diagnosable rather than merely alarming.
 
 Usage:
-    uv run python tools/codegen_gauge.py set_residual_ [--so PATH] [--json OUT]
-    uv run python tools/codegen_gauge.py --compare a.json b.json
+    uv run python bench/codegen_gauge.py set_residual_ [--so PATH] [--json OUT]
+    uv run python bench/codegen_gauge.py --compare a.json b.json
 """
 
 import argparse

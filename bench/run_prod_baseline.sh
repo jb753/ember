@@ -12,7 +12,7 @@
 # controllers, 8 ranks per controller. This is NOT the 6-rank one-socket
 # regime used earlier and must not be spliced with it.
 #
-# Usage: tools/run_prod_baseline.sh [launches] [nranks] [ncell] [reps]
+# Usage: bench/run_prod_baseline.sh [launches] [nranks] [ncell] [reps]
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -21,7 +21,7 @@ NRANKS="${2:-16}"
 NCELL="${3:-1000000}"
 REPS="${4:-30}"
 ARM="${5:-prod}"
-RESULTS="${RESULTS:-tools/bench_prod_baseline.jsonl}"
+RESULTS="${RESULTS:-bench/results/bench_prod_baseline.jsonl}"
 
 export OMP_NUM_THREADS=1
 [ "${KEEP:-0}" = 1 ] || rm -f "$RESULTS"
@@ -35,7 +35,7 @@ for ((L = 0; L < LAUNCHES; L++)); do
     pids=()
     for ((rk = 0; rk < NRANKS; rk++)); do
         EMBER_BENCH_RANK=$rk EMBER_BARRIER="$BARRIER" \
-            taskset -c "$rk" uv run python tools/bench_prod_baseline.py \
+            taskset -c "$rk" uv run python bench/bench_prod_baseline.py \
             --nranks "$NRANKS" --ncell "$NCELL" --reps "$REPS" --arm "$ARM" \
             --launch "$L" --json "$RESULTS" &
         pids+=($!)
@@ -45,4 +45,4 @@ for ((L = 0; L < LAUNCHES; L++)); do
     rm -f "/dev/shm/$BARRIER" 2>/dev/null || true
 done
 
-uv run python tools/bench_prod_baseline.py --analyze "$RESULTS"
+uv run python bench/bench_prod_baseline.py --analyze "$RESULTS"

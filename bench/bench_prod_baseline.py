@@ -41,9 +41,9 @@ Corrected on every count the earlier harness got wrong:
   instants when neighbours were between calls, i.e. it erases the very
   contention being measured. Median per rank, median across ranks.
 
-Usage (normally via tools/run_prod_baseline.sh):
+Usage (normally via bench/run_prod_baseline.sh):
     EMBER_BENCH_RANK=0 EMBER_BARRIER=name-0 uv run python \\
-        tools/bench_prod_baseline.py --nranks 16 --ncell 1000000 --reps 30
+        bench/bench_prod_baseline.py --nranks 16 --ncell 1000000 --reps 30
 """
 
 import argparse
@@ -53,10 +53,11 @@ import statistics
 import sys
 import time
 from multiprocessing import resource_tracker, shared_memory
+from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, "tools")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 BARRIER_TIMEOUT = 300.0
 
@@ -132,7 +133,7 @@ def main():
     rank = int(os.environ["EMBER_BENCH_RANK"])
     barrier = Barrier(os.environ["EMBER_BARRIER"], rank, args.nranks)
 
-    from bench_residual_staged import DAMPIN, build_case, callers
+    from residual_arms import DAMPIN, build_case, callers
 
     t0 = time.perf_counter()
     grid, b = build_case(args.ncell)
