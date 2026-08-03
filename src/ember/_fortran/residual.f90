@@ -46,7 +46,15 @@ module residual_helpers
     ! 273x65x57 block, inside a 2 MB L2. Sets both the block size and the
     ! vector loop length, so likewise steeply optimal: 32 (458 KB, 4 AVX2
     ! iterations) -5.6%, 64 -11.0%, 128 (1.83 MB, past L2) -1.2%.
-    integer, parameter :: IRS_W = 64
+    !
+    ! RE-SWEPT at 8-rank socket contention (gfortran, Haswell workstation),
+    ! where the earlier 2-rank sweep above was run at only 2 P-cores and so
+    ! never priced the shared-L2 pressure of real contention: 32 is -13.9%
+    ! against 64, 128 is +21.1%. 64 was tuned to fit a 2 MB L2 uncontended;
+    ! under contention each rank's effective L2 share shrinks and 64 spills.
+    ! Bitwise identical for every value -- it only sizes the strip. Re-sweep
+    ! on the ifort/Sapphire production target before trusting this further.
+    integer, parameter :: IRS_W = 32
 
 contains
 
