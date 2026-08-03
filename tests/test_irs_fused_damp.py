@@ -17,8 +17,13 @@ changes. All four (``dampin``, ``sf``) combinations are checked, since the two
 flags select different paths through the kernel.
 
 The reference is the unfused sequence, called kernel-by-kernel: full
-``set_residual`` including its own ``scale_du``, then the standalone
-``smooth_residual_tri_tiled`` that ``scree.f90``'s coarse-MG path still uses.
+``set_residual`` including its own ``scale_du``, then
+``smooth_residual_scale_tri`` with ``dampin=0.0`` (its plain-gather, unscaled
+branch -- exact, byte-identical to what a standalone exact i+j+k smoother
+would do). NOT ``smooth_residual_tri_tiled``: that routine is ``scree.f90``'s
+coarse-MG smoother, whose i-solve is now an approximate 2-sweep Jacobi
+iteration rather than the exact Thomas recurrence this test needs as its
+baseline.
 """
 
 import numpy as np
@@ -62,7 +67,16 @@ def _case(ncell=100_000):
 
 def _reference(grid, b, dampin, sf):
     """The unfused sequence: set_residual with its own scaling, then the
-    standalone three-direction smoother."""
+    exact three-direction smoother.
+
+    Uses ``smooth_residual_scale_tri`` with ``dampin=0.0`` (its plain-gather,
+    unscaled branch) rather than ``smooth_residual_tri_tiled``:
+    ``smooth_residual_tri_tiled`` is the coarse-MG smoother, whose i-solve
+    switched from the exact Thomas recurrence to two Jacobi sweeps and so is
+    no longer bitwise against the fine-grid path this test gates.
+    ``smooth_residual_scale_tri``'s exact i-solve is untouched, and its
+    ``dampin<=0`` branch runs the identical gather/tile-solve/scatter/jk-strips
+    sequence the old standalone routine did."""
     ni, nj, nk = b.shape
     # dampin=None disables the limiter in update_residual's own convention.
     grid.update_residual(dampin=dampin, sf=0.0)
@@ -70,8 +84,11 @@ def _reference(grid, b, dampin, sf):
     if sf > 0.0:
         du.flags.writeable = True
         nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
-        ember.fortran.smooth_residual_tri_tiled(
+        ember.fortran.smooth_residual_scale_tri(
             du=du,
+            dt_vol=b.dt_vol_nd,
+            ravg=np.zeros(5, dtype=du.dtype),
+            dampin=0.0,
             sf=sf,
             work=util.carve_view(b.scratch, (nwork,)),
             ni=ni,
