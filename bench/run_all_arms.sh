@@ -29,13 +29,50 @@ NCELL="${NCELL:-1000000}"
 REPS="${REPS:-30}"
 ARMS="${ARMS:-prod staged split multall nodal tbaos prodsoa rinv}"
 RESULTS="${RESULTS:-bench/results/bench_all_arms.jsonl}"
+# Which kernel's arm set to time: `residual` (bench/residual_arms.py) or
+# `irs` (bench/irs_arms.py). Also picks the symbol fingerprinted below.
+KERNEL="${KERNEL:-residual}"
+if [ "$KERNEL" = "irs" ]; then
+    GAUGE_SYM="${GAUGE_SYM:-smooth_residual_tri_tiled_}"
+else
+    GAUGE_SYM="${GAUGE_SYM:-set_residual_}"
+fi
+
+# Which physical CPUs the ranks are pinned to, rank r -> CPUS[r]. Defaults to
+# 0,1,2,...  which is right on a homogeneous single-socket machine (every
+# result in bench/results/ was taken that way on a Haswell workstation).
+#
+# It is WRONG on a hybrid part. On a P-core/E-core chip, consecutive CPU ids
+# span core classes with different clocks, cache sizes and prefetchers, so
+# "median across ranks" becomes the median of a multi-modal distribution and
+# means nothing; consecutive ids may also be SMT siblings of ONE physical
+# core, which halves those ranks for reasons unrelated to the kernel. Set
+# CPUS explicitly to a list of same-class, non-sibling CPUs -- check with
+# `lscpu -e` (the CORE column identifies siblings, MAXMHZ the class).
+CPUS="${CPUS:-}"
+if [ -z "$CPUS" ]; then
+    for ((c = 0; c < NRANKS; c++)); do CPUS="$CPUS $c"; done
+fi
+read -r -a CPU_LIST <<< "$CPUS"
+if [ "${#CPU_LIST[@]}" -lt "$NRANKS" ]; then
+    echo "CPUS lists ${#CPU_LIST[@]} cpus but NRANKS=$NRANKS" >&2
+    exit 1
+fi
 
 export OMP_NUM_THREADS=1
+# `uv run` re-syncs the project by default, which REBUILDS the extension from
+# setup.py with whatever EMBER_BENCH_KERNELS is set in *that* environment --
+# i.e. unset. Every bench/subroutines/ arm then vanishes from the .so between
+# the build you fingerprinted and the run you are timing. Silent, and it
+# invalidates the whole comparison. Build deliberately (EMBER_BENCH_KERNELS=...
+# make compile) and never let the driver rebuild underneath it.
+export UV_NO_SYNC=1
 rm -f "$RESULTS"
 
 echo "=== $(hostname): $LAUNCHES launches x $NRANKS ranks, ncell=$NCELL, $REPS reps"
-echo "=== arms: $ARMS"
-uv run python bench/codegen_gauge.py set_residual_ | sed 's/^/    /'
+echo "=== kernel: $KERNEL   arms: $ARMS"
+echo "=== cpus:   ${CPU_LIST[*]:0:$NRANKS}"
+uv run python bench/codegen_gauge.py "$GAUGE_SYM" | sed 's/^/    /'
 
 for ((L = 0; L < LAUNCHES; L++)); do
     for ARM in $ARMS; do
@@ -43,9 +80,9 @@ for ((L = 0; L < LAUNCHES; L++)); do
         pids=()
         for ((rk = 0; rk < NRANKS; rk++)); do
             EMBER_BENCH_RANK=$rk EMBER_BARRIER="$BARRIER" \
-                taskset -c "$rk" uv run python bench/bench_prod_baseline.py \
+                taskset -c "${CPU_LIST[$rk]}" uv run python bench/bench_prod_baseline.py \
                 --nranks "$NRANKS" --ncell "$NCELL" --reps "$REPS" --arm "$ARM" \
-                --launch "$L" --json "$RESULTS" >/dev/null &
+                --kernel "$KERNEL" --launch "$L" --json "$RESULTS" >/dev/null &
             pids+=($!)
         done
         for p in "${pids[@]}"; do wait "$p"; done

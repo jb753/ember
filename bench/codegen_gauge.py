@@ -38,7 +38,7 @@ CALLTGT = re.compile(r"\b(?:call|jmp)q?\s+([0-9a-f]+) <([^>+]+)(?:\+0x[0-9a-f]+)
 
 # Addresses and displacements move with layout without the code differing.
 NORM = (
-    (re.compile(r"#.*$"), ""),                       # trailing comments
+    (re.compile(r"#.*$"), ""),  # trailing comments
     (re.compile(r"\b[0-9a-f]{4,}\s+<([^>+]+)(?:\+0x[0-9a-f]+)?>"), r"<\1>"),
     (re.compile(r"0x[0-9a-f]{5,}"), "ADDR"),
     (re.compile(r"-?0x[0-9a-f]+\(%rip\)"), "RIP"),
@@ -47,8 +47,9 @@ NORM = (
 
 
 def disassemble(so):
-    out = subprocess.run(["objdump", "-d", so], capture_output=True, text=True,
-                         check=True).stdout
+    out = subprocess.run(
+        ["objdump", "-d", so], capture_output=True, text=True, check=True
+    ).stdout
     funcs, cur = {}, None
     for line in out.split("\n"):
         m = SYMHDR.match(line)
@@ -100,13 +101,51 @@ def fingerprint(so, root):
             h.update(t.encode())
             n += 1
             op = t.split(" ")[0]
-            if op in ("vdivps", "vdivss", "vrcpps", "vgatherdps", "vfmadd213ps",
-                      "vmulps", "vaddps"):
+            if op in (
+                "vdivps",
+                "vdivss",
+                "vrcpps",
+                "vgatherdps",
+                "vfmadd213ps",
+                "vmulps",
+                "vaddps",
+            ):
                 mix[op] += 1
             if "%ymm" in t:
                 mix["_ymm_ops"] += 1
-    return dict(symbol=root, so=so, sha256=h.hexdigest()[:16], insns=n,
-                nfuncs=len(order), funcs=order, mix=dict(mix))
+    return dict(
+        symbol=root,
+        so=so,
+        sha256=h.hexdigest()[:16],
+        insns=n,
+        nfuncs=len(order),
+        funcs=order,
+        mix=dict(mix),
+        thunk=thunk_target(funcs[root]),
+    )
+
+
+# A body of a couple of instructions ending in an unconditional jump is not a
+# kernel, it is a tail-call thunk. GCC's identical-code folding produces these
+# whenever two functions compile to the same machine code -- which is exactly
+# what happens when a bench arm is source-identical to the production kernel it
+# was cloned from. The symbol then fingerprints as ~13 instructions and the
+# Rule 9 gate silently passes on a stub while the real body lives under the
+# other name, AND the thunked caller pays a PLT hop the other does not: that
+# cost 8% on byte-identical source in the IRS study (docs/dev/plan_irs_traffic.md).
+# Detect it and say so rather than reporting a hash of three instructions.
+_JMP = re.compile(r"^\s*jmp\s+[0-9a-f]+ <([^>+]+)")
+
+
+def thunk_target(body):
+    real = [l for l in body if l.strip() and "nop" not in l]
+    if len(real) > 3:
+        return None
+    for line in real:
+        m = _JMP.search(line.split("\t")[-1] if "\t" in line else line)
+        if m:
+            return m.group(1).replace("@plt", "")
+    return None
 
 
 def show(fp):
@@ -114,6 +153,19 @@ def show(fp):
     print(f"  fingerprint {fp['sha256']}")
     print(f"  insns       {fp['insns']}  over {fp['nfuncs']} function(s)")
     print(f"  mix         {fp['mix']}")
+    if fp["thunk"]:
+        print(
+            f"  *** WARNING: this symbol is a THUNK jumping to "
+            f"{fp['thunk']} -- not a kernel body."
+        )
+        print(
+            "      Identical-code folding has merged it with another function, so this"
+        )
+        print(
+            "      fingerprint gates nothing and the extra PLT hop biases "
+            "any timing of it."
+        )
+        print("      Rebuild without the arm whose source is identical to this kernel.")
 
 
 def compare(a, b):
@@ -125,8 +177,10 @@ def compare(a, b):
         print("\n  IDENTICAL -- cross-build comparison of this symbol is exact.")
         return 0
     print("\n  DIFFERENT -- this symbol was recompiled differently.")
-    print(f"    insns   {fa['insns']} -> {fb['insns']} "
-          f"({(fb['insns'] / fa['insns'] - 1) * 100:+.1f}%)")
+    print(
+        f"    insns   {fa['insns']} -> {fb['insns']} "
+        f"({(fb['insns'] / fa['insns'] - 1) * 100:+.1f}%)"
+    )
     keys = sorted(set(fa["mix"]) | set(fb["mix"]))
     for k in keys:
         x, y = fa["mix"].get(k, 0), fb["mix"].get(k, 0)
@@ -138,8 +192,9 @@ def compare(a, b):
         print(f"    only in A: {only_a}")
     if only_b:
         print(f"    only in B: {only_b}")
-    print("\n  A timing comparison across these two builds is NOT valid for "
-          "this symbol.")
+    print(
+        "\n  A timing comparison across these two builds is NOT valid for this symbol."
+    )
     return 1
 
 

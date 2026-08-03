@@ -24,6 +24,9 @@ ARM="${5:-prod}"
 RESULTS="${RESULTS:-bench/results/bench_prod_baseline.jsonl}"
 
 export OMP_NUM_THREADS=1
+# See run_all_arms.sh: `uv run` would otherwise re-sync and rebuild the
+# extension without EMBER_BENCH_KERNELS, silently dropping every arm.
+export UV_NO_SYNC=1
 [ "${KEEP:-0}" = 1 ] || rm -f "$RESULTS"
 
 echo "=== $(hostname): $LAUNCHES launches x $NRANKS ranks, ncell=$NCELL, $REPS reps ==="
