@@ -64,6 +64,7 @@ on a Haswell workstation, not the production ifort/Sapphire target -- see
 | `bench_rep_convergence.py` | Answers "how many reps does one launch need?" via a contiguous-block bootstrap over a long single-process trace. Orthogonal question to launch-replication -- see its docstring. |
 | `codegen_gauge.py` | Fingerprints a compiled symbol's machine code (recursive call closure, layout-normalised, hashed). The gate for any cross-build comparison: **`prod` must fingerprint identically between the builds you're comparing, or the comparison is meaningless** (Rule 9 below). |
 | `run_flag_sweep.sh` | One-factor-at-a-time compiler flag sweep, fingerprint-gated so a no-op flag is never timed. `MODE=serial\|contended`, `CONFIGS="name1 name2"` to run a subset. |
+| `irs_arms.py` | The IRS counterpart of `residual_arms.py`, for the implicit residual smoother (`smooth_residual_tri_tiled`) rather than `set_residual`. Same shape: `callers_irs`, a bitwise gate for the arms that compute the exact operator (`check_correctness`), a quantified gate for the ones that deliberately approximate it (`check_jacobi`), and `callers_update` for the `set_residual`+IRS pair, whose fusion spans both kernels. Also `check_denormals`, because the smoother runs in place and repeated reps compound. Drive it with `bench_prod_baseline.py --kernel irs` (or `--kernel update`); run standalone for a Gate-2 pre-flight. |
 | `subroutines/` | The non-production Fortran arms themselves (see below) -- not compiled by default, only via `EMBER_BENCH_KERNELS`. |
 | `results/` | Tracked `.jsonl` result files from the corrected instrument (`bench_all_arms.jsonl`, `bench_prod_baseline.jsonl`, `bench_flagsweep_{serial,phase2}.jsonl`) plus wherever you point `--json`/`--out`/`RESULTS`/`OUT`. Untracked `.pdf`/`.npz` plots regenerate from the jsonl in seconds; don't commit them. |
 
@@ -482,3 +483,47 @@ the headline number, and where it lives.
   cost nothing (the damp-split scaling loop); a clean report can hide a slow
   gather-based implementation (the gather finding above). Only a real,
   correctly-built, correctly-barriered timing comparison decides.
+
+## OUTSTANDING: the IRS work is measured at 2 ranks only
+
+Everything in the implicit-residual-smoothing study (`irs_arms.py`, the
+`residual_irs_*.f90` arms, `docs/dev/plan_irs_traffic.md`, and the four
+production commits it produced) was measured on a **hybrid mobile part with 2
+ranks pinned to its two physical P-cores**. That machine has only two cores of
+any one class, so a contended regime was never run at all.
+
+That matters more here than usual, because the note above is explicit that on
+this codebase a serial number and a saturated number "can and do disagree in
+*direction*, not just magnitude" -- and **every adopted change below is a
+traffic reduction, i.e. exactly the kind whose value is priced at its lowest at
+2 ranks**. None of these results is expected to *invert*; the risk is that the
+adopted wins are understated and the rejected candidates were rejected on the
+wrong regime.
+
+**Needs a contended re-run before any of it is trusted on a production node:**
+
+| what | 2-rank result | why contention could change it |
+| --- | --- | --- |
+| Blocked i-solve transpose (adopted) | -9.2% | Removes scalar moves, not traffic. Should hold; least at risk. |
+| Strip-fused j+k solves (adopted) | -12.2% | Pure traffic halving on 80% of the smoother's bytes. Almost certainly **understated** at 2 ranks. |
+| Limiter fused into the i-solve (adopted) | -5.0% on `set_residual`+IRS | Removes one full-volume read/write pair. Also likely understated. |
+| `IRS_BJ` = 32, `IRS_TB` = 8, `IRS_W` = 64 | swept at 2 ranks | `IRS_W` sizes an L2-resident block and `IRS_BJ` an L1-resident tile; both optima can move once ranks compete for shared cache and bandwidth. `IRS_W` is the one to re-sweep first. |
+| `jaci2` -- lean Jacobi i-solve (NOT adopted) | -10.3% | Same traffic as production, so the ratio should roughly hold. Adoption is blocked on numerics, not on this. |
+| `jacf` -- single fused pass (NOT adopted) | +12.7% | **The one most likely to invert.** Its entire thesis is 2R+2W -> ~1.06R+1W, and it was priced in the regime where a saved byte is worth least. It is bitwise against `jaci`, so it can be re-timed with no further correctness work. |
+
+Also unmeasured: the **size ladder**. All of the above is 1M cells only, so the
+rule that a win decaying with size is not a durable win has not been applied to
+any of it.
+
+The cheap first experiment is `irs` vs `irstr`, which differ by exactly one
+traffic halving (the strip fusion), on 8 same-class cores. If that -12.2% grows
+substantially, traffic reductions are systematically underpriced here and
+`jacf` deserves a re-run; if it does not move, `jacf` is dead and so is the
+whole local-stencil/truncated-FIR direction.
+
+```bash
+# 8 homogeneous E-cores on the dev box; pick same-class, non-sibling CPUs
+# from `lscpu -e` on whatever machine you are on.
+KERNEL=irs ARMS="irs irstr jaci2 jacf" NRANKS=8 CPUS="4 5 6 7 8 9 10 11" \
+    LAUNCHES=8 NCELL=1000000 bench/run_all_arms.sh
+```

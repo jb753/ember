@@ -529,22 +529,38 @@ Built as `bench/subroutines/residual_irs_jacobi.f90`, two arms:
 | `jaci` | Jacobi in i, production's exact strip-fused j+k | **+0.27% +/- 0.33%, 3/8** |
 | `jac` | Jacobi in all three directions | **+83.2% +/- 0.59%, 0/8** |
 
-**Not adopted.** `jaci` is the controlled test -- identical memory traffic, one
-direction changed, no transpose at all -- and it is a dead tie. So on AVX2,
-*with the transpose blocked*, the exact solve is already as cheap as the
-approximate stencil that exists to avoid it. The historical trade was right for
-its hardware and is not right for ours; Phase 1 is what removed the reason for
-it. Had this been tried before Phase 1, against the scalar transpose, Jacobi
-would very likely have won -- which is a good argument for fixing codegen
-before changing numerics.
+**CORRECTION -- the "tie" above was an artefact of my implementation, and the
+conclusion drawn from it was wrong.** `smooth_residual_jac_i` stages each row
+into two buffers and then copies `nxt` over `cur` after every sweep, roughly
+15n L1 operations per row where 8n suffices. Written leanly (`jaci2`,
+`smooth_residual_jac_i2`: ping-pong between two buffers, read the fixed RHS
+straight from dU's own row, which is L1-hot and not written until the sweeps
+finish) it is **-10.30% +/- 0.64%, faster in 10/10 launches**, and reproduces
+(-10.19% in an independent run). `jaci2` is bitwise against `jaci`, so this is
+purely implementation quality.
 
-Keeping the exact solve is then strictly better: it is bitwise-preserving,
-needs no convergence re-verification, and does not retune `sf`. The Jacobi arms
-satisfy the properties that make IRS safe either way -- `IRS(0) = 0` exactly,
-constants preserved (`jac` bitwise, `jaci` to 1.5 ulp from its exact j/k legs)
--- but they are a real numerics change: the smoothed residual differs from
-exact by 4.8% RMS (`jaci`) and 26% RMS (`jac`), so a given `sf` damps less and
-would need retuning.
+So Jacobi *does* beat the exact transpose solve, and the earlier "keep the
+exact solve because it ties" reasoning does not hold. The lesson stands but
+points the other way: a negative result from a hand-written arm is only as
+trustworthy as the arm, and this one was not scrutinised the way the production
+kernels were.
+
+**Speed/accuracy tradeoff** (1M, 2 P-cores, paired; error vs the exact solve at
+sf=0.5):
+
+| `njac` | vs exact solve | rel RMS error | rel max error |
+| --- | --- | --- | --- |
+| 1 | **-14.16% +/- 0.26%** | 12.65% | 17.5% |
+| 2 | **-10.30% +/- 0.64%** | 4.77% | 6.8% |
+| 3 | **-7.29% +/- 0.60%** | 2.01% | 2.7% |
+| 4 | **-3.31% +/- 0.57%** | 0.89% | 1.2% |
+
+The exact solve is the `njac -> infinity` limit and costs about what 4.3 sweeps
+cost, so exactness is worth roughly 3% over a 4-sweep Jacobi. Adoption is a
+numerics decision, not a performance one: all four rows satisfy `IRS(0) = 0`
+exactly and preserve constants, but none is bitwise, so any of them needs
+convergence/stability verification and possibly an `sf` retune. NOT adopted
+pending that judgement.
 
 **Caveat, stated so the number is not over-read:** `jac`'s +83% is partly an
 unoptimised implementation -- it ping-pongs through three buffers with explicit
@@ -552,13 +568,36 @@ copies after every sweep, which the scheme does not require. A tuned version
 would be much closer. It is not worth building, because `jaci` already answers
 the question at identical traffic and with a clean implementation.
 
-**What this closes off.** The truncated-FIR idea below is the same family --
-replace the exact solve with a short local stencil -- and this is direct
-evidence it would not pay either. The one variant NOT tested is the structural
-prize Jacobi uniquely enables: because the operator becomes local (support +-2
-per direction at two sweeps), all three directions could fuse into a SINGLE
-streaming pass with rolling k-planes, 1R+1W instead of 2R+2W. That is the only
-remaining reason to revisit this.
+**The single-pass fusion was built, and loses.** A Jacobi i-sweep is local, so
+with a halo of `njac` columns the i-smoothing fits inside an i-strip -- and the
+strip already carries the full j and k extent the EXACT j/k Thomas solves need.
+So one pass can do all three (`jacf`, `smooth_residual_jac_fused`): ~1.06R+1W
+against production's 2R+2W, with only i approximated. The exact i-Thomas can
+never do this, being a recurrence over the whole axis; that is precisely why
+production needs two passes.
+
+Measured **+12.65% +/- 1.89%, 0/10** -- worse, despite halving DRAM traffic.
+(It was +58% until a per-element `if` for "is this column halo or interior?"
+was hoisted out of the innermost row-assembly loop; the halo is a contiguous
+prefix, so it is two straight copies.) The fusion trades DRAM traffic for extra
+staging traffic: the RHS row must be assembled into a buffer, and the strip is
+written, re-read by the j/k solves, and copied back out. At 2 ranks DRAM is not
+the constraint, so that is a bad trade -- consistent with one R+W pair being
+worth only ~1 ns/cell here.
+
+**This is the measurement most likely to invert under contention**, since its
+whole thesis is halving DRAM traffic and it was priced in the regime where that
+is worth least. `jacf` is bitwise against `jaci`, so it can be re-timed on a
+saturated node with no further correctness work.
+
+One catch worth recording, since it produced a silently wrong answer that no
+property test would have caught: strips are written IN PLACE, so strip n+1's
+low halo reads columns strip n has already overwritten with smoothed values.
+The bug corrupted exactly the first `njac` columns of every strip after the
+first -- invisible in `IRS(0)=0` and constant-preservation checks, and only
+caught by a bitwise diff against `jaci` localising the error to columns 65-66
+with a 64-wide strip. The fix stashes each strip's original trailing `njac`
+columns before it writes.
 
 ## Out of scope
 

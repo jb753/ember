@@ -61,6 +61,8 @@ IRS_ARMS = (
     "irstr",
     "jaci",
     "jac",
+    "jaci2",
+    "jacf",
     "irsi",
     "irsj",
     "irsk",
@@ -74,6 +76,8 @@ ENTRY = {
     "irstr": "smooth_residual_tri_tr",
     "jaci": "smooth_residual_jac_i",
     "jac": "smooth_residual_jac",
+    "jaci2": "smooth_residual_jac_i2",
+    "jacf": "smooth_residual_jac_fused",
     # Per-direction diagnostic arms (residual_irs_dirs.f90): the same kernel
     # with whole direction solves switched off, so the three can be timed
     # apart. `irsijk` runs all three and exists as the control -- it should
@@ -97,7 +101,7 @@ _DIRS = {
 # instead of an exact Thomas recurrence, so they are DELIBERATELY not bitwise
 # against production -- see residual_irs_jacobi.f90. Two sweeps is the textbook
 # 1980s choice. `jac` needs no Thomas coefficients at all.
-_JACOBI = ("jaci", "jac")
+_JACOBI = ("jaci", "jac", "jaci2", "jacf")
 _NO_WORK = ("jac",)
 NJAC = 2
 
