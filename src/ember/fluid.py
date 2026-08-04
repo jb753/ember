@@ -189,6 +189,42 @@ class _Fluid(ABC):
     def get_P(self, rho, u, out=None):
         raise NotImplementedError()
 
+    def get_P_h_T(self, rho, u, out_P=None, out_h=None, out_T=None):
+        """Pressure, enthalpy and temperature together, from density and energy.
+
+        A batched form of :meth:`get_P`, :meth:`get_h` and :meth:`get_T`, for
+        callers that want all three from the same state -- the solver does, once
+        per Runge-Kutta stage. Evaluating them separately re-reads ``rho`` and
+        ``u`` three times, and for most equations of state the three share
+        nearly all of their work.
+
+        Deliberately NOT abstract: this base implementation simply delegates to
+        the three single-property methods, so every fluid -- present or future
+        -- is correct without implementing anything. A subclass may override it
+        with a fused evaluation purely as an optimisation, and is not obliged
+        to. :class:`PerfectFluid` does.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out_P, out_h, out_T : ndarray, optional
+            Pre-allocated output arrays.
+
+        Returns
+        -------
+        tuple of ndarray
+            ``(P, h, T)``.
+
+        """
+        return (
+            self.get_P(rho, u, out=out_P),
+            self.get_h(rho, u, out=out_h),
+            self.get_T(rho, u, out=out_T),
+        )
+
     @abstractmethod
     def get_Pr(self, rho, u, out=None):
         raise NotImplementedError()
@@ -966,6 +1002,51 @@ class PerfectFluid(_Fluid):
         out *= rho
         out *= self._Rgas_nd
         return out
+
+    def get_P_h_T(self, rho, u, out_P=None, out_h=None, out_T=None):
+        """Fused perfect-gas evaluation of pressure, enthalpy and temperature.
+
+        Overrides :meth:`_Fluid.get_P_h_T` purely for speed. ``T = u/cv +
+        T_dtm`` is already computed inside ``P``, so one pass over ``(rho, u)``
+        yields all three: 8 B read and 12 B written per node, against ~36 B of
+        traffic for the three separate calls.
+
+        Falls back to the base implementation unless every array is
+        float32, contiguous, the same shape, and all three outputs were
+        supplied -- the kernel writes in place, so a non-contiguous output (or
+        a dtype f2py would have to copy) would silently drop the result.
+
+        """
+        import ember.fortran
+
+        outs = (out_P, out_h, out_T)
+        arrs = (rho, u) + outs
+        usable = (
+            all(o is not None for o in outs)
+            and all(isinstance(a, np.ndarray) for a in arrs)
+            and all(a.dtype == np.float32 for a in arrs)
+            and all(a.shape == np.shape(rho) for a in arrs)
+            and all(
+                a.flags["F_CONTIGUOUS"] or a.flags["C_CONTIGUOUS"] for a in arrs
+            )
+        )
+        if not usable:
+            return super().get_P_h_T(rho, u, out_P, out_h, out_T)
+
+        # order="A" ravels without copying for either contiguity, so these stay
+        # views and the kernel's writes land in the caller's arrays.
+        ember.fortran.set_p_h_t_perfect(
+            rho=np.ravel(rho, order="A"),
+            u=np.ravel(u, order="A"),
+            cv=self._cv_nd,
+            t_dtm=self._T_dtm_nd,
+            rgas=self._Rgas_nd,
+            gamma=self._gamma,
+            p=np.ravel(out_P, order="A"),
+            h=np.ravel(out_h, order="A"),
+            t=np.ravel(out_T, order="A"),
+        )
+        return out_P, out_h, out_T
 
     def get_Pr(self, rho, u, out=None):
         r"""Prandtl number (constant for a perfect gas).

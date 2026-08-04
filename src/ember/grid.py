@@ -878,6 +878,7 @@ class Grid(_LabelledList):
         """
         return self._align_cartesian(xyz)
 
+    @util.profile
     def apply_bconds(self):
         """Apply all boundary conditions across the grid once.
 
@@ -1366,6 +1367,7 @@ class Grid(_LabelledList):
         """Resample all blocks, returning a new Grid at the new resolution."""
         return Grid([ember.block_util.resample(b, factors) for b in self])
 
+    @util.profile
     def smooth(self, sf4, sf2):
         """Apply constant-coefficient artificial dissipation to every block.
 
@@ -1393,6 +1395,7 @@ class Grid(_LabelledList):
                 xs=util.carve_view(block.scratch, (ni, nj, kr)),
             )
 
+    @util.profile
     def update_bconds(self, freeze=False, cfl=1.0):
         """Refresh boundary-condition targets across the grid once.
 
@@ -1493,6 +1496,7 @@ class Grid(_LabelledList):
             )
             cons_filt.flags.writeable = False
 
+    @util.profile
     def update_residual(self, dampin=None, sf=0.0):
         """Rebuild the unintegrated net-flow residual on every block.
 
@@ -1538,6 +1542,11 @@ class Grid(_LabelledList):
 
         """
         for block in self:
+            # Fill the primitive cache in two fused passes rather than letting
+            # the five properties below pull it lazily, one numpy pass at a
+            # time (Block.update_primitive). Called here, at the point of
+            # consumption, so it cannot go stale; a no-op if already current.
+            block.update_primitive()
             i_cusp_start, i_cusp_end = block.i_cusp
             ni, nj, nk = block.shape
             # Rolling face-flow buffers for the fused k-tiled residual: a
@@ -1618,6 +1627,7 @@ class Grid(_LabelledList):
                 )
             block.residual_nd.flags.writeable = False
 
+    @util.profile
     def update_sources(self, inviscid, gain_filt):
         """Zero and rebuild the body force on every block of this grid level.
 
@@ -1654,6 +1664,10 @@ class Grid(_LabelledList):
             # First viscous phase: tau/q per cell (Pr_turb fixed at 1.0 for the
             # grid march; mixing-length vorticity always evaluated absolute-frame).
             for block in self:
+                # See Grid.update_residual: fill the primitive cache eagerly
+                # (T_nd below is otherwise the access that pays for the whole
+                # chain in this method).
+                block.update_primitive()
                 halo = block.tau_q_halo
                 # tau_cell/q_cell are comp-last views sharing storage with the
                 # halo; an order="F" reshape would alias a different cell and
@@ -1769,6 +1783,7 @@ class Grid(_LabelledList):
         for block in self:
             block.F_body_nd.flags.writeable = False
 
+    @util.profile
     def update_timestep(self, rf, fac_visc=1.0):
         """Recompute the volumetric time step on every block.
 
