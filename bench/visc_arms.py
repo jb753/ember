@@ -230,6 +230,156 @@ def callers_tauq(b, active_arms=TAUQ_ARMS):
     return out
 
 
+def callers_pair(b):
+    """Time the viscous PAIR: tau/q then face fluxes, unfused vs fused.
+
+    The saving spans both kernels -- tau/q stops round-tripping through memory
+    entirely -- so neither can be timed alone, exactly as the IRS fused-limiter
+    study had to time set_residual+IRS together (irs_arms.callers_update).
+    Both arms are f2py calls against pre-built kwargs, so the Python
+    scaffolding either side is identical and favours neither.
+
+      unfused  set_tau_q_soa then set_visc_force -- production today
+      fused    set_visc_force_tqf                -- one call, tau/q produced
+                                                   inside the k walk
+
+    Both are idempotent, for different reasons: `unfused` because phase 1
+    rewrites every tau/q slot including the halos that phase 2 then scales in
+    place, and `fused` because it never writes tau_cell/q_cell at all. Asserted
+    in check_pair rather than assumed.
+    """
+    import ember.fortran as F
+
+    ni, nj, nk = b.shape
+    if b.i_cusp[0] > 0:
+        # The fused arm does not apply the cusp seam correction (see the header
+        # of bench/subroutines/viscous_tauq_fused.f90). Refuse rather than
+        # silently compare a kernel that is missing a term.
+        raise SystemExit(
+            "callers_pair: this case is cusped (i_cusp=%r) and set_visc_force_tqf "
+            "does not implement the cusp seam correction." % (b.i_cusp,)
+        )
+
+    unfused = dict(callers_tauq(b), **callers_visc(b, ("visc",)))
+    tauq, visc = unfused["tauq"], unfused["visc"]
+
+    fn = getattr(F, "set_visc_force_tqf", None)
+    out = {"unfused": lambda: (tauq(), visc())}
+    if fn is None:
+        return out
+
+    # The rolling tau/q plane pair and the tau/q row temps, carved from
+    # block.scratch alongside the face-flow buffers -- NOT from tau_q_halo,
+    # which is this kernel's halo input.
+    need = (ni + 1) * (nj + 1) * 9 * 2 + ni * nj * 4 * 2 + ni * 4 * 3
+    if need > b.scratch.size:
+        raise SystemExit(
+            f"callers_pair: block.scratch holds {b.scratch.size} floats, the "
+            f"fused arm needs {need}. A real integration wants its own buffer."
+        )
+    planes, rows, tq = util.carve_view(
+        b.scratch, (ni, nj, 4, 2), (ni, 4, 3), (ni + 1, nj + 1, 9, 2)
+    )
+    halo = b.tau_q_halo
+    b.F_body_nd.flags.writeable = True
+    kw = dict(
+        cons=b.conserved_nd,
+        cons_cell=b.conserved_cell_nd,
+        vol=b.vol_nd,
+        dai=b.dAi_nd,
+        daj=b.dAj_nd,
+        dak=b.dAk_nd,
+        omega_block=b.Omega_nd,
+        r=b.r_nd,
+        mu=b.mu_nd,
+        p=b.P_nd,
+        p_offset=b.P_offset_nd,
+        fvisc=b.F_body_nd[..., 1:],
+        vx=b.Vx_nd,
+        vr=b.Vr_nd,
+        vt=b.Vt_rel_nd,
+        t=b.T_nd,
+        cp=b.cp_nd,
+        pr_lam=b.fluid._Pr,
+        pr_turb=1.0,
+        xlength=b.xlen_sq_nd,
+        mu_turb=b._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True),
+        tau_cell=halo[..., 0:6],
+        q_cell=halo[..., 6:9],
+        tq=tq,
+        planes=planes,
+        rows=rows,
+        kb=min(_KB_SLAB, nk - 1),
+        **b.ijk_wall_visc,
+        **b.Omega_wall_nd,
+        i_cusp_start=b.i_cusp[0],
+        i_cusp_end=b.i_cusp[1],
+    )
+    out["fused"] = lambda: fn(**kw)
+    return out
+
+
+def check_pair(b):
+    """Gate the fused pair against the unfused one, on fvisc AND mu_turb.
+
+    mu_turb matters as much as fvisc here: it is the other output of the phase
+    the fusion absorbs, it is consumed downstream by timestep_diffusion, and a
+    fused kernel that produced the right forces from a wrong mixing length
+    would pass an fvisc-only gate.
+
+    Expect ~ulp agreement, not bitwise: same arithmetic, different loop shape,
+    and -Ofast reassociates the two shapes differently (measured at 2.5 ulp for
+    the fvisc fusion). Deviations are quantified at the field scale, since
+    fvisc is a small difference of large face flows and pointwise ulps blow up
+    where it passes through zero.
+    """
+    fns = callers_pair(b)
+    if "fused" not in fns:
+        return {}
+    fvisc, mu_turb = b.F_body_nd, b.mu_turb
+
+    # Reset the halo state before each fused run. `unfused` ends with
+    # set_visc_force, which scales the tau/q halos by (2*wall-1) IN PLACE; a
+    # fused run afterwards would read those already scaled values and scale
+    # them again, putting the wrong sign on every wall face. That cannot happen
+    # in the bench (one arm per process) but it can here, and it would be
+    # silent. Re-running phase 1 is also exactly what a real integration
+    # leaves behind: halos at +edge.
+    #
+    # NB this is not the explanation for the deviation reported below -- that
+    # is compiler reassociation, and it is unchanged with or without this
+    # reset. The reset is here because the hazard is real, not because it
+    # fixed anything.
+    callers_tauq(b)["tauq"]()
+    restore = halo_restorer(b)
+
+    def run(name):
+        if name == "fused":
+            restore()
+        fns[name]()
+        return np.array(fvisc, copy=True), np.array(mu_turb, copy=True)
+
+    base, base2 = run("unfused"), run("unfused")
+    got, got2 = run("fused"), run("fused")
+
+    results = {}
+    for n, field in enumerate(("fvisc", "mu_turb")):
+        ref, val = base[n], got[n]
+        idem = np.array_equal(base[n], base2[n]) and np.array_equal(got[n], got2[n])
+        diff = np.abs(val - ref)
+        scale = float(np.abs(ref).max())
+        results[field] = dict(
+            bitwise=bool(np.array_equal(val, ref)),
+            max_abs=float(diff.max()),
+            rel=float(diff.max() / scale) if scale else 0.0,
+            max_ulp=(
+                float(diff.max() / np.spacing(np.float32(scale))) if scale else 0.0
+            ),
+            idempotent=bool(idem),
+        )
+    return results
+
+
 def check_correctness(b, active_arms=VISC_ARMS):
     """Compare each set_visc_force arm against production on identical input.
 
@@ -295,12 +445,24 @@ def main():
     seed_tau_q(grid, b)
 
     print("\ncorrectness gate (swirled state, so the swirl terms are non-zero):")
-    bad = 0
     for name, r in check_correctness(b, active).items():
         ok = "BITWISE" if r["bitwise"] else f"DIFFERS max {r['max_abs']:.3e}"
         print(f"  {name:>8}  {ok}  ({r['rel']:.3e} of scale, {r['max_ulp']:.2f} ulp)")
-        bad += not r["bitwise"]
-    return 1 if bad else 0
+
+    pair = check_pair(b)
+    if pair:
+        print("\nfused pair vs unfused pair (set_tau_q_soa + set_visc_force):")
+        for field, r in pair.items():
+            ok = "BITWISE" if r["bitwise"] else f"DIFFERS max {r['max_abs']:.3e}"
+            print(
+                f"  {field:>8}  {ok}  ({r['rel']:.3e} of scale, "
+                f"{r['max_ulp']:.2f} ulp)  idempotent={r['idempotent']}"
+            )
+        if not all(r["idempotent"] for r in pair.values()):
+            print("  FAIL: an arm is not idempotent -- repeated reps would not "
+                  "be measuring the same work")
+            return 1
+    return 0
 
 
 if __name__ == "__main__":

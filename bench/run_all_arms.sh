@@ -35,7 +35,7 @@ RESULTS="${RESULTS:-bench/results/bench_all_arms.jsonl}"
 KERNEL="${KERNEL:-residual}"
 case "$KERNEL" in
     irs | update) GAUGE_SYM="${GAUGE_SYM:-smooth_residual_tri_tiled_}" ;;
-    visc)         GAUGE_SYM="${GAUGE_SYM:-set_visc_force_}" ;;
+    visc | viscpair) GAUGE_SYM="${GAUGE_SYM:-set_visc_force_}" ;;
     tauq)         GAUGE_SYM="${GAUGE_SYM:-set_tau_q_soa_}" ;;
     *)            GAUGE_SYM="${GAUGE_SYM:-set_residual_}" ;;
 esac

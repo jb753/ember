@@ -133,10 +133,11 @@ def main():
     ap.add_argument(
         "--kernel",
         default="residual",
-        choices=("residual", "irs", "update", "visc", "tauq"),
+        choices=("residual", "irs", "update", "visc", "tauq", "viscpair"),
         help="which kernel's arm set to time: set_residual "
         "(residual_arms.py), the IRS smoother (irs_arms.py), or the two "
-        "viscous phases set_visc_force / set_tau_q_soa (visc_arms.py)",
+        "viscous phases set_visc_force / set_tau_q_soa, or the pair "
+        "tau/q+fvisc fused vs unfused (viscpair, visc_arms.py)",
     )
     ap.add_argument("--ncell", type=int, default=1_000_000)
     ap.add_argument("--reps", type=int, default=30)
@@ -159,7 +160,7 @@ def main():
     # barrier. Only --kernel visc needs one (its entry pass mutates the tau/q
     # halo in place); everything else re-initialises its own output.
     pre = None
-    if args.kernel in ("visc", "tauq"):
+    if args.kernel in ("visc", "tauq", "viscpair"):
         import visc_arms
 
         visc_arms.swirl(b)
@@ -167,6 +168,10 @@ def main():
         if args.kernel == "visc":
             built = visc_arms.callers_visc(b)
             pre = visc_arms.halo_restorer(b)
+        elif args.kernel == "viscpair":
+            # Both pair arms are idempotent (visc_arms.callers_pair), so no
+            # restore hook -- asserted by check_pair, not assumed.
+            built = visc_arms.callers_pair(b)
         else:
             built = visc_arms.callers_tauq(b)
     elif args.kernel == "update":

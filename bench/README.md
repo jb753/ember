@@ -67,6 +67,7 @@ on a Haswell workstation, not the production ifort/Sapphire target -- see
 | `irs_arms.py` | The IRS counterpart of `residual_arms.py`, for the implicit residual smoother (`smooth_residual_tri_tiled`) rather than `set_residual`. Same shape: `callers_irs`, a bitwise gate for the arms that compute the exact operator (`check_correctness`), a quantified gate for the ones that deliberately approximate it (`check_jacobi`), and `callers_update` for the `set_residual`+IRS pair, whose fusion spans both kernels. Also `check_denormals`, because the smoother runs in place and repeated reps compound. Drive it with `bench_prod_baseline.py --kernel irs` (or `--kernel update`); run standalone for a Gate-2 pre-flight. |
 | `visc_arms.py` | The viscous counterpart, for `set_visc_force` (`--kernel visc`) and `set_tau_q_soa` (`--kernel tauq`). Same shape as the two above, plus `halo_restorer`: `set_visc_force` is **not idempotent** -- its entry pass scales the tau/q halo slots by `(2*wall-1)` in place -- so a repeated-rep instrument must restore those six faces (O(surface)) between calls. On the duct case that turns out to be insurance rather than a repair, for two reasons that are accidents of the case; see the module docstring before assuming it can be dropped. |
 | `run_visc_baseline.sh` | Production `set_visc_force` over the size ladder in the 8-rank socket-contended regime, plus one `set_tau_q_soa` point for the phase split. |
+| `visc_arms.py` (`callers_pair`) | `--kernel viscpair` times the two viscous phases as a UNIT (`unfused` = `set_tau_q_soa` then `set_visc_force`; `fused` = the experimental single call), because a fusion spanning both kernels cannot be attributed to either. Same shape as `irs_arms.callers_update`. Its gate covers `mu_turb` as well as `fvisc` -- a fused kernel producing right forces from a wrong mixing length would pass an `fvisc`-only gate -- and asserts both arms are idempotent. |
 | `subroutines/` | The non-production Fortran arms themselves (see below) -- not compiled by default, only via `EMBER_BENCH_KERNELS`. |
 | `results/` | Tracked `.jsonl` result files from the corrected instrument (`bench_all_arms.jsonl`, `bench_prod_baseline.jsonl`, `bench_flagsweep_{serial,phase2}.jsonl`) plus wherever you point `--json`/`--out`/`RESULTS`/`OUT`. Untracked `.pdf`/`.npz` plots regenerate from the jsonl in seconds; don't commit them. |
 
@@ -526,6 +527,33 @@ the headline number, and where it lives.
   regression is a size threshold or an aspect-ratio artefact was not
   determined. Adopted anyway: production blocks are at the sizes where it
   wins, and the kernel is memory-bound there.
+
+- **Fusing `set_tau_q_soa` into `set_visc_force`** (experimental,
+  `bench/subroutines/viscous_tauq_fused.f90`, NOT adopted). tau/q stops
+  round-tripping through memory: the adopted `set_visc_force` is a single walk
+  over k face planes consuming tau/q cell planes k-1 and k and nothing else, so
+  tau/q is produced inside the walk into a rolling plane pair. `tau_cell`/
+  `q_cell` demote to halo source only. **Bitwise** on both `fvisc` and
+  `mu_turb`. On the pair at 1M cells: **-20.9% serial, but only -8.2% at
+  8-rank socket contention**, 10/10 launches in both.
+  **The win shrinks under contention, which is the opposite of a bandwidth
+  saving** and is the whole finding. The rolling pair is 1.24 MB per rank at
+  that shape: 6% of the 20 MB L3 for one rank, but 9.9 MB across 8 ranks, so
+  half of each rank's 2.5 MB share is the buffer itself, evicting the nodal
+  fields both halves re-read. The fusion trades DRAM traffic for L3 pressure
+  that scales with rank count while the traffic saving does not -- so going to
+  higher concurrency makes it *worse*, not better. Static spill density is up
+  ~40% (36.4 vs 25.9 stack vector moves per 1k insns) but cannot be the
+  explanation: spills cost the same in both regimes.
+  **The lever, untried: j-tile the walk to ~12 rows**, putting the pair at
+  ~250 KB in the PRIVATE per-core L2, where its cost stops depending on how
+  many ranks share the socket. Unlike the j-panel tiling rejected for
+  `set_residual` above, this is not a speculative second tiling dimension --
+  it shrinks a buffer the fusion itself introduced, and there is a measured
+  regime-dependence pointing at it.
+  Not adoptable as it stands regardless: no cusp seam support, and integration
+  needs an O(surface) boundary-only phase 1, the `grid.py` resequencing around
+  `exchange_halos`, and a dedicated buffer.
 
 ### Cross-cutting findings, not tied to one kernel
 
