@@ -420,6 +420,22 @@ the headline number, and where it lives.
   the change limiter's application (a real numerics change, no timing result
   addresses it) and its block-mean reduction runs before the cusp
   correction, silently wrong on any cusped block.
+- **Raise `--param=vect-max-version-for-alias-checks` from its default 10 to
+  200** (a `setup.py` default). GCC versions a loop for vectorization when it
+  cannot prove the accesses do not alias, but only up to this many runtime
+  checks; past the limit it silently declines to vectorize at all and reports
+  a bare `couldn't vectorize loop` with no reason attached.
+  `set_tau_q_soa`'s **stage-2 row loop -- tau, `mu_turb` and q, a full-volume
+  loop -- was over the limit and had never vectorized**: seven variable-size
+  automatic row temps, which GCC lowers to pointers it cannot disambiguate
+  from the dummy arrays, against five dummies. At 200 it vectorizes at 32
+  bytes. Stage 1 was always under the limit and always versioned, which is why
+  the miss looked like a property of stage 2's body rather than a budget.
+  **Caution -- this is a whole-program flag and only one kernel's loops were
+  checked.** `set_residual` and the IRS smoother certainly moved codegen under
+  it and are UNTIMED; the full test suite passes, but "vectorizes better" is
+  not "faster" (see the PGO entry below, adopted on exactly that reasoning and
+  worth +169%). Time those two before treating this as settled.
 - **Pin GCC's unit-level inline budgets**
   (`--param=inline-unit-growth=1000000 --param=large-function-growth=1000000`,
   now a `setup.py` default). The single largest effect ever found on this

@@ -39,8 +39,18 @@ GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
 # it produces codegen bit-identical to lifting all four related budgets, and
 # inline-unit-growth is necessary even though it is worth only 2.3% alone.
 # Portable (no -march dependence), hence a default rather than opt-in.
+# --param=vect-max-version-for-alias-checks: GCC will version a loop for
+# vectorization when it cannot prove the accesses do not alias, but only up to
+# this many runtime checks (default 10) -- past that it silently declines to
+# vectorize at all, reporting only a bare "couldn't vectorize loop". set_tau_q_soa's
+# stage-2 row loop (tau, mu_turb and q, a full-volume loop) needs more than 10:
+# seven variable-size automatic row temps, which GCC lowers to pointers it
+# cannot disambiguate from the dummy arrays, against five dummies. At 200 the
+# loop vectorizes at 32 bytes. Found via the link-stage opt-report while gating
+# the fused tau/q experiment; the limit is a vectorizer budget, not a
+# correctness knob -- the checks it permits are still emitted and still run.
 # NOTE the --param=X=Y spelling: f2py re-splits "--param X=Y" on the space.
-GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 --param=inline-unit-growth=1000000 --param=large-function-growth=1000000 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
+GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 --param=inline-unit-growth=1000000 --param=large-function-growth=1000000 --param=vect-max-version-for-alias-checks=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
 # Appended verbatim to the gfortran flags. Used to test whether pinning
 # GCC's UNIT-level inline budgets makes production codegen invariant to
 # what else is in the build -- see bench/codegen_gauge.py.
