@@ -65,6 +65,8 @@ on a Haswell workstation, not the production ifort/Sapphire target -- see
 | `codegen_gauge.py` | Fingerprints a compiled symbol's machine code (recursive call closure, layout-normalised, hashed). The gate for any cross-build comparison: **`prod` must fingerprint identically between the builds you're comparing, or the comparison is meaningless** (Rule 9 below). |
 | `run_flag_sweep.sh` | One-factor-at-a-time compiler flag sweep, fingerprint-gated so a no-op flag is never timed. `MODE=serial\|contended`, `CONFIGS="name1 name2"` to run a subset. |
 | `irs_arms.py` | The IRS counterpart of `residual_arms.py`, for the implicit residual smoother (`smooth_residual_tri_tiled`) rather than `set_residual`. Same shape: `callers_irs`, a bitwise gate for the arms that compute the exact operator (`check_correctness`), a quantified gate for the ones that deliberately approximate it (`check_jacobi`), and `callers_update` for the `set_residual`+IRS pair, whose fusion spans both kernels. Also `check_denormals`, because the smoother runs in place and repeated reps compound. Drive it with `bench_prod_baseline.py --kernel irs` (or `--kernel update`); run standalone for a Gate-2 pre-flight. |
+| `visc_arms.py` | The viscous counterpart, for `set_visc_force` (`--kernel visc`) and `set_tau_q_soa` (`--kernel tauq`). Same shape as the two above, plus `halo_restorer`: `set_visc_force` is **not idempotent** -- its entry pass scales the tau/q halo slots by `(2*wall-1)` in place -- so a repeated-rep instrument must restore those six faces (O(surface)) between calls. On the duct case that turns out to be insurance rather than a repair, for two reasons that are accidents of the case; see the module docstring before assuming it can be dropped. |
+| `run_visc_baseline.sh` | Production `set_visc_force` over the size ladder in the 8-rank socket-contended regime, plus one `set_tau_q_soa` point for the phase split. |
 | `subroutines/` | The non-production Fortran arms themselves (see below) -- not compiled by default, only via `EMBER_BENCH_KERNELS`. |
 | `results/` | Tracked `.jsonl` result files from the corrected instrument (`bench_all_arms.jsonl`, `bench_prod_baseline.jsonl`, `bench_flagsweep_{serial,phase2}.jsonl`) plus wherever you point `--json`/`--out`/`RESULTS`/`OUT`. Untracked `.pdf`/`.npz` plots regenerate from the jsonl in seconds; don't commit them. |
 
@@ -261,6 +263,12 @@ taskset -c 0 uv run python bench/bench_rep_convergence.py \
 # One-factor-at-a-time compiler flag sweep
 bench/run_flag_sweep.sh                       # serial screen
 MODE=contended bench/run_flag_sweep.sh
+
+# Viscous kernels: baseline ladder, then an A/B of the fvisc-fusion arms
+bench/run_visc_baseline.sh 10 30
+EMBER_BENCH_KERNELS=viscous_fused make compile
+KERNEL=visc ARMS="visc viscijk viscpol2" NRANKS=8 NCELL=1000000 \
+    RESULTS=bench/results/bench_visc_pol2_1000000.jsonl bench/run_all_arms.sh
 ```
 
 ---
@@ -353,6 +361,45 @@ the headline number, and where it lives.
   `(ni-1)*(nj-1)*(nk-1)` elements apart and destroys i-vectorization
   entirely. Component index stays outside the spatial loops; only the
   spatial traversal is shared across components.
+- **Collapse `fvisc` to a single store per cell in `set_visc_force`**
+  (`viscous.f90`). Production visited `fvisc` four times per cell: the
+  i-direction sweep assigned it, the j- and k-direction sweeps
+  read-modify-wrote it, and the trailing polar-source pass RMW'd component 2.
+  The rolling buffers to collapse that already existed -- nothing forced the
+  three face differences into three separate visits except the order they were
+  written in. Now a single walk over k face planes, with the i/j scan that
+  closes cell plane k-1 summing all three differences and the polar source
+  into one store. **-20.7% +/- 0.16% at 1M cells, 8-rank socket-contended,
+  faster in 10/10 launches.** Staged arms attribute it: i-into-j fusion alone
+  (4 touches -> 3) is -16.9%, adding k (-> 2) is -20.8%, adding polar (-> 1)
+  is a further tie-to-win depending on size.
+  **The k-slab loop disappears with the fusion** and `kb` becomes inert: slab
+  blocking existed to keep a slab's tau/q hot across three separate direction
+  sweeps, and once fused, face plane k reads halo planes k and k+1 while the
+  i/j scan reads halo plane k, so a single k walk *is* the blocked schedule.
+  Not bitwise: ~2.5 ulp of the fvisc field scale, spread evenly through the
+  interior and absent at the wall edges (the rounding signature, not the
+  wrong-index signature). Most of it is GCC reassociating one loop shape and
+  not the other -- `-fno-associative-math` drops it to 0.12 ulp, and
+  `-ffp-contract=off` changes nothing further. Every golden test passes
+  unchanged.
+  **The polar source cannot simply ride along in the fused store**: production
+  adds it *after* the wall-zeroing pass, because it is a geometric source
+  rather than viscous content and the wall mask must not eat it. Interior
+  cells take it in the store; the boundary shell takes it in an O(surface)
+  pass afterwards, partitioned so every shell cell is visited exactly once
+  (the zeroing loops may overlap at edges because a repeated multiply is
+  harmless, but a repeated *add* is not).
+  **The first version of that shell pass cost 1.55%**, because the
+  `i=1`/`i=ni-1` cells form a sheet at fixed i that can only be reached with
+  stride `ni-1`: Gate 1 showed one such block gather-vectorized and the other
+  not vectorized at all. The fix uses an asymmetry -- a row interior in j and
+  k carries no j- or k-mask on its end cells, so those two cells can take
+  their `walli1`/`wallni` mask *and* their polar source inside the fused
+  store, where the row is in L1 and every access is unit-stride. The sheet
+  then leaves the O(surface) pass entirely and the polar row loop becomes one
+  unbroken vectorized `i = 1..ni-1`. **-1.55% +/- 0.12%, 10/10 launches**, and
+  it is what makes the polar fusion free rather than costly at 1M.
 - **Retune the IRS transpose-tile width, `BJ`, from 8 to 32** (one
   `parameter` in `residual.f90`). Production's `BJ=8` was tuned for AVX2 (8
   float32 lanes); Sapphire Rapids is AVX-512 (16 lanes) with a larger L1d.
@@ -450,6 +497,20 @@ the headline number, and where it lives.
   divider is several times faster per element than Haswell's and production's
   redundant reciprocals cost much less.
 
+- **The `fvisc` fusion LOSES at the smallest size on the duct ladder**
+  (86016 cells: +10.6% for the i+j+k arm, +47.3% for the first polar arm),
+  wins at 286720 (-9.7%), 974848 (-21.1%) and 1921024 (-21.3%), and every
+  arm's penalty shrinks monotonically with size. That is the instruction-bound
+  signature: the fusion's cost is fixed per-row overhead, its benefit is
+  `fvisc` traffic that only exists once the working set stops fitting in
+  cache. **Read the small-size point with care before generalising**:
+  `build_duct_grid` grows `ni` only, so the ladder is really an `ni` ladder
+  (shapes 25/81/273/537 x 65 x 57) and the 86016 point is the only one where
+  i is the *short* axis, with inner loops 3 AVX2 vectors long. Whether that
+  regression is a size threshold or an aspect-ratio artefact was not
+  determined. Adopted anyway: production blocks are at the sizes where it
+  wins, and the kernel is memory-bound there.
+
 ### Cross-cutting findings, not tied to one kernel
 
 - **`set_residual` is ~45% `vgatherdps` under ifort**, spread evenly across
@@ -478,6 +539,19 @@ the headline number, and where it lives.
   upper bound on a win, not an exact one: heavily-reused nodal fields are
   partially L3-resident, so dropping a stream saves less than naive
   byte-counting predicts (predicted -11%, measured -4.1% for `consa`).
+- **Pinned inline budgets make a kernel's codegen independent of the other
+  arms in the build -- but not without limit, and not of DELETIONS.** Two
+  counts against the assumption stated in `run_all_arms.sh`'s header, both
+  found with `codegen_gauge.py`: (1) deleting four dead helper routines from
+  `viscous.f90` moved `set_visc_force` from `f03ddf9e` to `348aa81a`,
+  11849 -> 12292 instructions -- removing translation-unit content freed
+  budget and GCC inlined *more* into the live kernel (the timing difference
+  was inside launch-to-launch drift, but the codegen identity was not);
+  (2) `set_visc_force` fingerprinted identically with four viscous arms in the
+  build and *differently* with five. Neither invalidates a within-build A/B,
+  which is why `visc` is always re-measured alongside its arms rather than
+  compared to a stored baseline -- but never assume a cross-build number is
+  comparable without re-running the gauge.
 - **A `PARTIAL LOOP WAS VECTORIZED` or a clean `LOOP WAS VECTORIZED` report
   is a lead, never a verdict, in either direction.** A blemished report can
   cost nothing (the damp-split scaling loop); a clean report can hide a slow

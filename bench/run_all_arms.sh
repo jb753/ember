@@ -29,14 +29,16 @@ NCELL="${NCELL:-1000000}"
 REPS="${REPS:-30}"
 ARMS="${ARMS:-prod staged split multall nodal tbaos prodsoa rinv}"
 RESULTS="${RESULTS:-bench/results/bench_all_arms.jsonl}"
-# Which kernel's arm set to time: `residual` (bench/residual_arms.py) or
-# `irs` (bench/irs_arms.py). Also picks the symbol fingerprinted below.
+# Which kernel's arm set to time: `residual` (bench/residual_arms.py), `irs`
+# (bench/irs_arms.py) or `visc`/`tauq` (bench/visc_arms.py). Also picks the
+# symbol fingerprinted below.
 KERNEL="${KERNEL:-residual}"
-if [ "$KERNEL" = "irs" ] || [ "$KERNEL" = "update" ]; then
-    GAUGE_SYM="${GAUGE_SYM:-smooth_residual_tri_tiled_}"
-else
-    GAUGE_SYM="${GAUGE_SYM:-set_residual_}"
-fi
+case "$KERNEL" in
+    irs | update) GAUGE_SYM="${GAUGE_SYM:-smooth_residual_tri_tiled_}" ;;
+    visc)         GAUGE_SYM="${GAUGE_SYM:-set_visc_force_}" ;;
+    tauq)         GAUGE_SYM="${GAUGE_SYM:-set_tau_q_soa_}" ;;
+    *)            GAUGE_SYM="${GAUGE_SYM:-set_residual_}" ;;
+esac
 
 # Which physical CPUs the ranks are pinned to, rank r -> CPUS[r]. Defaults to
 # 0,1,2,...  which is right on a homogeneous single-socket machine (every

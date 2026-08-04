@@ -21,6 +21,8 @@ NRANKS="${2:-16}"
 NCELL="${3:-1000000}"
 REPS="${4:-30}"
 ARM="${5:-prod}"
+# Which kernel's arm set: residual (default), irs, update, visc, tauq.
+KERNEL="${KERNEL:-residual}"
 RESULTS="${RESULTS:-bench/results/bench_prod_baseline.jsonl}"
 
 export OMP_NUM_THREADS=1
@@ -40,6 +42,7 @@ for ((L = 0; L < LAUNCHES; L++)); do
         EMBER_BENCH_RANK=$rk EMBER_BARRIER="$BARRIER" \
             taskset -c "$rk" uv run python bench/bench_prod_baseline.py \
             --nranks "$NRANKS" --ncell "$NCELL" --reps "$REPS" --arm "$ARM" \
+            --kernel "$KERNEL" \
             --launch "$L" --json "$RESULTS" &
         pids+=($!)
     done

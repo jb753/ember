@@ -133,9 +133,10 @@ def main():
     ap.add_argument(
         "--kernel",
         default="residual",
-        choices=("residual", "irs", "update"),
+        choices=("residual", "irs", "update", "visc", "tauq"),
         help="which kernel's arm set to time: set_residual "
-        "(residual_arms.py) or the IRS smoother (irs_arms.py)",
+        "(residual_arms.py), the IRS smoother (irs_arms.py), or the two "
+        "viscous phases set_visc_force / set_tau_q_soa (visc_arms.py)",
     )
     ap.add_argument("--ncell", type=int, default=1_000_000)
     ap.add_argument("--reps", type=int, default=30)
@@ -154,7 +155,21 @@ def main():
     grid, b = build_case(args.ncell)
     du = b.residual_nd
     du.flags.writeable = True
-    if args.kernel == "update":
+    # Per-call input restore, run OUTSIDE the timed window and before the
+    # barrier. Only --kernel visc needs one (its entry pass mutates the tau/q
+    # halo in place); everything else re-initialises its own output.
+    pre = None
+    if args.kernel in ("visc", "tauq"):
+        import visc_arms
+
+        visc_arms.swirl(b)
+        visc_arms.seed_tau_q(grid, b)
+        if args.kernel == "visc":
+            built = visc_arms.callers_visc(b)
+            pre = visc_arms.halo_restorer(b)
+        else:
+            built = visc_arms.callers_tauq(b)
+    elif args.kernel == "update":
         # Phase 3: the limiter+IRS fusion spans set_residual and the smoother,
         # so the pair is timed together. dU is an output of the first call, so
         # unlike --kernel irs there is nothing to seed.
@@ -194,11 +209,15 @@ def main():
     barrier.wait()
 
     for _ in range(args.warmup):
+        if pre is not None:
+            pre()
         barrier.wait()
         fn()
 
     samples = np.empty(args.reps)
     for i in range(args.reps):
+        if pre is not None:
+            pre()
         barrier.wait()  # every rank enters the kernel together
         t = time.perf_counter()
         fn()
@@ -323,7 +342,9 @@ def analyze_multi(rows, arms, stat="median"):
     """
     # The incumbent is `prod` for the set_residual arms and `irs` for the
     # smoother arms; a results file only ever holds one kernel's arms.
-    baseline = next((a for a in ("prod", "irs", "unfused") if a in arms), arms[0])
+    baseline = next(
+        (a for a in ("prod", "irs", "unfused", "visc", "tauq") if a in arms), arms[0]
+    )
     base = _launch_medians(rows, baseline, stat)
     if not base:
         print(f"no `{baseline}` rows: nothing to compare against")
