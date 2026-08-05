@@ -140,8 +140,7 @@ class InletPatch(NonReflectingPatch):
 
         Calling this is optional. Left alone, the row is seeded once from the
         pitchwise mean of the inflow plane at the first timestep and frozen
-        there; see
-        :meth:`~ember.nonreflecting.NonReflectingPatch._seed_target`. If a large
+        there; see ``NonReflectingPatch._seed_target``. If a large
         part of the span ends up reversed the inflow is no longer under control
         and the boundary wants moving upstream, rather than this value tuning.
 

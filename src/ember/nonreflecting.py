@@ -195,13 +195,13 @@ class _TargetRow:
     """Read-only view of one row of a patch's prescribed target vector.
 
     A descriptor rather than a plain attribute, so that the named rows stay
-    views on :attr:`~NonReflectingPatch._target` with nothing to re-link when a
+    views on ``NonReflectingPatch._target`` with nothing to re-link when a
     patch is copied or unpickled, and so that a name the patch's target space
     does not carry raises rather than quietly returning whatever that row holds:
     an inflow condition working in angles has no ``Vr_nd``, and one working in
     mix variables has no ``tanAlpha``.
 
-    Resolution is by name against :attr:`~NonReflectingPatch._target_names` of
+    Resolution is by name against ``NonReflectingPatch._target_names`` of
     the instance, not by a fixed index, because the row order is a property of
     the target space and the classes do not share one.
     """
@@ -289,6 +289,18 @@ class NonReflectingPatch(RevolutionPatch):
 
     # Relaxation factor for the density of such a node.
     _rf_backflow = 1.0
+
+    sigma = 0.05
+    """Under-relaxation of the characteristic correction, Giles Eq. 5.25,
+    needed for wellposedness. He suggests 1/N for N pitchwise nodes, applied
+    once per timestep, and :meth:`advance` takes it exactly once per timestep,
+    so the two are in the same units: set it to 1/N and it is 1/N. The bound
+    is not about the transform amplifying -- it cannot, its norm grows only
+    logarithmically -- but about how far the pitchwise-nonlocal harmonic
+    relations may spread information in one application while the explicit
+    interior march moves it one cell. Overridden by
+    :attr:`~ember.solver.Solver.rf_inlet`/:attr:`~ember.solver.Solver.rf_outlet`
+    at the start of a run."""
 
     # Inward face normal: +1 if the interior lies on the +x side of the face,
     # -1 if on the -x side. None lets the geometry decide at attach time, which
@@ -1216,15 +1228,6 @@ class NonReflectingPatch(RevolutionPatch):
         # implemented envelope, so the warning is one per excursion rather than
         # one per timestep; cleared when it comes back inside.
         self._warned_unsupported = False
-        # Under-relaxation of the characteristic correction, Giles Eq. 5.25,
-        # needed for wellposedness. He suggests 1/N for N pitchwise nodes,
-        # applied once per timestep, and advance() takes it exactly once per
-        # timestep, so the two are in the same units: set it to 1/N and it is
-        # 1/N. The bound is not about the transform amplifying -- it cannot,
-        # its norm grows only logarithmically -- but about how far the
-        # pitchwise-nonlocal harmonic relations may spread information in one
-        # application while the explicit interior march moves it one cell.
-        self.sigma = 0.05
 
     def _span_bcast(self, arr):
         """Reshape a span-indexed array to broadcast over the patch shape."""

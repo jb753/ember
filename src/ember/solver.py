@@ -226,7 +226,7 @@ solver-wide setting:
 - :class:`~ember.inlet.InletPatch` and :class:`~ember.outlet.OutletPatch` take
   one under-relaxed step of the characteristic condition per timestep, scaled
   by :attr:`~ember.nonreflecting.NonReflectingPatch.sigma`; see
-  :attr:`SolverConfig.rf_inlet` and :attr:`SolverConfig.rf_outlet`.
+  :attr:`~ember.solver.Solver.rf_inlet` and :attr:`~ember.solver.Solver.rf_outlet`.
 - :class:`~ember.mixing.MixingPatch` holds no relaxation of its own: it imposes
   whatever target the exchange last wrote.
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the

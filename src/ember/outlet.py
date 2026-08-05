@@ -268,14 +268,13 @@ class OutletPatch(NonReflectingPatch):
 
         Calling any of the four is optional. Left alone, the rows are seeded
         once from the pitchwise mean of the exit plane at the first timestep and
-        frozen there; see
-        :meth:`~ember.nonreflecting.NonReflectingPatch._seed_target`.
+        frozen there; see ``NonReflectingPatch._seed_target``.
 
         Parameters
         ----------
         ho : float or array
             Stagnation enthalpy [J/kg]. A scalar or a spanwise profile; see
-            :meth:`~ember.nonreflecting.NonReflectingPatch._set_target_row` for
+            ``NonReflectingPatch._set_target_row`` for
             the accepted shapes. Only the pitchwise mean at each span station is
             imposed.
         s : float or array

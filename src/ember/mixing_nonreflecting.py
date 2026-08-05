@@ -88,7 +88,7 @@ class NonReflectingMixingPatch(NonReflectingPatch):
     on the *symmetrised cross-plane* average, so both sides linearise the
     interface jump about the same state; each patch's own frozen reference
     state stays its *local* pitchwise mean, because
-    :meth:`~ember.nonreflecting.NonReflectingPatch._calc_reference` calls
+    ``NonReflectingPatch._calc_reference`` calls
     :meth:`~ember.basepatch.RevolutionPatch.set_block_avg` itself and so
     re-derives it after the exchange has overwritten
     :attr:`~ember.basepatch.RevolutionPatch.block_avg`. The split is deliberate
@@ -247,7 +247,7 @@ class NonReflectingMixingPatch(NonReflectingPatch):
         """Check whether this patch pairs with another across a mixing plane.
 
         Pairs only with the opposite side of a non-reflecting mixing plane,
-        which :attr:`~ember.nonreflecting.NonReflectingPatch._sign_interior`
+        which ``NonReflectingPatch._sign_interior``
         identifies: the two sides of one plane face each other, so their
         interiors lie on opposite sides of it. Matching is then on meridional
         geometry alone, so the two sides may differ in pitchwise resolution and

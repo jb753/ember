@@ -1006,7 +1006,7 @@ class PerfectFluid(_Fluid):
     def get_P_h_T(self, rho, u, out_P=None, out_h=None, out_T=None):
         """Fused perfect-gas evaluation of pressure, enthalpy and temperature.
 
-        Overrides :meth:`_Fluid.get_P_h_T` purely for speed. ``T = u/cv +
+        Overrides :meth:`~ember.fluid._Fluid.get_P_h_T` purely for speed. ``T = u/cv +
         T_dtm`` is already computed inside ``P``, so one pass over ``(rho, u)``
         yields all three: 8 B read and 12 B written per node, against ~36 B of
         traffic for the three separate calls.
@@ -1016,6 +1016,19 @@ class PerfectFluid(_Fluid):
         supplied -- the kernel writes in place, so a non-contiguous output (or
         a dtype f2py would have to copy) would silently drop the result.
 
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out_P, out_h, out_T : ndarray, optional
+            Pre-allocated output arrays.
+
+        Returns
+        -------
+        tuple of ndarray
+            ``(P, h, T)``.
         """
         import ember.fortran
 
