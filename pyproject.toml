@@ -61,7 +61,7 @@ version_file = "src/ember/_version.py"
 
 [tool.cibuildwheel]
 build = "cp312-* cp313-* cp314-*"
-skip = "*-musllinux* *-win32 *-macosx*"
+skip = "*-musllinux* *-win32"
 archs = ["x86_64"]
 # h5py>=3.16 only ships manylinux_2_28 wheels (no manylinux2014), so the
 # build container must match or pip falls back to a source build that
@@ -70,6 +70,21 @@ manylinux-x86_64-image = "manylinux_2_28"
 
 [tool.cibuildwheel.linux]
 before-all = "yum install -y gcc-gfortran"
+test-requires = "pytest"
+test-command = "pytest {project}/tests -q"
+
+[tool.cibuildwheel.macos]
+# GitHub's macos-latest runners are Apple Silicon; no Intel (x86_64) Mac
+# support for now, see setup.py's GFORTRAN_MARCH branching.
+archs = ["arm64"]
+before-all = "brew install gcc"
+# cibuildwheel's arm64 default (11.0) is older than what Homebrew's gcc
+# bottle actually requires: its libgfortran/libquadmath are built with a
+# minimum target matching the runner's own macOS version (currently 26,
+# "Tahoe"), so delocate refuses to bundle them into an 11.0-labelled wheel.
+# Pin to match; this does mean the wheel only installs on that macOS
+# version or newer until Homebrew ships an older-targeted gcc bottle.
+environment = { MACOSX_DEPLOYMENT_TARGET = "26.0" }
 test-requires = "pytest"
 test-command = "pytest {project}/tests -q"
 
