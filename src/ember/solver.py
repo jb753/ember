@@ -352,7 +352,7 @@ class Solver(BaseSolver):
     """Scaling factor on multigrid corrections. Honored by both integrators
     (:func:`scree_step` and :func:`rk_step`)."""
 
-    expon_mgrid: float = 2.0
+    expon_mgrid: float = 1.414
     """Base of the per-level multigrid decay, ``coef_l ~ expon_mgrid**-(l-1)``.
     Honored by both integrators (:func:`scree_step` and :func:`rk_step`)."""
 
@@ -541,7 +541,9 @@ def _mg_coarse_carve(block, ni, nj, nk, n_levels_eff):
     )
 
 
-def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0):
+def advance_rk_stage_mg(
+    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0
+):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
     The single RK stage integrator. Each stage marches every block off its

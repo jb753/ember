@@ -202,19 +202,34 @@ FULL_ARMS = ("irs", "irsna", "irsnat", "irstr", "irsijk")
 # Arms for the FUSED-LIMITER study (Phase 3). The saving spans two kernels --
 # set_residual's trailing scaling pass and the smoother's i-solve -- so neither
 # can be timed alone; these arms time the pair.
-UPDATE_ARMS = ("unfused", "fused")
+#
+# `unfused`/`fused` both compose damp-BEFORE-IRS (set_residual applies the
+# limiter, then the smoother runs) -- that was production between commits
+# 0384c83 and 495b415. `current` is what Grid.update_residual actually calls
+# today (see src/ember/grid.py): the original order restored, smooth-then-
+# damp, via the same three kernels called unfused -- set_residual(dampin=0),
+# then IRS (smooth_residual_scale_tri, dampin=0, i.e. its plain-gather branch,
+# exact against smooth_residual_tri_tiled), then damp_residual as a separate
+# post-IRS pass. `current` therefore pays what `unfused` pays PLUS
+# damp_residual's own reduction pass -- see bench/README.md's "Fold the change
+# limiter into set_residual" entry for why that reduction pass cannot be
+# fused into a pre-IRS kernel any more without reopening the ordering bug.
+UPDATE_ARMS = ("unfused", "fused", "current")
 
 
 def callers_update(b, du, dampin=DAMPIN, sf=SF):
-    """Time set_residual + IRS as a unit, unfused vs fused.
+    """Time set_residual + IRS (+, for `current`, the limiter) as a unit.
 
-    Both arms are two f2py calls against pre-built kwargs, so the Python
-    scaffolding either side of the kernels is identical and does not favour
-    one. `unfused` is the historical sequence: set_residual applies the change
+    All three arms are f2py calls against pre-built kwargs, so the Python
+    scaffolding around the kernels is identical and does not favour one.
+    `unfused` is the historical sequence: set_residual applies the change
     limiter itself over the whole volume, then the standalone three-direction
     smoother runs. `fused` defers the limiter's scaling to the smoother, which
     applies it inside its i-solve gather -- one full-volume read/write pair
-    fewer. The two are bitwise identical (tests/test_irs_fused_damp.py).
+    fewer. `unfused` and `fused` are bitwise identical to each other
+    (tests/test_irs_fused_damp.py, pre-restoration version); neither matches
+    `current`, which composes the kernels in the opposite order and is a
+    genuine numerics change from both (same test file, current version).
     """
     import ember.fortran as F
 
@@ -236,7 +251,15 @@ def callers_update(b, du, dampin=DAMPIN, sf=SF):
             work=work, **shape
         )
 
-    return dict(unfused=unfused, fused=fused)
+    def current():
+        F.set_residual(**kw_plain)
+        F.smooth_residual_scale_tri(
+            du=du, dt_vol=b.dt_vol_nd, ravg=np.zeros(5, dtype=du.dtype),
+            dampin=0.0, sf=sf, work=work, **shape
+        )
+        F.damp_residual(du=du, dt_vol=b.dt_vol_nd, dampin=dampin, **shape)
+
+    return dict(unfused=unfused, fused=fused, current=current)
 
 
 def check_correctness(b, du, ref, active_arms=FULL_ARMS):

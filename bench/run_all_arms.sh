@@ -41,19 +41,24 @@ case "$KERNEL" in
 esac
 
 # Which physical CPUs the ranks are pinned to, rank r -> CPUS[r]. Defaults to
-# 0,1,2,...  which is right on a homogeneous single-socket machine (every
-# result in bench/results/ was taken that way on a Haswell workstation).
+# bench/socket_cpus.py's auto-detection (NRANKS distinct physical cores on
+# one NUMA node/socket -- ported from duct/job_timing.py's
+# detect_socket_cpus), falling back to sequential 0,1,2,... when no single
+# node has NRANKS physical cores (e.g. NRANKS=16 spanning both sockets on a
+# 2x8-core part).
 #
-# It is WRONG on a hybrid part. On a P-core/E-core chip, consecutive CPU ids
-# span core classes with different clocks, cache sizes and prefetchers, so
-# "median across ranks" becomes the median of a multi-modal distribution and
-# means nothing; consecutive ids may also be SMT siblings of ONE physical
-# core, which halves those ranks for reasons unrelated to the kernel. Set
-# CPUS explicitly to a list of same-class, non-sibling CPUs -- check with
-# `lscpu -e` (the CORE column identifies siblings, MAXMHZ the class).
+# Auto-detection is still WRONG on a hybrid part: a P-core/E-core chip's
+# physical cores on one node have different clocks, cache sizes and
+# prefetchers, so "median across ranks" becomes the median of a multi-modal
+# distribution and means nothing. Set CPUS explicitly to a list of
+# same-class, non-sibling CPUs -- check with `lscpu -e` (the CORE column
+# identifies siblings, MAXMHZ the class).
 CPUS="${CPUS:-}"
 if [ -z "$CPUS" ]; then
-    for ((c = 0; c < NRANKS; c++)); do CPUS="$CPUS $c"; done
+    CPUS="$(uv run python bench/socket_cpus.py --n "$NRANKS" 2>/dev/null || true)"
+    if [ -z "$CPUS" ]; then
+        for ((c = 0; c < NRANKS; c++)); do CPUS="$CPUS $c"; done
+    fi
 fi
 read -r -a CPU_LIST <<< "$CPUS"
 if [ "${#CPU_LIST[@]}" -lt "$NRANKS" ]; then
