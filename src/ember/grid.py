@@ -1505,17 +1505,24 @@ class Grid(_LabelledList):
         force. Purely per-block (no inter-block exchange), so it simply loops.
 
         Optional post-processing runs in place on each block's residual, in
-        order: the change limiter (``dampin``, folded into ``set_residual``
-        itself), then implicit residual smoothing (``sf``).
+        order: implicit residual smoothing (``sf``), then the change limiter
+        (``dampin``).
 
         .. note::
-           The limiter used to run *after* the smoother. Folding it into
-           ``set_residual`` -- which removes a full-volume residual read --
-           necessarily reverses that. Since IRS is linear and the limiter is
-           nonlinear in a global block mean, the composed operator differs:
-           at ``sf=1.0, dampin=25`` the two orderings differ by ~19% of the
-           field scale, growing with ``sf``. This is a deliberate numerics
-           change.
+           Between commits 0384c83 and 495b415, this ran the limiter before
+           the smoother instead (folded into ``set_residual``/the IRS
+           i-solve, for a fusion win). That reordering was a genuine
+           numerics change -- IRS is linear and the limiter is nonlinear in
+           a global block mean, so the composed operator differs: at
+           ``sf=1.0, dampin=25`` the two orderings differ by ~19% of the
+           field scale, growing with ``sf``. This restores the original
+           smooth-then-damp order by calling the same kernels unfused
+           (``set_residual``/``smooth_residual_scale_tri`` with
+           ``dampin=0``, then ``damp_residual`` as a separate pass), which
+           gives back the fusion's performance win (-6% serial / -11% at
+           100-rank saturation / -5% on set_residual + IRS) in exchange for
+           the original ordering. See git history for the fused version if
+           that trade is ever worth revisiting.
 
         Parameters
         ----------
@@ -1562,16 +1569,10 @@ class Grid(_LabelledList):
                 block.tau_q_halo, (ni, njp, 5, 2), (ni, 5, 3)
             )
             block.residual_nd.flags.writeable = True
-            # When IRS is on, the limiter's SCALING pass is deferred to the
-            # smoother, which applies it inside its i-solve gather instead of
-            # paying a full-volume traversal of its own (-1R-1W). set_residual
-            # still accumulates the block means during its dU sweep either
-            # way, and returns them as ravg; passing dampin=0 here suppresses
-            # only the scaling, not the reduction. The composed operation is
-            # bitwise identical, and the order the header of set_residual
-            # cares about -- limiter BEFORE IRS -- is unchanged.
-            fuse_damp = sf > 0.0
-            dampin_kernel = 0.0 if (dampin is None or fuse_damp) else dampin
+            # dampin=0 here disables set_residual's fused limiter entirely:
+            # the limiter is applied as a separate damp_residual pass below,
+            # AFTER IRS, to restore the original smooth-then-damp order (see
+            # the docstring note). ravg is unused in this configuration.
             ravg = ember.fortran.set_residual(
                 cons=block.conserved_nd,
                 p=block.P_nd,
@@ -1597,30 +1598,41 @@ class Grid(_LabelledList):
                 ni=ni,
                 nj=nj,
                 nk=nk,
-                # The change limiter is folded into set_residual: its block-mean
-                # reduction is accumulated during the dU write, removing a
-                # full-volume dU read. dampin=0 disables it. NOTE this reorders
-                # the post-processing -- the limiter now runs BEFORE the IRS
-                # smoother below, where it used to run after. See the kernel
-                # header in residual.f90 and docs section 24.5.
+                # Limiter left off here (see note above): dt_vol is still a
+                # required argument of the fused kernel, but dampin=0 means
+                # it contributes nothing beyond the (unused) ravg reduction.
                 dt_vol=block.dt_vol_nd,
-                dampin=dampin_kernel,
+                dampin=0.0,
             )
             if sf > 0.0:
-                # Exact factored-tridiagonal IRS (Jameson ADI): a direct solve,
-                # with the limiter's scaling fused into its i-solve. Scratch is
-                # just the Thomas coefficients, 2*(nci+ncj+nck) floats; carve a
-                # 1D leading view of block.scratch (nodal (ni,nj,nk,5), vastly
-                # oversized). Free here: set_residual does not touch it and the
-                # march reuses it only after this returns.
+                # Exact factored-tridiagonal IRS (Jameson ADI): a direct
+                # solve. dampin=0 here means smooth_residual_scale_tri's
+                # plain-gather branch -- IRS only, no limiter fused in.
+                # Scratch is just the Thomas coefficients,
+                # 2*(nci+ncj+nck) floats; carve a 1D leading view of
+                # block.scratch (nodal (ni,nj,nk,5), vastly oversized).
+                # Free here: set_residual does not touch it and the march
+                # reuses it only after this returns.
                 nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
                 ember.fortran.smooth_residual_scale_tri(
                     du=block.residual_nd,
                     dt_vol=block.dt_vol_nd,
                     ravg=ravg,
-                    dampin=0.0 if dampin is None else dampin,
+                    dampin=0.0,
                     sf=sf,
                     work=util.carve_view(block.scratch, (nwork,)),
+                    ni=ni,
+                    nj=nj,
+                    nk=nk,
+                )
+            if dampin is not None:
+                # Change limiter, applied AFTER IRS (the restored, original
+                # order): a separate full-volume pass over the smoothed
+                # residual, unchanged since before commit 0384c83.
+                ember.fortran.damp_residual(
+                    du=block.residual_nd,
+                    dt_vol=block.dt_vol_nd,
+                    dampin=dampin,
                     ni=ni,
                     nj=nj,
                     nk=nk,
