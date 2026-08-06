@@ -1,5 +1,7 @@
 """Tests for throttle state recording in ConvergenceHistory."""
 
+import contextlib
+import os
 import tempfile
 from pathlib import Path
 
@@ -10,6 +12,22 @@ from ember.fluid import PerfectFluid
 from ember.grid import ConvergenceStep
 
 _DATA = Path(__file__).parent / "data"
+
+
+@contextlib.contextmanager
+def _tmp_path(suffix):
+    """A temp file path that isn't held open, unlike tempfile.NamedTemporaryFile.
+
+    write_cnv/read_cnv each open the path themselves; NamedTemporaryFile's
+    own open handle blocks that second open on Windows (PermissionError),
+    even though the same pattern is harmless on POSIX.
+    """
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+    try:
+        yield path
+    finally:
+        os.unlink(path)
 
 
 P0 = 101325.0
@@ -117,9 +135,9 @@ def test_read_cnv_returns_instance():
 def test_read_cnv_roundtrip_steps():
     """Round-trip write_cnv/read_cnv preserves step count and values."""
     orig = ConvergenceHistory.read_cnv(_DATA / "duct.cnv")
-    with tempfile.NamedTemporaryFile(suffix=".cnv") as f:
-        orig.write_cnv(f.name)
-        reloaded = ConvergenceHistory.read_cnv(f.name)
+    with _tmp_path(".cnv") as path:
+        orig.write_cnv(path)
+        reloaded = ConvergenceHistory.read_cnv(path)
     n = orig.i_log + 1
     assert reloaded.i_log + 1 == n
     assert np.array_equal(reloaded.i_step[:n], orig.i_step[:n])
@@ -128,9 +146,9 @@ def test_read_cnv_roundtrip_steps():
 def test_read_cnv_roundtrip_mdot():
     """Round-trip preserves mdot arrays."""
     orig = ConvergenceHistory.read_cnv(_DATA / "duct.cnv")
-    with tempfile.NamedTemporaryFile(suffix=".cnv") as f:
-        orig.write_cnv(f.name)
-        reloaded = ConvergenceHistory.read_cnv(f.name)
+    with _tmp_path(".cnv") as path:
+        orig.write_cnv(path)
+        reloaded = ConvergenceHistory.read_cnv(path)
     n = orig.i_log + 1
     assert np.array_equal(reloaded.mdot_nd[:n, 0], orig.mdot_nd[:n, 0])
     assert np.array_equal(reloaded.mdot_nd[:n, -1], orig.mdot_nd[:n, -1])
@@ -139,9 +157,9 @@ def test_read_cnv_roundtrip_mdot():
 def test_read_cnv_roundtrip_residual():
     """Round-trip preserves drho residual."""
     orig = ConvergenceHistory.read_cnv(_DATA / "duct.cnv")
-    with tempfile.NamedTemporaryFile(suffix=".cnv") as f:
-        orig.write_cnv(f.name)
-        reloaded = ConvergenceHistory.read_cnv(f.name)
+    with _tmp_path(".cnv") as path:
+        orig.write_cnv(path)
+        reloaded = ConvergenceHistory.read_cnv(path)
     n = orig.i_log + 1
     assert np.array_equal(reloaded.residual[:n, 0], orig.residual[:n, 0])
 
@@ -149,9 +167,9 @@ def test_read_cnv_roundtrip_residual():
 def test_read_cnv_roundtrip_metadata():
     """Round-trip preserves grid metadata (node count)."""
     orig = ConvergenceHistory.read_cnv(_DATA / "duct.cnv")
-    with tempfile.NamedTemporaryFile(suffix=".cnv") as f:
-        orig.write_cnv(f.name)
-        reloaded = ConvergenceHistory.read_cnv(f.name)
+    with _tmp_path(".cnv") as path:
+        orig.write_cnv(path)
+        reloaded = ConvergenceHistory.read_cnv(path)
     assert reloaded._get_metadata_by_key("n_node") == orig._get_metadata_by_key(
         "n_node"
     )
@@ -160,9 +178,9 @@ def test_read_cnv_roundtrip_metadata():
 def test_read_cnv_compressed_roundtrip():
     """Compressed write_cnv round-trip is readable by read_cnv."""
     orig = ConvergenceHistory.read_cnv(_DATA / "duct.cnv")
-    with tempfile.NamedTemporaryFile(suffix=".cnv.gz") as f:
-        orig.write_cnv(f.name, compress=True)
-        reloaded = ConvergenceHistory.read_cnv(f.name)
+    with _tmp_path(".cnv.gz") as path:
+        orig.write_cnv(path, compress=True)
+        reloaded = ConvergenceHistory.read_cnv(path)
     assert reloaded.i_log == orig.i_log
 
 

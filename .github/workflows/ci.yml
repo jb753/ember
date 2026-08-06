@@ -46,12 +46,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
         with:
           # setuptools-scm needs full history and tags to compute the version
           fetch-depth: 0
+
+      - name: Set up MinGW-w64 gfortran (Windows only)
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-gcc-fortran
+          # Add MSYS2's mingw64/bin to the *existing* PATH rather than
+          # replacing it -- cibuildwheel's own step below still needs the
+          # runner's normal Python/pipx/etc. on PATH too.
+          path-type: inherit
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v4.1.0
@@ -74,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         # Keep in sync with [tool.cibuildwheel] build = "..." in pyproject.toml.
         python-version: ["3.12", "3.13", "3.14"]
     steps:
@@ -89,6 +100,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Start local package index
+        shell: bash
         run: |
           mkdir -p packages
           pipx run --spec pypiserver pypi-server run -p 8080 -a . -P . packages &
@@ -101,13 +113,26 @@ jobs:
           curl -sf http://localhost:8080/simple/
 
       - name: Publish wheels to local index
+        shell: bash
         run: pipx run twine upload --repository-url http://localhost:8080/ -u x -p x wheelhouse/*.whl
 
       - name: Install from local index
+        shell: bash
         run: |
           python -m venv verify-venv
-          verify-venv/bin/pip install --index-url http://localhost:8080/simple/ ember-cfd
+          # venv's layout is bin/ everywhere except Windows, where it's
+          # Scripts/ regardless of which shell invokes it (this is Git Bash
+          # under windows-latest, but the venv module still follows the
+          # host OS's own convention, not the shell's).
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            venv_bin=verify-venv/Scripts
+          else
+            venv_bin=verify-venv/bin
+          fi
+          echo "venv_bin=$venv_bin" >> "$GITHUB_ENV"
+          "$venv_bin/pip" install --index-url http://localhost:8080/simple/ ember-cfd
 
       - name: Smoke test the installed wheel
+        shell: bash
         run: |
-          verify-venv/bin/python -c "from ember.fortran import set_residual; print('OK')"
+          "$venv_bin/python" -c "from ember.fortran import set_residual; print('OK')"
