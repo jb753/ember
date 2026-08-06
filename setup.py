@@ -366,13 +366,16 @@ class F2PyBuildExt(build_ext):
                 f"f2py compilation failed with return code {result.returncode}"
             )
 
-        # Move the compiled extension to the correct location
-        so_pattern = "fortran*.so"
-        so_files = glob.glob(os.path.join(build_tmp, so_pattern))
+        # Move the compiled extension to the correct location. Extension
+        # module suffix is .so everywhere except Windows, where it's .pyd.
+        so_patterns = ["fortran*.so", "fortran*.pyd"]
+        so_files = [
+            f for pattern in so_patterns for f in glob.glob(os.path.join(build_tmp, pattern))
+        ]
         if not so_files:
             raise RuntimeError(
-                f"f2py compilation succeeded but no {so_pattern} found in {os.getcwd()}. "
-                f"Check f2py output above."
+                f"f2py compilation succeeded but no {' or '.join(so_patterns)} found in "
+                f"{os.getcwd()}. Check f2py output above."
             )
         for so_file in so_files:
             dest = output_dir / os.path.basename(so_file)

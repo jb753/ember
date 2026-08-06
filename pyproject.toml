@@ -61,7 +61,7 @@ version_file = "src/ember/_version.py"
 
 [tool.cibuildwheel]
 build = "cp312-* cp313-* cp314-*"
-skip = "*-musllinux* *-win32"
+skip = "*-musllinux*"
 archs = ["x86_64"]
 # h5py>=3.16 only ships manylinux_2_28 wheels (no manylinux2014), so the
 # build container must match or pip falls back to a source build that
@@ -85,6 +85,16 @@ before-all = "brew install gcc"
 # Pin to match; this does mean the wheel only installs on that macOS
 # version or newer until Homebrew ships an older-targeted gcc bottle.
 environment = { MACOSX_DEPLOYMENT_TARGET = "26.0" }
+test-requires = "pytest"
+test-command = "pytest {project}/tests -q"
+
+[tool.cibuildwheel.windows]
+# No MSVC Fortran compiler exists; gfortran comes from a MinGW-w64 toolchain
+# installed via a separate msys2/setup-msys2 workflow step (see ci.yml) --
+# force meson to pick that up instead of the MSVC toolchain also present on
+# the runner by default.
+archs = ["AMD64"]
+environment = { CC = "gcc", CXX = "g++", FC = "gfortran" }
 test-requires = "pytest"
 test-command = "pytest {project}/tests -q"
 
