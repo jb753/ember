@@ -1,5 +1,5 @@
-Perturbation
-============
+Jacobians
+=========
 
 .. automodule:: ember.perturbation
    :members:

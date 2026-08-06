@@ -1,32 +1,74 @@
-r"""Analytic Jacobians between the flow variable sets used throughout EMBER.
+r"""Jacobians between the flow variable sets used throughout EMBER.
 
-Six five-component variable sets describe the same flow state, and boundary
-conditions, the characteristic treatment and the mixing planes all need to
-move small perturbations between them:
+Six five-component variable sets, each labelled by a single calligraphic
+letter, describe the same flow state; boundary conditions, the
+characteristic treatment and the mixing planes all need to move small
+perturbations between them:
 
-* **primitive** -- :math:`[\rho, V_x, V_r, V_\theta, P]`
-* **conserved** -- :math:`[\rho, \rho V_x, \rho V_r, \rho r V_\theta, \rho e]`,
-  what :meth:`~ember.block.Block.set_conserved` stores
-* **flux** -- the x-direction advective flux of each conserved variable,
-  :math:`[\rho V_x, \rho V_x^2 + P, \rho V_x V_r, \rho V_x r V_\theta, \rho V_x h_0]`
-* **chic** -- Giles' one-dimensional characteristic variables
-  :math:`[c_\mathrm{up}, c_\mathrm{down}, c_r, c_t, c_s]`
-* **bcond** -- :math:`[h_0, s, \tan\alpha, \sin\beta, P]`, what a subsonic
-  inflow prescribes; see :class:`~ember.inlet.InletPatch`
-* **mix** -- :math:`[h_0, s, V_r, V_\theta, P]`, what a mixing plane exchanges;
-  see :class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch`
+* **primitive**
 
-Each function below is named ``x_to_y`` and returns the Jacobian
-:math:`\partial y/\partial x`, evaluated pointwise from a
+  .. math::
+      \mathcal{P} = [\rho, V_x, V_r, V_\theta, p]^\mathrm{T}
+
+* **conserved** -- what :meth:`~ember.block.Block.set_conserved` stores
+
+  .. math::
+      \mathcal{U} = [\rho, \rho V_x, \rho V_r, \rho r V_\theta, \rho e]^\mathrm{T}
+
+* **flux** -- the x-direction advective flux of each conserved variable
+
+  .. math::
+      \mathcal{F} = [\rho V_x,\ \rho V_x^2 + p,\ \rho V_x V_r,\
+      \rho V_x r V_\theta,\ \rho V_x h_0]^\mathrm{T}
+
+* **chic** -- one-dimensional characteristic variables of the Euler equations
+
+  .. math::
+      \mathcal{C} = [c_\mathrm{up}, c_\mathrm{down}, c_r, c_t, c_s]^\mathrm{T}
+
+* **bcond** -- what a subsonic inflow prescribes; see
+  :class:`~ember.inlet.InletPatch`
+
+  .. math::
+      \mathcal{B} = [h_0, s, \tan\alpha, \sin\beta, p]^\mathrm{T}
+
+* **mix** -- what a mixing plane exchanges; see
+  :class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch`
+
+  .. math::
+      \mathcal{M} = [h_0, s, V_r, V_\theta, p]^\mathrm{T}
+
+Every function below is named ``X_to_Y`` and returns the Jacobian
+:math:`\mathbf{J}_{\mathcal{X}\to\mathcal{Y}}`, evaluated pointwise from a
 :class:`~ember.block.Block`'s current state and returned as a batch of 5x5
-matrices stacked on the trailing two axes. An inverse transformation between
-two of these sets is computed analytically rather than by matrix inversion
-(:func:`conserved_to_primitive` is the analytical inverse of
-:func:`primitive_to_conserved`, and so on); a transformation between two sets
-neither of which is primitive is fused into a single evaluation rather than
-composed from two Jacobians at call time (:func:`chic_to_bcond`, for
-instance, is the fused product of :func:`primitive_to_bcond` and
-:func:`chic_to_primitive`).
+matrices stacked on the trailing two axes:
+
+.. math::
+    \delta\mathcal{Y} = \mathbf{J}_{\mathcal{X}\to\mathcal{Y}}\,\delta\mathcal{X}
+
+Two conventions keep this cheap. First, whenever both a Jacobian and its
+inverse are needed, the inverse is not obtained by numerically inverting the
+forward 5x5 matrix at every point -- it is worked out analytically in closed
+form and implemented as its own function. :func:`conserved_to_primitive`,
+for instance, is the closed-form inverse of :func:`primitive_to_conserved`,
+and every other ``Y_to_X`` in this module pairs with an ``X_to_Y`` the same
+way. Second, every Jacobian between two sets neither of which is primitive
+necessarily passes through primitive variables,
+:math:`\mathbf{J}_{\mathcal{X}\to\mathcal{Y}} = \mathbf{J}_{\mathcal{P}\to\mathcal{Y}}\,\mathbf{J}_{\mathcal{X}\to\mathcal{P}}`,
+and where that composite sits on a hot path -- the characteristic and
+mixing-plane boundary conditions evaluate one every timestep -- the product
+is worked out analytically once and implemented as its own fused function
+rather than composed from two separate calls. For example
+:func:`chic_to_bcond` evaluates
+:math:`\mathbf{J}_{\mathcal{C}\to\mathcal{B}} = \mathbf{J}_{\mathcal{P}\to\mathcal{B}}\,\mathbf{J}_{\mathcal{C}\to\mathcal{P}}`
+directly, rather than calling :func:`primitive_to_bcond` and
+:func:`chic_to_primitive` and multiplying the results at every timestep.
+Elsewhere, where the extra multiply is not performance-critical, a composite
+Jacobian is simply the product of two separately evaluated calls --
+:func:`flux_to_conserved` and :func:`conserved_to_flux`, for instance, are
+literally :func:`primitive_to_conserved` :math:`\cdot` :func:`flux_to_primitive`
+and :func:`primitive_to_flux` :math:`\cdot` :func:`conserved_to_primitive`
+multiplied together at call time via :func:`~ember.util.matmat`.
 
 All Jacobians are evaluated in the nondimensional space the block stores its
 state in, using :attr:`~ember.block.Block.conserved_nd`,
@@ -43,12 +85,7 @@ def primitive_to_conserved(block, out=None):
     r"""Jacobian of conserved variables with respect to primitive variables.
 
     .. math::
-        \delta\mathcal{U} = \mathbf{J}_{\mathcal{P}\mathcal{U}} \delta\mathcal{P}
-
-    for primitive :math:`\delta\mathcal{P} = [\delta\rho, \delta V_x, \delta
-    V_r, \delta V_\theta, \delta P]^T` and conserved :math:`\delta\mathcal{U}
-    = [\delta\rho, \delta(\rho V_x), \delta(\rho V_r), \delta(\rho r
-    V_\theta), \delta(\rho e)]^T`.
+        \delta\mathcal{U} = \mathbf{J}_{\mathcal{P}\to\mathcal{U}}\,\delta\mathcal{P}
 
     Parameters
     ----------
@@ -60,8 +97,8 @@ def primitive_to_conserved(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathcal{P}\mathcal{U}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{U}}`, stacked on the
+        trailing two axes.
     """
     b = block
     if out is None:
@@ -112,8 +149,8 @@ def conserved_to_primitive(block):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathcal{U}\mathcal{P}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{U}\to\mathcal{P}}`, stacked on the
+        trailing two axes.
     """
     b = block
 
@@ -151,7 +188,7 @@ def conserved_to_primitive(block):
 
 
 def primitive_to_chic(block, out=None):
-    r"""Jacobian of Giles' characteristic variables with respect to primitive variables.
+    r"""Jacobian of one-dimensional characteristic variables with respect to primitive variables.
 
     Parameters
     ----------
@@ -163,8 +200,8 @@ def primitive_to_chic(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathcal{P}\mathrm{c}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{C}}`, stacked on the
+        trailing two axes.
     """
     b = block
     if out is None:
@@ -193,7 +230,7 @@ def primitive_to_chic(block, out=None):
 
 
 def chic_to_primitive(block, out=None):
-    r"""Jacobian of primitive variables with respect to Giles' characteristic variables.
+    r"""Jacobian of primitive variables with respect to one-dimensional characteristic variables.
 
     Analytical inverse of :func:`primitive_to_chic`.
 
@@ -207,8 +244,8 @@ def chic_to_primitive(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathrm{c}\mathcal{P}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{P}}`, stacked on the
+        trailing two axes.
     """
     b = block
     if out is None:
@@ -248,8 +285,8 @@ def primitive_to_flux(block):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathcal{P}\mathrm{F}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{F}}`, stacked on the
+        trailing two axes.
     """
     b = block
 
@@ -294,8 +331,8 @@ def flux_to_primitive(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathrm{F}\mathcal{P}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{F}\to\mathcal{P}}`, stacked on the
+        trailing two axes.
     """
     b = block
     if out is None:
@@ -384,8 +421,8 @@ def primitive_to_bcond(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathcal{P}\mathrm{b}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{B}}`, stacked on the
+        trailing two axes.
     """
     b = block
 
@@ -423,19 +460,26 @@ def bcond_to_primitive(block, out=None):
     Analytical inverse of :func:`primitive_to_bcond`.
 
     :math:`V_m` is the meridional speed the two angles are measured against
-    and :math:`V^2 = V_m^2 + V_\theta^2` the total speed squared. Eliminating
-    the velocity components from the forward matrix leaves the meridional
-    projection :math:`u = V_x\,\delta V_x + V_r\,\delta V_r` as the only
-    coupling, with
+    and :math:`V^2 = V_m^2 + V_\theta^2` the total speed squared. The entropy
+    row of the forward matrix eliminates :math:`\delta\rho` in favour of
+    :math:`\delta s` and :math:`\delta p`, leaving a stagnation-enthalpy
+    residual
 
     .. math::
-        u = \frac{V_m^2}{V^2}\left(b_0 - V_\theta V_m\,\delta\tan\alpha\right),
-        \qquad
-        b_0 = \delta h_0 - \frac{\partial h_0/\partial\rho|_P}{\partial s/\partial\rho|_P}\,\delta s
-              + \text{cross}\cdot\delta P
+        \delta b_0 = \delta h_0
+            - \frac{\partial h_0/\partial\rho|_p}{\partial s/\partial\rho|_p}\,\delta s
+            + \text{cross}\cdot\delta p
 
-    the stagnation enthalpy residual once density has been eliminated via the
-    entropy row.
+    Substituting that into the enthalpy row leaves the meridional velocity
+    projection :math:`\delta u = V_x\,\delta V_x + V_r\,\delta V_r` as the
+    only remaining unknown, solved for as
+
+    .. math::
+        \delta u = \frac{V_m^2}{V^2}
+            \left(\delta b_0 - V_\theta V_m\,\delta\tan\alpha\right)
+
+    which is then split between :math:`\delta V_x` and :math:`\delta V_r`
+    using :math:`\delta\sin\beta`.
 
     Parameters
     ----------
@@ -447,8 +491,8 @@ def bcond_to_primitive(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathrm{b}\mathcal{P}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{B}\to\mathcal{P}}`, stacked on the
+        trailing two axes.
     """
     b = block
     if out is None:
@@ -515,8 +559,8 @@ def primitive_to_mix(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathcal{P}\mathrm{m}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{M}}`, stacked on the
+        trailing two axes.
     """
     b = block
     if out is None:
@@ -568,8 +612,8 @@ def mix_to_primitive(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathrm{m}\mathcal{P}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{M}\to\mathcal{P}}`, stacked on the
+        trailing two axes.
     """
     b = block
     if out is None:
@@ -613,8 +657,11 @@ def mix_to_primitive(block, out=None):
 def mix_to_conserved(block, out=None):
     r"""Jacobian of conserved variables with respect to a mixing plane's exchanged quantities.
 
-    Analytically fused product :func:`primitive_to_conserved`
-    :math:`\cdot` :func:`mix_to_primitive`, rather than composing the two at
+    Analytically fused product
+    :math:`\mathbf{J}_{\mathcal{M}\to\mathcal{U}}
+    = \mathbf{J}_{\mathcal{P}\to\mathcal{U}}\,\mathbf{J}_{\mathcal{M}\to\mathcal{P}}`,
+    i.e. :func:`primitive_to_conserved` :math:`\cdot`
+    :func:`mix_to_primitive`, rather than composing the two Jacobians at
     call time.
 
     Parameters
@@ -627,8 +674,8 @@ def mix_to_conserved(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathrm{m}\mathcal{U}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{M}\to\mathcal{U}}`, stacked on the
+        trailing two axes.
     """
     b = block
 
@@ -690,12 +737,15 @@ def mix_to_conserved(block, out=None):
 def chic_to_bcond(block, out=None):
     r"""Jacobian of a subsonic inflow's prescribed quantities with respect to characteristic variables.
 
-    Analytically fused product :func:`primitive_to_bcond` :math:`\cdot`
-    :func:`chic_to_primitive`. Rows 0-3 against the four incoming
-    characteristic columns form the square system a non-reflecting inlet
-    solves to drive its boundary condition residuals to zero; see
-    :class:`~ember.inlet.InletPatch`. The angle derivatives are as in
-    :func:`primitive_to_bcond`, both measured against the meridional speed.
+    Analytically fused product
+    :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{B}}
+    = \mathbf{J}_{\mathcal{P}\to\mathcal{B}}\,\mathbf{J}_{\mathcal{C}\to\mathcal{P}}`,
+    i.e. :func:`primitive_to_bcond` :math:`\cdot` :func:`chic_to_primitive`.
+    Rows 0-3 against the four incoming characteristic columns form the
+    square system a non-reflecting inlet solves to drive its boundary
+    condition residuals to zero; see :class:`~ember.inlet.InletPatch`. The
+    angle derivatives are as in :func:`primitive_to_bcond`, both measured
+    against the meridional speed.
 
     Parameters
     ----------
@@ -707,8 +757,8 @@ def chic_to_bcond(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathrm{c}\mathrm{b}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{B}}`, stacked on the
+        trailing two axes.
     """
     b = block
 
@@ -795,8 +845,10 @@ def chic_to_bcond(block, out=None):
 def chic_to_mix(block, out=None):
     r"""Jacobian of a mixing plane's exchanged quantities with respect to characteristic variables.
 
-    Analytically fused product :func:`primitive_to_mix` :math:`\cdot`
-    :func:`chic_to_primitive`.
+    Analytically fused product
+    :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{M}}
+    = \mathbf{J}_{\mathcal{P}\to\mathcal{M}}\,\mathbf{J}_{\mathcal{C}\to\mathcal{P}}`,
+    i.e. :func:`primitive_to_mix` :math:`\cdot` :func:`chic_to_primitive`.
 
     Parameters
     ----------
@@ -808,8 +860,8 @@ def chic_to_mix(block, out=None):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathrm{c}\mathrm{m}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{M}}`, stacked on the
+        trailing two axes.
     """
     b = block
 
@@ -878,8 +930,8 @@ def flux_to_conserved(block):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathrm{F}\mathcal{U}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{F}\to\mathcal{U}}`, stacked on the
+        trailing two axes.
     """
     return util.matmat(primitive_to_conserved(block), flux_to_primitive(block))
 
@@ -898,7 +950,7 @@ def conserved_to_flux(block):
     Returns
     -------
     jac : ndarray, shape (..., 5, 5)
-        :math:`\mathbf{J}_{\mathcal{U}\mathrm{F}}`, stacked on the trailing
-        two axes.
+        :math:`\mathbf{J}_{\mathcal{U}\to\mathcal{F}}`, stacked on the
+        trailing two axes.
     """
     return util.matmat(primitive_to_flux(block), conserved_to_primitive(block))
