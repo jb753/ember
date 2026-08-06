@@ -1,6 +1,7 @@
 """Custom setup.py for building Fortran extensions with f2py."""
 
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -20,7 +21,11 @@ GFORTRAN_DEBUG = False
 # (yum-installed gcc-gfortran) may still ship an older GCC.
 # Override with EMBER_MARCH (e.g. "-march=native -mtune=native") for perf
 # runs tuned to a specific machine, without having to repeat every other flag.
-GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
+# The haswell baseline is x86_64-only; on arm64 (Apple Silicon macOS
+# runners) there is no equivalent portable-baseline flag worth pinning, so
+# default to nothing there rather than an invalid x86 flag.
+_default_march = "-march=haswell" if platform.machine() in ("x86_64", "AMD64") else ""
+GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", _default_march)
 # -fipa-pta deliberately omitted: verified a no-op on the current whole-program
 # build (identical .text section with/without it, GCC 14.2), but in an isolated
 # single-file compile it suppressed AVX2 vectorization of the residual face-flux
@@ -50,7 +55,22 @@ GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
 # the fused tau/q experiment; the limit is a vectorizer budget, not a
 # correctness knob -- the checks it permits are still emitted and still run.
 # NOTE the --param=X=Y spelling: f2py re-splits "--param X=Y" on the space.
-GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 --param=inline-unit-growth=1000000 --param=large-function-growth=1000000 --param=vect-max-version-for-alias-checks=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
+GFORTRAN_FLAGS = " ".join(
+    filter(
+        None,
+        [
+            "-Ofast",
+            GFORTRAN_MARCH,
+            "-funroll-all-loops -finline-functions -finline-limit=10000"
+            " --param early-inlining-insns=200 --param=inline-unit-growth=1000000"
+            " --param=large-function-growth=1000000"
+            " --param=vect-max-version-for-alias-checks=200 -flto -fwhole-program"
+            " -fno-trapping-math -freciprocal-math -floop-nest-optimize"
+            " -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror"
+            " -Warray-temporaries -Wfatal-errors",
+        ],
+    )
+)
 # Appended verbatim to the gfortran flags. Used to test whether pinning
 # GCC's UNIT-level inline budgets makes production codegen invariant to
 # what else is in the build -- see bench/codegen_gauge.py.

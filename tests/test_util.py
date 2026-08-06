@@ -1492,16 +1492,21 @@ def test_roundtrip_consistency():
             f"Alpha mismatch for case {V_rel_orig, Alpha_rel_orig, Beta_orig}"
         )
 
-        # Handle angle wrapping: Beta can differ by 360° for equivalent angles
+        # Handle angle wrapping: Beta can differ by 360° for equivalent angles.
+        # 1e-3 degrees, not 1e-5: atan2/degrees float32 rounding through this
+        # branch cut differs by a few ULP across platforms (observed 1.5e-5
+        # degrees off on arm64 vs exact on x86_64 for the ±180 case).
         Beta_diff = np.abs(Beta_recovered - Beta_orig)
         angle_equivalent = (
-            Beta_diff < 1e-5
-            or np.abs(Beta_diff - 360) < 1e-5
-            or np.abs(Beta_diff - 180) < 1e-5
+            Beta_diff < 1e-3
+            or np.abs(Beta_diff - 360) < 1e-3
+            or np.abs(Beta_diff - 180) < 1e-3
         )
         if not angle_equivalent:
-            # For pure tangential case (Alpha=90°), Vx≈0 can give ambiguous Beta
-            pure_tangential = np.abs(Alpha_rel_orig) == 90.0 and np.abs(Vx) < 1e-6
+            # For pure tangential case (Alpha=90°), Vx≈0 can give ambiguous
+            # Beta. 1e-4 not 1e-6: Vx's noise floor here is V_rel * float32
+            # eps (~4e-6 for V_rel=100), not machine epsilon itself.
+            pure_tangential = np.abs(Alpha_rel_orig) == 90.0 and np.abs(Vx) < 1e-4
             if not pure_tangential:
                 assert False, (
                     f"Beta mismatch for case {V_rel_orig, Alpha_rel_orig, Beta_orig}: got {Beta_recovered}, expected {Beta_orig}"
@@ -1540,7 +1545,11 @@ def test_negative_angle_handling():
 
     # Test negative Vx (reverse axial)
     V_rel, Alpha_rel_deg, Beta_deg = components_to_angles(-50.0, 0.0, 0.0)
-    assert abs(Beta_deg) == 180.0 or abs(Beta_deg) < 1e-10, (
+    # atan2(0, -50) is exactly pi, but degrees(atan2(...)) in float32 lands
+    # a few ULP off 180.0 depending on the platform's libm (observed
+    # 179.99998 on arm64 vs exactly 180.0 on x86_64) -- not a formula bug,
+    # this branch cut is inherently platform-sensitive at the float32 level.
+    assert abs(abs(Beta_deg) - 180.0) < 1e-3 or abs(Beta_deg) < 1e-10, (
         "Negative Vx should give ±180° Beta"
     )
 
