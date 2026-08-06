@@ -1,315 +1,245 @@
-"""Inlet boundary condition patch for EMBER CFD.
+r"""Subsonic inlet boundary condition for EMBER CFD.
 
-InletPatch enforces stagnation pressure, stagnation temperature, and flow angles
-at an inflow face. Static pressure is not directly imposed; the face state is
-instead found by solving the outgoing acoustic characteristic together with the
-imposed stagnation condition, which fixes the velocity magnitude.
+:class:`InletPatch` prescribes stagnation enthalpy, entropy and the two flow
+angles at an inflow face while letting outgoing acoustic waves leave the domain,
+after the steady non-reflecting theory of :cite:t:`Giles1988` (his Sections
+5.3-5.4) extended to three dimensions by :cite:t:`Saxer1993`.
+
+The characteristic treatment is entirely
+:class:`~ember.nonreflecting.NonReflectingPatch`'s; what this class adds is an
+interior on the :math:`+x` side and the variables a physical inlet knows. Of the
+five characteristics at an axially subsonic inflow plane four are incoming
+(entropy, two vorticity waves, the downstream-running pressure wave) and one,
+the upstream-running pressure wave, is outgoing, so four quantities are
+prescribed: the pitchwise means of :math:`h_0`, :math:`s`, :math:`\tan\alpha`
+and :math:`\sin\beta`.
+
+The inflow state is prescribed in the "natural" variables of the characteristic
+residuals -- stagnation enthalpy and entropy rather than stagnation pressure and
+temperature -- so no thermodynamic inversion happens inside the boundary
+condition. :meth:`InletPatch.set_Po_To` converts a stagnation state on the way
+in for callers who would rather give one.
+
+This is the one condition in the family that works in the angle variables of
+:func:`~ember.perturbation.chic_to_bcond` rather than the mix variables the base
+class defaults to; see the class docstring for why the angles suit a physical
+inlet and nothing else.
 
 See Also
 --------
-ember.patch.Patch : Base class for all patches
-ember.patch.OutletPatch : Outlet boundary condition
+ember.nonreflecting.NonReflectingPatch : The condition itself
+ember.outlet.OutletPatch : The outflow counterpart
+ember.perturbation.chic_to_bcond : Jacobian this patch's mean-mode solve is built on
 """
 
 import numpy as np
-from ember.basepatch import RevolutionPatch
+
+from ember import perturbation
+from ember.nonreflecting import NonReflectingPatch, replayable
 
 
-class InletPatch(RevolutionPatch):
-    """Inflow boundary condition.
+class InletPatch(NonReflectingPatch):
+    r"""Subsonic inflow boundary condition.
 
-    Enforces prescribed stagnation pressure :math:`p_0`, stagnation temperature
-    :math:`T_0`, yaw angle :math:`\\alpha`, and pitch angle :math:`\\beta` at the
-    face. Stagnation enthalpy and entropy are derived from :math:`p_0` and
-    :math:`T_0` and imposed directly. Flow direction is set from :math:`\\alpha`
-    and :math:`\\beta`.
+    Prescribes stagnation enthalpy :math:`h_0`, entropy :math:`s`, yaw angle
+    :math:`\alpha` and pitch angle :math:`\beta` as pitchwise-mean quantities,
+    while absorbing outgoing acoustic waves rather than reflecting them. All
+    four must be set before :meth:`~ember.nonreflecting.NonReflectingPatch.apply`
+    is called, via :meth:`set_ho_s` or :meth:`set_Po_To` together with
+    :meth:`set_Alpha` and :meth:`set_Beta`. Each setter converts its target and
+    stores it nondimensionally in the corresponding row of the prescribed
+    target, published as :attr:`ho_nd`, :attr:`s_nd`, :attr:`tanAlpha` and
+    :attr:`sinBeta`, so the patch must already be attached to a block whose
+    fluid is set.
 
-    Static pressure is not imposed directly. Each call to :meth:`apply` solves
-    the outgoing acoustic characteristic carried to the face from the interior
-    simultaneously with the imposed stagnation state, which determines the
-    velocity magnitude. The result is relaxed toward :math:`V_\\mathrm{soln}`;
-    call :meth:`update_soln` once per timestep (before the Runge-Kutta stages)
-    to advance it.
+    The angles are what makes this condition different from every other in the
+    family. A physical inlet knows its flow angles and not its
+    velocity magnitude, so :math:`(\tan\alpha, \sin\beta)` are the right
+    variables here, and :attr:`_chic_to_target` is
+    :func:`~ember.perturbation.chic_to_bcond` rather than the base class's
+    :func:`~ember.perturbation.chic_to_mix`. Only rows 2 and 3 of the two
+    Jacobians differ; rows 0, 1 and 4 are identical.
 
-    All four boundary condition values must be set via
-    :meth:`set_Po_To_Alpha_Beta` before :meth:`apply` is called.
+    A span station whose mean flow has reversed becomes an outflow, and the base
+    class drives it to the static pressure of row 4 instead. Nothing need be
+    configured for that: :meth:`set_backflow_P` prescribes the pressure and,
+    left alone, it is seeded from the inflow plane at the first timestep. The
+    angle rows are not solved there -- row 4 is static pressure in both target
+    spaces -- so the factor of :math:`V_x` those rows carry never takes the
+    solve singular.
     """
 
     _collection_name = "inlet"
 
-    # Newton controls for the characteristic solve in apply(). The iteration is
-    # warm-started from the previous face velocity and typically exits after one
-    # pass, so the cap is a safety net rather than a working limit.
-    _MAX_ITER = 10
-    _TOL = 1e-6
+    _desc = "inlet patch"
 
-    def _copy(self, c):
-        c._raw = {k: np.copy(v) for k, v in self._raw.items()}
-        # _target_nd and _V_nd_max are derived from _raw and block_view.shape,
-        # so they must be recomputed on the new block rather than copied.
-        c._V_nd_soln = np.copy(self._V_nd_soln) if self._V_nd_soln is not None else None
-        c.rf = self.rf
+    _sign_interior = 1
 
-    def _setup(self):
-        super()._setup()
-        self._raw = {"Po": np.nan, "To": np.nan, "Alpha": np.nan, "Beta": np.nan}
-        self._target_nd = (
-            None  # (ho_nd, s_nd, cosBetacosAlpha, sinBetacosAlpha, sinAlpha)
-        )
-        self._V_nd_max = None
-        self._V_nd_soln = None
-        # Relaxation factor for the velocity update, read by apply(). Unity is
-        # the correct answer once the characteristic solve makes the target
-        # well-conditioned; rf < 1 only adds lag for startup transients.
-        self.rf = 1.0
+    # Angles rather than the base class's transverse velocities; see the class
+    # docstring.
+    _chic_to_target = staticmethod(perturbation.chic_to_bcond)
 
-    def _calc_target(self):
-        """Compute nondimensional target tuple from Po, To, Alpha, Beta."""
-        fluid = self.block.fluid
-        rhoo_nd, uo_nd = fluid.set_P_T(self.Po / fluid.P_ref, self.To / fluid.T_ref)
-        ho_nd = fluid.get_h(rhoo_nd, uo_nd)
-        s_nd = fluid.get_s(rhoo_nd, uo_nd)
+    _target_names = ("ho_nd", "s_nd", "tanAlpha", "sinBeta", "P_nd")
 
-        def _broadcast(arr):
-            return np.asfortranarray(
-                np.broadcast_to(arr, self.block_view.shape).astype(np.float32)
-            )
+    _target_setters = {
+        0: "set_ho_s or set_Po_To",
+        1: "set_ho_s or set_Po_To",
+        2: "set_Alpha",
+        3: "set_Beta",
+    }
 
-        Alpha_rad = np.radians(self.Alpha)
-        Beta_rad = np.radians(self.Beta)
-        cosAlpha = np.cos(Alpha_rad)
-        cosBeta = np.cos(Beta_rad)
+    # The static pressure imposed at a station whose inflow has reversed. Not
+    # required: seeded from the face if set_backflow_P is never called.
+    _target_seeded = (4,)
 
-        # Ceiling on the reconstructed velocity: the isentropic expansion of the
-        # stagnation state down to a token fraction of To. The Newton iterate in
-        # apply() is clamped to this so set_h_s never sees a static enthalpy
-        # below the zero-temperature limit. It sits near Ma ~ 14, far outside any
-        # physical solution, and exists only to keep transients finite.
-        h_floor_nd = fluid.get_h(*fluid.set_T_s(0.01 * self.To / fluid.T_ref, s_nd))
-        self._V_nd_max = _broadcast(np.sqrt(2.0 * (ho_nd - h_floor_nd)))
-        self._target_nd = (
-            _broadcast(ho_nd),
-            _broadcast(s_nd),
-            _broadcast(cosBeta * cosAlpha),
-            _broadcast(np.sin(Beta_rad) * cosAlpha),
-            _broadcast(np.sin(Alpha_rad)),
-        )
+    # The node-level limiter imposes rows 0-3 read as [ho, s, Vr, Vt], which
+    # this patch's angle rows cannot express. It is also the wrong shape of
+    # problem here: a node the flow enters at an inflow face is the normal
+    # case, not the pathology the limiter exists for.
+    _nodal_backflow = False
 
-    def _solve_V_nd(self, ho_nd, s_nd, Z_nd, R_nd, a_nd):
-        """Newton solve for the face velocity along the prescribed direction.
+    def _target_from_prim(self, prim):
+        """The target-space quantities (ho, s, tanAlpha, sinBeta, P) of a primitive state.
 
-        Warm-started from :attr:`_V_nd_soln`, so in steady marching this exits
-        after a single pass. Convergence is measured against the interior
-        acoustic speed ``a_nd``, a strictly positive velocity scale, so the test
-        is dimensionless without risking a division by zero.
-
-        Each iterate is clamped into the range where the root is well defined:
-        below at the subsonic side of the reverse-running acoustic wave, since
-        :math:`g' = -\\rho(V + a)` changes sign at :math:`V = -a` and would
-        otherwise break monotonicity; above at :attr:`_V_nd_max`, keeping the
-        static enthalpy handed to ``set_h_s`` above the zero-temperature limit.
-        Neither bound should bind in a converged solution.
+        The angles in place of the base class's transverse velocities, measured
+        against the meridional speed as
+        :func:`~ember.perturbation.chic_to_bcond` differentiates them.
         """
-        fluid = self.block.fluid
-        V_nd = self._V_nd_soln
-        for _ in range(self._MAX_ITER):
-            rho_nd, u_nd = fluid.set_h_s(ho_nd - 0.5 * V_nd**2, s_nd)
-            g_nd = fluid.get_P(rho_nd, u_nd) - Z_nd * V_nd - R_nd
-            dV_nd = g_nd / (rho_nd * (V_nd + fluid.get_a(rho_nd, u_nd)))
-            V_nd = np.clip(V_nd + dV_nd, -0.9 * a_nd, self._V_nd_max)
-            if np.all(np.abs(dV_nd) <= self._TOL * a_nd):
-                break
-        return V_nd
+        ho_nd, s_nd = self._ho_s_from_prim(prim)
+        Vx, Vr, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
+        Vm = np.sqrt(Vx**2 + Vr**2)
+        return ho_nd, s_nd, Vt / Vm, Vr / Vm, prim[..., 4]
 
-    def _face_V_nd(self):
-        """Inlet-face velocity projected onto the prescribed flow direction."""
-        b = self.block_view
-        _, _, cosBcosA, sinBcosA, sinA = self._target_nd
-        return b.Vx_nd * cosBcosA + b.Vr_nd * sinBcosA + b.Vt_nd * sinA
-
-    def set_Po_To_Alpha_Beta(self, Po=None, To=None, Alpha=None, Beta=None):
-        """Set inlet boundary condition values.
-
-        Each argument is independent; omitted arguments retain their current
-        value. All four must be set before :meth:`apply` can be called.
-        Stagnation pressure and stagnation temperature must be positive and
-        finite. Yaw and pitch angles are in degrees. Each value accepts a
-        scalar or an array that broadcasts to :attr:`~ember.basepatch.Patch.shape`.
+    @replayable
+    def set_Alpha(self, Alpha):
+        r"""Prescribe the inflow yaw angle.
 
         Parameters
         ----------
-        Po : float or array, optional
-            Prescribed stagnation pressure [Pa].
-        To : float or array, optional
-            Prescribed stagnation temperature [K].
-        Alpha : float or array, optional
-            Prescribed inflow yaw angle [deg].
-        Beta : float or array, optional
-            Prescribed inflow pitch angle [deg].
+        Alpha : float or array
+            Prescribed inflow yaw angle :math:`\alpha` [deg], measured from the
+            meridional plane; must satisfy :math:`|\alpha| < 90`. A scalar or an
+            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`, of
+            which only the pitchwise mean at each span station is imposed.
         """
-        kwargs = {"Po": Po, "To": To, "Alpha": Alpha, "Beta": Beta}
-        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        if not (np.abs(np.asarray(Alpha)) < 90.0).all():
+            raise ValueError("Alpha must be within +/-90 degrees exclusive")
+        self._set_target_row(
+            2, "Alpha", np.tan(np.radians(np.asarray(Alpha, dtype=np.float32)))
+        )
 
-        if kwargs:
-            broadcasted = np.broadcast_arrays(*kwargs.values(), np.ones(self.shape))
-            if broadcasted[0].shape != self.shape:
-                raise ValueError(
-                    f"Inputs broadcast to {broadcasted[0].shape}, exceeding patch shape {self.shape}"
-                )
+    @replayable
+    def set_backflow_P(self, P):
+        r"""Prescribe the static pressure imposed where the inflow reverses.
 
-        for key, val in kwargs.items():
+        A span station whose pitchwise-mean flow has turned round is an outflow:
+        four of its five characteristics leave the domain and only one enters,
+        so one quantity is prescribed and it is static pressure, not the inflow
+        state. This is that pressure. The other four rows are not imposed at
+        such a station -- they are what the outgoing waves carry there.
+
+        Calling this is optional. Left alone, the row is seeded once from the
+        pitchwise mean of the inflow plane at the first timestep and frozen
+        there; see ``NonReflectingPatch._seed_target``. If a large
+        part of the span ends up reversed the inflow is no longer under control
+        and the boundary wants moving upstream, rather than this value tuning.
+
+        Parameters
+        ----------
+        P : float or array
+            Static pressure :math:`p` [Pa]; must be positive and finite. A
+            scalar or an array that broadcasts to
+            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            mean at each span station is imposed.
+
+        See Also
+        --------
+        ember.outlet.OutletPatch.set_backflow_ho_s : The mirror of this,
+            prescribing the inflow state an outflow face falls back on
+        """
+        arr = np.asarray(P)
+        if not np.isfinite(arr).all():
+            raise ValueError("P must be finite")
+        if not (arr > 0.0).all():
+            raise ValueError("P must be positive")
+        self._set_target_row(4, "P", arr / self.block.fluid.P_ref)
+
+    @replayable
+    def set_Beta(self, Beta):
+        r"""Prescribe the inflow pitch angle.
+
+        Parameters
+        ----------
+        Beta : float or array
+            Prescribed inflow pitch angle :math:`\beta` [deg]; must satisfy
+            :math:`|\beta| \leq 90`. A scalar or an array that broadcasts to
+            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            mean at each span station is imposed.
+        """
+        if not (np.abs(np.asarray(Beta)) <= 90.0).all():
+            raise ValueError("Beta must be within +/-90 degrees inclusive")
+        self._set_target_row(
+            3, "Beta", np.sin(np.radians(np.asarray(Beta, dtype=np.float32)))
+        )
+
+    @replayable
+    def set_ho_s(self, ho, s):
+        r"""Prescribe the inflow stagnation enthalpy and entropy.
+
+        Both are measured from the fluid datum state where :math:`u = s = 0` at
+        :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`, the same convention as
+        :py:attr:`~ember.block.Block.ho` and :py:attr:`~ember.block.Block.s`;
+        only differences are physically meaningful, so these are not
+        :math:`c_p T_0` and :math:`c_p \log(\ldots)`. Use :meth:`set_Po_To` to
+        prescribe a stagnation state instead.
+
+        Parameters
+        ----------
+        ho : float or array
+            Prescribed stagnation enthalpy :math:`h_0` [J/kg]. A scalar or an
+            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`, of
+            which only the pitchwise mean at each span station is imposed.
+        s : float or array
+            Prescribed entropy :math:`s` [J/kg/K].
+        """
+        fluid = self.block.fluid
+        self._set_target_row(0, "ho", np.asarray(ho) / fluid.u_ref)
+        self._set_target_row(1, "s", np.asarray(s) / fluid.Rgas_ref)
+
+    @replayable
+    def set_Po_To(self, Po, To):
+        r"""Prescribe the inflow stagnation pressure and temperature.
+
+        Converted to the stagnation enthalpy and entropy of :meth:`set_ho_s`
+        using the fluid of the block this patch is attached to. The prescription
+        is what survives, not the conversion: the pressure and temperature given
+        here are kept, and a later change of fluid re-converts them against the
+        new one, so this stays the stagnation state asked for rather than
+        whatever number the old reference scales and datum made of it.
+
+        Parameters
+        ----------
+        Po : float or array
+            Prescribed stagnation pressure :math:`p_0` [Pa]; must be positive.
+            A scalar or an array that broadcasts to
+            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            mean at each span station is imposed.
+        To : float or array
+            Prescribed stagnation temperature :math:`T_0` [K]; must be positive.
+        """
+        fluid = self.block.fluid
+
+        for name, val in (("Po", Po), ("To", To)):
             arr = np.asarray(val)
             if not np.isfinite(arr).all():
-                raise ValueError(f"{key} must be finite")
-            if key in ("Po", "To") and not (arr > 0).all():
-                raise ValueError(f"{key} must be positive")
-            self._raw[key] = arr.astype(np.float32)
+                raise ValueError(f"{name} must be finite")
+            if not (arr > 0.0).all():
+                raise ValueError(f"{name} must be positive")
 
-        self._target_nd = None
-        self._V_nd_max = None
-        self._V_nd_soln = None
-
-    def apply(self):
-        """Impose inlet boundary conditions on the patch.
-
-        Stagnation enthalpy, entropy, and trigonometric flow-direction factors
-        derived from :attr:`Po`, :attr:`To`, :attr:`Alpha`, and :attr:`Beta` are
-        cached on the first call and combined with a relaxed static pressure to
-        reconstruct the velocity vector, which is stored via
-        :py:meth:`~ember.block.Block.set_rho_u_Vxrt_nd`.
-
-        Static pressure is not prescribed. The face state instead satisfies two
-        conditions simultaneously: the outgoing acoustic characteristic carried
-        to the face from the interior, and the imposed stagnation state. Writing
-        :math:`V` for the velocity component along the prescribed flow
-        direction, the :math:`u - c` characteristic carries the invariant
-
-        .. math::
-            R = p_\\mathrm{interior} - \\rho a\\, V_\\mathrm{interior}
-
-        with :math:`p_\\mathrm{interior}` and :math:`V_\\mathrm{interior}`
-        linearly extrapolated to the face from the first two interior layers
-        (:math:`X = 2 X_1 - X_2`) and the impedance :math:`\\rho a` evaluated at
-        the first interior layer. The face velocity is then the root of
-
-        .. math::
-            g(V) = p_\\mathrm{isen}(V) - \\rho a\\, V - R = 0
-
-        where :math:`p_\\mathrm{isen}` is the static pressure reached by
-        expanding the stagnation state isentropically to velocity :math:`V`.
-        Along an isentrope :math:`\\mathrm{d}h = \\mathrm{d}p/\\rho` and
-        :math:`\\mathrm{d}h/\\mathrm{d}V = -V`, so
-        :math:`g'(V) = -\\rho (V + a)` exactly, giving the Newton step
-
-        .. math::
-            V \\leftarrow V + \\frac{g(V)}{\\rho (V + a)}
-
-        which is monotone, and hence globally convergent, across the whole
-        subsonic range :math:`-a < V < a`.
-
-        Taking the velocity as the primary variable is what makes this
-        well-conditioned at low Mach number. Inverting an imposed pressure
-        through the steady isentropic relation instead implies an impedance of
-        :math:`\\rho u` where the wave carries :math:`\\rho a`, wrong by a factor
-        of the Mach number, so the pressure-to-velocity gain grows as
-        :math:`1/(\\gamma M^2)`. Here the sensitivity is
-        :math:`1/(\\rho(V + a))` — bounded, and independent of Mach number.
-
-        Note this remains a *reflecting* boundary: the incoming characteristic is
-        untouched and :attr:`Po`, :attr:`To`, :attr:`Alpha` and :attr:`Beta` stay
-        hard-imposed. A stagnation reservoir does reflect acoustics; the point is
-        that it now does so with the correct impedance.
-
-        The converged velocity is relaxed toward :math:`V_\\mathrm{soln}` using
-        :attr:`rf` as a convex weight, and the reference advanced by
-        :meth:`update_soln` once per timestep. Because the target is
-        well-conditioned, ``rf = 1`` is the correct setting rather than an
-        aggressive one.
-
-        Backflow (:math:`V < 0`) is representable and needs no special case: the
-        Newton solve stays monotone there, so a reversed face resolves naturally
-        rather than being forced back to inflow.
-        """
-        b = self.block_view
-        if self._target_nd is None:
-            self._calc_target()
-        ho_nd, s_nd, cosBcosA, sinBcosA, sinA = self._target_nd
-
-        # Linearly extrapolate the outgoing characteristic state to the face
-        # from the first two interior layers (X_face = 2*X_1 - X_2), matching
-        # OutletPatch and MixingPatch. The interior velocity is projected onto
-        # the prescribed flow direction, which is well defined without any face
-        # normal because that direction is imposed.
-        b1 = self.block_view_offset_1
-        b2 = self.block_view_offset_2
-        P_interior_nd = 2.0 * b1.P_nd - b2.P_nd
-        V_interior_nd = (
-            (2.0 * b1.Vx_nd - b2.Vx_nd) * cosBcosA
-            + (2.0 * b1.Vr_nd - b2.Vr_nd) * sinBcosA
-            + (2.0 * b1.Vt_nd - b2.Vt_nd) * sinA
+        # get_h and get_s return nondimensional values already, so the targets
+        # are formed without a round trip through dimensional ho and s.
+        rhoo_nd, uo_nd = fluid.set_P_T(
+            np.asarray(Po) / fluid.P_ref, np.asarray(To) / fluid.T_ref
         )
-
-        # Acoustic impedance, a coefficient rather than a state, so layer 1
-        # without extrapolation is accurate enough.
-        a1_nd = b1.a_nd
-        Z_nd = b1.rho_nd * a1_nd
-        R_nd = P_interior_nd - Z_nd * V_interior_nd
-
-        if self._V_nd_soln is None:
-            self._V_nd_soln = self._face_V_nd()
-
-        V_nd = self._solve_V_nd(ho_nd, s_nd, Z_nd, R_nd, a1_nd)
-        V_new_nd = self._V_nd_soln + self.rf * (V_nd - self._V_nd_soln)
-        rho_nd, u_nd = b.fluid.set_h_s(ho_nd - 0.5 * V_new_nd**2, s_nd)
-        b.set_rho_u_Vxrt_nd(
-            rho_nd,
-            u_nd,
-            V_new_nd * cosBcosA,
-            V_new_nd * sinBcosA,
-            V_new_nd * sinA,
-        )
-
-    def update_ref_scales(self):
-        """Drop the nondimensional target so it re-derives from the raw inputs.
-
-        The prescription is held dimensionally in ``_raw`` and converted lazily
-        by ``_calc_target``, so dropping the converted form and the velocity
-        state anchored to it is enough: the next call rebuilds all three against
-        the new reference scales. This is what makes a fluid changed after the
-        march has started safe here, not merely a fluid changed before it.
-        """
-        super().update_ref_scales()
-        self._target_nd = None
-        self._V_nd_max = None
-        self._V_nd_soln = None
-
-    def update_soln(self):
-        """Update :math:`V_\\mathrm{soln}` from the current inlet-face velocity.
-
-        Should be called once per timestep before the Runge-Kutta stages so
-        that each stage's relaxation in :meth:`apply` is anchored to the
-        start-of-step velocity rather than drifting across stages.
-        """
-        if self._target_nd is None:
-            self._calc_target()
-        self._V_nd_soln = self._face_V_nd()
-
-    @property
-    def Alpha(self):
-        r"""Prescribed inflow yaw angle :math:`\alpha` [deg]; broadcasts to :attr:`~ember.basepatch.Patch.shape`. See :py:attr:`~ember.block.Block.Alpha`."""
-        return self._raw["Alpha"]
-
-    @property
-    def Beta(self):
-        r"""Prescribed inflow pitch angle :math:`\beta` [deg]; broadcasts to :attr:`~ember.basepatch.Patch.shape`. See :py:attr:`~ember.block.Block.Beta`."""
-        return self._raw["Beta"]
-
-    @property
-    def Po(self):
-        r"""Prescribed inflow stagnation pressure :math:`p_0` [Pa]; broadcasts to :attr:`~ember.basepatch.Patch.shape`. See :py:attr:`~ember.block.Block.Po`."""
-        return self._raw["Po"]
-
-    @property
-    def To(self):
-        r"""Prescribed inflow stagnation temperature :math:`T_0` [K]; broadcasts to :attr:`~ember.basepatch.Patch.shape`. See :py:attr:`~ember.block.Block.To`."""
-        return self._raw["To"]
+        self._set_target_row(0, "Po and To", fluid.get_h(rhoo_nd, uo_nd))
+        self._set_target_row(1, "Po and To", fluid.get_s(rhoo_nd, uo_nd))

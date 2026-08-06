@@ -16,7 +16,6 @@ import numpy as np
 import pytest
 
 from ember.outlet import OutletPatch, calc_radial_equilibrium
-from ember.patch import NonReflectingOutletPatch
 from nonreflecting_util import PITCH, P_MEAN, make_block, pitch_coords
 
 # Swirl scale for the analytic cases; large enough that the profile is well
@@ -24,7 +23,7 @@ from nonreflecting_util import PITCH, P_MEAN, make_block, pitch_coords
 VT_SWIRL = 120.0
 
 
-def _attached(patch_type=NonReflectingOutletPatch, **kwargs):
+def _attached(patch_type=OutletPatch, **kwargs):
     """Outlet patch of the given type on the i=-1 face of a fresh block."""
     block = make_block(**kwargs)
     patch = patch_type(i=-1)
@@ -111,27 +110,18 @@ def test_second_order_in_span_spacing():
     assert errs[0] / errs[1] > 3.0, f"not second order: {errs}"
 
 
-def test_same_profile_for_both_outlet_types():
-    """The integration depends on the geometry and flow, not the patch class."""
-    profiles = []
-    for patch_type in (OutletPatch, NonReflectingOutletPatch):
-        _, patch = _attached(patch_type=patch_type, nspan=21, Vt=VT_SWIRL)
-        profiles.append(calc_radial_equilibrium(patch))
-    np.testing.assert_allclose(profiles[0], profiles[1], rtol=1e-12)
-
-
 def test_outlet_patch_target_carries_the_profile():
     """OutletPatch's spanwise target is this profile, on top of its P.
 
     Guards the extraction: the patch must go on using the shared integration
     rather than a copy of it that could drift.
     """
-    block, patch = _attached(patch_type=OutletPatch, nspan=21, Vt=VT_SWIRL)
+    block, patch = _attached(nspan=21, Vt=VT_SWIRL)
     patch.set_P(P_MEAN)
     patch.set_adjustment(radial_equilibrium=True, rf=1.0)
     patch.update_target()
 
-    got = patch._P_target_nd - P_MEAN / block.fluid.P_ref
+    got = patch.P_nd - P_MEAN / block.fluid.P_ref
     expect = patch._span_bcast(calc_radial_equilibrium(patch))
     assert np.abs(got - expect).max() < 1e-5 * np.abs(expect).max()
 
@@ -186,7 +176,7 @@ def test_pitch_mean_is_area_weighted():
     assert np.abs(plain - weighted).max() > 1e-2 * np.abs(weighted).max()
 
 
-@pytest.mark.parametrize("patch_type", [OutletPatch, NonReflectingOutletPatch])
+@pytest.mark.parametrize("patch_type", [OutletPatch, OutletPatch])
 def test_profile_scales_with_swirl_squared(patch_type):
     """Doubling the swirl quadruples the profile, as rho Vt^2 / r demands."""
     _, patch_1 = _attached(patch_type=patch_type, nspan=21, Vt=VT_SWIRL)

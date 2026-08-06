@@ -101,6 +101,7 @@ def _fvisc_x(block, comm):
     planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
+        cons_cell=block.conserved_cell_nd,
         vol=block.vol_nd,
         dai=block.dAi_nd,
         daj=block.dAj_nd,
@@ -108,6 +109,8 @@ def _fvisc_x(block, comm):
         omega_block=block.Omega_nd,
         r=block.r_nd,
         mu=block.mu_nd,
+        p=block.P_nd,
+        p_offset=block.P_offset_nd,
         fvisc=block.F_body_nd[..., 1:],
         vx=block.Vx_nd,
         vr=block.Vr_nd,

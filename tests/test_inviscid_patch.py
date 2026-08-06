@@ -57,11 +57,13 @@ def block():
     L = 0.1
     rm = 1.0
     dr = 0.1
-    pitch = 0.1
+    Nb = 63  # a whole passage, so inlet/outlet patches attach
+    pitch = 2.0 * np.pi / Nb
     xrt = util.linmesh3([0, L], [rm - dr / 2, rm + dr / 2], [0.0, pitch], shape)
     b.set_x(xrt[..., 0])
     b.set_r(xrt[..., 1])
     b.set_t(xrt[..., 2])
+    b.set_Nb(Nb)
     return b
 
 
@@ -90,19 +92,24 @@ def test_inviscid_patch_vs_wall(block):
 
 def test_inviscid_patch_vs_inlet():
     """Compare InviscidPatch behavior with InletPatch for wall detection."""
-    shape = (5, 4, 3)
-    xrt = util.linmesh3([0, 0.1], [0.95, 1.05], [0.0, 0.1], shape)
+    # A whole blade passage with enough pitchwise nodes to resolve a harmonic,
+    # so the characteristic inlet attaches.
+    shape = (5, 4, 4)
+    Nb = 63
+    xrt = util.linmesh3([0, 0.1], [0.95, 1.05], [0.0, 2.0 * np.pi / Nb], shape)
 
     block_inlet = ember.block.Block(shape=shape)
     block_inlet.set_x(xrt[..., 0])
     block_inlet.set_r(xrt[..., 1])
     block_inlet.set_t(xrt[..., 2])
+    block_inlet.set_Nb(Nb)
     block_inlet.patches["inlet"] = ember.patch.InletPatch(i=0, label="inlet")
 
     block_inviscid = ember.block.Block(shape=shape)
     block_inviscid.set_x(xrt[..., 0])
     block_inviscid.set_r(xrt[..., 1])
     block_inviscid.set_t(xrt[..., 2])
+    block_inviscid.set_Nb(Nb)
     block_inviscid.patches["inviscid"] = ember.patch.InviscidPatch(
         i=0, label="inviscid"
     )

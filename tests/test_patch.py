@@ -92,7 +92,6 @@ from ember.patch import (
     Patch,
     PeriodicPatch,
     InletPatch,
-    OutletPatch,
     MixingPatch,
     RotatingPatch,
     InviscidPatch,
@@ -1305,7 +1304,7 @@ def test_patch_requires_3d_block():
 
     # Create a 3D block with a patch
     block_3d = _create_test_block_3d()
-    block_3d.patches.append(ember.patch.InletPatch(i=0))
+    block_3d.patches.append(ember.patch.InviscidPatch(i=0))
 
     # This should work fine
     assert len(block_3d.patches) == 1
@@ -1318,11 +1317,11 @@ def test_patch_requires_3d_block():
 
     # When you try to add a NEW patch to the reshaped block,
     # it still uses the original block's shape (3D), so it succeeds
-    block_2d.patches.append(ember.patch.OutletPatch(i=-1))
+    block_2d.patches.append(ember.patch.CoolingPatch(i=-1))
     assert len(block_2d.patches) == 2
 
     # But if you directly try to set a 2D shape on a patch, it should fail
-    patch = ember.patch.InletPatch(i=0)
+    patch = ember.patch.InviscidPatch(i=0)
     with pytest.raises(ValueError, match="Patches require 3D blocks"):
         patch.attach_to_block(block_2d)
 
@@ -1333,13 +1332,13 @@ def test_patch_various_ndim():
     from ember.block import Block
 
     # 3D block should work
-    patch = ember.patch.InletPatch(i=0, j=(0, -1), k=(0, -1))
+    patch = ember.patch.InviscidPatch(i=0, j=(0, -1), k=(0, -1))
     block_3d = _create_test_block_3d()
     patch.attach_to_block(block_3d)
     assert patch._block_ref is not None
 
     # 2D block should fail
-    patch2 = ember.patch.InletPatch(i=0, j=(0, -1), k=(0, -1))
+    patch2 = ember.patch.InviscidPatch(i=0, j=(0, -1), k=(0, -1))
     block_2d = Block(shape=(5, 12))
     with pytest.raises(
         ValueError, match="Patches require 3D blocks.*ndim=3.*2 dimensions"
@@ -1347,7 +1346,7 @@ def test_patch_various_ndim():
         patch2.attach_to_block(block_2d)
 
     # 1D block should fail
-    patch3 = ember.patch.InletPatch(i=0, j=(0, -1), k=(0, -1))
+    patch3 = ember.patch.InviscidPatch(i=0, j=(0, -1), k=(0, -1))
     block_1d = Block(shape=(60,))
     with pytest.raises(
         ValueError, match="Patches require 3D blocks.*ndim=3.*1 dimensions"
@@ -1355,7 +1354,7 @@ def test_patch_various_ndim():
         patch3.attach_to_block(block_1d)
 
     # 4D block should fail
-    patch4 = ember.patch.InletPatch(i=0, j=(0, -1), k=(0, -1))
+    patch4 = ember.patch.InviscidPatch(i=0, j=(0, -1), k=(0, -1))
     block_4d = Block(shape=(5, 4, 3, 2))
     with pytest.raises(
         ValueError, match="Patches require 3D blocks.*ndim=3.*4 dimensions"
@@ -1691,8 +1690,8 @@ class TestPatchCollectionInterface:
         collection = _make_patch_collection()
         patches = [
             PeriodicPatch(i=0, j=(5, 15), k=(10, 20)),
-            InletPatch(i=-1, j=(5, 15), k=(10, 20)),
-            OutletPatch(i=(0, -1), j=0, k=(0, -1)),
+            InviscidPatch(i=-1, j=(5, 15), k=(10, 20)),
+            CoolingPatch(i=(0, -1), j=0, k=(0, -1)),
         ]
 
         collection.extend(patches)
@@ -1705,8 +1704,8 @@ class TestPatchCollectionInterface:
         """Test inserting patch at specific index."""
         collection = _make_patch_collection()
         patch1 = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = InletPatch(i=-1, j=(5, 15), k=(10, 20))
-        patch3 = OutletPatch(i=(0, -1), j=0, k=(0, -1))
+        patch2 = InviscidPatch(i=-1, j=(5, 15), k=(10, 20))
+        patch3 = CoolingPatch(i=(0, -1), j=0, k=(0, -1))
 
         collection.append(patch1)
         collection.append(patch3)
@@ -1721,7 +1720,7 @@ class TestPatchCollectionInterface:
         """Test removing a patch."""
         collection = _make_patch_collection()
         patch1 = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = InletPatch(i=-1, j=(5, 15), k=(10, 20))
+        patch2 = InviscidPatch(i=-1, j=(5, 15), k=(10, 20))
 
         collection.extend([patch1, patch2])
         collection.remove(patch1)
@@ -1733,7 +1732,7 @@ class TestPatchCollectionInterface:
         """Test removing non-existent patch raises ValueError."""
         collection = _make_patch_collection()
         patch1 = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = InletPatch(i=-1, j=(5, 15), k=(10, 20))
+        patch2 = InviscidPatch(i=-1, j=(5, 15), k=(10, 20))
 
         collection.append(patch1)
 
@@ -1744,7 +1743,7 @@ class TestPatchCollectionInterface:
         """Test popping last element by default."""
         collection = _make_patch_collection()
         patch1 = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = InletPatch(i=-1, j=(5, 15), k=(10, 20))
+        patch2 = InviscidPatch(i=-1, j=(5, 15), k=(10, 20))
 
         collection.extend([patch1, patch2])
         popped = collection.pop()
@@ -1757,8 +1756,8 @@ class TestPatchCollectionInterface:
         """Test popping by specific index."""
         collection = _make_patch_collection()
         patch1 = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = InletPatch(i=-1, j=(5, 15), k=(10, 20))
-        patch3 = OutletPatch(i=(0, -1), j=0, k=(0, -1))
+        patch2 = InviscidPatch(i=-1, j=(5, 15), k=(10, 20))
+        patch3 = CoolingPatch(i=(0, -1), j=0, k=(0, -1))
 
         collection.extend([patch1, patch2, patch3])
         popped = collection.pop(1)  # Pop middle element
@@ -1773,8 +1772,8 @@ class TestPatchCollectionInterface:
         collection = _make_patch_collection()
         patches = [
             PeriodicPatch(i=0, j=(5, 15), k=(10, 20)),
-            InletPatch(i=-1, j=(5, 15), k=(10, 20)),
-            OutletPatch(i=(0, -1), j=0, k=(0, -1)),
+            InviscidPatch(i=-1, j=(5, 15), k=(10, 20)),
+            CoolingPatch(i=(0, -1), j=0, k=(0, -1)),
         ]
 
         collection.extend(patches)
@@ -1788,8 +1787,8 @@ class TestPatchCollectionInterface:
         """Test finding index of patch."""
         collection = _make_patch_collection()
         patch1 = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = InletPatch(i=-1, j=(5, 15), k=(10, 20))
-        patch3 = OutletPatch(i=(0, -1), j=0, k=(0, -1))
+        patch2 = InviscidPatch(i=-1, j=(5, 15), k=(10, 20))
+        patch3 = CoolingPatch(i=(0, -1), j=0, k=(0, -1))
 
         collection.extend([patch1, patch2, patch3])
 
@@ -1801,7 +1800,7 @@ class TestPatchCollectionInterface:
         """Test finding index with start and stop parameters."""
         collection = _make_patch_collection()
         patch1 = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = InletPatch(i=-1, j=(5, 15), k=(10, 20))
+        patch2 = InviscidPatch(i=-1, j=(5, 15), k=(10, 20))
         patch3 = PeriodicPatch(i=0, j=(21, 30), k=(10, 20))
 
         collection.extend([patch1, patch2, patch3])
@@ -1816,8 +1815,8 @@ class TestPatchCollectionInterface:
         collection = _make_patch_collection()
         patches = [
             PeriodicPatch(i=0, j=(5, 15), k=(10, 20)),
-            InletPatch(i=-1, j=(5, 15), k=(10, 20)),
-            OutletPatch(i=(0, -1), j=0, k=(0, -1)),
+            InviscidPatch(i=-1, j=(5, 15), k=(10, 20)),
+            CoolingPatch(i=(0, -1), j=0, k=(0, -1)),
         ]
 
         collection.extend(patches)
@@ -1830,9 +1829,9 @@ class TestPatchCollectionInterface:
         collection = _make_patch_collection()
         patches = [
             PeriodicPatch(i=0, j=(5, 15), k=(10, 20)),
-            InletPatch(i=-1, j=(5, 15), k=(10, 20)),
-            OutletPatch(i=(0, -1), j=0, k=(0, -1)),
-            OutletPatch(i=-1, j=(5, 15), k=(10, 20)),
+            InviscidPatch(i=-1, j=(5, 15), k=(10, 20)),
+            CoolingPatch(i=(0, -1), j=0, k=(0, -1)),
+            CoolingPatch(i=-1, j=(5, 15), k=(10, 20)),
         ]
 
         collection.extend(patches)
@@ -1859,7 +1858,7 @@ class TestPatchCollectionInterface:
         """Test setting patch by index."""
         collection = _make_patch_collection()
         original_patch = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        new_patch = InletPatch(i=-1, j=(5, 15), k=(10, 20))
+        new_patch = InviscidPatch(i=-1, j=(5, 15), k=(10, 20))
 
         collection.append(original_patch)
         collection[0] = new_patch
@@ -1872,8 +1871,8 @@ class TestPatchCollectionInterface:
         collection = _make_patch_collection()
         patches = [
             PeriodicPatch(i=0, j=(5, 15), k=(10, 20)),
-            InletPatch(i=-1, j=(5, 15), k=(10, 20)),
-            OutletPatch(i=(0, -1), j=0, k=(0, -1)),
+            InviscidPatch(i=-1, j=(5, 15), k=(10, 20)),
+            CoolingPatch(i=(0, -1), j=0, k=(0, -1)),
         ]
 
         collection.extend(patches)
@@ -1887,8 +1886,8 @@ class TestPatchCollectionInterface:
         """Test 'in' operator."""
         collection = _make_patch_collection()
         patch1 = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = InletPatch(i=-1, j=(5, 15), k=(10, 20))
-        patch3 = OutletPatch(i=(0, -1), j=0, k=(0, -1))
+        patch2 = InviscidPatch(i=-1, j=(5, 15), k=(10, 20))
+        patch3 = CoolingPatch(i=(0, -1), j=0, k=(0, -1))
 
         collection.extend([patch1, patch2])
 
@@ -1901,8 +1900,8 @@ class TestPatchCollectionInterface:
         collection = _make_patch_collection()
         patches = [
             PeriodicPatch(i=0, j=(5, 15), k=(10, 20)),
-            InletPatch(i=-1, j=(5, 15), k=(10, 20)),
-            OutletPatch(i=-1, j=(5, 15), k=(10, 20)),
+            InviscidPatch(i=-1, j=(5, 15), k=(10, 20)),
+            CoolingPatch(i=-1, j=(5, 15), k=(10, 20)),
         ]
 
         collection.extend(patches)
@@ -1970,8 +1969,8 @@ class TestPatchCollectionEdgeCases:
         collection = _make_patch_collection()
         patches = [
             PeriodicPatch(i=0, j=(5, 15), k=(10, 20)),
-            InletPatch(i=-1, j=(5, 15), k=(10, 20)),
-            OutletPatch(i=(0, -1), j=0, k=(0, -1)),
+            InviscidPatch(i=-1, j=(5, 15), k=(10, 20)),
+            CoolingPatch(i=(0, -1), j=0, k=(0, -1)),
         ]
 
         collection.extend(patches)
@@ -2425,21 +2424,21 @@ class TestPatchCollectionLabelIntegration:
         """Test label indexing works with type-based access."""
         collection = _make_patch_collection()
         periodic = PeriodicPatch(i=0, j=(5, 15), k=(10, 20), label="periodic_patch")
-        inlet = InletPatch(i=-1, j=(5, 15), k=(10, 20), label="inlet_patch")
+        inviscid = InviscidPatch(i=-1, j=(5, 15), k=(10, 20), label="inviscid_patch")
 
-        collection.extend([periodic, inlet])
+        collection.extend([periodic, inviscid])
 
         # Type-based access
         assert len(collection.periodic) == 1
-        assert len(collection.inlet) == 1
+        assert len(collection.inviscid) == 1
 
         # String indexing
         assert collection["periodic_patch"] is periodic
-        assert collection["inlet_patch"] is inlet
+        assert collection["inviscid_patch"] is inviscid
 
         # Combined usage
         assert collection["periodic_patch"] in collection.periodic
-        assert collection["inlet_patch"] in collection.inlet
+        assert collection["inviscid_patch"] in collection.inviscid
 
     def test_label_indexing_preserves_order(self):
         """Test that label-based operations preserve order."""
@@ -2482,7 +2481,7 @@ class TestPatchCollectionStringLabelInsertion:
         assert patch1.label == "new_patch"  # Label should be set automatically
 
         # Insert another patch with different label
-        patch2 = InletPatch(i=-1, j=(5, 15), k=(10, 20), label="inlet_1")
+        patch2 = InviscidPatch(i=-1, j=(5, 15), k=(10, 20), label="inlet_1")
         collection["inlet_1"] = patch2
 
         assert len(collection) == 2
@@ -2640,7 +2639,7 @@ class TestPeriodicPatchCheckMatch:
     def test_periodic_patch_different_type_no_match(self):
         """Test that PeriodicPatch doesn't match with other patch types."""
         periodic_patch = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        inlet_patch = InletPatch(i=0, j=(5, 15), k=(10, 20))
+        inlet_patch = InviscidPatch(i=0, j=(5, 15), k=(10, 20))
 
         periodic_patch.attach_to_block(self.block)
         inlet_patch.attach_to_block(self.block)
@@ -2912,7 +2911,7 @@ class TestMixingPatchCheckMatch:
         """Test that MixingPatch doesn't match with other patch types."""
         mixing_patch = MixingPatch(i=0, j=(5, 15), k=(10, 20))
         periodic_patch = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        inlet_patch = InletPatch(i=0, j=(5, 15), k=(10, 20))
+        inlet_patch = InviscidPatch(i=0, j=(5, 15), k=(10, 20))
 
         mixing_patch.attach_to_block(self.block1)
         periodic_patch.attach_to_block(self.block1)
@@ -3115,326 +3114,6 @@ class TestMixingPatchCopy:
         assert c._block_ref is None
         assert c._block_view is None
         assert c._target is None
-
-
-class TestInletPatch:
-    """Test InletPatch setter methods."""
-
-    def test_set_Po_To_Alpha_Beta_single_values(self, block_10):
-        """Test setting single scalar values."""
-        patch = InletPatch(i=0)  # Make it 2D by fixing i dimension
-        patch.attach_to_block(block_10)
-
-        # Set individual parameters
-        patch.set_Po_To_Alpha_Beta(Po=101325.0)
-        assert patch.Po == np.float32(101325.0)
-        assert np.isnan(patch.To)
-
-        patch.set_Po_To_Alpha_Beta(To=300.0)
-        assert patch.To == np.float32(300.0)
-
-        patch.set_Po_To_Alpha_Beta(Alpha=0.1, Beta=0.2)
-        assert patch.Alpha == np.float32(0.1)
-        assert patch.Beta == np.float32(0.2)
-
-    def test_set_Po_To_Alpha_Beta_all_at_once(self, block_10):
-        """Test setting all parameters at once."""
-        patch = InletPatch(i=0)
-        patch.attach_to_block(block_10)
-        patch.set_Po_To_Alpha_Beta(Po=101325.0, To=300.0, Alpha=0.1, Beta=0.2)
-
-        assert patch.Po == np.float32(101325.0)
-        assert patch.To == np.float32(300.0)
-        assert patch.Alpha == np.float32(0.1)
-        assert patch.Beta == np.float32(0.2)
-
-    def test_set_Po_To_Alpha_Beta_arrays_broadcast(self, block_10):
-        """Test setting arrays that broadcast correctly."""
-        patch = InletPatch(
-            i=0, j=(0, 1), k=(0, 9)
-        )  # Make patch shape (1, 2, 10) to match arrays along j
-        patch.attach_to_block(block_10)
-
-        # Set compatible arrays that broadcast with patch shape (1, 2, 10)
-        Po = np.array([[101325.0, 102000.0]]).T  # Shape (2, 1) broadcasts to (1, 2, 10)
-        To = np.array([[300.0, 310.0]]).T
-        patch.set_Po_To_Alpha_Beta(Po=Po, To=To)
-
-        np.testing.assert_array_equal(patch.Po, Po.astype(np.float32))
-        np.testing.assert_array_equal(patch.To, To.astype(np.float32))
-
-    def test_set_Po_To_Alpha_Beta_broadcast_failure(self, block_10):
-        """Test broadcast validation failure."""
-        patch = InletPatch(i=0, j=(0, 1), k=(0, 9))  # Shape (1, 2, 10)
-        patch.attach_to_block(block_10)
-
-        # Set first array
-        patch.set_Po_To_Alpha_Beta(
-            Po=np.array([[101325.0, 102000.0]]).T
-        )  # Shape (2, 1)
-
-        # Try to set incompatible array (wrong size)
-        with pytest.raises(ValueError):
-            patch.set_Po_To_Alpha_Beta(
-                To=np.array([300.0, 310.0, 320.0])
-            )  # Shape (3,) won't broadcast
-
-    def test_set_Po_To_Alpha_Beta_validation_errors(self, block_10):
-        """Test validation errors for Po and To."""
-        patch = InletPatch(i=0)
-        patch.attach_to_block(block_10)
-
-        # Test negative pressure
-        with pytest.raises(ValueError, match="Po must be positive"):
-            patch.set_Po_To_Alpha_Beta(Po=-1000.0)
-
-        # Test zero pressure
-        with pytest.raises(ValueError, match="Po must be positive"):
-            patch.set_Po_To_Alpha_Beta(Po=0.0)
-
-        # Test infinite pressure
-        with pytest.raises(ValueError, match="Po must be finite"):
-            patch.set_Po_To_Alpha_Beta(Po=np.inf)
-
-        # Test NaN pressure
-        with pytest.raises(ValueError, match="Po must be finite"):
-            patch.set_Po_To_Alpha_Beta(Po=np.nan)
-
-        # Test negative temperature
-        with pytest.raises(ValueError, match="To must be positive"):
-            patch.set_Po_To_Alpha_Beta(To=-100.0)
-
-        # Test zero temperature
-        with pytest.raises(ValueError, match="To must be positive"):
-            patch.set_Po_To_Alpha_Beta(To=0.0)
-
-        # Test infinite temperature
-        with pytest.raises(ValueError, match="To must be finite"):
-            patch.set_Po_To_Alpha_Beta(To=np.inf)
-
-        # Test arrays with mixed valid/invalid values - create patch that can broadcast with shape (2,)
-        patch_array = InletPatch(i=0, j=(0, 1), k=(0, 9))  # Shape (1, 2, 10)
-        patch_array.attach_to_block(block_10)
-        with pytest.raises(ValueError, match="Po must be positive"):
-            patch_array.set_Po_To_Alpha_Beta(
-                Po=np.array([[101325.0, -1000.0]]).T
-            )  # Shape (2, 1) broadcasts
-
-        # Test infinite angles
-        with pytest.raises(ValueError, match="Alpha must be finite"):
-            patch.set_Po_To_Alpha_Beta(Alpha=np.inf)
-
-        with pytest.raises(ValueError, match="Alpha must be finite"):
-            patch.set_Po_To_Alpha_Beta(Alpha=np.nan)
-
-        with pytest.raises(ValueError, match="Beta must be finite"):
-            patch.set_Po_To_Alpha_Beta(Beta=np.inf)
-
-        with pytest.raises(ValueError, match="Beta must be finite"):
-            patch.set_Po_To_Alpha_Beta(Beta=np.nan)
-
-        # Test arrays with infinite angles
-        patch_array2 = InletPatch(i=0, j=(0, 1), k=(0, 9))  # Shape (1, 2, 10)
-        patch_array2.attach_to_block(block_10)
-        with pytest.raises(ValueError, match="Alpha must be finite"):
-            patch_array2.set_Po_To_Alpha_Beta(
-                Alpha=np.array([[0.1, np.inf]]).T
-            )  # Shape (2, 1)
-
-    def test_calc_raw_raises_without_block(self):
-        """Test that accessing rhoo, ho, s without attach_to_block raises error."""
-        patch = InletPatch(i=0)
-        # Cannot set inlet without attaching to block first (negative indices need resolving)
-        # But we can test that block property raises without attachment
-        with pytest.raises(ValueError, match="not attached to any block"):
-            _ = patch.block
-
-    def test_apply_at_target_leaves_conserved_unchanged(self):
-        """apply() must not perturb conserved variables when block is already at target.
-
-        The P slot of delta_bcond must be zero (not -b.P). If bcond_target
-        mistakenly included a zero P column and the full current state was
-        subtracted, the P slot would equal -b.P and conserved would change
-        even at the target state.
-        """
-        from ember import util
-
-        shape = (10, 10, 10)
-        fluid = PerfectFluid(gamma=1.4, cp=1004.5, mu=1.8e-5, Pr=0.7)
-        block = ember.block.Block(shape=shape)
-        block.set_fluid(fluid)
-        _xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-        block.set_x(_xrt[..., 0])
-        block.set_r(_xrt[..., 1])
-        block.set_t(_xrt[..., 2])
-
-        Po, To, Alpha, Beta = 1e5, 300.0, 15.0, 5.0
-        s = fluid.get_s(*fluid.set_P_T(Po, To))
-        ho = fluid.get_h(*fluid.set_P_T(Po, To))
-        Ma = 0.3
-        ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho, s, Ma, Alpha, Beta)
-
-        patch = InletPatch(i=0)
-        patch.attach_to_block(block)
-        patch.set_Po_To_Alpha_Beta(Po=Po, To=To, Alpha=Alpha, Beta=Beta)
-
-        conserved_before = block.conserved.copy()
-        patch.rf = 0.5
-        patch.apply()
-
-        # Float32 round-trip through set_ho_s_Ma_Alpha_Beta introduces small
-        # residual deltas (~1e-2 on conserved values of ~1e2). The P-slot bug
-        # would produce errors of order b.P ~ 1e5, so rtol=1e-2 is sufficient
-        # to distinguish float32 noise from the bug.
-        np.testing.assert_allclose(block.conserved, conserved_before, rtol=1e-2)
-
-
-class TestInletPatchCopy:
-    def test_copy_returns_new_instance(self):
-        p = InletPatch(i=0, j=(1, 3), k=(0, 4), label="inlet")
-        c = p.copy()
-        assert c is not p
-
-    def test_copy_preserves_limits(self):
-        p = InletPatch(i=0, j=(1, 3), k=(0, 4), label="inlet")
-        c = p.copy()
-        np.testing.assert_array_equal(c._ijk_lim, p._ijk_lim)
-
-    def test_copy_preserves_label(self):
-        p = InletPatch(i=0, j=(1, 3), k=(0, 4), label="inlet")
-        c = p.copy()
-        assert c.label == "inlet"
-
-    def test_copy_is_unattached(self):
-        p = InletPatch(i=0, j=(1, 3), k=(0, 4), label="inlet")
-        c = p.copy()
-        assert c._block_ref is None
-        assert c._block_view is None
-
-    def test_copy_preserves_raw_defaults(self):
-        p = InletPatch(i=0, j=(1, 3), k=(0, 4))
-        c = p.copy()
-        assert np.isnan(c._raw["Po"])
-        assert np.isnan(c._raw["To"])
-
-    def test_copy_raw_is_independent(self):
-        p = InletPatch(i=0, j=(1, 3), k=(0, 4))
-        c = p.copy()
-        c._raw["Po"] = np.float32(99.0)
-        assert np.isnan(p._raw["Po"])
-
-    def test_copy_raw_values_are_independent(self):
-        p = InletPatch(i=0, j=(1, 3), k=(0, 4))
-        p._raw["Po"] = np.array([1e5, 2e5], dtype=np.float32)
-        c = p.copy()
-        c._raw["Po"][0] = 0.0
-        assert p._raw["Po"][0] == pytest.approx(1e5)
-
-
-class TestOutletPatch:
-    """Test OutletPatch setter methods."""
-
-    def test_set_P_scalar(self):
-        """Test setting scalar pressure."""
-        patch = OutletPatch(i=0)
-        patch.set_P(50000.0)
-        assert patch.P == np.float32(50000.0)
-
-    def test_throttle_and_nonscalar_P_mutually_exclusive(self):
-        """Non-scalar P and throttle control are mutually exclusive."""
-        P_span = np.full((1, 8, 1), 101325.0)
-
-        # set_P (non-scalar) then set_throttle raises
-        patch = OutletPatch(i=0, j=(0, 7), k=(0, 0))
-        patch.set_P(P_span)
-        with pytest.raises(ValueError, match="incompatible with throttle"):
-            patch.set_throttle(10.0, (0.1, 0.0, 0.0))
-
-        # set_throttle then set_P (non-scalar) raises
-        patch2 = OutletPatch(i=0, j=(0, 7), k=(0, 0))
-        patch2.set_throttle(10.0, (0.1, 0.0, 0.0))
-        with pytest.raises(ValueError, match="incompatible with throttle"):
-            patch2.set_P(P_span)
-
-        # Scalar P with throttle is allowed
-        patch3 = OutletPatch(i=0, j=(0, 7), k=(0, 0))
-        patch3.set_throttle(10.0, (0.1, 0.0, 0.0))
-        patch3.set_P(101325.0)  # should not raise
-
-    def test_set_P_validation_errors(self):
-        """Test validation errors for P."""
-        patch = OutletPatch(i=0)
-
-        # Test negative pressure
-        with pytest.raises(ValueError, match="P must be positive and finite"):
-            patch.set_P(-1000.0)
-
-        # Test zero pressure
-        with pytest.raises(ValueError, match="P must be positive and finite"):
-            patch.set_P(0.0)
-
-        # Test infinite pressure
-        with pytest.raises(ValueError, match="P must be positive and finite"):
-            patch.set_P(np.inf)
-
-        # Test NaN pressure
-        with pytest.raises(ValueError, match="P must be positive and finite"):
-            patch.set_P(np.nan)
-
-
-class TestOutletPatchCopy:
-    def test_copy_returns_new_instance(self):
-        p = OutletPatch(i=-1, j=(1, 3), k=(0, 4), label="outlet")
-        c = p.copy()
-        assert c is not p
-
-    def test_copy_preserves_limits(self):
-        p = OutletPatch(i=-1, j=(1, 3), k=(0, 4), label="outlet")
-        c = p.copy()
-        np.testing.assert_array_equal(c._ijk_lim, p._ijk_lim)
-
-    def test_copy_preserves_label(self):
-        p = OutletPatch(i=-1, j=(1, 3), k=(0, 4), label="outlet")
-        c = p.copy()
-        assert c.label == "outlet"
-
-    def test_copy_is_unattached(self):
-        p = OutletPatch(i=-1, j=(1, 3), k=(0, 4), label="outlet")
-        c = p.copy()
-        assert c._block_ref is None
-        assert c._block_view is None
-
-    def test_copy_preserves_P_raw_none(self):
-        p = OutletPatch(i=-1, j=(1, 3), k=(0, 4))
-        c = p.copy()
-        assert c._P_raw is None
-
-    def test_copy_preserves_P_raw_scalar(self):
-        p = OutletPatch(i=-1, j=(1, 3), k=(0, 4))
-        p._P_raw = np.float32(101325.0)
-        c = p.copy()
-        assert c._P_raw == pytest.approx(101325.0)
-
-    def test_copy_P_raw_is_independent(self):
-        p = OutletPatch(i=-1, j=(1, 3), k=(0, 4))
-        p._P_raw = np.array([1e5, 2e5], dtype=np.float32)
-        c = p.copy()
-        c._P_raw[0] = 0.0
-        assert p._P_raw[0] == pytest.approx(1e5)
-
-    def test_copy_preserves_pid_and_mdot(self):
-        p = OutletPatch(i=-1, j=(1, 3), k=(0, 4))
-        p._K_pid = (1.0, 0.1, 0.01)
-        p._mdot_target = np.float32(5.0)
-        c = p.copy()
-        assert c._K_pid == (1.0, 0.1, 0.01)
-        assert c._mdot_target == pytest.approx(5.0)
-
-    def test_copy_preserves_adjustment(self):
-        p = OutletPatch(i=-1, j=(1, 3), k=(0, 4))
-        p._adjustment = {"mode": "radial_equilibrium", "rf": 0.5}
-        c = p.copy()
-        assert c._adjustment == {"mode": "radial_equilibrium", "rf": 0.5}
 
 
 class TestRotatingPatch:
@@ -3663,8 +3342,10 @@ class TestPatchInitialization:
     def test_inlet_patch_init(self):
         """Test InletPatch initialization."""
         patch = InletPatch(i=0)
-        assert len(patch._raw) == 4
-        assert all(np.isnan(x) for x in patch._raw.values())
+        # The target is allocated on attach, so an unattached patch has none
+        # and no row is marked set.
+        assert patch._target is None
+        assert not patch._target_set.any()
 
     def test_rotating_patch_init(self):
         """Test RotatingPatch initialization."""
@@ -3758,7 +3439,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vt(0.0)
 
         # Patch on i=0 face, so const_dim=0, varying dims are j and k
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         # k should be pitch (no x,r variation), j should be span (x varies)
@@ -3794,7 +3475,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         assert patch.span_dim == 1
@@ -3829,7 +3510,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         # All three dimensions should be different
@@ -3870,7 +3551,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         assert patch.pitch_dim == 1
@@ -3900,7 +3581,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         # spf should be accessible and be an array
@@ -3928,7 +3609,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         assert np.isclose(patch.weight_pitch.sum(), 1.0)
@@ -3953,7 +3634,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         # With npitch nodes uniformly spaced over [0, pitch], spacing is pitch/(npitch-1).
@@ -3987,7 +3668,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         # Midpoints: 0.05, 0.35, 0.8 (fractions of pitch)
@@ -4028,7 +3709,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(10.0)
         block.set_Vt(20.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
 
@@ -4046,7 +3727,7 @@ class TestPatchSurfaceOfRevolution:
         cons = rng.uniform(0.5, 1.5, shape + (5,)).astype(np.float32)
         block.set_conserved(cons)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
 
@@ -4069,7 +3750,7 @@ class TestPatchSurfaceOfRevolution:
         cons[..., 1] = np.array([1.0, 2.0, 3.0, 4.0])  # rhoVx varies over pitch
         block.set_conserved(cons)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
 
@@ -4115,7 +3796,7 @@ class TestPatchSurfaceOfRevolution:
         block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.0)
         block.set_P_T(1e5, 300.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
         patch._build_rot_matrices()
 
@@ -4143,7 +3824,7 @@ class TestPatchSurfaceOfRevolution:
         block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.1)
         block.set_P_T(1e5, 300.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
         patch._build_rot_matrices()
 
@@ -4162,7 +3843,7 @@ class TestPatchSurfaceOfRevolution:
         block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.0)
         block.set_P_T(1e5, 300.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
         patch._build_rot_matrices(inward=True)
         rot_to_in = patch._rot_to.copy()
@@ -4186,7 +3867,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(7.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
         patch._build_rot_matrices()
@@ -4213,7 +3894,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(rng.uniform(-10.0, 10.0, shape))
         block.set_Vt(rng.uniform(-10.0, 10.0, shape))
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
         patch._build_rot_matrices()
@@ -4262,7 +3943,7 @@ class TestPatchNonSurfaceOfRevolution:
         """Test that RevolutionPatch subclass raises on attach when not a surface of revolution."""
         block = self._make_non_sor_block()
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         with pytest.raises(ValueError, match="not a surface of revolution"):
             patch.attach_to_block(block)
 
@@ -4270,7 +3951,7 @@ class TestPatchNonSurfaceOfRevolution:
         """Test that OutletPatch raises on attach when not a surface of revolution."""
         block = self._make_non_sor_block()
 
-        patch = OutletPatch(i=0)
+        patch = MixingPatch(i=0)
         with pytest.raises(ValueError, match="not a surface of revolution"):
             patch.attach_to_block(block)
 
@@ -4295,7 +3976,7 @@ class TestPatchNonSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         # Should raise error on attach - no clear span or pitch
         with pytest.raises(ValueError, match="not a surface of revolution"):
             patch.attach_to_block(block)
@@ -4328,7 +4009,7 @@ class TestPatchNonSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         # This is actually a valid surface of revolution
@@ -4369,7 +4050,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         # Patch on i=0 face has shape (1, nj, nk) -> squeezed to (nj, nk)
@@ -4408,7 +4089,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4443,7 +4124,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4479,7 +4160,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4511,7 +4192,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4544,7 +4225,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4585,7 +4266,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4622,7 +4303,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4667,7 +4348,7 @@ class TestMdot:
         shape = (10, 6, 8)
         block = self._make_sor_block(shape)
         block.set_P_T(1e5, 300.0)
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
         assert patch._dA_node.shape == (shape[1],)
 
@@ -4676,7 +4357,7 @@ class TestMdot:
         shape = (10, 5, 8)
         block = self._make_sor_block(shape)
         block.set_P_T(1e5, 300.0)
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         ws = patch._dA_node
@@ -4692,7 +4373,7 @@ class TestMdot:
         r_span = np.linspace(0.5, 1.5, shape[1])
         block = self._make_sor_block(shape, r_span=r_span)
         block.set_P_T(1e5, 300.0)
-        patch = InletPatch(i=0)
+        patch = MixingPatch(i=0)
         patch.attach_to_block(block)
 
         ws = patch._dA_node

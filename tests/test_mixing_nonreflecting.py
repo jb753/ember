@@ -6,8 +6,8 @@ ember.mixing_communicator.NonReflectingMixingCommunicator
 The two patch classes add no numerics of their own -- the characteristic split,
 the Hilbert transform, the mean-mode Newton step and the harmonic relations are
 all inherited from the non-reflecting inlet and outlet, and are tested in
-test_nonreflecting.py, test_inlet_nonreflecting.py and
-test_outlet_nonreflecting.py. What is left here is the mixing plane itself.
+test_nonreflecting.py, test_inlet.py and
+test_outlet.py. What is left here is the mixing plane itself.
 
 Test cases:
 - Pairing: the two sides pair across the plane, same-side and foreign patches do
@@ -37,7 +37,6 @@ from ember.patch import (
     InletPatch,
     MixingPatch,
     NonReflectingMixingPatch,
-    NonReflectingOutletPatch,
     OutletPatch,
     PeriodicPatch,
 )
@@ -186,7 +185,7 @@ def test_same_side_patches_do_not_pair():
 def test_plain_nonreflecting_patch_does_not_pair():
     """A prescribed-pressure outlet is not half of a mixing plane."""
     grid, _, patch_dn = make_pair()
-    plain = NonReflectingOutletPatch(i=-1, label="plain")
+    plain = OutletPatch(i=-1, label="plain")
     grid[0].patches.append(plain)
     assert patch_dn.check_match(plain) is None
     assert plain.check_match(patch_dn) is None
@@ -204,8 +203,8 @@ def test_collections_separate_from_plain_nonreflecting():
     """
     grid, patch_up, patch_dn = make_pair()
     assert grid.patches.mixing_nonreflecting == [patch_up, patch_dn]
-    assert grid.patches.inlet_nonreflecting == []
-    assert grid.patches.outlet_nonreflecting == []
+    assert grid.patches.inlet == []
+    assert grid.patches.outlet == []
     assert grid.patches.mixing == []
     # Still a permeable, non-wall face for the boundary-flux machinery.
     assert patch_up in grid[0].patches.permeable
@@ -481,9 +480,7 @@ def test_rf_exchange_is_read_at_every_exchange_not_cached():
     du_before = comm.get_stats(*key)["du"].copy()
 
     # Same baseline again, so only the factor differs between the two calls.
-    grid2, _, _, comm2 = exchanged(
-        rf_exchange=0.5, up={"P": 1.05e5}, dn={"P": 0.95e5}
-    )
+    grid2, _, _, comm2 = exchanged(rf_exchange=0.5, up={"P": 1.05e5}, dn={"P": 0.95e5})
     for patch in grid2.patches.mixing_nonreflecting:
         patch.rf_exchange = 0.25
     comm2.exchange()
@@ -828,9 +825,10 @@ def test_solver_run_stays_finite():
             block.patches.append(PeriodicPatch(k=face))
     grid.set_L_ref(float(np.ptp(grid[0].x)))
 
-    grid.patches.inlet[0].set_Po_To_Alpha_Beta(
-        float(grid[0].Po[0].mean()), float(grid[0].To[0].mean()), 0.0, 0.0
-    )
+    inlet = grid.patches.inlet[0]
+    inlet.set_Po_To(float(grid[0].Po[0].mean()), float(grid[0].To[0].mean()))
+    inlet.set_Alpha(0.0)
+    inlet.set_Beta(0.0)
     grid.patches.outlet[0].set_P(float(grid[1].P[-1].mean()))
     grid.connectivity.periodic.pair()
     grid.connectivity.mixing_nonreflecting.pair()

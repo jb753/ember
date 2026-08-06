@@ -54,8 +54,9 @@ non-dimensional, hence the ``_nd`` suffix:
 * :attr:`ConvergenceHistory.mdot_nd`, :attr:`ConvergenceHistory.ho_nd`,
   :attr:`ConvergenceHistory.s_nd`
 
-Throttle state, when an outlet is running a PID throttle. Unlike the stations
-above, these are dimensional:
+Throttle state, driven by :meth:`ember.outlet.OutletPatch.set_throttle` and
+reading zero on a run whose outlets all hold a plain prescribed pressure.
+Unlike the stations above, they are dimensional:
 
 * :attr:`ConvergenceHistory.throttle`, :attr:`ConvergenceHistory.mdot_target`,
   :attr:`ConvergenceHistory.mdot_throttle`
@@ -216,9 +217,8 @@ class ConvergenceHistory(StructuredData):
         cls._set_grid_metadata(out, grid)
 
         # Fluid from the first outlet patch (the grid is the reference frame the
-        # history is projected onto), of either outlet type.
-        outlet_patches = grid.patches.outlet or grid.patches.outlet_nonreflecting
-        outlet_block = outlet_patches[0].block_view
+        # history is projected onto).
+        outlet_block = grid.patches.outlet[0].block_view
         out._set_metadata_by_key("fluid", outlet_block.fluid)
 
         # Initialize timer reference
@@ -252,6 +252,121 @@ class ConvergenceHistory(StructuredData):
         except OSError:
             with open(filename, "rb") as f:
                 return pickle.load(f)
+
+    def check_convergence(self, decay=0.0, slope=0.0, cfl=1.0):
+        r"""True when every enabled convergence criterion is met.
+
+        Three independent signals reduce the history to a single verdict, and
+        the result is their logical AND. Each criterion is disabled by passing
+        its no-op threshold, so a bare :meth:`check_convergence` checks
+        divergence alone.
+
+        * **Divergence** reads :attr:`diverged` only; it never touches the
+          residual. A diverged march is never converged.
+        * **Decay** and **slope** read the energy residual ``drhoe`` (column 4
+          of :attr:`residual`), the strictest conserved-variable residual and
+          the one that lags in a stalled march, over the ``i_log + 1`` written
+          records.
+
+        Parameters
+        ----------
+        decay : float, optional
+            Required fall of the residual from its peak over the whole march, in
+            decades: converged needs ``log10(r.max() / r[-1]) >= decay``. The
+            default ``0`` disables the check (0 decades of fall is always met).
+        slope : float, optional
+            Maximum allowed magnitude of the residual slope, in decades of
+            residual per unit pseudo-time, where pseudo-time is ``i_step * cfl``.
+            Fitted over the last 20% of records so it reflects the recent tail
+            rather than the startup transient. Converged needs
+            ``abs(d log10(r) / d(i_step * cfl)) <= slope``. The default ``0``
+            disables the check.
+        cfl : float, optional
+            CFL number used to march, scaling the pseudo-time step so the slope
+            is comparable across runs with different step sizes. Only affects
+            the ``slope`` criterion.
+
+        Returns
+        -------
+        bool
+        """
+        # Divergence: always checked, cannot be disabled. Reads the flag only.
+        if self.diverged:
+            return False
+
+        n = self.i_log + 1
+        r = self.residual[:n, 4]  # energy residual, drhoe
+
+        # Decay: decades fallen from the peak residual over the whole calc.
+        if decay > 0.0 and np.log10(r.max() / r[-1]) < decay:
+            return False
+
+        # Slope: decades of residual per unit pseudo-time (i_step scaled by
+        # cfl), fitted over the final fifth of the march.
+        if slope > 0.0:
+            if n < 2:
+                return False  # need >= 2 records to fit a line
+            n_fit = max(2, -(-n // 5))  # ceil(n / 5), at least 2 records
+            t = self.i_step[n - n_fit : n] * cfl
+            m = np.polyfit(t, np.log10(r[n - n_fit :]), 1)[0]
+            if abs(m) > slope:
+                return False
+
+        return True
+
+    def find_settling_record(self, tol=0.01):
+        r"""Record index at which the entropy rise :attr:`zeta` has settled.
+
+        Complements :meth:`check_convergence`: where that reduces the *residual*
+        history to a converged/not verdict, this locates when the *solution
+        output* stopped moving. It returns the record index at which
+        :attr:`zeta` has come within a fraction ``tol`` of its total change and
+        stays there for the rest of the march.
+
+        The asymptote is estimated as the mean of ``zeta`` over the final fifth
+        of records (the same last-20% window :meth:`check_convergence` fits its
+        slope over), and the band is ``tol`` of the total swing
+        ``abs(zeta[0] - target)`` about it. The settling record is the one
+        *after* the last record still outside that band -- keying on the last
+        exit rather than the first entry makes it robust to any overshoot that
+        dips through the band and back out. Because the asymptote is the tail
+        mean, the result is only physically meaningful once the march has
+        actually levelled out (e.g. a run :meth:`check_convergence` accepts).
+
+        The return is a *record index* into the history arrays, not a solver
+        step number, so both the step it settled at and the wall-clock time to
+        get there are one indexing away::
+
+            idx  = hist.find_settling_record()
+            step = int(hist.i_step[idx])                  # solver step
+            wall = float(hist.time[idx] - hist.time[0])   # ms to settle
+
+        (``hist.time[0]`` is the one-iteration startup offset, not zero, so
+        subtract it for elapsed march time.)
+
+        Parameters
+        ----------
+        tol : float, optional
+            Settling band half-width, as a fraction of the total ``zeta`` swing.
+            Default ``0.01`` (1%).
+
+        Returns
+        -------
+        int
+            Record index of the settling point. Falls back to ``0`` when
+            ``zeta`` is within the band from the start, or is flat (zero swing).
+        """
+        n = self.i_log + 1
+        zeta = self.zeta[:n]
+        n_tail = max(1, -(-n // 5))  # ceil(n / 5), the final fifth, at least 1
+        target = zeta[n - n_tail :].mean()  # asymptote estimate
+        band = tol * abs(zeta[0] - target)  # tol of the total swing
+        outside = np.abs(zeta - target) > band
+        if band > 0 and outside.any():
+            # Record after the last one still outside; clamp in case the tail
+            # itself never settles (then report the last record).
+            return int(min(np.nonzero(outside)[0][-1] + 1, n - 1))
+        return 0
 
     def format_message(self, n_step=None):
         """Format convergence message for current log step.
@@ -410,121 +525,6 @@ class ConvergenceHistory(StructuredData):
         now._set_data_by_keys(("dP_I",), conv.dP_I)
         now._set_data_by_keys(("dP_D",), conv.dP_D)
 
-    def check_convergence(self, decay=0.0, slope=0.0, cfl=1.0):
-        r"""True when every enabled convergence criterion is met.
-
-        Three independent signals reduce the history to a single verdict, and
-        the result is their logical AND. Each criterion is disabled by passing
-        its no-op threshold, so a bare :meth:`check_convergence` checks
-        divergence alone.
-
-        * **Divergence** reads :attr:`diverged` only; it never touches the
-          residual. A diverged march is never converged.
-        * **Decay** and **slope** read the energy residual ``drhoe`` (column 4
-          of :attr:`residual`), the strictest conserved-variable residual and
-          the one that lags in a stalled march, over the ``i_log + 1`` written
-          records.
-
-        Parameters
-        ----------
-        decay : float, optional
-            Required fall of the residual from its peak over the whole march, in
-            decades: converged needs ``log10(r.max() / r[-1]) >= decay``. The
-            default ``0`` disables the check (0 decades of fall is always met).
-        slope : float, optional
-            Maximum allowed magnitude of the residual slope, in decades of
-            residual per unit pseudo-time, where pseudo-time is ``i_step * cfl``.
-            Fitted over the last 20% of records so it reflects the recent tail
-            rather than the startup transient. Converged needs
-            ``abs(d log10(r) / d(i_step * cfl)) <= slope``. The default ``0``
-            disables the check.
-        cfl : float, optional
-            CFL number used to march, scaling the pseudo-time step so the slope
-            is comparable across runs with different step sizes. Only affects
-            the ``slope`` criterion.
-
-        Returns
-        -------
-        bool
-        """
-        # Divergence: always checked, cannot be disabled. Reads the flag only.
-        if self.diverged:
-            return False
-
-        n = self.i_log + 1
-        r = self.residual[:n, 4]  # energy residual, drhoe
-
-        # Decay: decades fallen from the peak residual over the whole calc.
-        if decay > 0.0 and np.log10(r.max() / r[-1]) < decay:
-            return False
-
-        # Slope: decades of residual per unit pseudo-time (i_step scaled by
-        # cfl), fitted over the final fifth of the march.
-        if slope > 0.0:
-            if n < 2:
-                return False  # need >= 2 records to fit a line
-            n_fit = max(2, -(-n // 5))  # ceil(n / 5), at least 2 records
-            t = self.i_step[n - n_fit : n] * cfl
-            m = np.polyfit(t, np.log10(r[n - n_fit :]), 1)[0]
-            if abs(m) > slope:
-                return False
-
-        return True
-
-    def find_settling_record(self, tol=0.01):
-        r"""Record index at which the entropy rise :attr:`zeta` has settled.
-
-        Complements :meth:`check_convergence`: where that reduces the *residual*
-        history to a converged/not verdict, this locates when the *solution
-        output* stopped moving. It returns the record index at which
-        :attr:`zeta` has come within a fraction ``tol`` of its total change and
-        stays there for the rest of the march.
-
-        The asymptote is estimated as the mean of ``zeta`` over the final fifth
-        of records (the same last-20% window :meth:`check_convergence` fits its
-        slope over), and the band is ``tol`` of the total swing
-        ``abs(zeta[0] - target)`` about it. The settling record is the one
-        *after* the last record still outside that band -- keying on the last
-        exit rather than the first entry makes it robust to any overshoot that
-        dips through the band and back out. Because the asymptote is the tail
-        mean, the result is only physically meaningful once the march has
-        actually levelled out (e.g. a run :meth:`check_convergence` accepts).
-
-        The return is a *record index* into the history arrays, not a solver
-        step number, so both the step it settled at and the wall-clock time to
-        get there are one indexing away::
-
-            idx  = hist.find_settling_record()
-            step = int(hist.i_step[idx])                  # solver step
-            wall = float(hist.time[idx] - hist.time[0])   # ms to settle
-
-        (``hist.time[0]`` is the one-iteration startup offset, not zero, so
-        subtract it for elapsed march time.)
-
-        Parameters
-        ----------
-        tol : float, optional
-            Settling band half-width, as a fraction of the total ``zeta`` swing.
-            Default ``0.01`` (1%).
-
-        Returns
-        -------
-        int
-            Record index of the settling point. Falls back to ``0`` when
-            ``zeta`` is within the band from the start, or is flat (zero swing).
-        """
-        n = self.i_log + 1
-        zeta = self.zeta[:n]
-        n_tail = max(1, -(-n // 5))  # ceil(n / 5), the final fifth, at least 1
-        target = zeta[n - n_tail :].mean()  # asymptote estimate
-        band = tol * abs(zeta[0] - target)  # tol of the total swing
-        outside = np.abs(zeta - target) > band
-        if band > 0 and outside.any():
-            # Record after the last one still outside; clamp in case the tail
-            # itself never settles (then report the last record).
-            return int(min(np.nonzero(outside)[0][-1] + 1, n - 1))
-        return 0
-
     def to_json(self, directory="."):
         """Write convergence history to three JSON files in directory.
 
@@ -587,27 +587,6 @@ class ConvergenceHistory(StructuredData):
             pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     @property
-    def dP_D(self):
-        r"""Derivative term of the throttle PID correction [Pa], record array.
-
-        The three terms :attr:`dP_P`, :attr:`dP_I` and :attr:`dP_D` sum to the
-        total correction :math:`\Delta p_\mathrm{throttle}` that the outlet adds
-        to its base static pressure. See
-        :meth:`ember.outlet.OutletPatch.get_throttle_stats`.
-        """
-        return self._get_data_by_keys(("dP_D",))
-
-    @property
-    def dP_I(self):
-        r"""Integral term of the throttle PID correction [Pa], record array."""
-        return self._get_data_by_keys(("dP_I",))
-
-    @property
-    def dP_P(self):
-        r"""Proportional term of the throttle PID correction [Pa], record array."""
-        return self._get_data_by_keys(("dP_P",))
-
-    @property
     def diverged(self):
         """True if the run that produced this history blew up, scalar.
 
@@ -620,6 +599,28 @@ class ConvergenceHistory(StructuredData):
     @diverged.setter
     def diverged(self, value):
         self._set_metadata_by_key("diverged", bool(value))
+
+    @property
+    def dP_D(self):
+        r"""Derivative term of the throttle correction [Pa], record array.
+
+        The three terms :attr:`dP_P`, :attr:`dP_I` and :attr:`dP_D` sum to the
+        total correction :math:`\Delta p_\mathrm{throttle}` the outlet adds to
+        its prescribed static pressure. This one is always zero: the throttle is
+        a PI controller, and the column survives so the on-disk layout reads in
+        both directions. See :meth:`ember.outlet.OutletPatch.set_throttle`.
+        """
+        return self._get_data_by_keys(("dP_D",))
+
+    @property
+    def dP_I(self):
+        r"""Integral term of the throttle correction [Pa], record array."""
+        return self._get_data_by_keys(("dP_I",))
+
+    @property
+    def dP_P(self):
+        r"""Proportional term of the throttle correction [Pa], record array."""
+        return self._get_data_by_keys(("dP_P",))
 
     @property
     def err_mdot(self):
@@ -694,9 +695,10 @@ class ConvergenceHistory(StructuredData):
         r"""Mass flow :math:`\dot m` [-] at each station, non-dimensional.
 
         Record array of shape ``(n_log, 2*n_row)``; station ``0`` is the inlet
-        and ``-1`` the outlet. Scaled by the fluid mass-flux scale. Not to be
-        confused with :attr:`mdot_target` and :attr:`mdot_throttle`, which are
-        dimensional [kg/s].
+        and ``-1`` the outlet. Scaled by the fluid mass-flux scale, and summed
+        over the whole annulus. Not to be confused with :attr:`mdot_target` and
+        :attr:`mdot_throttle`, which are dimensional [kg/s] and count one
+        passage, so the two differ by the blade count as well as by the scaling.
         """
         return self._station_array("mdot_st")
 
@@ -776,9 +778,10 @@ class ConvergenceHistory(StructuredData):
     def throttle(self):
         r"""Throttle state ``(mdot_target, mdot_throttle, dP_throttle)``, shape ``(n_log, 3)``.
 
-        The first two are mass flows [kg/s]; the third is the total PID pressure
-        correction :math:`\Delta p_\mathrm{throttle}` [Pa], the sum of
-        :attr:`dP_P`, :attr:`dP_I` and :attr:`dP_D`.
+        The first two are mass flows [kg/s], through one passage rather than the
+        whole annulus; the third is the total pressure correction
+        :math:`\Delta p_\mathrm{throttle}` [Pa], the sum of :attr:`dP_P`,
+        :attr:`dP_I` and :attr:`dP_D`.
         """
         return self._get_data_by_keys(("mdot_target", "mdot_throttle", "P_throttle"))
 

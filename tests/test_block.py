@@ -86,10 +86,14 @@ def block():
     b = ember.block.Block(shape=shape)
 
     # Set up simple coordinates
-    xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
+    # Theta spans a whole blade passage, so the characteristic inlet and outlet
+    # conditions attach to the end faces.
+    _NB = 31
+    xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 2.0 * np.pi / _NB], shape)
     b.set_x(xrt[..., 0])
     b.set_r(xrt[..., 1])
     b.set_t(xrt[..., 2])
+    b.set_Nb(_NB)
 
     # Set up fluid
     fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)

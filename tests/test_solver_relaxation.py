@@ -28,11 +28,9 @@ import pytest
 import ember.solver
 from ember.grid import Grid
 from ember.patch import (
-    InletPatch,
     MixingPatch,
-    NonReflectingInletPatch,
+    InletPatch,
     NonReflectingMixingPatch,
-    NonReflectingOutletPatch,
     OutletPatch,
     PeriodicPatch,
 )
@@ -42,13 +40,11 @@ from nonreflecting_util import make_block
 N_STEP = 2
 
 
-def make_grid(mixing_cls=NonReflectingMixingPatch, ends="nonreflecting", nblock=2):
+def make_grid(mixing_cls=NonReflectingMixingPatch, nblock=2):
     """Blocks butted end to end, joined by mixing planes of one class.
 
-    ``ends`` selects the inlet and outlet class, so the same builder covers both
-    the non-reflecting patches the settings target and the plain ones they must
-    leave alone. Runnable: wall distance, reference length, periodic seams and
-    the end conditions are all set up.
+    Runnable: wall distance, reference length, periodic seams and the end
+    conditions are all set up.
     """
     blocks = []
     x_next = 0.0
@@ -62,12 +58,8 @@ def make_grid(mixing_cls=NonReflectingMixingPatch, ends="nonreflecting", nblock=
         block_up.patches.append(mixing_cls(i=-1, label=f"plane{i}_up"))
         block_dn.patches.append(mixing_cls(i=0, label=f"plane{i}_dn"))
 
-    if ends == "nonreflecting":
-        blocks[0].patches.append(NonReflectingInletPatch(i=0))
-        blocks[-1].patches.append(NonReflectingOutletPatch(i=-1))
-    else:
-        blocks[0].patches.append(InletPatch(i=0))
-        blocks[-1].patches.append(OutletPatch(i=-1))
+    blocks[0].patches.append(InletPatch(i=0))
+    blocks[-1].patches.append(OutletPatch(i=-1))
 
     grid = Grid(blocks)
     for block in grid:
@@ -78,20 +70,14 @@ def make_grid(mixing_cls=NonReflectingMixingPatch, ends="nonreflecting", nblock=
     grid.set_L_ref(float(np.ptp(grid[0].x)))
 
     P_exit = float(grid[-1].P[-1].mean())
-    if ends == "nonreflecting":
-        # The non-reflecting inlet prescribes characteristics, not stagnation
-        # conditions; seed it from the flow the blocks were built with so it
-        # starts at its own fixed point.
-        inlet = grid.patches.inlet_nonreflecting[0]
-        inlet.set_ho_s(float(grid[0].ho.mean()), float(grid[0].s.mean()))
-        inlet.set_Alpha(float(grid[0].Alpha.mean()))
-        inlet.set_Beta(float(grid[0].Beta.mean()))
-        grid.patches.outlet_nonreflecting[0].set_P(P_exit)
-    else:
-        grid.patches.inlet[0].set_Po_To_Alpha_Beta(
-            float(grid[0].Po[0].mean()), float(grid[0].To[0].mean()), 0.0, 0.0
-        )
-        grid.patches.outlet[0].set_P(P_exit)
+    # The inlet prescribes characteristics, not stagnation conditions; seed it
+    # from the flow the blocks were built with so it starts at its own fixed
+    # point.
+    inlet = grid.patches.inlet[0]
+    inlet.set_ho_s(float(grid[0].ho.mean()), float(grid[0].s.mean()))
+    inlet.set_Alpha(float(grid[0].Alpha.mean()))
+    inlet.set_Beta(float(grid[0].Beta.mean()))
+    grid.patches.outlet[0].set_P(P_exit)
 
     grid.connectivity.periodic.pair()
     return grid
@@ -118,8 +104,8 @@ def rf_exchanges(patches):
 @pytest.mark.parametrize(
     "setting, collection",
     [
-        ("rf_inlet", "inlet_nonreflecting"),
-        ("rf_outlet", "outlet_nonreflecting"),
+        ("rf_inlet", "inlet"),
+        ("rf_outlet", "outlet"),
         ("rf_mix", "mixing_nonreflecting"),
     ],
 )
@@ -134,9 +120,9 @@ def test_each_sigma_setting_lands_on_the_patches_it_names(setting, collection):
 @pytest.mark.parametrize(
     "setting, untouched",
     [
-        ("rf_inlet", ["outlet_nonreflecting", "mixing_nonreflecting"]),
-        ("rf_outlet", ["inlet_nonreflecting", "mixing_nonreflecting"]),
-        ("rf_mix", ["inlet_nonreflecting", "outlet_nonreflecting"]),
+        ("rf_inlet", ["outlet", "mixing_nonreflecting"]),
+        ("rf_outlet", ["inlet", "mixing_nonreflecting"]),
+        ("rf_mix", ["inlet", "outlet"]),
     ],
 )
 def test_each_sigma_setting_leaves_the_other_collections_alone(setting, untouched):
@@ -174,25 +160,20 @@ def test_rf_exchange_drives_both_plane_types():
         np.testing.assert_allclose([p.rf_exchange for p in patches], 0.123)
 
 
-def test_the_sigma_settings_do_not_touch_the_plain_inlet_and_outlet():
-    """Their ``rf`` relaxes a different quantity, so the names must not collide.
+def test_the_sigma_settings_do_not_touch_the_outlet_spanwise_relaxation():
+    """``set_adjustment(rf=...)`` relaxes a different quantity from ``sigma``.
 
-    The plain inlet relaxes a velocity datum and the plain outlet takes its
-    factor through set_adjustment; neither is a characteristic relaxation.
+    The outlet carries two relaxations: the characteristic step the settings
+    drive, and the spanwise radial-equilibrium profile, which they must leave
+    alone.
     """
-    grid = make_grid(ends="plain")
+    grid = make_grid()
     grid.patches.outlet[0].set_adjustment(rf=0.07)
-    before = (
-        grid.patches.inlet[0].rf,
-        grid.patches.outlet[0]._adjustment["rf"],
-    )
 
     ember.solver._apply_bcond_relaxation(grid, solver(rf_inlet=0.123, rf_outlet=0.123))
 
-    assert (
-        grid.patches.inlet[0].rf,
-        grid.patches.outlet[0]._adjustment["rf"],
-    ) == before
+    assert grid.patches.outlet[0]._adjustment["rf"] == 0.07
+    assert grid.patches.outlet[0].sigma == pytest.approx(0.123)
 
 
 # Defaults
@@ -203,8 +184,8 @@ def hand_set(grid):
     for patch in grid.patches.mixing_nonreflecting:
         patch.sigma = 0.4
         patch.rf_exchange = 0.3
-    grid.patches.inlet_nonreflecting[0].sigma = 0.2
-    grid.patches.outlet_nonreflecting[0].sigma = 0.1
+    grid.patches.inlet[0].sigma = 0.2
+    grid.patches.outlet[0].sigma = 0.1
 
 
 def test_none_leaves_a_hand_set_value_alone():
@@ -220,8 +201,8 @@ def test_none_leaves_a_hand_set_value_alone():
 
     np.testing.assert_allclose(sigmas(grid.patches.mixing_nonreflecting), 0.4)
     np.testing.assert_allclose(rf_exchanges(grid.patches.mixing_nonreflecting), 0.3)
-    assert grid.patches.inlet_nonreflecting[0].sigma == pytest.approx(0.2)
-    assert grid.patches.outlet_nonreflecting[0].sigma == pytest.approx(0.1)
+    assert grid.patches.inlet[0].sigma == pytest.approx(0.2)
+    assert grid.patches.outlet[0].sigma == pytest.approx(0.1)
 
 
 def test_the_defaults_are_imposed_over_a_hand_set_value():
@@ -244,8 +225,8 @@ def test_the_defaults_are_imposed_over_a_hand_set_value():
     np.testing.assert_allclose(
         rf_exchanges(grid.patches.mixing_nonreflecting), conf.rf_exchange
     )
-    assert grid.patches.inlet_nonreflecting[0].sigma == pytest.approx(conf.rf_inlet)
-    assert grid.patches.outlet_nonreflecting[0].sigma == pytest.approx(conf.rf_outlet)
+    assert grid.patches.inlet[0].sigma == pytest.approx(conf.rf_inlet)
+    assert grid.patches.outlet[0].sigma == pytest.approx(conf.rf_outlet)
 
 
 @pytest.mark.parametrize("n_stage", [2, 4])
@@ -259,8 +240,8 @@ def test_the_solver_advances_each_condition_once_a_step(n_stage, monkeypatch):
     """
     counts = Counter()
     for cls in (
-        NonReflectingInletPatch,
-        NonReflectingOutletPatch,
+        InletPatch,
+        OutletPatch,
         NonReflectingMixingPatch,
     ):
         original = cls.advance
@@ -276,8 +257,8 @@ def test_the_solver_advances_each_condition_once_a_step(n_stage, monkeypatch):
         n_step=N_STEP, n_step_avg=1, n_step_log=N_STEP, n_stage=n_stage
     ).run(grid)
 
-    assert counts["NonReflectingInletPatch"] == N_STEP
-    assert counts["NonReflectingOutletPatch"] == N_STEP
+    assert counts["InletPatch"] == N_STEP
+    assert counts["OutletPatch"] == N_STEP
     # Two sides to the plane, one advance each.
     assert counts["NonReflectingMixingPatch"] == 2 * N_STEP
 
@@ -307,8 +288,8 @@ def test_a_run_applies_the_settings():
 
     solver(rf_inlet=0.11, rf_outlet=0.12, rf_mix=0.13, rf_exchange=0.14).run(grid)
 
-    assert grid.patches.inlet_nonreflecting[0].sigma == pytest.approx(0.11)
-    assert grid.patches.outlet_nonreflecting[0].sigma == pytest.approx(0.12)
+    assert grid.patches.inlet[0].sigma == pytest.approx(0.11)
+    assert grid.patches.outlet[0].sigma == pytest.approx(0.12)
     np.testing.assert_allclose(sigmas(grid.patches.mixing_nonreflecting), 0.13)
     np.testing.assert_allclose(rf_exchanges(grid.patches.mixing_nonreflecting), 0.14)
 
@@ -338,12 +319,8 @@ def test_fmg_applies_the_settings_on_every_level():
     level is the one handed in, so check a coarse level too by running the chain
     and asserting the finest came back configured.
 
-    Plain ends, because resample carries the non-reflecting outlet's spanwise
-    pressure level across at the fine grid's span count and it no longer fits
-    the coarse target. That is a pre-existing limitation of that patch under
-    full multigrid and nothing to do with the relaxation settings.
     """
-    grid = make_grid(ends="plain")
+    grid = make_grid()
     conf = ember.solver.Solver(
         n_step=N_STEP,
         n_step_avg=1,

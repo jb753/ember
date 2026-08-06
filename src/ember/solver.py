@@ -14,7 +14,7 @@ Overview of one time step
 :meth:`Solver.run` performs the following operations each step:
 
 1. **Boundary conditions**: :meth:`~ember.grid.Grid.update_bconds` updates
-   boundary patch targets (mass flow throttle, radial equilibrium,
+   boundary patch targets (mass-flow throttle, radial equilibrium,
    mixing-plane exchange) and :meth:`~ember.grid.Grid.apply_bconds` imposes
    those boundary conditions by modifying :attr:`~ember.block.Block.conserved_nd`.
 2. **NaN check**: :meth:`~ember.grid.Grid.check_nan` aborts the run early if
@@ -223,21 +223,24 @@ Inlet, outlet, and mixing-plane patches each relax their own state towards a
 target every step, with their own relaxation factor rather than a single
 solver-wide setting:
 
-- :class:`~ember.inlet.InletPatch` relaxes the face velocity from its
-  characteristic solve with ``rf = 1.0`` by default (no relaxation); because
-  that target is well conditioned, ``rf < 1`` only adds startup lag.
+- :class:`~ember.inlet.InletPatch` and :class:`~ember.outlet.OutletPatch` take
+  one under-relaxed step of the characteristic condition per timestep, scaled
+  by :attr:`~ember.nonreflecting.NonReflectingPatch.sigma`; see
+  :attr:`~ember.solver.Solver.rf_inlet` and :attr:`~ember.solver.Solver.rf_outlet`.
 - :class:`~ember.mixing.MixingPatch` holds no relaxation of its own: it imposes
   whatever target the exchange last wrote.
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
   mixing-plane target exchanged between adjacent blocks with the patches'
   ``rf_exchange`` (default 0.05), which is the only damping the reflecting
   plane has.
-- :class:`~ember.outlet.OutletPatch` takes its own relaxation factor via
-  ``set_adjustment(rf=...)``.
+- :class:`~ember.outlet.OutletPatch` relaxes its spanwise radial-equilibrium
+  profile separately, via ``set_adjustment(rf=...)``, and damps its mass-flow
+  throttle separately again, via the dimensionless gains of
+  ``set_throttle(mdot_target, Kp=..., Ki=...)``.
 
 :meth:`ember.grid.Grid.update_bconds` advances the slowly-varying boundary
-targets once per step (mixing-plane exchange, inlet velocity snapshot,
-outlet PID/spanwise target); :meth:`ember.grid.Grid.apply_bconds` then
+targets once per step (mixing-plane exchange, characteristic mean state,
+outlet throttle and spanwise target); :meth:`ember.grid.Grid.apply_bconds` then
 imposes the full set of physical boundary conditions and closes periodic
 seams every time it is called, including between Runge--Kutta substages.
 
@@ -349,22 +352,21 @@ class Solver(BaseSolver):
     """Scaling factor on multigrid corrections. Honored by both integrators
     (:func:`scree_step` and :func:`rk_step`)."""
 
+    expon_mgrid: float = 2.0
+    """Base of the per-level multigrid decay, ``coef_l ~ expon_mgrid**-(l-1)``.
+    Honored by both integrators (:func:`scree_step` and :func:`rk_step`)."""
+
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
     (:attr:`~ember.nonreflecting.NonReflectingPatch.sigma`) on every
-    :class:`~ember.inlet_nonreflecting.NonReflectingInletPatch`. Imposed on
-    every such patch at the start of the run, so the default overrides a value
-    the patches carried in; pass None to leave whatever they already hold.
-    Does not touch the plain :class:`~ember.inlet.InletPatch`, whose ``rf``
-    relaxes a pressure datum and is a different quantity. Applied once per
-    Runge-Kutta substage, not once per step, so the effective rate per step is
-    larger by :attr:`n_stage`."""
+    :class:`~ember.inlet.InletPatch`. Imposed on every such patch at the start
+    of the run, so the default overrides a value the patches carried in; pass
+    None to leave whatever they already hold."""
 
     rf_outlet: float | None = 0.05
-    """As :attr:`rf_inlet`, for every
-    :class:`~ember.outlet_nonreflecting.NonReflectingOutletPatch`. Does not
-    touch the plain :class:`~ember.outlet.OutletPatch`, which takes its own
-    relaxation via ``set_adjustment(rf=...)``."""
+    """As :attr:`rf_inlet`, for every :class:`~ember.outlet.OutletPatch`. This
+    is the characteristic relaxation only; the spanwise radial-equilibrium
+    profile has its own, set via ``set_adjustment(rf=...)``."""
 
     rf_mix: float | None = 0.01
     """As :attr:`rf_inlet`, for every
@@ -398,7 +400,7 @@ class Solver(BaseSolver):
         return _run_fmg(grid, self)
 
 
-def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
+def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0):
     """Advance every block one Denton scree step in place."""
     # Preconditions: dt_vol_nd populated and cached P/T consistent with
     # conserved_nd on entry. The caller invalidates caches and applies boundary
@@ -433,7 +435,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
             # verified against multall's TSTEP, which sums the lagged
             # STORE = F1*DELTA + F2*DIFF into its block accumulators. For coarse
             # level l = 1..n_levels (block size b = 2**l) the correction scales by
-            # coef_l = cfl*fac_mgrid/b**2 * 2**-(l-1) (advance_rk_stage_mg's
+            # coef_l = cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1) (advance_rk_stage_mg's
             # formula at alpha=1, since scree takes one full-weight step), with
             # the coarse timestep the volume-weighted mean of dt_vol over the
             # block. sf_irs > 0 selects the coarse-IRS kernel; sf_irs == 0 selects
@@ -456,6 +458,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, n_levels=0, sf_irs=0.0):
                 vol=block.vol_nd,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
+                expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 tmp=tmp,
@@ -538,7 +541,7 @@ def _mg_coarse_carve(block, ni, nj, nk, n_levels_eff):
     )
 
 
-def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
+def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
     The single RK stage integrator. Each stage marches every block off its
@@ -556,9 +559,12 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
     is the trivial subcase: the coarse loop is empty, so the stage reduces to a
     plain Jameson RK step ``cons = snapshot + alpha*cfl*dt_vol*residual``. For
     ``l = 1..n_levels`` the coarse block has ``b = 2**l`` and
-    ``coef_l = alpha*cfl*fac_mgrid/b**2 * 2**-(l-1)``. The ``2**-(l-1)`` damps
-    successively coarser levels: level 1 (finest coarse, ``b=2``) carries the
-    full ``fac_mgrid``, level 2 ``fac_mgrid/2``, level 3 ``fac_mgrid/4``, and so on.
+    ``coef_l = alpha*cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1)``. The
+    ``expon_mgrid**-(l-1)`` term damps successively coarser levels: level 1
+    (finest coarse, ``b=2``) carries the full ``fac_mgrid``, level 2
+    ``fac_mgrid/expon_mgrid``, level 3 ``fac_mgrid/expon_mgrid**2``, and so on
+    (the default ``expon_mgrid=2.0`` reproduces the original fixed factor-2
+    decay).
 
     ``dt_coarse_l`` is the volume-weighted mean of ``dt_vol`` over the coarse
     block, ``sum(dt_vol*vol)/sum(vol)``, which is why the kernels take
@@ -661,6 +667,7 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, sf_irs=0.0):
                 alpha=alpha,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
+                expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 rbuf=rbuf,
@@ -701,7 +708,13 @@ def rk_step(grid, conf):
         # refreshed below before the next advance.
         alpha = 1.0 / (conf.n_stage - i_stage)
         advance_rk_stage_mg(
-            grid, alpha, conf.cfl, conf.fac_mgrid, conf.n_levels, conf.sf_resid
+            grid,
+            alpha,
+            conf.cfl,
+            conf.fac_mgrid,
+            conf.n_levels,
+            expon_mgrid=conf.expon_mgrid,
+            sf_irs=conf.sf_resid,
         )
         grid.update_cached_conserved()
         grid.apply_bconds()
@@ -728,8 +741,8 @@ def _apply_bcond_relaxation(grid, conf):
     each of its separately resampled grids.
     """
     for sigma, patches in (
-        (conf.rf_inlet, grid.patches.inlet_nonreflecting),
-        (conf.rf_outlet, grid.patches.outlet_nonreflecting),
+        (conf.rf_inlet, grid.patches.inlet),
+        (conf.rf_outlet, grid.patches.outlet),
         (conf.rf_mix, grid.patches.mixing_nonreflecting),
     ):
         if sigma is not None:
@@ -769,6 +782,30 @@ def _validate_mg(grid, n_levels):
                 )
 
 
+def _validate_throttle(grid):
+    """Raise if more than one outlet patch is throttled to a mass flow.
+
+    Each :class:`~ember.outlet.OutletPatch` runs its own controller on the mass
+    flow through its own face, so two throttles on one exit would each see most
+    of the same error and each apply the whole correction for it, over-throttling
+    by roughly the number of patches. Splitting a target between them is not the
+    fix either: the split is only known once the answer is.
+
+    An exit spread over several blocks therefore has to prescribe pressure on
+    all but one of its patches, or be closed by a single patch. Checked at the
+    start of a run rather than in :meth:`~ember.outlet.OutletPatch.set_throttle`,
+    which sees one patch and cannot know what the rest of the grid carries.
+    """
+    throttled = [p for p in grid.patches.outlet if p.mdot_target is not None]
+    if len(throttled) > 1:
+        labels = ", ".join(repr(p.label) for p in throttled)
+        raise ValueError(
+            f"{len(throttled)} outlet patches are throttled ({labels}); at most "
+            "one may be. Prescribe P on the others with set_P, or clear their "
+            "throttle with set_throttle(None)."
+        )
+
+
 @util.profile
 def _run(grid, conf):
     """Drive a grid through ``n_step`` explicit time-marching steps.
@@ -795,6 +832,7 @@ def _run(grid, conf):
 
     # Fail fast if the grid cannot be evenly blocked for multigrid.
     _validate_mg(grid, conf.n_levels)
+    _validate_throttle(grid)
 
     _apply_bcond_relaxation(grid, conf)
 
@@ -812,7 +850,7 @@ def _run(grid, conf):
         # So flush the cache to recalculate P and T
         grid.update_cached_conserved()
 
-        grid.update_bconds()  # Throttle/radial equilibrium targets
+        grid.update_bconds(cfl=conf.cfl)  # Throttle/radial equilibrium targets
         grid.apply_bconds()
 
         try:
@@ -849,7 +887,14 @@ def _run(grid, conf):
         # Take a step with the selected integrator.  Both reuse the first
         # residual evaluated above, RK then recalculates each substep
         if conf.n_stage == 0:
-            scree_step(grid, conf.cfl, conf.fac_mgrid, conf.n_levels, conf.sf_resid)
+            scree_step(
+                grid,
+                conf.cfl,
+                fac_mgrid=conf.fac_mgrid,
+                expon_mgrid=conf.expon_mgrid,
+                n_levels=conf.n_levels,
+                sf_irs=conf.sf_resid,
+            )
         else:
             rk_step(grid, conf)
 

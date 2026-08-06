@@ -21,7 +21,12 @@ import pytest
 from ember.grid import Grid
 from ember.block import Block
 from ember.block_restart import BlockRestart, make_restart, apply_restart
-from ember.patch import InletPatch, OutletPatch, PeriodicPatch, MixingPatch
+from ember.patch import (
+    CoolingPatch,
+    InviscidPatch,
+    MixingPatch,
+    PeriodicPatch,
+)
 from ember.fluid import PerfectFluid
 from ember import util
 
@@ -129,9 +134,11 @@ class TestGridResample:
         block.set_r(xrt[..., 1])
         block.set_t(xrt[..., 2])
 
-        # Add patches
-        inlet_patch = InletPatch(i=0, j=(1, 2), k=(0, 1), label="inlet")
-        outlet_patch = OutletPatch(i=-1, j=(1, 2), k=(0, 1), label="outlet")
+        # Add patches. The types are incidental: resample keys on
+        # patch.ijk_lim_abs alone, and these partial faces are shapes the
+        # characteristic inlet and outlet could never take.
+        inlet_patch = InviscidPatch(i=0, j=(1, 2), k=(0, 1), label="inlet")
+        outlet_patch = CoolingPatch(i=-1, j=(1, 2), k=(0, 1), label="outlet")
         periodic_patch = PeriodicPatch(i=(1, 3), j=0, k=(0, -1), label="periodic")
 
         block.patches.extend([inlet_patch, outlet_patch, periodic_patch])
@@ -154,8 +161,8 @@ class TestGridResample:
 
         # Check patch types are preserved
         types = [type(p).__name__ for p in grid[0].patches]
-        assert "InletPatch" in types
-        assert "OutletPatch" in types
+        assert "InviscidPatch" in types
+        assert "CoolingPatch" in types
         assert "PeriodicPatch" in types
 
     def test_resample_scalar_factor(self):
@@ -475,9 +482,10 @@ class TestGridResampleIntegration:
         block.set_r(xrt[..., 1])
         block.set_t(xrt[..., 2])
 
-        # Add typical turbomachinery patches
-        inlet = InletPatch(i=0, j=(1, -2), k=(1, -2), label="inlet")
-        outlet = OutletPatch(i=-1, j=(1, -2), k=(1, -2), label="outlet")
+        # Add typical turbomachinery patches. Partial faces, so patch types
+        # without geometric preconditions; resample reads only their limits.
+        inlet = InviscidPatch(i=0, j=(1, -2), k=(1, -2), label="inlet")
+        outlet = CoolingPatch(i=-1, j=(1, -2), k=(1, -2), label="outlet")
         hub = PeriodicPatch(i=(1, -2), j=0, k=(1, -2), label="hub")
         shroud = PeriodicPatch(i=(1, -2), j=-1, k=(1, -2), label="shroud")
 
@@ -637,7 +645,7 @@ class TestGridInterpFrom:
         """Mismatched number of critical indices raises ValueError."""
         # src inlet covers j=(1, 3) -> critical j indices [0, 1, 3, 5]
         src = _make_state_block((4, 6, 4))
-        src.patches.append(InletPatch(i=0, j=(1, 3), k=(0, -1)))
+        src.patches.append(InviscidPatch(i=0, j=(1, 3), k=(0, -1)))
 
         # tgt has no patches -> critical j indices [0, 7] only (2 vs 4)
         tgt = _make_state_block((4, 8, 4))
@@ -668,7 +676,7 @@ class TestGridInterpFrom:
         src.set_Vr(np.zeros((ni, nj, nk)))
         src.set_Vt(np.zeros((ni, nj, nk)))
         src.set_mu_turb(np.zeros((ni, nj, nk)))
-        src.patches.append(InletPatch(i=0, j=(1, 3), k=(0, -1)))
+        src.patches.append(InviscidPatch(i=0, j=(1, 3), k=(0, -1)))
 
         # tgt: 9 j-points, inlet patch j=(2,6) -> critical j indices [0, 2, 6, 8]
         # j=2 in tgt maps to j=1 in src, j=6 in tgt maps to j=3 in src
@@ -683,7 +691,7 @@ class TestGridInterpFrom:
         tgt.set_t(t2)
         tgt.set_P_T(101325.0, 300.0)
         tgt.set_mu_turb(np.zeros((ni2, nj2, nk2)))
-        tgt.patches.append(InletPatch(i=0, j=(2, 6), k=(0, -1)))
+        tgt.patches.append(InviscidPatch(i=0, j=(2, 6), k=(0, -1)))
 
         Grid([tgt]).interp_from(Grid([src]))
 
@@ -800,26 +808,12 @@ class TestBlockRestartImmutability:
         arr[0, 0, 0, 0] = 99.0
         assert r.conserved[0, 0, 0, 0] == 0.0
 
-    def test_outlet_and_mixing_are_frozen(self):
-        a = np.ones((2, 2, 2))
+    def test_mixing_is_frozen(self):
         b = np.ones((1, 2, 1, 5))
-        r = BlockRestart(np.zeros((2, 2, 2, 5)), outlet=(a,), mixing=(b,))
-        assert r.outlet[0] is not a
+        r = BlockRestart(np.zeros((2, 2, 2, 5)), mixing=(b,))
         assert r.mixing[0] is not b
         with pytest.raises(ValueError):
-            r.outlet[0][0, 0, 0] = 0.0
-        with pytest.raises(ValueError):
             r.mixing[0][0, 0, 0, 0] = 0.0
-
-
-def _outlet_block_with_target(shape, P=2e5, T=350.0):
-    """Build a block carrying a single OutletPatch on the i=-1 face."""
-    block = _make_state_block(shape, P=P, T=T)
-    outlet = OutletPatch(i=-1, j=(0, -1), k=(0, -1), label="outlet")
-    block.patches.append(outlet)
-    outlet.set_P(P)
-    outlet.update_target()
-    return block, outlet
 
 
 def _mixing_block_with_target(shape, P=2e5, T=350.0):
@@ -830,75 +824,6 @@ def _mixing_block_with_target(shape, P=2e5, T=350.0):
     mixing.attach_to_block(block)
     mixing.set_target()
     return block, mixing
-
-
-class TestRestartOutlet:
-    """OutletPatch _P_target_nd round-trip via BlockRestart."""
-
-    def test_pure_round_trip(self):
-        src, src_outlet = _outlet_block_with_target((4, 4, 4), P=2e5)
-        # Stamp a non-uniform pattern onto _P_target_nd to verify shape preservation.
-        src_outlet._P_target_nd = (
-            src_outlet._P_target_nd
-            * (
-                1.0
-                + 0.1
-                * np.linspace(-1, 1, src_outlet._P_target_nd.size).reshape(
-                    src_outlet._P_target_nd.shape
-                )
-            )
-        ).astype(np.float32)
-
-        tgt, tgt_outlet = _outlet_block_with_target((4, 4, 4), P=2e5)
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-
-        np.testing.assert_allclose(
-            tgt_outlet._P_target_nd, src_outlet._P_target_nd, rtol=1e-5
-        )
-
-    def test_shape_preserved_across_mean_change(self):
-        src, src_outlet = _outlet_block_with_target((4, 4, 4), P=2e5)
-        # Non-uniform _P_target_nd
-        prof = (
-            1.0
-            + 0.05
-            * np.linspace(-1, 1, src_outlet._P_target_nd.size).reshape(
-                src_outlet._P_target_nd.shape
-            )
-        ).astype(np.float32)
-        src_outlet._P_target_nd = (src_outlet._P_target_nd * prof).astype(np.float32)
-
-        tgt, tgt_outlet = _outlet_block_with_target((4, 4, 4), P=2e5)
-        # Change destination mean target pressure
-        tgt_outlet.set_P(3e5)
-        tgt_outlet.update_target()  # rebuilds _P_target_nd at the new mean
-
-        # Ratio of stored shape (P_target_nd / P_raw_nd) must be preserved.
-        src_ratio = src_outlet._P_target_nd / (src_outlet._P_raw / src.fluid.P_ref)
-
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-        tgt_ratio = tgt_outlet._P_target_nd / (tgt_outlet._P_raw / tgt.fluid.P_ref)
-
-        np.testing.assert_allclose(tgt_ratio, src_ratio, rtol=1e-5)
-        # And the mean reflects the destination (3e5 / P_ref).
-        expected_mean_nd = 3e5 / tgt.fluid.P_ref
-        actual_mean_nd = tgt_outlet._P_target_nd.mean()
-        np.testing.assert_allclose(actual_mean_nd, expected_mean_nd, rtol=5e-2)
-
-    def test_shape_interpolation(self):
-        src, src_outlet = _outlet_block_with_target((4, 4, 4), P=2e5)
-        # Force _P_target_nd to a uniform value on src
-        src_outlet._P_target_nd[...] = src_outlet._P_raw / src.fluid.P_ref
-
-        tgt, tgt_outlet = _outlet_block_with_target((6, 6, 6), P=2e5)
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-
-        expected = src_outlet._P_raw / tgt.fluid.P_ref
-        np.testing.assert_allclose(
-            tgt_outlet._P_target_nd,
-            np.full(tgt_outlet._P_target_nd.shape, expected),
-            rtol=1e-4,
-        )
 
 
 class TestRestartMixing:

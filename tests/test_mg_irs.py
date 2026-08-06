@@ -41,8 +41,20 @@ def _make_inputs(ni, nj, nk, seed):
     return residual, dt_vol, vol, snapshot
 
 
-def _run(residual, dt_vol, vol, snapshot, ni, nj, nk, n_levels, sf_irs=0.0,
-         kernel=None, fmgrid=0.2):
+def _run(
+    residual,
+    dt_vol,
+    vol,
+    snapshot,
+    ni,
+    nj,
+    nk,
+    n_levels,
+    sf_irs=0.0,
+    kernel=None,
+    fmgrid=0.2,
+    expon_mgrid=2.0,
+):
     """Call the RK MG kernel with freshly zeroed scratch (the size args are
     inferred by f2py from the array shapes, exactly as ember.solver does).
 
@@ -69,6 +81,7 @@ def _run(residual, dt_vol, vol, snapshot, ni, nj, nk, n_levels, sf_irs=0.0,
         alpha=1.0,
         cfl=0.4,
         fmgrid=fmgrid,
+        expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
         rbuf=Z(ni - 1, nj - 1, NP, 2),
@@ -97,9 +110,7 @@ def test_sf_irs_positive_changes_result():
     residual, dt_vol, vol, snapshot = _make_inputs(NI, NJ, NK, seed=1)
 
     cons_plain = _run(residual, dt_vol, vol, snapshot, NI, NJ, NK, N_LEVELS)
-    cons_irs = _run(
-        residual, dt_vol, vol, snapshot, NI, NJ, NK, N_LEVELS, sf_irs=0.5
-    )
+    cons_irs = _run(residual, dt_vol, vol, snapshot, NI, NJ, NK, N_LEVELS, sf_irs=0.5)
     assert not np.array_equal(cons_plain, cons_irs)
 
 
@@ -114,7 +125,14 @@ def test_noirs_kernel_matches_fused_at_sf_zero():
 
     cons_irs = _run(residual, dt_vol, vol, snapshot, NI, NJ, NK, N_LEVELS)
     cons_no = _run(
-        residual, dt_vol, vol, snapshot, NI, NJ, NK, N_LEVELS,
+        residual,
+        dt_vol,
+        vol,
+        snapshot,
+        NI,
+        NJ,
+        NK,
+        N_LEVELS,
         kernel=ember.fortran.rk_mg_noirs,
     )
     np.testing.assert_allclose(cons_irs, cons_no, atol=1e-6, rtol=1e-3)
@@ -134,14 +152,27 @@ def test_rk_plain_matches_mg_at_fac_mgrid_zero():
     residual, dt_vol, vol, snapshot = _make_inputs(NI, NJ, NK, seed=9)
 
     cons_mg = _run(
-        residual, dt_vol, vol, snapshot, NI, NJ, NK, N_LEVELS, fmgrid=0.0,
+        residual,
+        dt_vol,
+        vol,
+        snapshot,
+        NI,
+        NJ,
+        NK,
+        N_LEVELS,
+        fmgrid=0.0,
         kernel=ember.fortran.rk_mg_noirs,
     )
     cons_plain = np.asfortranarray(snapshot.copy())
     tmp = np.asfortranarray(np.zeros((NI - 1, NJ - 1, NK - 1, NP), dtype=np.float32))
     ember.fortran.rk_plain(
-        cons=cons_plain, snapshot=snapshot, residual=residual, dt_vol=dt_vol,
-        alpha=1.0, cfl=0.4, tmp=tmp,
+        cons=cons_plain,
+        snapshot=snapshot,
+        residual=residual,
+        dt_vol=dt_vol,
+        alpha=1.0,
+        cfl=0.4,
+        tmp=tmp,
     )
     np.testing.assert_allclose(cons_plain, cons_mg, atol=1e-6, rtol=1e-3)
 
@@ -176,9 +207,7 @@ def test_sf_irs_damps_checkerboard_coarse_correction():
     )
 
     cons_plain = _run(residual, dt_vol, vol, snapshot, ni, nj, nk, n_levels)
-    cons_irs = _run(
-        residual, dt_vol, vol, snapshot, ni, nj, nk, n_levels, sf_irs=0.8
-    )
+    cons_irs = _run(residual, dt_vol, vol, snapshot, ni, nj, nk, n_levels, sf_irs=0.8)
 
     corr_plain = np.abs(cons_plain - snapshot).mean()
     corr_irs = np.abs(cons_irs - snapshot).mean()

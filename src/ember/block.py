@@ -694,6 +694,20 @@ class Block(ember.struct.StructuredData):
         """Raw nondimensional polar coordinates (x/L_ref, r/L_ref, t)."""
         return self._get_data_by_keys(("x", "r", "t"))
 
+    def _primitive_buffer(self, cache_key, shape):
+        """Existing cached buffer for `cache_key`, unlocked for writing.
+
+        The buffers are the very ones :func:`ember.struct.cached_array` hands to
+        its wrapped function as ``out``, so reusing them keeps every pointer
+        stable and allocates nothing after the first step.
+        """
+        entry = self._store.get(cache_key)
+        out = None
+        if entry is not None:
+            out = entry[1]
+            out.flags.writeable = True
+        return util.allocate_or_reuse(out, shape)
+
     def set_conserved(self, conserved):
         r"""Store conserved variables.
 
@@ -1119,6 +1133,8 @@ class Block(ember.struct.StructuredData):
             raise ValueError("Internal energy must be finite.")
 
         self._set_rho_u_nd(rho / self.fluid.rho_ref, u / self._Vsq_ref)
+
+
 
     def set_rho_u_Vxrt_nd(self, rho_nd, u_nd, Vx_nd, Vr_nd, Vt_nd):
         r"""Write conserved variables from non-dimensional state and velocity.
@@ -1609,6 +1625,85 @@ class Block(ember.struct.StructuredData):
         """
         for k in ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"):
             self._versions[k] += 1
+
+    def update_primitive(self):
+        """Evaluate the primitive cache eagerly, in two fused passes.
+
+        Populates ``_Vxrt_nd_uninit``, ``_halfVsq_nd_uninit``, ``_u_nd_uninit``,
+        :attr:`P_nd`, :attr:`ho_nd` and :attr:`T_nd` together, then publishes
+        them into the same ``_store`` entries :func:`ember.struct.cached_array`
+        uses, stamped with the same data-key versions. Lazily accessing any of
+        those properties afterwards is a plain cache hit.
+
+        WHY. Evaluated lazily, the chain
+
+            cons + r -> Vxrt -> halfVsq -> u -> P/h/T ;  ho = h + halfVsq
+
+        is five separate full-volume numpy passes, ~120 B/cell, with ``halfVsq``
+        and ``u`` written and re-read purely as intermediates. It runs five
+        times per step (once per RK stage via ``P_nd``, once in
+        ``update_sources`` via ``T_nd``) and an 8-rank contended profile of a
+        1M-cell run put it at ~17% of a timestep. Fused it is two passes.
+
+        WHY THIS IS NOT A CORRECTNESS PATH. The lazy ``cached_array``
+        implementations are all still there, and this method stamps the same
+        versions they check, so it can only ever turn a recompute into a cache
+        hit. If it is not called, or is called too early, every consumer still
+        gets the right answer by the slow route -- which is why the call sites
+        are at the point of CONSUMPTION (``Grid.update_residual``,
+        ``Grid.update_sources``) rather than after each mutation of
+        ``conserved_nd``. A missed mutation site would otherwise leave stale
+        primitives, silently.
+
+        Returns early when all six caches are already current, so calling it
+        more often than necessary costs a handful of dict lookups.
+
+        """
+        import ember.fortran
+
+        # Raise on uninitialised state exactly as the public properties do:
+        # P_nd/T_nd need rho and rhoe, ho_nd additionally needs the momenta.
+        for key in ("rho", "rhoe", "rhoVx", "rhoVr", "rhorVt"):
+            self._get_data_by_keys((key,))
+
+        # The two key tuples differ: velocity depends on the radius, the
+        # thermodynamic properties on the energy.
+        ver_r = self._get_version(("rho", "rhoVx", "rhoVr", "rhorVt", "r"))
+        ver_e = self._get_version(("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"))
+        stamps = (
+            ("_Vxrt_nd_uninit", ver_r),
+            ("_halfVsq_nd_uninit", ver_r),
+            ("_u_nd_uninit", ver_e),
+            ("P_nd", ver_e),
+            ("ho_nd", ver_e),
+            ("T_nd", ver_e),
+        )
+        if all(self._store.get(k, (None,))[0] == v for k, v in stamps):
+            return
+
+        shape = self.shape
+        vxrt = self._primitive_buffer("_Vxrt_nd_uninit", shape + (3,))
+        halfvsq = self._primitive_buffer("_halfVsq_nd_uninit", shape)
+        u = self._primitive_buffer("_u_nd_uninit", shape)
+        P = self._primitive_buffer("P_nd", shape)
+        ho = self._primitive_buffer("ho_nd", shape)
+        T = self._primitive_buffer("T_nd", shape)
+
+        # Pass 1: kinematics, fluid-agnostic (velocity is defined by the
+        # conserved variables for any fluid).
+        ember.fortran.set_primitive_kinematic(
+            cons=self.conserved_nd, r=self.r_nd, vxrt=vxrt, u=u, halfvsq=halfvsq
+        )
+        # Pass 2: thermodynamics, behind the Fluid interface. `ho` receives the
+        # STATIC enthalpy here and becomes stagnation on the next line.
+        self.fluid.get_P_h_T(self._rho_nd_uninit, u, P, ho, T)
+        ho += halfvsq
+
+        for (cache_key, versions), arr in zip(
+            stamps, (vxrt, halfvsq, u, P, ho, T)
+        ):
+            arr.flags.writeable = False
+            self._store[cache_key] = (versions, arr)
 
     @derived_array
     def a(self):
@@ -2691,16 +2786,6 @@ class Block(ember.struct.StructuredData):
 
         """
         return np.sqrt(self.Vx**2 + self.Vr**2)
-
-    @derived_array
-    def Vm_nd(self):
-        r"""Nondimensional meridional velocity magnitude :math:`V_m^*` [-].
-
-        .. math::
-            V_m^* = V_m / V_\mathrm{ref}
-
-        """
-        return np.sqrt(self.Vx_nd**2 + self.Vr_nd**2)
 
     @derived_array
     def vol(self):

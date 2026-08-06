@@ -83,6 +83,27 @@ def block():
     return b
 
 
+@pytest.fixture
+def passage_block():
+    """As `block`, but a whole blade passage in theta.
+
+    The inlet and outlet conditions are characteristic ones and refuse to
+    attach to anything less than a full pitch, so the tests that want a real
+    inlet or outlet take this one. Everything else uses `block`, whose theta
+    extent is an arbitrary slice: setting Nb changes what calculate_wdist makes
+    of the k faces, and the tests about those want the original geometry.
+    """
+    shape = (5, 4, 4)
+    Nb = 63
+    xrt = util.linmesh3([0.0, 0.1], [0.95, 1.05], [0.0, 2.0 * np.pi / Nb], shape)
+    b = ember.block.Block(shape=shape)
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
+    b.set_Nb(Nb)
+    return b
+
+
 # ---------------------------------------------------------------------------
 # Node smearing: tests via block._wall_nodes (no KDTree involved)
 #
@@ -110,10 +131,10 @@ def test_smear_interior_nodes_never_walls(block):
     assert not block._wall_nodes[1:-1, 1:-1, 1:-1].any()
 
 
-def test_smear_face_centre_freed_by_single_permeable_face(block):
+def test_smear_face_centre_freed_by_single_permeable_face(passage_block):
     """Nodes interior to a permeable face (not on any edge/corner) become non-wall."""
-    block.patches.append(InletPatch(i=0))
-    wall = block._wall_nodes
+    passage_block.patches.append(InletPatch(i=0))
+    wall = passage_block._wall_nodes
     # Interior of the i=0 face: only one face (i=0) touches these nodes
     # and it is now permeable, so they are no longer walls
     assert not wall[0, 1:-1, 1:-1].any()
@@ -125,10 +146,14 @@ def test_smear_face_centre_freed_by_single_permeable_face(block):
 
 
 def test_smear_face_centre_node_needs_all_four_touching_faces_free(block):
-    """A partial patch covering only part of a face does not free its uncovered nodes."""
+    """A partial patch covering only part of a face does not free its uncovered nodes.
+
+    A non-matching patch rather than an inlet: the rule under test is the
+    permeability smearing, and the characteristic inlet cannot be partial.
+    """
     ni, nj, nk = block.shape
     # Patch covers only the first half of the j/k extent on i=0
-    block.patches.append(InletPatch(i=0, j=(0, nj // 2 - 1), k=(0, nk // 2 - 1)))
+    block.patches.append(NonMatchPatch(i=0, j=(0, nj // 2 - 1), k=(0, nk // 2 - 1)))
     wall = block._wall_nodes
     # Nodes inside the patch footprint (interior, not on any edge) are freed
     assert not wall[0, 1 : nj // 2 - 1, 1 : nk // 2 - 1].any()
@@ -136,30 +161,32 @@ def test_smear_face_centre_node_needs_all_four_touching_faces_free(block):
     assert wall[0, nj // 2 :, :].all()
 
 
-def test_smear_edge_node_freed_only_when_both_adjacent_faces_permeable(block):
+def test_smear_edge_node_freed_only_when_both_adjacent_faces_permeable(passage_block):
     """An edge node (shared by two faces) is freed only when both faces are permeable."""
     # Edge at i=0, j=0 is shared by the i=0 and j=0 faces
-    block.patches.append(InletPatch(i=0))
+    passage_block.patches.append(InletPatch(i=0))
     # With only i=0 permeable the i=0,j=0 edge nodes are still walls
-    assert block._wall_nodes[0, 0, :].all()
+    assert passage_block._wall_nodes[0, 0, :].all()
 
     # Now also make j=0 permeable
-    block.patches.append(PeriodicPatch(j=0))
+    passage_block.patches.append(PeriodicPatch(j=0))
     # Interior of the shared edge (not at the corners) is now freed
-    assert not block._wall_nodes[0, 0, 1:-1].any()
+    assert not passage_block._wall_nodes[0, 0, 1:-1].any()
 
 
-def test_smear_corner_node_freed_only_when_all_three_adjacent_faces_permeable(block):
+def test_smear_corner_node_freed_only_when_all_three_adjacent_faces_permeable(
+    passage_block,
+):
     """A corner node is freed only when all three faces meeting at it are permeable."""
     # Corner (0, 0, 0) is touched by i=0, j=0, k=0 faces
-    block.patches.append(InletPatch(i=0))
-    block.patches.append(PeriodicPatch(j=0))
+    passage_block.patches.append(InletPatch(i=0))
+    passage_block.patches.append(PeriodicPatch(j=0))
     # Two of three faces permeable: corner is still a wall
-    assert block._wall_nodes[0, 0, 0]
+    assert passage_block._wall_nodes[0, 0, 0]
 
-    block.patches.append(NonMatchPatch(k=0))
+    passage_block.patches.append(NonMatchPatch(k=0))
     # All three faces permeable: corner is freed
-    assert not block._wall_nodes[0, 0, 0]
+    assert not passage_block._wall_nodes[0, 0, 0]
 
 
 # ---------------------------------------------------------------------------
@@ -184,22 +211,22 @@ def test_no_patches_all_walls(block):
 # ---------------------------------------------------------------------------
 
 
-def test_inlet_removes_wall(block):
+def test_inlet_removes_wall(passage_block):
     """InletPatch at i=0 removes that face from the wall set."""
-    block.patches.append(InletPatch(i=0))
-    Grid([block]).calculate_wdist()
+    passage_block.patches.append(InletPatch(i=0))
+    Grid([passage_block]).calculate_wdist()
     # Interior nodes of the permeable face are no longer on any wall
-    assert np.all(block.wdist[0, 1:-1, 1:-1] > _WALL_THRESHOLD)
+    assert np.all(passage_block.wdist[0, 1:-1, 1:-1] > _WALL_THRESHOLD)
     # Opposite face remains a wall
-    assert np.all(block.wdist[-1, :, :] < _WALL_THRESHOLD)
+    assert np.all(passage_block.wdist[-1, :, :] < _WALL_THRESHOLD)
 
 
-def test_outlet_removes_wall(block):
+def test_outlet_removes_wall(passage_block):
     """OutletPatch at i=-1 removes that face from the wall set."""
-    block.patches.append(OutletPatch(i=-1))
-    Grid([block]).calculate_wdist()
-    assert np.all(block.wdist[-1, 1:-1, 1:-1] > _WALL_THRESHOLD)
-    assert np.all(block.wdist[0, :, :] < _WALL_THRESHOLD)
+    passage_block.patches.append(OutletPatch(i=-1))
+    Grid([passage_block]).calculate_wdist()
+    assert np.all(passage_block.wdist[-1, 1:-1, 1:-1] > _WALL_THRESHOLD)
+    assert np.all(passage_block.wdist[0, :, :] < _WALL_THRESHOLD)
 
 
 def test_periodic_removes_wall(block):
@@ -277,13 +304,13 @@ def test_cusp_invalid_on_j_face(block):
 # ---------------------------------------------------------------------------
 
 
-def test_all_permeable_raises(block):
+def test_all_permeable_raises(passage_block):
     """Grid with all six faces permeable raises ValueError (no wall nodes)."""
-    block.patches.append(InletPatch(i=0))
-    block.patches.append(OutletPatch(i=-1))
-    block.patches.append(PeriodicPatch(j=0))
-    block.patches.append(MixingPatch(j=-1))
-    block.patches.append(NonMatchPatch(k=0))
-    block.patches.append(NonMatchPatch(k=-1))
+    passage_block.patches.append(InletPatch(i=0))
+    passage_block.patches.append(OutletPatch(i=-1))
+    passage_block.patches.append(PeriodicPatch(j=0))
+    passage_block.patches.append(MixingPatch(j=-1))
+    passage_block.patches.append(NonMatchPatch(k=0))
+    passage_block.patches.append(NonMatchPatch(k=-1))
     with pytest.raises(ValueError, match="No wall nodes"):
-        Grid([block]).calculate_wdist()
+        Grid([passage_block]).calculate_wdist()

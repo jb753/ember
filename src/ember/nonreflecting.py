@@ -64,19 +64,101 @@ where the derivation does not hold.
 See Also
 --------
 ember.basepatch.RevolutionPatch : Base class providing the pitchwise geometry
-ember.inlet_nonreflecting.NonReflectingInletPatch : Subsonic inflow
-ember.outlet_nonreflecting.NonReflectingOutletPatch : Subsonic outflow
+ember.inlet.InletPatch : Subsonic inflow
+ember.outlet.OutletPatch : Subsonic outflow
 ember.mixing_nonreflecting.NonReflectingMixingPatch : Either side of an interface
 ember.perturbation.chic_to_mix : Jacobian the characteristic solves are built on
 """
 
+import contextlib
 import functools
+import warnings
 
 import numpy as np
 
 from ember import perturbation, util
 from ember.basepatch import RevolutionPatch
-from ember.outlet import calc_backflow_rho
+
+
+# Numpy error state for a mean state already reported outside the implemented
+# envelope, and the do-nothing stand-in for the ordinary path; see
+# NonReflectingPatch._calc_reference.
+_INVALID_IGNORED = {"invalid": "ignore", "divide": "ignore", "over": "ignore"}
+_NULL_CONTEXT = contextlib.nullcontext()
+
+
+class UnsupportedMeanStateWarning(UserWarning):
+    """A characteristic boundary's mean state has left the implemented envelope.
+
+    Issued by :meth:`NonReflectingPatch._calc_reference` when the frozen mean
+    state at the boundary goes supersonic, where the steady non-reflecting
+    theory these conditions implement does not hold and what they compute is
+    meaningless.
+
+    A warning rather than an error because the usual way to get here is a march
+    already diverging, which the solver detects and reports for itself through
+    :meth:`ember.grid.Grid.check_nan`; raising from the boundary condition
+    pre-empted that with an exception and lost the trimmed convergence history.
+    Given its own class so a run that expects the excursion can filter it, and
+    a run that does not can turn it into an error.
+    """
+
+
+def calc_backflow_rho(fluid, snapshot, rho_soln_nd, rho_nd, Max, rf):
+    r"""Relaxed boundary density for reversed-flow nodes, capped to keep :math:`V_x` real.
+
+    A reversed node takes its stagnation enthalpy, entropy and transverse
+    velocities from the prescribed backflow state, which leaves density as the
+    one quantity still free to come from the interior. It
+    is relaxed from the start-of-step value toward the current one at a rate
+    that falls away with the local axial Mach number,
+
+    .. math::
+
+        \rho^\mathrm{new} = \rho^n
+            + \min\left(\mathit{rf}\,\left|M_x\right|,\, 0.8\right)
+              \left(\rho - \rho^n\right),
+
+    then capped just below the density at which the static enthalpy would reach
+    :math:`h_0 - \tfrac{1}{2}(V_r^2 + V_\theta^2)`. Static enthalpy rises with
+    density at fixed entropy, so under that cap the radicand of the axial
+    velocity the caller recovers from the energy equation,
+    :math:`V_x = \sqrt{2(h_0 - h) - V_r^2 - V_\theta^2}`, is non-negative.
+
+    Parameters
+    ----------
+    fluid : ember.fluid.Fluid
+        Fluid the equation of state is evaluated on.
+    snapshot : sequence of array
+        Nondimensional ``[ho, s, Vr, Vt]`` to impose, taken from the target
+        rows; they need only broadcast against ``rho_nd``.
+    rho_soln_nd : array
+        Nondimensional density at the start of the step, the anchor the
+        relaxation runs from.
+    rho_nd : array
+        Nondimensional density the relaxation runs toward.
+    Max : array
+        Axial Mach number, setting the local relaxation rate.
+    rf : float
+        Relaxation factor.
+
+    Returns
+    -------
+    array
+        Nondimensional density, of the shape the inputs broadcast to. Computed
+        over the whole array; the caller selects the reversed nodes.
+
+    See Also
+    --------
+    ember.outlet.OutletPatch.set_backflow_ho_s : Prescribes the state this relaxes against
+    """
+    ho_snap, s_snap, Vr_snap, Vt_snap = snapshot
+    h_max_nd = ho_snap - 0.5 * (Vr_snap**2 + Vt_snap**2)
+    rho_cap_nd = fluid.set_h_s(h_max_nd, s_snap)[0]
+    rho_new_nd = rho_soln_nd + np.minimum(rf * np.abs(Max), 0.8) * (
+        rho_nd - rho_soln_nd
+    )
+    return np.minimum(rho_new_nd, 0.9999 * rho_cap_nd)
 
 
 def replayable(setter):
@@ -92,7 +174,7 @@ def replayable(setter):
 
     Recording the call rather than the value keeps every conversion written once
     in its own setter, including the coupled two-step one of
-    :meth:`~ember.inlet_nonreflecting.NonReflectingInletPatch.set_Po_To`, whose
+    :meth:`~ember.inlet.InletPatch.set_Po_To`, whose
     two rows do not decompose into independent per-row conversions.
 
     The record is taken only once the setter returns, so a rejected value leaves
@@ -113,13 +195,13 @@ class _TargetRow:
     """Read-only view of one row of a patch's prescribed target vector.
 
     A descriptor rather than a plain attribute, so that the named rows stay
-    views on :attr:`~NonReflectingPatch._target` with nothing to re-link when a
+    views on ``NonReflectingPatch._target`` with nothing to re-link when a
     patch is copied or unpickled, and so that a name the patch's target space
     does not carry raises rather than quietly returning whatever that row holds:
     an inflow condition working in angles has no ``Vr_nd``, and one working in
     mix variables has no ``tanAlpha``.
 
-    Resolution is by name against :attr:`~NonReflectingPatch._target_names` of
+    Resolution is by name against ``NonReflectingPatch._target_names`` of
     the instance, not by a fixed index, because the row order is a property of
     the target space and the classes do not share one.
     """
@@ -207,6 +289,18 @@ class NonReflectingPatch(RevolutionPatch):
 
     # Relaxation factor for the density of such a node.
     _rf_backflow = 1.0
+
+    sigma = 0.05
+    """Under-relaxation of the characteristic correction, Giles Eq. 5.25,
+    needed for wellposedness. He suggests 1/N for N pitchwise nodes, applied
+    once per timestep, and :meth:`advance` takes it exactly once per timestep,
+    so the two are in the same units: set it to 1/N and it is 1/N. The bound
+    is not about the transform amplifying -- it cannot, its norm grows only
+    logarithmically -- but about how far the pitchwise-nonlocal harmonic
+    relations may spread information in one application while the explicit
+    interior march moves it one cell. Overridden by
+    :attr:`~ember.solver.Solver.rf_inlet`/:attr:`~ember.solver.Solver.rf_outlet`
+    at the start of a run."""
 
     # Inward face normal: +1 if the interior lies on the +x side of the face,
     # -1 if on the -x side. None lets the geometry decide at attach time, which
@@ -749,19 +843,52 @@ class NonReflectingPatch(RevolutionPatch):
         # to be axially supersonic is caught too: there one of the two acoustic
         # characteristics changes direction and even the reversed split is
         # wrong.
+        #
+        # Warned rather than raised, and the step taken anyway. The condition
+        # is genuinely not implemented above Mach 1 and what it computes there
+        # is meaningless -- the wave parameter goes imaginary and the state
+        # turns to NaN within a step or two -- but the common way to arrive
+        # here is a march on its way to blowing up, and that is the solver's
+        # divergence to report, through Grid.check_nan, not the boundary
+        # condition's to pre-empt. Raising took a run that would have exited
+        # cleanly with a trimmed history and killed it with an exception
+        # instead. A case that is supersonic by design gets the same warning on
+        # its first step, which says plainly what is wrong.
+        unsupported = True
         if np.any(np.abs(Mn) >= 1.0):
-            raise NotImplementedError(
-                f"{self._desc.capitalize()} {self.label!r} is axially "
-                f"supersonic (max axial Mach {float(np.max(np.abs(Mn))):.4g}); "
-                "only an axially subsonic mean state is implemented."
+            self._warn_unsupported(
+                f"is axially supersonic (max axial Mach "
+                f"{float(np.max(np.abs(Mn))):.4g}); only an axially subsonic "
+                "mean state is implemented"
             )
-        if np.any(Msq >= 1.0):
-            raise NotImplementedError(
-                f"{self._desc.capitalize()} {self.label!r} has a supersonic "
-                f"mean state (max Mach {float(np.sqrt(np.max(Msq))):.4g}); the "
-                "supersonic branch of the wave parameter is not implemented."
+        elif np.any(Msq >= 1.0):
+            self._warn_unsupported(
+                f"has a supersonic mean state (max Mach "
+                f"{float(np.sqrt(np.max(Msq))):.4g}); the supersonic branch of "
+                "the wave parameter is not implemented"
             )
+        else:
+            # Back inside the envelope, so a later excursion is news again.
+            self._warned_unsupported = False
+            unsupported = False
 
+        # Past Mach 1 the wave parameter below takes the square root of a
+        # negative number and the Jacobians go singular, so the rest of this
+        # runs on invalid values by construction. The warning above is the
+        # report; numpy's per-operation RuntimeWarnings on top of it are noise,
+        # and a diverging march would emit them every step from deep inside the
+        # linear algebra. Suppressed only on the branch that has already warned,
+        # so the ordinary path still surfaces an unexpected invalid value.
+        with np.errstate(**_INVALID_IGNORED) if unsupported else _NULL_CONTEXT:
+            self._calc_reference_tail(avg, Mn, Mt, Msq)
+
+    def _calc_reference_tail(self, avg, Mn, Mt, Msq):
+        """Build the frozen Jacobians and wave parameter of :meth:`_calc_reference`.
+
+        Split out so the caller can wrap it in the error state a mean state
+        outside the implemented envelope needs, without indenting the whole
+        body behind a conditional context manager.
+        """
         c2t = self._chic_to_target(avg)
         # Filled in place into buffers sized once in attach_to_block, instead
         # of allocating prim/p2c/c2p fresh every timestep; _span_bcast's
@@ -990,23 +1117,64 @@ class NonReflectingPatch(RevolutionPatch):
             self._target_set[row] = True
 
     def _set_target_row(self, row, name, value):
-        """Check a prescribed value against the patch shape and store it in a target row.
+        r"""Check a prescribed value against the patch shape and store it in a target row.
 
-        The value is pitch-averaged on the way in. That is not an
-        approximation: every target is read only through the pitch mean of its
-        own residual, so the mean of a prescribed profile is all that was ever
-        imposed.
+        A target row is one number per span station: these conditions impose
+        pitchwise means and nothing finer. So the only values that mean anything
+        are a scalar, uniform over the whole face, and a spanwise profile, one
+        value per span station.
+
+        A pitchwise profile is rejected rather than averaged. Averaging it would
+        take the value silently, impose its mean, and discard the variation the
+        caller asked for -- the prescription would read as node-by-node and
+        behave as a mean. The narrower shapes are unambiguous, so the caller is
+        made to pick one.
+
+        Accepted shapes, given a patch shape with the constant dimension of
+        length 1:
+
+        - a scalar, or any array of size 1;
+        - a bare 1-D array of length ``nspan``, the plain way to write a
+          spanwise profile;
+        - the same profile with the patch's own axes,
+          e.g. ``(1, nspan, 1)`` for a patch whose ``span_dim`` is 1.
+
+        The 1-D form is unambiguous *because* pitchwise variation is refused: a
+        one-dimensional prescription has nothing else it could mean. The one
+        mesh where a caller could still be surprised is a patch with as many
+        pitchwise nodes as span stations, where an array meant pitchwise has the
+        right length to be read as spanwise; there is no shape-based way to tell
+        those apart, and the alternative -- refusing the natural spelling on
+        every mesh to guard the one -- costs more than it saves.
         """
         arr = np.asarray(value)
         if not np.isfinite(arr).all():
             raise ValueError(f"{name} must be finite")
-        try:
-            bcast = np.broadcast_to(arr, self.block_view.shape)
-        except ValueError:
+
+        want = list(self.block_view.shape)
+        want[self.pitch_dim] = 1
+        want = tuple(want)
+        nspan = self.block_view.shape[self.span_dim]
+
+        if arr.size == 1:
+            pass
+        elif arr.shape == (nspan,):
+            # Onto the patch's own axes, so the broadcast below puts it along
+            # the span rather than wherever trailing-axis alignment lands it.
+            arr = arr.reshape(want)
+        elif arr.shape != want:
             raise ValueError(
-                f"{name} of shape {arr.shape} does not broadcast to patch "
-                f"shape {self.shape}"
-            ) from None
+                f"{name} of shape {arr.shape} is not a valid prescription for "
+                f"{self._desc} {self.label!r}: give a scalar, a spanwise "
+                f"profile of shape ({nspan},), or the same with the patch's own "
+                f"axes, {want} (span_dim={self.span_dim}). Only the pitchwise "
+                "mean at each span station is imposed, so a pitchwise-varying "
+                "value is rejected rather than averaged."
+            )
+
+        # Broadcast rather than assign: a scalar has to reach every span
+        # station, and _pitch_mean expects a full patch-shaped field.
+        bcast = np.broadcast_to(arr, self.block_view.shape)
         self._target[..., row] = self._pitch_mean(bcast)
         self._target_set[row] = True
 
@@ -1056,15 +1224,10 @@ class NonReflectingPatch(RevolutionPatch):
         # Start-of-step density the reversed-node relaxation runs from, taken
         # by update_soln.
         self._rho_nd_soln = None
-        # Under-relaxation of the characteristic correction, Giles Eq. 5.25,
-        # needed for wellposedness. He suggests 1/N for N pitchwise nodes,
-        # applied once per timestep, and advance() takes it exactly once per
-        # timestep, so the two are in the same units: set it to 1/N and it is
-        # 1/N. The bound is not about the transform amplifying -- it cannot,
-        # its norm grows only logarithmically -- but about how far the
-        # pitchwise-nonlocal harmonic relations may spread information in one
-        # application while the explicit interior march moves it one cell.
-        self.sigma = 0.05
+        # Whether the mean state has already been reported outside the
+        # implemented envelope, so the warning is one per excursion rather than
+        # one per timestep; cleared when it comes back inside.
+        self._warned_unsupported = False
 
     def _span_bcast(self, arr):
         """Reshape a span-indexed array to broadcast over the patch shape."""
@@ -1095,6 +1258,24 @@ class NonReflectingPatch(RevolutionPatch):
             np.tensordot(field, self._hilbert, axes=([self.pitch_dim], [1])),
             -1,
             self.pitch_dim,
+        )
+
+    def _warn_unsupported(self, clause):
+        """Report a mean state outside the implemented envelope, once per excursion.
+
+        See :class:`UnsupportedMeanStateWarning` for why this warns rather than
+        raises. ``stacklevel`` is left at the default: the useful frame is the
+        solver loop, which is many frames up and varies, so the patch's own
+        line is as good a place to point as any.
+        """
+        if self._warned_unsupported:
+            return
+        self._warned_unsupported = True
+        warnings.warn(
+            f"{self._desc.capitalize()} {self.label!r} {clause}. Continuing; "
+            "the boundary state from here is not meaningful and the march will "
+            "most likely diverge.",
+            UnsupportedMeanStateWarning,
         )
 
     @util.profile
@@ -1258,7 +1439,10 @@ class NonReflectingPatch(RevolutionPatch):
             self._ref_c2p_buf = util.zeros((nspan, 5, 5))
 
         recombine_shape = self._block_view.shape + (5,)
-        if self._recombine_dchic is None or self._recombine_dchic.shape != recombine_shape:
+        if (
+            self._recombine_dchic is None
+            or self._recombine_dchic.shape != recombine_shape
+        ):
             self._recombine_dchic = util.zeros(recombine_shape)
             self._recombine_prim = util.zeros(recombine_shape)
 

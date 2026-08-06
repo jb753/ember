@@ -128,18 +128,29 @@ subroutine set_timestep_spectral( &
     real :: Sx, Sr, St, s2_i, s2_j, s2_k, lam_i, lam_j, lam_k
     real :: lam_conv, lam_diff
 
-    ! Loop over cells
+    ! Loop over cells. a_cell/r_cell's avg_cell() calls are inlined by hand
+    ! below (not left as a pure-function call): ifort 2022.1.0's IPO
+    ! analysis treats the call as an assumed dependence on the loop
+    ! counters themselves after inlining, blocking vectorization of the
+    ! whole i/j/k nest (opt-report: "assumed OUTPUT dependence between
+    ! J/I ..."); renaming avg_cell's dummy args away from i/j/k did not
+    ! change this. gfortran vectorizes the call form fine, so this is
+    ! ifort-motivated.
     do k = 1, nk-1
     do j = 1, nj-1
     do i = 1, ni-1
         ! Average nodal properties to cell centers (geometric/thermo);
         ! conserved values come from the cell-centered cache.
-        a_cell = avg_cell(a, i, j, k)
+        a_cell = 0.125e0 * ( &
+            a(i,j,k) + a(i+1,j,k) + a(i,j+1,k) + a(i+1,j+1,k) + &
+            a(i,j,k+1) + a(i+1,j,k+1) + a(i,j+1,k+1) + a(i+1,j+1,k+1))
         rho_cell    = cons_cell(i, j, k, 1)
         rhoVx_cell  = cons_cell(i, j, k, 2)
         rhoVr_cell  = cons_cell(i, j, k, 3)
         rhorVt_cell = cons_cell(i, j, k, 4)
-        r_cell = avg_cell(r, i, j, k)
+        r_cell = 0.125e0 * ( &
+            r(i,j,k) + r(i+1,j,k) + r(i,j+1,k) + r(i+1,j+1,k) + &
+            r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))
 
         ! Compute velocities from conserved variables
         Vx = rhoVx_cell / rho_cell
@@ -191,17 +202,5 @@ subroutine set_timestep_spectral( &
     end do
     end do
     end do
-
-contains
-
-    pure function avg_cell(x, i, j, k) result(avg)
-        implicit none
-        real, intent(in) :: x(ni,nj,nk)
-        integer, intent(in) :: i, j, k
-        real :: avg
-        avg = 0.125e0 * ( &
-            x(i,j,k) + x(i+1,j,k) + x(i,j+1,k) + x(i+1,j+1,k) + &
-            x(i,j,k+1) + x(i+1,j,k+1) + x(i,j+1,k+1) + x(i+1,j+1,k+1))
-    end function avg_cell
 
 end subroutine set_timestep_spectral

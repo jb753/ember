@@ -27,6 +27,7 @@ import ember.patch
 import ember.set_iter
 import ember.solver
 from ember import util
+from ember.nonreflecting import UnsupportedMeanStateWarning
 from ember.block import Block
 from ember.fluid import PerfectFluid
 
@@ -74,8 +75,19 @@ def _run_plain(residual, dt_vol, store, cons, ni, nj, nk):
 
 
 def _run_mg(
-    residual, dt_vol, vol, store, cons, ni, nj, nk, n_levels,
-    fmgrid=FAC_MGRID, sf_irs=0.0, kernel=None,
+    residual,
+    dt_vol,
+    vol,
+    store,
+    cons,
+    ni,
+    nj,
+    nk,
+    n_levels,
+    fmgrid=FAC_MGRID,
+    expon_mgrid=2.0,
+    sf_irs=0.0,
+    kernel=None,
 ):
     """Call a scree multigrid kernel with freshly zeroed scratch (the size args
     are inferred by f2py from the array shapes, exactly as ember.solver does).
@@ -105,6 +117,7 @@ def _run_mg(
         vol=vol,
         cfl=CFL,
         fmgrid=fmgrid,
+        expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
         tmp=Z(ni - 1, nj - 1, nk - 1, NP),
@@ -255,7 +268,16 @@ def test_noirs_kernel_matches_fused_at_sf_zero():
         residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.0
     )
     cons_no, store_no = _run_mg(
-        residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=N_LEVELS, sf_irs=0.0,
+        residual,
+        dt_vol,
+        vol,
+        store,
+        cons,
+        NI,
+        NJ,
+        NK,
+        n_levels=N_LEVELS,
+        sf_irs=0.0,
         kernel=ember.fortran.scree_mg_noirs,
     )
 
@@ -437,7 +459,9 @@ def test_scree_step_fac_mgrid_zero_skips_coarse():
     cons_off = grid_off[0].conserved_nd.copy()
 
     grid_zero_strength = _build()
-    ember.solver.scree_step(grid_zero_strength, cfl=CFL, fac_mgrid=0.0, n_levels=n_levels)
+    ember.solver.scree_step(
+        grid_zero_strength, cfl=CFL, fac_mgrid=0.0, n_levels=n_levels
+    )
     np.testing.assert_array_equal(cons_off, grid_zero_strength[0].conserved_nd)
 
     grid_zero_irs = _build()
@@ -467,12 +491,16 @@ def duct_grid_builder():
         fluid = ember.fluid.PerfectFluid(
             cp=1005.0, gamma=1.4, mu=1.0e-3, Pr=0.72, T_dtm=400.0
         )
-        xrt = util.linmesh3([0.0, L], [1.0, 1.0 + L], [-0.02, 0.02], shape)
+        # A whole blade passage, so the characteristic inlet and outlet attach.
+        Nb = 157
+        pitch = 2.0 * np.pi / Nb
+        xrt = util.linmesh3([0.0, L], [1.0, 1.0 + L], [0.0, pitch], shape)
 
         block = ember.block.Block(shape=shape)
         block.set_x(xrt[..., 0])
         block.set_r(xrt[..., 1])
         block.set_t(xrt[..., 2])
+        block.set_Nb(Nb)
         block.set_fluid(fluid)
 
         rho_o, e_o = fluid.set_P_T(1.0e5, 300.0)
@@ -500,10 +528,15 @@ def duct_grid_builder():
 
         grid = ember.grid.Grid([block])
         grid.set_L_ref(L)
-        grid.patches.inlet[0].set_Po_To_Alpha_Beta(Po_in, To_in, Alpha_in, 0.0)
+        inlet = grid.patches.inlet[0]
+        inlet.set_Po_To(Po_in, To_in)
+        inlet.set_Alpha(Alpha_in)
+        inlet.set_Beta(0.0)
         grid.patches.outlet[0].set_P(P_out)
         grid.set_fluid(
-            fluid.change_datum(P_out, T_out).change_ref(rho_o, Ma * a_o, block.Rgas.mean())
+            fluid.change_datum(P_out, T_out).change_ref(
+                rho_o, Ma * a_o, block.Rgas.mean()
+            )
         )
         grid.calculate_wdist()
         return grid
@@ -543,7 +576,9 @@ def test_scree_mg_converges_faster_than_plain_scree(duct_grid_builder):
     # side depending on exactly where the oscillation is sampled.
     n_plain = hist_plain.i_log + 1
     n_mg = hist_mg.i_log + 1
-    resid_plain = np.abs(np.asarray(hist_plain.residual, dtype=float)[:n_plain, 4]).mean()
+    resid_plain = np.abs(
+        np.asarray(hist_plain.residual, dtype=float)[:n_plain, 4]
+    ).mean()
     resid_mg = np.abs(np.asarray(hist_mg.residual, dtype=float)[:n_mg, 4]).mean()
     assert resid_mg < resid_plain
 
@@ -557,9 +592,10 @@ def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
     block = grid[0]
     fluid = block.fluid
     rho_o, e_o = fluid.set_P_T(1.0e5, 300.0)
-    grid.patches.outlet[0].set_backflow(
-        fluid.get_h(rho_o, e_o), fluid.get_s(rho_o, e_o), 0.0, 0.0
-    )
+    outlet = grid.patches.outlet[0]
+    outlet.set_backflow_ho_s(fluid.get_h(rho_o, e_o), fluid.get_s(rho_o, e_o))
+    outlet.set_backflow_Vr(0.0)
+    outlet.set_backflow_Vt(0.0)
 
     n_step, n_step_log = 20, 2
     n_alloc = -(-n_step // n_step_log)  # what from_grid would have allocated
@@ -576,10 +612,14 @@ def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
     )
 
     # A field on its way to NaN drives temperature negative, so the entropy
-    # log() legitimately goes invalid before check_nan trips. The suite turns
-    # warnings into errors, so scope that to the march itself.
+    # log() legitimately goes invalid before check_nan trips. The boundary mean
+    # state goes supersonic on the way too, which the characteristic conditions
+    # warn about and march on through. Both are expected of a run that is
+    # blowing up, and the suite turns warnings into errors, so scope them to
+    # the march itself.
     with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
-        hist = conf.run(grid)
+        with pytest.warns(UnsupportedMeanStateWarning):
+            hist = conf.run(grid)
 
     assert hist.diverged
     assert hist.shape[0] < n_alloc  # the unwritten tail is gone

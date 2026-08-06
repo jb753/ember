@@ -89,7 +89,10 @@ def mixing_grid():
 
     Po1 = block_up.Po[0].mean()
     To1 = block_up.To[0].mean()
-    grid.patches.inlet[0].set_Po_To_Alpha_Beta(Po1, To1, 0.0, 0.0)
+    inlet = grid.patches.inlet[0]
+    inlet.set_Po_To(Po1, To1)
+    inlet.set_Alpha(0.0)
+    inlet.set_Beta(0.0)
     grid.patches.outlet[0].set_P(P)
 
     grid.calculate_wdist()

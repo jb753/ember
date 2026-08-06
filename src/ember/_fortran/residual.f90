@@ -3,6 +3,58 @@ module residual_helpers
     private
     public :: iface_flow_row, jface_flow_row, kface_flow_plane
     public :: correct_cusp_kface_du
+    public :: irs_tri_coeffs, irs_gather_tile, irs_gather_tile_scaled
+    public :: irs_scatter_tile, irs_tile_solve, irs_jk_strips, irs_jac_line
+    public :: IRS_BJ, IRS_TB, IRS_W
+
+    ! Tile width for the i-solve transpose pad: sized to fill L1d without
+    ! spilling it, NOT to match the SIMD lane count. The tile is
+    ! IRS_BJ*nci*4 bytes; at nci=272 that is 34 KB for 32, the largest
+    ! that fits Sapphire Rapids' 48 KB L1d. Swept on the production build
+    ! (ifort, Xeon 8480+, 1M duct): 32 is -26% serial / -8% at 100-rank
+    ! saturation against the previous 8, while 64 (68 KB, L1-spilling)
+    ! gives most of it back. Bitwise identical for every value -- it only
+    ! groups independent j-lines. Machine-dependent: re-sweep on new
+    ! hardware, in the real build (a gfortran sweep picked 64, the wrong
+    ! constant).
+    !
+    ! RE-SWEPT after the transpose was blocked, and the picture changed:
+    ! the optimum is now FLAT above 32, not sharply peaked. At 1M on 2
+    ! P-cores, against a fixed control arm that fingerprinted identically
+    ! in all four builds: 16 is +19.5%, 32 is the reference, 64 is +0.3%
+    ! and 128 is -2.0% (about 1.5 sigma, not worth acting on). So 16 is
+    ! genuinely too narrow -- two AVX2 chains cannot cover the recurrence's
+    ! FMA->MUL dependency and it goes latency-bound -- but 32 is already
+    ! past the knee and widening buys nothing, L1 spill or not. When the
+    ! transpose was scalar, L1 residency of the tile dominated and the
+    ! optimum was sharp; with it blocked, the tile passes are issue-bound
+    ! instead and BJ stops mattering. Useful for porting: this constant now
+    ! needs far less care than the note above implies, PROVIDED the
+    ! transpose is blocked. Do not raise it chasing the -2% -- that is a
+    ! marginal result on a machine that is not the production target.
+    integer, parameter :: IRS_BJ = 32
+
+    ! Transpose block edge. 8 = the AVX2 float32 lane count, so one staged
+    ! row is exactly one vector load and the in-block transpose becomes a
+    ! register shuffle network. Steeply optimal for that reason: swept at
+    ! 1M on 2 P-cores, 4 is +43.8% and 16 is +9.0% against 8. Re-sweep on
+    ! an AVX-512 target, where the natural width is 16.
+    integer, parameter :: IRS_TB = 8
+
+    ! i-strip width for the fused j+k pass. A strip spans the full j and k
+    ! extent for one component: IRS_W*ncj*nck*4 bytes, 917 KB at 64 on a
+    ! 273x65x57 block, inside a 2 MB L2. Sets both the block size and the
+    ! vector loop length, so likewise steeply optimal: 32 (458 KB, 4 AVX2
+    ! iterations) -5.6%, 64 -11.0%, 128 (1.83 MB, past L2) -1.2%.
+    !
+    ! RE-SWEPT at 8-rank socket contention (gfortran, Haswell workstation),
+    ! where the earlier 2-rank sweep above was run at only 2 P-cores and so
+    ! never priced the shared-L2 pressure of real contention: 32 is -13.9%
+    ! against 64, 128 is +21.1%. 64 was tuned to fit a 2 MB L2 uncontended;
+    ! under contention each rank's effective L2 share shrinks and 64 spills.
+    ! Bitwise identical for every value -- it only sizes the strip. Re-sweep
+    ! on the ifort/Sapphire production target before trusting this further.
+    integer, parameter :: IRS_W = 32
 
 contains
 
@@ -15,7 +67,7 @@ contains
     ! Granularity is one row (i/j directions) or one plane (k direction) so
     ! the caller can roll small buffers instead of staging full volumes.
 
-    pure subroutine iface_flow_row(vx, vr, vt, ho, P, P_offset, r, &
+    pure subroutine iface_flow_row(ho, P, P_offset, r, &
                                    cons, Omega, dA, &
                                    wall_lo, wall_hi, row, j, k, ni, nj, nk)
         ! Compute inviscid face flows on the ni i-faces of cell row (j,k);
@@ -24,7 +76,6 @@ contains
 
         implicit none
         integer, intent(in) :: j, k, ni, nj, nk
-        real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
@@ -34,69 +85,108 @@ contains
         real, intent(inout) :: row(ni, 5)
 
         integer :: i
-        real :: pm(6), mf(3)
+        real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot
+
+        ! pm/mf are scalarized (no longer length-6/length-3 arrays) and the
+        ! four face corners are unrolled by hand: ifort's vectorizer treats
+        ! the pm(:)/mf(:) arrays as a cross-iteration aliasing hazard it
+        ! can't disprove, blocking vectorization of the interior loop
+        ! (opt-report: "vector dependence: assumed FLOW dependence between
+        ! PM(:) and PM(1)"). gfortran vectorizes the original array/call
+        ! form fine, so this rewrite is ifort-motivated.
+        !
+        ! Re-confirmed July 2026 on ifort 2022.1.0 / Xeon Platinum 8480+
+        ! (Sapphire Rapids) under the production INTEL_FLAGS, by building an
+        ! idiomatic rewrite alongside this kernel and A/B-ing them in one
+        ! .so: the array form gets no SIMD at all and costs +174% serial /
+        ! +99% under 100-rank saturated bandwidth. Do not "tidy" this away.
+        ! One half of the original justification is now obsolete, though:
+        ! ifort DOES inline accum()/put() under -inline-forceinline
+        ! -inline-factor=10000 (the report marks the standalone symbol DEAD
+        ! STATIC FUNCTION), so the calls were never the problem -- the
+        ! arrays are. See docs/dev/viscous_kernels.md section 17;
+        ! the rewrite is kept at _fortran/residual_cand.f90.
+        !   pm = (Vx, Vr, r*Vt_abs, ho, P-P_offset, r*(P-P_offset))
+        !   mf = (rho*Vx, rho*Vr, rho*Vt_rel)
 
         ! Low boundary i=1
-        pm = 0.0e0; mf = 0.0e0
-        call accum(pm, mf, 1, j,   k,   wall_lo)
-        call accum(pm, mf, 1, j+1, k,   wall_lo)
-        call accum(pm, mf, 1, j,   k+1, wall_lo)
-        call accum(pm, mf, 1, j+1, k+1, wall_lo)
-        call put(row, 1, pm, mf)
+        call accum_corners(1, j, k, wall_lo, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+        mdot = mf1*dA(1,1,j,k) + mf2*dA(2,1,j,k) + mf3*dA(3,1,j,k)
+        row(1,1) = mdot
+        row(1,2) = pm1*mdot + pm5*dA(1,1,j,k)
+        row(1,3) = pm2*mdot + pm5*dA(2,1,j,k)
+        row(1,4) = pm3*mdot + pm6*dA(3,1,j,k)
+        row(1,5) = pm4*mdot + Omega*pm6*dA(3,1,j,k)
 
         ! Interior i=2..ni-1
+        !DIR$ IVDEP
         do i = 2, ni-1
-            pm = 0.0e0; mf = 0.0e0
-            call accum(pm, mf, i, j,   k,   1.0e0)
-            call accum(pm, mf, i, j+1, k,   1.0e0)
-            call accum(pm, mf, i, j,   k+1, 1.0e0)
-            call accum(pm, mf, i, j+1, k+1, 1.0e0)
-            call put(row, i, pm, mf)
+            call accum_corners(i, j, k, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+            mdot = mf1*dA(1,i,j,k) + mf2*dA(2,i,j,k) + mf3*dA(3,i,j,k)
+            row(i,1) = mdot
+            row(i,2) = pm1*mdot + pm5*dA(1,i,j,k)
+            row(i,3) = pm2*mdot + pm5*dA(2,i,j,k)
+            row(i,4) = pm3*mdot + pm6*dA(3,i,j,k)
+            row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,j,k)
         end do
 
         ! High boundary i=ni
-        pm = 0.0e0; mf = 0.0e0
-        call accum(pm, mf, ni, j,   k,   wall_hi)
-        call accum(pm, mf, ni, j+1, k,   wall_hi)
-        call accum(pm, mf, ni, j,   k+1, wall_hi)
-        call accum(pm, mf, ni, j+1, k+1, wall_hi)
-        call put(row, ni, pm, mf)
+        call accum_corners(ni, j, k, wall_hi, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+        mdot = mf1*dA(1,ni,j,k) + mf2*dA(2,ni,j,k) + mf3*dA(3,ni,j,k)
+        row(ni,1) = mdot
+        row(ni,2) = pm1*mdot + pm5*dA(1,ni,j,k)
+        row(ni,3) = pm2*mdot + pm5*dA(2,ni,j,k)
+        row(ni,4) = pm3*mdot + pm6*dA(3,ni,j,k)
+        row(ni,5) = pm4*mdot + Omega*pm6*dA(3,ni,j,k)
 
     contains
-        pure subroutine accum(pm, mf, i, j, k, wfac)
-            real, intent(inout) :: pm(6), mf(3)
+        pure subroutine accum_corners(i, j, k, wfac, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+            ! Accumulates the 4 face corners (i,j:j+1,k:k+1), same
+            ! summation order as the original sequential accum() calls.
             integer, intent(in) :: i, j, k
             real, intent(in) :: wfac
-            real :: dp, w
-            dp = P(i,j,k) - P_offset
-            pm(1) = pm(1) + 0.25e0*vx(i,j,k)
-            pm(2) = pm(2) + 0.25e0*vr(i,j,k)
-            pm(3) = pm(3) + 0.25e0*r(i,j,k)*vt(i,j,k)
-            pm(4) = pm(4) + 0.25e0*ho(i,j,k)
-            pm(5) = pm(5) + 0.25e0*dp
-            pm(6) = pm(6) + 0.25e0*r(i,j,k)*dp
+            real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3
+            real :: dp1, dp2, dp3, dp4, w
+            real :: g1, g2, g3, g4
+            dp1 = P(i,j,k)     - P_offset
+            dp2 = P(i,j+1,k)   - P_offset
+            dp3 = P(i,j,k+1)   - P_offset
+            dp4 = P(i,j+1,k+1) - P_offset
+            ! Vx, Vr and r*Vt come from the conserved state rather than
+            ! their own nodal arrays: cons = (rho, rho*Vx, rho*Vr,
+            ! rho*r*Vt, rho*e), so Vx = c2/c1, Vr = c3/c1, r*Vt = c4/c1
+            ! exactly. That drops three streamed fields (9 nodal -> 7,
+            ! ~12.5 B/cell) for one reciprocal per corner, which is the
+            ! right trade on a kernel that runs at DRAM bandwidth.
+            ! Recomputed here, never precomputed into a buffer: a buffer
+            ! would write more than it saves. See section 20.
+            g1 = 1.0e0/cons(i,j,k,1)
+            g2 = 1.0e0/cons(i,j+1,k,1)
+            g3 = 1.0e0/cons(i,j,k+1,1)
+            g4 = 1.0e0/cons(i,j+1,k+1,1)
+            pm1 = 0.25e0*cons(i,j,k,2)*g1 + 0.25e0*cons(i,j+1,k,2)*g2 &
+                + 0.25e0*cons(i,j,k+1,2)*g3 + 0.25e0*cons(i,j+1,k+1,2)*g4
+            pm2 = 0.25e0*cons(i,j,k,3)*g1 + 0.25e0*cons(i,j+1,k,3)*g2 &
+                + 0.25e0*cons(i,j,k+1,3)*g3 + 0.25e0*cons(i,j+1,k+1,3)*g4
+            pm3 = 0.25e0*cons(i,j,k,4)*g1 + 0.25e0*cons(i,j+1,k,4)*g2 &
+                + 0.25e0*cons(i,j,k+1,4)*g3 + 0.25e0*cons(i,j+1,k+1,4)*g4
+            pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i,j+1,k) + 0.25e0*ho(i,j,k+1) + 0.25e0*ho(i,j+1,k+1)
+            pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
+            pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i,j+1,k)*dp2 &
+                + 0.25e0*r(i,j,k+1)*dp3 + 0.25e0*r(i,j+1,k+1)*dp4
             w = 0.25e0*wfac
-            mf(1) = mf(1) + w*cons(i,j,k,2)
-            mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
-        end subroutine accum
-
-        pure subroutine put(row, i, pm, mf)
-            real, intent(inout) :: row(ni, 5)
-            integer, intent(in) :: i
-            real, intent(in) :: pm(6), mf(3)
-            real :: mdot
-            mdot = mf(1)*dA(1,i,j,k) + mf(2)*dA(2,i,j,k) + mf(3)*dA(3,i,j,k)
-            row(i,1) = mdot
-            row(i,2) = pm(1)*mdot + pm(5)*dA(1,i,j,k)
-            row(i,3) = pm(2)*mdot + pm(5)*dA(2,i,j,k)
-            row(i,4) = pm(3)*mdot + pm(6)*dA(3,i,j,k)
-            row(i,5) = pm(4)*mdot + Omega*pm(6)*dA(3,i,j,k)
-        end subroutine put
+            mf1 = w*cons(i,j,k,2) + w*cons(i,j+1,k,2) + w*cons(i,j,k+1,2) + w*cons(i,j+1,k+1,2)
+            mf2 = w*cons(i,j,k,3) + w*cons(i,j+1,k,3) + w*cons(i,j,k+1,3) + w*cons(i,j+1,k+1,3)
+            ! rho*Vt_rel = rho*Vt - Omega*rho*r = c4/r - Omega*c1*r
+            mf3 = w*(cons(i,j,k,4)/r(i,j,k) - Omega*cons(i,j,k,1)*r(i,j,k)) &
+                + w*(cons(i,j+1,k,4)/r(i,j+1,k) - Omega*cons(i,j+1,k,1)*r(i,j+1,k)) &
+                + w*(cons(i,j,k+1,4)/r(i,j,k+1) - Omega*cons(i,j,k+1,1)*r(i,j,k+1)) &
+                + w*(cons(i,j+1,k+1,4)/r(i,j+1,k+1) - Omega*cons(i,j+1,k+1,1)*r(i,j+1,k+1))
+        end subroutine accum_corners
     end subroutine iface_flow_row
 
 
-    pure subroutine jface_flow_row(vx, vr, vt, ho, P, P_offset, r, &
+    pure subroutine jface_flow_row(ho, P, P_offset, r, &
                                    cons, Omega, dA, &
                                    wall_lo, wall_hi, row, jf, k, ni, nj, nk)
         ! Compute inviscid face flows on the (ni-1) j-faces of face row jf at
@@ -105,7 +195,6 @@ contains
 
         implicit none
         integer, intent(in) :: jf, k, ni, nj, nk
-        real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
@@ -116,75 +205,97 @@ contains
         real, intent(inout) :: row(ni, 5)
 
         integer :: i
-        real :: pm(6), mf(3)
+        real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot
 
+        ! pm/mf scalarized and the four corners hand-unrolled for the same
+        ! ifort vectorizer reason as iface_flow_row above -- see the comment
+        ! there for the full justification and its July 2026 re-measurement.
         if (jf == 1) then
             ! Low boundary j=1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   1, k,   wall_lo(i,k))
-                call accum(pm, mf, i+1, 1, k,   wall_lo(i,k))
-                call accum(pm, mf, i,   1, k+1, wall_lo(i,k))
-                call accum(pm, mf, i+1, 1, k+1, wall_lo(i,k))
-                call put(row, i, pm, mf)
+                call accum_corners(i, 1, k, wall_lo(i,k), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
+                row(i,1) = mdot
+                row(i,2) = pm1*mdot + pm5*dA(1,i,jf,k)
+                row(i,3) = pm2*mdot + pm5*dA(2,i,jf,k)
+                row(i,4) = pm3*mdot + pm6*dA(3,i,jf,k)
+                row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,jf,k)
             end do
         else if (jf == nj) then
             ! High boundary j=nj
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   nj, k,   wall_hi(i,k))
-                call accum(pm, mf, i+1, nj, k,   wall_hi(i,k))
-                call accum(pm, mf, i,   nj, k+1, wall_hi(i,k))
-                call accum(pm, mf, i+1, nj, k+1, wall_hi(i,k))
-                call put(row, i, pm, mf)
+                call accum_corners(i, nj, k, wall_hi(i,k), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
+                row(i,1) = mdot
+                row(i,2) = pm1*mdot + pm5*dA(1,i,jf,k)
+                row(i,3) = pm2*mdot + pm5*dA(2,i,jf,k)
+                row(i,4) = pm3*mdot + pm6*dA(3,i,jf,k)
+                row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,jf,k)
             end do
         else
             ! Interior 2 <= jf <= nj-1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   jf, k,   1.0e0)
-                call accum(pm, mf, i+1, jf, k,   1.0e0)
-                call accum(pm, mf, i,   jf, k+1, 1.0e0)
-                call accum(pm, mf, i+1, jf, k+1, 1.0e0)
-                call put(row, i, pm, mf)
+                call accum_corners(i, jf, k, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
+                row(i,1) = mdot
+                row(i,2) = pm1*mdot + pm5*dA(1,i,jf,k)
+                row(i,3) = pm2*mdot + pm5*dA(2,i,jf,k)
+                row(i,4) = pm3*mdot + pm6*dA(3,i,jf,k)
+                row(i,5) = pm4*mdot + Omega*pm6*dA(3,i,jf,k)
             end do
         end if
 
     contains
-        pure subroutine accum(pm, mf, i, j, k, wfac)
-            real, intent(inout) :: pm(6), mf(3)
+        pure subroutine accum_corners(i, j, k, wfac, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+            ! Accumulates the 4 face corners (i:i+1,j,k:k+1), same
+            ! summation order as the original sequential accum() calls.
             integer, intent(in) :: i, j, k
             real, intent(in) :: wfac
-            real :: dp, w
-            dp = P(i,j,k) - P_offset
-            pm(1) = pm(1) + 0.25e0*vx(i,j,k)
-            pm(2) = pm(2) + 0.25e0*vr(i,j,k)
-            pm(3) = pm(3) + 0.25e0*r(i,j,k)*vt(i,j,k)
-            pm(4) = pm(4) + 0.25e0*ho(i,j,k)
-            pm(5) = pm(5) + 0.25e0*dp
-            pm(6) = pm(6) + 0.25e0*r(i,j,k)*dp
+            real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3
+            real :: dp1, dp2, dp3, dp4, w
+            real :: g1, g2, g3, g4
+            dp1 = P(i,j,k)     - P_offset
+            dp2 = P(i+1,j,k)   - P_offset
+            dp3 = P(i,j,k+1)   - P_offset
+            dp4 = P(i+1,j,k+1) - P_offset
+            ! Vx, Vr and r*Vt come from the conserved state rather than
+            ! their own nodal arrays: cons = (rho, rho*Vx, rho*Vr,
+            ! rho*r*Vt, rho*e), so Vx = c2/c1, Vr = c3/c1, r*Vt = c4/c1
+            ! exactly. That drops three streamed fields (9 nodal -> 7,
+            ! ~12.5 B/cell) for one reciprocal per corner, which is the
+            ! right trade on a kernel that runs at DRAM bandwidth.
+            ! Recomputed here, never precomputed into a buffer: a buffer
+            ! would write more than it saves. See section 20.
+            g1 = 1.0e0/cons(i,j,k,1)
+            g2 = 1.0e0/cons(i+1,j,k,1)
+            g3 = 1.0e0/cons(i,j,k+1,1)
+            g4 = 1.0e0/cons(i+1,j,k+1,1)
+            pm1 = 0.25e0*cons(i,j,k,2)*g1 + 0.25e0*cons(i+1,j,k,2)*g2 &
+                + 0.25e0*cons(i,j,k+1,2)*g3 + 0.25e0*cons(i+1,j,k+1,2)*g4
+            pm2 = 0.25e0*cons(i,j,k,3)*g1 + 0.25e0*cons(i+1,j,k,3)*g2 &
+                + 0.25e0*cons(i,j,k+1,3)*g3 + 0.25e0*cons(i+1,j,k+1,3)*g4
+            pm3 = 0.25e0*cons(i,j,k,4)*g1 + 0.25e0*cons(i+1,j,k,4)*g2 &
+                + 0.25e0*cons(i,j,k+1,4)*g3 + 0.25e0*cons(i+1,j,k+1,4)*g4
+            pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i+1,j,k) + 0.25e0*ho(i,j,k+1) + 0.25e0*ho(i+1,j,k+1)
+            pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
+            pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i+1,j,k)*dp2 &
+                + 0.25e0*r(i,j,k+1)*dp3 + 0.25e0*r(i+1,j,k+1)*dp4
             w = 0.25e0*wfac
-            mf(1) = mf(1) + w*cons(i,j,k,2)
-            mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
-        end subroutine accum
-
-        pure subroutine put(row, i, pm, mf)
-            real, intent(inout) :: row(ni, 5)
-            integer, intent(in) :: i
-            real, intent(in) :: pm(6), mf(3)
-            real :: mdot
-            mdot = mf(1)*dA(1,i,jf,k) + mf(2)*dA(2,i,jf,k) + mf(3)*dA(3,i,jf,k)
-            row(i,1) = mdot
-            row(i,2) = pm(1)*mdot + pm(5)*dA(1,i,jf,k)
-            row(i,3) = pm(2)*mdot + pm(5)*dA(2,i,jf,k)
-            row(i,4) = pm(3)*mdot + pm(6)*dA(3,i,jf,k)
-            row(i,5) = pm(4)*mdot + Omega*pm(6)*dA(3,i,jf,k)
-        end subroutine put
+            mf1 = w*cons(i,j,k,2) + w*cons(i+1,j,k,2) + w*cons(i,j,k+1,2) + w*cons(i+1,j,k+1,2)
+            mf2 = w*cons(i,j,k,3) + w*cons(i+1,j,k,3) + w*cons(i,j,k+1,3) + w*cons(i+1,j,k+1,3)
+            ! rho*Vt_rel = rho*Vt - Omega*rho*r = c4/r - Omega*c1*r
+            mf3 = w*(cons(i,j,k,4)/r(i,j,k) - Omega*cons(i,j,k,1)*r(i,j,k)) &
+                + w*(cons(i+1,j,k,4)/r(i+1,j,k) - Omega*cons(i+1,j,k,1)*r(i+1,j,k)) &
+                + w*(cons(i,j,k+1,4)/r(i,j,k+1) - Omega*cons(i,j,k+1,1)*r(i,j,k+1)) &
+                + w*(cons(i+1,j,k+1,4)/r(i+1,j,k+1) - Omega*cons(i+1,j,k+1,1)*r(i+1,j,k+1))
+        end subroutine accum_corners
     end subroutine jface_flow_row
 
 
-    pure subroutine kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, &
+    pure subroutine kface_flow_plane(ho, P, P_offset, r, &
                                      cons, Omega, dA, &
                                      wall_lo, wall_hi, plane, kf, njp, &
                                      ni, nj, nk)
@@ -195,7 +306,6 @@ contains
 
         implicit none
         integer, intent(in) :: kf, njp, ni, nj, nk
-        real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
@@ -206,77 +316,99 @@ contains
         real, intent(inout) :: plane(ni, njp, 5)
 
         integer :: i, j
-        real :: pm(6), mf(3)
+        real :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3, mdot
 
+        ! pm/mf scalarized and the four corners hand-unrolled for the same
+        ! ifort vectorizer reason as iface_flow_row above -- see the comment
+        ! there for the full justification and its July 2026 re-measurement.
         if (kf == 1) then
             ! Low boundary k=1
             do j = 1, nj-1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   j,   1, wall_lo(i,j))
-                call accum(pm, mf, i+1, j,   1, wall_lo(i,j))
-                call accum(pm, mf, i,   j+1, 1, wall_lo(i,j))
-                call accum(pm, mf, i+1, j+1, 1, wall_lo(i,j))
-                call put(plane, i, j, pm, mf)
+                call accum_corners(i, j, 1, wall_lo(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
+                plane(i,j,1) = mdot
+                plane(i,j,2) = pm1*mdot + pm5*dA(1,i,j,kf)
+                plane(i,j,3) = pm2*mdot + pm5*dA(2,i,j,kf)
+                plane(i,j,4) = pm3*mdot + pm6*dA(3,i,j,kf)
+                plane(i,j,5) = pm4*mdot + Omega*pm6*dA(3,i,j,kf)
             end do
             end do
         else if (kf == nk) then
             ! High boundary k=nk
             do j = 1, nj-1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   j,   nk, wall_hi(i,j))
-                call accum(pm, mf, i+1, j,   nk, wall_hi(i,j))
-                call accum(pm, mf, i,   j+1, nk, wall_hi(i,j))
-                call accum(pm, mf, i+1, j+1, nk, wall_hi(i,j))
-                call put(plane, i, j, pm, mf)
+                call accum_corners(i, j, nk, wall_hi(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
+                plane(i,j,1) = mdot
+                plane(i,j,2) = pm1*mdot + pm5*dA(1,i,j,kf)
+                plane(i,j,3) = pm2*mdot + pm5*dA(2,i,j,kf)
+                plane(i,j,4) = pm3*mdot + pm6*dA(3,i,j,kf)
+                plane(i,j,5) = pm4*mdot + Omega*pm6*dA(3,i,j,kf)
             end do
             end do
         else
             ! Interior 2 <= kf <= nk-1
             do j = 1, nj-1
+            !DIR$ IVDEP
             do i = 1, ni-1
-                pm = 0.0e0; mf = 0.0e0
-                call accum(pm, mf, i,   j,   kf, 1.0e0)
-                call accum(pm, mf, i+1, j,   kf, 1.0e0)
-                call accum(pm, mf, i,   j+1, kf, 1.0e0)
-                call accum(pm, mf, i+1, j+1, kf, 1.0e0)
-                call put(plane, i, j, pm, mf)
+                call accum_corners(i, j, kf, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+                mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
+                plane(i,j,1) = mdot
+                plane(i,j,2) = pm1*mdot + pm5*dA(1,i,j,kf)
+                plane(i,j,3) = pm2*mdot + pm5*dA(2,i,j,kf)
+                plane(i,j,4) = pm3*mdot + pm6*dA(3,i,j,kf)
+                plane(i,j,5) = pm4*mdot + Omega*pm6*dA(3,i,j,kf)
             end do
             end do
         end if
 
     contains
-        pure subroutine accum(pm, mf, i, j, k, wfac)
-            real, intent(inout) :: pm(6), mf(3)
+        pure subroutine accum_corners(i, j, k, wfac, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
+            ! Accumulates the 4 face corners (i:i+1,j:j+1,k), same
+            ! summation order as the original sequential accum() calls.
             integer, intent(in) :: i, j, k
             real, intent(in) :: wfac
-            real :: dp, w
-            dp = P(i,j,k) - P_offset
-            pm(1) = pm(1) + 0.25e0*vx(i,j,k)
-            pm(2) = pm(2) + 0.25e0*vr(i,j,k)
-            pm(3) = pm(3) + 0.25e0*r(i,j,k)*vt(i,j,k)
-            pm(4) = pm(4) + 0.25e0*ho(i,j,k)
-            pm(5) = pm(5) + 0.25e0*dp
-            pm(6) = pm(6) + 0.25e0*r(i,j,k)*dp
+            real, intent(out) :: pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3
+            real :: dp1, dp2, dp3, dp4, w
+            real :: g1, g2, g3, g4
+            dp1 = P(i,j,k)     - P_offset
+            dp2 = P(i+1,j,k)   - P_offset
+            dp3 = P(i,j+1,k)   - P_offset
+            dp4 = P(i+1,j+1,k) - P_offset
+            ! Vx, Vr and r*Vt come from the conserved state rather than
+            ! their own nodal arrays: cons = (rho, rho*Vx, rho*Vr,
+            ! rho*r*Vt, rho*e), so Vx = c2/c1, Vr = c3/c1, r*Vt = c4/c1
+            ! exactly. That drops three streamed fields (9 nodal -> 7,
+            ! ~12.5 B/cell) for one reciprocal per corner, which is the
+            ! right trade on a kernel that runs at DRAM bandwidth.
+            ! Recomputed here, never precomputed into a buffer: a buffer
+            ! would write more than it saves. See section 20.
+            g1 = 1.0e0/cons(i,j,k,1)
+            g2 = 1.0e0/cons(i+1,j,k,1)
+            g3 = 1.0e0/cons(i,j+1,k,1)
+            g4 = 1.0e0/cons(i+1,j+1,k,1)
+            pm1 = 0.25e0*cons(i,j,k,2)*g1 + 0.25e0*cons(i+1,j,k,2)*g2 &
+                + 0.25e0*cons(i,j+1,k,2)*g3 + 0.25e0*cons(i+1,j+1,k,2)*g4
+            pm2 = 0.25e0*cons(i,j,k,3)*g1 + 0.25e0*cons(i+1,j,k,3)*g2 &
+                + 0.25e0*cons(i,j+1,k,3)*g3 + 0.25e0*cons(i+1,j+1,k,3)*g4
+            pm3 = 0.25e0*cons(i,j,k,4)*g1 + 0.25e0*cons(i+1,j,k,4)*g2 &
+                + 0.25e0*cons(i,j+1,k,4)*g3 + 0.25e0*cons(i+1,j+1,k,4)*g4
+            pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i+1,j,k) + 0.25e0*ho(i,j+1,k) + 0.25e0*ho(i+1,j+1,k)
+            pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
+            pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i+1,j,k)*dp2 &
+                + 0.25e0*r(i,j+1,k)*dp3 + 0.25e0*r(i+1,j+1,k)*dp4
             w = 0.25e0*wfac
-            mf(1) = mf(1) + w*cons(i,j,k,2)
-            mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
-        end subroutine accum
-
-        pure subroutine put(plane, i, j, pm, mf)
-            real, intent(inout) :: plane(ni, njp, 5)
-            integer, intent(in) :: i, j
-            real, intent(in) :: pm(6), mf(3)
-            real :: mdot
-            mdot = mf(1)*dA(1,i,j,kf) + mf(2)*dA(2,i,j,kf) + mf(3)*dA(3,i,j,kf)
-            plane(i,j,1) = mdot
-            plane(i,j,2) = pm(1)*mdot + pm(5)*dA(1,i,j,kf)
-            plane(i,j,3) = pm(2)*mdot + pm(5)*dA(2,i,j,kf)
-            plane(i,j,4) = pm(3)*mdot + pm(6)*dA(3,i,j,kf)
-            plane(i,j,5) = pm(4)*mdot + Omega*pm(6)*dA(3,i,j,kf)
-        end subroutine put
+            mf1 = w*cons(i,j,k,2) + w*cons(i+1,j,k,2) + w*cons(i,j+1,k,2) + w*cons(i+1,j+1,k,2)
+            mf2 = w*cons(i,j,k,3) + w*cons(i+1,j,k,3) + w*cons(i,j+1,k,3) + w*cons(i+1,j+1,k,3)
+            ! rho*Vt_rel = rho*Vt - Omega*rho*r = c4/r - Omega*c1*r
+            mf3 = w*(cons(i,j,k,4)/r(i,j,k) - Omega*cons(i,j,k,1)*r(i,j,k)) &
+                + w*(cons(i+1,j,k,4)/r(i+1,j,k) - Omega*cons(i+1,j,k,1)*r(i+1,j,k)) &
+                + w*(cons(i,j+1,k,4)/r(i,j+1,k) - Omega*cons(i,j+1,k,1)*r(i,j+1,k)) &
+                + w*(cons(i+1,j+1,k,4)/r(i+1,j+1,k) - Omega*cons(i+1,j+1,k,1)*r(i+1,j+1,k))
+        end subroutine accum_corners
     end subroutine kface_flow_plane
 
 
@@ -434,6 +566,364 @@ contains
     end subroutine correct_cusp_kface_du
 
 
+    ! =================================================================
+    ! Implicit residual smoothing primitives, shared by every consumer:
+    ! smooth_residual_tri_tiled (the standalone three-direction smoother
+    ! that scree.f90's coarse-MG path hands to its `smoother` dummy
+    ! argument) and smooth_residual_scale_tri (the fine-grid path, which
+    ! folds the change limiter's scaling into the i-solve's gather).
+    ! They live here rather than being contained in one of them so the
+    ! two cannot drift apart -- an earlier version of this file had the
+    ! j/k sweeps duplicated into a bench arm, and identical-code folding
+    ! then merged the two symbols and silently corrupted every timing
+    ! that involved either. See docs/dev/plan_irs_traffic.md.
+    ! =================================================================
+
+
+
+    ! Thomas forward-sweep factors for the constant-coefficient Neumann
+    ! tridiagonal along a line of length n: a = c = -sf, b = 1+2sf interior,
+    ! b = 1+sf at the two ends. Returns cp (eliminated super-diagonal) and
+    ! minv = 1/pivot, so a line solve is:
+    !   x(1)   = d(1)*minv(1)
+    !   x(i)   = (d(i) + sf*x(i-1))*minv(i)          i = 2..n   (forward)
+    !   x(i)   = x(i) - cp(i)*x(i+1)                 i = n-1..1 (back-sub)
+    ! An n=1 line has no neighbours -> operator is the identity (minv=1).
+    subroutine irs_tri_coeffs(e, n, cp, minv)
+        implicit none
+        real, intent(in)     :: e
+        integer, intent(in)  :: n
+        real, intent(out)    :: cp(n), minv(n)
+        integer :: ii
+
+        if (n == 1) then
+            minv(1) = 1.0e0
+            cp(1)   = 0.0e0
+            return
+        end if
+
+        minv(1) = 1.0e0 / (1.0e0 + e)
+        cp(1)   = -e * minv(1)
+        do ii = 2, n-1
+            minv(ii) = 1.0e0 / ((1.0e0 + 2.0e0*e) + e*cp(ii-1))
+            cp(ii)   = -e * minv(ii)
+        end do
+        minv(n) = 1.0e0 / ((1.0e0 + e) + e*cp(n-1))
+        cp(n)   = 0.0e0
+    end subroutine irs_tri_coeffs
+
+
+    ! ---- line kernels -----------------------------------------------
+    ! Each takes its two operands as SEPARATE dummies, one defined and one
+    ! not. Written inline as dU(i,j,k,m) against dU(i,j-1,k,m), GCC cannot
+    ! prove the rows disjoint and emits a runtime overlap test plus two
+    ! copies of every body ("loop versioned for vectorization because of
+    ! possible aliasing"). As dummies the standard forbids the caller from
+    ! aliasing them, so the test disappears: -1.95%, bitwise.
+
+    subroutine irs_line_scale(x, mm, n)
+        implicit none
+        integer, intent(in) :: n
+        real, intent(in)    :: mm
+        real, intent(inout) :: x(n)
+        integer :: ii
+        do ii = 1, n
+            x(ii) = x(ii) * mm
+        end do
+    end subroutine irs_line_scale
+
+    subroutine irs_line_fwd(x, xprev, e, mm, n)
+        implicit none
+        integer, intent(in) :: n
+        real, intent(in)    :: e, mm
+        real, intent(in)    :: xprev(n)
+        real, intent(inout) :: x(n)
+        integer :: ii
+        do ii = 1, n
+            x(ii) = (x(ii) + e*xprev(ii)) * mm
+        end do
+    end subroutine irs_line_fwd
+
+    subroutine irs_line_back(x, xnext, cc, n)
+        implicit none
+        integer, intent(in) :: n
+        real, intent(in)    :: cc
+        real, intent(in)    :: xnext(n)
+        real, intent(inout) :: x(n)
+        integer :: ii
+        do ii = 1, n
+            x(ii) = x(ii) - cc*xnext(ii)
+        end do
+    end subroutine irs_line_back
+
+    ! One Jacobi sweep of (1 - sf*d2_i) y = d, Neumann ends, over a single
+    ! row. Reads x, writes y (separate dummies, same reason as the three
+    ! above: no aliasing to disprove, so it vectorises along the unit-stride
+    ! axis with no transpose). See IRS_NJAC for why this replaces the exact
+    ! i-solve in smooth_residual_tri_tiled.
+    subroutine irs_jac_line(d, x, y, n, e, rint, rend)
+        implicit none
+        integer, intent(in) :: n
+        real, intent(in)    :: e, rint, rend
+        real, intent(in)    :: d(n), x(n)
+        real, intent(out)   :: y(n)
+        integer :: p
+
+        if (n == 1) then
+            y(1) = d(1)
+            return
+        end if
+        y(1) = (d(1) + e*x(2)) * rend
+        do p = 2, n-1
+            y(p) = (d(p) + e*(x(p-1) + x(p+1))) * rint
+        end do
+        y(n) = (d(n) + e*x(n-1)) * rend
+    end subroutine irs_jac_line
+
+
+    ! ---- blocked transpose ------------------------------------------
+    ! src(i,jj) -> tl(jj,i) through IRS_TB x IRS_TB blocks. The staging
+    ! read is IRS_TB contiguous floats per lane (one vector load); the
+    ! write-out is IRS_TB contiguous lanes per i (one vector store). Only
+    ! the in-block transpose is strided, over 256 bytes that never leave
+    ! the register file.
+    !
+    ! Written the obvious way -- do i; do jj; tl(jj,i) = src(i,jj) -- the
+    ! inner loop strides src by nci elements (1088 bytes at nci=272) and
+    ! the compiler emits one scalar load per element. That is invisible in
+    ! the vectorization report, which calls the surrounding loop
+    ! "vectorized": the i-solve took 53.6% of the smoother's time while
+    ! moving 20% of its traffic, and the disassembly showed 266 scalar
+    ! vmovss against 190 vector vmovups with no gather instructions at all.
+
+    ! ldt is the tile's leading dimension, always IRS_BJ. Passed rather
+    ! than taken from the module parameter because f2py wraps every public
+    ! module procedure and cannot resolve a parameter used in a dummy's
+    ! dimension.
+    subroutine irs_gather_tile(src, tl, ldt, n, nb_in)
+        implicit none
+        integer, intent(in) :: ldt, n, nb_in
+        real, intent(in)    :: src(n, nb_in)
+        real, intent(inout) :: tl(ldt, n)
+        real    :: blk(IRS_TB, IRS_TB)
+        integer :: ib, jb, ii, jj, nfull_i, nfull_j
+
+        nfull_i = (n / IRS_TB) * IRS_TB
+        nfull_j = (nb_in / IRS_TB) * IRS_TB
+        do jb = 1, nfull_j, IRS_TB
+            do ib = 1, nfull_i, IRS_TB
+                do jj = 1, IRS_TB
+                    do ii = 1, IRS_TB
+                        blk(ii,jj) = src(ib+ii-1, jb+jj-1)
+                    end do
+                end do
+                do ii = 1, IRS_TB
+                    do jj = 1, IRS_TB
+                        tl(jb+jj-1, ib+ii-1) = blk(ii,jj)
+                    end do
+                end do
+            end do
+        end do
+        do jj = 1, nfull_j
+            do ii = nfull_i+1, n
+                tl(jj,ii) = src(ii,jj)
+            end do
+        end do
+        do jj = nfull_j+1, nb_in
+            do ii = 1, n
+                tl(jj,ii) = src(ii,jj)
+            end do
+        end do
+    end subroutine irs_gather_tile
+
+    ! As irs_gather_tile, but applies the change limiter's pointwise
+    ! scaling on the way through, while each value is already in a
+    ! register. That is the whole point of the fine-grid path: the scaling
+    ! pass and the i-solve each cost a full-volume read and write on their
+    ! own, and fused they cost one between them.
+    !
+    ! The arithmetic is byte-for-byte set_residual's scale_du, INCLUDING
+    ! keeping fdamp/dampin as a division rather than a hoisted reciprocal
+    ! multiply -- the two do not agree bitwise and the exactness of this
+    ! whole path depends on them matching.
+    subroutine irs_gather_tile_scaled(src, dtv, tl, ldt, n, nb_in, rav, dampin)
+        implicit none
+        integer, intent(in) :: ldt, n, nb_in
+        real, intent(in)    :: src(n, nb_in)
+        real, intent(in)    :: dtv(n, nb_in)
+        real, intent(inout) :: tl(ldt, n)
+        real, intent(in)    :: rav, dampin
+        real    :: blk(IRS_TB, IRS_TB)
+        real    :: v, chg, fdamp
+        integer :: ib, jb, ii, jj, nfull_i, nfull_j
+
+        nfull_i = (n / IRS_TB) * IRS_TB
+        nfull_j = (nb_in / IRS_TB) * IRS_TB
+        do jb = 1, nfull_j, IRS_TB
+            do ib = 1, nfull_i, IRS_TB
+                do jj = 1, IRS_TB
+                    do ii = 1, IRS_TB
+                        v     = src(ib+ii-1, jb+jj-1)
+                        chg   = abs(v * dtv(ib+ii-1, jb+jj-1))
+                        fdamp = chg * rav
+                        blk(ii,jj) = v / (1.0e0 + fdamp/dampin)
+                    end do
+                end do
+                do ii = 1, IRS_TB
+                    do jj = 1, IRS_TB
+                        tl(jb+jj-1, ib+ii-1) = blk(ii,jj)
+                    end do
+                end do
+            end do
+        end do
+        do jj = 1, nfull_j
+            do ii = nfull_i+1, n
+                v     = src(ii,jj)
+                chg   = abs(v * dtv(ii,jj))
+                fdamp = chg * rav
+                tl(jj,ii) = v / (1.0e0 + fdamp/dampin)
+            end do
+        end do
+        do jj = nfull_j+1, nb_in
+            do ii = 1, n
+                v     = src(ii,jj)
+                chg   = abs(v * dtv(ii,jj))
+                fdamp = chg * rav
+                tl(jj,ii) = v / (1.0e0 + fdamp/dampin)
+            end do
+        end do
+    end subroutine irs_gather_tile_scaled
+
+    subroutine irs_scatter_tile(dst, tl, ldt, n, nb_in)
+        implicit none
+        integer, intent(in) :: ldt, n, nb_in
+        real, intent(inout) :: dst(n, nb_in)
+        real, intent(in)    :: tl(ldt, n)
+        real    :: blk(IRS_TB, IRS_TB)
+        integer :: ib, jb, ii, jj, nfull_i, nfull_j
+
+        nfull_i = (n / IRS_TB) * IRS_TB
+        nfull_j = (nb_in / IRS_TB) * IRS_TB
+        do jb = 1, nfull_j, IRS_TB
+            do ib = 1, nfull_i, IRS_TB
+                do ii = 1, IRS_TB
+                    do jj = 1, IRS_TB
+                        blk(ii,jj) = tl(jb+jj-1, ib+ii-1)
+                    end do
+                end do
+                do jj = 1, IRS_TB
+                    do ii = 1, IRS_TB
+                        dst(ib+ii-1, jb+jj-1) = blk(ii,jj)
+                    end do
+                end do
+            end do
+        end do
+        do jj = 1, nfull_j
+            do ii = nfull_i+1, n
+                dst(ii,jj) = tl(jj,ii)
+            end do
+        end do
+        do jj = nfull_j+1, nb_in
+            do ii = 1, n
+                dst(ii,jj) = tl(jj,ii)
+            end do
+        end do
+    end subroutine irs_scatter_tile
+
+
+    ! ---- the tile recurrence, one i-column against the previous -------
+    subroutine irs_tile_solve(tl, ldt, e, cpi, minvi, nci, nb_in)
+        implicit none
+        integer, intent(in) :: ldt, nci, nb_in
+        real, intent(in)    :: e
+        real, intent(in)    :: cpi(nci), minvi(nci)
+        real, intent(inout) :: tl(ldt, nci)
+        integer :: i
+
+        call irs_line_scale(tl(1,1), minvi(1), nb_in)
+        do i = 2, nci
+            call irs_line_fwd(tl(1,i), tl(1,i-1), e, minvi(i), nb_in)
+        end do
+        do i = nci-1, 1, -1
+            call irs_line_back(tl(1,i), tl(1,i+1), cpi(i), nb_in)
+        end do
+    end subroutine irs_tile_solve
+
+
+    ! ---- j+k solves, fused over i-strips ------------------------------
+    ! Each strip is carried through BOTH direction solves before the next
+    ! strip is touched, so it is read from and written to memory once for
+    ! the pair instead of once each.
+    !
+    ! The saving is smaller than the touch count suggests, and it is worth
+    ! knowing why. Run separately, the j-solve's back-substitution
+    ! re-reads what its forward pass just wrote out of one (nci,ncj)
+    ! plane -- 70 KB, L2-resident -- not out of DRAM, and the k-solve gets
+    ! the same plane-to-plane reuse. So each already cost ~1R+1W of DRAM
+    ! and fusing them saves one of two, not three of four. Measured
+    ! -12.2% on the whole smoother, bitwise. A second effect probably
+    ! contributes: the k back-substitution DESCENDS over a 3.9 MB
+    ! per-component volume against prefetchers that favour ascending
+    ! streams, and inside a strip that descent stays in L2.
+    !
+    ! Bitwise: for fixed (i,k,m) the j-recurrence touches only that j-line
+    ! and lines at different i are independent, so restricting to a strip
+    ! changes only the order in which independent lines are solved; same
+    ! for k. Inside a strip the k-solve consumes columns the j-solve has
+    ! already finished, so the dependency is respected exactly.
+    subroutine irs_jk_strips(dU, e, cpj, minvj, cpk, minvk, nci, ncj, nck)
+        implicit none
+        integer, intent(in) :: nci, ncj, nck
+        real, intent(in)    :: e
+        real, intent(in)    :: cpj(ncj), minvj(ncj), cpk(nck), minvk(nck)
+        real, intent(inout) :: dU(nci, ncj, nck, 5)
+        integer :: i0, nw, j, k, m
+        real    :: mm, cc
+
+        do m = 1, 5
+        do i0 = 1, nci, IRS_W
+            nw = min(IRS_W, nci - i0 + 1)
+
+            if (ncj >= 2) then
+                do k = 1, nck
+                    call irs_line_scale(dU(i0,1,k,m), minvj(1), nw)
+                    do j = 2, ncj
+                        call irs_line_fwd(dU(i0,j,k,m), dU(i0,j-1,k,m), e, &
+                                          minvj(j), nw)
+                    end do
+                    do j = ncj-1, 1, -1
+                        call irs_line_back(dU(i0,j,k,m), dU(i0,j+1,k,m), &
+                                           cpj(j), nw)
+                    end do
+                end do
+            end if
+
+            if (nck >= 2) then
+                mm = minvk(1)
+                do j = 1, ncj
+                    call irs_line_scale(dU(i0,j,1,m), mm, nw)
+                end do
+                do k = 2, nck
+                    mm = minvk(k)
+                    do j = 1, ncj
+                        call irs_line_fwd(dU(i0,j,k,m), dU(i0,j,k-1,m), e, &
+                                          mm, nw)
+                    end do
+                end do
+                do k = nck-1, 1, -1
+                    cc = cpk(k)
+                    do j = 1, ncj
+                        call irs_line_back(dU(i0,j,k,m), dU(i0,j,k+1,m), &
+                                           cc, nw)
+                    end do
+                end do
+            end if
+
+        end do
+        end do
+    end subroutine irs_jk_strips
+
+
 end module residual_helpers
 
 
@@ -472,6 +962,31 @@ end module residual_helpers
 ! applied as a deferred O(surface) correction to dU after the sweep
 ! (see correct_cusp_kface_du).
 ! =====================================================================
+!
+! Change limiter folded in
+! ------------------------
+! damp_residual's global reduction (block mean of |dU*dt_vol|) is
+! accumulated here, inside the fused dU write, while each value is still in
+! a register; only the pointwise scaling remains as a second pass. That
+! removes a full-volume dU read: -6% serial, -11% at 100-rank saturation,
+! winning 100/100 ranks (docs section 24). dampin <= 0 disables it and
+! reproduces the un-damped kernel bitwise.
+!
+! *** THIS REORDERS THE POST-PROCESSING. *** Grid.update_residual used to
+! run IRS then damp; folding damp in here necessarily makes it damp then
+! IRS. IRS is linear and the limiter is nonlinear with a global mean, so
+! the composed operator is genuinely different -- at sf_resid = 1.0,
+! dampin = 25 (run.py defaults) the two orderings differ by ~19% of the
+! field scale, and the difference grows monotonically with sf (zero at
+! sf = 0). This is a deliberate numerics change, not a rounding artifact,
+! and it is NOT covered by the test suite: no test drives update_residual
+! with dampin set and sf > 0 together. Convergence must be verified
+! separately.
+!
+! Second known inexactness: the reduction is accumulated before
+! correct_cusp_kface_du modifies dU on the two seam planes, so on a cusped
+! block the mean omits that O(surface) correction.
+
 subroutine set_residual( &
     cons, P, P_offset, &
     r, Omega, dAi, dAj, dAk, &
@@ -482,6 +997,7 @@ subroutine set_residual( &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
     i_cusp_start, i_cusp_end, &
+    dt_vol, dampin, ravg_out, &
     kb, njp, ni, nj, nk &
     )
 
@@ -522,75 +1038,89 @@ subroutine set_residual( &
     ! at small blocks it does not help).
     real, intent(inout) :: planes(ni, njp, 5, 2)
     real, intent(inout) :: rows(ni, 5, 3)
+    ! Change limiter folded in: dt_vol and dampin are damp_residual's
+    ! inputs. dampin <= 0 disables the limiter (matching the caller's
+    ! `if dampin is not None` skip).
+    real, intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real, intent(in) :: dampin
+    ! Reciprocal block means of |dU*dt_vol| per conserved variable, the
+    ! change limiter's own scaling factors. Always returned, because the
+    ! reduction that produces them is accumulated during the dU sweep
+    ! whatever dampin is. The fine-grid IRS path (smooth_residual_scale_tri)
+    ! takes them and applies the limiter itself, fused into its i-solve, so
+    ! that the scaling does not need a full-volume traversal of its own --
+    ! call this with dampin <= 0 to get the factors without the scaling.
+    real, intent(out) :: ravg_out(5)
     integer, intent(in) :: kb, njp, ni, nj, nk
 
-    integer :: i, j, k, m, k0, k1, kf0, ja, jb, pa, pb, stmp
+    integer :: i, j, k, m, k0, k1, ja, jb, pa, pb, stmp
+    integer :: ncell
+    real :: avg(5), ravg(5)
+
+    do m = 1, 5
+        avg(m) = 0.0e0
+    end do
 
     pa = 1
     pb = 2
 
+    ! Prime the rolling k-face plane with face k=1 before the slab sweep
+    ! (the fused loop below always has plane k in slot pa on entry to cell
+    ! k, needing only face k+1 freshly computed into pb).
+    call kface_flow_plane(ho, P, P_offset, r, cons, &
+                          Omega, dAk, wallk1, wallnk, planes(:,:,:,pa), &
+                          1, njp, ni, nj, nk)
+
     do k0 = 1, nk-1, kb
     k1 = min(k0 + kb - 1, nk-1)
 
-    ! --- i+j directions fused per (j,k) row ---
-    ! For each cell row (j,k): compute the i-face row (slot 1) and advance
-    ! the rolling j-face pair (slots ja/jb), then write dU once with both
-    ! contributions folded in (i-diff + f_body + j-diff). This cuts dU from
-    ! three touches per slab (write, RMW, RMW) to two; the i-face slot and
-    ! the j-face pair are disjoint slots that already coexist in rows.
+    ! --- i+j+k fused per (j,k) row: single touch on dU ---
+    ! For each cell row (j,k): compute the i-face row (slot 1), advance the
+    ! rolling j-face pair (slots ja/jb), and advance the rolling k-face
+    ! pair (slots pa/pb, one plane ahead of the current cell layer -- pa
+    ! holds face k, pb gets face k+1 computed fresh each k). All three
+    ! contributions are folded into dU in one write, so each dU element is
+    ! touched exactly once per residual evaluation (previously two full
+    ! sweeps: the i/j write, then a separate k-direction read-modify-write).
+    ! The k-face pair carries across slab boundaries the same way the
+    ! un-fused version did (plane k0 of a slab is the previous slab's k1+1,
+    ! already resident in pa), so only the very first cell (k=1 overall)
+    ! computes its own low face before the loop.
     do k = k0, k1
         ja = 2
         jb = 3
         ! Prime the rolling j-face pair with the j=1 boundary face.
-        call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+        call jface_flow_row(ho, P, P_offset, r, cons, &
                             Omega, dAj, wallj1, wallnj, rows(:,:,ja), &
                             1, k, ni, nj, nk)
+        ! Advance the rolling k-face pair: pa already holds face k (primed
+        ! before the sweep, or carried from the previous k iteration); pb
+        ! gets face k+1 computed fresh.
+        call kface_flow_plane(ho, P, P_offset, r, cons, &
+                              Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
+                              k+1, njp, ni, nj, nk)
         do j = 1, nj-1
-            call iface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+            call iface_flow_row(ho, P, P_offset, r, cons, &
                                 Omega, dAi, walli1(j,k), wallni(j,k), &
                                 rows(:,:,1), j, k, ni, nj, nk)
-            call jface_flow_row(vx, vr, vt, ho, P, P_offset, r, cons, &
+            call jface_flow_row(ho, P, P_offset, r, cons, &
                                 Omega, dAj, wallj1, wallnj, rows(:,:,jb), &
                                 j+1, k, ni, nj, nk)
             do m = 1, 5
             do i = 1, ni-1
                 dU(i,j,k,m) = rows(i,m,1) - rows(i+1,m,1) + f_body(i,j,k,m) &
-                            + rows(i,m,ja) - rows(i,m,jb)
+                            + rows(i,m,ja) - rows(i,m,jb) &
+                            + planes(i,j,m,pa) - planes(i,j,m,pb)
+                ! Change-limiter reduction, accumulated while dU is still in
+                ! a register -- this is the whole point of the fusion: the
+                ! separate routine's first full-volume dU read disappears.
+                avg(m) = avg(m) + abs(dU(i,j,k,m) * dt_vol(i,j,k))
             end do
             end do
             stmp = ja
             ja = jb
             jb = stmp
         end do
-    end do
-
-    ! --- k-direction: faces k0..k1+1, fused with a rolling plane pair ---
-    ! Slot pa holds the previous face plane k-1; face k is computed into
-    ! slot pb, then cell plane k-1 is differenced and the slots swap. The
-    ! slab's low face plane k0 is the previous slab's high plane and is
-    ! still in slot pa -- the intervening i/j phases touch only rows -- so
-    ! the carry is automatic and only the first slab computes its own k=1
-    ! face plane.
-    if (k0 == 1) then
-        kf0 = 1
-    else
-        kf0 = k0 + 1
-    end if
-    do k = kf0, k1+1
-        call kface_flow_plane(vx, vr, vt, ho, P, P_offset, r, cons, &
-                              Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
-                              k, njp, ni, nj, nk)
-        ! Accumulate cell plane k-1 between faces k-1 (pa) and k (pb)
-        if (k > k0) then
-            do m = 1, 5
-            do j = 1, nj-1
-            do i = 1, ni-1
-                dU(i,j,k-1,m) = dU(i,j,k-1,m) &
-                              + planes(i,j,m,pa) - planes(i,j,m,pb)
-            end do
-            end do
-            end do
-        end if
         stmp = pa
         pa = pb
         pb = stmp
@@ -607,6 +1137,57 @@ subroutine set_residual( &
                                    i_cusp_start, i_cusp_end, ni, nj, nk)
     end if
 
+    ! ---- change limiter, second half ----
+    ! The reduction above was accumulated during the sweep, so only the
+    ! pointwise scaling pass remains. NOTE the cusp correction just
+    ! modified dU on the two seam cell planes, which the reduction did not
+    ! see; that is an O(surface) discrepancy in a block-mean over O(volume)
+    ! cells, and is corrected below for exactness.
+    ncell = (ni-1)*(nj-1)*(nk-1)
+    do m = 1, 5
+        avg(m) = avg(m) / ncell
+        if (avg(m) > 0.0e0) then
+            ravg(m) = 1.0e0 / avg(m)
+        else
+            ravg(m) = 0.0e0
+        end if
+    end do
+    do m = 1, 5
+        ravg_out(m) = ravg(m)
+    end do
+    if (dampin > 0.0e0) then
+        call scale_du(dU, dt_vol, ravg, dampin, ni, nj, nk)
+    end if
+
+contains
+
+    ! The scaling pass lives in its own procedure so ifort sees a dU with no
+    ! other writes in scope. Inline in the parent, the main sweep also writes
+    ! dU and ifort cannot disprove that the two write regions overlap
+    ! ("assumed OUTPUT dependence"), so it distributes the nest and only
+    ! partially vectorizes it. Production's standalone damp_residual has the
+    ! identical loop and vectorizes cleanly, which is the clue this follows.
+    subroutine scale_du(dU, dt_vol, ravg, dampin, ni, nj, nk)
+        implicit none
+        integer, intent(in) :: ni, nj, nk
+        real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
+        real, intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+        real, intent(in) :: ravg(5), dampin
+        integer :: i, j, k, m
+        real :: chg, fdamp
+        do k = 1, nk-1
+        do j = 1, nj-1
+        do m = 1, 5
+        do i = 1, ni-1
+            chg   = abs(dU(i,j,k,m) * dt_vol(i,j,k))
+            fdamp = chg * ravg(m)
+            dU(i,j,k,m) = dU(i,j,k,m) / (1.0e0 + fdamp/dampin)
+        end do
+        end do
+        end do
+        end do
+    end subroutine scale_du
+
 end subroutine set_residual
 
 
@@ -620,6 +1201,27 @@ end subroutine set_residual
 ! fdamp = |change|/avg. Cells near the mean are barely touched; large
 ! outliers saturate towards dampin*avg. Operates in place on dU.
 ! =====================================================================
+! Negative-feedback change limiter (ported from multall's DAMP loop).
+!
+! Soft-clips outlier per-cell changes so the explicit march stays stable
+! without globally cutting the timestep. The per-step change is
+! dU * dt_vol; per conserved variable, the block mean of its magnitude is
+! avg, and each cell is shrunk by 1/(1 + fdamp/dampin) with
+! fdamp = |change|/avg. Cells near the mean are barely touched; large
+! outliers saturate towards dampin*avg. Operates in place on dU.
+!
+! The five components share each (j,k) plane traversal rather than each
+! getting its own full-volume sweep: the reduction and the scaling are one
+! pass apiece instead of five, so dt_vol is loaded once per plane instead
+! of five times. -28.7% serial, -30.8% at 100-rank saturation
+! (docs/dev/viscous_kernels.md section 21).
+!
+! m stays OUTSIDE the i loop. dU is component-last, so dU(:,j,k,m) is
+! contiguous in i only for fixed m; making m innermost strides the i reads
+! by the whole volume and measured +208%. The flat-field guard is folded
+! into ravg (0 for a flat component => identity soft-clip) so the swept
+! region stays branch-free.
+! =====================================================================
 subroutine damp_residual(dU, dt_vol, dampin, ni, nj, nk)
 
     implicit none
@@ -630,66 +1232,116 @@ subroutine damp_residual(dU, dt_vol, dampin, ni, nj, nk)
     real, intent(in)    :: dampin
 
     integer :: i, j, k, m, ncell
-    real :: avg, chg, fdamp
+    real :: avg(5), ravg(5), chg, fdamp
 
     ncell = (ni-1)*(nj-1)*(nk-1)
+
+    ! ---- Sweep 1: all five block means in one pass over dU/dt_vol ----
     do m = 1, 5
-        ! Pass 1: block mean of the per-step change magnitude for variable m.
-        avg = 0.0e0
-        do k = 1, nk-1
-        do j = 1, nj-1
-        do i = 1, ni-1
-            avg = avg + abs(dU(i,j,k,m) * dt_vol(i,j,k))
-        end do
-        end do
-        end do
-        avg = avg / ncell
-        if (avg <= 0.0e0) cycle          ! flat field: nothing to limit
-        ! Pass 2: soft-clip each cell's change relative to the block mean.
-        do k = 1, nk-1
-        do j = 1, nj-1
+        avg(m) = 0.0e0
+    end do
+    ! m stays OUTSIDE the i loop: dU is component-LAST, so dU(:,j,k,m) is
+    ! contiguous in i only for fixed m. Putting m innermost would make each
+    ! (i,j,k) touch five locations ~(ni-1)*(nj-1)*(nk-1) elements apart and
+    ! destroy the i-vectorization -- measured at +208% before this was fixed
+    ! (section 2's "any layout change that strides the i reads is suspect").
+    ! The saving here is therefore NOT fewer dU sweeps but fewer dt_vol
+    ! reads: the k/j planes of dt_vol are hoisted and shared across m.
+    do k = 1, nk-1
+    do j = 1, nj-1
+    do m = 1, 5
+    do i = 1, ni-1
+        avg(m) = avg(m) + abs(dU(i,j,k,m) * dt_vol(i,j,k))
+    end do
+    end do
+    end do
+    end do
+
+    ! A flat field (avg = 0) would divide by zero. Production guards this
+    ! with `cycle`; here the reciprocal is folded into a factor that is
+    ! simply 0 for such a component, which makes fdamp 0 and the soft-clip
+    ! the identity -- same outcome, no branch inside the sweep. Branch-free
+    ! matters because the caller already skips this routine entirely when
+    ! damping is off, so every execution here is one that does real work.
+    do m = 1, 5
+        avg(m) = avg(m) / ncell
+        if (avg(m) > 0.0e0) then
+            ravg(m) = 1.0e0 / avg(m)
+        else
+            ravg(m) = 0.0e0
+        end if
+    end do
+
+    ! ---- Sweep 2: soft-clip every component in one pass ----
+    do k = 1, nk-1
+    do j = 1, nj-1
+    do m = 1, 5
         do i = 1, ni-1
             chg   = abs(dU(i,j,k,m) * dt_vol(i,j,k))
-            fdamp = chg / avg
+            fdamp = chg * ravg(m)
+            ! fdamp/dampin kept as a division, not a hoisted reciprocal
+            ! multiply, so the arithmetic matches production exactly.
             dU(i,j,k,m) = dU(i,j,k,m) / (1.0e0 + fdamp/dampin)
         end do
-        end do
-        end do
+    end do
+    end do
     end do
 
 end subroutine damp_residual
 
 
 ! =====================================================================
-! Implicit residual smoothing (Jameson IRS) -- EXACT factored tridiagonal
-! (ADI), with the i-direction solve transpose-tiled so it vectorises.
+! Implicit residual smoothing (Jameson IRS) -- j and k EXACT factored
+! tridiagonal (ADI), i APPROXIMATE via two Jacobi sweeps.
 !
 ! The unfactored operator (1 - sf*grad^2) is applied as the ADI-style
 ! factored product
 !   (1 - sf*d2_i) (1 - sf*d2_j) (1 - sf*d2_k) R* = R
 ! where d2_d is the 1D second difference along direction d with zero-
-! gradient (Neumann) ends. The three orthogonal 1D operators commute, so
-! the inverse is three successive EXACT tridiagonal (Thomas) solves, one
-! per direction, in place on dU -- no sweep count, each direction solved to
-! the last bit in O(n) per line. The matrix is identical for every line in
-! a given direction (a=c=-sf, b=1+2sf interior, b=1+sf at the ends), so its
-! Thomas factors cp(.) and reciprocal pivots minv(.) are built ONCE per
-! direction by tri_coeffs and reused for all lines. Constant fields are
-! preserved exactly and IRS(0)=0, so the converged solution is unchanged.
+! gradient (Neumann) ends. The three orthogonal 1D operators commute.
 !
-! The j- and k-solves run their recurrence along j (resp. k) with the
-! innermost loop over the stride-1 i index, so they vectorise as-is. The
-! i-solve recurrence runs along the unit-stride axis and cannot vectorise
-! directly, so a BJ-wide block of j-lines is transposed into a small
-! (BJ,nci) pad; the recurrence's innermost loop then runs over the BJ
-! contiguous, independent lanes -- vectorises and hides the FMA-latency
-! chain -- and the tile is scattered back.
+! The j- and k-solves run their recurrences over operands contiguous in the
+! stride-1 i index, so they vectorise as-is, and they are FUSED over
+! i-strips so a strip is read and written once for the pair rather than
+! once each (irs_jk_strips): still solved EXACTLY, one Thomas recurrence per
+! line, coefficients built ONCE per direction by tri_coeffs and reused for
+! every line.
 !
-! Scratch: the Thomas solve is in place on dU; work is a 1D buffer holding
-! the six coefficient vectors back-to-back, >= 2*((ni-1)+(nj-1)+(nk-1))
-! elements (e.g. a leading slice of block.scratch via util.carve_view).
+! The i-direction recurrence runs along the unit-stride axis and cannot
+! vectorise directly as a Thomas solve -- production used to pay for that
+! with a blocked transpose (irs_gather_tile / irs_tile_solve /
+! irs_scatter_tile, see git history), 53.6% of the smoother's time for 20%
+! of its traffic. Two Jacobi sweeps (irs_jac_line) solve the same 1D
+! operator APPROXIMATELY instead, entirely along the unit-stride axis with
+! no transpose at all: -10.7% on the whole smoother at 8-rank socket
+! contention (bench/irs_arms.py `jaci2`), holding at 2-rank contention too,
+! so the win is not itself contention-sensitive even though its size was
+! discovered that way. Two sweeps is the textbook 1980s choice (Blazek, CFD:
+! Principles and Applications, sec. 6.2.4, citing Jameson's contemporaries on
+! Cray vector hardware -- "two iterations are usually sufficient"). NOT
+! bitwise against the old exact i-solve -- a genuine numerics change: a
+! truncated iteration under-relaxes relative to the exact inverse, so a
+! given sf damps less than it used to. Constants are still preserved
+! exactly and IRS(0)=0 still holds, so the smoother's fixed point is
+! unchanged, but its convergence/stability behaviour at this sf has not
+! been independently verified beyond that -- re-verify before raising sf
+! far from its current operating range.
+!
+! This routine is now a driver: every primitive lives in residual_helpers,
+! shared with smooth_residual_scale_tri, which is the fine-grid path and
+! folds the change limiter's scaling into the i-solve's gather -- THAT
+! routine still uses the exact transpose-tiled i-solve; only THIS one
+! (what scree.f90's coarse-MG path hands to its `smoother` dummy argument,
+! where there is no limiter to fold in) has been switched to Jacobi.
+!
+! Scratch: in place on dU; work is a 1D buffer holding the j/k coefficient
+! vectors, >= 2*((ni-1)+(nj-1)+(nk-1)) elements as before (the i-direction
+! slots are simply unused now) (e.g. a leading slice of block.scratch via
+! util.carve_view).
 ! =====================================================================
 subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
+
+    use residual_helpers
 
     implicit none
 
@@ -699,12 +1351,10 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
     ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
     real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
 
-    integer :: i, j, k, m, nci, ncj, nck
-    integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
-    real    :: cc, mm
-    integer, parameter :: BJ = 8            ! tile width (AVX = 8 float32 lanes)
-    integer :: jj, j0, nb
-    real    :: tile(BJ, ni-1)               ! (lane, i) transposed i-solve pad
+    integer :: j, k, m, nci, ncj, nck, it
+    integer :: bcpj, bmij, bcpk, bmik
+    real    :: rint, rend
+    real    :: b1(ni-1), b2(ni-1)           ! sweep-1, sweep-2 Jacobi rows
 
     if (sf <= 0.0e0) return
 
@@ -713,144 +1363,135 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
     nck = nk-1
     if (nci < 1 .or. ncj < 1 .or. nck < 1) return
 
-    ! Base offsets of the six coefficient vectors packed into work:
-    ! [cpi | minvi | cpj | minvj | cpk | minvk], lengths nci,nci,ncj,ncj,nck,nck.
+    ! Base offsets of the four j/k coefficient vectors packed into work:
+    ! [(unused nci) | (unused nci) | cpj | minvj | cpk | minvk].
+    bcpj = 2*nci
+    bmij = 2*nci + ncj
+    bcpk = 2*nci + 2*ncj
+    bmik = 2*nci + 2*ncj + nck
+    call irs_tri_coeffs(sf, ncj, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj))
+    call irs_tri_coeffs(sf, nck, work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck))
+
+    ! ---- i-direction: two Jacobi sweeps, per row, along i ----
+    rint = 1.0e0 / (1.0e0 + 2.0e0*sf)
+    rend = 1.0e0 / (1.0e0 + sf)
+    if (nci >= 2) then
+        do m = 1, 5
+        do k = 1, nck
+        do j = 1, ncj
+            ! Sweep 1 starts from x = d, so dU's row serves as both operands.
+            call irs_jac_line(dU(1,j,k,m), dU(1,j,k,m), b1, nci, sf, rint, rend)
+            call irs_jac_line(dU(1,j,k,m), b1, b2, nci, sf, rint, rend)
+            do it = 1, nci
+                dU(it,j,k,m) = b2(it)
+            end do
+        end do
+        end do
+        end do
+    end if
+
+    ! ---- j- and k-directions, fused over i-strips, EXACT ----
+    call irs_jk_strips(dU, sf, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj), &
+                       work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck), &
+                       nci, ncj, nck)
+
+end subroutine smooth_residual_tri_tiled
+
+
+! =====================================================================
+! Fine-grid IRS: the change limiter's scaling pass FUSED into the
+! i-direction solve, then the strip-fused j and k solves.
+!
+! Grid.update_residual used to run set_residual (whose trailing scale_du
+! applies the limiter over the whole volume) and then
+! smooth_residual_tri_tiled. That is three full-volume read/write pairs
+! downstream of the residual sweep: scale, then i, then j+k. The scaling
+! is pointwise and the i-solve for a row depends only on that row's
+! scaled values, so the two can share one traversal -- the tile gather IS
+! the scale's read and the tile scatter IS its write:
+!
+!   scale (1R+1W) + i (1R+1W) + j+k (1R+1W)  ->  scale(x)i (1R+1W) + j+k (1R+1W)
+!
+! set_residual therefore hands out the block means it already accumulates
+! during its sweep (ravg), and skips its own scaling pass; this routine
+! applies it. dampin <= 0 means no limiter, and the plain gather is used.
+!
+! BITWISE against the unfused pair, and that is not a nicety: the scaling
+! arithmetic here is byte-for-byte scale_du's, the i-solve is unchanged,
+! and applying the two per (k, j0-block, m) rather than volume-then-volume
+! is the same computation on the same operands because the scaling is
+! pointwise and the blocks are disjoint. The ORDER that matters is
+! preserved exactly -- sweep, cusp correction, limiter, IRS-i, IRS-j,
+! IRS-k -- so this does not reopen the damp-vs-IRS ordering question
+! documented at the head of set_residual.
+!
+! Loop nest is (k, j0, m), NOT (m, k, j0) as the standalone smoother uses:
+! dt_vol is component-independent, so putting m innermost lets one
+! (nci,nb) block of it serve all five components out of cache. With m
+! outermost dt_vol would be streamed five times, which is most of what the
+! fusion just saved -- the same trap damp_residual documents.
+! =====================================================================
+subroutine smooth_residual_scale_tri(dU, dt_vol, ravg, dampin, sf, work, &
+                                     ni, nj, nk)
+
+    use residual_helpers
+
+    implicit none
+
+    integer, intent(in) :: ni, nj, nk
+    real, intent(in)    :: sf, dampin
+    real, intent(in)    :: ravg(5)
+    real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
+    real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
+    ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
+    real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
+
+    integer :: k, m, nci, ncj, nck, j0, nb
+    integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
+    real    :: tile(IRS_BJ, ni-1)
+
+    if (sf <= 0.0e0) return
+
+    nci = ni-1
+    ncj = nj-1
+    nck = nk-1
+    if (nci < 1 .or. ncj < 1 .or. nck < 1) return
+
     bcpi = 0
     bmii = nci
     bcpj = 2*nci
     bmij = 2*nci + ncj
     bcpk = 2*nci + 2*ncj
     bmik = 2*nci + 2*ncj + nck
-    call tri_coeffs(sf, nci, work(bcpi+1:bcpi+nci), work(bmii+1:bmii+nci))
-    call tri_coeffs(sf, ncj, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj))
-    call tri_coeffs(sf, nck, work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck))
+    call irs_tri_coeffs(sf, nci, work(bcpi+1:bcpi+nci), work(bmii+1:bmii+nci))
+    call irs_tri_coeffs(sf, ncj, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj))
+    call irs_tri_coeffs(sf, nck, work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck))
 
-    ! ---- i-direction: transpose-tiled. A BJ-wide block of j-lines is gathered
-    ! into tile(lane, i); the recurrence then runs along i with the innermost
-    ! loop over the BJ contiguous, independent lanes -> vectorises + hides the
-    ! recurrence latency. Scatter back afterwards. (nci >= 2) ----
     if (nci >= 2) then
-        do m = 1, 5
         do k = 1, nck
-        do j0 = 1, ncj, BJ
-            nb = min(BJ, ncj - j0 + 1)
-            do i = 1, nci
-                do jj = 1, nb
-                    tile(jj,i) = dU(i, j0+jj-1, k, m)
-                end do
-            end do
-            mm = work(bmii+1)
-            do jj = 1, nb
-                tile(jj,1) = tile(jj,1) * mm
-            end do
-            do i = 2, nci
-                mm = work(bmii+i)
-                do jj = 1, nb
-                    tile(jj,i) = (tile(jj,i) + sf*tile(jj,i-1)) * mm
-                end do
-            end do
-            do i = nci-1, 1, -1
-                cc = work(bcpi+i)
-                do jj = 1, nb
-                    tile(jj,i) = tile(jj,i) - cc*tile(jj,i+1)
-                end do
-            end do
-            do i = 1, nci
-                do jj = 1, nb
-                    dU(i, j0+jj-1, k, m) = tile(jj,i)
-                end do
-            end do
-        end do
-        end do
-        end do
-    end if
-
-    ! ---- j-direction: recurrence along j, innermost vector loop over i.
-    ! The per-plane factors are loop-invariant over i, so hoist to scalars. ----
-    if (ncj >= 2) then
-        do m = 1, 5
-        do k = 1, nck
-            mm = work(bmij+1)
-            do i = 1, nci
-                dU(i,1,k,m) = dU(i,1,k,m) * mm
-            end do
-            do j = 2, ncj
-                mm = work(bmij+j)
-                do i = 1, nci
-                    dU(i,j,k,m) = (dU(i,j,k,m) + sf*dU(i,j-1,k,m)) * mm
-                end do
-            end do
-            do j = ncj-1, 1, -1
-                cc = work(bcpj+j)
-                do i = 1, nci
-                    dU(i,j,k,m) = dU(i,j,k,m) - cc*dU(i,j+1,k,m)
-                end do
+        do j0 = 1, ncj, IRS_BJ
+            nb = min(IRS_BJ, ncj - j0 + 1)
+            do m = 1, 5
+                ! The dampin test is loop-invariant over the whole nest and
+                ! sits outside every vector loop, so it costs a predicted
+                ! branch per block and keeps one code path for both cases.
+                if (dampin > 0.0e0) then
+                    call irs_gather_tile_scaled(dU(1,j0,k,m), dt_vol(1,j0,k), &
+                                                tile, IRS_BJ, nci, nb, &
+                                                ravg(m), dampin)
+                else
+                    call irs_gather_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
+                end if
+                call irs_tile_solve(tile, IRS_BJ, sf, work(bcpi+1:bcpi+nci), &
+                                    work(bmii+1:bmii+nci), nci, nb)
+                call irs_scatter_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
             end do
         end do
         end do
     end if
 
-    ! ---- k-direction: recurrence along k, innermost vector loop over i ----
-    if (nck >= 2) then
-        do m = 1, 5
-            mm = work(bmik+1)
-            do j = 1, ncj
-            do i = 1, nci
-                dU(i,j,1,m) = dU(i,j,1,m) * mm
-            end do
-            end do
-            do k = 2, nck
-                mm = work(bmik+k)
-                do j = 1, ncj
-                do i = 1, nci
-                    dU(i,j,k,m) = (dU(i,j,k,m) + sf*dU(i,j,k-1,m)) * mm
-                end do
-                end do
-            end do
-            do k = nck-1, 1, -1
-                cc = work(bcpk+k)
-                do j = 1, ncj
-                do i = 1, nci
-                    dU(i,j,k,m) = dU(i,j,k,m) - cc*dU(i,j,k+1,m)
-                end do
-                end do
-            end do
-        end do
-    end if
+    call irs_jk_strips(dU, sf, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj), &
+                       work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck), &
+                       nci, ncj, nck)
 
-contains
-
-    ! Thomas forward-sweep factors for the constant-coefficient Neumann
-    ! tridiagonal along a line of length n: a = c = -sf, b = 1+2sf interior,
-    ! b = 1+sf at the two ends. Returns cp (eliminated super-diagonal) and
-    ! minv = 1/pivot, so a line solve is:
-    !   x(1)   = d(1)*minv(1)
-    !   x(i)   = (d(i) + sf*x(i-1))*minv(i)          i = 2..n   (forward)
-    !   x(i)   = x(i) - cp(i)*x(i+1)                 i = n-1..1 (back-sub)
-    ! An n=1 line has no neighbours -> operator is the identity (minv=1).
-    subroutine tri_coeffs(e, n, cp, minv)
-        implicit none
-        real, intent(in)     :: e
-        integer, intent(in)  :: n
-        real, intent(out)    :: cp(n), minv(n)
-        integer :: ii
-
-        if (n == 1) then
-            minv(1) = 1.0e0
-            cp(1)   = 0.0e0
-            return
-        end if
-
-        ! Row 1: b = 1 + sf (single neighbour), c = -sf.
-        minv(1) = 1.0e0 / (1.0e0 + e)
-        cp(1)   = -e * minv(1)
-        do ii = 2, n-1
-            minv(ii) = 1.0e0 / ((1.0e0 + 2.0e0*e) + e*cp(ii-1))
-            cp(ii)   = -e * minv(ii)
-        end do
-        ! Row n: b = 1 + sf (single neighbour), c = 0.
-        minv(n) = 1.0e0 / ((1.0e0 + e) + e*cp(n-1))
-        cp(n)   = 0.0e0
-    end subroutine tri_coeffs
-
-end subroutine smooth_residual_tri_tiled
+end subroutine smooth_residual_scale_tri

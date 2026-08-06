@@ -134,7 +134,7 @@ import ember.nonmatch_communicator
 # k-slab depth for the tiled kernels (set_visc_force, set_residual): cell
 # planes per slab, so that a slab's input planes stay cache-resident across
 # all three face directions. Clamped per block to nk-1. Value chosen by
-# benchmark sweep (see docs/dev/viscous_kernels.md).
+# benchmark sweep (see bench/README.md, "k-slab cache blocking").
 _KB_SLAB = 8
 
 
@@ -283,7 +283,7 @@ class Grid(_LabelledList):
         for group_idx, group in enumerate(row_groups):
             for bid in group:
                 patches = self[bid].patches
-                if len(patches.inlet) + len(patches.inlet_nonreflecting) > 0:
+                if len(patches.inlet) > 0:
                     inlet_row_idx = group_idx
                     break
             if inlet_row_idx is not None:
@@ -294,7 +294,7 @@ class Grid(_LabelledList):
         for group_idx, group in enumerate(row_groups):
             for bid in group:
                 patches = self[bid].patches
-                if len(patches.outlet) + len(patches.outlet_nonreflecting) > 0:
+                if len(patches.outlet) > 0:
                     outlet_row_idx = group_idx
                     break
             if outlet_row_idx is not None:
@@ -493,8 +493,18 @@ class Grid(_LabelledList):
         -------
         Grid
             New grid containing blocks with coordinates and optional patches from files
+
+        Notes
+        -----
+        Plot3D carries coordinates and nothing else, so a block read from one
+        has no blade count and hence no pitch. The inlet and outlet are
+        characteristic conditions and refuse a face that is not a whole pitch,
+        so for any block the FVBND file gives one of those,
+        ``ember.plot3d.infer_Nb`` recovers the blade count from the block's own
+        circumferential extent before the patches are attached.
         """
-        from ember.plot3d import read_plot3d, read_fvbnd
+        from ember.patch import InletPatch, OutletPatch
+        from ember.plot3d import read_plot3d, read_fvbnd, infer_Nb
 
         # Read the grid
         grid = read_plot3d(p3d_file, flip_k=flip_k)
@@ -510,8 +520,16 @@ class Grid(_LabelledList):
                         f"Block ID {block_id} in FVBND file exceeds grid size {len(grid)}"
                     )
 
+                block = grid[block_id]
+                # Before the patches: attaching an inlet or outlet reads the
+                # pitch, which the file did not carry.
+                if any(isinstance(p, (InletPatch, OutletPatch)) for p in patch_list):
+                    Nb = infer_Nb(block)
+                    if Nb is not None:
+                        block.set_Nb(Nb)
+
                 for patch in patch_list:
-                    grid[block_id].patches.append(patch)
+                    block.patches.append(patch)
 
         return grid
 
@@ -734,9 +752,7 @@ class Grid(_LabelledList):
         Returns
         -------
         ConvergenceStep
-            Residual and station monitors for this step, with the outlet PID
-            throttle state taken from
-            :meth:`ember.outlet.OutletPatch.get_throttle_stats`. See
+            Residual and station monitors for this step. See
             :class:`ConvergenceStep` for the meaning of each field.
 
         Notes
@@ -762,16 +778,19 @@ class Grid(_LabelledList):
                 mdot.append(m)
                 ho.append(h)
                 s.append(se)
-        # Throttle monitors come from the first OutletPatch; a grid closed by a
-        # NonReflectingOutletPatch alone has none, and the ConvergenceStep
-        # throttle fields keep their zero defaults.
-        outlets = self.patches.outlet
+        # Throttle monitors come from the throttled outlet, selected by its
+        # target rather than by position: patch zero need not be the one
+        # carrying it. At most one outlet may be throttled, which
+        # ember.solver._validate_throttle enforces at the start of a run. A grid
+        # whose outlets all hold a plain pressure leaves the six throttle fields
+        # at their zero defaults.
+        throttled = [p for p in self.patches.outlet if p.mdot_target is not None]
         return ConvergenceStep(
             residual=residual,
             mdot=np.array(mdot),
             ho=np.array(ho),
             s=np.array(s),
-            **(outlets[0].get_throttle_stats() if outlets else {}),
+            **(throttled[0].get_throttle_stats() if throttled else {}),
         )
 
     def get_r_ref(self):
@@ -859,6 +878,7 @@ class Grid(_LabelledList):
         """
         return self._align_cartesian(xyz)
 
+    @util.profile
     def apply_bconds(self):
         """Apply all boundary conditions across the grid once.
 
@@ -887,11 +907,7 @@ class Grid(_LabelledList):
         for block in self:
             for patch in block.patches.inlet:
                 patch.apply()
-            for patch in block.patches.inlet_nonreflecting:
-                patch.apply()
             for patch in block.patches.outlet:
-                patch.apply()
-            for patch in block.patches.outlet_nonreflecting:
                 patch.apply()
             for patch in block.patches.mixing:
                 patch.apply()
@@ -1351,6 +1367,7 @@ class Grid(_LabelledList):
         """Resample all blocks, returning a new Grid at the new resolution."""
         return Grid([ember.block_util.resample(b, factors) for b in self])
 
+    @util.profile
     def smooth(self, sf4, sf2):
         """Apply constant-coefficient artificial dissipation to every block.
 
@@ -1378,13 +1395,14 @@ class Grid(_LabelledList):
                 xs=util.carve_view(block.scratch, (ni, nj, kr)),
             )
 
-    def update_bconds(self, freeze=False):
+    @util.profile
+    def update_bconds(self, freeze=False, cfl=1.0):
         """Refresh boundary-condition targets across the grid once.
 
         Advances the slowly-varying BC state that the per-substep
         :meth:`apply_bconds` then imposes: exchanges mixing-plane data,
         snapshots the inlet pressure datum, and re-derives the outlet
-        PID/spanwise pressure target. Should be called once per outer
+        throttle/spanwise pressure target. Should be called once per outer
         timestep, before the Runge-Kutta stages.
 
         When ``freeze`` is True the targets are held stationary -- the mixing
@@ -1393,12 +1411,19 @@ class Grid(_LabelledList):
         still run so backflow density relaxation stays anchored to the current
         step.
 
+        ``cfl`` is handed straight to
+        :meth:`ember.outlet.OutletPatch.update_target`, which weights a mass
+        flow throttle's integral by it so one gain holds across a CFL sweep. It
+        is passed per call rather than held on the patch so that it is always
+        the number the march is running at; the default of 1 integrates per
+        call, for a grid stepped by hand.
+
         """
         if not freeze:
             self.connectivity.mixing.exchange()
             self.connectivity.mixing_nonreflecting.exchange()
 
-        # Every non-reflecting patch takes update_soln to refresh the frozen
+        # Every characteristic patch takes update_soln to refresh the frozen
         # mean state its Jacobians and characteristic split are built on, then
         # advance for the one under-relaxed step of the condition itself. Both
         # belong here rather than in apply_bconds: Giles bounds that step per
@@ -1406,8 +1431,6 @@ class Grid(_LabelledList):
         # stage count. apply() imposes the result every stage.
         for block in self:
             for patch in block.patches.inlet:
-                patch.update_soln()
-            for patch in block.patches.inlet_nonreflecting:
                 patch.update_soln()
                 patch.advance()
             # No loop over the reflecting plane: MixingPatch holds no per-step
@@ -1425,11 +1448,7 @@ class Grid(_LabelledList):
             for patch in block.patches.outlet:
                 patch.update_soln()
                 if not freeze:
-                    patch.update_target()
-            for patch in block.patches.outlet_nonreflecting:
-                patch.update_soln()
-                if not freeze:
-                    patch.update_target()
+                    patch.update_target(cfl)
                 patch.advance()
 
     def update_cached_conserved(self):
@@ -1477,6 +1496,7 @@ class Grid(_LabelledList):
             )
             cons_filt.flags.writeable = False
 
+    @util.profile
     def update_residual(self, dampin=None, sf=0.0):
         """Rebuild the unintegrated net-flow residual on every block.
 
@@ -1485,8 +1505,17 @@ class Grid(_LabelledList):
         force. Purely per-block (no inter-block exchange), so it simply loops.
 
         Optional post-processing runs in place on each block's residual, in
-        order: implicit residual smoothing (``sf``), then the change limiter
-        (``dampin``).
+        order: the change limiter (``dampin``, folded into ``set_residual``
+        itself), then implicit residual smoothing (``sf``).
+
+        .. note::
+           The limiter used to run *after* the smoother. Folding it into
+           ``set_residual`` -- which removes a full-volume residual read --
+           necessarily reverses that. Since IRS is linear and the limiter is
+           nonlinear in a global block mean, the composed operator differs:
+           at ``sf=1.0, dampin=25`` the two orderings differ by ~19% of the
+           field scale, growing with ``sf``. This is a deliberate numerics
+           change.
 
         Parameters
         ----------
@@ -1513,6 +1542,11 @@ class Grid(_LabelledList):
 
         """
         for block in self:
+            # Fill the primitive cache in two fused passes rather than letting
+            # the five properties below pull it lazily, one numpy pass at a
+            # time (Block.update_primitive). Called here, at the point of
+            # consumption, so it cannot go stale; a no-op if already current.
+            block.update_primitive()
             i_cusp_start, i_cusp_end = block.i_cusp
             ni, nj, nk = block.shape
             # Rolling face-flow buffers for the fused k-tiled residual: a
@@ -1528,7 +1562,17 @@ class Grid(_LabelledList):
                 block.tau_q_halo, (ni, njp, 5, 2), (ni, 5, 3)
             )
             block.residual_nd.flags.writeable = True
-            ember.fortran.set_residual(
+            # When IRS is on, the limiter's SCALING pass is deferred to the
+            # smoother, which applies it inside its i-solve gather instead of
+            # paying a full-volume traversal of its own (-1R-1W). set_residual
+            # still accumulates the block means during its dU sweep either
+            # way, and returns them as ravg; passing dampin=0 here suppresses
+            # only the scaling, not the reduction. The composed operation is
+            # bitwise identical, and the order the header of set_residual
+            # cares about -- limiter BEFORE IRS -- is unchanged.
+            fuse_damp = sf > 0.0
+            dampin_kernel = 0.0 if (dampin is None or fuse_damp) else dampin
+            ravg = ember.fortran.set_residual(
                 cons=block.conserved_nd,
                 p=block.P_nd,
                 p_offset=block.P_offset_nd,
@@ -1553,33 +1597,37 @@ class Grid(_LabelledList):
                 ni=ni,
                 nj=nj,
                 nk=nk,
+                # The change limiter is folded into set_residual: its block-mean
+                # reduction is accumulated during the dU write, removing a
+                # full-volume dU read. dampin=0 disables it. NOTE this reorders
+                # the post-processing -- the limiter now runs BEFORE the IRS
+                # smoother below, where it used to run after. See the kernel
+                # header in residual.f90 and docs section 24.5.
+                dt_vol=block.dt_vol_nd,
+                dampin=dampin_kernel,
             )
             if sf > 0.0:
-                # Exact factored-tridiagonal IRS (Jameson ADI): a direct solve.
-                # Scratch is just the Thomas coefficients, 2*(nci+ncj+nck) floats;
-                # carve a 1D leading view of block.scratch (nodal (ni,nj,nk,5),
-                # vastly oversized). Free here: set_residual does not touch it
-                # and the march reuses it only after this returns.
+                # Exact factored-tridiagonal IRS (Jameson ADI): a direct solve,
+                # with the limiter's scaling fused into its i-solve. Scratch is
+                # just the Thomas coefficients, 2*(nci+ncj+nck) floats; carve a
+                # 1D leading view of block.scratch (nodal (ni,nj,nk,5), vastly
+                # oversized). Free here: set_residual does not touch it and the
+                # march reuses it only after this returns.
                 nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
-                ember.fortran.smooth_residual_tri_tiled(
+                ember.fortran.smooth_residual_scale_tri(
                     du=block.residual_nd,
+                    dt_vol=block.dt_vol_nd,
+                    ravg=ravg,
+                    dampin=0.0 if dampin is None else dampin,
                     sf=sf,
                     work=util.carve_view(block.scratch, (nwork,)),
                     ni=ni,
                     nj=nj,
                     nk=nk,
                 )
-            if dampin is not None:
-                ember.fortran.damp_residual(
-                    du=block.residual_nd,
-                    dt_vol=block.dt_vol_nd,
-                    dampin=dampin,
-                    ni=ni,
-                    nj=nj,
-                    nk=nk,
-                )
             block.residual_nd.flags.writeable = False
 
+    @util.profile
     def update_sources(self, inviscid, gain_filt):
         """Zero and rebuild the body force on every block of this grid level.
 
@@ -1616,6 +1664,10 @@ class Grid(_LabelledList):
             # First viscous phase: tau/q per cell (Pr_turb fixed at 1.0 for the
             # grid march; mixing-length vorticity always evaluated absolute-frame).
             for block in self:
+                # See Grid.update_residual: fill the primitive cache eagerly
+                # (T_nd below is otherwise the access that pays for the whole
+                # chain in this method).
+                block.update_primitive()
                 halo = block.tau_q_halo
                 # tau_cell/q_cell are comp-last views sharing storage with the
                 # halo; an order="F" reshape would alias a different cell and
@@ -1657,10 +1709,11 @@ class Grid(_LabelledList):
             self.connectivity.periodic.exchange_halos()
 
             # Second viscous phase: face fluxes from tau/q, accumulated into
-            # F_body_nd. Viscous terms are negated in-kernel so the polar/SFD
-            # forces added below are not flipped. No separate halo exchange is
-            # needed for the cusp seam -- the kernel couples the seam flux
-            # internally by averaging the two one-sided fluxes there.
+            # F_body_nd, with the polar (radial-momentum) source fused into
+            # the same kernel's final pass over fvisc -- see set_visc_force's
+            # header comment. No separate halo exchange is needed for the
+            # cusp seam -- the kernel couples the seam flux internally by
+            # averaging the two one-sided fluxes there.
             for block in self:
                 halo = block.tau_q_halo
                 tau_cell = halo[..., 0:6]
@@ -1678,6 +1731,7 @@ class Grid(_LabelledList):
                 )
                 ember.fortran.set_visc_force(
                     cons=block.conserved_nd,
+                    cons_cell=block.conserved_cell_nd,
                     vol=block.vol_nd,
                     dai=block.dAi_nd,
                     daj=block.dAj_nd,
@@ -1685,6 +1739,8 @@ class Grid(_LabelledList):
                     omega_block=block.Omega_nd,
                     r=block.r_nd,
                     mu=block.mu_nd,
+                    p=block.P_nd,
+                    p_offset=block.P_offset_nd,
                     fvisc=block.F_body_nd[..., 1:],
                     vx=block.Vx_nd,
                     vr=block.Vr_nd,
@@ -1699,17 +1755,20 @@ class Grid(_LabelledList):
                     i_cusp_start=i_cusp_start,
                     i_cusp_end=i_cusp_end,
                 )
+        else:
+            # Inviscid: set_visc_force never runs, so the polar source (not
+            # otherwise fused anywhere) needs its own pass here.
+            for block in self:
+                ember.fortran.set_polar_source(
+                    cons_cell=block.conserved_cell_nd,
+                    r=block.r_nd,
+                    p=block.P_nd,
+                    p_offset=block.P_offset_nd,
+                    vol=block.vol_nd,
+                    net_flow=block.F_body_nd,
+                )
 
         for block in self:
-            # Polar source accumulates into F_body_nd[..., 2] (radial momentum).
-            ember.fortran.set_polar_source(
-                cons_cell=block.conserved_cell_nd,
-                r=block.r_nd,
-                p=block.P_nd,
-                p_offset=block.P_offset_nd,
-                vol=block.vol_nd,
-                net_flow=block.F_body_nd,
-            )
             if gain_filt != 0.0:
                 # SFD body force runs pre-step so it drives the RK integration,
                 # not just the post-step residual.
@@ -1724,6 +1783,7 @@ class Grid(_LabelledList):
         for block in self:
             block.F_body_nd.flags.writeable = False
 
+    @util.profile
     def update_timestep(self, rf, fac_visc=1.0):
         """Recompute the volumetric time step on every block.
 
@@ -1927,14 +1987,12 @@ class Grid(_LabelledList):
         from ember.patch import (
             InletPatch,
             MixingPatch,
-            NonReflectingInletPatch,
             NonReflectingMixingPatch,
-            NonReflectingOutletPatch,
             OutletPatch,
         )
 
-        inflow_types = (InletPatch, NonReflectingInletPatch)
-        outflow_types = (OutletPatch, NonReflectingOutletPatch)
+        inflow_types = (InletPatch,)
+        outflow_types = (OutletPatch,)
         rows = self.rows
         n_row = len(rows)
         result = []
@@ -2445,14 +2503,18 @@ class ConvergenceStep:
     """Station specific entropies, shape ``(2 * n_row,)``,
     non-dimensionalised by ``Rgas_ref``."""
 
+    # The six throttle fields below come from
+    # ember.outlet.OutletPatch.get_throttle_stats, and stay at zero on a grid
+    # whose outlets all hold a plain prescribed pressure.
     mdot_target: float = 0.0
-    """Outlet throttle mass flow setpoint [kg/s]; zero when throttle inactive."""
+    """Outlet throttle mass flow setpoint [kg/s]; zero when no outlet is
+    throttled. Per passage, not per annulus, unlike :attr:`mdot`."""
 
     mdot_throttle: float = 0.0
     """Mass flow measured at the outlet patch on its last target update [kg/s]."""
 
     P_throttle: float = 0.0
-    """Total PID pressure correction applied at the outlet [Pa]."""
+    """Total throttle pressure correction applied at the outlet [Pa]."""
 
     dP_P: float = 0.0
     """Proportional contribution to :attr:`P_throttle` [Pa]."""
@@ -2461,7 +2523,9 @@ class ConvergenceStep:
     """Integral contribution to :attr:`P_throttle` [Pa]."""
 
     dP_D: float = 0.0
-    """Derivative contribution to :attr:`P_throttle` [Pa]."""
+    """Derivative contribution to :attr:`P_throttle` [Pa]. Always zero: the
+    throttle is a PI controller. The column is retained so the pickled
+    ConvergenceHistory (.cnv) layout reads in both directions."""
 
 
 class DivergenceError(RuntimeError):

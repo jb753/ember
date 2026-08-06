@@ -34,7 +34,14 @@ from ember.grid import Grid
 from ember.block import Block
 from ember import util
 from ember.patch import GridPatchCollection
-from ember.patch import PeriodicPatch, InletPatch, OutletPatch, RotatingPatch
+from ember.patch import (
+    CoolingPatch,
+    InletPatch,
+    InviscidPatch,
+    OutletPatch,
+    PeriodicPatch,
+    RotatingPatch,
+)
 
 
 class TestLabelledListSlicing:
@@ -317,10 +324,13 @@ class TestGridPatchCollectionBasics:
             (self.block3, shape3),
         ]:
             block.set_fluid(fluid)
-            xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
+            # A whole blade passage, so the characteristic inlet attaches.
+            Nb = 31
+            xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 2.0 * np.pi / Nb], shape)
             block.set_x(xrt[..., 0])
             block.set_r(xrt[..., 1])
             block.set_t(xrt[..., 2])
+            block.set_Nb(Nb)
 
         # Add patches to block1
         self.block1_patches = [
@@ -333,7 +343,9 @@ class TestGridPatchCollectionBasics:
 
         # Add patches to block2
         self.block2_patches = [
-            OutletPatch(i=-1, j=(2, 6), k=(3, 7), label="block2_outlet"),
+            # Partial faces are out of reach for the characteristic outlet, and
+            # this is only about collection bookkeeping.
+            CoolingPatch(i=-1, j=(2, 6), k=(3, 7), label="block2_outlet"),
             PeriodicPatch(i=(1, 6), j=0, k=(1, 8), label="block2_wall1"),
             PeriodicPatch(i=(1, 6), j=-1, k=(1, 8), label="block2_wall2"),
         ]
@@ -343,7 +355,7 @@ class TestGridPatchCollectionBasics:
         # Add patches to block3
         self.block3_patches = [
             PeriodicPatch(i=(1, 2), j=0, k=(1, 4), label="block3_periodic"),
-            InletPatch(i=0, j=(1, 3), k=(1, 4), label="block3_inlet"),
+            InviscidPatch(i=0, j=(1, 3), k=(1, 4), label="block3_inlet"),
         ]
         for patch in self.block3_patches:
             self.block3.patches.append(patch)
@@ -418,15 +430,17 @@ class TestGridPatchCollectionIndexing:
 
         # Block1 patches (indices 0, 1, 2)
         self.patch1 = PeriodicPatch(i=0, j=(0, 2), k=(0, 2), label="patch1")
-        self.patch2 = InletPatch(i=-1, j=(0, 2), k=(0, 2), label="patch2")
-        self.patch3 = OutletPatch(i=(0, 2), j=0, k=(0, 2), label="patch3")
+        # Partial faces, so patch types with no geometric preconditions: this
+        # class is about indexing into the collection, not about the patches.
+        self.patch2 = InviscidPatch(i=-1, j=(0, 2), k=(0, 2), label="patch2")
+        self.patch3 = CoolingPatch(i=(0, 2), j=0, k=(0, 2), label="patch3")
 
         self.block1.patches.append(self.patch1)
         self.block1.patches.append(self.patch2)
         self.block1.patches.append(self.patch3)
 
         # Block2 patches (indices 3, 4)
-        self.patch4 = OutletPatch(i=0, j=(1, 3), k=(1, 3), label="patch4")
+        self.patch4 = CoolingPatch(i=0, j=(1, 3), k=(1, 3), label="patch4")
         self.patch5 = PeriodicPatch(i=-1, j=(1, 3), k=(1, 3), label="patch5")
 
         self.block2.patches.append(self.patch4)
@@ -490,26 +504,28 @@ class TestGridPatchCollectionTypeAccess:
 
     def setup_method(self):
         """Set up grid with patches of all types."""
+        # These are the real inlet and outlet collections under test, so the
+        # blocks are whole blade passages and the two conditions take the full
+        # end faces -- the only geometry they attach to.
         shape = (10, 10, 10)
+        Nb = 31
         self.block1 = ember.block.Block(shape=shape)
         self.block2 = ember.block.Block(shape=shape)
 
         fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
-        xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
-        self.block1.set_fluid(fluid)
-        self.block1.set_x(xrt[..., 0])
-        self.block1.set_r(xrt[..., 1])
-        self.block1.set_t(xrt[..., 2])
-        self.block2.set_fluid(fluid)
-        self.block2.set_x(xrt[..., 0])
-        self.block2.set_r(xrt[..., 1])
-        self.block2.set_t(xrt[..., 2])
+        xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 2.0 * np.pi / Nb], shape)
+        for block in (self.block1, self.block2):
+            block.set_fluid(fluid)
+            block.set_x(xrt[..., 0])
+            block.set_r(xrt[..., 1])
+            block.set_t(xrt[..., 2])
+            block.set_Nb(Nb)
 
         # Add various patch types to block1
         self.periodic1 = PeriodicPatch(i=0, j=(2, 7), k=(2, 7), label="periodic1")
         self.periodic2 = PeriodicPatch(i=-1, j=(2, 7), k=(2, 7), label="periodic2")
-        self.inlet1 = InletPatch(i=(1, 8), j=0, k=(1, 8), label="inlet1")
-        self.outlet1 = OutletPatch(i=(1, 8), j=-1, k=(1, 8), label="outlet1")
+        self.inlet1 = InletPatch(i=0, label="inlet1")
+        self.outlet1 = OutletPatch(i=-1, label="outlet1")
 
         self.block1.patches.append(self.periodic1)
         self.block1.patches.append(self.periodic2)
@@ -517,7 +533,7 @@ class TestGridPatchCollectionTypeAccess:
         self.block1.patches.append(self.outlet1)
 
         # Add patches to block2
-        self.inlet2 = InletPatch(i=0, j=(3, 6), k=(3, 6), label="inlet2")
+        self.inlet2 = InletPatch(i=0, label="inlet2")
 
         self.block2.patches.append(self.inlet2)
 
@@ -695,8 +711,10 @@ class TestGridPatchCollectionStringRepresentation:
         block.patches.append(PeriodicPatch(i=0, j=(1, 5), k=(1, 5), label="periodic1"))
         block.patches.append(PeriodicPatch(i=-1, j=(1, 5), k=(1, 5), label="periodic2"))
         block.patches.append(PeriodicPatch(i=(1, 5), j=(1, 5), k=0, label="periodic3"))
-        block.patches.append(InletPatch(i=(1, 5), j=0, k=(1, 5), label="inlet1"))
-        block.patches.append(OutletPatch(i=(1, 5), j=-1, k=(1, 5), label="outlet1"))
+        # j faces, which the characteristic inlet and outlet cannot occupy; the
+        # repr under test does not care what the types are.
+        block.patches.append(InviscidPatch(i=(1, 5), j=0, k=(1, 5), label="inlet1"))
+        block.patches.append(CoolingPatch(i=(1, 5), j=-1, k=(1, 5), label="outlet1"))
 
         grid = Grid([block])
         grid_patches = grid.patches
@@ -706,8 +724,10 @@ class TestGridPatchCollectionStringRepresentation:
         # Check that all counts are included
         assert "total=5" in repr_str
         assert "periodic=3" in repr_str
-        assert "inlet=1" in repr_str
-        assert "outlet=1" in repr_str
+        # No inlet or outlet here: both faces carry types the characteristic
+        # conditions cannot take, so the two counts read zero.
+        assert "inlet=0" in repr_str
+        assert "outlet=0" in repr_str
         assert "GridPatchCollection" in repr_str
 
     def test_repr_with_empty_collection(self):
@@ -772,7 +792,7 @@ class TestGridPatchCollectionIntegration:
         block2.set_t(_xrt2[..., 2])
 
         patch1 = PeriodicPatch(i=0, j=(1, 3), k=(1, 3), label="patch1")
-        patch2 = InletPatch(i=0, j=(1, 4), k=(1, 4), label="patch2")
+        patch2 = InviscidPatch(i=0, j=(1, 4), k=(1, 4), label="patch2")
 
         block1.patches.append(patch1)
         block2.patches.append(patch2)
@@ -941,24 +961,24 @@ def _make_flow_block(shape=(5, 6, 8), Nb=30):
 class TestPatchRelaxationFactor:
     """Inlet/mixing patches carry their own relaxation factor."""
 
-    def test_inlet_rf_default(self):
-        """InletPatch.rf defaults to 1.0, i.e. no relaxation.
+    def test_inlet_sigma_default(self):
+        """InletPatch.sigma defaults to Giles' bound on the characteristic step.
 
-        The characteristic solve in apply() makes the face velocity a
-        well-conditioned target, so taking it in full is correct; rf < 1 is a
-        startup-lag knob rather than a stability crutch.
+        The correction is taken once per timestep, and sigma bounds how far the
+        pitchwise-nonlocal harmonic relations may spread information in one
+        application while the explicit interior march moves it one cell.
         """
-        assert InletPatch(i=0).rf == 1.0
+        assert InletPatch(i=0).sigma == 0.05
 
-    def test_inlet_rf_settable_and_copied(self):
-        """rf is settable and preserved across a patch copy."""
+    def test_inlet_sigma_settable_and_copied(self):
+        """sigma is settable and preserved across a patch copy."""
         block = _make_flow_block()
         patch = InletPatch(i=0)
         block.patches.append(patch)
         patch.attach_to_block(block)
-        patch.rf = 0.3
+        patch.sigma = 0.3
         copy = block.copy()
-        assert copy.patches.inlet[0].rf == 0.3
+        assert copy.patches.inlet[0].sigma == 0.3
 
 
 class TestApplyBconds:
@@ -981,30 +1001,37 @@ class TestApplyBconds:
         b1.patches.append(inlet)
         grid = Grid([b1, b2])
         inlet.attach_to_block(b1)
-        inlet.set_Po_To_Alpha_Beta(Po=1.1e5, To=300.0, Alpha=0.0, Beta=0.0)
+        fluid = b1.fluid
+        rhoo_nd, uo_nd = fluid.set_P_T(1.1e5 / fluid.P_ref, 300.0 / fluid.T_ref)
+        inlet.set_ho_s(
+            float(fluid.get_h(rhoo_nd, uo_nd)) * fluid.u_ref,
+            float(fluid.get_s(rhoo_nd, uo_nd)) * fluid.Rgas_ref,
+        )
+        inlet.set_Alpha(0.0)
+        inlet.set_Beta(0.0)
         return grid, inlet
 
-    def test_uses_patch_rf(self):
-        """The inlet rf attribute drives the apply; different rf -> different state.
+    def test_uses_patch_sigma(self):
+        """The inlet sigma drives the apply; different sigma -> different state.
 
-        rf is only applied by update_soln() (once per step); apply() itself
-        just holds p_soln fixed. update_bconds() must therefore run at least
-        twice -- the first call only seeds p_soln from the current face
-        pressure, the second actually relaxes it toward the interior -- before
-        apply_bconds() reads a value that reflects rf.
+        sigma scales the characteristic correction taken by advance(), once per
+        timestep from update_bconds(); apply() only imposes whatever state that
+        left behind. So update_bconds() has to run before apply_bconds() reads
+        a value that reflects sigma at all, and twice for the two settings to
+        have separated.
         """
         grid0, inlet0 = self._grid_with_inlet_and_seam()
-        inlet0.rf = 0.0
+        inlet0.sigma = 0.0
         grid0.update_bconds()
         grid0.update_bconds()
         grid0.apply_bconds()
-        cons_rf0 = grid0[0].conserved.copy()
+        cons_sigma0 = grid0[0].conserved.copy()
 
         grid1, inlet1 = self._grid_with_inlet_and_seam()
-        inlet1.rf = 1.0
+        inlet1.sigma = 1.0
         grid1.update_bconds()
         grid1.update_bconds()
         grid1.apply_bconds()
-        cons_rf1 = grid1[0].conserved.copy()
+        cons_sigma1 = grid1[0].conserved.copy()
 
-        assert not np.allclose(cons_rf0, cons_rf1)
+        assert not np.allclose(cons_sigma0, cons_sigma1)

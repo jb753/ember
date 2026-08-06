@@ -15,7 +15,7 @@ from ember.patch import InletPatch, ProbePatch
 import ember.util_yaml as util_yaml
 
 
-def _make_block(shape=(6, 5, 4), rpm=3600.0, Nb=24):
+def _make_block(shape=(6, 5, 4), rpm=3600.0, Nb=16):
     """Single block with coordinates, fluid, and flow data set."""
     block = Block(shape=shape)
     xv, rv, tv = np.meshgrid(

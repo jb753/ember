@@ -133,9 +133,3 @@ def block_10_20_30():
 def small_block():
     """Small block with shape (5, 5, 5) for testing patches."""
     return _make_block((5, 5, 5))
-
-
-@pytest.fixture
-def block_10():
-    """Block with shape (10, 10, 10) for testing patches."""
-    return _make_block((10, 10, 10))
