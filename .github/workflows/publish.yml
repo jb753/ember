@@ -1,0 +1,64 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  ci:
+    # Runs test, build-wheels and verify-install so a release tag cannot
+    # publish past a red CI or an unverified wheel.
+    uses: ./.github/workflows/ci.yml
+
+  publish-testpypi:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: wheelhouse
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: wheelhouse/
+          # Re-running a tag must not fail here just because TestPyPI already
+          # holds that version; publish-pypi is gated on this job succeeding.
+          skip-existing: true
+
+      - name: Install from TestPyPI
+        run: |
+          python -m venv testpypi-venv
+          # Dependencies (numpy, h5py, ...) generally aren't published on
+          # TestPyPI, so fall back to real PyPI for anything it's missing.
+          testpypi-venv/bin/pip install \
+            --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            ember-cfd
+
+      - name: Smoke test the installed package
+        run: |
+          testpypi-venv/bin/python -c "from ember.fortran import set_residual; print('OK')"
+
+  publish-pypi:
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: wheelhouse
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wheelhouse/

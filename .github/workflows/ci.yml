@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
-  # Called by wheels.yml so a release tag cannot publish past a red CI.
+  # Called by publish.yml so a release tag cannot publish past a red CI.
   workflow_call:
 
 jobs:
@@ -36,3 +36,66 @@ jobs:
 
       - name: Check SPEC 0 compliance
         run: uv run --no-sync python tools/check_spec0.py
+
+  build-wheels:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # setuptools-scm needs full history and tags to compute the version
+          fetch-depth: 0
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v4.1.0
+
+      - name: Build sdist
+        run: pipx run build --sdist --outdir wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: |
+            wheelhouse/*.whl
+            wheelhouse/*.tar.gz
+
+  verify-install:
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Keep in sync with [tool.cibuildwheel] build = "..." in pyproject.toml.
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: wheelhouse
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Start local package index
+        run: |
+          mkdir -p packages
+          pipx run --spec pypiserver pypi-server run -p 8080 -a . -P . packages &
+          # First run has to install pypiserver into a fresh pipx venv, so
+          # poll for readiness instead of assuming a fixed startup delay.
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/simple/ && break
+            sleep 1
+          done
+          curl -sf http://localhost:8080/simple/
+
+      - name: Publish wheels to local index
+        run: pipx run twine upload --repository-url http://localhost:8080/ -u x -p x wheelhouse/*.whl
+
+      - name: Install from local index
+        run: |
+          python -m venv verify-venv
+          verify-venv/bin/pip install --index-url http://localhost:8080/simple/ ember-cfd
+
+      - name: Smoke test the installed wheel
+        run: |
+          verify-venv/bin/python -c "from ember.fortran import set_residual; print('OK')"
