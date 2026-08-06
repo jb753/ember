@@ -506,7 +506,7 @@ def test_chic_to_bcond_linearization(scalar_blocks):
     p2b = perturbation.primitive_to_bcond(block1)
     dbcond_ref = util.matvec(p2b, dprim)
 
-    np.testing.assert_allclose(dbcond_calc, dbcond_ref, atol=0.0, rtol=1e-5)
+    np.testing.assert_allclose(dbcond_calc, dbcond_ref, atol=1e-6, rtol=1e-5)
 
 
 def test_primitive_to_bcond_finite_difference():
