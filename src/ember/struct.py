@@ -611,7 +611,7 @@ class StructuredData:
         return out  # end method
 
     def reshape(self, shape):
-        """Reshape the data axes to a different shape.
+        """Reshape the data axes to a different shape, keeping the total node count.
 
         Returns a new instance sharing metadata with the original. The output
         data is a zero-copy view where possible;
@@ -702,7 +702,7 @@ class StructuredData:
         return out  # end method
 
     def view(self):
-        """Create a new view onto the original data, not a copy.
+        """Create a new instance sharing the same data and metadata, not a copy.
 
         Returns a new instance of the same class sharing the underlying data
         array, metadata dict, and version counters with the original. Mutations

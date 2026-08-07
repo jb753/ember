@@ -68,7 +68,7 @@ Jacobian is simply the product of two separately evaluated calls --
 :func:`flux_to_conserved` and :func:`conserved_to_flux`, for instance, are
 literally :func:`primitive_to_conserved` :math:`\cdot` :func:`flux_to_primitive`
 and :func:`primitive_to_flux` :math:`\cdot` :func:`conserved_to_primitive`
-multiplied together at call time via :func:`~ember.util.matmat`.
+multiplied together at call time.
 
 All Jacobians are evaluated in the nondimensional space the block stores its
 state in, using :attr:`~ember.block.Block.conserved_nd`,
