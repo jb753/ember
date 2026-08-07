@@ -61,15 +61,14 @@ SHAPE = (7, 9, 9)  # k (theta) has 8 cells = two wavelengths of the Vx pattern
 NB = 36
 PR_TURB = 1.0
 
-# Production-scale mu (matches test_viscous_phases_golden.py) vs. a value
-# ~7 orders of magnitude smaller -- small enough that both the molecular
+# ~7 orders of magnitude smaller than production-scale mu (1.8e-5, matches
+# test_viscous_phases_golden.py) -- small enough that both the molecular
 # stress and the mu_turb mixing-length clamp (visc_lim = 3000*mu, see
 # set_tau_q_soa) collapse the fused kernel's viscous residual to ~1e-5 of
 # the polar term's own scale (confirmed empirically: the residual scales
 # linearly with mu down to at least 1e-18 once the wall function is
 # bypassed -- see module docstring), but still strictly positive since
 # PerfectFluid rejects mu <= 0.
-MU_PRODUCTION = 1.8e-5
 MU_NEGLIGIBLE = 1e-12
 
 

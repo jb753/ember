@@ -5,13 +5,13 @@ multi-block structured simulation. A grid is an ordered collection of
 :class:`~ember.block.Block` objects together with the topology that connects
 them. A :class:`Grid` stores no flow field of its own: every coordinate and
 conserved quantity lives on the constituent blocks.
-Therefore the solution is read from one block at a time as in ``grid[0].P``.
+Therefore the solution is read from one block at a time as for example ``grid[0].P`` to access pressure on the first block.
 
 
-Construction and labelled access
-================================
+Construction and file formats
+==============================
 
-Like a list, blocks can be added to a grid at construction or a later time::
+Like a plain Python list, blocks can be added to a grid at construction or a later time::
 
     from ember.block import Block
     from ember.grid import Grid
@@ -22,7 +22,7 @@ Like a list, blocks can be added to a grid at construction or a later time::
     grid.append(rotor)
 
 The grid then behaves as a standard Python collection: it supports iteration,
-:func:`len`, membership testing, and the usual mutating operations
+:func:`len`, membership testing with ``in``, and the usual mutating operations
 (:meth:`Grid.append`, :meth:`Grid.extend`, :meth:`Grid.insert`,
 :meth:`Grid.remove`, :meth:`Grid.pop`, :meth:`Grid.clear`). Indexing accepts
 either an integer position or a label string, and membership testing accepts
@@ -35,14 +35,36 @@ either a block or a label. :attr:`Grid.labels` lists the labels in order, with
     rotor in grid             # True -- membership by block
     grid.labels               # [None, 'rotor'] -- None if unlabelled
 
+:meth:`Grid.copy` duplicates a grid, and :meth:`Grid.resample` returns a copy
+regridded onto a new node count.
+
+.. autosummary::
+
+   Grid.copy
+   Grid.resample
+
+A grid can also be read from and written to two file formats. The reading
+methods are constructors, returning a new :class:`Grid`.
+
+* EMB -- :meth:`Grid.read_emb`, :meth:`Grid.write_emb`. Our native format: a pickle of the grid with its blocks, patches, and  labels, optionally gzip-compressed. Being a pickle of the objects themselves, it is the format   that preserves a grid most completely.
+
+* Plot3D -- :meth:`Grid.read_plot3d`, :meth:`Grid.write_plot3d`. The standard multi-block structured interchange format, carrying coordinates only. Boundary patches are stored alongside it in a separate FieldView  boundary file, which may be read and written with the Plot3D file  or on its own via :meth:`Grid.write_fvbnd`.
+
+.. autosummary::
+
+   Grid.read_emb
+   Grid.read_plot3d
+   Grid.write_emb
+   Grid.write_fvbnd
+   Grid.write_plot3d
 
 Connectivity
 ============
 
 What distinguishes a :class:`Grid` from a plain list of blocks is the topology it
-derives from the blocks' boundary patches, as found in :attr:`~ember.block.Block.patches`.
+derives from the blocks' boundary patches, as found in :attr:`~ember.block.Block.patches`. See also :mod:`ember.patch` for the patch types and their semantics.
 
-:attr:`Grid.patches` presents every patch on every block as one flat, read-only
+:attr:`Grid.patches` presents every patch from every block as one flat, read-only
 sequence, filterable by patch type (``grid.patches.inlet``,
 ``grid.patches.periodic``, and so on). It is a view: patches are still owned by
 the block they sit on, and are added and removed there.
@@ -53,22 +75,23 @@ the seams between blocks, one per patch type, reached as
 
 A communicator pairs its patches -- matching each to its partner on a
 neighbouring block -- the first time it is used, and caches the result for subsequent usages. Pairing
-is therefore automatic, and driven by the exchange itself, e.g. a call to
+is therefore automatic, and trigger by the first exchange, e.g. a call to
 :meth:`Grid.apply_bconds`.
 
 Changing grid topology -- adding or removing a block or a patch -- may break the
 indexing describing pairing, and unfortunately the cache does not detect this.
-In these situations, the cache must be flushed by hand::
+In these situations, the cache must be flushed by hand and the next communicator exchange will then pair the new topology from scratch.::
 
+    grid.apply_bconds()  # pairs the periodic patches
+    # ...
     grid.append(another_block)
-    grid.connectivity.clear()  # drop the stale pairs
+    grid.connectivity.clear()  # drop stale pairs
+    grid.apply_bconds()  # will pair the new topology
 
-The next communicator exchange will then pair the new topology from scratch.
-
-The pairings can also be inspected directly, by calling ``pair()`` on the whole
-manager or on one patch type. It returns a dict keyed by the ``(bid, pid)``
+The pairings can also be inspected directly, by calling say ``grid.connectivity.periodic.pair()`` for periodic patches.
+It returns a dict keyed by the ``(bid, pid)``
 identifier of each patch, indexing like ``grid[bid].patches[pid]``.
-The  values are the corresponding ``(bid, pid)`` of the patch it matches
+The dict values are the corresponding ``(bid, pid)`` of the patch it matches
 and the geometric transform between the two. Both halves of a pair appear as
 keys, so the mapping can be followed from either side::
 
@@ -82,10 +105,37 @@ Rows are separated from one another by mixing patches, and
 :attr:`Grid.rows` groups the blocks accordingly, ordering the rows from inlet to
 outlet; :attr:`Grid.n_row` is their count. The first row's upstream face is the
 domain inlet and the last row's downstream face is the domain outlet. Both
-properties pair the periodic patches for themselves.
+properties will pair the periodic patches for themselves.
 
-Driving a solver
-================
+.. autosummary::
+
+   Grid.connectivity
+   Grid.n_row
+   Grid.patches
+   Grid.row_station_bid_pid
+   Grid.rows
+
+Global flow field setting
+==========================
+
+Rather than setting up each block's flow field individually, a handful of
+:class:`Grid` methods populate every block at once from a source outside the
+grid: an initial guess constructed from meridional or quasi-3D data, a
+restart from a previous solution, or an unstructured cloud of points, mapped
+onto the grid's structured topology via :meth:`Grid.align_cart_unstr`.
+
+.. autosummary::
+
+   Grid.align_cart_unstr
+   Grid.apply_guess_meridional
+   Grid.apply_guess_quasi3d
+   Grid.apply_guess_restart
+   Grid.interp_from
+   Grid.set_conserved_cart_unstr
+   Grid.set_primitive_cart_unstr
+
+Time marching
+=============
 
 Many of the grid methods, such as :meth:`Grid.update_residual` and
 :meth:`Grid.apply_bconds`, form the inner loop of a time-marching solver. They
@@ -98,19 +148,36 @@ residual and station monitors for the current step, which
 series. :meth:`Grid.check_nan` raises :class:`DivergenceError` if the flow field
 has blown up.
 
-File formats
-============
+.. autosummary::
 
-A grid can be read from and written to two formats. The reading methods are
-constructors, returning a new :class:`Grid`.
+   Grid.accumulate_avg
+   Grid.apply_bconds
+   Grid.apply_rotation
+   Grid.calculate_wdist
+   Grid.check_nan
+   Grid.finalise_average
+   Grid.get_convergence
+   Grid.smooth
+   Grid.update_bconds
+   Grid.update_cached_conserved
+   Grid.update_filter
+   Grid.update_residual
+   Grid.update_sources
+   Grid.update_timestep
 
-* EMB -- :meth:`Grid.read_emb`, :meth:`Grid.write_emb`. Our native format: a pickle of the grid with its blocks, patches, and  labels, optionally gzip-compressed. Being a pickle of the objects themselves, it is the format   that preserves a grid most completely.
+Metadata
+========
 
-* Plot3D -- :meth:`Grid.read_plot3d`, :meth:`Grid.write_plot3d`. The standard multi-block structured interchange format, carrying coordinates only. Boundary patches are stored alongside it in a separate FieldView  boundary file, which may be read and written with the Plot3D file  or on its own via :meth:`Grid.write_fvbnd`.
+Scalar properties of the grid as a whole, rather than per-node data: the
+working fluid, reference length, mean radius, and total node count.
 
-The HDF5-based Turbostream 3 (TS3) solver format is supported by the separate
-``ember-cfd-ts`` plugin (``ember.plugins.ts.read_ts3`` /
-``ember.plugins.ts.write_ts3``), not by core ember.
+.. autosummary::
+
+   Grid.get_r_ref
+   Grid.set_fluid
+   Grid.set_L_ref
+   Grid.size
+
 """
 
 from ember.collections import _LabelledList, GridPatchCollection
@@ -440,7 +507,7 @@ class Grid(_LabelledList):
 
     @classmethod
     def read_emb(cls, filename):
-        """Read grid from EMB binary format file.
+        """Read grid from EMB pickle file.
 
         Automatically detects and handles both uncompressed and gzip-compressed EMB files.
 
@@ -494,14 +561,6 @@ class Grid(_LabelledList):
         Grid
             New grid containing blocks with coordinates and optional patches from files
 
-        Notes
-        -----
-        Plot3D carries coordinates and nothing else, so a block read from one
-        has no blade count and hence no pitch. The inlet and outlet are
-        characteristic conditions and refuse a face that is not a whole pitch,
-        so for any block the FVBND file gives one of those,
-        ``ember.plot3d.infer_Nb`` recovers the blade count from the block's own
-        circumferential extent before the patches are attached.
         """
         from ember.patch import InletPatch, OutletPatch
         from ember.plot3d import read_plot3d, read_fvbnd, infer_Nb
@@ -755,10 +814,6 @@ class Grid(_LabelledList):
             Residual and station monitors for this step. See
             :class:`ConvergenceStep` for the meaning of each field.
 
-        Notes
-        -----
-        ``residual_nd`` itself (which drives the RK sweep) is untouched by the
-        ``rhorVt`` rescaling applied to the reported residual.
         """
 
         def _block_residual(b):
@@ -837,14 +892,7 @@ class Grid(_LabelledList):
         It is exposed separately so that data can also be sent *out* to an
         unstructured solver on the same correspondence -- for example
         scattering :attr:`~ember.block.Block.wdist` into an external solver's
-        node array -- without reimplementing the geometric search, which would
-        then have to be kept in agreement with this one.
-
-        The match is exact rather than interpolatory: every grid node must
-        coincide with a point of the cloud to within a tolerance scaled by the
-        grid's extent. This holds when the cloud is a format translation of
-        this grid (an unstructured re-expression of the same nodes) and fails
-        when it has been resampled or remeshed.
+        node array.
 
         Parameters
         ----------
@@ -883,13 +931,7 @@ class Grid(_LabelledList):
         """Apply all boundary conditions across the grid once.
 
         Refreshes the mixing-plane targets, imposes the physical inlet, outlet,
-        and mixing patch conditions on every block (each using its own
-        relaxation factor ``rf``), then closes the point-matched periodic seams.
-
-        Unlike the time-marching stepper this always applies the full set with
-        no freeze or multigrid-level gating. The first call builds the periodic
-        and mixing communicators lazily via :attr:`connectivity`; subsequent
-        calls reuse the cached communicators until ``connectivity.clear()``.
+        and mixing patch conditions on every block, then averages the flow field across periodic boundaries.
 
         """
         # Refresh mixing-plane targets from the current cross-plane state before
@@ -918,7 +960,7 @@ class Grid(_LabelledList):
         self.connectivity.periodic.apply()
 
     def apply_guess_meridional(self, block_guess, refine_factor=1):
-        """Apply meridional flow field guess using curvilinear interpolation.
+        """Apply a circumferentially uniform flow field guess.
 
         Uses a 1D meridional block as initial guess, interpolating flow
         properties to all blocks in the grid using nearest-neighbor search in
@@ -1247,10 +1289,7 @@ class Grid(_LabelledList):
         This method creates a pitchwise-repeated grid to include neighboring passages,
         extracts all wall nodes from the repeated blocks, builds a KDTree for efficient
         nearest neighbor search, and calculates the distance from each node to the
-        nearest wall surface. The results are stored in each block using set_wdist().
-
-        The method uses real Cartesian coordinates (xyz) for accurate 3D distance
-        calculations in turbomachinery applications.
+        nearest wall surface.
 
         Parameters
         ----------
@@ -1337,10 +1376,9 @@ class Grid(_LabelledList):
     def finalise_average(self):
         """Commit the accumulated time-average as the solution.
 
-        Copies each block's :attr:`~ember.block.Block.conserved_avg_nd` into ``conserved_nd``,
+        Copies each block's :attr:`~ember.block.Block.conserved_avg_nd` into :attr:`~ember.block.Block.conserved_nd`,
         refreshes the conserved-dependent caches, then re-zeros the accumulator
-        so any subsequent averaging window starts clean. Owns the
-        ``flags.writeable`` toggle on the read-only average buffer.
+        so any subsequent averaging window starts clean.
 
         """
         for block in self:
@@ -1352,7 +1390,12 @@ class Grid(_LabelledList):
             avg.flags.writeable = False
 
     def interp_from(self, src):
-        """Interpolate solution from src Grid onto this one, block by block.
+        """Trilinearly interpolate conserved variables from another grid.
+
+        Assumes the source grid has the same block topology as this one,
+        but different resolution. Each block's conserved variables are
+        interpolated from the source in index space, which is exact for
+        linear functions on a uniform grid only.
 
         Parameters
         ----------
@@ -1369,19 +1412,7 @@ class Grid(_LabelledList):
 
     @util.profile
     def smooth(self, sf4, sf2):
-        """Apply constant-coefficient artificial dissipation to every block.
-
-        Fans the fixed-``sf2``/``sf4`` :func:`ember.fortran.smooth3d_const`
-        kernel across the grid, filtering each block's ``conserved_nd`` in place.
-        Unlike the adaptive (P/T-weighted) smoother it has no thermodynamic input
-        at all and never touches the pressure cache, so it is safe to run on the
-        post-march solution while P/T are frozen (Denton-style "smooth with the
-        old pressure"). Purely per-block; the nodal work array is borrowed from
-        each block's transient scratch buffer.
-
-        ``sf4``/``sf2`` are the final coefficients -- any CFL scaling is the
-        caller's responsibility.
-        """
+        """Apply constant-coefficient artificial dissipation to every block."""
         for block in self:
             ni, nj, nk = block.conserved_nd.shape[:3]
             # Rolling k-plane buffer for the in-place sweep: min(6,nk) planes
@@ -2089,21 +2120,6 @@ class Grid(_LabelledList):
             Sum of all block sizes in the grid
         """
         return sum(block.size for block in self)
-
-    # Abstract methods implementation for _LabelledList
-    # _get_item_label, _set_item_label now provided by base class
-
-    # Grid-specific methods
-
-    # end connectivity
-
-    # end n_row
-
-    # end patches
-
-    # end rows
-
-    # end size
 
 
 class GridConnectivity:
