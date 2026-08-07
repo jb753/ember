@@ -2467,8 +2467,8 @@ def test_module_docstring_lists_all_setters():
 
     doc = inspect.cleandoc(ember.block.__doc__)
 
-    # Attribute each bullet to the most recent 'Label:' line. Labels carrying no
-    # set_ bullets, such as the Array methods groups, drop out.
+    # Attribute each autosummary entry to the most recent 'Label:' line. Labels
+    # carrying no set_ entries, such as the Array methods groups, drop out.
     groups = {}
     label = None
     for line in doc.splitlines():
@@ -2476,9 +2476,9 @@ def test_module_docstring_lists_all_setters():
         if m_label:
             label = m_label.group(1)
             continue
-        m_bullet = re.match(r"^\* :meth:`Block\.(set_\w+)`", line)
-        if m_bullet:
-            groups.setdefault(label, []).append(m_bullet.group(1))
+        m_entry = re.match(r"^\s+Block\.(set_\w+)\s*$", line)
+        if m_entry:
+            groups.setdefault(label, []).append(m_entry.group(1))
 
     listed = [name for names in groups.values() for name in names]
     actual = {
@@ -2495,6 +2495,142 @@ def test_module_docstring_lists_all_setters():
         f"missing from docstring: {sorted(actual - set(listed))}; "
         f"listed but not on Block: {sorted(set(listed) - actual)}"
     )
+
+
+EXPECTED_PROPERTY_GROUPS = (
+    "Geometry",
+    "Kinematics",
+    "Thermodynamic state",
+    "Combined",
+    "Grid shape and array metadata",
+    "Metadata",
+    "Miscellaneous",
+    "Nondimensional",
+)
+
+
+def test_module_docstring_lists_all_properties():
+    """Every Block property is listed exactly once in the docstring's Properties groups."""
+    import inspect
+    import re
+
+    doc = inspect.cleandoc(ember.block.__doc__)
+
+    # Attribute each autosummary entry to the most recent 'Label:' line, but only
+    # for labels that belong to the Properties section -- the Setter methods and
+    # Array methods sections reuse some of the same label names (e.g.
+    # 'Geometry', 'Miscellaneous') for their own, disjoint, method listings.
+    groups = {}
+    label = None
+    for line in doc.splitlines():
+        m_label = re.match(r"^(\w[\w ]*):$", line)
+        if m_label:
+            label = m_label.group(1)
+            continue
+        m_entry = re.match(r"^\s+Block\.(?!set_)(\w+)\s*$", line)
+        if m_entry and label in EXPECTED_PROPERTY_GROUPS:
+            groups.setdefault(label, []).append(m_entry.group(1))
+
+    listed = [name for names in groups.values() for name in names]
+    actual = {
+        n
+        for n in dir(ember.block.Block)
+        if not n.startswith("_")
+        and isinstance(inspect.getattr_static(ember.block.Block, n), property)
+    }
+
+    assert actual, "introspection found no properties"
+    assert tuple(groups) == EXPECTED_PROPERTY_GROUPS
+    duplicated = sorted({n for n in listed if listed.count(n) > 1})
+    assert not duplicated, f"listed in more than one group: {duplicated}"
+    assert set(listed) == actual, (
+        f"missing from docstring: {sorted(actual - set(listed))}; "
+        f"listed but not on Block: {sorted(set(listed) - actual)}"
+    )
+
+
+EXPECTED_METHOD_GROUPS = (
+    "Views and copies",
+    "Reshaping and reordering (a zero-copy view where the layout allows, otherwise a copy)",
+    "Reduction over a spatial axis",
+    "Cache",
+)
+
+
+def test_module_docstring_lists_all_methods():
+    """Every other Block method (not a setter or a property) is listed exactly
+    once in the docstring's Array methods and Cache groups."""
+    import inspect
+    import re
+
+    doc = inspect.cleandoc(ember.block.__doc__)
+
+    # Unlike the setters and properties groups, these labels contain
+    # punctuation, so match any unindented ':'-terminated line rather than
+    # requiring bare words.
+    groups = {}
+    label = None
+    for line in doc.splitlines():
+        m_label = re.match(r"^(?!\.\. )(\S.*):$", line)
+        if m_label:
+            label = m_label.group(1)
+            continue
+        m_entry = re.match(r"^\s+Block\.(\w+)\s*$", line)
+        if m_entry and label in EXPECTED_METHOD_GROUPS:
+            groups.setdefault(label, []).append(m_entry.group(1))
+
+    listed = [name for names in groups.values() for name in names]
+    actual = {
+        n
+        for n in dir(ember.block.Block)
+        if not n.startswith("_")
+        and not n.startswith("set_")
+        and not isinstance(inspect.getattr_static(ember.block.Block, n), property)
+        and callable(getattr(ember.block.Block, n))
+    }
+
+    assert actual, "introspection found no methods"
+    assert tuple(groups) == EXPECTED_METHOD_GROUPS
+    duplicated = sorted({n for n in listed if listed.count(n) > 1})
+    assert not duplicated, f"listed in more than one group: {duplicated}"
+    assert set(listed) == actual, (
+        f"missing from docstring: {sorted(actual - set(listed))}; "
+        f"listed but not on Block: {sorted(set(listed) - actual)}"
+    )
+
+
+def test_module_docstring_tables_alphabetical():
+    """Every autosummary table in the module docstring lists its entries in
+    alphabetical order, case-insensitively."""
+    import inspect
+    import re
+
+    doc = inspect.cleandoc(ember.block.__doc__)
+    lines = doc.splitlines()
+
+    tables = []
+    i = 0
+    while i < len(lines):
+        if lines[i].strip() != ".. autosummary::":
+            i += 1
+            continue
+        i += 1
+        while i < len(lines) and lines[i].strip() == "":
+            i += 1
+        entries = []
+        while i < len(lines):
+            m = re.match(r"^\s+Block\.(\w+)\s*$", lines[i])
+            if not m:
+                break
+            entries.append(m.group(1))
+            i += 1
+        tables.append(entries)
+
+    assert len(tables) >= 18, f"found only {len(tables)} autosummary tables"
+    for entries in tables:
+        assert entries == sorted(entries, key=str.lower), (
+            f"table not in alphabetical order: {entries}"
+        )
 
 
 def _exec_docstring_example(name):

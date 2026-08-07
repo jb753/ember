@@ -26,20 +26,24 @@ invalidates any cached derived quantities that depend on it. The setters are:
 
 Geometry:
 
-* :meth:`Block.set_x` -- axial coordinates
-* :meth:`Block.set_r` -- radial coordinates
-* :meth:`Block.set_t` -- circumferential coordinates
-* :meth:`Block.set_xrt` -- all three polar coordinates from one array
-* :meth:`Block.set_xyz` -- Cartesian coordinates, converted to polar on write
-* :meth:`Block.set_wdist` -- distance to the nearest wall
+.. autosummary::
+
+   Block.set_r
+   Block.set_t
+   Block.set_wdist
+   Block.set_x
+   Block.set_xrt
+   Block.set_xyz
 
 Kinematics:
 
-* :meth:`Block.set_Vx` -- axial velocity
-* :meth:`Block.set_Vr` -- radial velocity
-* :meth:`Block.set_Vt` -- circumferential velocity
-* :meth:`Block.set_Vxrt` -- all three velocity components from one array
-* :meth:`Block.set_V_Alpha_Beta` -- velocity from speed, yaw angle, and pitch angle
+.. autosummary::
+
+   Block.set_V_Alpha_Beta
+   Block.set_Vr
+   Block.set_Vt
+   Block.set_Vx
+   Block.set_Vxrt
 
 Thermodynamic state:
 
@@ -47,22 +51,26 @@ By the two-property rule, each of these takes two independent properties and
 inverts the equation of state to recover density and internal energy, leaving
 the velocity field untouched. See :ref:`block-equations-of-state` for details.
 
-* :meth:`Block.set_P_T` -- static pressure and temperature
-* :meth:`Block.set_P_h` -- static pressure and enthalpy
-* :meth:`Block.set_P_s` -- static pressure and entropy
-* :meth:`Block.set_P_rho` -- static pressure and density
-* :meth:`Block.set_P_rho_nd` -- static pressure and density, non-dimensional
-* :meth:`Block.set_rho_u` -- density and internal energy
-* :meth:`Block.set_rho_s` -- density and entropy
-* :meth:`Block.set_T_s` -- temperature and entropy
-* :meth:`Block.set_h_s` -- enthalpy and entropy
+.. autosummary::
+
+   Block.set_h_s
+   Block.set_P_h
+   Block.set_P_rho
+   Block.set_P_rho_nd
+   Block.set_P_s
+   Block.set_P_T
+   Block.set_rho_s
+   Block.set_rho_u
+   Block.set_T_s
 
 Combined:
 
 Five independent properties are enough to fully specify the flow field.
 
-* :meth:`Block.set_conserved` -- the conserved variables directly
-* :meth:`Block.set_rho_u_Vxrt_nd` -- density, internal energy, and velocity components, non-dimensional
+.. autosummary::
+
+   Block.set_conserved
+   Block.set_rho_u_Vxrt_nd
 
 Metadata:
 
@@ -70,17 +78,221 @@ Scalar properties of the field as a whole, rather than per-node data. The first
 two are exceptions: they rescale the raw data in place so that dimensional
 values are preserved when the reference scales change.
 
-* :meth:`Block.set_fluid` -- equation of state
-* :meth:`Block.set_L_ref` -- reference length scale
-* :meth:`Block.set_Omega` -- reference frame angular velocity
-* :meth:`Block.set_rpm` -- reference frame angular velocity, in rev/min
-* :meth:`Block.set_Nb` -- number of blades in the row containing this block
-* :meth:`Block.set_label` -- a string describing the block
-* :meth:`Block.set_triangulated` -- flag for triangulated cut data
+.. autosummary::
+
+   Block.set_fluid
+   Block.set_L_ref
+   Block.set_label
+   Block.set_Nb
+   Block.set_Omega
+   Block.set_rpm
+   Block.set_triangulated
 
 Miscellaneous:
 
-* :meth:`Block.set_mu_turb` -- turbulent viscosity
+.. autosummary::
+
+   Block.set_mu_turb
+
+.. _block-properties:
+
+Properties
+==========
+
+Raw and derived quantities are read back via properties. Nodal arrays have
+shape matching :attr:`Block.shape`; cell and face quantities are one node
+shorter along the relevant axis or axes.
+
+Geometry:
+
+.. autosummary::
+
+   Block.dA_quad
+   Block.dA_tri
+   Block.dAi
+   Block.dAj
+   Block.dAk
+   Block.r
+   Block.rt
+   Block.t
+   Block.vol
+   Block.wdist
+   Block.x
+   Block.xr
+   Block.xrrt
+   Block.xrt
+   Block.y
+   Block.z
+
+Kinematics:
+
+.. autosummary::
+
+   Block.Alpha
+   Block.Alpha_rel
+   Block.Beta
+   Block.sinBeta
+   Block.tanAlpha
+   Block.tanAlpha_rel
+   Block.tanBeta
+   Block.U
+   Block.V
+   Block.V_rel
+   Block.Vm
+   Block.Vr
+   Block.Vt
+   Block.Vt_rel
+   Block.Vx
+   Block.Vxrt
+   Block.Vxrt_rel
+   Block.Vy
+   Block.Vz
+
+Thermodynamic state:
+
+Pure equation-of-state outputs and transport properties, evaluated from
+:attr:`Block.rho` and :attr:`Block.u` alone -- see :ref:`block-equations-of-state`.
+
+.. autosummary::
+
+   Block.a
+   Block.cp
+   Block.cv
+   Block.gamma
+   Block.h
+   Block.mu
+   Block.P
+   Block.Pr
+   Block.Rgas
+   Block.rho
+   Block.s
+   Block.T
+   Block.u
+
+Combined:
+
+Quantities that mix thermodynamic state with velocity or rotation --
+stagnation properties, Mach numbers, rothalpy, mass flux -- and the
+conserved variables themselves.
+
+.. autosummary::
+
+   Block.ao
+   Block.conserved
+   Block.conserved_cell
+   Block.ho
+   Block.ho_rel
+   Block.I
+   Block.Ma
+   Block.Ma_rel
+   Block.Mam
+   Block.Max
+   Block.mu_turb
+   Block.P_rot
+   Block.Po
+   Block.Po_rel
+   Block.rhoe
+   Block.rhoo
+   Block.rhoo_rel
+   Block.rhorVt
+   Block.rhoVm
+   Block.rhoVr
+   Block.rhoVx
+   Block.To
+   Block.To_rel
+   Block.uo
+   Block.uo_rel
+
+Grid shape and array metadata:
+
+.. autosummary::
+
+   Block.ndim
+   Block.ni
+   Block.nj
+   Block.nk
+   Block.nvar
+   Block.shape
+   Block.shape_cell
+   Block.shape_iface
+   Block.shape_jface
+   Block.shape_kface
+   Block.size
+
+Metadata:
+
+.. autosummary::
+
+   Block.fluid
+   Block.L_ref
+   Block.label
+   Block.Nb
+   Block.Omega
+   Block.patches
+   Block.pitch
+   Block.rpm
+   Block.triangulated
+
+Miscellaneous:
+
+.. autosummary::
+
+   Block.i_cusp
+   Block.i_perk
+   Block.ijk_wall_conv
+   Block.ijk_wall_visc
+   Block.scratch
+   Block.store
+   Block.tau_q_halo
+
+Nondimensional:
+
+Every dimensional quantity above (plus a handful of solver-only quantities)
+has a nondimensional counterpart with an `_nd` suffix; see
+:ref:`block-reference-scales`. These back the dimensional properties
+directly and are not usually needed by end users.
+
+.. autosummary::
+
+   Block.a_nd
+   Block.conserved_avg_nd
+   Block.conserved_cell_nd
+   Block.conserved_filt_nd
+   Block.conserved_nd
+   Block.cp_nd
+   Block.dAi_nd
+   Block.dAj_nd
+   Block.dAk_nd
+   Block.dhdP_rho_nd
+   Block.dhdrho_P_nd
+   Block.dsdP_rho_nd
+   Block.dsdrho_P_nd
+   Block.dt_vol_nd
+   Block.dudP_rho_nd
+   Block.dudrho_P_nd
+   Block.F_body_nd
+   Block.ho_nd
+   Block.mu_nd
+   Block.Omega_nd
+   Block.Omega_wall_nd
+   Block.P_nd
+   Block.P_offset_nd
+   Block.r_mid_nd
+   Block.r_nd
+   Block.residual_nd
+   Block.rho_nd
+   Block.s_nd
+   Block.T_nd
+   Block.u_nd
+   Block.vol_nd
+   Block.Vr_nd
+   Block.Vt_nd
+   Block.Vt_rel_nd
+   Block.Vx_nd
+   Block.Vxrt_nd
+   Block.wdist_nd
+   Block.xlen_sq_nd
+   Block.xrt_nd
 
 
 Indexing and slicing
@@ -107,22 +319,41 @@ data on the returned instance.
 
 Views and copies:
 
-* :meth:`Block.view` -- new instance sharing the same data and metadata
-* :meth:`Block.copy` -- independent copy of the raw data.
-* :meth:`Block.empty` -- fresh uninitialised instance with the same metadata
+.. autosummary::
+
+   Block.copy
+   Block.empty
+   Block.masked
+   Block.view
 
 Reshaping and reordering (a zero-copy view where the layout allows, otherwise a copy):
 
-* :meth:`Block.flat` -- collapse all axes into one
-* :meth:`Block.reshape` -- change the axes, keeping the total node count
-* :meth:`Block.squeeze` -- drop singleton axes
-* :meth:`Block.transpose` -- reorder the axes (reversed by default)
-* :meth:`Block.flip` -- reverse indexing along an axis
+.. autosummary::
+
+   Block.flat
+   Block.flip
+   Block.reshape
+   Block.squeeze
+   Block.transpose
 
 Reduction over a spatial axis:
 
-* :meth:`Block.mean` -- arithmetic mean of the raw variables
-* :meth:`Block.nanmean` -- as above, ignoring NaNs
+.. autosummary::
+
+   Block.mean
+   Block.nanmean
+
+Cache:
+
+Methods that bypass the usual lazy, per-property cache invalidation -- see
+:meth:`Block.update_cached_conserved` and :meth:`Block.update_primitive` for
+when each is needed.
+
+.. autosummary::
+
+   Block.clear_cache
+   Block.update_cached_conserved
+   Block.update_primitive
 
 
 .. _block-equations-of-state:
@@ -133,7 +364,7 @@ Equations of state
 :class:`Block` does not implement an equation of state itself.  It stores only
 the conserved quantities at grid nodes and delegates every thermodynamic
 relation to a :mod:`ember.fluid` equation of state attached by
-:meth:`Block.set_fluid()`. The :class:`Block` works in terms of density and internal energy, and the :mod:`fluid` performs calculations to convert from other thermodynamic properties as needed.
+:meth:`Block.set_fluid()`. The block works in terms of density and internal energy, and the fluid performs calculations to convert from other thermodynamic properties as needed.
 
 Reading a thermodynamic property such as static pressure :attr:`Block.P` first extracts internal energy :attr:`Block.u` from the conserved quantities :attr:`Block.conserved` by subtracting kinetic energy.
 Then, density and internal energy are passed to :py:meth:`ember.fluid.PerfectFluid.get_P` which evaluates the equation of state to calculate pressure. The result is stored in a cache array for repeated use, that is cleared if the underlying conserved data changes. Temperature, entropy, and so on follow this same pattern.
@@ -154,7 +385,7 @@ Reference scales
 ================
 
 Block non-dimensionalisation follows the scheme described in
-:mod:`ember.fluid`; see :ref:`reference-scales`.
+:mod:`ember.fluid` with an additional length scale; see :ref:`reference-scales`.
 Three base scales are chosen by the user and passed to the working fluid constructor:
 :math:`\rho_\mathrm{ref}`, :math:`V_\mathrm{ref}`, and :math:`R_\mathrm{ref}`.
 Three derived thermodynamic scales are then formed:
@@ -164,11 +395,11 @@ Three derived thermodynamic scales are then formed:
 All six are accessible via the attached fluid at :py:attr:`Block.fluid`.
 
 Spatial coordinates are normalised by a separate reference length
-:math:`L_\mathrm{ref}` [m], set via :py:meth:`Block.set_L_ref` and
-accessible as :py:attr:`Block.L_ref`.  It defaults to 1.0 and is
-independent of the fluid.
+:math:`L_\mathrm{ref}` [m], set via :py:meth:`Block.set_L_ref` and accessible
+as :py:attr:`Block.L_ref`.  It defaults to 1.0, leaving supposedly
+non-dimensional coordinates in SI units, and is independent of the fluid.
 
-At rest, a :class:`Block` stores the raw data in non-dimensional form. Calls to, for example, :meth:`Block.set_P_T` and :meth:`Block.set_Vx` divide the dimensional input by the appropriate reference scale before storage.
+At rest, a :class:`Block` stores the raw data in non-dimensional form. Calls to, for example, :meth:`Block.set_P_T` and :meth:`Block.set_Vx` divide their dimensional input by the appropriate reference scale before storage. :meth:`Block.set_rho_u_Vxrt_nd` is the one exception to this rule as indicated by its `_nd` suffix: it takes non-dimensional inputs and stores them directly without rescaling.
 Calls to
 :meth:`Block.set_L_ref` and :meth:`Block.set_fluid` rescale the raw data in
 place to maintain the same dimensional values if the reference scales change.
@@ -177,8 +408,8 @@ user.
 
 Non-dimensional versions of dimensional properties such as :attr:`Block.P_nd` and :attr:`Block.Vx_nd` have an `_nd` suffix to distinguish them from the dimensional versions. The same suffix also applies to setters which take non-dimensional inputs like :meth:`Block.set_P_rho_nd`.
 
-Examples
-========
+Example usage
+=============
 
 Construct a scalar block, set coordinates, fluid, thermodynamic state,
 and velocity::
@@ -302,11 +533,11 @@ class Block(ember.struct.StructuredData):
         This is the primary data container for flow fields. It stores coordinates and conserved variables, and provides properties for derived variables such as velocity, pressure and Mach number. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`.
 
         The setters fall into two complementary families: thermodynamic setters
-        (e.g. :py:meth:`set_P_T`, :py:meth:`set_rho_u`) set the density and
-        internal energy while preserving the velocity field, and velocity
-        setters (:py:meth:`set_Vx`, :py:meth:`set_Vr`, :py:meth:`set_Vt`) set
-        the velocity while preserving the thermodynamic
-        state. Because each family preserves what the other sets, the two may be
+        such as :py:meth:`set_P_T` store pressure and temperature
+        while preserving the velocity field, and kinematic
+        setters like :py:meth:`set_Vx` store
+        the velocity while preserving thermodynamic
+        state. The setters may be
         called in either order to build up a complete flow field.
 
         Parameters
@@ -1134,10 +1365,8 @@ class Block(ember.struct.StructuredData):
 
         self._set_rho_u_nd(rho / self.fluid.rho_ref, u / self._Vsq_ref)
 
-
-
     def set_rho_u_Vxrt_nd(self, rho_nd, u_nd, Vx_nd, Vr_nd, Vt_nd):
-        r"""Write conserved variables from non-dimensional state and velocity.
+        r"""Write conserved variables from non-dimensional density, internal energy, and velocity components.
 
         Low-level, no-validation setter on the boundary-condition hot path: all
         inputs are non-dimensionalised by the fluid reference scales. The
@@ -1252,7 +1481,7 @@ class Block(ember.struct.StructuredData):
         )
 
     def set_triangulated(self, value):
-        """Set whether the data represents a triangulated mesh.
+        """Set whether the data represents triangulated (unstructured) cut data.
 
         Parameters
         ----------
@@ -1466,7 +1695,7 @@ class Block(ember.struct.StructuredData):
         self.set_t(t)
 
     def set_xyz(self, xyz):
-        """Store Cartesian coordinates.
+        """Store Cartesian coordinates, converted to polar on write.
 
         Converts to polar coordinates via:
 
@@ -1627,35 +1856,13 @@ class Block(ember.struct.StructuredData):
             self._versions[k] += 1
 
     def update_primitive(self):
-        """Evaluate the primitive cache eagerly, in two fused passes.
+        """Evaluate the primitive cache eagerly.
 
-        Populates ``_Vxrt_nd_uninit``, ``_halfVsq_nd_uninit``, ``_u_nd_uninit``,
-        :attr:`P_nd`, :attr:`ho_nd` and :attr:`T_nd` together, then publishes
-        them into the same ``_store`` entries :func:`ember.struct.cached_array`
-        uses, stamped with the same data-key versions. Lazily accessing any of
-        those properties afterwards is a plain cache hit.
+        Populates :attr:`P_nd`, :attr:`ho_nd` and :attr:`T_nd` together, which
+        may save time when done in the solver hot loop. Lazily accessing any of
+        those properties afterwards is a fast cache hit.
 
-        WHY. Evaluated lazily, the chain
-
-            cons + r -> Vxrt -> halfVsq -> u -> P/h/T ;  ho = h + halfVsq
-
-        is five separate full-volume numpy passes, ~120 B/cell, with ``halfVsq``
-        and ``u`` written and re-read purely as intermediates. It runs five
-        times per step (once per RK stage via ``P_nd``, once in
-        ``update_sources`` via ``T_nd``) and an 8-rank contended profile of a
-        1M-cell run put it at ~17% of a timestep. Fused it is two passes.
-
-        WHY THIS IS NOT A CORRECTNESS PATH. The lazy ``cached_array``
-        implementations are all still there, and this method stamps the same
-        versions they check, so it can only ever turn a recompute into a cache
-        hit. If it is not called, or is called too early, every consumer still
-        gets the right answer by the slow route -- which is why the call sites
-        are at the point of CONSUMPTION (``Grid.update_residual``,
-        ``Grid.update_sources``) rather than after each mutation of
-        ``conserved_nd``. A missed mutation site would otherwise leave stale
-        primitives, silently.
-
-        Returns early when all six caches are already current, so calling it
+        Returns early when the caches are already current, so calling it
         more often than necessary costs a handful of dict lookups.
 
         """
@@ -1699,9 +1906,7 @@ class Block(ember.struct.StructuredData):
         self.fluid.get_P_h_T(self._rho_nd_uninit, u, P, ho, T)
         ho += halfvsq
 
-        for (cache_key, versions), arr in zip(
-            stamps, (vxrt, halfvsq, u, P, ho, T)
-        ):
+        for (cache_key, versions), arr in zip(stamps, (vxrt, halfvsq, u, P, ho, T)):
             arr.flags.writeable = False
             self._store[cache_key] = (versions, arr)
 
@@ -1764,16 +1969,20 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def conserved(self):
-        r"""Stacked conserved variables :math:`U`, nodal array with 5 components on last axis.
+        r"""Stacked conserved variables :math:`\mathcal{U}`, five-component nodal array.
+
 
         .. math::
-            U = \begin{bmatrix}
+            \mathcal{U} = \begin{bmatrix}
             \rho \\
             \rho V_x \\
             \rho V_r \\
              \rho r V_\theta \\
             \rho e
             \end{bmatrix}
+
+        Shape ``(ni, nj, nk, 5)`` with components over the last axis.
+
         """
         # Guard initialisation, then rescale the nondimensional view in place
         # (mirrors conserved_cell, avoiding a stack of five component temps).
@@ -1805,10 +2014,11 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def conserved_cell(self):
-        r"""Stacked cell-centered conserved variables :math:`U_\mathrm{cell}`, array with 5 components on last axis.
+        r"""Stacked cell-centered conserved variables :math:`\mathcal{U}_\mathrm{cell}`, five-component nodal array.
+
 
         .. math::
-            U_\mathrm{cell} = \begin{bmatrix}
+            \mathcal{U}_\mathrm{cell} = \begin{bmatrix}
             \rho \\
             \rho V_x \\
             \rho V_r \\
@@ -1831,10 +2041,10 @@ class Block(ember.struct.StructuredData):
 
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def conserved_cell_nd(self, out):
-        r"""Stacked non-dimensional cell-centered conserved variables :math:`U^*_\mathrm{cell}`, array with 5 components on last axis.
+        r"""Stacked non-dimensional cell-centered conserved variables :math:`\mathcal{U}^*_\mathrm{cell}`, array with 5 components on last axis.
 
         .. math::
-            U^*_\mathrm{cell} = \begin{bmatrix}
+            \mathcal{U}^*_\mathrm{cell} = \begin{bmatrix}
             \rho / \rho_\mathrm{ref} \\
             \rho V_x / \rho_\mathrm{ref} V_\mathrm{ref} \\
             \rho V_r / \rho_\mathrm{ref} V_\mathrm{ref} \\
@@ -1867,10 +2077,10 @@ class Block(ember.struct.StructuredData):
 
     @property
     def conserved_nd(self):
-        r"""Stacked non-dimensional conserved variables :math:`U^*`, nodal array with 5 components on last axis.
+        r"""Stacked non-dimensional conserved variables :math:`\mathcal{U}^*`, nodal array with 5 components on last axis.
 
         .. math::
-            U^* = \begin{bmatrix}
+            \mathcal{U}^* = \begin{bmatrix}
             \rho / \rho_\mathrm{ref} \\
             \rho V_x / \rho_\mathrm{ref} V_\mathrm{ref} \\
             \rho V_r / \rho_\mathrm{ref} V_\mathrm{ref} \\
@@ -1898,7 +2108,7 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def dA_quad(self):
-        r"""Face area vectors for a 2D structured cut :math:`\delta A` [m^2], shape `(ni-1, nj-1, 3)`.
+        r"""Face area vectors for a 2D structured cut :math:`\delta A` [m^2], shape ``(ni-1, nj-1, 3)``.
 
         See :ref:`face-areas` for the calculation.
         """
@@ -1908,7 +2118,7 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def dA_tri(self):
-        r"""Face area vectors for a 2D unstructured cut :math:`\delta\!A` [m^2], shape `(ntri, 3)`.
+        r"""Face area vectors for a 2D unstructured cut :math:`\delta\!A` [m^2], shape ``(ntri, 3)``.
 
         See :ref:`face-areas` for the calculation.
         """
@@ -1922,7 +2132,7 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def dAi(self):
-        r"""Constant-i face area vectors of a 3D block :math:`\delta A_i` [m^2], shape `(ni, nj-1, nk-1, 3)`.
+        r"""Constant-i face area vectors of a 3D block :math:`\delta A_i` [m^2], shape ``(ni, nj-1, nk-1, 3)``.
 
         See :attr:`dAi_nd` for the nondimensional form and the geometry reference.
         """
@@ -1941,7 +2151,7 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def dAj(self):
-        r"""Constant-j face area vectors of a 3D block :math:`\delta A_j` [m^2], shape `(ni-1, nj, nk-1, 3)`.
+        r"""Constant-j face area vectors of a 3D block :math:`\delta A_j` [m^2], shape ``(ni-1, nj, nk-1, 3)``.
 
         See :attr:`dAj_nd` for the nondimensional form and the geometry reference.
         """
@@ -1960,7 +2170,7 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def dAk(self):
-        r"""Constant-k face area vectors of a 3D block :math:`\delta A_k` [m^2], shape `(ni-1, nj-1, nk, 3)`.
+        r"""Constant-k face area vectors of a 3D block :math:`\delta A_k` [m^2], shape ``(ni-1, nj-1, nk, 3)``.
 
         See :attr:`dAk_nd` for the nondimensional form and the geometry reference.
         """
@@ -2512,9 +2722,9 @@ class Block(ember.struct.StructuredData):
 
     @scratch_array
     def scratch(self, out):
-        """Reusable nodal scratch buffer, shape (ni, nj, nk, 5).
+        """Nodal scratch buffer, shape ``(ni, nj, nk, 5)``.
 
-        WARNING -- PURE TRANSIENT SCRATCH. This is shared, throwaway kernel
+        Pure transient scratch. This is shared, throwaway kernel
         workspace, NOT a cached value. Its contents are meaningless between
         kernel calls: every consumer overwrites it on entry and nothing may rely
         on what it holds after a kernel returns. Do not read it expecting a
@@ -2522,33 +2732,19 @@ class Block(ember.struct.StructuredData):
 
         Owned writeable workspace for Fortran kernels that need transient
         per-node scratch, allocated once and never invalidated. Left writeable
-        (see :func:`scratch_array`), so callers pass it straight to an
-        ``intent(inout)`` kernel without toggling ``flags.writeable``. Current
-        consumers (all sequential, none overlapping):
+        so callers can pass it straight to an ``intent(inout)`` kernel without
+        toggling ``flags.writeable``.
 
-        - viscous face-flux scratch (slots 0-3) in
-          :meth:`ember.grid.Grid.update_sources`;
-        - inviscid ``flow`` buffer (all 5 slots) in :attr:`residual_nd`, and the
-          per-step increment buffer in ``solver.scree_step`` /
-          ``solver.advance_rk_stage_mg``;
-        - the fused conserved-column write in :meth:`set_rho_u_Vxrt_nd`,
-          which reads the result back into ``_data`` before returning.
+        Each consumer owns the whole buffer for the duration of its own call
+        and may treat it as freshly-allocated private memory. The five slots do
+        not have specific meanings, their use is up to the caller. Two
+        consumers never overlap in time, so the same slots are reused freely.
+        Do not, however, pass this buffer twice as two arguments to the same
+        kernel since the kernel will alias them and overwrite its own data.
 
-        Because nothing persists, each consumer owns the whole buffer for the
-        duration of its own call and may treat it as freshly-allocated private
-        memory -- the consumer list above is NOT a claim that the slots carry
-        distinct, coexisting meanings, only a record of who currently borrows it.
-        Two consumers never overlap in time, so the same slots are reused freely.
-
-        DO NOT, however, route a second array *into the same kernel call* that
-        already takes this buffer as scratch, by aliasing it onto this storage.
-        Within one call the kernel reads and writes its scratch slots freely, so
-        any other argument (e.g. an accumulation target) sharing this memory is
-        silently corrupted. Concretely: do not point a kernel's output/inout
-        argument at ``scratch`` while that same call also receives ``scratch``
-        as its workspace. If you need a transient buffer that must survive
-        *alongside* this one within a single kernel call or assembly phase,
-        allocate a separate one -- do not carve it out of ``scratch``.
+        If you need storage that must survive *alongside* this one within a
+        single kernel call or between calls, see :attr:`store` the persistent
+        buffer.
         """
         return util.allocate_or_reuse(out, self.shape + (5,))
 
@@ -2566,28 +2762,12 @@ class Block(ember.struct.StructuredData):
     def store(self, out):
         """Persistent cross-step solver buffer, nodal shape (ni, nj, nk, 5).
 
-        Counterpart to :attr:`scratch`: a buffer that DOES carry meaning between
-        kernel calls. UNLIKE :attr:`scratch` its value must survive across calls,
-        so no consumer may treat it as throwaway. It is sized to the nodal shape
-        and serves two mutually exclusive integrators (selected by
-        ``SolverConfig.n_stage``):
+        Counterpart to :attr:`scratch`: a buffer that does carry meaning between
+        kernel calls. Unlike :attr:`scratch` its value must survive across calls,
+        so no consumer may treat it as throwaway. Used by time integrators to
+        carry state between stages.
 
-        - Denton lagged march (``n_stage == 0``): holds the ``(dF/dt)_{n-1}`` term
-          of the scree extrapolation (``solver.scree_step``) -- written at the end of
-          one step and read at the start of the next. That term is cell-shaped, so
-          ``scree_step`` takes a leading ``(ni-1, nj-1, nk-1, 5)`` F-order view of
-          this buffer (zero copy) and feeds it to the scree kernels (which also
-          form the extrapolated ``q = 2*residual - store`` in place in it).
-        - Jameson RK march (``n_stage >= 1``): holds the nodal conserved snapshot
-          ``U^(0)`` taken at the start of each step; every stage marches off it
-          (``solver.advance_rk_stage_mg``).
-
-        Uses the :func:`scratch_array` mechanism (allocated once, never
-        invalidated, left writeable for the ``intent(inout)`` kernel write).
-
-        Seeded to zeros so the first Denton step is a pure (doubled) forward step,
-        matching multall's zero-initialised residual history. (The RK path
-        overwrites it with the conserved snapshot before first use.)
+        Seeded to zeros on first access.
 
         Returns
         -------
@@ -2602,7 +2782,7 @@ class Block(ember.struct.StructuredData):
 
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def T_nd(self, out):
-        r"""Nondimensional temperature :math:`T / T_\mathrm{ref}` [-]."""
+        r"""Nondimensional temperature :math:`T / T_\mathrm{ref}` [-], nodal array."""
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_T(self._rho_nd_uninit, self.u_nd, out=out)
 
@@ -2873,7 +3053,7 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def Vxrt(self):
-        r"""Stacked polar velocity vector :math:`\mathbf{V}` [m/s, m/s, m/s], nodal array of three components."""
+        r"""Stacked polar velocity vector :math:`\mathbf{V}` [m/s, m/s, m/s], three-component nodal array."""
         # Require velocity, then scale the cached nondimensional stack in a
         # single allocation (no stack of three component temps).
         self._get_data_by_keys(("rhoVx", "rhoVr", "rhorVt"))
@@ -2881,7 +3061,7 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def Vxrt_nd(self):
-        r"""Stacked nondimensional polar velocity :math:`\mathbf{V}/V_\mathrm{ref}` [-], nodal array of three components."""
+        r"""Stacked nondimensional polar velocity :math:`\mathbf{V}/V_\mathrm{ref}` [-], three-component nodal array."""
         # Guard the momenta and r before returning the cached values.
         self._get_data_by_keys(("rho", "rhoVx", "rhoVr", "rhorVt"))
         self._get_data_by_keys(("r",))
@@ -2959,17 +3139,17 @@ class Block(ember.struct.StructuredData):
 
     @derived_array
     def xr(self):
-        """Stacked meridional coordinates :math:`(x, r)` [m, m], nodal array of two components."""
+        """Stacked meridional coordinates :math:`(x, r)` [m, m], two-component nodal array."""
         return np.stack((self.x, self.r), axis=-1)
 
     @derived_array
     def xrrt(self):
-        r"""Stacked pseudo-Cartesian coordinates :math:`(x, r, r\theta)` [m, m, m], nodal array of three components."""
+        r"""Stacked pseudo-Cartesian coordinates :math:`(x, r, r\theta)` [m, m, m], three-component nodal array."""
         return pol_to_pseudocart(self.xrt)
 
     @derived_array
     def xrt(self):
-        r"""Stacked polar coordinates :math:`(x, r, \theta)` [m, m, rad], nodal array of three components."""
+        r"""Stacked polar coordinates :math:`(x, r, \theta)` [m, m, rad], three-component nodal array."""
         xrt = self._get_data_by_keys(("x", "r", "t")).copy()
         xrt[..., :2] *= self.L_ref
         return xrt
@@ -3107,4 +3287,4 @@ class Block(ember.struct.StructuredData):
         "Rgas",
     )
 
-    T = _make_fluid_property("T", "Temperature [K].", "T")
+    T = _make_fluid_property("T", "Temperature [K], nodal array.", "T")
