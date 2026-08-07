@@ -820,15 +820,43 @@ subroutine set_visc_force( &
     pb = stmp
     end do
 
+    ! ===== Cusp seam: replace each seam face flux with the two-sided average =====
+    ! The seam is non-local in k, so under the sweep both seam cells have
+    ! accumulated their raw one-sided flux; replacing it with
+    ! avg = 0.5*(flow(k=1) + flow(k=nk)) is the same delta for both cells.
+    !
+    ! fcorr is a REPLACEMENT DELTA, not a face difference, so it carries the
+    ! accumulate's sign convention -- fvisc = high-minus-low here (this kernel
+    ! produces the residual's sign directly; there is no trailing negation pass
+    ! as there was before commit 2381658745). Deriving it for the k=1 cell,
+    ! which holds flow(2) - flow(1): swapping flow(1) for avg adds
+    ! flow(1) - avg = 0.5*(flow(1) - flow(nk)). The k=nk-1 cell holds
+    ! flow(nk) - flow(nk-1), and swapping flow(nk) for avg adds
+    ! avg - flow(nk) = the same thing -- which is why one fcorr serves both.
+    !
+    ! NB the pre-2381658745 code accumulated low-minus-high and negated
+    ! everything at the end, so it added the opposite, 0.5*(flow(nk) - flow(1)),
+    ! and the negation flipped accumulate and correction together. When that
+    ! commit flipped the accumulate it left this pass alone, on the reasoning
+    ! that fcorr's own high-minus-low ordering already matched the new
+    ! convention. It does not follow: a replacement delta must flip with the
+    ! quantity it corrects regardless of how it is spelled internally, and the
+    ! seam cells took +2*fcorr of spurious, anti-diffusive viscous force every
+    ! step as a result. See tests/test_viscous_cusp_seam.py.
+    !
+    ! The two raw seam-face fluxes are recomputed via kface_flow: tau_cell/
+    ! q_cell are unchanged since the entry halo scaling and neither seam plane
+    ! takes a wall-function injection, so the recompute matches the sweep's
+    ! values. (nk=2, where the two seam cells coincide, is not supported here.)
     if (i_cusp_start > 0 .and. nk > 2) then
         do j = 1, nj-1
         do i = i_cusp_start, i_cusp_end-1
             call kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, 1, flow1)
             call kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, nk, flownk)
-            fcorr(1) = 0.5e0 * (flownk(1) - flow1(1))
-            fcorr(2) = 0.5e0 * (flownk(2) - flow1(2))
-            fcorr(3) = 0.5e0 * (flownk(3) - flow1(3))
-            fcorr(4) = 0.5e0 * (flownk(4) - flow1(4))
+            fcorr(1) = 0.5e0 * (flow1(1) - flownk(1))
+            fcorr(2) = 0.5e0 * (flow1(2) - flownk(2))
+            fcorr(3) = 0.5e0 * (flow1(3) - flownk(3))
+            fcorr(4) = 0.5e0 * (flow1(4) - flownk(4))
             fvisc(i,j,1,1) = fvisc(i,j,1,1) + fcorr(1)
             fvisc(i,j,1,2) = fvisc(i,j,1,2) + fcorr(2)
             fvisc(i,j,1,3) = fvisc(i,j,1,3) + fcorr(3)
