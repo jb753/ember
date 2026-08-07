@@ -15,6 +15,118 @@ To begin with, an array is allocated to store the raw data only. Storage
 for derived quantities is then allocated lazily on first access, and cached for
 subsequent calls to save memory. Data and metadata are stored after initialisation using :ref:`block-setters`, and the raw and derived quantities are accessed via attributes such as :attr:`Block.x`, :attr:`Block.P`, and :attr:`Block.Ma`.
 
+Indexing and slicing
+====================
+
+A :class:`Block` supports numpy-style indexing and slicing over the spatial axes::
+
+    block[i]          # scalar index -- reduces ndim by one
+    block[ist:ien]        # slice -- preserves ndim
+    block[i, jst:jen, :]     # mixed index tuple for 3D data
+
+Indexing returns a new :class:`Block` instance that shares the same underlying
+backing array as the original (a zero-copy view). Writes to the indexing result
+are visible in the original and vice versa.
+
+.. _block-equations-of-state:
+
+Equations of state
+==================
+
+:class:`Block` does not implement an equation of state itself.  It stores only
+the conserved quantities at grid nodes and delegates every thermodynamic
+relation to a :mod:`ember.fluid` equation of state attached by
+:meth:`Block.set_fluid()`. The block works in terms of density and internal energy, and the fluid performs calculations to convert from other thermodynamic properties as needed.
+
+Reading a thermodynamic property such as static pressure :attr:`Block.P` first extracts internal energy :attr:`Block.u` from the conserved quantities :attr:`Block.conserved` by subtracting kinetic energy.
+Then, density and internal energy are passed to :py:meth:`ember.fluid.PerfectFluid.get_P` which evaluates the equation of state to calculate pressure. The result is stored in a cache array for repeated use, that is cleared if the underlying conserved data changes. Temperature, entropy, and so on follow this same pattern.
+
+Writing a thermodynamic state is the reverse of reading out a derived property, although by the two-property rule the set methods must take two arguments.
+:py:meth:`Block.set_P_T` passes pressure
+and temperature to :py:meth:`ember.fluid.PerfectFluid.set_P_T`, which inverts the equation of state to find the corresponding density and internal energy.
+:class:`Block` then saves density directly, and updates total energy to reflect the new thermodynamic state while preserving the velocity field.
+
+This works even before any velocity has been set, because a new block starts
+with dummy initial values for density, radius, momenta, and energy.
+The kinetic energy therefore evaluates to zero on an uninitialised block, and
+the thermodynamic round-trip stays consistent once velocities are later supplied.
+
+.. _block-reference-scales:
+
+Reference scales
+================
+
+Block non-dimensionalisation follows the scheme described in
+:mod:`ember.fluid` with an additional length scale; see :ref:`reference-scales`.
+Three base scales are chosen by the user and passed to the working fluid constructor:
+:math:`\rho_\mathrm{ref}`, :math:`V_\mathrm{ref}`, and :math:`R_\mathrm{ref}`.
+Three derived thermodynamic scales are then formed:
+:math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2`,
+:math:`u_\mathrm{ref} = V_\mathrm{ref}^2`, and
+:math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}`.
+All six are accessible via the attached fluid at :py:attr:`Block.fluid`.
+
+Spatial coordinates are normalised by a separate reference length
+:math:`L_\mathrm{ref}` [m], set via :py:meth:`Block.set_L_ref` and accessible
+as :py:attr:`Block.L_ref`.  It defaults to 1.0, leaving supposedly
+non-dimensional coordinates in SI units, and is independent of the fluid.
+
+At rest, a :class:`Block` stores the raw data in non-dimensional form. Calls to, for example, :meth:`Block.set_P_T` and :meth:`Block.set_Vx` divide their dimensional input by the appropriate reference scale before storage. :meth:`Block.set_rho_u_Vxrt_nd` is the one exception to this rule as indicated by its `_nd` suffix: it takes non-dimensional inputs and stores them directly without rescaling.
+Calls to
+:meth:`Block.set_L_ref` and :meth:`Block.set_fluid` rescale the raw data in
+place to maintain the same dimensional values if the reference scales change.
+This keeps the non-dimensional storage completely transparent to the
+user.
+
+Non-dimensional versions of dimensional properties such as :attr:`Block.P_nd` and :attr:`Block.Vx_nd` have an `_nd` suffix to distinguish them from the dimensional versions. The same suffix also applies to setters which take non-dimensional inputs like :meth:`Block.set_P_rho_nd`.
+
+Array methods
+=============
+
+A :class:`Block` provides a family of numpy-style array methods that reshape,
+reorder, reduce or copy the block. They all act on the underlying *raw*
+variables -- the coordinates and conserved quantities -- and not on derived
+thermodynamic properties, which are recomputed from the transformed raw
+data on the returned instance.
+
+Views and copies:
+
+.. autosummary::
+
+   Block.copy
+   Block.empty
+   Block.masked
+   Block.view
+
+Reshaping and reordering (a zero-copy view where the layout allows, otherwise a copy):
+
+.. autosummary::
+
+   Block.flat
+   Block.flip
+   Block.reshape
+   Block.squeeze
+   Block.transpose
+
+Reduction over a spatial axis:
+
+.. autosummary::
+
+   Block.mean
+   Block.nanmean
+
+Cache:
+
+Methods that bypass the usual lazy, per-property cache invalidation -- see
+:meth:`Block.update_cached_conserved` and :meth:`Block.update_primitive` for
+when each is needed.
+
+.. autosummary::
+
+   Block.clear_cache
+   Block.update_cached_conserved
+   Block.update_primitive
+
 .. _block-setters:
 
 Setter methods
@@ -295,118 +407,6 @@ directly and are not usually needed by end users.
    Block.xrt_nd
 
 
-Indexing and slicing
-====================
-
-A :class:`Block` supports numpy-style indexing and slicing over the spatial axes::
-
-    block[i]          # scalar index -- reduces ndim by one
-    block[ist:ien]        # slice -- preserves ndim
-    block[i, jst:jen, :]     # mixed index tuple for 3D data
-
-Indexing returns a new :class:`Block` instance that shares the same underlying
-backing array as the original (a zero-copy view). Writes to the indexing result
-are visible in the original and vice versa.
-
-Array methods
-=============
-
-A :class:`Block` provides a family of numpy-style array methods that reshape,
-reorder, reduce or copy the block. They all act on the underlying *raw*
-variables -- the coordinates and conserved quantities -- and not on derived
-thermodynamic properties, which are recomputed from the transformed raw
-data on the returned instance.
-
-Views and copies:
-
-.. autosummary::
-
-   Block.copy
-   Block.empty
-   Block.masked
-   Block.view
-
-Reshaping and reordering (a zero-copy view where the layout allows, otherwise a copy):
-
-.. autosummary::
-
-   Block.flat
-   Block.flip
-   Block.reshape
-   Block.squeeze
-   Block.transpose
-
-Reduction over a spatial axis:
-
-.. autosummary::
-
-   Block.mean
-   Block.nanmean
-
-Cache:
-
-Methods that bypass the usual lazy, per-property cache invalidation -- see
-:meth:`Block.update_cached_conserved` and :meth:`Block.update_primitive` for
-when each is needed.
-
-.. autosummary::
-
-   Block.clear_cache
-   Block.update_cached_conserved
-   Block.update_primitive
-
-
-.. _block-equations-of-state:
-
-Equations of state
-==================
-
-:class:`Block` does not implement an equation of state itself.  It stores only
-the conserved quantities at grid nodes and delegates every thermodynamic
-relation to a :mod:`ember.fluid` equation of state attached by
-:meth:`Block.set_fluid()`. The block works in terms of density and internal energy, and the fluid performs calculations to convert from other thermodynamic properties as needed.
-
-Reading a thermodynamic property such as static pressure :attr:`Block.P` first extracts internal energy :attr:`Block.u` from the conserved quantities :attr:`Block.conserved` by subtracting kinetic energy.
-Then, density and internal energy are passed to :py:meth:`ember.fluid.PerfectFluid.get_P` which evaluates the equation of state to calculate pressure. The result is stored in a cache array for repeated use, that is cleared if the underlying conserved data changes. Temperature, entropy, and so on follow this same pattern.
-
-Writing a thermodynamic state is the reverse of reading out a derived property, although by the two-property rule the set methods must take two arguments.
-:py:meth:`Block.set_P_T` passes pressure
-and temperature to :py:meth:`ember.fluid.PerfectFluid.set_P_T`, which inverts the equation of state to find the corresponding density and internal energy.
-:class:`Block` then saves density directly, and updates total energy to reflect the new thermodynamic state while preserving the velocity field.
-
-This works even before any velocity has been set, because a new block starts
-with dummy initial values for density, radius, momenta, and energy.
-The kinetic energy therefore evaluates to zero on an uninitialised block, and
-the thermodynamic round-trip stays consistent once velocities are later supplied.
-
-.. _block-reference-scales:
-
-Reference scales
-================
-
-Block non-dimensionalisation follows the scheme described in
-:mod:`ember.fluid` with an additional length scale; see :ref:`reference-scales`.
-Three base scales are chosen by the user and passed to the working fluid constructor:
-:math:`\rho_\mathrm{ref}`, :math:`V_\mathrm{ref}`, and :math:`R_\mathrm{ref}`.
-Three derived thermodynamic scales are then formed:
-:math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2`,
-:math:`u_\mathrm{ref} = V_\mathrm{ref}^2`, and
-:math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}`.
-All six are accessible via the attached fluid at :py:attr:`Block.fluid`.
-
-Spatial coordinates are normalised by a separate reference length
-:math:`L_\mathrm{ref}` [m], set via :py:meth:`Block.set_L_ref` and accessible
-as :py:attr:`Block.L_ref`.  It defaults to 1.0, leaving supposedly
-non-dimensional coordinates in SI units, and is independent of the fluid.
-
-At rest, a :class:`Block` stores the raw data in non-dimensional form. Calls to, for example, :meth:`Block.set_P_T` and :meth:`Block.set_Vx` divide their dimensional input by the appropriate reference scale before storage. :meth:`Block.set_rho_u_Vxrt_nd` is the one exception to this rule as indicated by its `_nd` suffix: it takes non-dimensional inputs and stores them directly without rescaling.
-Calls to
-:meth:`Block.set_L_ref` and :meth:`Block.set_fluid` rescale the raw data in
-place to maintain the same dimensional values if the reference scales change.
-This keeps the non-dimensional storage completely transparent to the
-user.
-
-Non-dimensional versions of dimensional properties such as :attr:`Block.P_nd` and :attr:`Block.Vx_nd` have an `_nd` suffix to distinguish them from the dimensional versions. The same suffix also applies to setters which take non-dimensional inputs like :meth:`Block.set_P_rho_nd`.
 
 Example usage
 =============
