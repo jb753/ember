@@ -489,6 +489,40 @@ the headline number, and where it lives.
   `-inline-factor=10000`; diff `set_residual`'s fingerprint with and without
   the pinned budgets on the production compiler before assuming this result
   transfers.
+- **Extract `wall_core` out of `wall_func`** (`viscous.f90`'s
+  `viscous_helpers` module), so a new diagnostic (`wall_yplus`/
+  `wall_yplus_iface/jface/kface`/`wall_yplus_field`, post-processing y+ for
+  `block_util.wall_yplus`) shares its Re/skin-friction physics with the
+  production wall function instead of duplicating it. `set_visc_force`'s own
+  source is untouched -- same call sites, same names, only `wall_func`'s
+  callee moves -- and in the real (no `EMBER_BENCH_KERNELS`) build,
+  `set_visc_force_`'s codegen fingerprint is **bitwise identical**
+  before/after (`32b4f45a7fd9b39a`, 17560 insns, both sides of the refactor):
+  GCC fully absorbs the extra call under whole-program inlining. **Zero
+  regression, proven by codegen identity, not inferred from noisy timing.**
+  2026-08-07, gfortran/Haswell, this harness.
+  **A same-build A/B against a frozen pre-refactor copy (the usual protocol
+  for a kernel change, see `viscij`/`viscijk`/`viscpol` above) was tried
+  first and gave a false alarm**: with both `set_visc_force` (refactored)
+  and a full frozen `set_visc_force_pre` (~370 lines each, near-duplicates)
+  sharing one translation unit, `visc` timed 57.1 ns/cell and `viscpre`
+  89.3 ns/cell at 1M cells/8-rank contention -- `viscpre` +56.5% slower than
+  the kernel it was frozen FROM. Isolating `visc` alone (no other arm in the
+  build, Rule 7) reproduced its own plain-build fingerprint exactly and timed
+  58.2 ns/cell, tight and reproducible (0.39% stdev over 10 launches) --
+  proving the two-arm number was contaminated, not a real property of either
+  arm's code. **New finding for the cross-cutting section below: two large
+  (~300+ instruction) near-duplicate kernel bodies sharing one unit-level
+  inline-budget translation unit can starve each other's inlining in either
+  direction, not just perturb instruction count by a few percent** -- the
+  existing "4 identical / 5 different" finding was a codegen-identity check;
+  this is the same mechanism costing real, large (>50%), asymmetric timing
+  swings. **Prefer fingerprint identity over same-build timing when a
+  refactor is provably code-motion-only** (unchanged call sites/signatures);
+  reach for a same-build A/B only when the fingerprint actually differs and
+  a timing verdict is unavoidable, and even then, isolate any arm whose
+  result looks anomalous (Rule 7) before trusting it, especially for
+  full-kernel-sized arms.
 
 ### Rejected or negative results worth remembering
 
@@ -631,6 +665,17 @@ the headline number, and where it lives.
   which is why `visc` is always re-measured alongside its arms rather than
   compared to a stored baseline -- but never assume a cross-build number is
   comparable without re-running the gauge.
+  (3) **This is not always harmless even within one build**: freezing a full
+  ~370-line pre-refactor copy of `set_visc_force` alongside production for a
+  same-build A/B (the `wall_core` extraction study, "Adopted" above) produced
+  a +56% timing swing that vanished when the frozen arm was isolated in its
+  own build -- two large near-duplicate kernel bodies competing for the same
+  unit-level inline budget can starve each other's inlining by a lot, not
+  just perturb instruction count by a few percent. A within-build A/B is only
+  as trustworthy as the arms sharing the unit are small/dissimilar (the
+  fvisc-fusion ladder's arms, ~90% shared code, have never shown this); two
+  full independent kernel bodies is a different regime -- isolate (Rule 7)
+  before trusting a timing result that surprises you.
 - **A `PARTIAL LOOP WAS VECTORIZED` or a clean `LOOP WAS VECTORIZED` report
   is a lead, never a verdict, in either direction.** A blemished report can
   cost nothing (the damp-split scaling loop); a clean report can hide a slow

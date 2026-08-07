@@ -469,6 +469,50 @@ def memory_usage(block):
     return data_usage, metadata_usage, cache_usage
 
 
+def wall_yplus(block):
+    """y+ on all six wall-adjacent boundary faces of ``block``.
+
+    Post-processing only -- NOT part of the per-step viscous kernel.
+    ``wall_yplus_field`` (``_fortran/viscous.f90``) reuses the exact Re/cf/d
+    that ``set_visc_force``'s own wall function uses (both call the shared
+    ``wall_core``), so this cannot silently drift from what the solver
+    actually modeled at a face; it carries none of ``set_visc_force``'s
+    k-slab/rolling-buffer machinery since it costs O(surface) per call, not
+    O(volume) per step.
+
+    Parameters
+    ----------
+    block : Block
+
+    Returns
+    -------
+    dict[str, numpy.ndarray]
+        Keys ``yplus_i1``, ``yplus_j1``, ``yplus_k1``, ``yplus_ni``,
+        ``yplus_nj``, ``yplus_nk``, each shaped like the corresponding
+        :attr:`~ember.block.Block.ijk_wall_visc` face array, zero on
+        non-wall cells.
+    """
+    import ember.fortran
+
+    keys = ("yplus_i1", "yplus_j1", "yplus_k1", "yplus_ni", "yplus_nj", "yplus_nk")
+    result = ember.fortran.wall_yplus_field(
+        cons=block.conserved_nd,
+        vol=block.vol_nd,
+        dai=block.dAi_nd,
+        daj=block.dAj_nd,
+        dak=block.dAk_nd,
+        omega_block=block.Omega_nd,
+        r=block.r_nd,
+        mu=block.mu_nd,
+        vx=block.Vx_nd,
+        vr=block.Vr_nd,
+        vt=block.Vt_rel_nd,
+        **block.ijk_wall_visc,
+        **block.Omega_wall_nd,
+    )
+    return dict(zip(keys, result))
+
+
 def to_tm3(block, filename, clip_quantile=0.01, **kwargs):
     """Write a triangulated cut to a tm3 binary file.
 
