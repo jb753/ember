@@ -20,7 +20,6 @@ import numpy as np
 import pytest
 from ember.grid import Grid
 from ember.block import Block
-from ember.block_restart import BlockRestart, make_restart, apply_restart
 from ember.patch import CoolingPatch, InviscidPatch, PeriodicPatch
 from ember.fluid import PerfectFluid
 from ember import util
@@ -645,8 +644,6 @@ class TestGridInterpFrom:
         # tgt has no patches -> critical j indices [0, 7] only (2 vs 4)
         tgt = _make_state_block((4, 8, 4))
 
-        import pytest
-
         with pytest.raises(ValueError, match="critical indices"):
             Grid([tgt]).interp_from(Grid([src]))
 
@@ -694,111 +691,3 @@ class TestGridInterpFrom:
         np.testing.assert_allclose(tgt.Vx[:, 2, :], src.Vx[:, 1, :], atol=1e-3)
         # tgt j=6 should exactly match src j=3
         np.testing.assert_allclose(tgt.Vx[:, 6, :], src.Vx[:, 3, :], atol=1e-3)
-
-
-class TestGridApplyGuessRestart:
-    """Tests for Grid.apply_guess_restart method.
-
-    apply_guess_restart takes a list of BlockRestart objects, transfers only
-    conserved variables (no mu_turb), and interpolates in uniform
-    index space (no critical-index awareness).
-    """
-
-    def test_same_shape_copies_exactly(self):
-        """Same-shape conserved array is copied without modification."""
-        src = _make_state_block((4, 4, 4), P=2e5, T=350.0, Vx=100.0)
-        tgt = _make_state_block((4, 4, 4))
-
-        Grid([tgt]).apply_guess_restart([BlockRestart(src.conserved)])
-
-        np.testing.assert_allclose(tgt.conserved, src.conserved, rtol=1e-5)
-
-    def test_upsample_constant_field(self):
-        """Upsampling a uniform conserved field gives the same uniform state everywhere."""
-        src = _make_state_block((3, 3, 3), P=2e5, T=400.0, Vx=80.0)
-        tgt = _make_state_block((6, 6, 6), P=101325.0, T=300.0)
-
-        Grid([tgt]).apply_guess_restart([BlockRestart(src.conserved)])
-
-        ref = src.conserved[0, 0, 0]
-        np.testing.assert_allclose(
-            tgt.conserved, np.broadcast_to(ref, tgt.conserved.shape), rtol=1e-4
-        )
-
-    def test_downsample_constant_field(self):
-        """Downsampling a uniform conserved field gives the same uniform state everywhere."""
-        src = _make_state_block((8, 8, 8), P=1.5e5, T=320.0, Vx=50.0)
-        tgt = _make_state_block((3, 3, 3), P=101325.0, T=300.0)
-
-        Grid([tgt]).apply_guess_restart([BlockRestart(src.conserved)])
-
-        ref = src.conserved[0, 0, 0]
-        np.testing.assert_allclose(
-            tgt.conserved, np.broadcast_to(ref, tgt.conserved.shape), rtol=1e-4
-        )
-
-    def test_multi_block(self):
-        """apply_guess_restart works block-by-block for multiple blocks."""
-        src1 = _make_state_block((4, 4, 4), P=2e5, T=350.0)
-        src2 = _make_state_block((4, 4, 4), P=3e5, T=400.0)
-        tgt1 = _make_state_block((6, 6, 6))
-        tgt2 = _make_state_block((6, 6, 6))
-
-        Grid([tgt1, tgt2]).apply_guess_restart(
-            [BlockRestart(src1.conserved), BlockRestart(src2.conserved)]
-        )
-
-        ref1 = src1.conserved[0, 0, 0]
-        ref2 = src2.conserved[0, 0, 0]
-        np.testing.assert_allclose(
-            tgt1.conserved, np.broadcast_to(ref1, tgt1.conserved.shape), rtol=1e-4
-        )
-        np.testing.assert_allclose(
-            tgt2.conserved, np.broadcast_to(ref2, tgt2.conserved.shape), rtol=1e-4
-        )
-
-    def test_does_not_transfer_mu_turb(self):
-        """apply_guess_restart does not touch mu_turb on the target block."""
-        src = _make_state_block((4, 4, 4), mu_turb=5e-4)
-        tgt = _make_state_block((4, 4, 4), mu_turb=1e-4)
-        mu_before = tgt.mu_turb.copy()
-
-        Grid([tgt]).apply_guess_restart([BlockRestart(src.conserved)])
-
-        np.testing.assert_array_equal(tgt.mu_turb, mu_before)
-
-    def test_get_restart_round_trip(self):
-        """apply_restart(b2, make_restart(Grid([b1]))[0]) reproduces b1's conserved state."""
-        src = _make_state_block((4, 4, 4), P=2e5, T=350.0, Vx=100.0)
-        tgt = _make_state_block((4, 4, 4))
-
-        apply_restart(tgt, make_restart(Grid([src]))[0])
-
-        np.testing.assert_allclose(tgt.conserved, src.conserved, rtol=1e-5)
-
-
-class TestBlockRestartImmutability:
-    """BlockRestart must be a true snapshot: copy on construction, read-only."""
-
-    def test_constructor_copies_array(self):
-        arr = np.zeros((2, 2, 2, 5))
-        r = BlockRestart(arr)
-        assert r.conserved is not arr
-
-    def test_field_assignment_is_blocked(self):
-        import dataclasses
-
-        r = BlockRestart(np.zeros((2, 2, 2, 5)))
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            r.conserved = np.ones((2, 2, 2, 5))
-
-    def test_array_contents_are_read_only(self):
-        r = BlockRestart(np.zeros((2, 2, 2, 5)))
-        with pytest.raises(ValueError):
-            r.conserved[0, 0, 0, 0] = 1.0
-
-    def test_source_mutation_does_not_leak(self):
-        arr = np.zeros((2, 2, 2, 5))
-        r = BlockRestart(arr)
-        arr[0, 0, 0, 0] = 99.0
-        assert r.conserved[0, 0, 0, 0] == 0.0

@@ -120,8 +120,8 @@ Global flow field setting
 
 Rather than setting up each block's flow field individually, a handful of
 :class:`Grid` methods populate every block at once from a source outside the
-grid: an initial guess constructed from meridional or quasi-3D data, a
-restart from a previous solution, or an unstructured cloud of points, mapped
+grid: an initial guess constructed from meridional or quasi-3D data, the
+solution on another grid, or an unstructured cloud of points, mapped
 onto the grid's structured topology via :meth:`Grid.align_cart_unstr`.
 
 .. autosummary::
@@ -129,7 +129,6 @@ onto the grid's structured topology via :meth:`Grid.align_cart_unstr`.
    Grid.align_cart_unstr
    Grid.apply_guess_meridional
    Grid.apply_guess_quasi3d
-   Grid.apply_guess_restart
    Grid.interp_from
    Grid.set_conserved_cart_unstr
    Grid.set_primitive_cart_unstr
@@ -184,7 +183,6 @@ from ember.collections import _LabelledList, GridPatchCollection
 from pykdtree.kdtree import KDTree
 import ember.block_util
 import ember.fortran
-from ember.block_restart import apply_restart
 import numpy as np
 import itertools
 import pickle
@@ -1195,23 +1193,6 @@ class Grid(_LabelledList):
 
             block.set_mu_turb(np.full((ni, nj, nk), mu_mean))
 
-    def apply_guess_restart(self, restarts):
-        """Apply a list of BlockRestart objects to this Grid, block by block.
-
-        Use this to initialize a fresh grid from a previously-saved solution.
-        Same-shape blocks are set directly; differing shapes are trilinearly
-        interpolated in index space. Only conserved variables are transferred;
-        mu_turb is untouched.
-
-        Parameters
-        ----------
-        restarts : list of BlockRestart
-            One BlockRestart per block in this Grid.
-
-        """
-        for block, restart in zip(self, restarts):
-            apply_restart(block, restart)
-
     def apply_rotation(self, row_types, Omega):
         """Apply rotation settings to blocks based on row types.
 
@@ -1493,9 +1474,8 @@ class Grid(_LabelledList):
         selects the matching kernel. ``delta_filt`` is the filter time constant.
 
         Must run after the CFL and ``dt_vol`` for the step are current. This is
-        the lone per-step writer of the read-only ``conserved_filt_nd`` buffer
-        (the restart apply is the only other writer), so it owns the
-        ``flags.writeable`` toggle (mirrors the timestep writers).
+        the only writer of the read-only ``conserved_filt_nd`` buffer, so it
+        owns the ``flags.writeable`` toggle (mirrors the timestep writers).
 
         """
         kernel = (

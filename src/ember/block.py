@@ -2068,8 +2068,8 @@ class Block(ember.struct.StructuredData):
         cell-averaged conserved state on first access, then evolved each step by
         ``adapt_cfl`` and read by the SFD body force. The no-key
         ``cached_array`` allocates it once and never invalidates it; read-only
-        to consumers, its writers (``set_cfl`` and the restart apply) toggle
-        ``flags.writeable`` around their writes.
+        to consumers, and its one writer (``set_cfl``) toggles
+        ``flags.writeable`` around its writes.
         """
         out = util.allocate_or_reuse(out, self.shape_cell + (5,))
         ember.fortran.node_to_cell(self.conserved_nd, out)

@@ -444,20 +444,6 @@ def _interp_coords(block, src):
     return coords
 
 
-def interp_from_conserved(block, conserved):
-    if block.shape == conserved.shape[:-1]:
-        block.set_conserved(conserved)
-    else:
-        import ember.fortran
-
-        coords = [
-            np.linspace(0, conserved.shape[d] - 1, block.shape[d], dtype=np.float32)
-            for d in range(3)
-        ]
-        data_out = ember.fortran.map_coordinates_3d(conserved, *coords)
-        block.set_conserved(data_out)
-
-
 def interp_from(block, src):
     """Interpolate solution from src onto block by index-space trilinear interpolation.
 
