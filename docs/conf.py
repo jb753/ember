@@ -29,6 +29,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "autodocsumm",
     "tikz",
+    "trim_module_prefix",
     "sphinxcontrib.bibtex",
     "sphinx_gallery.gen_gallery",
 ]

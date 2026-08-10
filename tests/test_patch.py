@@ -101,6 +101,7 @@ from ember.patch import (
 )
 from ember.patch import BlockPatchCollection
 from ember.fluid import PerfectFluid
+from ember.basepatch import _corners
 
 
 def _make_patch_collection():
@@ -4496,3 +4497,231 @@ class TestPatchDocstringExamples:
 
     def test_patch_examples(self):
         _exec_patch_example("patch_examples")
+
+
+class TestCorners:
+    """Test corner extraction from N-dimensional arrays (ember.basepatch._corners)."""
+
+    def test_corners_1d_array(self):
+        """Test corners with 1D array."""
+        x = np.array([10, 20, 30, 40, 50])
+        result = _corners(x)
+
+        assert result.shape == (2,)
+        np.testing.assert_array_equal(result, [10, 50])  # x[0], x[-1]
+
+    def test_corners_2d_array(self):
+        """Test corners with 2D array."""
+        x = np.arange(20).reshape(4, 5)
+        # x = [[0,  1,  2,  3,  4],
+        #      [5,  6,  7,  8,  9],
+        #      [10, 11, 12, 13, 14],
+        #      [15, 16, 17, 18, 19]]
+        result = _corners(x)
+
+        assert result.shape == (4,)
+        expected = np.array([0, 4, 15, 19])  # x[0,0], x[0,-1], x[-1,0], x[-1,-1]
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_3d_array(self):
+        """Test corners with 3D array."""
+        x = np.arange(24).reshape(2, 3, 4)
+        result = _corners(x)
+
+        assert result.shape == (8,)
+        expected = np.array(
+            [
+                0,  # x[0,0,0]
+                3,  # x[0,0,-1]
+                8,  # x[0,-1,0]
+                11,  # x[0,-1,-1]
+                12,  # x[-1,0,0]
+                15,  # x[-1,0,-1]
+                20,  # x[-1,-1,0]
+                23,  # x[-1,-1,-1]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_2d_exclude_last_axis(self):
+        """Test corners with 2D array excluding last axis."""
+        x = np.arange(20).reshape(4, 5)
+        result = _corners(x, axis_exclude=-1)
+
+        assert result.shape == (2, 5)
+        expected = np.array(
+            [
+                [0, 1, 2, 3, 4],  # x[0, :]
+                [15, 16, 17, 18, 19],  # x[-1, :]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_2d_exclude_first_axis(self):
+        """Test corners with 2D array excluding first axis."""
+        x = np.arange(20).reshape(4, 5)
+        result = _corners(x, axis_exclude=0)
+
+        assert result.shape == (2, 4)
+        expected = np.array(
+            [
+                [0, 5, 10, 15],  # x[:, 0]
+                [4, 9, 14, 19],  # x[:, -1]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_3d_exclude_last_axis(self):
+        """Test corners with 3D array excluding last axis."""
+        x = np.arange(60).reshape(3, 4, 5)
+        result = _corners(x, axis_exclude=-1)
+
+        assert result.shape == (4, 5)
+        expected = np.array(
+            [
+                x[0, 0, :],  # x[0,0,:]
+                x[0, -1, :],  # x[0,-1,:]
+                x[-1, 0, :],  # x[-1,0,:]
+                x[-1, -1, :],  # x[-1,-1,:]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_3d_exclude_middle_axis(self):
+        """Test corners with 3D array excluding middle axis."""
+        x = np.arange(60).reshape(3, 4, 5)
+        result = _corners(x, axis_exclude=1)
+
+        assert result.shape == (4, 4)
+        expected = np.array(
+            [
+                x[0, :, 0],  # x[0,:,0]
+                x[0, :, -1],  # x[0,:,-1]
+                x[-1, :, 0],  # x[-1,:,0]
+                x[-1, :, -1],  # x[-1,:,-1]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_exclude_multiple_axes(self):
+        """Test corners excluding multiple axes."""
+        x = np.arange(120).reshape(2, 3, 4, 5)
+        result = _corners(x, axis_exclude=(1, 3))
+
+        assert result.shape == (4, 3, 5)
+        expected = np.array(
+            [
+                x[0, :, 0, :],  # x[0,:,0,:]
+                x[0, :, -1, :],  # x[0,:,-1,:]
+                x[-1, :, 0, :],  # x[-1,:,0,:]
+                x[-1, :, -1, :],  # x[-1,:,-1,:]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_negative_axis_exclude(self):
+        """Test corners with negative axis exclude indices."""
+        x = np.arange(60).reshape(3, 4, 5)
+
+        # Test -1 (last axis)
+        result1 = _corners(x, axis_exclude=-1)
+        result2 = _corners(x, axis_exclude=2)
+        np.testing.assert_array_equal(result1, result2)
+
+        # Test -2 (middle axis)
+        result3 = _corners(x, axis_exclude=-2)
+        result4 = _corners(x, axis_exclude=1)
+        np.testing.assert_array_equal(result3, result4)
+
+    def test_corners_single_axis_tuple(self):
+        """Test corners with single axis in tuple."""
+        x = np.arange(60).reshape(3, 4, 5)
+        result1 = _corners(x, axis_exclude=(2,))
+        result2 = _corners(x, axis_exclude=2)
+        np.testing.assert_array_equal(result1, result2)
+
+    def test_corners_exclude_all_axes(self):
+        """Test corners excluding all axes."""
+        x = np.arange(24).reshape(2, 3, 4)
+        result = _corners(x, axis_exclude=(0, 1, 2))
+
+        assert result.shape == (1, 2, 3, 4)
+        np.testing.assert_array_equal(result[0], x)
+
+    def test_corners_float_array(self):
+        """Test corners with float array."""
+        x = np.array([[1.5, 2.7, 3.9], [4.2, 5.8, 6.1]])
+        result = _corners(x)
+
+        expected = np.array([1.5, 3.9, 4.2, 6.1])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_empty_exclude_set(self):
+        """Test corners with empty axis_exclude."""
+        x = np.arange(12).reshape(3, 4)
+        result1 = _corners(x, axis_exclude=None)
+        result2 = _corners(x, axis_exclude=())
+        result3 = _corners(x)
+
+        np.testing.assert_array_equal(result1, result2)
+        np.testing.assert_array_equal(result1, result3)
+
+    def test_corners_higher_dimensions(self):
+        """Test corners with higher dimensional arrays."""
+        # 4D array
+        x = np.arange(120).reshape(2, 3, 4, 5)
+        result = _corners(x)
+
+        assert result.shape == (16,)  # 2^4 = 16 corners
+
+        # Check a few specific corners
+        assert result[0] == x[0, 0, 0, 0]  # All first indices
+        assert result[-1] == x[-1, -1, -1, -1]  # All last indices
+
+    def test_corners_preserve_dtype(self):
+        """Test that corners preserves array dtype."""
+        x_int = np.arange(12, dtype=np.int32).reshape(3, 4)
+        result_int = _corners(x_int)
+        assert result_int.dtype == x_int.dtype
+
+        x_float = np.arange(12, dtype=np.float64).reshape(3, 4)
+        result_float = _corners(x_float)
+        assert result_float.dtype == x_float.dtype
+
+    def test_corners_list_input(self):
+        """Test corners with list input."""
+        x_list = [[1, 2, 3], [4, 5, 6]]
+        result = _corners(x_list)
+
+        expected = np.array([1, 3, 4, 6])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_single_element_array(self):
+        """Test corners with single element array."""
+        x = np.array([42])
+        result = _corners(x)
+
+        assert result.shape == (2,)
+        np.testing.assert_array_equal(
+            result, [42, 42]
+        )  # Both first and last are the same
+
+    def test_corners_axis_exclude_out_of_bounds_positive(self):
+        """Test that out-of-bounds positive axis indices are handled via modulo."""
+        x = np.arange(12).reshape(3, 4)
+        # axis_exclude=5 should be equivalent to axis_exclude=1 (5 % 2 = 1)
+        result1 = _corners(x, axis_exclude=5)
+        result2 = _corners(x, axis_exclude=1)
+        np.testing.assert_array_equal(result1, result2)
+
+    def test_corners_multidimensional_exclude_consistency(self):
+        """Test that different ways of specifying the same exclusion give same results."""
+        x = np.arange(120).reshape(2, 3, 4, 5)
+
+        # These should all exclude axes 0 and 2
+        result1 = _corners(x, axis_exclude=(0, 2))
+        result2 = _corners(x, axis_exclude=(2, 0))  # Different order
+        result3 = _corners(x, axis_exclude=(-4, -2))  # Negative indices
+
+        np.testing.assert_array_equal(result1, result2)
+        np.testing.assert_array_equal(result1, result3)

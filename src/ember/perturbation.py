@@ -81,6 +81,40 @@ from ember import util
 import ember.fortran
 
 
+def _stack_matrix(*args, shape, out=None):
+    """Stack nested iterables into a matrix with trailing matrix dimensions.
+
+    Parameters
+    ----------
+    args : nested iterables length [nrow][ncol]
+        Variables to stack, where args[i][j] contains the (i,j) matrix element.
+        Use None for zero entries to skip the copy.
+    shape : tuple
+        Grid shape for the batch dimensions.
+    out : array, optional
+        Preallocated output array of shape (*shape, nrow, ncol). If None, a new
+        array is allocated.
+
+    Returns
+    -------
+    out : Array, shape (*shape, nrow, ncol)
+        A composite matrix variable with matrix dimensions in trailing axes.
+        Uses f32 precision and Fortran ordering for optimal performance.
+    """
+    nrow = len(args)
+    ncol = len(args[0])
+
+    if out is None:
+        out = np.empty(shape + (nrow, ncol), dtype=np.float32, order="F")
+    out.fill(0.0)
+    for i in range(nrow):
+        for j in range(ncol):
+            v = args[i][j]
+            if v is not None:
+                out[..., i, j] = v
+    return out
+
+
 def primitive_to_conserved(block, out=None):
     r"""Jacobian of conserved variables with respect to primitive variables.
 
@@ -165,7 +199,7 @@ def conserved_to_primitive(block):
     drhoe_drho_P = e + rho * b.dudrho_P_nd
     drhoe_dP_rho = rho * b.dudP_rho_nd
 
-    out = util.stack_matrix(
+    out = _stack_matrix(
         (1.0, None, None, None, None),
         (-Vx, 1.0, None, None, None),
         (-Vr, None, 1.0, None, None),
@@ -306,7 +340,7 @@ def primitive_to_flux(block):
     dE_drho = Vx * ho + rhoVx * b.dhdrho_P_nd
     dE_dVx = rho * ho + rhoVx * Vx
 
-    return util.stack_matrix(
+    return _stack_matrix(
         (Vx, rho, None, None, None),
         (VxVx, 2.0 * rhoVx, None, None, 1.0),
         (VxVr, rhoVr, rhoVx, None, None),
@@ -443,7 +477,7 @@ def primitive_to_bcond(block, out=None):
     dsinBe_dVx = -Vr * Vx / Vm_cb
     dsinBe_dVr = Vx**2 / Vm_cb
 
-    return util.stack_matrix(
+    return _stack_matrix(
         (b.dhdrho_P_nd, Vx, Vr, Vt, b.dhdP_rho_nd),
         (b.dsdrho_P_nd, None, None, None, b.dsdP_rho_nd),
         (None, dtanAl_dVx, dtanAl_dVr, dtanAl_dVt, None),
@@ -699,7 +733,7 @@ def mix_to_conserved(block, out=None):
     VxVx = Vx**2
     cross = dhdrho_P * dsdP_rho - dhdP_rho * dsdrho_P
 
-    return util.stack_matrix(
+    return _stack_matrix(
         # Row 0: d(rho)/d(mix)
         (None, dsdrho_inv, None, None, -dsdP_rho * dsdrho_inv),
         # Row 1: d(rhoVx)/d(mix)
@@ -802,7 +836,7 @@ def chic_to_bcond(block, out=None):
     half_dtanAl = dtanAl_dVx * half_rhoa_recip
     half_dsinBe = dsinBe_dVx * half_rhoa_recip
 
-    return util.stack_matrix(
+    return _stack_matrix(
         # Row 0: d(ho)/d(chic)
         (
             half_dhdrho_asq - Vx * half_rhoa_recip + half_dhdP,
@@ -888,7 +922,7 @@ def chic_to_mix(block, out=None):
     half_dsdP = dsdP_rho / 2.0
     half_dsdrho_asq = dsdrho_P * half_asq
 
-    return util.stack_matrix(
+    return _stack_matrix(
         # Row 0: d(ho)/d(chic)
         (
             half_dhdrho_asq - Vx * rhoa_recip / 2.0 + half_dhdP,

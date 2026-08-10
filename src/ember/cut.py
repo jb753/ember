@@ -23,6 +23,8 @@ parent's data as a zero-copy view. See the indexing section of
 
 import numpy as np
 
+from ember import util
+
 # Which edges are cut by the isosurface? 256 possible cases, each corresponding to
 # a 12-bit number, each bit corresponds to an edge
 _EDGETABLE = np.array(
@@ -685,6 +687,70 @@ def _marching_cubes(data, dist):
         return None
 
 
+def _signed_distance(xr, xr_query):
+    """Distance above or below a piecewise line in meridional plane.
+
+    Note that this becomes increasingly inaccurate far away from the
+    curve but the zero level is correct (which is sufficient for cutting).
+
+    Parameters
+    ----------
+    xr : Array, shape (nseg, 2)
+        Coordinates of the cut plane segments following ember convention
+        with components in last axis.
+    xr_query : Array, shape (..., 2)
+        Meridional coordinates to evaluate distance at.
+
+    Returns
+    -------
+    Array, shape (...)
+        Signed distance above or below the cut.
+
+    """
+
+    assert xr.shape[-1] == 2, "Segments must have shape (..., 2)"
+    assert xr_query.shape[-1] == 2, "Points must have shape (..., 2)"
+    assert xr.ndim >= 2, "Segments must be at least 2D"
+
+    # Preallocate the signed distance
+    d = np.full(xr_query.shape[:-1], np.inf)
+
+    # Number of segments
+    nseg = xr.shape[0]
+
+    # Loop over line segments
+    for i in range(nseg - 1):
+        # Get segment endpoints: current and next points
+        seg_start = xr[i]  # Shape (..., 2)
+        seg_end = xr[i + 1]  # Shape (..., 2)
+
+        # Calculate vectors from segment start to points and along segment
+        a = xr_query - seg_start  # Point vector from segment start
+        b = seg_end - seg_start  # Segment direction vector
+
+        # Project point onto segment and clamp to [0,1]
+        L = np.maximum(util.dot(b, b), 1e-9)  # Segment length squared
+        h = np.clip(util.dot(a, b) / L, 0.0, 1.0)  # Normalized distance along segment
+
+        # Get perpendicular component (shortest distance to segment)
+        parallel_component = b * h[..., np.newaxis]  # Add axis for broadcasting
+        perpendicular = a - parallel_component  # Perpendicular vector
+        di = np.sqrt(util.dot(perpendicular, perpendicular))  # Distance magnitude
+
+        # Find points where this segment gives the closest distance
+        ind = np.where(di < np.abs(d))
+
+        # Make the distance signed using perpendicular vector to segment
+        # For 2D, perpendicular to [bx, br] is [-br, bx]
+        normal = np.stack([-b[1], b[0]], axis=-1)  # Normal vector to segment
+        di *= np.sign(util.dot(perpendicular, normal))
+
+        # Update minimum distance where this segment is closest
+        d[ind] = di[ind]
+
+    return d
+
+
 def unstructured(grid, xr_cut):
     r"""Take an unstructured cut through a grid using marching cubes.
 
@@ -722,10 +788,7 @@ def unstructured(grid, xr_cut):
         xr_coords = block.xrt[..., :2]
 
         # Evaluate signed distance for all points in the block
-        # Note: need to import at function level to avoid circular imports
-        from ember.util import signed_distance
-
-        dist = signed_distance(xr_cut, xr_coords)
+        dist = _signed_distance(xr_cut, xr_coords)
 
         # Skip blocks that do not intersect the cut
         if np.all(dist >= 0) or np.all(dist <= 0):
@@ -777,7 +840,6 @@ def structured_meridional(grid, xr_cut):
     """
 
     # Import at function level to avoid circular imports
-    from ember.util import signed_distance
     from ember.block import Block
     import ember.grid
 
@@ -792,7 +854,7 @@ def structured_meridional(grid, xr_cut):
         xr_coords = block.xrt[..., :2]  # Extract (x, r) coordinates
 
         # Get signed distance
-        dist = signed_distance(xr_cut, xr_coords)
+        dist = _signed_distance(xr_cut, xr_coords)
 
         # Check for intersection
         if np.all(dist >= 0) or np.all(dist <= 0):
@@ -896,7 +958,6 @@ def interpolate_to_structured(
     cut : Block, shape (ni, nj)
         Structured block with data interpolated onto the line-conforming grid.
     """
-    from ember import util
     from pykdtree.kdtree import KDTree
     import ember.fortran
 

@@ -37,6 +37,27 @@ import ember.fluid
 import ember.average
 
 
+def _get_atol(conserved, r_av, rtol):
+    """Physically-scaled absolute tolerances for comparing conserved variables.
+
+    Mirrors mean flow properties into per-variable atols so a rtol=0 comparison
+    still tolerates round-off near zero-crossing components (e.g. r-momentum on
+    the axis).
+    """
+    r_av = np.mean(r_av)
+    rho_av = conserved[..., 0].mean()
+    Vx_av = np.abs(conserved[..., 1] / conserved[..., 0]).mean()
+    Vr_av = np.abs(conserved[..., 2] / conserved[..., 0]).mean()
+    Vt_av = np.abs(conserved[..., 3] / conserved[..., 0] / r_av).mean()
+    V_av = np.sqrt(Vx_av**2 + Vr_av**2 + Vt_av**2)
+    return (
+        np.array(
+            [rho_av, rho_av * V_av, rho_av * V_av, rho_av * r_av * V_av, rho_av * V_av**2]
+        )
+        * rtol
+    )
+
+
 @pytest.fixture
 def test_block_2d():
     """Create a 2D cut from 3D block with flow through the cut plane."""
@@ -621,7 +642,7 @@ def test_mix_radial():
     cut = block[:, 0, :]
     assert np.ptp(cut.r) < 1e-6, "Cut should be radial with constant r"
     mix = average.mix_out(cut)
-    atol = util.get_atol(cut.conserved, mix.r, rtol=1e-5)
+    atol = _get_atol(cut.conserved, mix.r, rtol=1e-5)
     for i in range(5):
         np.testing.assert_allclose(
             mix.conserved[i], cut.conserved[..., i], atol=atol[i]
@@ -634,7 +655,7 @@ def test_mix_radial():
     cut = block[:, 0, :]
     assert np.ptp(cut.r) < 1e-6, "Cut should be radial with constant r"
     mix = average.mix_out(cut)
-    atol = util.get_atol(cut.conserved, mix.r, rtol=1e-5)
+    atol = _get_atol(cut.conserved, mix.r, rtol=1e-5)
     for i in range(5):
         np.testing.assert_allclose(
             mix.conserved[i], cut.conserved[..., i], atol=atol[i]
@@ -647,7 +668,7 @@ def test_mix_radial():
     cut = block[:, 0, :]
     assert np.ptp(cut.r) < 1e-6, "Cut should be radial with constant r"
     mix = average.mix_out(cut)
-    atol = util.get_atol(cut.conserved, mix.r, rtol=1e-5)
+    atol = _get_atol(cut.conserved, mix.r, rtol=1e-5)
     for i in range(5):
         np.testing.assert_allclose(
             mix.conserved[i], cut.conserved[..., i], atol=atol[i]

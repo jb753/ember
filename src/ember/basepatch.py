@@ -39,6 +39,78 @@ from ember import util
 logger = logging.getLogger(__name__)
 
 
+def _corners(x, axis_exclude=None):
+    """Extract corner elements from an ND numpy array.
+
+    This function extracts all corner elements from an N-dimensional array
+    by taking the first and last indices (0, -1) along each dimension,
+    except for dimensions specified in axis_exclude. The corners are
+    stacked along axis 0 in the returned array.
+
+    Parameters
+    ----------
+    x : array_like
+        Input N-dimensional array from which to extract corners.
+    axis_exclude : int or tuple of int, optional
+        Axis or axes to exclude from corner extraction. These axes
+        will be preserved in full (using slice(None)). Default: None.
+
+    Returns
+    -------
+    Array
+        Array containing all corner elements stacked along axis 0.
+        Shape is (2^n_varying_dims, ...) where n_varying_dims is the
+        number of dimensions not excluded.
+
+    Examples
+    --------
+    >>> # 2D array corners
+    >>> x = np.arange(20).reshape(4, 5)
+    >>> _corners(x).shape
+    (4, ...)
+    >>> # Returns x[0,0], x[0,-1], x[-1,0], x[-1,-1] stacked along axis 0
+
+    >>> # 3D array with last axis excluded
+    >>> x = np.arange(60).reshape(3, 4, 5)
+    >>> _corners(x, axis_exclude=-1).shape
+    (4, 5)
+    >>> # Returns x[0,0,:], x[0,-1,:], x[-1,0,:], x[-1,-1,:] stacked along axis 0
+
+    >>> # 3D array, all corners
+    >>> _corners(x).shape
+    (8, ...)
+    >>> # Returns all 8 corners: x[0,0,0], x[0,0,-1], x[0,-1,0], etc.
+    """
+    x = np.asarray(x)
+
+    # Handle axis_exclude parameter
+    if axis_exclude is None:
+        exclude_set = set()
+    elif isinstance(axis_exclude, int):
+        exclude_set = {axis_exclude % x.ndim}
+    else:
+        exclude_set = {ax % x.ndim for ax in axis_exclude}
+
+    # Build corner indices for each dimension
+    corner_indices = []
+    for dim in range(x.ndim):
+        if dim in exclude_set:
+            corner_indices.append([slice(None)])
+        else:
+            corner_indices.append([0, -1])
+
+    # Generate all combinations of corner indices
+    index_combinations = list(itertools.product(*corner_indices))
+
+    # Extract each corner and collect results
+    corner_arrays = []
+    for indices in index_combinations:
+        corner_arrays.append(x[indices])
+
+    # Stack all corners along axis 0
+    return np.stack(corner_arrays, axis=0)
+
+
 class Patch(ABC):
     # Passive-overlay opt-outs, both False for ordinary patches. Subclasses
     # (e.g. ProbePatch) may set these True to relax the rules below.
@@ -180,8 +252,8 @@ class Patch(ABC):
         xrt_other_t = util.apply_perm_flip(xrt_other, perm, flip)
 
         if corners_only:
-            xrt_self = util.corners(xrt_self, axis_exclude=-1)
-            xrt_other_t = util.corners(xrt_other_t, axis_exclude=-1)
+            xrt_self = _corners(xrt_self, axis_exclude=-1)
+            xrt_other_t = _corners(xrt_other_t, axis_exclude=-1)
 
         if xr_only:
             a = xrt_self[..., :2]
@@ -594,7 +666,7 @@ class Patch(ABC):
     def xrt_centre(self):
         """Centre coordinates of the patch as ``(x, r, t)``; ``ndarray`` of shape ``(3,)``."""
         block = self.block  # Will raise if not attached
-        xrt_corner = util.corners(block[self.slice].xrt, axis_exclude=-1)
+        xrt_corner = _corners(block[self.slice].xrt, axis_exclude=-1)
         return np.mean(xrt_corner, axis=0)
 
     # begin property

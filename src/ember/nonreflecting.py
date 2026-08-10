@@ -712,7 +712,7 @@ class NonReflectingPatch(RevolutionPatch):
                 f"characteristic Jacobian for a span station the flow {where}; "
                 "the mean state is degenerate (extreme swirl)."
             )
-        return self._span_bcast(util.inv(jac))
+        return self._span_bcast(np.linalg.inv(jac))
 
     def _calc_mask_out(self):
         """Boolean mask of the characteristic components the interior march owns.
@@ -934,7 +934,7 @@ class NonReflectingPatch(RevolutionPatch):
         jac_local = np.ascontiguousarray(c2t[..., 0:2, 1::3])
 
         return {
-            "inv_local": self._span_bcast(util.inv(jac_local)),
+            "inv_local": self._span_bcast(np.linalg.inv(jac_local)),
             "couple_r": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 2])),
             "couple_t": self._span_bcast(np.ascontiguousarray(c2t[..., 0:2, 3])),
             "coef_local": self._span_bcast(-Mt / (1.0 + Mn)),

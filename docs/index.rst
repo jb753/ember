@@ -32,6 +32,7 @@ interface, while the heavy computations run through compiled Fortran for speed.
    api/solver
    api/convergence_history
    api/perturbation
+   api/util
    references
 
 Indices

@@ -15,6 +15,7 @@ across blade rows.
 import numpy as np
 
 from ember import util
+from ember import block_util
 from ember import perturbation
 from ember import fluxes as ember_fluxes
 from ember import set_iter
@@ -39,6 +40,18 @@ def _get_axes(axes, triangulated):
 def _get_dA(block):
     """Return face area array, dispatching to dA_tri or dA_quad based on block.triangulated."""
     return block.dA_tri if block.triangulated else block.dA_quad
+
+
+def _dot_conserved(flux, dA, axes):
+    """Specialized dot product for conserved variable fluxes."""
+    return np.sum(
+        np.einsum(
+            "...ij,...i->...j",
+            flux,
+            dA,
+        ),
+        axis=axes,
+    )
 
 
 def _integrate_scalar(scalar_face, dA_face, axes):
@@ -134,7 +147,7 @@ def flow_conserved(block, axes=None):
         Integrated conserved flows
     """
     axes = _get_axes(axes, block.triangulated)
-    return util.dot_conserved(ember_fluxes.get_flux(block), _get_dA(block), axes)
+    return _dot_conserved(ember_fluxes.get_flux(block), _get_dA(block), axes)
 
 
 def mass_average(scalar_node, block, axes=None):
@@ -314,9 +327,9 @@ def mix_out(block, AR=1.0):
     mix = block.empty()
 
     # Mixed out coordinates
-    rmix = util.rms([block.r.min(), block.r.max()])
-    xmix = util.bounds(block.x).mean()
-    tmix = util.bounds(block.t).mean()
+    rmix = np.sqrt(np.mean(np.array([block.r.min(), block.r.max()]) ** 2))
+    xmix = util.extent(block.x).mean()
+    tmix = util.extent(block.t).mean()
     mix.set_x(xmix)
     mix.set_r(rmix)
     mix.set_t(tmix)
@@ -376,7 +389,7 @@ def mix_out(block, AR=1.0):
     for niter in range(max_iter):
         # Calculate current fluxes and flows (xr system)
         flux_mix = ember_fluxes.get_flux(mix)[:2, :]
-        flow_mix = util.dot_conserved(flux_mix, A, axes=())
+        flow_mix = _dot_conserved(flux_mix, A, axes=())
         err_flow = flow - flow_mix
         err_flux = err_flow / A_ref
 
@@ -386,7 +399,7 @@ def mix_out(block, AR=1.0):
 
         # Resolve to interface-aligned velocities
         Beta = mix.Beta
-        util.resolve_to_interface(mix, Beta)
+        block_util.resolve_to_interface(mix, Beta)
 
         # Calculate Jacobian of conserved/flux transformation (nondimensional)
         f2c = perturbation.flux_to_conserved(mix)
@@ -404,7 +417,7 @@ def mix_out(block, AR=1.0):
             raise Exception("Negative density")
 
         # Resolve back to physical velocities
-        util.resolve_from_interface(mix, Beta)
+        block_util.resolve_from_interface(mix, Beta)
 
     if (np.abs(err_flow) >= atol).any():
         print(f"  FAILED after {max_iter} iters: err_flow={err_flow}, atol={atol}")

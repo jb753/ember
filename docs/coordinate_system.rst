@@ -57,6 +57,8 @@ the last axis, and cell residuals have shape
 ``(ni-1, nj, nk, 5)`` with the equation index on the last
 axis.
 
+.. _coordinate-system:
+
 Coordinate system
 -----------------
 

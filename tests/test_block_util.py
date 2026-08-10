@@ -1,6 +1,6 @@
-"""Tests for interface velocity resolution functions (ember.util).
+"""Tests for interface velocity resolution functions (ember.block_util).
 
-Module tested: ember.util
+Module tested: ember.block_util
 
 Test cases:
 - test_chi_zero: Chi=0 case where Vm equals Vx and Vn equals Vr
@@ -68,7 +68,7 @@ class TestResolveToInterface:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 0.0)
+        ember.block_util.resolve_to_interface(block, 0.0)
 
         # When chi=0: Vm=Vx, Vn=Vr, Vt unchanged
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-6)
@@ -83,7 +83,7 @@ class TestResolveToInterface:
         block.set_Vt(Vt_orig)
 
         chi = 45.0  # 45 degrees
-        util.resolve_to_interface(block, chi)
+        ember.block_util.resolve_to_interface(block, chi)
 
         # Expected values for 45° rotation
         sqrt2 = np.sqrt(2.0)
@@ -101,7 +101,7 @@ class TestResolveToInterface:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 90.0)
+        ember.block_util.resolve_to_interface(block, 90.0)
 
         # When chi=90°: Vm=Vr, Vn=-Vx, Vt unchanged
         np.testing.assert_allclose(block.Vx, Vr_orig, rtol=1e-6)
@@ -119,7 +119,7 @@ class TestResolveToInterface:
         chi = np.linspace(0, 90.0, block.shape[0])  # Varies along i direction
         chi_full = np.broadcast_to(chi[:, np.newaxis, np.newaxis], block.shape)
 
-        util.resolve_to_interface(block, chi_full)
+        ember.block_util.resolve_to_interface(block, chi_full)
 
         # Check first plane (chi≈0): should be close to original
         np.testing.assert_allclose(block.Vx[0], Vx_orig, rtol=1e-2)
@@ -143,7 +143,7 @@ class TestResolveFromInterface:
         block.set_Vr(50.0)
         block.set_Vt(25.0)
 
-        util.resolve_from_interface(block, 0.0)
+        ember.block_util.resolve_from_interface(block, 0.0)
 
         # When chi=0: should be unchanged (Vx=Vm, Vr=Vn)
         np.testing.assert_allclose(block.Vx, 100.0, rtol=1e-6)
@@ -158,7 +158,7 @@ class TestResolveFromInterface:
         block.set_Vr(-100.0)
         block.set_Vt(25.0)
 
-        util.resolve_from_interface(block, 90.0)
+        ember.block_util.resolve_from_interface(block, 90.0)
 
         # When chi=90°: Vx=-Vn=100, Vr=Vm=50
         np.testing.assert_allclose(block.Vx, 100.0, rtol=1e-6)
@@ -178,10 +178,10 @@ class TestRoundtripConsistency:
         block.set_Vt(Vt_orig)
 
         # Forward transformation
-        util.resolve_to_interface(block, chi)
+        ember.block_util.resolve_to_interface(block, chi)
 
         # Inverse transformation
-        util.resolve_from_interface(block, chi)
+        ember.block_util.resolve_from_interface(block, chi)
 
         # Should recover original values
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-6)
@@ -204,10 +204,10 @@ class TestRoundtripConsistency:
         chi = np.random.uniform(0, 360.0, block.shape).astype(np.float32)
 
         # Forward transformation
-        util.resolve_to_interface(block, chi)
+        ember.block_util.resolve_to_interface(block, chi)
 
         # Inverse transformation
-        util.resolve_from_interface(block, chi)
+        ember.block_util.resolve_from_interface(block, chi)
 
         # Should recover original values
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-5)
@@ -224,7 +224,7 @@ class TestSpecialCases:
         block.set_Vr(0.0)
         block.set_Vt(25.0)
 
-        util.resolve_to_interface(block, 45.0)
+        ember.block_util.resolve_to_interface(block, 45.0)
 
         # Should remain zero for meridional components
         np.testing.assert_allclose(block.Vx, 0.0, rtol=1e-6)
@@ -239,9 +239,9 @@ class TestSpecialCases:
         block.set_Vt(Vt_orig)
 
         # Test roundtrip with large values
-        util.resolve_to_interface(block, 180.0 / 3)
+        ember.block_util.resolve_to_interface(block, 180.0 / 3)
 
-        util.resolve_from_interface(block, 180.0 / 3)
+        ember.block_util.resolve_from_interface(block, 180.0 / 3)
 
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-5)
         np.testing.assert_allclose(block.Vr, Vr_orig, rtol=1e-5)
@@ -254,7 +254,7 @@ class TestSpecialCases:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 180.0 / 6)  # 30 degrees
+        ember.block_util.resolve_to_interface(block, 180.0 / 6)  # 30 degrees
 
         # Verify transformation preserves magnitude
         Vm_squared = block.Vx**2 + block.Vr**2
@@ -274,7 +274,7 @@ class TestSpecialCases:
             block.set_Vx(Vx_orig)
             block.set_Vr(Vr_orig)
             block.set_Vt(Vt_orig)
-            util.resolve_to_interface(block, chi)
+            ember.block_util.resolve_to_interface(block, chi)
 
             # Magnitude should be preserved for meridional components
             Vm_squared = block.Vx**2 + block.Vr**2
@@ -301,7 +301,7 @@ class TestSpecialCases:
 
         # Apply transformation
         chi = 25.7  # Random angle
-        util.resolve_to_interface(block, chi)
+        ember.block_util.resolve_to_interface(block, chi)
 
         # Check magnitude preservation
         new_mag = np.sqrt(block.Vx**2 + block.Vr**2)
@@ -321,7 +321,7 @@ class TestSpecificAngles:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 180.0)  # 180 degrees
+        ember.block_util.resolve_to_interface(block, 180.0)  # 180 degrees
 
         # When chi=180°: Vm=-Vx, Vn=-Vr, Vt unchanged
         np.testing.assert_allclose(block.Vx, -Vx_orig, rtol=1e-6)
@@ -335,7 +335,7 @@ class TestSpecificAngles:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 270.0)  # 270 degrees
+        ember.block_util.resolve_to_interface(block, 270.0)  # 270 degrees
 
         # When chi=270°: Vm=-Vr, Vn=Vx, Vt unchanged
         np.testing.assert_allclose(block.Vx, -Vr_orig, rtol=1e-6)
@@ -351,10 +351,10 @@ class TestIntegration:
         block.set_Vx(100)
         block.set_Vr(50)
         block.set_Vt(25)
-        result = util.resolve_to_interface(block, 0.0)
+        result = ember.block_util.resolve_to_interface(block, 0.0)
         assert result is block, "Function should return the block"
 
-        result2 = util.resolve_from_interface(block, 0.0)
+        result2 = ember.block_util.resolve_from_interface(block, 0.0)
         assert result2 is block, "Function should return the block"
 
     def test_preserves_block_properties(self, block):
@@ -371,7 +371,7 @@ class TestIntegration:
         orig_coords = block.xrt.copy()
 
         # Apply transformation
-        util.resolve_to_interface(block, 45.0)
+        ember.block_util.resolve_to_interface(block, 45.0)
 
         # Verify non-velocity properties unchanged
         np.testing.assert_array_equal(block.rho, orig_rho)
@@ -391,7 +391,7 @@ class TestIntegration:
         orig_V = block.V.copy()
 
         # Apply transformation
-        util.resolve_to_interface(block, 45.0)
+        ember.block_util.resolve_to_interface(block, 45.0)
 
         # New meridional magnitude should equal old one (orthogonal transformation)
         np.testing.assert_allclose(block.Vm, orig_Vm, rtol=1e-5)
@@ -410,7 +410,7 @@ class TestEdgeCases:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 45.0)
+        ember.block_util.resolve_to_interface(block, 45.0)
 
         # Should handle small values without numerical issues
         assert np.all(np.isfinite(block.Vx))
@@ -436,9 +436,9 @@ class TestEdgeCases:
         block.set_Vt(Vt_orig)
 
         # Test roundtrip
-        util.resolve_to_interface(block, 180.0 / 3)
+        ember.block_util.resolve_to_interface(block, 180.0 / 3)
 
-        util.resolve_from_interface(block, 180.0 / 3)
+        ember.block_util.resolve_from_interface(block, 180.0 / 3)
 
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-5)
         np.testing.assert_allclose(block.Vr, Vr_orig, rtol=1e-5)

@@ -234,6 +234,86 @@ def _concatenate_two_blocks(block1, block2, axis=0):
     return result
 
 
+def resolve_to_interface(block, chi):
+    """Convert meridional velocity to interface-aligned velocities.
+
+    Resolves the meridional velocity components (Vx, Vr) to velocities
+    aligned with an interface at angle chi: velocity through the interface (Vm)
+    and velocity normal to the interface (Vn).
+
+    Parameters
+    ----------
+    block : Block
+        Block containing velocity data to be resolved.
+    chi : float or Array
+        Interface angle in degrees. When chi=0, Vm=Vx and Vn=Vr.
+        When chi=90, Vm=Vr and Vn=-Vx.
+
+    Returns
+    -------
+    Block
+        The input block with velocities updated to interface-aligned form.
+        Vm becomes the new Vx, Vn becomes the new Vr, Vt unchanged.
+    """
+    chi_rad = np.radians(chi)
+    cos_chi = np.cos(chi_rad)
+    sin_chi = np.sin(chi_rad)
+
+    # Current meridional velocities
+    Vx_old = block.Vx
+    Vr_old = block.Vr
+    Vt = block.Vt
+
+    # Transform to interface coordinates
+    Vm = cos_chi * Vx_old + sin_chi * Vr_old
+    Vn = -sin_chi * Vx_old + cos_chi * Vr_old
+
+    # Update block velocities: Vm->Vx, Vn->Vr, Vt unchanged
+    block.set_Vx(Vm)
+    block.set_Vr(Vn)
+    block.set_Vt(Vt)
+    return block
+
+
+def resolve_from_interface(block, chi):
+    """Convert interface-aligned velocities back to meridional components.
+
+    Converts interface-aligned velocities (Vm=block.Vx through interface,
+    Vn=block.Vr normal to interface) back to meridional components (Vx, Vr)
+    using interface angle chi.
+
+    Parameters
+    ----------
+    block : Block
+        Block containing interface-aligned velocities (Vm=block.Vx, Vn=block.Vr).
+    chi : float or Array
+        Interface angle in degrees.
+
+    Returns
+    -------
+    Block
+        The input block with velocities updated to meridional form.
+    """
+    chi_rad = np.radians(chi)
+    cos_chi = np.cos(chi_rad)
+    sin_chi = np.sin(chi_rad)
+
+    # Current interface-aligned velocities
+    Vm = block.Vx
+    Vn = block.Vr
+    Vt = block.Vt
+
+    # Transform from interface coordinates to meridional
+    Vx = cos_chi * Vm - sin_chi * Vn
+    Vr = sin_chi * Vm + cos_chi * Vn
+
+    # Update block velocities
+    block.set_Vx(Vx)
+    block.set_Vr(Vr)
+    block.set_Vt(Vt)
+    return block
+
+
 def resample(block, factors):
     """Resample 3D block with vectorized interpolation while preserving patch connectivity.
 

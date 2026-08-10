@@ -50,6 +50,27 @@ def _flatten(grid):
     return concatenate(*[block.flat() for block in grid])
 
 
+def _get_atol(conserved, r_av, rtol):
+    """Physically-scaled absolute tolerances for comparing conserved variables.
+
+    Mirrors mean flow properties into per-variable atols so a rtol=0 comparison
+    still tolerates round-off near zero-crossing components (e.g. r-momentum on
+    the axis).
+    """
+    r_av = np.mean(r_av)
+    rho_av = conserved[..., 0].mean()
+    Vx_av = np.abs(conserved[..., 1] / conserved[..., 0]).mean()
+    Vr_av = np.abs(conserved[..., 2] / conserved[..., 0]).mean()
+    Vt_av = np.abs(conserved[..., 3] / conserved[..., 0] / r_av).mean()
+    V_av = np.sqrt(Vx_av**2 + Vr_av**2 + Vt_av**2)
+    return (
+        np.array(
+            [rho_av, rho_av * V_av, rho_av * V_av, rho_av * r_av * V_av, rho_av * V_av**2]
+        )
+        * rtol
+    )
+
+
 class TestGridProperties:
     """Test Grid property methods."""
 
@@ -1295,7 +1316,7 @@ class TestGridCartesianUnstructured:
 
         # Step 4: Verify primitive variables are recovered
         for ib, block in enumerate(test_grid):
-            tols = util.get_atol(block.conserved, block.r.mean(), 1e-5)
+            tols = _get_atol(block.conserved, block.r.mean(), 1e-5)
             for ip in range(5):
                 np.testing.assert_allclose(
                     block.conserved[..., ip],
@@ -1754,306 +1775,6 @@ class TestResample:
         assert 0 in mapping and 10 in mapping
         assert np.isclose(x_resampled[mapping[0]], x[0])
         assert np.isclose(x_resampled[mapping[10]], x[10])
-
-
-class TestPitchwiseRepeat:
-    """Test suite for pitchwise_repeat function."""
-
-    @pytest.fixture
-    def sample_block(self):
-        """Create a sample block for testing pitchwise repetition."""
-        shape = (5, 6, 7)
-        block = Block(shape=shape)
-
-        # Set up coordinates with specific theta range
-        L = 0.1
-        rmid = 2.0
-        pitch_original = np.pi / 6  # 30 degrees
-
-        xrt = util.linmesh3(
-            [0, L], [rmid - 0.05, rmid + 0.05], [0, pitch_original], shape
-        )
-        block.set_x(xrt[..., 0])
-        block.set_r(xrt[..., 1])
-        block.set_t(xrt[..., 2])
-
-        # Set Nb to match our pitch
-        block.set_Nb(int(2 * np.pi / pitch_original))  # Should be 12
-
-        # Set up fluid and thermodynamic state
-        from ember.fluid import PerfectFluid
-
-        fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
-        block.set_fluid(fluid)
-        block.set_P_T(1e5, 300.0)
-        block.set_Vx(100.0)
-        block.set_Vr(50.0)
-        block.set_Vt(25.0)
-
-        return block
-
-    @pytest.fixture
-    def two_blocks(self, sample_block):
-        """Create two sample blocks for multi-block testing."""
-        block1 = sample_block
-        block2 = sample_block.copy()
-
-        # Shift block2 in x direction to make it different
-        block2.set_x(block2.x + 0.1)
-
-        return [block1, block2]
-
-    def test_n_zero_returns_empty_list(self, sample_block):
-        """Test that n=0 returns empty list."""
-        result = util.pitchwise_repeat([sample_block], 0)
-        assert result == []
-
-    def test_single_block_input(self, sample_block):
-        """Test that single block input is converted to list."""
-        original_nb = sample_block.Nb
-        result = util.pitchwise_repeat(sample_block, 2)  # Single block, not list
-
-        assert len(result) == 2
-        assert isinstance(result, list)
-        assert result[0].Nb == original_nb * 2
-        assert result[1].Nb == original_nb * 2
-
-    def test_n_one_returns_copy_no_shift(self, sample_block):
-        """Test that n=1 returns copy with no theta shift."""
-        original_t = sample_block.t.copy()
-        original_nb = sample_block.Nb
-        result = util.pitchwise_repeat([sample_block], 1)
-
-        assert len(result) == 1
-        assert result[0] is not sample_block  # Should be a copy
-        np.testing.assert_array_equal(result[0].t, original_t)
-        assert result[0].Nb == original_nb  # Nb * 1 = original
-
-    def test_positive_n_correct_length(self, two_blocks):
-        """Test that positive n gives correct result length."""
-        n = 3
-        result = util.pitchwise_repeat(two_blocks, n)
-
-        assert len(result) == n * len(two_blocks)
-        assert len(result) == 6
-
-    def test_negative_n_raises_error(self, two_blocks):
-        """Test that negative n raises an error."""
-        with pytest.raises(ValueError, match="n must be >= 0"):
-            util.pitchwise_repeat(two_blocks, -2)
-
-    def test_positive_theta_shifts(self, sample_block):
-        """Test correct theta shifting for positive n."""
-        n = 3
-        original_t = sample_block.t.copy()
-        pitch = sample_block.pitch
-
-        result = util.pitchwise_repeat([sample_block], n)
-
-        # Check theta coordinates for each repetition
-        np.testing.assert_allclose(result[0].t, original_t + pitch * 0, rtol=1e-6)
-        np.testing.assert_allclose(result[1].t, original_t + pitch * 1, rtol=1e-6)
-        np.testing.assert_allclose(result[2].t, original_t + pitch * 2, rtol=1e-6)
-
-    def test_symmetric_theta_shifts(self, sample_block):
-        """Test correct theta shifting for symmetric repetition."""
-        n = 3
-        original_t = sample_block.t.copy()
-        pitch = sample_block.pitch
-
-        result = util.pitchwise_repeat([sample_block], n, symmetric=True)
-
-        # Should have 6 blocks: [-3, -2, -1, 1, 2, 3]
-        assert len(result) == 6
-
-        # Check theta coordinates for each repetition
-        np.testing.assert_allclose(result[0].t, original_t + pitch * (-3), rtol=1e-6)
-        np.testing.assert_allclose(result[1].t, original_t + pitch * (-2), rtol=1e-6)
-        np.testing.assert_allclose(result[2].t, original_t + pitch * (-1), rtol=1e-6)
-        np.testing.assert_allclose(result[3].t, original_t + pitch * 1, rtol=1e-6)
-        np.testing.assert_allclose(result[4].t, original_t + pitch * 2, rtol=1e-6)
-        np.testing.assert_allclose(result[5].t, original_t + pitch * 3, rtol=1e-6)
-
-    def test_multi_block_ordering(self, two_blocks):
-        """Test that block ordering is preserved in repetitions."""
-        n = 2
-        result = util.pitchwise_repeat(two_blocks, n)
-
-        # Should be [block1_copy0, block2_copy0, block1_copy1, block2_copy1]
-        assert len(result) == 4
-
-        # Check that x coordinates identify the original blocks
-        # (we set block2.x = block1.x + 0.1 in the fixture)
-        expected_x_pattern = [
-            two_blocks[0].x,  # block1 at i=0
-            two_blocks[1].x,  # block2 at i=0
-            two_blocks[0].x,  # block1 at i=1
-            two_blocks[1].x,  # block2 at i=1
-        ]
-
-        for i, expected_x in enumerate(expected_x_pattern):
-            np.testing.assert_array_equal(result[i].x, expected_x)
-
-    def test_other_properties_preserved(self, sample_block):
-        """Test that non-theta properties are preserved."""
-        original_x = sample_block.x.copy()
-        original_r = sample_block.r.copy()
-        original_P = sample_block.P.copy()
-        original_T = sample_block.T.copy()
-
-        result = util.pitchwise_repeat([sample_block], 2)
-
-        for block in result:
-            np.testing.assert_array_equal(block.x, original_x)
-            np.testing.assert_array_equal(block.r, original_r)
-            np.testing.assert_array_equal(block.P, original_P)
-            np.testing.assert_array_equal(block.T, original_T)
-
-    def test_nb_property_updated(self, sample_block):
-        """Test that Nb property is updated correctly."""
-        original_nb = sample_block.Nb
-
-        # Test positive n
-        result = util.pitchwise_repeat([sample_block], 3)
-        for block in result:
-            assert block.Nb == original_nb * 3
-
-        # Test symmetric n
-        result = util.pitchwise_repeat([sample_block], 2, symmetric=True)
-        for block in result:
-            assert block.Nb == original_nb * 4  # 2 * 2 = 4
-
-        # Test n=1 (should remain unchanged)
-        result = util.pitchwise_repeat([sample_block], 1)
-        assert result[0].Nb == original_nb
-
-    def test_pitch_property_changes_with_nb(self, sample_block):
-        """Test that pitch property changes when Nb is updated."""
-        original_pitch = sample_block.pitch
-        original_nb = sample_block.Nb
-
-        result = util.pitchwise_repeat([sample_block], 3)
-
-        # New pitch should be original_pitch / 3 since Nb is tripled
-        expected_new_pitch = original_pitch / 3
-        for block in result:
-            assert np.isclose(block.pitch, expected_new_pitch)
-            assert block.Nb == original_nb * 3
-
-    def test_empty_blocks_list(self):
-        """Test behavior with empty blocks list."""
-        result = util.pitchwise_repeat([], 3)
-        assert result == []
-
-        result = util.pitchwise_repeat([], 2, symmetric=True)
-        assert result == []
-
-        result = util.pitchwise_repeat([], 0)
-        assert result == []
-
-    def test_blocks_are_independent_copies(self, sample_block):
-        """Test that returned blocks are independent copies."""
-        result = util.pitchwise_repeat([sample_block], 2)
-
-        # Modify one block
-        result[0].set_P_T(2e5, 400.0)
-
-        # Original and other copies should be unchanged
-        assert sample_block.T[0, 0, 0] == 300.0
-        assert result[1].T[0, 0, 0] == 300.0
-
-    def test_large_n_values(self, sample_block):
-        """Test with larger n values."""
-        # Test positive large n
-        result = util.pitchwise_repeat([sample_block], 10)
-        assert len(result) == 10
-
-        # Check first and last theta values
-        original_t = sample_block.t[0, 0, 0]
-        pitch = sample_block.pitch
-        assert np.isclose(result[0].t[0, 0, 0], original_t)
-        assert np.isclose(result[9].t[0, 0, 0], original_t + 9 * pitch)
-
-        # Test symmetric large n
-        result = util.pitchwise_repeat([sample_block], 5, symmetric=True)
-        assert len(result) == 10  # 5 negative + 5 positive
-        assert np.isclose(result[0].t[0, 0, 0], original_t - 5 * pitch)
-        assert np.isclose(result[-1].t[0, 0, 0], original_t + 5 * pitch)
-
-    def test_theta_wrapping_behavior(self, sample_block):
-        """Test theta coordinate behavior with large shifts."""
-        # This tests that we can create theta values outside [0, 2π]
-        # which might be useful for visualization or analysis
-        n = 20  # Large enough to wrap around multiple times
-
-        result = util.pitchwise_repeat([sample_block], n)
-
-        original_t = sample_block.t[0, 0, 0]
-        pitch = sample_block.pitch
-        final_t = result[-1].t[0, 0, 0]
-
-        expected_final_t = original_t + (n - 1) * pitch
-        assert np.isclose(final_t, expected_final_t)
-
-        # Should exceed 2π for large n
-        if n * pitch > 2 * np.pi:
-            assert final_t > 2 * np.pi
-
-    def test_symmetric_single_repetition(self, sample_block):
-        """Test symmetric repetition with n=1."""
-        result = util.pitchwise_repeat([sample_block], 1, symmetric=True)
-
-        # Should have 2 blocks: [-1, 1]
-        assert len(result) == 2
-
-        original_t = sample_block.t.copy()
-        pitch = sample_block.pitch
-
-        np.testing.assert_allclose(result[0].t, original_t + pitch * (-1), rtol=1e-6)
-        np.testing.assert_allclose(result[1].t, original_t + pitch * 1, rtol=1e-6)
-
-    def test_symmetric_nb_update(self, sample_block):
-        """Test that Nb is correctly updated for symmetric repetitions."""
-        original_nb = sample_block.Nb
-
-        result = util.pitchwise_repeat([sample_block], 3, symmetric=True)
-
-        # Should be 6 blocks total, so Nb should be multiplied by 6
-        for block in result:
-            assert block.Nb == original_nb * 6
-
-    def test_symmetric_multi_block(self, two_blocks):
-        """Test symmetric repetition with multiple blocks."""
-        result = util.pitchwise_repeat(two_blocks, 2, symmetric=True)
-
-        # Should be 4 repetitions * 2 blocks = 8 total blocks
-        assert len(result) == 8
-
-        # Check ordering: block1@-2, block2@-2, block1@-1, block2@-1, block1@1, block2@1, block1@2, block2@2
-        expected_x_pattern = [
-            two_blocks[0].x,  # block1 at i=-2
-            two_blocks[1].x,  # block2 at i=-2
-            two_blocks[0].x,  # block1 at i=-1
-            two_blocks[1].x,  # block2 at i=-1
-            two_blocks[0].x,  # block1 at i=1
-            two_blocks[1].x,  # block2 at i=1
-            two_blocks[0].x,  # block1 at i=2
-            two_blocks[1].x,  # block2 at i=2
-        ]
-
-        for i, expected_x in enumerate(expected_x_pattern):
-            np.testing.assert_array_equal(result[i].x, expected_x)
-
-    def test_symmetric_excludes_original(self, sample_block):
-        """Test that symmetric repetition excludes the original position (i=0)."""
-        original_t = sample_block.t.copy()
-
-        result = util.pitchwise_repeat([sample_block], 2, symmetric=True)
-
-        # None of the results should have the original theta values
-        for block in result:
-            # Should not be equal to original (within numerical precision)
-            assert not np.allclose(block.t, original_t, rtol=1e-10)
 
 
 # ---------------------------------------------------------------------------
