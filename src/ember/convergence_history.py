@@ -54,7 +54,7 @@ non-dimensional, hence the ``_nd`` suffix:
 * :attr:`ConvergenceHistory.mdot_nd`, :attr:`ConvergenceHistory.ho_nd`,
   :attr:`ConvergenceHistory.s_nd`
 
-Throttle state, driven by :meth:`ember.outlet.OutletPatch.set_throttle` and
+Throttle state, driven by :meth:`ember.patch.OutletPatch.set_throttle` and
 reading zero on a run whose outlets all hold a plain prescribed pressure.
 Unlike the stations above, they are dimensional:
 
@@ -608,7 +608,7 @@ class ConvergenceHistory(StructuredData):
         total correction :math:`\Delta p_\mathrm{throttle}` the outlet adds to
         its prescribed static pressure. This one is always zero: the throttle is
         a PI controller, and the column survives so the on-disk layout reads in
-        both directions. See :meth:`ember.outlet.OutletPatch.set_throttle`.
+        both directions. See :meth:`ember.patch.OutletPatch.set_throttle`.
         """
         return self._get_data_by_keys(("dP_D",))
 

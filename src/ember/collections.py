@@ -529,21 +529,21 @@ class BlockPatchCollection(_LabelledList):
 
     @property
     def cooling(self):
-        """All :py:class:`~ember.cooling.CoolingPatch` objects."""
+        """All :py:class:`~ember.patch.CoolingPatch` objects."""
         from ember.patch import CoolingPatch
 
         return [p for p in self._items if isinstance(p, CoolingPatch)]
 
     @property
     def cusp(self):
-        """All :py:class:`~ember.cusp.CuspPatch` objects."""
+        """All :py:class:`~ember.patch.CuspPatch` objects."""
         import ember.patch
 
-        return [p for p in self._items if isinstance(p, ember.cusp.CuspPatch)]
+        return [p for p in self._items if isinstance(p, ember.patch.CuspPatch)]
 
     @property
     def inlet(self):
-        """All :py:class:`~ember.inlet.InletPatch` objects.
+        """All :py:class:`~ember.patch.InletPatch` objects.
 
         The inflow side of a non-reflecting mixing plane is not one of these:
         it shares the characteristic base class but is driven by a cross-plane
@@ -556,21 +556,21 @@ class BlockPatchCollection(_LabelledList):
 
     @property
     def inviscid(self):
-        """All :py:class:`~ember.inviscid.InviscidPatch` objects."""
+        """All :py:class:`~ember.patch.InviscidPatch` objects."""
         from ember.patch import InviscidPatch
 
         return [p for p in self._items if isinstance(p, InviscidPatch)]
 
     @property
     def mixing(self):
-        """All :py:class:`~ember.mixing.MixingPatch` objects."""
+        """All :py:class:`~ember.patch.MixingPatch` objects."""
         from ember.patch import MixingPatch
 
         return [p for p in self._items if isinstance(p, MixingPatch)]
 
     @property
     def mixing_nonreflecting(self):
-        """All :py:class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch` objects.
+        """All :py:class:`~ember.patch.NonReflectingMixingPatch` objects.
 
         Both sides of a non-reflecting mixing plane, inflow and outflow.
         """
@@ -580,7 +580,7 @@ class BlockPatchCollection(_LabelledList):
 
     @property
     def outlet(self):
-        """All :py:class:`~ember.outlet.OutletPatch` objects.
+        """All :py:class:`~ember.patch.OutletPatch` objects.
 
         The outflow side of a non-reflecting mixing plane is not one of these:
         it shares the characteristic base class but is driven by a cross-plane
@@ -593,7 +593,7 @@ class BlockPatchCollection(_LabelledList):
 
     @property
     def periodic(self):
-        """All :py:class:`~ember.periodic.PeriodicPatch` objects."""
+        """All :py:class:`~ember.patch.PeriodicPatch` objects."""
         from ember.patch import PeriodicPatch
 
         return [p for p in self._items if isinstance(p, PeriodicPatch)]
@@ -602,13 +602,13 @@ class BlockPatchCollection(_LabelledList):
     def permeable(self):
         """Patches through which flow passes (non-wall faces).
 
-        Includes :py:class:`~ember.inlet.InletPatch`,
-        :py:class:`~ember.outlet.OutletPatch`,
-        :py:class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch`,
-        :py:class:`~ember.periodic.PeriodicPatch`,
-        :py:class:`~ember.mixing.MixingPatch`,
-        :py:class:`~ember.nonmatch.NonMatchPatch`, and
-        :py:class:`~ember.cusp.CuspPatch`.
+        Includes :py:class:`~ember.patch.InletPatch`,
+        :py:class:`~ember.patch.OutletPatch`,
+        :py:class:`~ember.patch.NonReflectingMixingPatch`,
+        :py:class:`~ember.patch.PeriodicPatch`,
+        :py:class:`~ember.patch.MixingPatch`,
+        :py:class:`~ember.patch.NonMatchPatch`, and
+        :py:class:`~ember.patch.CuspPatch`.
         Used to identify which boundary faces are not solid walls when
         computing block boundary fluxes.
         """
@@ -618,14 +618,14 @@ class BlockPatchCollection(_LabelledList):
 
     @property
     def probe(self):
-        """All :py:class:`~ember.probe.ProbePatch` objects."""
+        """All :py:class:`~ember.patch.ProbePatch` objects."""
         from ember.patch import ProbePatch
 
         return [p for p in self._items if isinstance(p, ProbePatch)]
 
     @property
     def rotating(self):
-        """All :py:class:`~ember.rotating.RotatingPatch` objects."""
+        """All :py:class:`~ember.patch.RotatingPatch` objects."""
         from ember.patch import RotatingPatch
 
         return [p for p in self._items if isinstance(p, RotatingPatch)]
@@ -635,7 +635,7 @@ class BlockPatchCollection(_LabelledList):
         """Patches that impose no friction (permeable faces and inviscid walls).
 
         Union of :py:attr:`permeable` and
-        :py:class:`~ember.inviscid.InviscidPatch`.
+        :py:class:`~ember.patch.InviscidPatch`.
         Used when applying viscous wall functions: faces in this set are
         treated as frictionless so no friction is applied at those boundaries.
         """

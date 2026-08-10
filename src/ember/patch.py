@@ -4,7 +4,7 @@ Limiting index rules
 --------------------
 
 Patches are defined by specifying which block face or part of a face they are
-on. Every :py:class:`~ember.basepatch.Patch` subclass is constructed as::
+on. Every :py:class:`~ember.patch.Patch` subclass is constructed as::
 
     PatchType(i=..., j=..., k=..., label=...)
 
@@ -29,7 +29,7 @@ Types of patches
 ----------------
 
 The different types of patches (e.g. periodic, inlet, outlet) are represented
-by subclasses of the abstract base class :py:class:`~ember.basepatch.Patch`,
+by subclasses of the abstract base class :py:class:`~ember.patch.Patch`,
 but are all initialised by passing in the limiting indices and an optional
 label for later debugging. Storing boundary condition information or matching
 connections between patches is handled by methods on the subclasses.
@@ -42,7 +42,7 @@ However, any property that depends on block geometry -- resolving negative
 indices to absolute coordinates, computing patch size, or accessing block
 coordinate views -- will raise an error until the patch is attached to a block.
 
-Patches are stored in a :py:class:`~ember.collections.BlockPatchCollection` accessible at ``block.patches``.
+Patches are stored in a :py:class:`~ember.patch.BlockPatchCollection` accessible at ``block.patches``.
 Adding a patch to this collection automatically attaches it to the block,
 validates its limits against the block shape, and checks that it does not
 spatially overlap with any existing patch of the same type on the same face.
@@ -64,15 +64,15 @@ Mutation is through the standard collection interface: ``append``, ``extend``,
 
 :py:func:`len` returns the number of patches on the block.
 
-A :py:class:`~ember.collections.GridPatchCollection` at ``grid.patches`` provides a corresponding
+A :py:class:`~ember.patch.GridPatchCollection` at ``grid.patches`` provides a corresponding
 read-only aggregate view across all blocks in a
 :py:class:`~ember.grid.Grid`. It supports integer indexing, slicing,
 iteration, :py:func:`len`, and the same type-grouped properties (e.g.
 ``grid.patches.periodic``), but does not support string-key access or any
 mutation methods.
 
-Examples
---------
+Example usage
+-------------
 
 ::
 

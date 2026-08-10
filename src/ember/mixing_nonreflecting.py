@@ -15,16 +15,16 @@ condition treatment is exactly the same as for a standard inflow and outflow
 boundary".
 
 So a mixing plane replaces only the **mean-mode target**. Everything else is
-inherited from :class:`~ember.nonreflecting.NonReflectingPatch` untouched: the
+inherited from :class:`~ember.patch.NonReflectingPatch` untouched: the
 pitchwise Hilbert transform, the frozen pitchwise-mean reference state, the
 characteristic split, the under-relaxation
-:attr:`~ember.nonreflecting.NonReflectingPatch.sigma`, and the non-reflecting
+:attr:`~ember.patch.NonReflectingPatch.sigma`, and the non-reflecting
 harmonic relations themselves. This class adds no numerics at all; it adds
 pairing across the plane, flux averaging, and acceptance of the exchanged
 target.
 
 One class serves both sides. Which side a patch is on is the inward face normal
-:attr:`~ember.nonreflecting.NonReflectingPatch._sign_interior`, which the base
+:attr:`~ember.patch.NonReflectingPatch._sign_interior`, which the base
 class reads off the geometry at attach time rather than taking from the class,
 so there is nothing for the caller to get right that the mesh does not already
 say. The upstream side then prescribes static pressure and the downstream side
@@ -35,7 +35,7 @@ The exchange is carried out by
 :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator`, which
 writes the target in the mix variables :math:`[h_0, s, V_r, V_\theta, p]` of
 :func:`~ember.perturbation.chic_to_mix` -- exactly the space
-:class:`~ember.nonreflecting.NonReflectingPatch` stores its prescribed target
+:class:`~ember.patch.NonReflectingPatch` stores its prescribed target
 in, so the exchange writes the patches' own target array and there is nothing to
 translate. Rows 0-3 are what a side the flow enters takes its pitchwise-mean
 residuals against, row 4 what a side the flow leaves does, which is Saxer's
@@ -50,7 +50,7 @@ communicator formed for those rows still came from the downstream-running part
 of the interface jump. At such a station this is no longer Saxer's Eq. 5.66
 direction split; it is a relaxation toward a matched state, which is enough.
 
-:class:`~ember.mixing.MixingPatch` exchanges conserved variables instead and
+:class:`~ember.patch.MixingPatch` exchanges conserved variables instead and
 imposes them outright, so the two mixing planes now share only their pairing and
 their relaxation factor.
 
@@ -63,13 +63,13 @@ asks which way it points, and this one is indifferent because it changes split.
 Both sides build their own Hilbert transform on their own pitch and no harmonic
 crosses the plane, so the two sides may have different pitchwise node counts and
 different blade counts. The spanwise node counts must match, as for
-:class:`~ember.mixing.MixingPatch`.
+:class:`~ember.patch.MixingPatch`.
 
 See Also
 --------
-ember.mixing.MixingPatch : The reflecting mixing plane
+ember.patch.MixingPatch : The reflecting mixing plane
 ember.mixing_communicator.NonReflectingMixingCommunicator : The exchange
-ember.nonreflecting.NonReflectingPatch : The condition itself
+ember.patch.NonReflectingPatch : The condition itself
 """
 
 from ember import util
@@ -89,9 +89,9 @@ class NonReflectingMixingPatch(NonReflectingPatch):
     interface jump about the same state; each patch's own frozen reference
     state stays its *local* pitchwise mean, because
     ``NonReflectingPatch._calc_reference`` calls
-    :meth:`~ember.basepatch.RevolutionPatch.set_block_avg` itself and so
+    :meth:`~ember.patch.RevolutionPatch.set_block_avg` itself and so
     re-derives it after the exchange has overwritten
-    :attr:`~ember.basepatch.RevolutionPatch.block_avg`. The split is deliberate
+    :attr:`~ember.patch.RevolutionPatch.block_avg`. The split is deliberate
     and follows Saxer: the interface jump belongs to the interface, the boundary
     condition to the boundary.
     """
@@ -128,7 +128,7 @@ class NonReflectingMixingPatch(NonReflectingPatch):
         # survives the pickle that drops the communicator, and so the two
         # planes of a multi-row grid can damp at different rates; both sides of
         # a plane must agree on it. Distinct from
-        # :attr:`~ember.nonreflecting.NonReflectingPatch.sigma`, which relaxes
+        # :attr:`~ember.patch.NonReflectingPatch.sigma`, which relaxes
         # this side's own characteristic correction. Lower than the reflecting
         # plane's default: the direction-switched split (see
         # :class:`~ember.mixing_communicator.NonReflectingMixingCommunicator`)

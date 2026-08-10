@@ -19,7 +19,7 @@ interface, while the heavy computations run through compiled Fortran for speed.
    auto_examples/index
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Reference manual
 
    coordinate_system

@@ -63,10 +63,10 @@ where the derivation does not hold.
 
 See Also
 --------
-ember.basepatch.RevolutionPatch : Base class providing the pitchwise geometry
-ember.inlet.InletPatch : Subsonic inflow
-ember.outlet.OutletPatch : Subsonic outflow
-ember.mixing_nonreflecting.NonReflectingMixingPatch : Either side of an interface
+ember.patch.RevolutionPatch : Base class providing the pitchwise geometry
+ember.patch.InletPatch : Subsonic inflow
+ember.patch.OutletPatch : Subsonic outflow
+ember.patch.NonReflectingMixingPatch : Either side of an interface
 ember.perturbation.chic_to_mix : Jacobian the characteristic solves are built on
 """
 
@@ -150,7 +150,7 @@ def calc_backflow_rho(fluid, snapshot, rho_soln_nd, rho_nd, Max, rf):
 
     See Also
     --------
-    ember.outlet.OutletPatch.set_backflow_ho_s : Prescribes the state this relaxes against
+    ember.patch.OutletPatch.set_backflow_ho_s : Prescribes the state this relaxes against
     """
     ho_snap, s_snap, Vr_snap, Vt_snap = snapshot
     h_max_nd = ho_snap - 0.5 * (Vr_snap**2 + Vt_snap**2)
@@ -174,7 +174,7 @@ def replayable(setter):
 
     Recording the call rather than the value keeps every conversion written once
     in its own setter, including the coupled two-step one of
-    :meth:`~ember.inlet.InletPatch.set_Po_To`, whose
+    :meth:`~ember.patch.InletPatch.set_Po_To`, whose
     two rows do not decompose into independent per-row conversions.
 
     The record is taken only once the setter returns, so a rejected value leaves
@@ -611,7 +611,7 @@ class NonReflectingPatch(RevolutionPatch):
         :math:`c_t/c_\mathrm{up} = -i\,\mathrm{sign}(l)\sqrt{1-M^2}/(1+M)`.
 
         Evaluating the analysis and synthesis sums directly with the node
-        weights :attr:`~ember.basepatch.RevolutionPatch.weight_pitch` gives
+        weights :attr:`~ember.patch.RevolutionPatch.weight_pitch` gives
 
         .. math::
             \mathcal{H}_{ab} = -2\sum_{m=1}^{M} w_b
@@ -1098,9 +1098,9 @@ class NonReflectingPatch(RevolutionPatch):
         matters: a row re-derived from the face every step would drive its
         residual to zero and leave the quantity with no condition on it at all.
 
-        Read off :attr:`~ember.basepatch.Patch.block_view` and pitch-averaged
+        Read off :attr:`~ember.patch.Patch.block_view` and pitch-averaged
         here rather than taken from
-        :attr:`~ember.basepatch.RevolutionPatch.block_avg`, which a mixing
+        :attr:`~ember.patch.RevolutionPatch.block_avg`, which a mixing
         exchange overwrites with the symmetrised cross-plane average, or from
         ``block_view.mean()``, whose derived properties read as zero before the
         conserved cache is primed.

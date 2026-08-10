@@ -27,13 +27,13 @@ perturbations between them:
       \mathcal{C} = [c_\mathrm{up}, c_\mathrm{down}, c_r, c_t, c_s]^\mathrm{T}
 
 * **bcond** -- what a subsonic inflow prescribes; see
-  :class:`~ember.inlet.InletPatch`
+  :class:`~ember.patch.InletPatch`
 
   .. math::
       \mathcal{B} = [h_0, s, \tan\alpha, \sin\beta, p]^\mathrm{T}
 
 * **mix** -- what a mixing plane exchanges; see
-  :class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch`
+  :class:`~ember.patch.NonReflectingMixingPatch`
 
   .. math::
       \mathcal{M} = [h_0, s, V_r, V_\theta, p]^\mathrm{T}
@@ -777,7 +777,7 @@ def chic_to_bcond(block, out=None):
     i.e. :func:`primitive_to_bcond` :math:`\cdot` :func:`chic_to_primitive`.
     Rows 0-3 against the four incoming characteristic columns form the
     square system a non-reflecting inlet solves to drive its boundary
-    condition residuals to zero; see :class:`~ember.inlet.InletPatch`. The
+    condition residuals to zero; see :class:`~ember.patch.InletPatch`. The
     angle derivatives are as in :func:`primitive_to_bcond`, both measured
     against the meridional speed.
 

@@ -6,87 +6,87 @@ Patch
 Base classes
 ------------
 
-.. autoclass:: ember.basepatch.Patch
+.. autoclass:: ember.patch.Patch
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. autoclass:: ember.basepatch.RevolutionPatch
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :class-doc-from: class
-
-.. autoclass:: ember.nonreflecting.NonReflectingPatch
+.. autoclass:: ember.patch.RevolutionPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-Concrete patch types
+.. autoclass:: ember.patch.NonReflectingPatch
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :class-doc-from: class
+
+Patch types
 --------------------
 
-.. autoclass:: ember.periodic.PeriodicPatch
+.. autoclass:: ember.patch.PeriodicPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.inlet.InletPatch
+.. autoclass:: ember.patch.InletPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.outlet.OutletPatch
+.. autoclass:: ember.patch.OutletPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.mixing.MixingPatch
+.. autoclass:: ember.patch.MixingPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.mixing_nonreflecting.NonReflectingMixingPatch
+.. autoclass:: ember.patch.NonReflectingMixingPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.nonmatch.NonMatchPatch
+.. autoclass:: ember.patch.NonMatchPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.rotating.RotatingPatch
+.. autoclass:: ember.patch.RotatingPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.cooling.CoolingPatch
+.. autoclass:: ember.patch.CoolingPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.inviscid.InviscidPatch
+.. autoclass:: ember.patch.InviscidPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.cusp.CuspPatch
+.. autoclass:: ember.patch.CuspPatch
    :members:
    :undoc-members:
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.probe.ProbePatch
+.. autoclass:: ember.patch.ProbePatch
    :members:
    :undoc-members:
    :show-inheritance:
@@ -95,13 +95,13 @@ Concrete patch types
 Collections
 -----------
 
-.. autoclass:: ember.collections.BlockPatchCollection
+.. autoclass:: ember.patch.BlockPatchCollection
    :members:
    :undoc-members:
    :inherited-members:
    :show-inheritance:
 
-.. autoclass:: ember.collections.GridPatchCollection
+.. autoclass:: ember.patch.GridPatchCollection
    :members:
    :undoc-members:
    :show-inheritance:

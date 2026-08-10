@@ -32,7 +32,7 @@ class MixingCommunicator:
     The factor is read from the patches at every exchange, so it is per plane
     rather than per grid, and a solver run can retune it on a communicator that
     already exists. Both sides of a plane must agree on it. It is the same on
-    every multigrid level. Because :class:`~ember.mixing.MixingPatch` imposes
+    every multigrid level. Because :class:`~ember.patch.MixingPatch` imposes
     all five conserved variables at its face, this relaxation is the only thing
     damping the resulting Dirichlet-Dirichlet coupling between the two blocks --
     it carries the whole stability margin of the plane. See that class for what
@@ -125,7 +125,7 @@ class MixingCommunicator:
         """Average the two sides' pitch-mean conserved states into a shared target.
 
         Performs inter-patch communication only; does not apply the target to
-        block_view.conserved. Call :meth:`~ember.mixing.MixingPatch.apply` on
+        block_view.conserved. Call :meth:`~ember.patch.MixingPatch.apply` on
         each patch afterwards.
         """
         patch1, patch2 = self._get_pair(bid, pid)
@@ -394,12 +394,12 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
     def _calc_shared_entering(self, patch, state_key):
         """One patch's entering flag from the shared symmetrised interface state.
 
-        Mirrors :meth:`~ember.nonreflecting.NonReflectingPatch._calc_entering`,
+        Mirrors :meth:`~ember.patch.NonReflectingPatch._calc_entering`,
         but reads only the interface state both patches now hold in
         ``patch.block_avg`` (already in this patch's own span order), not the
         patch's own interior -- the interior can differ between the two sides
         of a mixed-sign station, which is exactly what a shared direction is
-        for. Hysteresis of :attr:`~ember.nonreflecting.NonReflectingPatch._frac_rev_off`
+        for. Hysteresis of :attr:`~ember.patch.NonReflectingPatch._frac_rev_off`
         is kept between exchanges, keyed by ``state_key``, so a station
         hovering about zero still settles into one split instead of
         alternating.
@@ -545,7 +545,7 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
 
     Not 1: the target is an aspiration the patches' own sigma-relaxed mean-mode
     solve chases gradually, not the physical face state itself (which the
-    patch's own hard guard in :meth:`~ember.nonreflecting.NonReflectingPatch._calc_reference`
+    patch's own hard guard in :meth:`~ember.patch.NonReflectingPatch._calc_reference`
     already protects), so a target whose implied axial velocity briefly
     overshoots the subsonic boundary by a little is an ordinary transient of a
     converging integration, not a runaway. Rejecting it anyway -- tried at
@@ -564,7 +564,7 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         flow was ever in is not just wrong, it can be a state with no solution
         at all -- negative density, non-positive pressure, or an implied axial
         velocity so far past sonic that the mean-mode Newton solves of
-        :class:`~ember.nonreflecting.NonReflectingPatch` were never going to
+        :class:`~ember.patch.NonReflectingPatch` were never going to
         recover it. Rejected stations fall back to :attr:`_baseline`, the live
         symmetrised interface state :meth:`_prepare_pair` just measured --
         physical by construction, unlike the wound-up target that failed the

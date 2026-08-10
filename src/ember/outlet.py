@@ -6,7 +6,7 @@ non-reflecting theory of :cite:t:`Giles1988` (his Section 5.6) extended to three
 dimensions by :cite:t:`Saxer1993` (his Section 5.4.5 and Appendix D.3).
 
 The characteristic treatment is entirely
-:class:`~ember.nonreflecting.NonReflectingPatch`'s; what this class adds is an
+:class:`~ember.patch.NonReflectingPatch`'s; what this class adds is an
 interior on the :math:`-x` side and the pressure a physical exit plane is held
 at. Of the five characteristics at an axially subsonic outflow plane four are
 outgoing and only the upstream-running pressure wave is incoming, so a single
@@ -37,8 +37,8 @@ instead, by the base class's ``_calc_override``.
 
 See Also
 --------
-ember.nonreflecting.NonReflectingPatch : The condition itself
-ember.inlet.InletPatch : The inflow counterpart
+ember.patch.NonReflectingPatch : The condition itself
+ember.patch.InletPatch : The inflow counterpart
 ember.perturbation.chic_to_mix : Jacobian the mean-mode solves are built on
 """
 
@@ -69,7 +69,7 @@ def calc_radial_equilibrium(patch):
 
     Parameters
     ----------
-    patch : ember.basepatch.RevolutionPatch
+    patch : ember.patch.RevolutionPatch
         Outflow patch to read the interior layer and pitch weights from.
 
     Returns
@@ -81,7 +81,7 @@ def calc_radial_equilibrium(patch):
 
     See Also
     --------
-    ember.outlet.OutletPatch.set_adjustment : Enables this on the outlet
+    ember.patch.OutletPatch.set_adjustment : Enables this on the outlet
     """
     b1 = patch.block_view_offset_1
     w = patch.weight_pitch
@@ -108,13 +108,13 @@ class OutletPatch(NonReflectingPatch):
     Prescribes the static pressure :math:`p` as a pitchwise-mean quantity at
     each span station, while absorbing outgoing waves rather than reflecting
     them. It must be set before
-    :meth:`~ember.nonreflecting.NonReflectingPatch.apply` is called, via
+    :meth:`~ember.patch.NonReflectingPatch.apply` is called, via
     :meth:`set_P`, which stores its target nondimensionally in :attr:`P_nd`, so
     the patch must already be attached to a block whose fluid is set.
 
     Giles takes the mean-mode residual against the flux-averaged pressure; the
     mean here is the weighted pitch mean of
-    :attr:`~ember.basepatch.RevolutionPatch.weight_pitch`, the same average
+    :attr:`~ember.patch.RevolutionPatch.weight_pitch`, the same average
     every other residual in the family is taken against.
 
     :meth:`set_adjustment` adds a spanwise radial-equilibrium profile to the
@@ -282,7 +282,7 @@ class OutletPatch(NonReflectingPatch):
 
         See Also
         --------
-        ember.inlet.InletPatch.set_backflow_P : The mirror of this, prescribing
+        ember.patch.InletPatch.set_backflow_P : The mirror of this, prescribing
             the pressure an inflow face falls back on
         """
         fluid = self.block.fluid
@@ -371,7 +371,7 @@ class OutletPatch(NonReflectingPatch):
         P : float or array
             Prescribed static pressure :math:`p_\mathrm{out}` [Pa]; must be
             positive and finite. A scalar or any array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`.
+            :attr:`~ember.patch.Patch.shape`.
         """
         arr = np.asarray(P)
         if not np.isfinite(arr).all():
@@ -492,7 +492,7 @@ class OutletPatch(NonReflectingPatch):
 
         See Also
         --------
-        ember.outlet.OutletPatch.get_throttle_stats : Controller state, as
+        ember.patch.OutletPatch.get_throttle_stats : Controller state, as
             logged to the convergence history
         """
         if mdot_target is None:

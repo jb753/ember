@@ -6,7 +6,7 @@ after the steady non-reflecting theory of :cite:t:`Giles1988` (his Sections
 5.3-5.4) extended to three dimensions by :cite:t:`Saxer1993`.
 
 The characteristic treatment is entirely
-:class:`~ember.nonreflecting.NonReflectingPatch`'s; what this class adds is an
+:class:`~ember.patch.NonReflectingPatch`'s; what this class adds is an
 interior on the :math:`+x` side and the variables a physical inlet knows. Of the
 five characteristics at an axially subsonic inflow plane four are incoming
 (entropy, two vorticity waves, the downstream-running pressure wave) and one,
@@ -27,8 +27,8 @@ inlet and nothing else.
 
 See Also
 --------
-ember.nonreflecting.NonReflectingPatch : The condition itself
-ember.outlet.OutletPatch : The outflow counterpart
+ember.patch.NonReflectingPatch : The condition itself
+ember.patch.OutletPatch : The outflow counterpart
 ember.perturbation.chic_to_bcond : Jacobian this patch's mean-mode solve is built on
 """
 
@@ -44,7 +44,7 @@ class InletPatch(NonReflectingPatch):
     Prescribes stagnation enthalpy :math:`h_0`, entropy :math:`s`, yaw angle
     :math:`\alpha` and pitch angle :math:`\beta` as pitchwise-mean quantities,
     while absorbing outgoing acoustic waves rather than reflecting them. All
-    four must be set before :meth:`~ember.nonreflecting.NonReflectingPatch.apply`
+    four must be set before :meth:`~ember.patch.NonReflectingPatch.apply`
     is called, via :meth:`set_ho_s` or :meth:`set_Po_To` together with
     :meth:`set_Alpha` and :meth:`set_Beta`. Each setter converts its target and
     stores it nondimensionally in the corresponding row of the prescribed
@@ -119,7 +119,7 @@ class InletPatch(NonReflectingPatch):
         Alpha : float or array
             Prescribed inflow yaw angle :math:`\alpha` [deg], measured from the
             meridional plane; must satisfy :math:`|\alpha| < 90`. A scalar or an
-            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`, of
+            array that broadcasts to :attr:`~ember.patch.Patch.shape`, of
             which only the pitchwise mean at each span station is imposed.
         """
         if not (np.abs(np.asarray(Alpha)) < 90.0).all():
@@ -149,12 +149,12 @@ class InletPatch(NonReflectingPatch):
         P : float or array
             Static pressure :math:`p` [Pa]; must be positive and finite. A
             scalar or an array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise
             mean at each span station is imposed.
 
         See Also
         --------
-        ember.outlet.OutletPatch.set_backflow_ho_s : The mirror of this,
+        ember.patch.OutletPatch.set_backflow_ho_s : The mirror of this,
             prescribing the inflow state an outflow face falls back on
         """
         arr = np.asarray(P)
@@ -173,7 +173,7 @@ class InletPatch(NonReflectingPatch):
         Beta : float or array
             Prescribed inflow pitch angle :math:`\beta` [deg]; must satisfy
             :math:`|\beta| \leq 90`. A scalar or an array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise
             mean at each span station is imposed.
         """
         if not (np.abs(np.asarray(Beta)) <= 90.0).all():
@@ -197,7 +197,7 @@ class InletPatch(NonReflectingPatch):
         ----------
         ho : float or array
             Prescribed stagnation enthalpy :math:`h_0` [J/kg]. A scalar or an
-            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`, of
+            array that broadcasts to :attr:`~ember.patch.Patch.shape`, of
             which only the pitchwise mean at each span station is imposed.
         s : float or array
             Prescribed entropy :math:`s` [J/kg/K].
@@ -222,7 +222,7 @@ class InletPatch(NonReflectingPatch):
         Po : float or array
             Prescribed stagnation pressure :math:`p_0` [Pa]; must be positive.
             A scalar or an array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise
             mean at each span station is imposed.
         To : float or array
             Prescribed stagnation temperature :math:`T_0` [K]; must be positive.

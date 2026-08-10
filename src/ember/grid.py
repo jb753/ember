@@ -1443,7 +1443,7 @@ class Grid(_LabelledList):
         step.
 
         ``cfl`` is handed straight to
-        :meth:`ember.outlet.OutletPatch.update_target`, which weights a mass
+        :meth:`ember.patch.OutletPatch.update_target`, which weights a mass
         flow throttle's integral by it so one gain holds across a CFL sweep. It
         is passed per call rather than held on the patch so that it is always
         the number the march is running at; the default of 1 integrates per
@@ -2532,7 +2532,7 @@ class ConvergenceStep:
     non-dimensionalised by ``Rgas_ref``."""
 
     # The six throttle fields below come from
-    # ember.outlet.OutletPatch.get_throttle_stats, and stay at zero on a grid
+    # ember.patch.OutletPatch.get_throttle_stats, and stay at zero on a grid
     # whose outlets all hold a plain prescribed pressure.
     mdot_target: float = 0.0
     """Outlet throttle mass flow setpoint [kg/s]; zero when no outlet is

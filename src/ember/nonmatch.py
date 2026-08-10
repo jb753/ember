@@ -6,7 +6,7 @@ but have different nodal distributions, using parametric interpolation.
 See Also
 --------
 ember.patch.Patch : Base class for all patches
-ember.periodic.PeriodicPatch : Matching periodic boundaries
+ember.patch.PeriodicPatch : Matching periodic boundaries
 """
 
 import itertools
@@ -26,8 +26,8 @@ class NonMatchPatch(Patch):
     precomputes parametric coordinates at initialisation and interpolates
     each step.
 
-    Unlike :class:`~ember.periodic.PeriodicPatch`, which requires identical
-    node distributions, and :class:`~ember.mixing.MixingPatch`, which
+    Unlike :class:`~ember.patch.PeriodicPatch`, which requires identical
+    node distributions, and :class:`~ember.patch.MixingPatch`, which
     exchanges only the pitch average, ``NonMatchPatch`` transfers the full
     pointwise solution across the interface.
 

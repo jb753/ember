@@ -30,7 +30,7 @@ Overview of one time step
    recomputed every few steps to save cost.
 4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes
    the time step and stores it pre-divided by cell volume in
-   attr:``ember.block.Block.block.dt_vol_nd``.
+   :attr:``ember.block.Block.block.dt_vol_nd``.
 5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
    unintegrated net-flow residual, with optional implicit residual smoothing
    , :attr:`~Solver.sf_resid`, or negative feedback limiter
@@ -223,17 +223,17 @@ Inlet, outlet, and mixing-plane patches each relax their own state towards a
 target every step, with their own relaxation factor rather than a single
 solver-wide setting:
 
-- :class:`~ember.inlet.InletPatch` and :class:`~ember.outlet.OutletPatch` take
+- :class:`~ember.patch.InletPatch` and :class:`~ember.patch.OutletPatch` take
   one under-relaxed step of the characteristic condition per timestep, scaled
-  by :attr:`~ember.nonreflecting.NonReflectingPatch.sigma`; see
+  by :attr:`~ember.patch.NonReflectingPatch.sigma`; see
   :attr:`~ember.solver.Solver.rf_inlet` and :attr:`~ember.solver.Solver.rf_outlet`.
-- :class:`~ember.mixing.MixingPatch` holds no relaxation of its own: it imposes
+- :class:`~ember.patch.MixingPatch` holds no relaxation of its own: it imposes
   whatever target the exchange last wrote.
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
   mixing-plane target exchanged between adjacent blocks with the patches'
   ``rf_exchange`` (default 0.05), which is the only damping the reflecting
   plane has.
-- :class:`~ember.outlet.OutletPatch` relaxes its spanwise radial-equilibrium
+- :class:`~ember.patch.OutletPatch` relaxes its spanwise radial-equilibrium
   profile separately, via ``set_adjustment(rf=...)``, and damps its mass-flow
   throttle separately again, via the dimensionless gains of
   ``set_throttle(mdot_target, Kp=..., Ki=...)``.
@@ -358,25 +358,25 @@ class Solver(BaseSolver):
 
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
-    (:attr:`~ember.nonreflecting.NonReflectingPatch.sigma`) on every
-    :class:`~ember.inlet.InletPatch`. Imposed on every such patch at the start
+    (:attr:`~ember.patch.NonReflectingPatch.sigma`) on every
+    :class:`~ember.patch.InletPatch`. Imposed on every such patch at the start
     of the run, so the default overrides a value the patches carried in; pass
     None to leave whatever they already hold."""
 
     rf_outlet: float | None = 0.05
-    """As :attr:`rf_inlet`, for every :class:`~ember.outlet.OutletPatch`. This
+    """As :attr:`rf_inlet`, for every :class:`~ember.patch.OutletPatch`. This
     is the characteristic relaxation only; the spanwise radial-equilibrium
     profile has its own, set via ``set_adjustment(rf=...)``."""
 
     rf_mix: float | None = 0.01
     """As :attr:`rf_inlet`, for every
-    :class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch`. This is each
+    :class:`~ember.patch.NonReflectingMixingPatch`. This is each
     side's own characteristic relaxation; :attr:`rf_exchange` is the separate
     factor on the cross-plane exchange between them."""
 
     rf_exchange: float | None = 0.01
     """Relaxation of the cross-plane mismatch on every mixing plane, reflecting
-    (:class:`~ember.mixing.MixingPatch`) and non-reflecting alike. Read from the
+    (:class:`~ember.patch.MixingPatch`) and non-reflecting alike. Read from the
     patches by
     :class:`~ember.mixing_communicator.MixingCommunicator` at each exchange.
     As :attr:`rf_inlet`, the default is imposed and None leaves each plane's own
@@ -787,7 +787,7 @@ def _validate_mg(grid, n_levels):
 def _validate_throttle(grid):
     """Raise if more than one outlet patch is throttled to a mass flow.
 
-    Each :class:`~ember.outlet.OutletPatch` runs its own controller on the mass
+    Each :class:`~ember.patch.OutletPatch` runs its own controller on the mass
     flow through its own face, so two throttles on one exit would each see most
     of the same error and each apply the whole correction for it, over-throttling
     by roughly the number of patches. Splitting a target between them is not the
@@ -795,7 +795,7 @@ def _validate_throttle(grid):
 
     An exit spread over several blocks therefore has to prescribe pressure on
     all but one of its patches, or be closed by a single patch. Checked at the
-    start of a run rather than in :meth:`~ember.outlet.OutletPatch.set_throttle`,
+    start of a run rather than in :meth:`~ember.patch.OutletPatch.set_throttle`,
     which sees one patch and cannot know what the rest of the grid carries.
     """
     throttled = [p for p in grid.patches.outlet if p.mdot_target is not None]

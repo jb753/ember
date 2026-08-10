@@ -37,7 +37,7 @@ class MixingPatch(RevolutionPatch):
     reads off this patch, which is therefore the only stability knob the plane
     has. Waves reaching the
     plane reflect off it in full;
-    :class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch` is the
+    :class:`~ember.patch.NonReflectingMixingPatch` is the
     alternative that absorbs them.
 
     Averaging conserved variables rather than fluxes conserves mass exactly --
