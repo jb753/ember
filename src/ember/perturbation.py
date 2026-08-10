@@ -33,7 +33,7 @@ perturbations between them:
       \mathcal{B} = [h_0, s, \tan\alpha, \sin\beta, p]^\mathrm{T}
 
 * **mix** -- what a mixing plane exchanges; see
-  :class:`~ember.patch.NonReflectingMixingPatch`
+  :class:`~ember.patch.MixingPatch`
 
   .. math::
       \mathcal{M} = [h_0, s, V_r, V_\theta, p]^\mathrm{T}

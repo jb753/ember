@@ -545,10 +545,10 @@ class BlockPatchCollection(_LabelledList):
     def inlet(self):
         """All :py:class:`~ember.patch.InletPatch` objects.
 
-        The inflow side of a non-reflecting mixing plane is not one of these:
-        it shares the characteristic base class but is driven by a cross-plane
-        exchange rather than a prescribed inflow state, and is a sibling type
-        rather than a subclass; see :py:attr:`mixing_nonreflecting`.
+        The inflow side of a mixing plane is not one of these: it shares the
+        characteristic base class but is driven by a cross-plane exchange
+        rather than a prescribed inflow state, and is a sibling type rather
+        than a subclass; see :py:attr:`mixing`.
         """
         from ember.patch import InletPatch
 
@@ -563,29 +563,22 @@ class BlockPatchCollection(_LabelledList):
 
     @property
     def mixing(self):
-        """All :py:class:`~ember.patch.MixingPatch` objects."""
+        """All :py:class:`~ember.patch.MixingPatch` objects.
+
+        Both sides of a mixing plane, inflow and outflow.
+        """
         from ember.patch import MixingPatch
 
         return [p for p in self._items if isinstance(p, MixingPatch)]
 
     @property
-    def mixing_nonreflecting(self):
-        """All :py:class:`~ember.patch.NonReflectingMixingPatch` objects.
-
-        Both sides of a non-reflecting mixing plane, inflow and outflow.
-        """
-        from ember.patch import NonReflectingMixingPatch
-
-        return [p for p in self._items if isinstance(p, NonReflectingMixingPatch)]
-
-    @property
     def outlet(self):
         """All :py:class:`~ember.patch.OutletPatch` objects.
 
-        The outflow side of a non-reflecting mixing plane is not one of these:
-        it shares the characteristic base class but is driven by a cross-plane
-        exchange rather than a prescribed exit pressure, and is a sibling type
-        rather than a subclass; see :py:attr:`mixing_nonreflecting`.
+        The outflow side of a mixing plane is not one of these: it shares the
+        characteristic base class but is driven by a cross-plane exchange
+        rather than a prescribed exit pressure, and is a sibling type rather
+        than a subclass; see :py:attr:`mixing`.
         """
         from ember.patch import OutletPatch
 
@@ -604,7 +597,6 @@ class BlockPatchCollection(_LabelledList):
 
         Includes :py:class:`~ember.patch.InletPatch`,
         :py:class:`~ember.patch.OutletPatch`,
-        :py:class:`~ember.patch.NonReflectingMixingPatch`,
         :py:class:`~ember.patch.PeriodicPatch`,
         :py:class:`~ember.patch.MixingPatch`,
         :py:class:`~ember.patch.NonMatchPatch`, and
@@ -756,20 +748,11 @@ class GridPatchCollection:
 
     @property
     def mixing(self):
-        """Return all mixing patches from all blocks."""
-        # Import here to avoid circular import
+        """Return both sides of every mixing plane, from all blocks."""
         mixing_patches = []
         for block in self._grid:
             mixing_patches.extend(block.patches.mixing)
         return mixing_patches
-
-    @property
-    def mixing_nonreflecting(self):
-        """Return both sides of every non-reflecting mixing plane, from all blocks."""
-        patches = []
-        for block in self._grid:
-            patches.extend(block.patches.mixing_nonreflecting)
-        return patches
 
     @property
     def outlet(self):

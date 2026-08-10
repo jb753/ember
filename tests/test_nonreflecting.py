@@ -471,7 +471,7 @@ def test_collection_and_permeable(kind):
     assert getattr(block.patches, kind) == [patch]
     # Not the mixing-plane collection: that shares the characteristic base
     # class but is driven by a cross-plane exchange instead.
-    assert block.patches.mixing_nonreflecting == []
+    assert block.patches.mixing == []
     assert isinstance(patch, PERMEABLE_TYPES)
 
 
@@ -481,7 +481,7 @@ def test_collection_and_permeable(kind):
         ("ember.nonreflecting", "NonReflectingPatch"),
         ("ember.inlet", "InletPatch"),
         ("ember.outlet", "OutletPatch"),
-        ("ember.mixing_nonreflecting", "NonReflectingMixingPatch"),
+        ("ember.mixing", "MixingPatch"),
     ],
 )
 def test_class_member_order(module_name, class_name):

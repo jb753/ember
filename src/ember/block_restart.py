@@ -13,11 +13,7 @@ def _frozen_copy(a):
 
 
 def _cons_refs(block):
-    """Per-component dimensional reference scales for a stack of conserved variables.
-
-    Used for both ``conserved_filt_nd`` and the mixing-plane ``_target``, which
-    is a conserved-variable stack too.
-    """
+    """Per-component dimensional reference scales for a stack of conserved variables."""
     f = block.fluid
     return np.array(
         [
@@ -70,16 +66,10 @@ class BlockRestart:
         the filtered field is reconstructed as conserved_cell + lag. Stored
         dimensional so reference scales can differ between save and restore.
         None if conserved_filt was never allocated.
-    mixing : tuple of ndarray
-        One read-only array per MixingPatch, in `block.patches.mixing`
-        order. Each is `_target` dimensionalized so reference
-        scales between save and restore can differ; stack along last
-        axis is the conserved variables [rho, rhoVx, rhoVr, rho*r*Vt, rho*e].
     """
 
     conserved: np.ndarray
     conserved_filt_lag: np.ndarray | None = None
-    mixing: tuple = ()
 
     def __post_init__(self):
         object.__setattr__(self, "conserved", _frozen_copy(self.conserved))
@@ -87,7 +77,6 @@ class BlockRestart:
             object.__setattr__(
                 self, "conserved_filt_lag", _frozen_copy(self.conserved_filt_lag)
             )
-        object.__setattr__(self, "mixing", tuple(_frozen_copy(a) for a in self.mixing))
 
 
 def make_restart(grid):
@@ -107,9 +96,6 @@ def make_restart(grid):
     """
     restarts = []
     for block in grid:
-        refs = _cons_refs(block)
-        mixing = tuple(p._target * refs for p in block.patches.mixing)
-
         # conserved_filt_nd is a cached Block property; read its store entry
         # directly so a block that never allocated it still saves None (no lag).
         _filt_entry = block._store.get("conserved_filt_nd")
@@ -124,7 +110,6 @@ def make_restart(grid):
             BlockRestart(
                 conserved=block.conserved,
                 conserved_filt_lag=cons_filt_lag_dim,
-                mixing=mixing,
             )
         )
     return restarts
@@ -137,20 +122,15 @@ def apply_restart(block, restart):
     fast local quantity recomputed from the restored field by
     `Grid.update_timestep`.
 
-    The mixing-plane cross-plane `_target` is deliberately NOT restored: it is
-    left unset so `MixingPatch.get_target`/`apply` lazily re-seed it from the
-    interpolated interior pitch mean on first use, which is consistent with
-    the field on this grid (restoring the saved target leaves a step-0
-    inconsistency that makes the reflective plane ring; see the body).
-
-    No inlet or outlet state is restored at all. Those patches are
-    characteristic conditions carrying their own marched face state
-    (`_prim_prev`) and, where the user has not prescribed them, backflow target
-    rows seeded from the flow at the first timestep. Both are re-derived from
-    the interpolated field, so a restarted boundary re-converges over roughly
-    `1/sigma` steps rather than resuming exactly where it left off. That is the
-    accepted cost of holding no boundary state in the snapshot; the interior
-    field, which is what the restart is for, is unaffected.
+    No inlet, outlet, or mixing-plane state is restored at all. Those patches
+    are characteristic conditions carrying their own marched face state
+    (`_prim_prev`), the mixing plane's exchanged cross-plane target, and, where
+    the user has not prescribed them, backflow target rows seeded from the flow
+    at the first timestep. All are re-derived from the interpolated field, so a
+    restarted boundary re-converges over roughly `1/sigma` steps rather than
+    resuming exactly where it left off. That is the accepted cost of holding no
+    boundary state in the snapshot; the interior field, which is what the
+    restart is for, is unaffected.
 
     The flux-kernel pressure datum `Block.P_offset_nd` is no longer saved or
     restored: it is a cached property keyed on the conserved state, so it
@@ -173,15 +153,3 @@ def apply_restart(block, restart):
         cons_filt.flags.writeable = True
         cons_filt[...] = block.conserved_cell_nd + lag_nd
         cons_filt.flags.writeable = False
-
-    # The mixing-plane cross-plane target is intentionally NOT restored from the
-    # snapshot. The saved target and the conserved field arrive through
-    # different interpolation paths (separate index-interp + dimensional
-    # round-trip vs interp_from_conserved), so their pitch means disagree on
-    # this grid at step 0, and when the guess comes from a different solution
-    # the target is foreign to the restored field. Either way the reflective
-    # plane is kicked on the first step and rings. Leaving `_target` at its
-    # unset (None) value lets MixingPatch.get_target/apply lazily re-seed it
-    # from the interpolated interior pitch mean on first use, which is
-    # consistent with the field on this grid by construction. (restart.mixing
-    # is still saved for diagnostics/back-compat.)

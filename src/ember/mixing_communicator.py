@@ -1,11 +1,8 @@
 """Mixing plane boundary condition communication.
 
-:class:`MixingCommunicator` serves the reflecting mixing plane of
-:mod:`ember.mixing` and :class:`NonReflectingMixingCommunicator` the
-non-reflecting one of :mod:`ember.mixing_nonreflecting`. They share the pairing,
-the relaxation factor, and the per-pair diagnostics, but not the exchange
-itself: the reflecting plane averages the two sides' pitch-mean conserved
-states, while the non-reflecting plane takes the cross-plane *flux* mismatch,
+:class:`MixingCommunicator` pairs the two sides of the mixing plane of
+:mod:`ember.mixing`, holds the relaxation factor and the per-pair diagnostics,
+and carries out the exchange itself: it takes the cross-plane *flux* mismatch,
 splits it by direction of propagation after :cite:t:`Saxer1993`, and writes the
 result in the mix variables :math:`[h_0, s, V_r, V_\\theta, p]` its patches
 take their pitchwise-mean residuals against.
@@ -17,26 +14,79 @@ import numpy as np
 
 
 class MixingCommunicator:
-    r"""Manages data communication between mixing patch pairs.
+    r"""Cross-plane exchange for the mixing plane.
 
-    Each side's face is pitch-averaged in conserved variables, the two averages
-    are averaged across the plane, and the shared target is relaxed towards
-    that with the plane's relaxation factor :math:`\mathrm{rf\_exchange}`,
+    Follows :cite:t:`Saxer1993` (his Section 5.5): it flux-averages each side,
+    takes the jump in that state across the plane, converts the jump to
+    characteristic variables and splits it by direction of propagation -- the
+    side the mean flow reaches first at each span station owning the
+    upstream-running pressure characteristic and the other the remaining four
+    (:cite:t:`Holmes2008` Eq. 10-11, per station rather than fixed by
+    geometry) -- and integrates the result onto the target itself,
 
     .. math::
 
         \mathrm{target}_n = \mathrm{target}_{n-1}
-            + \mathrm{rf\_exchange}\,\bigl(\tfrac{1}{2}(U_1 + U_2)
-            - \mathrm{target}_{n-1}\bigr).
+            + \mathrm{rf\_exchange}\,\varepsilon_n,
 
-    The factor is read from the patches at every exchange, so it is per plane
-    rather than per grid, and a solver run can retune it on a communicator that
-    already exists. Both sides of a plane must agree on it. It is the same on
-    every multigrid level. Because :class:`~ember.patch.MixingPatch` imposes
-    all five conserved variables at its face, this relaxation is the only thing
-    damping the resulting Dirichlet-Dirichlet coupling between the two blocks --
-    it carries the whole stability margin of the plane. See that class for what
-    the choice of conserved variables costs in conservation.
+    following Holmes' Eq. 15 rather than re-anchoring to the live interface
+    state every step: the fixed point of the integrating form is exact flux
+    balance, where the proportional form leaves a standing offset the size of
+    the residual mismatch. :attr:`leak` and :meth:`_clamp_physical` are the
+    anti-windup this needs in return.
+
+    The relaxation factor is read from the patches at every exchange, so it is
+    per plane rather than per grid, and a solver run can retune it on a
+    communicator that already exists. Both sides of a plane must agree on it.
+    It is the same on every multigrid level.
+
+    The target is written in the mix variables :math:`[h_0, s, V_r, V_\theta,
+    p]`, which are exactly the quantities the two patches take their
+    pitchwise-mean residuals against; they drive only the mean mode of each
+    side's boundary condition and leave the harmonics to the non-reflecting
+    relations of the patches themselves.
+
+    See Also
+    --------
+    ember.mixing : The patch class this pairs
+    """
+
+    # Jacobian mapping characteristic variables to the space the exchanged
+    # target is written in. Its last row must be the static pressure and its
+    # first four the quantities an inflow prescribes, because _write_targets
+    # expresses Saxer's split of the interface jump by direction of propagation
+    # as a pair of row masks on the target vector.
+    _chic_to_target = staticmethod(perturbation.chic_to_mix)
+
+    leak = 0.0
+    r"""Anti-windup leak on the integrating relaxation, as a fraction of
+    :attr:`rf_exchange` per exchange.
+
+    :meth:`_write_targets` accumulates its correction onto the previous target
+    rather than re-anchoring to the live interface baseline every step, so
+    that the fixed point is exact flux balance rather than the proportional
+    form's standing offset (:cite:t:`Holmes2008` Eq. 15, applied to the
+    auxiliary cells rather than re-derived each step). A pure integrator can
+    wind up while the mismatch has not yet resolved -- most a reversed station
+    whose own boundary condition has not caught up with a target that has
+    already moved past what the flow was ever in. A positive leak bleeds the
+    target back toward the live baseline each step, trading a
+    ``leak/rf_exchange``-scaled residual flux mismatch for a bound on how far
+    the target can wander. Zero is exact Holmes; engage only if a station is
+    seen to wind up.
+    """
+
+    Ma_clip = 0.05
+    r"""Floor on :math:`\lvert \mathit{Ma}_x \rvert` of the symmetrised mean
+    state the Jacobians are evaluated on.
+
+    :cite:t:`Holmes2008` Eq. 16: as the mean normal velocity tends to zero the
+    eigenvalues of the transformation matrices grow, so the interface
+    over-controls to make up for the slow advection the small velocity implies.
+    Bounding the magnitude -- not the direction, which a reversed station keeps
+    -- is his remedy and this is ember's form of it. It also keeps
+    :func:`~ember.perturbation.flux_to_primitive`, which divides by the axial
+    velocity, away from zero.
     """
 
     def __init__(
@@ -67,6 +117,16 @@ class MixingCommunicator:
         # Keys: (bid, pid). Values: dict with 'du' (the relaxation increment in
         # the exchanged target's own variables, shape (nspan, 5)).
         self._pair_state = {}
+
+        # Scratch buffers, lazily allocated on first exchange
+        self._vec1 = None
+        self._vec2 = None
+        self._jac_buf = None
+
+        # Previous entering flag per (bid, pid, side), the hysteresis state for
+        # _calc_shared_entering. Keyed per side because the two patches of a
+        # pair have opposite _sign_interior and so, in general, opposite flags.
+        self._entering_state = {}
 
     def _check_rf_exchange(self):
         """Raise if either side of a plane would relax the exchange differently.
@@ -119,152 +179,6 @@ class MixingCommunicator:
         (nxbid, nxpid), _ = self.pairs[(bid, pid)]
         patch2 = self._grid[nxbid].patches[nxpid]
         return patch1, patch2
-
-    @profile
-    def _exchange_pair(self, bid, pid, flip):
-        """Average the two sides' pitch-mean conserved states into a shared target.
-
-        Performs inter-patch communication only; does not apply the target to
-        block_view.conserved. Call :meth:`~ember.patch.MixingPatch.apply` on
-        each patch afterwards.
-        """
-        patch1, patch2 = self._get_pair(bid, pid)
-
-        # Pitch-average each side's face onto its own block_avg.
-        patch1.set_block_avg()
-        patch2.set_block_avg()
-        cons1 = patch1.block_avg.conserved_nd
-        cons2 = patch2.block_avg.conserved_nd
-        if flip:
-            cons2 = cons2[::-1]
-
-        # The baseline the increment is added to. Both sides hold the same
-        # target from the exchange onwards, but before the first one each has
-        # seeded itself from its own interior, so symmetrise here too.
-        target1 = patch1.get_target()
-        target2 = patch2.get_target()
-        if flip:
-            target2 = target2[::-1]
-        target = 0.5 * (target1 + target2)
-
-        # du = rf_exchange * (cross-plane average - baseline).
-        du = 0.5 * (cons1 + cons2)
-        du -= target
-        du *= patch1.rf_exchange
-
-        state = self._ensure_pair_state((bid, pid), target.shape[0])
-        state["du"][:] = du
-
-        target += du
-        patch1.set_target(target)
-        patch2.set_target(target[::-1] if flip else target)
-
-    def get_stats(self, bid, pid):
-        """Return last-step relaxation increment for one pair.
-
-        Returns
-        -------
-        dict or None
-            Key ``du`` (last relaxation increment in the exchanged target's own
-            variables, shape ``(nspan, 5)``). Returns ``None`` if the pair has
-            not been exchanged yet.
-        """
-        state = self._pair_state.get((bid, pid))
-        if state is None:
-            return None
-        return {"du": state["du"].copy()}
-
-    def exchange(self):
-        """Compute and write targets for all pairs (no apply step)."""
-        for bid, pid in self.pairs.keys():
-            _, flip = self.pairs[(bid, pid)]
-            self._exchange_pair(bid, pid, flip)
-
-
-class NonReflectingMixingCommunicator(MixingCommunicator):
-    r"""Cross-plane exchange for the non-reflecting mixing plane.
-
-    Where the reflecting plane averages conserved variables outright, this one
-    follows :cite:t:`Saxer1993` (his Section 5.5): it flux-averages each side,
-    takes the jump in that state across the plane, converts the jump to
-    characteristic variables and splits it by direction of propagation -- the
-    side the mean flow reaches first at each span station owning the
-    upstream-running pressure characteristic and the other the remaining four
-    (:cite:t:`Holmes2008` Eq. 10-11, per station rather than fixed by
-    geometry) -- and integrates the result onto the target itself,
-
-    .. math::
-
-        \mathrm{target}_n = \mathrm{target}_{n-1}
-            + \mathrm{rf\_exchange}\,\varepsilon_n,
-
-    following Holmes' Eq. 15 rather than re-anchoring to the live interface
-    state every step: the fixed point of the integrating form is exact flux
-    balance, where the proportional form leaves a standing offset the size of
-    the residual mismatch. :attr:`leak` and :meth:`_clamp_physical` are the
-    anti-windup this needs in return.
-
-    The target is written in the mix variables :math:`[h_0, s, V_r, V_\theta,
-    p]`, which are exactly the quantities the two patches take their
-    pitchwise-mean residuals against; they drive only the mean mode of each
-    side's boundary condition and leave the harmonics to the non-reflecting
-    relations of the patches themselves.
-
-    See Also
-    --------
-    ember.mixing_nonreflecting : The two patch classes this pairs
-    """
-
-    # Jacobian mapping characteristic variables to the space the exchanged
-    # target is written in. Its last row must be the static pressure and its
-    # first four the quantities an inflow prescribes, because _write_targets
-    # expresses Saxer's split of the interface jump by direction of propagation
-    # as a pair of row masks on the target vector.
-    _chic_to_target = staticmethod(perturbation.chic_to_mix)
-
-    leak = 0.0
-    r"""Anti-windup leak on the integrating relaxation, as a fraction of
-    :attr:`rf_exchange` per exchange.
-
-    :meth:`_write_targets` accumulates its correction onto the previous target
-    rather than re-anchoring to the live interface baseline every step, so
-    that the fixed point is exact flux balance rather than the proportional
-    form's standing offset (:cite:t:`Holmes2008` Eq. 15, applied to the
-    auxiliary cells rather than re-derived each step). A pure integrator can
-    wind up while the mismatch has not yet resolved -- most a reversed station
-    whose own boundary condition has not caught up with a target that has
-    already moved past what the flow was ever in. A positive leak bleeds the
-    target back toward the live baseline each step, trading a
-    ``leak/rf_exchange``-scaled residual flux mismatch for a bound on how far
-    the target can wander. Zero is exact Holmes; engage only if a station is
-    seen to wind up.
-    """
-
-    Ma_clip = 0.05
-    r"""Floor on :math:`\lvert \mathit{Ma}_x \rvert` of the symmetrised mean
-    state the Jacobians are evaluated on.
-
-    :cite:t:`Holmes2008` Eq. 16: as the mean normal velocity tends to zero the
-    eigenvalues of the transformation matrices grow, so the interface
-    over-controls to make up for the slow advection the small velocity implies.
-    Bounding the magnitude -- not the direction, which a reversed station keeps
-    -- is his remedy and this is ember's form of it. It also keeps
-    :func:`~ember.perturbation.flux_to_primitive`, which divides by the axial
-    velocity, away from zero.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # Scratch buffers, lazily allocated on first exchange
-        self._vec1 = None
-        self._vec2 = None
-        self._jac_buf = None
-
-        # Previous entering flag per (bid, pid, side), the hysteresis state for
-        # _calc_shared_entering. Keyed per side because the two patches of a
-        # pair have opposite _sign_interior and so, in general, opposite flags.
-        self._entering_state = {}
 
     def _ensure_buffers(self, nspan):
         """Allocate or resize scratch buffers for the given spanwise size."""
@@ -406,7 +320,7 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
 
         Parameters
         ----------
-        patch : NonReflectingMixingPatch
+        patch : MixingPatch
             The side to compute the flag for, read for its own
             ``_sign_interior`` and its already-oriented ``block_avg``.
         state_key : tuple
@@ -510,9 +424,9 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         # target_n = target_{n-1} forces rf_exchange*e_n = 0, i.e. exact flux
         # balance; re-anchoring to the baseline every step (the proportional
         # form this replaces) instead leaves a standing offset of size e_n
-        # itself. The previous target is symmetrised across the two sides the
-        # same way :class:`MixingCommunicator` does, since before the first
-        # exchange each side has only seeded itself from its own interior.
+        # itself. The previous target is symmetrised across the two sides,
+        # since before the first exchange each side has only seeded itself
+        # from its own interior.
         target1 = patch1.get_target()
         target2 = patch2.get_target()
         if flip:
@@ -603,3 +517,24 @@ class NonReflectingMixingCommunicator(MixingCommunicator):
         )
         if bad.any():
             target[bad] = self._baseline[bad]
+
+    def get_stats(self, bid, pid):
+        """Return last-step relaxation increment for one pair.
+
+        Returns
+        -------
+        dict or None
+            Key ``du`` (last relaxation increment in the exchanged target's own
+            variables, shape ``(nspan, 5)``). Returns ``None`` if the pair has
+            not been exchanged yet.
+        """
+        state = self._pair_state.get((bid, pid))
+        if state is None:
+            return None
+        return {"du": state["du"].copy()}
+
+    def exchange(self):
+        """Compute and write targets for all pairs (no apply step)."""
+        for bid, pid in self.pairs.keys():
+            _, flip = self.pairs[(bid, pid)]
+            self._exchange_pair(bid, pid, flip)

@@ -60,7 +60,7 @@ Test cases:
 - test_inlet_patch_at_i0_is_free_surface: InletPatch at i=0 sets walli1 to 1.0
 - test_outlet_patch_at_ini_is_free_surface: OutletPatch at i=-1 sets wallni to 1.0
 - test_periodic_patch_at_j0_is_free_surface: PeriodicPatch at j=0 sets wallj1 to 1.0
-- test_mixing_patch_at_jnj_is_free_surface: MixingPatch at j=-1 sets wallnj to 1.0
+- test_nonmatch_patch_at_jnj_is_free_surface: NonMatchPatch at j=-1 sets wallnj to 1.0
 - test_Vxrt_rel_no_rotation: Vxrt_rel equals Vxrt when Omega is zero.
 - test_Vxrt_rel_with_rotation: Vxrt_rel tangential component equals Vt minus blade speed.
 """
@@ -72,8 +72,7 @@ import ember.geometry
 import ember.fluid
 import numpy as np
 from ember import util
-from ember.patch import InletPatch, OutletPatch, PeriodicPatch
-from ember.mixing import MixingPatch
+from ember.patch import InletPatch, NonMatchPatch, OutletPatch, PeriodicPatch
 
 
 @pytest.fixture
@@ -2250,9 +2249,9 @@ def test_periodic_patch_at_j0_is_free_surface(block):
     assert np.all(w["wallnj"] == 0.0)
 
 
-def test_mixing_patch_at_jnj_is_free_surface(block):
-    """MixingPatch at j=-1 marks wallnj as free surface (1.0), wallj1 stays wall (0.0)."""
-    block.patches.append(MixingPatch(i=(0, -1), j=-1, k=(0, -1)))
+def test_nonmatch_patch_at_jnj_is_free_surface(block):
+    """NonMatchPatch at j=-1 marks wallnj as free surface (1.0), wallj1 stays wall (0.0)."""
+    block.patches.append(NonMatchPatch(i=(0, -1), j=-1, k=(0, -1)))
     w = block.ijk_wall_conv
     assert np.all(w["wallnj"] == 1.0)
     assert np.all(w["wallj1"] == 0.0)

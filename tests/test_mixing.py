@@ -1,9 +1,8 @@
-"""Tests for the non-reflecting mixing plane.
+"""Tests for the mixing plane.
 
-Modules tested: ember.mixing_nonreflecting,
-ember.mixing_communicator.NonReflectingMixingCommunicator
+Modules tested: ember.mixing, ember.mixing_communicator
 
-The two patch classes add no numerics of their own -- the characteristic split,
+The patch class adds no numerics of its own -- the characteristic split,
 the Hilbert transform, the mean-mode Newton step and the harmonic relations are
 all inherited from the non-reflecting inlet and outlet, and are tested in
 test_nonreflecting.py, test_inlet.py and
@@ -12,7 +11,7 @@ test_outlet.py. What is left here is the mixing plane itself.
 Test cases:
 - Pairing: the two sides pair across the plane, same-side and foreign patches do
   not, differing pitchwise resolution is allowed
-- Collections: both sides appear under mixing_nonreflecting and not under the
+- Collections: both sides appear under mixing and not under the
   plain non-reflecting inlet/outlet lists, and row stations find them
 - Target: shape, pitch-uniformity, lazy seeding, copy semantics, set_adjustment
 - Physics: matched flow is a fixed point, a cross-plane mismatch relaxes to
@@ -32,14 +31,8 @@ import pytest
 
 import ember.solver
 from ember.grid import Grid
-from ember.mixing_communicator import NonReflectingMixingCommunicator
-from ember.patch import (
-    InletPatch,
-    MixingPatch,
-    NonReflectingMixingPatch,
-    OutletPatch,
-    PeriodicPatch,
-)
+from ember.mixing_communicator import MixingCommunicator
+from ember.patch import InletPatch, MixingPatch, OutletPatch, PeriodicPatch
 from nonreflecting_util import harmonic, make_block, seed_chic
 
 # The exchange and the boundary conditions are both heavily under-relaxed by
@@ -73,8 +66,8 @@ def make_chain(states, npitch=17):
 
     planes = []
     for i, (block_up, block_dn) in enumerate(zip(blocks[:-1], blocks[1:])):
-        patch_up = NonReflectingMixingPatch(i=-1, label=f"plane{i}_up")
-        patch_dn = NonReflectingMixingPatch(i=0, label=f"plane{i}_dn")
+        patch_up = MixingPatch(i=-1, label=f"plane{i}_up")
+        patch_dn = MixingPatch(i=0, label=f"plane{i}_dn")
         block_up.patches.append(patch_up)
         block_dn.patches.append(patch_dn)
         planes.append((patch_up, patch_dn))
@@ -99,12 +92,10 @@ def make_pair(npitch_up=17, npitch_dn=17, up=None, dn=None, **kwargs):
 
 def communicator(grid, rf_exchange=RF_EXCHANGE_FAST, sigma=SIGMA_FAST):
     """Communicator for every plane in a grid, with the patches sped up."""
-    for patch in grid.patches.mixing_nonreflecting:
+    for patch in grid.patches.mixing:
         patch.sigma = sigma
         patch.rf_exchange = rf_exchange
-    return NonReflectingMixingCommunicator(
-        grid, grid.connectivity.mixing_nonreflecting.pair()
-    )
+    return MixingCommunicator(grid, grid.connectivity.mixing.pair())
 
 
 def exchanged(*args, rf_exchange=RF_EXCHANGE_FAST, sigma=SIGMA_FAST, **kwargs):
@@ -146,7 +137,7 @@ def flux_gap(patch_up, patch_dn):
 def test_pairs_across_the_plane():
     """The two sides of the plane pair with each other, in both directions."""
     grid, patch_up, patch_dn = make_pair()
-    pairs = grid.connectivity.mixing_nonreflecting.pair()
+    pairs = grid.connectivity.mixing.pair()
     assert pairs == {(0, 0): ((1, 0), False), (1, 0): ((0, 0), False)}
 
 
@@ -171,13 +162,13 @@ def test_side_is_read_off_the_geometry():
 def test_pairs_with_unequal_pitchwise_resolution():
     """Only pitch means cross the plane, so the two sides may be resolved differently."""
     grid, patch_up, patch_dn = make_pair(npitch_up=17, npitch_dn=13)
-    assert grid.connectivity.mixing_nonreflecting.pair()
+    assert grid.connectivity.mixing.pair()
 
 
 def test_same_side_patches_do_not_pair():
     """Two outflow sides face the same way, so they are not two sides of a plane."""
     grid, patch_up, _ = make_pair()
-    other = NonReflectingMixingPatch(i=-1, label="mix_other")
+    other = MixingPatch(i=-1, label="mix_other")
     grid[1].patches.append(other)
     assert patch_up.check_match(other) is None
 
@@ -195,17 +186,16 @@ def test_plain_nonreflecting_patch_does_not_pair():
 
 
 def test_collections_separate_from_plain_nonreflecting():
-    """Both sides list under mixing_nonreflecting and under neither plain list.
+    """Both sides list under mixing and under neither plain list.
 
     The plain lists drive Grid.apply_bconds and the inlet-row search in
     Grid._order_row_groups, so a mixing face leaking into them would be applied
     twice per stage and could misidentify which row is first.
     """
     grid, patch_up, patch_dn = make_pair()
-    assert grid.patches.mixing_nonreflecting == [patch_up, patch_dn]
+    assert grid.patches.mixing == [patch_up, patch_dn]
     assert grid.patches.inlet == []
     assert grid.patches.outlet == []
-    assert grid.patches.mixing == []
     # Still a permeable, non-wall face for the boundary-flux machinery.
     assert patch_up in grid[0].patches.permeable
 
@@ -230,8 +220,8 @@ def test_row_stations_find_both_sides():
 def test_communicator_is_the_nonreflecting_one():
     """Connectivity builds the bcond-space exchange for this patch type."""
     grid, _, _ = make_pair()
-    comm = grid.connectivity.mixing_nonreflecting._get_communicator()
-    assert isinstance(comm, NonReflectingMixingCommunicator)
+    comm = grid.connectivity.mixing._get_communicator()
+    assert isinstance(comm, MixingCommunicator)
 
 
 # Target handling
@@ -422,7 +412,7 @@ def test_clip_bounds_the_mean_axial_mach_in_magnitude_only():
 
     b_avg, _ = comm._prepare_pair(patch_up, patch_dn, flip=False)
 
-    Ma_clip = NonReflectingMixingCommunicator.Ma_clip
+    Ma_clip = MixingCommunicator.Ma_clip
     Max = np.asarray(b_avg.Max).ravel()
     assert Max[2] == pytest.approx(-Ma_clip, rel=1e-3)
     assert Max[4] == pytest.approx(Ma_clip, rel=1e-3)
@@ -442,9 +432,7 @@ def test_sides_must_agree_on_rf_exchange():
     patch_dn.rf_exchange = 0.25
 
     with pytest.raises(ValueError, match="disagree on rf_exchange"):
-        NonReflectingMixingCommunicator(
-            grid, grid.connectivity.mixing_nonreflecting.pair()
-        )
+        MixingCommunicator(grid, grid.connectivity.mixing.pair())
 
 
 def test_rf_exchange_sets_the_rate_the_target_moves_at():
@@ -481,7 +469,7 @@ def test_rf_exchange_is_read_at_every_exchange_not_cached():
 
     # Same baseline again, so only the factor differs between the two calls.
     grid2, _, _, comm2 = exchanged(rf_exchange=0.5, up={"P": 1.05e5}, dn={"P": 0.95e5})
-    for patch in grid2.patches.mixing_nonreflecting:
+    for patch in grid2.patches.mixing:
         patch.rf_exchange = 0.25
     comm2.exchange()
     ((key2, _),) = comm2.pairs.items()
@@ -497,15 +485,14 @@ def test_copy_carries_rf_exchange():
     assert patch_up.copy().rf_exchange == pytest.approx(0.123)
 
 
-@pytest.mark.parametrize("cls", [NonReflectingMixingPatch, MixingPatch])
-def test_rf_exchange_survives_a_pickle_round_trip(cls):
+def test_rf_exchange_survives_a_pickle_round_trip():
     """It lives on the patch precisely so a restart keeps it.
 
     The communicator that used to hold it is dropped by Grid.__getstate__ and
     rebuilt from its defaults, so a value held there would silently revert on
-    every restart. Both plane types carry it.
+    every restart.
     """
-    patch = cls(i=-1)
+    patch = MixingPatch(i=-1)
     patch.rf_exchange = 0.321
 
     assert pickle.loads(pickle.dumps(patch)).rf_exchange == pytest.approx(0.321)
@@ -522,7 +509,7 @@ def test_rf_exchange_back_fills_on_a_patch_pickled_without_it():
     state = patch_up.__getstate__()
     del state["rf_exchange"]
 
-    revived = NonReflectingMixingPatch(i=-1)
+    revived = MixingPatch(i=-1)
     revived.__setstate__(state)
 
     assert revived.rf_exchange == pytest.approx(0.02)
@@ -604,7 +591,7 @@ def test_a_reversed_station_relaxes_like_any_other():
     (Change 4) accumulate toward exact flux balance instead of the standing
     offset a proportional relaxation would leave; the physical clamp is the
     anti-windup net if a station still winds up. This needs the lower,
-    integrator-scaled gain of :attr:`~ember.mixing_nonreflecting.NonReflectingMixingPatch.rf_exchange`'s
+    integrator-scaled gain of :attr:`~ember.mixing.MixingPatch.rf_exchange`'s
     production default rather than the fast test gain most of this module
     uses -- the stiffer, direction-switched feedback of a reversed station
     does not tolerate ``RF_EXCHANGE_FAST``, only :func:`test_mismatch_relaxes_to_matched_mean_fluxes`'s
@@ -691,7 +678,7 @@ CHAIN_SKEWED = [{}, {}, {"P": 0.9e5, "Vx": 90.0}]
 def test_chain_pairs_adjacent_blocks_only():
     """Each plane joins consecutive blocks; the ends do not pair through the middle."""
     grid, planes = make_chain(CHAIN_MATCHED)
-    pairs = grid.connectivity.mixing_nonreflecting.pair()
+    pairs = grid.connectivity.mixing.pair()
 
     # Block 1 owns two patches, appended inflow side first.
     assert pairs == {
@@ -767,12 +754,12 @@ def test_chain_exchange_matches_planes_taken_one_at_a_time():
     for iplane in (0, 1):
         grid_one, planes_one = make_chain(CHAIN_SKEWED, npitch=npitch)
         # Exchange this plane alone by handing the communicator only its pair.
-        all_pairs = grid_one.connectivity.mixing_nonreflecting.pair()
+        all_pairs = grid_one.connectivity.mixing.pair()
         keys = [(iplane, 0), (iplane + 1, 0)] if iplane == 0 else [(1, 1), (2, 0)]
         one_pair = {k: all_pairs[k] for k in keys}
-        for patch in grid_one.patches.mixing_nonreflecting:
+        for patch in grid_one.patches.mixing:
             patch.rf_exchange = RF_EXCHANGE_FAST
-        NonReflectingMixingCommunicator(grid_one, one_pair).exchange()
+        MixingCommunicator(grid_one, one_pair).exchange()
 
         for side in (0, 1):
             assert np.allclose(
@@ -788,7 +775,7 @@ def test_chain_relaxes_every_plane():
     states = [{}, {"P": 1.05e5, "Vx": 105.0}, {"P": 0.95e5, "Vx": 95.0}]
     grid, planes = make_chain(states)
     comm = communicator(grid)
-    patches = grid.patches.mixing_nonreflecting
+    patches = grid.patches.mixing
 
     gaps_before = [flux_gap(up, dn) for up, dn in planes]
     assert all(gap.max() > 1e-2 for gap in gaps_before)
@@ -831,7 +818,7 @@ def test_solver_run_stays_finite():
     inlet.set_Beta(0.0)
     grid.patches.outlet[0].set_P(float(grid[1].P[-1].mean()))
     grid.connectivity.periodic.pair()
-    grid.connectivity.mixing_nonreflecting.pair()
+    grid.connectivity.mixing.pair()
 
     ember.solver.Solver(n_step=20, n_step_avg=1, n_step_log=20, n_stage=4).run(grid)
 

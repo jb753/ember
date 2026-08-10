@@ -615,7 +615,7 @@ def test_plot3d_fvbnd_roundtrip(tmp_path):
     # Add patches to blocks
     inlet1 = InletPatch(i=0, j=(0, -1), k=(0, -1), label="inlet_1")
     outlet1 = OutletPatch(i=-1, j=(0, -1), k=(0, -1), label="outlet_1")
-    mixing1 = MixingPatch(i=(0, -1), j=0, k=(0, -1), label="mixing_1")
+    mixing1 = MixingPatch(i=-1, j=(0, -1), k=(0, -1), label="mixing_1")
     periodic1 = PeriodicPatch(i=(0, -1), j=(0, -1), k=0, label="periodic_1")
 
     block1.patches.append(inlet1)
@@ -683,7 +683,7 @@ def test_grid_write_plot3d_with_fvbnd(tmp_path):
     # Add patches to blocks
     inlet1 = InletPatch(i=0, j=(0, -1), k=(0, -1), label="inlet_1")
     outlet1 = OutletPatch(i=-1, j=(0, -1), k=(0, -1), label="outlet_1")
-    mixing1 = MixingPatch(i=(0, -1), j=0, k=(0, -1), label="mixing_1")
+    mixing1 = MixingPatch(i=-1, j=(0, -1), k=(0, -1), label="mixing_1")
     periodic1 = PeriodicPatch(i=(0, -1), j=(0, -1), k=0, label="periodic_1")
 
     block1.patches.append(inlet1)

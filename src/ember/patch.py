@@ -157,7 +157,6 @@ from ember.cusp import CuspPatch
 from ember.inlet import InletPatch
 from ember.inviscid import InviscidPatch
 from ember.mixing import MixingPatch
-from ember.mixing_nonreflecting import NonReflectingMixingPatch
 from ember.nonmatch import NonMatchPatch
 from ember.nonreflecting import NonReflectingPatch
 from ember.outlet import OutletPatch
@@ -173,7 +172,6 @@ __all__ = [
     "InletPatch",
     "OutletPatch",
     "MixingPatch",
-    "NonReflectingMixingPatch",
     "NonMatchPatch",
     "RotatingPatch",
     "CoolingPatch",
@@ -190,11 +188,10 @@ PERMEABLE_TYPES = (
     InletPatch,
     OutletPatch,
     PeriodicPatch,
-    MixingPatch,
     # Listed in its own right rather than reached through the two conditions
     # above: it is a NonReflectingPatch that is neither, since the geometry
     # rather than the class decides which side of the plane it sits on.
-    NonReflectingMixingPatch,
+    MixingPatch,
     NonMatchPatch,
     CuspPatch,
 )

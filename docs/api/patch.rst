@@ -50,12 +50,6 @@ Patch types
    :show-inheritance:
    :class-doc-from: class
 
-.. autoclass:: ember.patch.NonReflectingMixingPatch
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :class-doc-from: class
-
 .. autoclass:: ember.patch.NonMatchPatch
    :members:
    :undoc-members:

@@ -66,7 +66,7 @@ See Also
 ember.patch.RevolutionPatch : Base class providing the pitchwise geometry
 ember.patch.InletPatch : Subsonic inflow
 ember.patch.OutletPatch : Subsonic outflow
-ember.patch.NonReflectingMixingPatch : Either side of an interface
+ember.patch.MixingPatch : Either side of an interface
 ember.perturbation.chic_to_mix : Jacobian the characteristic solves are built on
 """
 

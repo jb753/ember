@@ -19,7 +19,7 @@ Test cases:
 
 import numpy as np
 import ember.block
-from ember.patch import NonMatchPatch, PeriodicPatch, InviscidPatch, MixingPatch
+from ember.patch import CoolingPatch, InviscidPatch, NonMatchPatch, PeriodicPatch
 from conftest import _make_block
 
 
@@ -84,17 +84,17 @@ class TestNonMatchPatchCheckMatch:
         nonmatch_patch = NonMatchPatch(i=0, j=(5, 15), k=(10, 20))
         periodic_patch = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
         inlet_patch = InviscidPatch(i=0, j=(5, 15), k=(10, 20))
-        mixing_patch = MixingPatch(i=0, j=(5, 15), k=(10, 20))
+        cooling_patch = CoolingPatch(i=0, j=(5, 15), k=(10, 20))
 
         nonmatch_patch.attach_to_block(self.block1)
         periodic_patch.attach_to_block(self.block1)
         inlet_patch.attach_to_block(self.block1)
-        mixing_patch.attach_to_block(self.block1)
+        cooling_patch.attach_to_block(self.block1)
 
         # Should not match with different patch types
         assert nonmatch_patch.check_match(periodic_patch) is None
         assert nonmatch_patch.check_match(inlet_patch) is None
-        assert nonmatch_patch.check_match(mixing_patch) is None
+        assert nonmatch_patch.check_match(cooling_patch) is None
         assert periodic_patch.check_match(nonmatch_patch) is None
 
     def test_nonmatch_patch_different_x_no_match(self):

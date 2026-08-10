@@ -237,12 +237,12 @@ def test_periodic_removes_wall(block):
     assert np.all(block.wdist[:, -1, :] < _WALL_THRESHOLD)
 
 
-def test_mixing_removes_wall(block):
-    """MixingPatch at j=-1 removes that face from the wall set."""
-    block.patches.append(MixingPatch(j=-1))
-    Grid([block]).calculate_wdist()
-    assert np.all(block.wdist[1:-1, -1, 1:-1] > _WALL_THRESHOLD)
-    assert np.all(block.wdist[:, 0, :] < _WALL_THRESHOLD)
+def test_mixing_removes_wall(passage_block):
+    """MixingPatch at i=-1 removes that face from the wall set."""
+    passage_block.patches.append(MixingPatch(i=-1))
+    Grid([passage_block]).calculate_wdist()
+    assert np.all(passage_block.wdist[-1, 1:-1, 1:-1] > _WALL_THRESHOLD)
+    assert np.all(passage_block.wdist[0, :, :] < _WALL_THRESHOLD)
 
 
 def test_nonmatch_removes_wall(block):
@@ -307,9 +307,9 @@ def test_cusp_invalid_on_j_face(block):
 def test_all_permeable_raises(passage_block):
     """Grid with all six faces permeable raises ValueError (no wall nodes)."""
     passage_block.patches.append(InletPatch(i=0))
-    passage_block.patches.append(OutletPatch(i=-1))
+    passage_block.patches.append(MixingPatch(i=-1))
     passage_block.patches.append(PeriodicPatch(j=0))
-    passage_block.patches.append(MixingPatch(j=-1))
+    passage_block.patches.append(NonMatchPatch(j=-1))
     passage_block.patches.append(NonMatchPatch(k=0))
     passage_block.patches.append(NonMatchPatch(k=-1))
     with pytest.raises(ValueError, match="No wall nodes"):

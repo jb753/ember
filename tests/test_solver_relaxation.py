@@ -27,21 +27,15 @@ import pytest
 
 import ember.solver
 from ember.grid import Grid
-from ember.patch import (
-    MixingPatch,
-    InletPatch,
-    NonReflectingMixingPatch,
-    OutletPatch,
-    PeriodicPatch,
-)
+from ember.patch import InletPatch, MixingPatch, OutletPatch, PeriodicPatch
 from nonreflecting_util import make_block
 
 # Nothing here marches to convergence; two steps is enough to prove the push ran.
 N_STEP = 2
 
 
-def make_grid(mixing_cls=NonReflectingMixingPatch, nblock=2):
-    """Blocks butted end to end, joined by mixing planes of one class.
+def make_grid(nblock=2):
+    """Blocks butted end to end, joined by mixing planes.
 
     Runnable: wall distance, reference length, periodic seams and the end
     conditions are all set up.
@@ -55,8 +49,8 @@ def make_grid(mixing_cls=NonReflectingMixingPatch, nblock=2):
         blocks.append(block)
 
     for i, (block_up, block_dn) in enumerate(zip(blocks[:-1], blocks[1:])):
-        block_up.patches.append(mixing_cls(i=-1, label=f"plane{i}_up"))
-        block_dn.patches.append(mixing_cls(i=0, label=f"plane{i}_dn"))
+        block_up.patches.append(MixingPatch(i=-1, label=f"plane{i}_up"))
+        block_dn.patches.append(MixingPatch(i=0, label=f"plane{i}_dn"))
 
     blocks[0].patches.append(InletPatch(i=0))
     blocks[-1].patches.append(OutletPatch(i=-1))
@@ -106,7 +100,7 @@ def rf_exchanges(patches):
     [
         ("rf_inlet", "inlet"),
         ("rf_outlet", "outlet"),
-        ("rf_mix", "mixing_nonreflecting"),
+        ("rf_mix", "mixing"),
     ],
 )
 def test_each_sigma_setting_lands_on_the_patches_it_names(setting, collection):
@@ -120,8 +114,8 @@ def test_each_sigma_setting_lands_on_the_patches_it_names(setting, collection):
 @pytest.mark.parametrize(
     "setting, untouched",
     [
-        ("rf_inlet", ["outlet", "mixing_nonreflecting"]),
-        ("rf_outlet", ["inlet", "mixing_nonreflecting"]),
+        ("rf_inlet", ["outlet", "mixing"]),
+        ("rf_outlet", ["inlet", "mixing"]),
         ("rf_mix", ["inlet", "outlet"]),
     ],
 )
@@ -146,18 +140,14 @@ def test_each_sigma_setting_leaves_the_other_collections_alone(setting, untouche
         np.testing.assert_allclose(sigmas(getattr(grid.patches, collection)), 0.321)
 
 
-def test_rf_exchange_drives_both_plane_types():
-    """It is the exchange's factor, and both mixing planes have an exchange."""
-    for mixing_cls, collection in (
-        (NonReflectingMixingPatch, "mixing_nonreflecting"),
-        (MixingPatch, "mixing"),
-    ):
-        grid = make_grid(mixing_cls=mixing_cls)
-        ember.solver._apply_bcond_relaxation(grid, solver(rf_exchange=0.123))
+def test_rf_exchange_drives_the_mixing_plane():
+    """It is the exchange's factor, and the mixing plane is what has an exchange."""
+    grid = make_grid()
+    ember.solver._apply_bcond_relaxation(grid, solver(rf_exchange=0.123))
 
-        patches = getattr(grid.patches, collection)
-        assert len(patches) == 2
-        np.testing.assert_allclose([p.rf_exchange for p in patches], 0.123)
+    patches = grid.patches.mixing
+    assert len(patches) == 2
+    np.testing.assert_allclose([p.rf_exchange for p in patches], 0.123)
 
 
 def test_the_sigma_settings_do_not_touch_the_outlet_spanwise_relaxation():
@@ -181,7 +171,7 @@ def test_the_sigma_settings_do_not_touch_the_outlet_spanwise_relaxation():
 
 def hand_set(grid):
     """Distinctive values on every patch the settings can reach."""
-    for patch in grid.patches.mixing_nonreflecting:
+    for patch in grid.patches.mixing:
         patch.sigma = 0.4
         patch.rf_exchange = 0.3
     grid.patches.inlet[0].sigma = 0.2
@@ -199,8 +189,8 @@ def test_none_leaves_a_hand_set_value_alone():
 
     solver(rf_inlet=None, rf_outlet=None, rf_mix=None, rf_exchange=None).run(grid)
 
-    np.testing.assert_allclose(sigmas(grid.patches.mixing_nonreflecting), 0.4)
-    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing_nonreflecting), 0.3)
+    np.testing.assert_allclose(sigmas(grid.patches.mixing), 0.4)
+    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing), 0.3)
     assert grid.patches.inlet[0].sigma == pytest.approx(0.2)
     assert grid.patches.outlet[0].sigma == pytest.approx(0.1)
 
@@ -221,9 +211,9 @@ def test_the_defaults_are_imposed_over_a_hand_set_value():
     conf = solver()
     conf.run(grid)
 
-    np.testing.assert_allclose(sigmas(grid.patches.mixing_nonreflecting), conf.rf_mix)
+    np.testing.assert_allclose(sigmas(grid.patches.mixing), conf.rf_mix)
     np.testing.assert_allclose(
-        rf_exchanges(grid.patches.mixing_nonreflecting), conf.rf_exchange
+        rf_exchanges(grid.patches.mixing), conf.rf_exchange
     )
     assert grid.patches.inlet[0].sigma == pytest.approx(conf.rf_inlet)
     assert grid.patches.outlet[0].sigma == pytest.approx(conf.rf_outlet)
@@ -239,11 +229,7 @@ def test_the_solver_advances_each_condition_once_a_step(n_stage, monkeypatch):
     integrator and putting sigma's meaning beyond stating.
     """
     counts = Counter()
-    for cls in (
-        InletPatch,
-        OutletPatch,
-        NonReflectingMixingPatch,
-    ):
+    for cls in (InletPatch, OutletPatch, MixingPatch):
         original = cls.advance
 
         def counted(self, _original=original):
@@ -260,7 +246,7 @@ def test_the_solver_advances_each_condition_once_a_step(n_stage, monkeypatch):
     assert counts["InletPatch"] == N_STEP
     assert counts["OutletPatch"] == N_STEP
     # Two sides to the plane, one advance each.
-    assert counts["NonReflectingMixingPatch"] == 2 * N_STEP
+    assert counts["MixingPatch"] == 2 * N_STEP
 
 
 # Independence
@@ -275,8 +261,8 @@ def test_rf_mix_and_rf_exchange_are_separate_knobs():
     grid = make_grid()
     ember.solver._apply_bcond_relaxation(grid, solver(rf_mix=0.2, rf_exchange=0.3))
 
-    np.testing.assert_allclose(sigmas(grid.patches.mixing_nonreflecting), 0.2)
-    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing_nonreflecting), 0.3)
+    np.testing.assert_allclose(sigmas(grid.patches.mixing), 0.2)
+    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing), 0.3)
 
 
 # Wiring
@@ -290,8 +276,8 @@ def test_a_run_applies_the_settings():
 
     assert grid.patches.inlet[0].sigma == pytest.approx(0.11)
     assert grid.patches.outlet[0].sigma == pytest.approx(0.12)
-    np.testing.assert_allclose(sigmas(grid.patches.mixing_nonreflecting), 0.13)
-    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing_nonreflecting), 0.14)
+    np.testing.assert_allclose(sigmas(grid.patches.mixing), 0.13)
+    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing), 0.14)
 
 
 def test_a_run_with_a_cached_communicator_still_retunes_the_exchange():
@@ -306,7 +292,7 @@ def test_a_run_with_a_cached_communicator_still_retunes_the_exchange():
 
     solver(rf_exchange=0.14).run(grid)
 
-    comm = grid.connectivity.mixing_nonreflecting._get_communicator()
+    comm = grid.connectivity.mixing._get_communicator()
     ((bid, pid),) = comm.pairs
     patch1, _ = comm._get_pair(bid, pid)
     assert patch1.rf_exchange == pytest.approx(0.14)
@@ -334,5 +320,5 @@ def test_fmg_applies_the_settings_on_every_level():
     histories = conf.run_fmg(grid)
 
     assert len(histories) == 2  # coarse then fine
-    np.testing.assert_allclose(sigmas(grid.patches.mixing_nonreflecting), 0.13)
-    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing_nonreflecting), 0.14)
+    np.testing.assert_allclose(sigmas(grid.patches.mixing), 0.13)
+    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing), 0.14)

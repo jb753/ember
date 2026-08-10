@@ -227,12 +227,13 @@ solver-wide setting:
   one under-relaxed step of the characteristic condition per timestep, scaled
   by :attr:`~ember.patch.NonReflectingPatch.sigma`; see
   :attr:`~ember.solver.Solver.rf_inlet` and :attr:`~ember.solver.Solver.rf_outlet`.
-- :class:`~ember.patch.MixingPatch` holds no relaxation of its own: it imposes
-  whatever target the exchange last wrote.
+- :class:`~ember.patch.MixingPatch` takes the same under-relaxed
+  characteristic step as the inlet and outlet, scaled by its own
+  :attr:`~ember.patch.NonReflectingPatch.sigma`; see
+  :attr:`~ember.solver.Solver.rf_mix`.
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
   mixing-plane target exchanged between adjacent blocks with the patches'
-  ``rf_exchange`` (default 0.05), which is the only damping the reflecting
-  plane has.
+  ``rf_exchange``, separately from either side's own step.
 - :class:`~ember.patch.OutletPatch` relaxes its spanwise radial-equilibrium
   profile separately, via ``set_adjustment(rf=...)``, and damps its mass-flow
   throttle separately again, via the dimensionless gains of
@@ -369,15 +370,13 @@ class Solver(BaseSolver):
     profile has its own, set via ``set_adjustment(rf=...)``."""
 
     rf_mix: float | None = 0.01
-    """As :attr:`rf_inlet`, for every
-    :class:`~ember.patch.NonReflectingMixingPatch`. This is each
-    side's own characteristic relaxation; :attr:`rf_exchange` is the separate
-    factor on the cross-plane exchange between them."""
+    """As :attr:`rf_inlet`, for every :class:`~ember.patch.MixingPatch`. This
+    is each side's own characteristic relaxation; :attr:`rf_exchange` is the
+    separate factor on the cross-plane exchange between them."""
 
     rf_exchange: float | None = 0.01
-    """Relaxation of the cross-plane mismatch on every mixing plane, reflecting
-    (:class:`~ember.patch.MixingPatch`) and non-reflecting alike. Read from the
-    patches by
+    """Relaxation of the cross-plane mismatch on every
+    :class:`~ember.patch.MixingPatch`. Read from the patches by
     :class:`~ember.mixing_communicator.MixingCommunicator` at each exchange.
     As :attr:`rf_inlet`, the default is imposed and None leaves each plane's own
     value alone."""
@@ -745,19 +744,18 @@ def _apply_bcond_relaxation(grid, conf):
     for sigma, patches in (
         (conf.rf_inlet, grid.patches.inlet),
         (conf.rf_outlet, grid.patches.outlet),
-        (conf.rf_mix, grid.patches.mixing_nonreflecting),
+        (conf.rf_mix, grid.patches.mixing),
     ):
         if sigma is not None:
             for patch in patches:
                 patch.sigma = sigma
 
     if conf.rf_exchange is not None:
-        # Both plane types carry rf_exchange; the communicators read it from
-        # the patches at every exchange, so a cached communicator picks this up
-        # without being rebuilt.
-        for patches in (grid.patches.mixing, grid.patches.mixing_nonreflecting):
-            for patch in patches:
-                patch.rf_exchange = conf.rf_exchange
+        # The communicator reads rf_exchange from the patches at every
+        # exchange, so a cached communicator picks this up without being
+        # rebuilt.
+        for patch in grid.patches.mixing:
+            patch.rf_exchange = conf.rf_exchange
 
 
 def _validate_mg(grid, n_levels):

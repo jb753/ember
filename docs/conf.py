@@ -96,7 +96,6 @@ nitpick_ignore = [
     # Objects that do not yet have a documentation page. Remove an entry once
     # the corresponding module gains an autodoc page so the link resolves.
     ("py:class", "ember.mixing_communicator.MixingCommunicator"),
-    ("py:class", "ember.mixing_communicator.NonReflectingMixingCommunicator"),
     ("py:class", "ember.nonmatch_communicator.NonMatchCommunicator"),
     ("py:class", "ember.collections._LabelledList"),
     ("py:class", "ember.fluid._Fluid"),
