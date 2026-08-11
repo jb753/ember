@@ -117,8 +117,10 @@ def read_plot3d(filename, flip_k=True):
     ValueError
         If file format is invalid
     """
-    from ember.grid import Grid
-    from ember.block import Block
+    # grid.py imports this module back, so this import must stay lazy to
+    # avoid a circular import.
+    from ember.grid import Grid  # noqa: PLC0415
+    from ember.block import Block  # noqa: PLC0415
 
     # Read all file content as numpy array
     with open(filename, "r") as f:

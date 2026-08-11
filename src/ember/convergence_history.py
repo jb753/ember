@@ -535,7 +535,7 @@ class ConvergenceHistory(StructuredData):
         directory : str or path-like, optional
             Output directory (default current directory).
         """
-        import os
+        import os  # noqa: PLC0415 - only needed on this path
 
         n = self.i_log + 1
         x = [float(self.i_step[i]) for i in range(n)]

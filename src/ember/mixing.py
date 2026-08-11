@@ -80,6 +80,7 @@ ember.patch.NonReflectingPatch : The condition itself
 
 import numpy as np
 
+import ember.fortran as ft
 from ember import util
 from ember.nonreflecting import NonReflectingPatch
 
@@ -286,8 +287,6 @@ class MixingPatch(NonReflectingPatch):
         the difference the communicator takes is between fluxes resolved the
         same way.
         """
-        import ember.fortran as ft
-
         with self._resolved():
             b = self.block_view
             cons = b.conserved_nd

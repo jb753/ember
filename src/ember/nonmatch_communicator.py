@@ -13,6 +13,7 @@ interpolation to transfer data at each timestep.
 
 import numpy as np
 
+import ember.fortran
 from ember.util import apply_perm_flip, pol_to_pseudocart
 
 f32 = np.float32
@@ -197,8 +198,6 @@ class NonMatchCommunicator:
         patches with different node distributions. Performs bidirectional
         interpolation and averaging for consistency at the interface.
         """
-        import ember.fortran
-
         for (bid, pid), ((nxbid, nxpid), _) in self.pairs.items():
             source_patch = self._grid[bid].patches[pid]
             target_patch = self._grid[nxbid].patches[nxpid]

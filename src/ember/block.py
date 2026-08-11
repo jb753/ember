@@ -1148,8 +1148,6 @@ class Block(ember._struct.StructuredData):
     @derived_array
     def _Vxyz(self):
         """Cartesian velocity components [m/s, m/s, m/s]"""
-        from ember import util
-
         _, Vxyz = util.pol_to_cart(self.xrt, self.Vxrt)
         return Vxyz
 
@@ -2041,7 +2039,7 @@ class Block(ember._struct.StructuredData):
             An independent copy of this block.
 
         """
-        import copy as copy_module
+        import copy as copy_module  # noqa: PLC0415 - only needed on this path
 
         out = super().copy()
 
@@ -2147,7 +2145,7 @@ class Block(ember._struct.StructuredData):
             Bytes per cached property (nbytes for arrays, sys.getsizeof for others).
 
         """
-        import sys
+        import sys  # noqa: PLC0415 - only needed on this debug path
 
         # Data: each field occupies 1/nvar of the contiguous array
         bytes_per_field = self._data.nbytes // self.nvar
@@ -2198,8 +2196,6 @@ class Block(ember._struct.StructuredData):
         more often than necessary costs a handful of dict lookups.
 
         """
-        import ember.fortran
-
         # Raise on uninitialised state exactly as the public properties do:
         # P_nd/T_nd need rho and rhoe, ho_nd additionally needs the momenta.
         for key in ("rho", "rhoe", "rhoVx", "rhoVr", "rhorVt"):

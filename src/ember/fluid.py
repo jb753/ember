@@ -75,6 +75,7 @@ We can get a new instance with different reference scales using the :meth:`Perfe
 import numpy as np
 from abc import ABC, abstractmethod
 from ember import util
+import ember.fortran
 
 
 class _Fluid(ABC):
@@ -1029,8 +1030,6 @@ class PerfectFluid(_Fluid):
         tuple of ndarray
             ``(P, h, T)``.
         """
-        import ember.fortran
-
         outs = (out_P, out_h, out_T)
         arrs = (rho, u) + outs
         usable = (

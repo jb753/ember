@@ -417,7 +417,7 @@ class StructuredData:
 
         This forces all cached properties to recalculate on next access.
         """
-        import traceback
+        import traceback  # noqa: PLC0415 - only needed on this debug path
 
         caller = traceback.extract_stack()[-2]
         keys = list(self._store)

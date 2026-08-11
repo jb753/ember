@@ -42,6 +42,7 @@ managed = true
 
 [tool.ruff.lint]
 ignore = ["E741"]  # Allow ambiguous variable names like I (rothalpy)
+extend-select = ["PLC0415"]  # import-outside-top-level: flag inline imports
 
 [tool.pytest.ini_options]
 filterwarnings = [

@@ -398,8 +398,9 @@ class BlockPatchCollection(_LabelledList):
         block : :py:class:`~ember.block.Block`
             The block whose boundary conditions this collection manages.
         """
-        # Import here to avoid circular import
-        from ember.patch import Patch
+        # patch.py imports this module back, so this import must stay lazy
+        # to avoid a circular import.
+        from ember.patch import Patch  # noqa: PLC0415
 
         super().__init__(item_class=Patch)
         self._block = block
@@ -530,14 +531,14 @@ class BlockPatchCollection(_LabelledList):
     @property
     def cooling(self):
         """All :py:class:`~ember.patch.CoolingPatch` objects."""
-        from ember.patch import CoolingPatch
+        from ember.patch import CoolingPatch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, CoolingPatch)]
 
     @property
     def cusp(self):
         """All :py:class:`~ember.patch.CuspPatch` objects."""
-        import ember.patch
+        import ember.patch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, ember.patch.CuspPatch)]
 
@@ -550,14 +551,14 @@ class BlockPatchCollection(_LabelledList):
         rather than a prescribed inflow state, and is a sibling type rather
         than a subclass; see :py:attr:`mixing`.
         """
-        from ember.patch import InletPatch
+        from ember.patch import InletPatch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, InletPatch)]
 
     @property
     def inviscid(self):
         """All :py:class:`~ember.patch.InviscidPatch` objects."""
-        from ember.patch import InviscidPatch
+        from ember.patch import InviscidPatch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, InviscidPatch)]
 
@@ -567,7 +568,7 @@ class BlockPatchCollection(_LabelledList):
 
         Both sides of a mixing plane, inflow and outflow.
         """
-        from ember.patch import MixingPatch
+        from ember.patch import MixingPatch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, MixingPatch)]
 
@@ -580,14 +581,14 @@ class BlockPatchCollection(_LabelledList):
         rather than a prescribed exit pressure, and is a sibling type rather
         than a subclass; see :py:attr:`mixing`.
         """
-        from ember.patch import OutletPatch
+        from ember.patch import OutletPatch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, OutletPatch)]
 
     @property
     def periodic(self):
         """All :py:class:`~ember.patch.PeriodicPatch` objects."""
-        from ember.patch import PeriodicPatch
+        from ember.patch import PeriodicPatch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, PeriodicPatch)]
 
@@ -604,21 +605,21 @@ class BlockPatchCollection(_LabelledList):
         Used to identify which boundary faces are not solid walls when
         computing block boundary fluxes.
         """
-        import ember.patch
+        import ember.patch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, ember.patch.PERMEABLE_TYPES)]
 
     @property
     def probe(self):
         """All :py:class:`~ember.patch.ProbePatch` objects."""
-        from ember.patch import ProbePatch
+        from ember.patch import ProbePatch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, ProbePatch)]
 
     @property
     def rotating(self):
         """All :py:class:`~ember.patch.RotatingPatch` objects."""
-        from ember.patch import RotatingPatch
+        from ember.patch import RotatingPatch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, RotatingPatch)]
 
@@ -631,7 +632,7 @@ class BlockPatchCollection(_LabelledList):
         Used when applying viscous wall functions: faces in this set are
         treated as frictionless so no friction is applied at those boundaries.
         """
-        import ember.patch
+        import ember.patch  # noqa: PLC0415 - avoid circular import
 
         return [p for p in self._items if isinstance(p, ember.patch.SLIP_TYPES)]
 
@@ -731,7 +732,6 @@ class GridPatchCollection:
     @property
     def cooling(self):
         """Return all cooling patches from all blocks."""
-        # Import here to avoid circular import
         cooling_patches = []
         for block in self._grid:
             cooling_patches.extend(block.patches.cooling)
@@ -740,7 +740,6 @@ class GridPatchCollection:
     @property
     def inlet(self):
         """Return all inlet patches from all blocks."""
-        # Import here to avoid circular import
         inlet_patches = []
         for block in self._grid:
             inlet_patches.extend(block.patches.inlet)
@@ -757,7 +756,6 @@ class GridPatchCollection:
     @property
     def outlet(self):
         """Return all outlet patches from all blocks."""
-        # Import here to avoid circular import
         outlet_patches = []
         for block in self._grid:
             outlet_patches.extend(block.patches.outlet)
@@ -766,7 +764,6 @@ class GridPatchCollection:
     @property
     def periodic(self):
         """Return all periodic patches from all blocks."""
-        # Import here to avoid circular import
         periodic_patches = []
         for block in self._grid:
             periodic_patches.extend(block.patches.periodic)
@@ -783,7 +780,6 @@ class GridPatchCollection:
     @property
     def rotating(self):
         """Return all rotating patches from all blocks."""
-        # Import here to avoid circular import
         rotating_patches = []
         for block in self._grid:
             rotating_patches.extend(block.patches.rotating)

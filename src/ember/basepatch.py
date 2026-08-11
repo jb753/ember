@@ -36,6 +36,8 @@ import numpy as np
 
 from ember.util import pol_to_pseudocart
 from ember import util
+import ember.block
+import ember.fortran as ft
 
 logger = logging.getLogger(__name__)
 
@@ -904,8 +906,6 @@ class RevolutionPatch(Patch):
         ``block_view.conserved_nd`` over the pitch dimension, writing the result
         directly into ``self.block_avg.conserved_nd``.
         """
-        import ember.fortran as ft
-
         cons = self.block_view.conserved_nd
         w = self.weight_pitch.ravel()
         dest = self.block_avg.conserved_nd
@@ -997,8 +997,6 @@ class RevolutionPatch(Patch):
         A = np.sum(dA_raw, axis=self.pitch_dim)
 
         # Allocate pitch-averaged block with mean coordinates along pitch dim
-        import ember.block as _block_mod
-
         nspan = self._block_view.shape[self.span_dim]
 
         # Compute node-centred span area weights via trapezoid face-to-node mapping
@@ -1015,7 +1013,7 @@ class RevolutionPatch(Patch):
         x_avg = self._block_view.x.mean(axis=self.pitch_dim).squeeze()
         r_avg = self._block_view.r.mean(axis=self.pitch_dim).squeeze()
         t_avg = self._block_view.t.mean(axis=self.pitch_dim).squeeze()
-        self._block_avg = _block_mod.Block(shape=(nspan,))
+        self._block_avg = ember.block.Block(shape=(nspan,))
         self._block_avg.set_L_ref(block.L_ref)
         try:
             self._block_avg.set_fluid(block.fluid)

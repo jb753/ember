@@ -22,8 +22,12 @@ parent's data as a zero-copy view. See the indexing section of
 """
 
 import numpy as np
+from pykdtree.kdtree import KDTree
 
+import ember.fortran
+import ember.grid
 from ember import util
+from ember.block import Block
 
 # Which edges are cut by the isosurface? 256 possible cases, each corresponding to
 # a 12-bit number, each bit corresponds to an edge
@@ -772,10 +776,6 @@ def unstructured(grid, xr_cut):
         Unstructured triangulated cut, or None if the curve does not
         intersect any block.
     """
-
-    # Import at function level to avoid circular imports
-    from ember.block import Block
-
     # Convert single Block to list for consistent handling
     if isinstance(grid, Block):
         grid = [grid]
@@ -838,11 +838,6 @@ def structured_meridional(grid, xr_cut):
         data. Blocks that the curve does not intersect are omitted, so the
         grid is empty when there is no intersection.
     """
-
-    # Import at function level to avoid circular imports
-    from ember.block import Block
-    import ember.grid
-
     # Convert single Block to list for consistent handling
     if isinstance(grid, Block):
         grid = [grid]
@@ -958,9 +953,6 @@ def interpolate_to_structured(
     cut : Block, shape (ni, nj)
         Structured block with data interpolated onto the line-conforming grid.
     """
-    from pykdtree.kdtree import KDTree
-    import ember.fortran
-
     ni, nj = interp_shape
 
     # Flatten triangle vertices to a point cloud, shape (ntri*3, nvar).

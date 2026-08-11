@@ -176,8 +176,17 @@ import pickle
 import gzip
 from dataclasses import dataclass
 from ember import util
+import ember.average
 import ember.block
-from ember.patch import RotatingPatch
+from ember.patch import (
+    CuspPatch,
+    InletPatch,
+    MixingPatch,
+    NonMatchPatch,
+    OutletPatch,
+    PeriodicPatch,
+    RotatingPatch,
+)
 import ember.periodic_communicator
 import ember.mixing_communicator
 import ember.nonmatch_communicator
@@ -205,10 +214,7 @@ class Grid(_LabelledList):
         blocks : list, optional
             Initial list of blocks to add to the grid.
         """
-        # Import here to avoid circular imports
-        from ember import block
-
-        super().__init__(blocks, item_class=block.Block)
+        super().__init__(blocks, item_class=ember.block.Block)
 
         self.config = None
         self._connectivity = None
@@ -474,8 +480,6 @@ class Grid(_LabelledList):
         same convention as ``Block.residual_nd``: mdot by the mass-flux scale
         ``rho_ref * V_ref * L_ref**2``, ho by ``u_ref``, s by ``Rgas_ref``.
         """
-        import ember.average
-
         mdot = ho_num = s_num = 0.0
         for bid, pid in indices:
             p = self[bid].patches[pid]
@@ -546,8 +550,9 @@ class Grid(_LabelledList):
             New grid containing blocks with coordinates and optional patches from files
 
         """
-        from ember.patch import InletPatch, OutletPatch
-        from ember._plot3d import read_plot3d, read_fvbnd, infer_Nb
+        # _plot3d.py imports Grid/Block back, so this import must stay lazy
+        # to avoid a circular import.
+        from ember._plot3d import read_plot3d, read_fvbnd, infer_Nb  # noqa: PLC0415
 
         # Read the grid
         grid = read_plot3d(p3d_file, flip_k=flip_k)
@@ -1881,7 +1886,9 @@ class Grid(_LabelledList):
         ValueError
             If grid is empty (contains no blocks)
         """
-        from ember._plot3d import write_fvbnd
+        # _plot3d.py imports Grid/Block back, so this import must stay lazy
+        # to avoid a circular import.
+        from ember._plot3d import write_fvbnd  # noqa: PLC0415
 
         write_fvbnd(self, filename, iregion=region_id)
 
@@ -1910,7 +1917,9 @@ class Grid(_LabelledList):
         ValueError
             If grid is empty (contains no blocks)
         """
-        from ember._plot3d import write_plot3d, write_fvbnd
+        # _plot3d.py imports Grid/Block back, so this import must stay lazy
+        # to avoid a circular import.
+        from ember._plot3d import write_plot3d, write_fvbnd  # noqa: PLC0415
 
         # Write coordinate file
         write_plot3d(self, p3d_filename, flip_k=flip_k)
@@ -1983,8 +1992,6 @@ class Grid(_LabelledList):
             Consumed by :meth:`get_convergence` and
             :meth:`ember.convergence_history.ConvergenceHistory.from_grid`.
         """
-        from ember.patch import InletPatch, MixingPatch, OutletPatch
-
         inflow_types = (InletPatch,)
         outflow_types = (OutletPatch,)
         rows = self.rows
@@ -2204,8 +2211,6 @@ class GridConnectivity:
             If no communicator is defined for ``self.patch_class``.
         """
         if self._communicator is None:
-            from .patch import MixingPatch, NonMatchPatch, PeriodicPatch
-
             if self.patch_class is PeriodicPatch:
                 self._communicator = ember.periodic_communicator.PeriodicCommunicator(
                     self.grid, self.pair()
@@ -2381,8 +2386,6 @@ class GridConnectivityManager:
     @property
     def cusp(self):
         """Get connectivity manager for cusp patches."""
-        from .patch import CuspPatch
-
         return self._connectivity(CuspPatch)
 
     # end cusp
@@ -2390,8 +2393,6 @@ class GridConnectivityManager:
     @property
     def mixing(self):
         """Get connectivity manager for mixing patches."""
-        from .patch import MixingPatch
-
         return self._connectivity(MixingPatch)
 
     # end mixing
@@ -2399,8 +2400,6 @@ class GridConnectivityManager:
     @property
     def nonmatch(self):
         """Get connectivity manager for non-matching patches."""
-        from .patch import NonMatchPatch
-
         return self._connectivity(NonMatchPatch)
 
     # end nonmatch
@@ -2408,8 +2407,6 @@ class GridConnectivityManager:
     @property
     def periodic(self):
         """Get connectivity manager for periodic patches."""
-        from .patch import PeriodicPatch
-
         return self._connectivity(PeriodicPatch)
 
     # end periodic

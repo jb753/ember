@@ -47,7 +47,9 @@ import logging
 import numpy as np
 
 import ember.collections
+import ember.fortran
 from ember import util
+from ember.block import Block
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +111,6 @@ def _concatenate_two_blocks(block1, block2, axis=0):
         If blocks have incompatible working fluids, incompatible shapes,
         or patches on concatenation interfaces
     """
-    from ember.block import Block
-
     # Check that shapes are compatible for concatenation
     shape1 = block1.shape
     shape2 = block2.shape
@@ -422,8 +422,6 @@ def resample(block, factors):
     new_shape = tuple(len(coords) for coords in ijk_new)
 
     # 3. Interpolate all variables in a single Fortran call
-    import ember.fortran
-
     data_new = ember.fortran.map_coordinates_3d(
         block._data,
         ijk_new[0].astype(np.float32),
@@ -551,8 +549,6 @@ def interp_from(block, src):
         block.set_conserved(src.conserved)
         block.set_mu_turb(src.mu_turb)
     else:
-        import ember.fortran
-
         data_in = np.concatenate(
             [src.conserved, src.mu_turb[..., np.newaxis]], axis=-1
         ).astype(np.float32)
@@ -603,8 +599,6 @@ def wall_yplus(block):
         :attr:`~ember.block.Block.ijk_wall_visc` face array, zero on
         non-wall cells.
     """
-    import ember.fortran
-
     keys = ("yplus_i1", "yplus_j1", "yplus_k1", "yplus_ni", "yplus_nj", "yplus_nk")
     result = ember.fortran.wall_yplus_field(
         cons=block.conserved_nd,

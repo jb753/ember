@@ -86,6 +86,7 @@ Assorted utilities for working with coordinates and bounding boxes.
 """
 
 import numpy as np
+import ember.fortran
 
 try:
     from line_profiler import profile
@@ -931,8 +932,6 @@ def matvec(A, b, out=None):
     True
     """
     if out is not None:
-        import ember.fortran
-
         ndim = b.ndim - 1
         if ndim == 1:
             ember.fortran.matvec5(A, b, out)

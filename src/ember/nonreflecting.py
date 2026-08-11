@@ -132,6 +132,7 @@ import warnings
 
 import numpy as np
 
+import ember.fortran
 from ember import perturbation, util
 from ember.basepatch import RevolutionPatch
 
@@ -1459,8 +1460,6 @@ class NonReflectingPatch(RevolutionPatch):
         # picklable (Grid.write_emb pickles the whole grid, patches
         # included), and the lookup itself -- a module attribute access -- is
         # negligible next to the kernel call it selects.
-        import ember.fortran
-
         kernel = (
             ember.fortran.nonreflecting_recombine_bcast_j
             if self.span_dim == 1
