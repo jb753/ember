@@ -105,8 +105,6 @@ class MixingPatch(NonReflectingPatch):
     condition to the boundary.
     """
 
-    _collection_name = "mixing"
-
     _desc = "non-reflecting mixing plane"
 
     # Either side of the plane. The geometry gives a provisional answer at

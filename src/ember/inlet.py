@@ -69,8 +69,6 @@ class InletPatch(NonReflectingPatch):
     solve singular.
     """
 
-    _collection_name = "inlet"
-
     _desc = "inlet patch"
 
     _sign_interior = 1

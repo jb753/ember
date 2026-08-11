@@ -22,7 +22,6 @@ def test_inviscid_patch_creation():
     """Test basic InviscidPatch creation and properties."""
     patch = ember.patch.InviscidPatch(i=0, j=(0, -1), k=(0, -1), label="test_inviscid")
 
-    assert patch._collection_name == "inviscid"
     assert patch.label == "test_inviscid"
     assert patch.const_dim == 0  # i-direction patch
 

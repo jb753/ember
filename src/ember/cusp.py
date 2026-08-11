@@ -27,8 +27,6 @@ class CuspPatch(Patch):
     via :py:meth:`~ember.patch.Patch.check_match`.
     """
 
-    _collection_name = "cusp"
-
     def _get_viable_transforms(self, other_shape):
         """Get viable permutation/flip combinations based on patch shapes.
 

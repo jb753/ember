@@ -294,24 +294,6 @@ class StructuredData:
         else:
             raise KeyError(f"Metadata key '{key}' not found.")  # end method
 
-    def _increment_data(self, keys, delta, slice_obj=None):
-        """Increment data in-place for specified keys at given slice."""
-        # Get indices for the keys
-        inds = [self._data_inds[k] for k in keys]
-
-        # Check that indices are consecutive
-        if len(inds) > 1 and sorted(inds) != list(range(min(inds), max(inds) + 1)):
-            raise ValueError(
-                f"Variable indices must be consecutive. Got indices {inds} for keys {keys}"
-            )
-
-        # Apply increment for each variable individually
-        for i, var_ind in enumerate(inds):
-            if slice_obj is None:
-                self._data[..., var_ind] += delta[..., i]
-            else:
-                self._data[slice_obj + (var_ind,)] += delta[..., i]  # end method
-
     def _set_data_by_keys(self, keys, val, store_init=True):
         """Set data variables at once.
 

@@ -24,8 +24,6 @@ class RotatingPatch(Patch):
     before the solver runs.
     """
 
-    _collection_name = "rotating"
-
     def _copy(self, c):
         c._Omega = self._Omega
 

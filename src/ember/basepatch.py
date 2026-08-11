@@ -30,7 +30,7 @@ import contextlib
 import itertools
 import logging
 import weakref
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import numpy as np
 
@@ -117,11 +117,6 @@ class Patch(ABC):
     # (e.g. ProbePatch) may set these True to relax the rules below.
     _allow_interior_const = False  # allow a region patch on an interior plane
     _allow_overlap = False  # allow coinciding with another patch
-
-    @property
-    @abstractmethod
-    def _collection_name(self):
-        pass
 
     @staticmethod
     def _cast_lim(i):

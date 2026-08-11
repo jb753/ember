@@ -25,6 +25,5 @@ class ProbePatch(Patch):
     interior constant plane and may coincide with another patch.
     """
 
-    _collection_name = "probe"
     _allow_interior_const = True  # permit interior const-plane region probes
     _allow_overlap = True  # may coincide with another patch

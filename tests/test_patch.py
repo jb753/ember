@@ -113,8 +113,6 @@ class _RevolutionVehicle(RevolutionPatch):
     or that vary in x along the span.
     """
 
-    _collection_name = "vehicle"
-
 
 def _make_patch_collection():
     """Return a BlockPatchCollection attached to a fully initialised 50x50x50 block."""

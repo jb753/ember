@@ -143,8 +143,6 @@ class OutletPatch(NonReflectingPatch):
     consistent for a setter to mean.
     """
 
-    _collection_name = "outlet"
-
     _desc = "outlet patch"
 
     _sign_interior = -1

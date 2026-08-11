@@ -35,8 +35,6 @@ class NonMatchPatch(Patch):
     spanwise node counts may differ freely.
     """
 
-    _collection_name = "nonmatch"
-
     def _get_viable_transforms_nonmatch(self, other_shape):
         """Get viable permutation/flip combinations for non-matching patches.
 
