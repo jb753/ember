@@ -1,6 +1,10 @@
 """Plot3D multi-block grid format I/O utilities.
 
-This module provides read and write functionality for the Plot3D multi-block structured
+This is a private implementation module backing :meth:`~ember.grid.Grid.read_plot3d`
+and :meth:`~ember.grid.Grid.write_plot3d`, which are the public entry points; it is
+not meant to be imported directly outside of :mod:`ember.grid`.
+
+It provides read and write functionality for the Plot3D multi-block structured
 grid format, a widely-used NASA standard for storing grid coordinates in CFD applications.
 The module handles conversion between Ember's Grid objects and Plot3D ASCII format files,
 with automatic handling of coordinate ordering transformations between Plot3D's (k,j,i)

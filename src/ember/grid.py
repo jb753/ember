@@ -560,7 +560,7 @@ class Grid(_LabelledList):
 
         """
         from ember.patch import InletPatch, OutletPatch
-        from ember.plot3d import read_plot3d, read_fvbnd, infer_Nb
+        from ember._plot3d import read_plot3d, read_fvbnd, infer_Nb
 
         # Read the grid
         grid = read_plot3d(p3d_file, flip_k=flip_k)
@@ -1894,7 +1894,7 @@ class Grid(_LabelledList):
         ValueError
             If grid is empty (contains no blocks)
         """
-        from ember.plot3d import write_fvbnd
+        from ember._plot3d import write_fvbnd
 
         write_fvbnd(self, filename, iregion=region_id)
 
@@ -1923,7 +1923,7 @@ class Grid(_LabelledList):
         ValueError
             If grid is empty (contains no blocks)
         """
-        from ember.plot3d import write_plot3d, write_fvbnd
+        from ember._plot3d import write_plot3d, write_fvbnd
 
         # Write coordinate file
         write_plot3d(self, p3d_filename, flip_k=flip_k)

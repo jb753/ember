@@ -38,7 +38,7 @@ from ember.patch import (
     OutletPatch,
     PeriodicPatch,
 )
-from ember.plot3d import write_plot3d, read_plot3d, write_fvbnd
+from ember._plot3d import write_plot3d, read_plot3d, write_fvbnd
 from ember.block_util import to_tm3
 from ember.fluid import PerfectFluid
 from ember import util
@@ -874,7 +874,7 @@ def test_to_tm3_shape_mismatch(tmp_path):
 @pytest.mark.parametrize("Nb", [1, 17, 31, 157])
 def test_infer_Nb_recovers_a_whole_passage(Nb):
     """A block spanning exactly one pitch reports the blade count that made it."""
-    from ember.plot3d import infer_Nb
+    from ember._plot3d import infer_Nb
 
     shape = (3, 3, 5)
     block = Block(shape=shape)
@@ -890,7 +890,7 @@ def test_infer_Nb_recovers_a_whole_passage(Nb):
 def test_infer_Nb_refuses_an_extent_that_is_not_a_whole_pitch(extent):
     """An arbitrary sector gives None, so the patch raises rather than the
     march running against an invented pitch."""
-    from ember.plot3d import infer_Nb
+    from ember._plot3d import infer_Nb
 
     shape = (3, 3, 5)
     block = Block(shape=shape)
