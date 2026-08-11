@@ -24,16 +24,27 @@ pairing across the plane, flux averaging, and acceptance of the exchanged
 target.
 
 One class serves both sides. Which side a patch is on is the inward face normal
-:attr:`~ember.patch.NonReflectingPatch._sign_interior`, which the base
-class reads off the geometry at attach time rather than taking from the class,
-so there is nothing for the caller to get right that the mesh does not already
-say. The upstream side then prescribes static pressure and the downstream side
-the four inflow quantities -- not because they are different classes, but
-because that is what their splits work out to.
+:attr:`~ember.patch.NonReflectingPatch._sign_interior`, which is not taken from
+the class -- both sides are this class -- but settled by the patch itself, so
+there is nothing for the caller to get right. The upstream side then prescribes
+static pressure and the downstream side the four inflow quantities -- not
+because they are different classes, but because that is what their splits work
+out to.
+
+Settling it takes two stages, because the answer is not in the mesh. The
+geometry gives a provisional side at attach time, which is all the pairing in
+:meth:`MixingPatch.check_match` needs and is enough for an axial plane; then
+:meth:`MixingPatch._enter_resolved` orients the interface frame along the mean
+mass flux the first time there is one, and freezes it. Which way the frame
+points is what decides whether the plane absorbs the harmonics reaching it or
+zeroes them (see :class:`~ember.patch.NonReflectingPatch`), and on a
+radial plane the geometry alone would point it upstream half the time -- a
+centrifugal stage and a radial-inflow one have the same mesh and opposite
+through-flow.
 
 The exchange is carried out by
 :class:`~ember.mixing_communicator.MixingCommunicator`, which
-writes the target in the mix variables :math:`[h_0, s, V_r, V_\theta, p]` of
+writes the target in the mix variables :math:`[h_0, s, V_s, V_\theta, p]` of
 :func:`~ember.perturbation.chic_to_mix` -- exactly the space
 :class:`~ember.patch.NonReflectingPatch` stores its prescribed target
 in, so the exchange writes the patches' own target array and there is nothing to
@@ -50,11 +61,12 @@ communicator formed for those rows still came from the downstream-running part
 of the interface jump. At such a station this is no longer Saxer's Eq. 5.66
 direction split; it is a relaxation toward a matched state, which is enough.
 
-Two restrictions, both inherited from
-:class:`~ember.patch.NonReflectingPatch`: the plane must be one of constant
-:math:`x`, and the mean state axially and absolutely subsonic. Backflow is not
-among them -- a reversed station is carried by changing which side of the split
-it is on.
+One restriction, inherited from
+:class:`~ember.patch.NonReflectingPatch`: the mean state must be subsonic both
+normal to the plane and absolutely. The plane itself may be any surface of
+revolution. Backflow is not a restriction either -- a reversed station is
+carried by changing which side of the split it is on, and does not re-settle
+the frame.
 
 Both sides build their own Hilbert transform on their own pitch and no harmonic
 crosses the plane, so the two sides may have different pitchwise node counts and
@@ -66,6 +78,8 @@ ember.mixing_communicator.MixingCommunicator : The exchange
 ember.patch.NonReflectingPatch : The condition itself
 """
 
+import numpy as np
+
 from ember import util
 from ember.nonreflecting import NonReflectingPatch
 
@@ -76,7 +90,8 @@ class MixingPatch(NonReflectingPatch):
     Takes its whole prescribed target from the cross-plane exchange, so it needs
     no setter, and seeds every row from its own pitchwise mean before the first
     exchange has happened. Which side of the plane it is on, and so which rows
-    it actually imposes, follows from the geometry; see the module docstring.
+    it actually imposes, is settled from the flow rather than declared; see the
+    module docstring and :meth:`_enter_resolved`.
 
     A note on which average is which. The communicator evaluates its Jacobians
     on the *symmetrised cross-plane* average, so both sides linearise the
@@ -94,8 +109,19 @@ class MixingPatch(NonReflectingPatch):
 
     _desc = "non-reflecting mixing plane"
 
-    # Either side of the plane; the geometry says which at attach time.
+    # Either side of the plane. The geometry gives a provisional answer at
+    # attach time and the flow settles it on the first step; see
+    # _enter_resolved.
     _sign_interior = None
+
+    # A face whose mean normal Mach number is below this is treated as having
+    # no direction to settle against, and the frame is left provisional for
+    # another step. Measured against the speed of sound rather than against the
+    # face's own flux, which is a scale that vanishes with the thing it is
+    # scaling and leaves a grid at rest settling on round-off. Loose: the point
+    # is only to reject a grid that is not yet moving, not to wait for a
+    # converged flow.
+    _Ma_settle = 1e-3
 
     # The exchange fills every row, so nothing is required of the user, and
     # every row is seeded from this side's own mean until it has run once.
@@ -136,6 +162,10 @@ class MixingPatch(NonReflectingPatch):
         # first exchange has run, so attach-time and pre-exchange solves fall
         # back to this patch's own local reading.
         self._entering_shared = None
+        # Whether the frame axis has been settled against a flow; see
+        # _enter_resolved. False means the provisional geometric frame the base
+        # class built at attach is still in force.
+        self._sign_settled = False
 
     def _calc_entering(self, avg):
         """Span stations the mean flow enters through, from the shared direction.
@@ -163,6 +193,85 @@ class MixingPatch(NonReflectingPatch):
         # there.
         super()._copy(c)
         c.rf_exchange = self.rf_exchange
+        # _sign_settled is deliberately not carried: the copy re-settles
+        # against its own block's flow, as _ref and the splits are rebuilt.
+
+    def _enter_resolved(self):
+        r"""Settle the frame axis against the flow, once, before the first rotation.
+
+        A mixing plane is the one condition in the family that cannot know from
+        its class which way its flow runs -- both sides are the same class, and
+        which is upstream is a property of the machine, not of the mesh. So the
+        provisional frame the base class took from the geometry is replaced
+        here, the first time there is a flow to take it from, by the one whose
+        axis runs along the mean mass flux through the face.
+
+        That orientation is what keeps the plane non-reflecting. The Giles and
+        Saxer harmonic relations are derived for mean flow along the frame axis
+        and the condition zeroes the harmonics where the flow opposes it (see
+        :class:`~ember.patch.NonReflectingPatch`), so an axis pointing
+        the wrong way would leave a plane that still balances the mean but
+        reflects every harmonic reaching it -- silently, and at every span
+        station rather than only the reversed ones. On an axial machine the
+        provisional frame is already right and this changes nothing; on a
+        radial one it is what stops the plane being pointed upstream.
+
+        Both sides of a plane see the same flow direction and start from
+        antiparallel normals, so they settle to opposite signs, which is what
+        :meth:`check_match` needs of them.
+
+        Deferred rather than forced on the first call: a grid initialised at
+        rest has no direction to offer, and freezing an arbitrary one would be
+        worse than waiting a step for the march to develop one. A later
+        *reversal* does not re-settle -- that is the per-station split's job,
+        and re-settling would move the frame under a target already written in
+        it.
+        """
+        if self._sign_settled or self._rot_to is None:
+            return
+
+        # Read in (x, r) coordinates: this runs before the rotation goes on.
+        # Area- and pitch-weighted, so a face whose flux changes sign along the
+        # span settles on the direction that carries the net flow.
+        b = self.block_view
+        cons = b.conserved_nd
+        rot = self._rot_to
+        rhoVn = rot[..., 0, 0] * cons[..., 1] + rot[..., 0, 1] * cons[..., 2]
+        dA = self._dA_node
+        mass = float(np.sum(self._pitch_mean(rhoVn).reshape(-1) * dA))
+        rho = float(np.sum(self._pitch_mean(cons[..., 0]).reshape(-1) * dA))
+        a_nd = float(np.sum(self._pitch_mean(b.a_nd).reshape(-1) * dA) / np.sum(dA))
+        if rho <= 0.0 or abs(mass / rho) <= self._Ma_settle * a_nd:
+            return
+
+        self._sign_settled = True
+        if mass > 0.0:
+            # The provisional axis already runs with the flow.
+            return
+
+        # Turn the frame through pi to face the other way. The velocity in the
+        # surface turns with it, so anything already written in the old frame
+        # -- a target from an exchange that ran before the flow developed, a
+        # face state this patch authored -- has to turn too.
+        self._sign_interior = -self._sign_interior
+        self._build_rot_matrices(inward=self._sign_interior > 0)
+        self._split_entering = self._calc_split(True)
+        self._split_leaving = self._calc_split(False)
+        if self._target is not None:
+            self._target[..., 2] = -self._target[..., 2]
+        if self._prim_prev is not None:
+            self._prim_prev[..., 1:3] = -self._prim_prev[..., 1:3]
+
+    def set_block_avg(self):
+        """Pitch-average the face in interface coordinates.
+
+        Overridden only to hold the rotation: the communicator calls this from
+        outside any of the boundary condition's own entry points, and the
+        cross-plane average it builds has to be in the same frame on both
+        sides. See :meth:`set_flux_avg`.
+        """
+        with self._resolved():
+            super().set_block_avg()
 
     def set_flux_avg(self):
         """Compute pitch-averaged node fluxes and store in :attr:`flux_avg_nd`.
@@ -170,26 +279,31 @@ class MixingPatch(NonReflectingPatch):
         Called by
         :class:`~ember.mixing_communicator.MixingCommunicator`
         before reading :attr:`flux_avg_nd` to form the cross-plane flux
-        difference of Saxer Eq. 5.65. No rotation into interface coordinates is
-        needed: the base class restricts this patch to a plane of constant
-        ``x``, so ``Vx`` is already the face-normal velocity and ``Vr`` the
-        spanwise one.
+        difference of Saxer Eq. 5.65.
+
+        Taken in interface coordinates, so what the kernels below compute as
+        the ``x``-direction flux is the flux through the face whatever the
+        face's orientation. The two sides of a plane share a meridional
+        geometry and settle to opposite signs, so their frame axes coincide and
+        the difference the communicator takes is between fluxes resolved the
+        same way.
         """
         import ember.fortran as ft
 
-        b = self.block_view
-        cons = b.conserved_nd
-        w = self.weight_pitch.ravel()
-        ni, nj, nk = b.shape
-        if self.pitch_dim == 0:
-            dest = self._flux_avg.reshape(nj, nk, 5)
-            ft.flux_avg_i(cons, b.P_nd, b.ho_nd, w, dest)
-        elif self.pitch_dim == 1:
-            dest = self._flux_avg.reshape(ni, nk, 5)
-            ft.flux_avg_j(cons, b.P_nd, b.ho_nd, w, dest)
-        else:
-            dest = self._flux_avg.reshape(ni, nj, 5)
-            ft.flux_avg_k(cons, b.P_nd, b.ho_nd, w, dest)
+        with self._resolved():
+            b = self.block_view
+            cons = b.conserved_nd
+            w = self.weight_pitch.ravel()
+            ni, nj, nk = b.shape
+            if self.pitch_dim == 0:
+                dest = self._flux_avg.reshape(nj, nk, 5)
+                ft.flux_avg_i(cons, b.P_nd, b.ho_nd, w, dest)
+            elif self.pitch_dim == 1:
+                dest = self._flux_avg.reshape(ni, nk, 5)
+                ft.flux_avg_j(cons, b.P_nd, b.ho_nd, w, dest)
+            else:
+                dest = self._flux_avg.reshape(ni, nj, 5)
+                ft.flux_avg_k(cons, b.P_nd, b.ho_nd, w, dest)
 
     def set_target(self, target=None):
         """Set the exchanged target, from an explicit array or this side's own mean.
@@ -227,7 +341,14 @@ class MixingPatch(NonReflectingPatch):
         return self._target.squeeze()
 
     def attach_to_block(self, block):
-        """Attach to a block, validate the plane, and allocate the flux average."""
+        """Attach to a block, validate the plane, and allocate the flux average.
+
+        Drops any settled frame: the base class has just rebuilt the
+        provisional one from the new block's geometry, so a stale ``settled``
+        flag would pin the patch to that provisional frame for the rest of the
+        run and never let the flow correct it.
+        """
+        self._sign_settled = False
         super().attach_to_block(block)
 
         if self._block_ref is None:

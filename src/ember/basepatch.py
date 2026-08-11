@@ -26,6 +26,7 @@ that direction, and is shorthand for e.g. `j=(0, -1)`.
 indices are wrapped. `k=(6,4)` is not valid, and neither is `k=(-1, -2)`.
 """
 
+import contextlib
 import itertools
 import logging
 import weakref
@@ -689,9 +690,22 @@ class RevolutionPatch(Patch):
     surface of revolution (i.e. a pitch axis with constant x and r cannot be
     found).
 
-    The key operation provided by this class is pitch-averaging: computing a
+    Two operations are provided. The first is pitch-averaging: computing a
     circumferentially averaged flow state that subclasses (inlet, outlet, mixing)
     use to apply boundary conditions.
+
+    The second is the interface frame. A surface of revolution need not be a
+    plane of constant :math:`x`, so a condition written against the velocity
+    through the face cannot read that velocity off :math:`V_x`.
+    :meth:`_build_rot_matrices` derives the face normal from the geometry, one
+    direction per span node, and :meth:`resolve_to_interface` /
+    :meth:`resolve_from_interface` turn the meridional momentum into that frame
+    and back. :meth:`_resolved` is the context manager that holds a face in it
+    for the duration of a calculation, so a subclass can be written entirely in
+    terms of a face-normal velocity and work at any orientation; see
+    :class:`~ember.patch.NonReflectingPatch` for what that buys and what it
+    costs. On a plane of constant :math:`x` the rotation is the identity and is
+    skipped, so a subclass pays nothing for the generality it does not use.
     """
 
     def _setup(self):
@@ -704,6 +718,12 @@ class RevolutionPatch(Patch):
         self._rot_to = None
         self._rot_from = None
         self._rot_buf = None
+        # Whether _rot_to is the identity, so a face already aligned with the
+        # (x, r) axes skips the rotation entirely; see resolve_to_interface.
+        self._rot_identity = None
+        # Nesting depth of _resolved(), so the rotation is applied once however
+        # many nested users ask for it.
+        self._rot_depth = 0
         self._block_avg = None
         self._weight_pitch = None
         self._dA_node = None
@@ -790,6 +810,29 @@ class RevolutionPatch(Patch):
         """Permutation to standard (const, span, pitch) axis order."""
         return (self.const_dim, self.span_dim, self.pitch_dim)
 
+    def _inward_meridional(self):
+        """Displacement from each span node of the face to the first interior layer.
+
+        The pitchwise mean of ``(x, r)`` one layer in, minus the same on the
+        face, so it points from the patch into the block. Only its direction is
+        used -- to settle which way the face normal has to point, and by
+        :meth:`_build_rot_matrices` to flip the normal it derives from the face
+        geometry alone.
+
+        Returns
+        -------
+        array
+            Shape ``(nspan, 2)``, the meridional components in that order.
+        """
+        block = self.block
+        xr_patch = block.xrt[self.slice][..., :2].mean(axis=self.pitch_dim).squeeze()
+        xr_offset = (
+            block.xrt[self._get_offset_slice(1)][..., :2]
+            .mean(axis=self.pitch_dim)
+            .squeeze()
+        )
+        return xr_offset - xr_patch
+
     def _build_rot_matrices(self, inward=True):
         """Compute xi, cosxi/sinxi and build rotation matrix pairs.
 
@@ -811,27 +854,33 @@ class RevolutionPatch(Patch):
         xi = np.arctan2(dx_face, -dr_face)
 
         # Flip xi so it always points inward
-        block = self.block
-        xr_patch = block.xrt[self.slice][..., :2].mean(axis=self.pitch_dim).squeeze()
-        xr_offset = (
-            block.xrt[self._get_offset_slice(1)][..., :2]
-            .mean(axis=self.pitch_dim)
-            .squeeze()
-        )
-        inward_vec = xr_offset - xr_patch  # (nspan, 2)
+        inward_vec = self._inward_meridional()  # (nspan, 2)
         inward_face = 0.5 * (inward_vec[:-1] + inward_vec[1:])  # (nspan-1, 2)
         dot = inward_face[:, 0] * np.cos(xi) + inward_face[:, 1] * np.sin(xi)
         xi = np.where(dot < 0, xi + np.pi, xi)
 
-        # Average xi to nodes
-        xi_node = np.empty(len(xi) + 1, dtype=xi.dtype)
-        xi_node[0] = xi[0]
-        xi_node[1:-1] = 0.5 * (xi[:-1] + xi[1:])
-        xi_node[-1] = xi[-1]
+        # Average the face normals to nodes as directions rather than as
+        # angles. Two adjacent faces of a curved surface can sit either side of
+        # the arctan2 branch cut -- one at 179 degrees and the next at -179 --
+        # where the mean of the angles is 180 degrees away from the mean of the
+        # directions they name. Averaging the unit vectors has no branch to
+        # cross, and on a face whose normal does not turn at all it gives the
+        # same answer as averaging the angles did.
+        cf, sf = np.cos(xi), np.sin(xi)
+        c_node = np.empty(len(xi) + 1, dtype=xi.dtype)
+        s_node = np.empty_like(c_node)
+        c_node[0], s_node[0] = cf[0], sf[0]
+        c_node[1:-1] = 0.5 * (cf[:-1] + cf[1:])
+        s_node[1:-1] = 0.5 * (sf[:-1] + sf[1:])
+        c_node[-1], s_node[-1] = cf[-1], sf[-1]
+        norm = np.hypot(c_node, s_node)
+        c_node /= norm
+        s_node /= norm
 
-        angle = xi_node if inward else xi_node + np.pi
-        c = np.cos(angle).astype(np.float32)
-        s = np.sin(angle).astype(np.float32)
+        if not inward:
+            c_node, s_node = -c_node, -s_node
+        c = c_node.astype(np.float32)
+        s = s_node.astype(np.float32)
         n = len(c)
         rot_to = np.empty((n, 2, 2), dtype=np.float32, order="F")
         rot_to[:, 0, 0] = c
@@ -847,6 +896,14 @@ class RevolutionPatch(Patch):
         bcast_shape[self._dim_span] = -1
         self._rot_to = rot_to.reshape(bcast_shape + [2, 2])
         self._rot_from = rot_from.reshape(bcast_shape + [2, 2])
+        # A face already aligned with the (x, r) axes rotates by nothing, which
+        # is the common case: every axial inlet, outlet and mixing plane. Noted
+        # here so the resolve methods can skip not only the two matvecs but the
+        # cache invalidation that goes with writing to conserved_nd, which a
+        # block_view shares with its whole parent block.
+        self._rot_identity = bool(
+            np.allclose(c, 1.0, atol=1e-6) and np.allclose(s, 0.0, atol=1e-6)
+        )
 
     def set_block_avg(self):
         """Compute pitch-averaged conserved variables and store in block_avg.
@@ -987,7 +1044,12 @@ class RevolutionPatch(Patch):
 
             rhoV_norm -> rhoVx = cosxi * rhoV_norm - sinxi * rhoV_span
             rhoV_span -> rhoVr = sinxi * rhoV_norm + cosxi * rhoV_span
+
+        A no-op on a face whose frame axis already is :math:`x`; see
+        :attr:`chi_node`.
         """
+        if self._rot_identity:
+            return
         cons = self.block_view.conserved_nd
         util.matvec(self._rot_from, cons[..., 1:3], out=self._rot_buf)
         cons[..., 1:3] = self._rot_buf
@@ -1003,12 +1065,86 @@ class RevolutionPatch(Patch):
             rhoVr -> rhoV_span = -sinxi * rhoVx + cosxi * rhoVr
 
         Uses the pre-computed rotation matrix ``_rot_to`` broadcast along
-        ``span_dim`` to match the full block shape.
+        ``span_dim`` to match the full block shape. A no-op on a face whose
+        frame axis already is :math:`x`; see :attr:`chi_node`.
         """
+        if self._rot_identity:
+            return
         cons = self.block_view.conserved_nd
         util.matvec(self._rot_to, cons[..., 1:3], out=self._rot_buf)
         cons[..., 1:3] = self._rot_buf
         self.block_view.update_cached_conserved()
+
+    @contextlib.contextmanager
+    def _resolved(self):
+        """Hold ``block_view`` in interface coordinates for the duration of a block.
+
+        Everything read or written through :attr:`block_view` inside the
+        window -- including :attr:`block_avg`, which
+        :meth:`set_block_avg` derives from ``block_view.conserved_nd`` -- has
+        its axial and radial momentum replaced by the interface-normal and
+        in-surface meridional components, so code written against ``Vx`` as the
+        face-normal velocity holds at any face orientation.
+
+        Nested entries rotate once: a boundary condition that enters the window
+        and then calls :meth:`set_block_avg`, which enters it again, must not
+        rotate twice. The unrotate is in a ``finally``, so an exception raised
+        inside the window -- a singular Jacobian, an unset target -- still
+        leaves the block in ``(x, r)`` coordinates for whatever reads it next.
+
+        ``block_view_offset_1`` is *not* covered: it is a different slice of the
+        block and stays in ``(x, r)`` coordinates throughout, so a caller
+        comparing the interior layer against the face must project it onto the
+        frame axis itself.
+        """
+        self._rot_depth += 1
+        try:
+            if self._rot_depth == 1:
+                self._enter_resolved()
+                self.resolve_to_interface()
+            yield self
+        finally:
+            self._rot_depth -= 1
+            if self._rot_depth == 0:
+                self.resolve_from_interface()
+
+    def _enter_resolved(self):
+        """Hook run just before the outermost :meth:`_resolved` rotates in.
+
+        Runs with ``block_view`` still in ``(x, r)`` coordinates, which is what
+        a subclass settling its frame from the flow needs. Does nothing here.
+        """
+
+    @property
+    def chi_node(self):
+        r"""Angle of the frame axis from :math:`+x`, one value per span node.
+
+        The meridional-plane angle :math:`\chi` that
+        :meth:`resolve_to_interface` rotates through, so that
+        :math:`V_n = \cos\chi\, V_x + \sin\chi\, V_r` is the velocity along the
+        frame axis and :math:`V_s = -\sin\chi\, V_x + \cos\chi\, V_r` the one
+        in the surface. Zero on a face whose frame axis is :math:`+x`.
+
+        Returns
+        -------
+        array
+            Angle [rad], shaped to broadcast over the patch along its span
+            dimension.
+        """
+        self._check_attached()
+        if self._rot_to is None:
+            raise ValueError(
+                f"Patch {self.label!r} has no interface frame: "
+                "_build_rot_matrices has not been called."
+            )
+        # Exactly zero where the rotation is being skipped as the identity,
+        # rather than the ~1e-7 radians that float32 coordinates leave on a
+        # nominally constant-x face. The two have to agree: a caller resolving
+        # an angle into the frame must get the same answer as one resolving a
+        # velocity, and the velocity is not being rotated at all.
+        if self._rot_identity:
+            return np.zeros_like(self._rot_to[..., 0, 1])
+        return np.arctan2(self._rot_to[..., 0, 1], self._rot_to[..., 0, 0])
 
     def smooth_pitch_121(self, field, alpha):
         r"""Apply a periodic 1-2-1 smoothing pass along the pitch axis.

@@ -19,7 +19,7 @@ Test cases:
 - Cadence: the condition advances once a timestep and apply only imposes, so a
   cycle relaxes the same however many stages impose it, while the outgoing
   characteristics still refresh on every one of them
-- Guards: backflow, axially supersonic, absolutely supersonic (both warned
+- Guards: backflow, normally supersonic, absolutely supersonic (both warned
   rather than raised, once per excursion, with the march carrying on so the
   solver reports the divergence), and a length scale set after attachment
   carrying through to the averaged block
@@ -83,25 +83,33 @@ def test_attach_detects_axes(kind, span_dim):
     assert patch._hilbert.shape == (npitch, npitch)
 
 
-def test_attach_rejects_canted_plane(kind):
-    """A boundary plane that is not constant-x is refused."""
+def test_attach_accepts_a_canted_face(kind):
+    """A face that is not constant-x attaches and carries a rotated frame."""
     block, patch_type, i_face = _bare(kind)
     # Skew the face in x so it is no longer a plane of constant x.
     x = block.x.copy()
     x[i_face] += 0.01 * np.linspace(0.0, 1.0, x.shape[1])[:, None]
     block.set_x(x)
-    with pytest.raises(ValueError, match="constant x"):
-        block.patches.append(patch_type(i=i_face))
+    block.patches.append(patch_type(i=i_face))
+    patch = block.patches[-1]
+    assert not patch._rot_identity
+    assert np.any(np.abs(patch.chi_node) > 0.0)
 
 
-def test_attach_rejects_interior_on_wrong_side(kind):
-    """The interior must lie on the side the flow direction implies."""
+def test_attach_accepts_either_side_of_a_face(kind):
+    """A patch declares what its face is; the geometry does not second-guess it.
+
+    Both end faces of the same duct take either patch type. Which one the user
+    put there is what says whether flow comes in or goes out, so the frame axis
+    follows the class and not the mesh.
+    """
     block, patch_type, i_face = _bare(kind)
-    # The other end face of the same block has its interior on the wrong side.
-    wrong = -1 if i_face == 0 else 0
-    side = r"\+x" if kind == "inlet" else "-x"
-    with pytest.raises(NotImplementedError, match=side):
-        block.patches.append(patch_type(i=wrong))
+    other = -1 if i_face == 0 else 0
+    block.patches.append(patch_type(i=other))
+    patch = block.patches[-1]
+    assert patch._sign_interior == PATCH_KINDS[kind][0]._sign_interior
+    # Interior on the other side, so the frame axis has turned to face it.
+    assert np.allclose(np.abs(patch.chi_node), np.pi, atol=1e-6)
 
 
 def test_attach_rejects_partial_pitch(kind):
@@ -532,15 +540,15 @@ def test_reversed_mean_does_not_raise(kind):
     assert np.isfinite(face_prim(patch)).all()
 
 
-def test_axially_supersonic_warns(kind):
-    """An axially supersonic mean state is not implemented, and says so."""
+def test_normally_supersonic_warns(kind):
+    """A mean state supersonic through the face is not implemented, and says so."""
     _, patch = attached(kind, Vx=500.0, Vt=0.0, target={})
-    with pytest.warns(UnsupportedMeanStateWarning, match="axially"):
+    with pytest.warns(UnsupportedMeanStateWarning, match="normal"):
         patch.update_soln()
 
 
 def test_absolutely_supersonic_warns(kind):
-    """A supersonic but axially subsonic mean state is not implemented."""
+    """A supersonic but normally subsonic mean state is not implemented."""
     _, patch = attached(kind, Vx=100.0, Vt=400.0, target={})
     with pytest.warns(UnsupportedMeanStateWarning, match="supersonic mean state"):
         patch.update_soln()

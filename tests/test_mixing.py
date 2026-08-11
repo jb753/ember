@@ -30,10 +30,11 @@ import numpy as np
 import pytest
 
 import ember.solver
+from ember import average
 from ember.grid import Grid
 from ember.mixing_communicator import MixingCommunicator
 from ember.patch import InletPatch, MixingPatch, OutletPatch, PeriodicPatch
-from nonreflecting_util import harmonic, make_block, seed_chic
+from nonreflecting_util import LEN_M, harmonic, make_block, seed_chic, turn
 
 # The exchange and the boundary conditions are both heavily under-relaxed by
 # default, which is right for a solver run and far too slow for a test that
@@ -42,7 +43,7 @@ RF_EXCHANGE_FAST = 0.5
 SIGMA_FAST = 0.5
 
 
-def make_chain(states, npitch=17):
+def make_chain(states, npitch=17, chi=0.0, bow=0.0):
     """Blocks butted end to end, each junction a non-reflecting mixing plane.
 
     One entry in ``states`` per block, a dict of overrides for
@@ -51,17 +52,22 @@ def make_chain(states, npitch=17):
     ``npitch`` is a scalar or one value per block; the two sides of a plane may
     differ in it, since only pitch means cross.
 
+    ``chi`` turns the whole chain in the meridional plane and ``bow`` curves
+    the planes between the blocks, so the same chain can be built axial,
+    conical, radially outward or radially inward. The blocks are butted along
+    the duct axis rather than along x, which at ``chi = 0`` is the same thing.
+
     Returns the grid and a list of ``(outflow side, inflow side)`` pairs, one
     per plane, ordered upstream to downstream.
     """
     npitches = [npitch] * len(states) if np.isscalar(npitch) else list(npitch)
 
     blocks = []
-    x_next = 0.0
-    for state, npitch_block in zip(states, npitches, strict=True):
-        block = make_block(npitch=npitch_block, **state)
-        block.set_x(block.x - block.x.min() + x_next)
-        x_next += float(np.ptp(block.x))
+    for i_block, (state, npitch_block) in enumerate(zip(states, npitches, strict=True)):
+        block = make_block(npitch=npitch_block, chi=chi, bow=bow, **state)
+        dx, dr = turn(i_block * LEN_M, 0.0, chi)
+        block.set_x(block.x + dx)
+        block.set_r(block.r + dr)
         blocks.append(block)
 
     planes = []
@@ -75,7 +81,7 @@ def make_chain(states, npitch=17):
     return Grid(blocks), planes
 
 
-def make_pair(npitch_up=17, npitch_dn=17, up=None, dn=None, **kwargs):
+def make_pair(npitch_up=17, npitch_dn=17, up=None, dn=None, chi=0.0, bow=0.0, **kwargs):
     """Two blocks joined by one non-reflecting mixing plane.
 
     ``up`` and ``dn`` are per-side overrides of the flow state, so the two
@@ -85,6 +91,8 @@ def make_pair(npitch_up=17, npitch_dn=17, up=None, dn=None, **kwargs):
     grid, planes = make_chain(
         [{**kwargs, **(up or {})}, {**kwargs, **(dn or {})}],
         npitch=(npitch_up, npitch_dn),
+        chi=chi,
+        bow=bow,
     )
     ((patch_up, patch_dn),) = planes
     return grid, patch_up, patch_dn
@@ -540,6 +548,204 @@ def test_angle_rows_are_not_addressable():
     # And what is there instead reads back.
     assert patch_dn.Vr_nd is not None
     assert patch_dn.Vt_nd is not None
+
+
+# Orientation, and settling the frame against the flow
+
+# Axial, conical, radially outward, running backwards, radially inward. The
+# frame a plane works in has to point along the through-flow whatever the
+# orientation, and the geometry cannot say which way that is: both sides of a
+# plane are the same class, and which is upstream is a property of the machine.
+CHI_PLANE = [0.0, 30.0, 90.0, 180.0, 270.0]
+
+# The coefficients of the harmonic relation live on each side of a plane: the
+# upstream side is one the flow leaves and the downstream side one it enters.
+LIVE_UP = ("coef_t", "coef_t_hilbert", "coef_down", "coef_down_hilbert")
+LIVE_DN = ("coef_local", "coef_hilbert")
+
+
+def _frame_normal_velocity(patch):
+    """Pitch-mean velocity along the patch's frame axis, per span station."""
+    with patch._resolved():
+        patch.set_block_avg()
+        return np.asarray(patch.block_avg.Vx_nd).reshape(-1).copy()
+
+
+def _mdot_gap(patch_up, patch_dn):
+    """Mass-flow mismatch across the plane, relative to the flow through it.
+
+    Taken as the integral of rho V.dA over each face, which is frame-free: it
+    dots the velocity with the face's own area vector rather than assuming a
+    direction for it.
+    """
+    mdot_up = abs(float(average.flow_mass(patch_up.block_view.squeeze())))
+    mdot_dn = abs(float(average.flow_mass(patch_dn.block_view.squeeze())))
+    return (mdot_dn - mdot_up) / max(mdot_up, mdot_dn)
+
+
+@pytest.mark.parametrize("chi", CHI_PLANE)
+def test_the_frame_settles_along_the_flow_at_any_orientation(chi):
+    """Both sides end up working in a frame that runs downstream.
+
+    This is what keeps the plane non-reflecting rather than merely balanced.
+    The harmonic relations are derived for mean flow along the frame axis and
+    the condition zeroes the harmonics where the flow opposes it, so a frame
+    pointing upstream would leave a plane that still matches the mean fluxes
+    while reflecting every harmonic that reached it -- and at chi = 270 the
+    provisional frame the geometry gives does point upstream.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(chi=chi)
+    comm.exchange()
+
+    # Settled, and the two sides are still opposite, which is what pairing
+    # needs of them.
+    assert patch_up._sign_settled and patch_dn._sign_settled
+    assert patch_up._sign_interior == -patch_dn._sign_interior
+
+    # A plane is an outflow on the upstream side and an inflow on the
+    # downstream one, whichever way the duct points.
+    assert patch_up._sign_interior == -1
+    assert patch_dn._sign_interior == 1
+
+    # Both frames run with the flow, so the normal velocity is positive on
+    # each: the through-flow leaves the upstream block and enters the
+    # downstream one, and both read that as the same sign in their own frame.
+    assert (_frame_normal_velocity(patch_up) > 0.0).all()
+    assert (_frame_normal_velocity(patch_dn) > 0.0).all()
+
+
+@pytest.mark.parametrize("chi", CHI_PLANE)
+def test_each_side_runs_the_relation_its_flow_direction_calls_for(chi):
+    """And only that one, at every orientation.
+
+    The upstream side is one the flow leaves and runs Giles Eq. 5.32; the
+    downstream side is one it enters and runs Eq. 5.17. Which is live follows
+    from the settled frame, so this is the structural statement that the settle
+    put both sides on the absorbing branch rather than the zeroed one.
+
+    Only the branch is asserted, not the coefficients: unlike a single face
+    turned in place, a turned *chain* is a different duct -- its two blocks sit
+    at different radii, so a radial one is a diffuser where the axial one has
+    constant area, and the mean states either side genuinely differ.
+    """
+    _, up, dn, comm = exchanged(chi=chi)
+    relax((up, dn), comm, 3)
+
+    for patch, live, dead in ((up, LIVE_UP, LIVE_DN), (dn, LIVE_DN, LIVE_UP)):
+        assert set(live) <= set(patch._ref)
+        assert not set(dead) & set(patch._ref)
+        for key in live:
+            coef = np.asarray(patch._ref[key])
+            assert np.isfinite(coef).all()
+        # The Hilbert coefficient is the non-reflecting part of the relation,
+        # so a plane that absorbs harmonics has to carry a nonzero one.
+        hilbert = "coef_hilbert" if live is LIVE_DN else "coef_t_hilbert"
+        assert np.abs(np.asarray(patch._ref[hilbert])).min() > 1e-3
+
+
+@pytest.mark.parametrize("chi", CHI_PLANE)
+def test_a_turned_plane_conserves_mass_across_the_interface(chi):
+    """Mass flow matches across the plane whatever the orientation.
+
+    The pitch-mean fluxes themselves cannot be compared on a turned chain --
+    the two sides have different annulus areas, so the same mass flow is
+    carried at a different flux -- but the mass flow is what has to balance
+    either way, and it is the quantity a canted or radial interface would get
+    wrong if it were resolving the velocity onto the wrong normal.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(
+        chi=chi, up={"P": 1.05e5, "Vx": 105.0}, dn={"P": 0.95e5, "Vx": 95.0}
+    )
+    gap_before = abs(_mdot_gap(patch_up, patch_dn))
+    assert gap_before > 1e-2
+
+    relax((patch_up, patch_dn), comm, 100)
+
+    gap_after = abs(_mdot_gap(patch_up, patch_dn))
+    assert gap_after < 5e-3, f"{gap_before} -> {gap_after}"
+
+
+def test_an_axial_chain_still_matches_its_mean_fluxes_exactly(chi=0.0):
+    """The axial chain has the same geometry either side, so the fluxes match too.
+
+    The stronger statement the turned cases cannot make, kept so the weaker one
+    above is not the only thing standing behind Saxer Eq. 5.65.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(
+        chi=chi, up={"P": 1.05e5, "Vx": 105.0}, dn={"P": 0.95e5, "Vx": 95.0}
+    )
+    relax((patch_up, patch_dn), comm, 100)
+    assert flux_gap(patch_up, patch_dn).max() < 1e-4
+
+
+def test_a_grid_at_rest_does_not_freeze_an_arbitrary_frame():
+    """With no through-flow there is no direction to settle against, so it waits.
+
+    Freezing whichever way the geometry happened to point would be worse than
+    waiting a step: a run started from rest would carry that frame for its
+    whole life, and half the time it would be the reflecting one.
+    """
+    # Cross-flow but no through-flow, so the face carries no net mass flux.
+    grid, patch_up, patch_dn, comm = exchanged(chi=270.0, Vx=0.0, Vr=20.0)
+    comm.exchange()
+    assert not patch_up._sign_settled
+    assert not patch_dn._sign_settled
+
+    # It still ran, and left the two sides opposite so the exchange is sound.
+    assert patch_up._sign_interior == -patch_dn._sign_interior
+
+
+def test_a_late_settle_turns_the_target_it_already_wrote():
+    """A target seeded in the provisional frame is turned with the frame.
+
+    The exchange runs before the boundary conditions do, so a grid started from
+    rest can have a target written in one frame and then settle into the other.
+    Row 2 of that target is the velocity in the surface, which reverses when the
+    frame turns through pi; leaving it would drive the plane toward a
+    cross-flow of the wrong sign.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(chi=270.0, Vx=0.0, Vr=20.0)
+    comm.exchange()
+    assert not patch_up._sign_settled
+    before = [np.copy(p._target[..., 2]) for p in (patch_up, patch_dn)]
+    signs = [p._sign_interior for p in (patch_up, patch_dn)]
+    # The seeded cross-flow is what makes the turn visible at all.
+    assert np.abs(before[0]).max() > 1e-3
+
+    # Start the flow and exchange again: now there is a direction to settle on.
+    for block in grid:
+        block.set_Vx(block.Vx + turn(100.0, 0.0, 270.0)[0] * np.ones(block.shape))
+        block.set_Vr(block.Vr + turn(100.0, 0.0, 270.0)[1] * np.ones(block.shape))
+    comm.exchange()
+
+    assert patch_up._sign_settled and patch_dn._sign_settled
+    assert patch_up._sign_interior == -1 and patch_dn._sign_interior == 1
+    for patch, was, sign_was in zip((patch_up, patch_dn), before, signs):
+        if patch._sign_interior != sign_was:
+            # Turned, so what was written in the old frame was turned with it.
+            # Compared against the seed rather than the current target, which
+            # this exchange has also moved.
+            assert np.sign(np.sum(patch._target[..., 2])) != np.sign(np.sum(was))
+
+
+def test_the_frame_does_not_re_settle_when_a_station_reverses():
+    """Reversal is the split's business, not the frame's.
+
+    Moving the frame under a target already written in it would be a different
+    and much worse thing than switching a station to the other characteristic
+    split, which is what the condition does and has always done.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(chi=90.0)
+    comm.exchange()
+    settled = [p._sign_interior for p in (patch_up, patch_dn)]
+
+    # Reverse the through-flow outright on both blocks.
+    for block in grid:
+        block.set_Vx(-block.Vx)
+        block.set_Vr(-block.Vr)
+    relax((patch_up, patch_dn), comm, 5)
+
+    assert [p._sign_interior for p in (patch_up, patch_dn)] == settled
 
 
 # Physics

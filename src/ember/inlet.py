@@ -7,8 +7,8 @@ after the steady non-reflecting theory of :cite:t:`Giles1988` (his Sections
 
 The characteristic treatment is entirely
 :class:`~ember.patch.NonReflectingPatch`'s; what this class adds is an
-interior on the :math:`+x` side and the variables a physical inlet knows. Of the
-five characteristics at an axially subsonic inflow plane four are incoming
+interior on the downstream side of the face and the variables a physical inlet
+knows. Of the five characteristics at a subsonic inflow face four are incoming
 (entropy, two vorticity waves, the downstream-running pressure wave) and one,
 the upstream-running pressure wave, is outgoing, so four quantities are
 prescribed: the pitchwise means of :math:`h_0`, :math:`s`, :math:`\tan\alpha`
@@ -99,16 +99,24 @@ class InletPatch(NonReflectingPatch):
     _nodal_backflow = False
 
     def _target_from_prim(self, prim):
-        """The target-space quantities (ho, s, tanAlpha, sinBeta, P) of a primitive state.
+        r"""The target-space quantities (ho, s, tanAlpha, sinBeta, P) of a primitive state.
 
         The angles in place of the base class's transverse velocities, measured
         against the meridional speed as
         :func:`~ember.perturbation.chic_to_bcond` differentiates them.
+
+        Read in the interface frame, where rows 1 and 2 of ``prim`` are the
+        velocity along the frame axis and the one in the surface. The yaw angle
+        is unaffected -- :math:`V_m = \sqrt{V_n^2 + V_s^2} = \sqrt{V_x^2 +
+        V_r^2}` is invariant under the rotation -- while the pitch angle that
+        comes out is measured from the frame axis rather than from :math:`x`.
+        The two differ by exactly :attr:`~ember.patch.RevolutionPatch.chi_node`,
+        which is where :meth:`set_Beta` puts it back.
         """
         ho_nd, s_nd = self._ho_s_from_prim(prim)
-        Vx, Vr, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
-        Vm = np.sqrt(Vx**2 + Vr**2)
-        return ho_nd, s_nd, Vt / Vm, Vr / Vm, prim[..., 4]
+        Vn, Vs, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
+        Vm = np.sqrt(Vn**2 + Vs**2)
+        return ho_nd, s_nd, Vt / Vm, Vs / Vm, prim[..., 4]
 
     @replayable
     def set_Alpha(self, Alpha):
@@ -168,19 +176,47 @@ class InletPatch(NonReflectingPatch):
     def set_Beta(self, Beta):
         r"""Prescribe the inflow pitch angle.
 
+        The angle is measured from the machine axis, :math:`\tan\beta = V_r /
+        V_x`, whatever the orientation of the face it is prescribed on. The
+        condition itself works in the interface frame, where the same flow
+        makes the angle :math:`\beta - \chi` with the frame axis, so what is
+        stored is :math:`\sin(\beta - \chi)` for the face angle
+        :attr:`~ember.patch.RevolutionPatch.chi_node`. On a face of constant
+        :math:`x` the frame axis is :math:`x` and the two coincide.
+
+        What it must satisfy is that flow actually comes in through the face:
+        :math:`|\beta - \chi| \leq 90`. On a face of constant :math:`x` that is
+        the familiar :math:`|\beta| \leq 90`, and on a radial or reversed face
+        it is the same condition said properly -- a duct running along
+        :math:`-x` takes :math:`\beta = 180`, one flowing inward radially
+        :math:`\beta = -90`.
+
         Parameters
         ----------
         Beta : float or array
-            Prescribed inflow pitch angle :math:`\beta` [deg]; must satisfy
-            :math:`|\beta| \leq 90`. A scalar or an array that broadcasts to
-            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise
-            mean at each span station is imposed.
+            Prescribed inflow pitch angle :math:`\beta` [deg], measured from
+            the machine axis as :math:`\arctan(V_r/V_x)` over the full turn. A
+            scalar or an array that broadcasts to
+            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise mean
+            at each span station is imposed.
         """
-        if not (np.abs(np.asarray(Beta)) <= 90.0).all():
-            raise ValueError("Beta must be within +/-90 degrees inclusive")
-        self._set_target_row(
-            3, "Beta", np.sin(np.radians(np.asarray(Beta, dtype=np.float32)))
-        )
+        Beta_face = np.radians(np.asarray(Beta, dtype=np.float32)) - self.chi_node
+        # Onto (-180, 180] before testing, so an angle that reaches the face
+        # the long way round is judged on where it points and not on how it was
+        # spelled. The sine stored below is periodic and does not care.
+        Beta_face = np.arctan2(np.sin(Beta_face), np.cos(Beta_face))
+        # The stored sine cannot tell an inflow from an outflow, so a pitch
+        # angle that leaves no velocity along the frame axis to come in on is
+        # refused here rather than silently read back as its reflection.
+        if not (np.abs(Beta_face) <= 0.5 * np.pi + 1e-5).all():
+            worst = float(np.degrees(Beta_face).flat[np.argmax(np.abs(Beta_face))])
+            raise ValueError(
+                "Beta must be within +/-90 degrees of the face normal, which "
+                f"lies at {float(np.degrees(self.chi_node).mean()):.4g} degrees "
+                f"to the axis; the prescribed angle is {worst:.4g} degrees from "
+                "it, so no flow would enter through the face."
+            )
+        self._set_target_row(3, "Beta", np.sin(Beta_face))
 
     @replayable
     def set_ho_s(self, ho, s):

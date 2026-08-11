@@ -150,7 +150,6 @@ def build_duct_grid(
     block.patches["inlet"].set_Beta(0.0)
     block.patches["outlet"].set_P(P_out)
     block.patches["outlet"].set_backflow_ho_s(ho, so)
-    block.patches["outlet"].set_backflow_Vr(0.0)
     block.patches["outlet"].set_backflow_Vt(0.0)
 
     # Velocity ripple, applied before the non-dimensional reference is set (as in

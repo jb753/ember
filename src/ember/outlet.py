@@ -7,8 +7,8 @@ dimensions by :cite:t:`Saxer1993` (his Section 5.4.5 and Appendix D.3).
 
 The characteristic treatment is entirely
 :class:`~ember.patch.NonReflectingPatch`'s; what this class adds is an
-interior on the :math:`-x` side and the pressure a physical exit plane is held
-at. Of the five characteristics at an axially subsonic outflow plane four are
+interior on the upstream side of the face and the pressure a physical exit
+plane is held at. Of the five characteristics at a subsonic outflow face four are
 outgoing and only the upstream-running pressure wave is incoming, so a single
 quantity is prescribed: the pitchwise mean of the static pressure at each span
 station.
@@ -27,11 +27,14 @@ variables. Reverse a span station and four of its five characteristics turn
 incoming, so one prescribed quantity becomes four and the exit pressure stops
 being one of them: the base class switches that station to the inflow split and
 drives it to rows 0-3 of the target, in the mix variables
-:math:`[h_0, s, V_r, V_\theta]` this patch works in.
+:math:`[h_0, s, V_s, V_\theta]` this patch works in, where :math:`V_s` is the
+velocity in the exit surface.
 :meth:`OutletPatch.set_backflow_ho_s` and its companions prescribe them; left
 alone, they are seeded once from the pitchwise mean of the exit plane as it
 stands at the first timestep and frozen there, which for a run started from a
-design guess is the design exit state. Reversal confined to nodes within a
+design guess is the design exit state. :math:`V_s` is the exception: it is
+pinned at zero rather than prescribed or seeded, so backflow enters normal to
+the exit surface whatever that surface's orientation. Reversal confined to nodes within a
 station whose mean still runs forward is handled node by node as a limiter
 instead, by the base class's ``_calc_override``.
 
@@ -129,10 +132,15 @@ class OutletPatch(NonReflectingPatch):
     is still what the boundary imposes -- the throttle only chooses which
     pressure -- so the characteristic treatment is untouched by it.
 
-    :meth:`set_backflow_ho_s` (or :meth:`set_backflow_Po_To`),
-    :meth:`set_backflow_Vr` and :meth:`set_backflow_Vt` prescribe the inflow
-    state a reversed span station is driven to; see those methods and the module
-    docstring.
+    :meth:`set_backflow_ho_s` (or :meth:`set_backflow_Po_To`) and
+    :meth:`set_backflow_Vt` prescribe the inflow state a reversed span station
+    is driven to; see those methods and the module docstring. Its meridional
+    direction is not prescribed and cannot be: backflow comes in normal to the
+    exit surface, so the row that would carry it is pinned at zero. Unlike an
+    angle, a meridional velocity cannot be resolved onto a face of arbitrary
+    orientation without knowing the normal component, which is what the
+    reversed-station solve derives from :math:`h_0` -- so there is nothing
+    consistent for a setter to mean.
     """
 
     _collection_name = "outlet"
@@ -145,8 +153,9 @@ class OutletPatch(NonReflectingPatch):
 
     # The inflow state a reversed station is driven to. Not required of the
     # user: seeded from the exit plane if the set_backflow_* setters are never
-    # called.
-    _target_seeded = (0, 1, 2, 3)
+    # called. Row 2, the velocity in the surface, is not seeded and not
+    # settable; attach_to_block pins it at zero.
+    _target_seeded = (0, 1, 3)
 
     def _copy(self, c):
         super()._copy(c)
@@ -256,10 +265,12 @@ class OutletPatch(NonReflectingPatch):
         applied to what reaches the block and kept out of the state the solve
         carries forward.
 
-        The four rows are set independently, by this method or
-        :meth:`set_backflow_Po_To` for the thermodynamic pair and by
-        :meth:`set_backflow_Vr` and :meth:`set_backflow_Vt` for the velocities,
-        so a run can prescribe one and leave the rest seeded.
+        The rows that can be prescribed are set independently, by this method
+        or :meth:`set_backflow_Po_To` for the thermodynamic pair and by
+        :meth:`set_backflow_Vt` for the swirl, so a run can prescribe one and
+        leave the rest seeded. The meridional direction is not among them: the
+        backflow comes in normal to the exit surface, so the velocity in the
+        surface is pinned at zero. See the class docstring.
 
         Both quantities here are measured from the fluid datum state where
         :math:`u = s = 0` at :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`, the same
@@ -326,20 +337,6 @@ class OutletPatch(NonReflectingPatch):
         )
         self._set_target_row(0, "Po and To", fluid.get_h(rhoo_nd, uo_nd))
         self._set_target_row(1, "Po and To", fluid.get_s(rhoo_nd, uo_nd))
-
-    @replayable
-    def set_backflow_Vr(self, Vr):
-        r"""Prescribe the radial velocity imposed where the exit flow reverses.
-
-        See :meth:`set_backflow_ho_s` for what the backflow rows do.
-
-        Parameters
-        ----------
-        Vr : float or array
-            Radial velocity :math:`V_r` [m/s]. A scalar or a spanwise profile,
-            of which only the pitchwise mean at each span station is imposed.
-        """
-        self._set_target_row(2, "Vr", np.asarray(Vr) / self.block.fluid.V_ref)
 
     @replayable
     def set_backflow_Vt(self, Vt):
@@ -562,6 +559,23 @@ class OutletPatch(NonReflectingPatch):
             dP_I=dP_I,
             dP_D=0.0,
         )
+
+    def attach_to_block(self, block):
+        """Attach to a block and pin the in-surface backflow velocity at zero.
+
+        Done here rather than in a setter because it is not a prescription the
+        user makes but a property of the condition; and after the base class,
+        which is what allocates the target this writes into. Re-pinned on every
+        attach, since a target rebuilt at a new shape comes back zeroed and
+        unset.
+        """
+        super().attach_to_block(block)
+
+        if self._block_ref is None:
+            return
+
+        self._target[..., 2] = 0.0
+        self._target_set[2] = True
 
     def update_ref_scales(self):
         r"""Re-derive the prescribed pressure and drop the spanwise adjustment.

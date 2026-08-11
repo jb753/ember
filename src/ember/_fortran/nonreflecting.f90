@@ -12,9 +12,10 @@
 ! primitive, p2c, c2p and mask_out vary along the patch's span_dim only and
 ! are constant (size 1) along the other two axes, matching
 ! Patch._span_bcast's convention. Which variant to call is selected once per
-! patch, from span_dim, not per call. No _bcast_i variant: NonReflectingPatch
-! is restricted to constant-x planes (NonReflectingPatch._check_plane), so
-! const_dim is always the i axis and span_dim is always j or k, never i.
+! patch, from span_dim, not per call. No _bcast_i variant: a patch that would
+! need one spans along i, which NonReflectingPatch._check_face refuses rather
+! than mis-dispatching. Every boundary of a duct indexed along the flow is a
+! face of constant i, which can only span along j or k.
 
 subroutine nonreflecting_recombine_bcast_j(rho, vx, vr, vt, p, prim_prev, &
                                             ref_prim, p2c, c2p, mask_out, &

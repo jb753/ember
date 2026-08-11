@@ -6,25 +6,66 @@ dimensions by :cite:t:`Saxer1993`, as one condition. Its subclasses supply a
 side of the face, a set of variables to prescribe and the setters that fill
 them; the characteristic treatment itself lives here.
 
-Of the five characteristics at an axially subsonic boundary, four propagate
-downstream (entropy, both vorticity waves, the downstream-running pressure wave)
-and one, the upstream-running pressure wave, propagates upstream. A
-characteristic is *outgoing* -- owned by the interior march, read from the
-boundary node exactly as the scheme left it and never overwritten, so a wave
-reaching the boundary passes through -- when its wave speed carries it out of
-the domain, :math:`\lambda\,n_x < 0` for the inward face normal
+The interface frame
+-------------------
+
+The condition is written against the velocity through the boundary, and the
+boundary may be any surface of revolution -- a plane of constant :math:`x`, a
+cone, an annular bend, or a curved surface whose normal turns from hub to tip.
+What makes that possible is a change of frame and nothing else. Write
+:math:`\chi` for the angle of the frame axis :math:`n` from :math:`+x` in the
+meridional plane
+(:attr:`~ember.patch.RevolutionPatch.chi_node`, one value per span node):
+
+.. math::
+
+    V_n &= \cos\chi\, V_x + \sin\chi\, V_r \\
+    V_s &= -\sin\chi\, V_x + \cos\chi\, V_r
+
+:meth:`~ember.patch.RevolutionPatch.resolve_to_interface` applies that to the
+momentum of the boundary nodes on the way in and
+:meth:`~ember.patch.RevolutionPatch.resolve_from_interface` undoes it on the way
+out, so everything below reads :math:`V_x` as the velocity through the face and
+:math:`V_r` as the one in it. Three things make the substitution exact rather
+than approximate: the rotation is orthogonal, so it leaves the Euler equations'
+form and the meridional speed :math:`V_m = \sqrt{V_n^2 + V_s^2}` alone; the
+pitch direction of a surface of revolution is pure :math:`\theta`, so the
+Hilbert transform is untouched; and Saxer's quasi-3D theory already treats each
+span station as a two-dimensional cascade in :math:`(n, \theta)` and neglects
+derivatives along the third direction, which is what the frame renames. On a
+plane of constant :math:`x` the rotation is the identity and is skipped.
+
+**The frame axis points along the mean through-flow**, which is not a free
+choice: see the harmonic relations below. An inflow or outflow condition knows
+which way that is from its own class, and orientation is then the user's
+declaration -- a patch works at any angle and the geometry is not consulted to
+second-guess it. A mixing plane cannot know, since both its sides are the same
+class and which is upstream is a property of the machine rather than the mesh,
+so it settles its frame against the flow on the first step; see
+:class:`~ember.mixing.MixingPatch`.
+
+The characteristic split
+------------------------
+
+Of the five characteristics at a subsonic boundary, four propagate downstream
+(entropy, both vorticity waves, the downstream-running pressure wave) and one,
+the upstream-running pressure wave, propagates upstream. A characteristic is
+*outgoing* -- owned by the interior march, read from the boundary node exactly
+as the scheme left it and never overwritten, so a wave reaching the boundary
+passes through -- when its wave speed carries it out of the domain,
+:math:`\lambda\,n < 0` for the inward face normal
 :attr:`~NonReflectingPatch._sign_interior`. The rest are *incoming*: discarded
 rather than taken from the march, and rebuilt once a timestep from the
 prescribed mean state and the non-reflecting relations, under-relaxed by
 :attr:`~NonReflectingPatch.sigma`.
 
 Working that out for the wave speeds
-:math:`[V_x - a,\, V_x + a,\, V_x,\, V_x,\, V_x]` of
+:math:`[V_n - a,\, V_n + a,\, V_n,\, V_n,\, V_n]` of
 :math:`[c_\mathrm{up}, c_\mathrm{down}, c_r, c_t, c_s]` gives four splits, not
 two, and they have a simple structure: **the acoustic split is fixed by the
 geometry** -- :math:`c_\mathrm{up}` is always outgoing when the interior lies on
-the :math:`+x` side, :math:`c_\mathrm{down}` always outgoing when it lies on the
-:math:`-x` side -- **and the three convective characteristics follow the flow**,
+the :math:`+n` side, :math:`c_\mathrm{down}` always outgoing when it lies on the
+:math:`-n` side -- **and the three convective characteristics follow the flow**,
 incoming at a span station the flow enters and outgoing at one it leaves.
 
 ============ ================== =================== ================
@@ -46,20 +87,35 @@ per span station, :attr:`~NonReflectingPatch._target`, in the space
 :attr:`~NonReflectingPatch._chic_to_target` maps characteristics into. Rows 0, 1
 and 4 are stagnation enthalpy, entropy and static pressure in every such space;
 only rows 2 and 3 distinguish them, the mix variables
-:math:`(V_r, V_\theta)` of :func:`~ember.perturbation.chic_to_mix` from the
+:math:`(V_s, V_\theta)` of :func:`~ember.perturbation.chic_to_mix` from the
 angles :math:`(\tan\alpha, \sin\beta)` of
-:func:`~ember.perturbation.chic_to_bcond`. One span station rather than one node
+:func:`~ember.perturbation.chic_to_bcond`. Both live in the interface frame,
+where :math:`V_s` is the velocity in the surface and :math:`\beta` is measured
+from the frame axis; the setters that fill them take machine-frame quantities
+and convert, so :math:`\tan\beta = V_r/V_x` still means what it says
+(:meth:`~ember.inlet.InletPatch.set_Beta`), and the one quantity that cannot be
+converted -- a meridional velocity, which needs the normal component to resolve
+and that is what the solve derives -- is not offered as a setter at all
+(:class:`~ember.outlet.OutletPatch`). One span station rather than one node
 loses nothing: every target is read only through
 :meth:`~NonReflectingPatch._pitch_mean` of its own residual, which is linear, so
 the pitch mean of a prescribed profile is all that was ever imposed.
 
 The harmonic relations are the one place the two directions genuinely differ,
 and each patch needs only one of them. Giles and Saxer derive them for mean flow
-along :math:`+x`, so a relation applies only where :math:`V_x > 0` -- and there,
-entering implies an inward normal of :math:`+1` and leaving one of :math:`-1`.
-A patch's normal is fixed, so exactly one relation is ever live on it and the
-other kind of station takes zeroed harmonics, which is the honest thing to do
-where the derivation does not hold.
+along the frame axis, so a relation applies only where :math:`V_n > 0` -- and
+there, entering implies an inward normal of :math:`+1` and leaving one of
+:math:`-1`. A patch's normal is fixed, so exactly one relation is ever live on
+it and the other kind of station takes zeroed harmonics, which is the honest
+thing to do where the derivation does not hold.
+
+The two rows of the table that zero them are exactly the two with
+:math:`V_n < 0`, so this is a statement about reversal and not about
+orientation: a station running with the frame absorbs, one running against it
+does not. That is why the frame axis has to point along the mean through-flow.
+Pointed the other way it would still balance the mean -- the mean-mode Newton
+step is indifferent to it -- while zeroing the harmonics at *every* station, so
+the boundary would go quietly reflective rather than fail.
 
 See Also
 --------
@@ -243,12 +299,13 @@ class NonReflectingPatch(RevolutionPatch):
     those two settled, so the rate of the condition does not scale with the
     stage count.
 
-    The condition is restricted to a constant-:math:`x` plane and to an axially
-    subsonic, absolutely subsonic mean state; each restriction is checked and
-    raises. Neither restriction concerns the *direction* of the flow through the
-    face: a span station whose mean has reversed simply takes the other
-    characteristic split, and drives the quantities that split prescribes toward
-    rows of the same target.
+    The face may be any surface of revolution; the condition works in the
+    interface frame and the module docstring says how. What it is restricted to
+    is a mean state subsonic both normal to the face and absolutely, which is
+    checked and warned about. That restriction does not concern the *direction*
+    of the flow through the face: a span station whose mean has reversed simply
+    takes the other characteristic split, and drives the quantities that split
+    prescribes toward rows of the same target.
     """
 
     # A mean-mode Jacobian is treated as singular when its determinant falls
@@ -302,10 +359,13 @@ class NonReflectingPatch(RevolutionPatch):
     :attr:`~ember.solver.Solver.rf_inlet`/:attr:`~ember.solver.Solver.rf_outlet`
     at the start of a run."""
 
-    # Inward face normal: +1 if the interior lies on the +x side of the face,
-    # -1 if on the -x side. None lets the geometry decide at attach time, which
-    # is what a patch that can sit on either side of a plane wants; a value
-    # here is validated against the geometry instead.
+    # Inward face normal: +1 if the interior lies on the +n side of the face,
+    # -1 if on the -n side, for the interface frame axis n. Equivalently, +1
+    # where the flow nominally enters through the face and -1 where it leaves,
+    # since the frame axis runs downstream. A value here is the authority and
+    # the frame is built to match it; None means the class cannot know, and
+    # leaves _check_face to take a provisional answer from the geometry for a
+    # subclass to settle against the flow.
     _sign_interior = None
 
     # Rows filled from the pitchwise mean of the face when nothing has
@@ -554,7 +614,8 @@ class NonReflectingPatch(RevolutionPatch):
         sign = self._sign_interior
         cons = self.block_view_offset_1.conserved_nd
         u_int = sign * (
-            self._pitch_mean(cons[..., 1]) / self._pitch_mean(cons[..., 0])
+            self._pitch_mean(self._normal_momentum_offset_1())
+            / self._pitch_mean(cons[..., 0])
         ).reshape(-1)
         u_face = sign * avg.Vx_nd
 
@@ -763,8 +824,7 @@ class NonReflectingPatch(RevolutionPatch):
         # permanently into backflow. Stations the characteristic solve is
         # already carrying as entering are left to it rather than treated
         # twice, once here and once there.
-        cons_x = self.block_view_offset_1.conserved_nd[..., 1]
-        inflow = cons_x * self._sign_interior > 0.0
+        inflow = self._normal_momentum_offset_1() * self._sign_interior > 0.0
         if self._entering.any():
             inflow = inflow & ~self._span_bcast(self._entering)
         if not inflow.any():
@@ -840,7 +900,7 @@ class NonReflectingPatch(RevolutionPatch):
         self._mask_out_bcast[...] = self._mask_out
 
         # Tested on the magnitude, so a station running backwards fast enough
-        # to be axially supersonic is caught too: there one of the two acoustic
+        # to be supersonic normal to the face is caught too: there one of the two acoustic
         # characteristics changes direction and even the reversed split is
         # wrong.
         #
@@ -857,8 +917,8 @@ class NonReflectingPatch(RevolutionPatch):
         unsupported = True
         if np.any(np.abs(Mn) >= 1.0):
             self._warn_unsupported(
-                f"is axially supersonic (max axial Mach "
-                f"{float(np.max(np.abs(Mn))):.4g}); only an axially subsonic "
+                f"is supersonic normal to the face (max normal Mach "
+                f"{float(np.max(np.abs(Mn))):.4g}); only a normally subsonic "
                 "mean state is implemented"
             )
         elif np.any(Msq >= 1.0):
@@ -964,7 +1024,7 @@ class NonReflectingPatch(RevolutionPatch):
         :math:`\mu = |l|/\sqrt{1-M^2}`, satisfies it exactly.
         """
         # 1 - Mn^2 is the product of the wave-parameter denominator and its
-        # conjugate; it is bounded away from zero by the axially subsonic check
+        # conjugate; it is bounded away from zero by the normally subsonic check
         # in the caller.
         denom = 1.0 - Mn**2
         return {
@@ -995,41 +1055,85 @@ class NonReflectingPatch(RevolutionPatch):
             return sorted([acoustic, 2, 3, 4]), [0, 1, 2, 3]
         return [acoustic], [4]
 
-    def _check_plane(self):
-        """Validate the boundary plane and settle which side the interior is on."""
-        block = self.block
-        x = self.block_view.x
-        Lref = max(np.ptp(block.x), np.ptp(block.r))
-        if np.ptp(x) > self._rtol_geom * Lref:
-            raise ValueError(
-                f"{self._desc.capitalize()} {self.label!r} must lie on a plane "
-                f"of constant x (spread {float(np.ptp(x)):.4g} over reference "
-                f"length {Lref:.4g}); canted planes are not implemented."
+    def _check_face(self):
+        """Validate the boundary surface and settle the interface frame on it.
+
+        The face may be any surface of revolution, so the frame axis
+        :math:`n` is derived from the geometry rather than assumed to be
+        :math:`x`; see the module docstring for why it has to point along the
+        mean through-flow. Which side of the face the interior lies on decides
+        which way round that is, and a patch whose class fixes
+        :attr:`_sign_interior` -- an inflow or an outflow condition, which knows
+        by construction whether the flow comes in or goes out -- says so
+        directly. The geometry is not consulted to second-guess it: on a face
+        of any orientation the patch a user put there is the declaration of
+        what that face is.
+        """
+        # The fused kernel of _recombine broadcasts the reference state along
+        # the span, and only the j and k variants of it are built. A face of
+        # constant i can never span along i, so this was unreachable while the
+        # condition was restricted to planes of constant x; a face of constant
+        # j or k on a general surface of revolution can.
+        if self.span_dim == 0:
+            raise NotImplementedError(
+                f"{self._desc.capitalize()} {self.label!r} spans along i, which "
+                "the characteristic reconstruction has no kernel for; put the "
+                "patch on a face of constant i, or add "
+                "nonreflecting_recombine_bcast_i."
             )
 
-        # A constant-x plane has an inward normal of exactly (+/-1, 0), so the
-        # sign is the whole of it.
-        offset = block.x[self._get_offset_slice(1)].mean() - x.mean()
-        if offset == 0.0:
+        block = self.block
+        Lref = max(np.ptp(block.x), np.ptp(block.r))
+        inward = self._inward_meridional()
+        if np.linalg.norm(inward, axis=-1).max() <= self._rtol_geom * Lref:
             raise ValueError(
                 f"{self._desc.capitalize()} {self.label!r} cannot tell which "
-                "side its interior lies on: the first interior layer is in the "
-                "same plane as the face."
+                "side its interior lies on: the first interior layer lies in "
+                "the face."
             )
-        sign = 1 if offset > 0.0 else -1
 
         # Read off the class, not the instance, so that a patch whose class
         # leaves the side to the geometry can be re-attached to the other side
-        # of a plane rather than validated against its own previous answer.
+        # of a face rather than pinned to its own previous answer.
         fixed = type(self)._sign_interior
-        if fixed is not None and fixed != sign:
-            side = "+x" if fixed > 0 else "-x"
-            verb = "enters" if fixed > 0 else "leaves"
-            raise NotImplementedError(
-                f"{self._desc.capitalize()} {self.label!r} must have its "
-                f"interior on the {side} side, so that flow {verb} along +x."
-            )
-        self._sign_interior = sign
+        if fixed is not None:
+            self._sign_interior = fixed
+            self._build_rot_matrices(inward=fixed > 0)
+            return
+
+        # Nothing on the class, so take a provisional frame from the geometry;
+        # a subclass that can settle it properly does so from the flow, once
+        # there is one. Built inward first so the normal that decides is the
+        # one _build_rot_matrices derives and flips, not the raw offset.
+        self._build_rot_matrices(inward=True)
+        self._sign_interior = self._provisional_sign()
+        if self._sign_interior < 0:
+            self._build_rot_matrices(inward=False)
+
+    def _provisional_sign(self):
+        """Which side of the face the interior is on, from the geometry alone.
+
+        Used only by a patch whose class leaves :attr:`_sign_interior` open and
+        which has no flow yet to settle it against. The rule is to make the
+        frame axis the face normal that points along :math:`+x`, falling back
+        to :math:`+r` where the face has no axial normal component at all --
+        deterministic, and on a plane of constant :math:`x` exactly the rule
+        the condition has always used.
+
+        What it guarantees is what the mixing plane needs of it before there is
+        a flow: the two sides of one interface have antiparallel normals, so
+        they are given opposite signs whatever their orientation.
+
+        Returns
+        -------
+        int
+            ``+1`` or ``-1``.
+        """
+        normal = self._rot_to[..., 0, :].reshape(-1, 2)
+        n_x = float(normal[:, 0].mean())
+        if abs(n_x) > self._rtol_geom:
+            return 1 if n_x > 0.0 else -1
+        return 1 if float(normal[:, 1].mean()) > 0.0 else -1
 
     def _copy(self, c):
         c._target = None if self._target is None else np.copy(self._target)
@@ -1054,6 +1158,37 @@ class NonReflectingPatch(RevolutionPatch):
         Vx, Vr, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
         ho_nd = fluid.get_h(rho_nd, u_nd) + 0.5 * (Vx**2 + Vr**2 + Vt**2)
         return ho_nd, fluid.get_s(rho_nd, u_nd)
+
+    def _normal_momentum_offset_1(self):
+        r"""Momentum along the frame axis in the first interior layer.
+
+        The two tests that ask which way the interior is pushing flow --
+        :meth:`_calc_entering` and :meth:`_calc_override` -- read the layer one
+        node in from the face, and that layer is *not* part of
+        :attr:`~ember.patch.RevolutionPatch.block_view`, so it is still in
+        :math:`(x, r)` coordinates while the face around them has been rotated
+        into the interface frame. Projecting it here is what keeps the two
+        comparable:
+
+        .. math::
+
+            \rho V_n = \cos\chi\, \rho V_x + \sin\chi\, \rho V_r
+
+        Reads the projection off :attr:`_rot_to` rather than recomputing a
+        cosine, and off the raw conserved array rather than
+        :attr:`~ember.block.Block.Vx_nd`, so nothing here depends on the
+        interior layer's primitives being current.
+
+        Returns
+        -------
+        array
+            Shape ``block_view.shape``.
+        """
+        cons = self.block_view_offset_1.conserved_nd
+        if self._rot_identity:
+            return cons[..., 1]
+        rot = self._rot_to
+        return rot[..., 0, 0] * cons[..., 1] + rot[..., 0, 1] * cons[..., 2]
 
     @staticmethod
     def _mask_from_split(split):
@@ -1104,17 +1239,27 @@ class NonReflectingPatch(RevolutionPatch):
         exchange overwrites with the symmetrised cross-plane average, or from
         ``block_view.mean()``, whose derived properties read as zero before the
         conserved cache is primed.
+
+        Takes its own rotation window rather than relying on a caller's. The
+        target lives in interface coordinates, and this is reached both from
+        inside the condition, where the window is already open, and from
+        outside it -- a mixing plane seeds itself from
+        :meth:`~ember.mixing.MixingPatch.get_target`, which the communicator
+        calls before any boundary condition has run. Seeding from outside
+        without one filled the in-surface velocity row with the radial velocity
+        instead, which on a canted face is a different quantity.
         """
         rows = [row for row in self._target_seeded if not self._target_set[row]]
         if not rows:
             return
-        b = self.block_view
-        target = self._target_from_prim(
-            np.stack((b.rho_nd, b.Vx_nd, b.Vr_nd, b.Vt_nd, b.P_nd), axis=-1)
-        )
-        for row in rows:
-            self._target[..., row] = self._pitch_mean(target[row])
-            self._target_set[row] = True
+        with self._resolved():
+            b = self.block_view
+            target = self._target_from_prim(
+                np.stack((b.rho_nd, b.Vx_nd, b.Vr_nd, b.Vt_nd, b.P_nd), axis=-1)
+            )
+            for row in rows:
+                self._target[..., row] = self._pitch_mean(target[row])
+                self._target_set[row] = True
 
     def _set_target_row(self, row, name, value):
         r"""Check a prescribed value against the patch shape and store it in a target row.
@@ -1315,9 +1460,7 @@ class NonReflectingPatch(RevolutionPatch):
         # cached bound reference to an f2py-wrapped subroutine isn't
         # picklable (Grid.write_emb pickles the whole grid, patches
         # included), and the lookup itself -- a module attribute access -- is
-        # negligible next to the kernel call it selects. No _bcast_i variant:
-        # _check_plane restricts this patch family to constant-x planes, so
-        # const_dim is always 0 and span_dim is always 1 or 2.
+        # negligible next to the kernel call it selects.
         import ember.fortran
 
         kernel = (
@@ -1363,13 +1506,14 @@ class NonReflectingPatch(RevolutionPatch):
         """
         if not self._target_set[list(self._target_setters)].all():
             return
-        if self._ref is None:
-            self._calc_reference()
+        with self._resolved():
+            if self._ref is None:
+                self._calc_reference()
 
-        dchic, prim = self._recombine()
-        self._prim_prev = prim + self.sigma * util.matvec(
-            self._ref["c2p"], self._calc_dchic(dchic, prim)
-        )
+            dchic, prim = self._recombine()
+            self._prim_prev = prim + self.sigma * util.matvec(
+                self._ref["c2p"], self._calc_dchic(dchic, prim)
+            )
 
     @util.profile
     def apply(self):
@@ -1390,16 +1534,17 @@ class NonReflectingPatch(RevolutionPatch):
         """
         if not self._target_set[list(self._target_setters)].all():
             self._raise_unset()
-        if self._ref is None:
-            self._calc_reference()
+        with self._resolved():
+            if self._ref is None:
+                self._calc_reference()
 
-        b = self.block_view
-        _, prim = self._recombine()
-        prim_write = self._calc_override(prim)
-        rho_nd, u_nd = b.fluid.set_P_rho(prim_write[..., 4], prim_write[..., 0])
-        b.set_rho_u_Vxrt_nd(
-            rho_nd, u_nd, prim_write[..., 1], prim_write[..., 2], prim_write[..., 3]
-        )
+            b = self.block_view
+            _, prim = self._recombine()
+            prim_write = self._calc_override(prim)
+            rho_nd, u_nd = b.fluid.set_P_rho(prim_write[..., 4], prim_write[..., 0])
+            b.set_rho_u_Vxrt_nd(
+                rho_nd, u_nd, prim_write[..., 1], prim_write[..., 2], prim_write[..., 3]
+            )
 
     def attach_to_block(self, block):
         """Attach to a block, validate the boundary plane and build the transform.
@@ -1418,7 +1563,7 @@ class NonReflectingPatch(RevolutionPatch):
         if self._block_ref is None:
             return
 
-        self._check_plane()
+        self._check_face()
         self._split_entering = self._calc_split(True)
         self._split_leaving = self._calc_split(False)
         self._calc_hilbert()
@@ -1496,5 +1641,6 @@ class NonReflectingPatch(RevolutionPatch):
         Pairs with :meth:`advance`, which takes the boundary condition's own
         step on the reference this leaves behind.
         """
-        self._rho_nd_soln = self.block_view.rho_nd.copy()
-        self._calc_reference()
+        with self._resolved():
+            self._rho_nd_soln = self.block_view.rho_nd.copy()
+            self._calc_reference()

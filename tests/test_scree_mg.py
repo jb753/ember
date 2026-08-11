@@ -594,7 +594,6 @@ def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
     rho_o, e_o = fluid.set_P_T(1.0e5, 300.0)
     outlet = grid.patches.outlet[0]
     outlet.set_backflow_ho_s(fluid.get_h(rho_o, e_o), fluid.get_s(rho_o, e_o))
-    outlet.set_backflow_Vr(0.0)
     outlet.set_backflow_Vt(0.0)
 
     n_step, n_step_log = 20, 2
