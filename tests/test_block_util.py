@@ -1008,7 +1008,7 @@ class TestConcatenateEdgeCases:
 
 
 class TestMemoryUsage:
-    """Test memory_usage function."""
+    """Test Block.memory_usage method."""
 
     @pytest.fixture
     def mixing_grid(self):
@@ -1035,14 +1035,12 @@ class TestMemoryUsage:
 
     def test_returns_three_nonempty_dicts(self, mixing_grid):
         """All 3 returned dicts are non-empty."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
         # Access some cached properties to populate cache
         _ = block.P
         _ = block.Ma
 
-        data_usage, metadata_usage, cache_usage = memory_usage(block)
+        data_usage, metadata_usage, cache_usage = block.memory_usage()
 
         assert isinstance(data_usage, dict) and len(data_usage) > 0
         assert isinstance(metadata_usage, dict) and len(metadata_usage) > 0
@@ -1050,10 +1048,8 @@ class TestMemoryUsage:
 
     def test_data_has_all_keys(self, mixing_grid):
         """Data dict has all 10 data keys."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
-        data_usage, _, _ = memory_usage(block)
+        data_usage, _, _ = block.memory_usage()
 
         expected_keys = {
             "x",
@@ -1071,13 +1067,11 @@ class TestMemoryUsage:
 
     def test_all_values_positive_int(self, mixing_grid):
         """All values are positive integers."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
         _ = block.P
         _ = block.Ma
 
-        data_usage, metadata_usage, cache_usage = memory_usage(block)
+        data_usage, metadata_usage, cache_usage = block.memory_usage()
 
         for d in (data_usage, metadata_usage, cache_usage):
             for key, val in d.items():
@@ -1086,21 +1080,17 @@ class TestMemoryUsage:
 
     def test_cache_nonempty_after_access(self, mixing_grid):
         """After accessing cached properties, cache dict is non-empty."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
         _ = block.P
         _ = block.Ma
 
-        _, _, cache_usage = memory_usage(block)
+        _, _, cache_usage = block.memory_usage()
         assert len(cache_usage) > 0
 
     def test_metadata_contains_expected_keys(self, mixing_grid):
         """Metadata dict contains at least fluid, patches, triangulated."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
-        _, metadata_usage, _ = memory_usage(block)
+        _, metadata_usage, _ = block.memory_usage()
 
         for key in ("fluid", "patches", "triangulated"):
             assert key in metadata_usage, f"Expected '{key}' in metadata_usage"

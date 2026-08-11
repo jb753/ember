@@ -2553,6 +2553,7 @@ EXPECTED_METHOD_GROUPS = (
     "Reshaping and reordering (a zero-copy view where the layout allows, otherwise a copy)",
     "Reduction over a spatial axis",
     "Cache",
+    "Diagnostics",
 )
 
 

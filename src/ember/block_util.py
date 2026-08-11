@@ -1,7 +1,48 @@
-"""Utility functions for Block operations including concatenation, resampling, and I/O."""
+r"""Operations on :class:`~ember.block.Block` instances that don't belong on the class itself.
+
+Each function below takes one or more :class:`~ember.block.Block`\ s and
+returns a new one (or mutates in place, per its docstring). Grid-level
+counterparts such as :meth:`~ember.grid.Grid.resample` and
+:meth:`~ember.grid.Grid.interp_from` are thin loops over these
+block-granularity functions.
+
+Combining and reshaping blocks
+===============================
+
+.. autosummary::
+
+   concatenate
+   resample
+
+Interface-aligned velocities
+=============================
+
+Paired functions that rotate the meridional velocity components (Vx, Vr)
+to and from the coordinates of an interface at angle :math:`\chi`, each the
+inverse of its partner.
+
+.. autosummary::
+
+   resolve_to_interface
+   resolve_from_interface
+
+Solution transfer
+==================
+
+.. autosummary::
+
+   interp_from
+
+Post-processing and I/O
+=========================
+
+.. autosummary::
+
+   wall_yplus
+   to_tm3
+"""
 
 import logging
-import sys
 
 import numpy as np
 
@@ -235,25 +276,37 @@ def _concatenate_two_blocks(block1, block2, axis=0):
 
 
 def resolve_to_interface(block, chi):
-    """Convert meridional velocity to interface-aligned velocities.
+    r"""Convert meridional velocity to interface-aligned velocities.
 
-    Resolves the meridional velocity components (Vx, Vr) to velocities
-    aligned with an interface at angle chi: velocity through the interface (Vm)
-    and velocity normal to the interface (Vn).
+    Resolves the meridional velocity components :math:`(V_x, V_r)` to
+    velocities aligned with an interface at angle :math:`\chi`: velocity
+    through the interface :math:`V_m` and velocity normal to the interface
+    :math:`V_n`,
+
+    .. math::
+
+        V_m &= \cos\chi\, V_x + \sin\chi\, V_r \\
+        V_n &= -\sin\chi\, V_x + \cos\chi\, V_r
+
+    Inverse of :func:`resolve_from_interface`. See also
+    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface`, the equivalent rotation
+    applied to conserved momentum on a patch's averaging plane.
 
     Parameters
     ----------
     block : Block
         Block containing velocity data to be resolved.
     chi : float or Array
-        Interface angle in degrees. When chi=0, Vm=Vx and Vn=Vr.
-        When chi=90, Vm=Vr and Vn=-Vx.
+        Interface angle in degrees. When :math:`\chi=0`, :math:`V_m=V_x` and
+        :math:`V_n=V_r`. When :math:`\chi=90`, :math:`V_m=V_r` and
+        :math:`V_n=-V_x`.
 
     Returns
     -------
     Block
         The input block with velocities updated to interface-aligned form.
-        Vm becomes the new Vx, Vn becomes the new Vr, Vt unchanged.
+        :math:`V_m` becomes the new Vx, :math:`V_n` becomes the new Vr, Vt
+        unchanged.
     """
     chi_rad = np.radians(chi)
     cos_chi = np.cos(chi_rad)
@@ -276,11 +329,21 @@ def resolve_to_interface(block, chi):
 
 
 def resolve_from_interface(block, chi):
-    """Convert interface-aligned velocities back to meridional components.
+    r"""Convert interface-aligned velocities back to meridional components.
 
-    Converts interface-aligned velocities (Vm=block.Vx through interface,
-    Vn=block.Vr normal to interface) back to meridional components (Vx, Vr)
-    using interface angle chi.
+    Converts interface-aligned velocities (:math:`V_m` = ``block.Vx`` through
+    the interface, :math:`V_n` = ``block.Vr`` normal to the interface) back to
+    meridional components :math:`(V_x, V_r)` using interface angle
+    :math:`\chi`,
+
+    .. math::
+
+        V_x &= \cos\chi\, V_m - \sin\chi\, V_n \\
+        V_r &= \sin\chi\, V_m + \cos\chi\, V_n
+
+    Inverse of :func:`resolve_to_interface`. See also
+    :meth:`~ember.patch.RevolutionPatch.resolve_from_interface`, the equivalent
+    rotation applied to conserved momentum on a patch's averaging plane.
 
     Parameters
     ----------
@@ -414,8 +477,24 @@ def _interp_coords(block, src):
     block index space into src index space, preserving the critical locations
     exactly.
 
-    Returns a list of three float32 arrays, one per dimension, each of length
-    block.shape[d], containing src-index-space coordinates.
+    Parameters
+    ----------
+    block : Block
+        Target block whose index space the returned coordinates are defined over.
+    src : Block
+        Source block being queried; the returned coordinates are expressed
+        in this block's index space.
+
+    Returns
+    -------
+    list of Array
+        Three float32 arrays, one per dimension, each of length
+        ``block.shape[d]``, containing src-index-space coordinates.
+
+    Raises
+    ------
+    ValueError
+        If a dimension's critical-index count differs between src and block.
     """
     coords = []
     for d in range(3):
@@ -457,6 +536,14 @@ def interp_from(block, src):
         Target block to receive the interpolated solution.
     src : Block
         Source block providing the solution.
+
+    Raises
+    ------
+    AssertionError
+        If a different-shape interpolation produces conserved variables
+        outside the source's value range (trilinear interpolation must not
+        create new extrema), or if the target block ends up with a
+        non-finite or non-positive temperature.
     """
 
     logger.debug("interp_from: src %s -> block %s", src.shape, block.shape)
@@ -492,47 +579,6 @@ def interp_from(block, src):
     assert np.all(np.isfinite(block.T)) and np.all(block.T > 0), (
         "Target block has non-finite or non-positive temperatures after interpolation"
     )
-
-
-def memory_usage(block):
-    """Return memory usage of a block's data, metadata, and cached properties.
-
-    Parameters
-    ----------
-    block : Block
-        The block to measure.
-
-    Returns
-    -------
-    data_usage : dict
-        Bytes per data key (equal share of the contiguous _data array).
-    metadata_usage : dict
-        Bytes per metadata key (nbytes for arrays, sys.getsizeof for others).
-    cache_usage : dict
-        Bytes per cached property in _store (nbytes for arrays, sys.getsizeof for others).
-    """
-    # Data: each field occupies 1/nvar of the contiguous array
-    bytes_per_field = block._data.nbytes // block.nvar
-    data_usage = {key: bytes_per_field for key in block._data_keys}
-
-    # Metadata
-    metadata_usage = {}
-    for key, val in block._metadata.items():
-        if isinstance(val, np.ndarray):
-            metadata_usage[key] = val.nbytes
-        else:
-            metadata_usage[key] = sys.getsizeof(val)
-
-    # Cached properties in _store: tuple (version, result) entries from cached_array.
-    cache_usage = {}
-    for key, entry in block._store.items():
-        result = entry[1]
-        if isinstance(result, np.ndarray):
-            cache_usage[key] = result.nbytes
-        else:
-            cache_usage[key] = sys.getsizeof(result)
-
-    return data_usage, metadata_usage, cache_usage
 
 
 def wall_yplus(block):

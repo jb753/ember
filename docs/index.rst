@@ -25,6 +25,7 @@ interface, while the heavy computations run through compiled Fortran for speed.
    coordinate_system
    api/fluid
    api/block
+   api/block_util
    api/grid
    api/patch
    api/average

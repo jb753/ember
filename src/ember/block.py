@@ -127,6 +127,12 @@ when each is needed.
    Block.update_cached_conserved
    Block.update_primitive
 
+Diagnostics:
+
+.. autosummary::
+
+   Block.memory_usage
+
 .. _block-setters:
 
 Setter methods
@@ -1839,6 +1845,44 @@ class Block(ember.struct.StructuredData):
 
         """
         return _MaskedBlock(self, mask)
+
+    def memory_usage(self):
+        """Return memory usage of this block's data, metadata, and cached properties.
+
+        Returns
+        -------
+        data_usage : dict
+            Bytes per data key (equal share of the contiguous backing array).
+        metadata_usage : dict
+            Bytes per metadata key (nbytes for arrays, sys.getsizeof for others).
+        cache_usage : dict
+            Bytes per cached property (nbytes for arrays, sys.getsizeof for others).
+
+        """
+        import sys
+
+        # Data: each field occupies 1/nvar of the contiguous array
+        bytes_per_field = self._data.nbytes // self.nvar
+        data_usage = {key: bytes_per_field for key in self._data_keys}
+
+        # Metadata
+        metadata_usage = {}
+        for key, val in self._metadata.items():
+            if isinstance(val, np.ndarray):
+                metadata_usage[key] = val.nbytes
+            else:
+                metadata_usage[key] = sys.getsizeof(val)
+
+        # Cached properties in _store: tuple (version, result) entries from cached_array.
+        cache_usage = {}
+        for key, entry in self._store.items():
+            result = entry[1]
+            if isinstance(result, np.ndarray):
+                cache_usage[key] = result.nbytes
+            else:
+                cache_usage[key] = sys.getsizeof(result)
+
+        return data_usage, metadata_usage, cache_usage
 
     def update_cached_conserved(self):
         """Refresh caches that depend on the conserved variables.
