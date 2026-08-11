@@ -893,21 +893,25 @@ def matvec(A, b, out=None):
         if ndim == 1:
             ember.fortran.matvec5(A, b, out)
         elif ndim == 3:
+            # The two-axis broadcasts are tested before the one-axis one: an
+            # (ni, 1, 1) matrix also satisfies the A.shape[2] == 1 test that
+            # selects _bcast_j, so checking _bcast_j first would make _bcast_i
+            # unreachable and hand the j kernel an nj it cannot use.
             if A.shape[-1] == 2:
-                if A.shape[2] == 1:
-                    ember.fortran.matvec2_bcast_j(A, b, out)
-                elif A.shape[0] == 1 and A.shape[1] == 1:
+                if A.shape[0] == 1 and A.shape[1] == 1:
                     ember.fortran.matvec2_bcast_k(A, b, out)
                 elif A.shape[1] == 1 and A.shape[2] == 1:
                     ember.fortran.matvec2_bcast_i(A, b, out)
+                elif A.shape[2] == 1:
+                    ember.fortran.matvec2_bcast_j(A, b, out)
                 else:
                     np.matmul(A, b[..., np.newaxis], out=out[..., np.newaxis])
-            elif A.shape[2] == 1:
-                ember.fortran.matvec5_bcast_j(A, b, out)
             elif A.shape[0] == 1 and A.shape[1] == 1:
                 ember.fortran.matvec5_bcast_k(A, b, out)
             elif A.shape[1] == 1 and A.shape[2] == 1:
                 ember.fortran.matvec5_bcast_i(A, b, out)
+            elif A.shape[2] == 1:
+                ember.fortran.matvec5_bcast_j(A, b, out)
             else:
                 np.matmul(A, b[..., np.newaxis], out=out[..., np.newaxis])
         else:
