@@ -100,8 +100,8 @@ nitpick_ignore = [
     ("py:class", "ember.collections._LabelledList"),
     ("py:class", "ember.fluid._Fluid"),
     ("py:meth", "ember.fluid._Fluid.get_P_h_T"),
-    ("py:meth", "ember.struct.StructuredData.__init__"),
-    ("py:func", "ember.struct.cached_array"),
+    ("py:meth", "ember._struct.StructuredData.__init__"),
+    ("py:func", "ember._struct.cached_array"),
     ("py:func", "ember.cases.build_duct_grid"),
     ("py:func", "ember.nonreflecting.calc_backflow_rho"),
     # Compiled Fortran extension: no autodoc page, so :func: refs to its kernels

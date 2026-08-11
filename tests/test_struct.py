@@ -1,6 +1,6 @@
-"""Tests for StructuredData class (ember.struct).
+"""Tests for StructuredData class (ember._struct).
 
-Module tested: ember.struct
+Module tested: ember._struct
 
 Test cases:
 - test_shape_and_dimension_properties: Shape and dimension properties
@@ -64,8 +64,8 @@ Test cases:
 import numpy as np
 import pytest
 
-from ember.struct import StructuredData, cached_array
-import ember.struct
+from ember._struct import StructuredData, cached_array
+import ember._struct
 
 
 # helper subclasses for tests
@@ -680,13 +680,13 @@ def test_structured_data_cannot_be_instantiated_directly():
     with pytest.raises(
         AssertionError, match="StructuredData must have at least one variable"
     ):
-        ember.struct.StructuredData(shape=(2, 2))
+        ember._struct.StructuredData(shape=(2, 2))
 
 
 def test_structured_data_with_empty_data_keys():
     """Test StructuredData behavior with empty _data_keys."""
 
-    class EmptyKeysData(ember.struct.StructuredData):
+    class EmptyKeysData(ember._struct.StructuredData):
         _data_keys = ()
 
     # Should fail - empty _data_keys means nvar=0 which violates assertion
@@ -699,7 +699,7 @@ def test_structured_data_with_empty_data_keys():
 def test_structured_data_defaults_inheritance():
     """Test that _defaults are properly inherited."""
 
-    class DefaultsData(ember.struct.StructuredData):
+    class DefaultsData(ember._struct.StructuredData):
         _defaults = {"custom_param": 42, "string_param": "default"}
         _data_keys = ("x",)
 
@@ -776,11 +776,11 @@ def test_module_constants_and_attributes():
     """Test module-level constants and attributes."""
 
     # Test that required classes exist
-    assert hasattr(ember.struct, "StructuredData")
+    assert hasattr(ember._struct, "StructuredData")
 
     # Test module constants
-    assert hasattr(ember.struct, "f32")
-    assert ember.struct.f32 == np.float32
+    assert hasattr(ember._struct, "f32")
+    assert ember._struct.f32 == np.float32
 
 
 # Nanmean tests merged from test_struct_nanmean.py
@@ -1197,7 +1197,7 @@ def test_copy_independence_with_memory_layout():
     np.testing.assert_array_equal(original._get_data_by_keys(("y",)), expected_y)
 
 
-"""Test module for ember.struct.cached_array decorator.
+"""Test module for ember._struct.cached_array decorator.
 
 Tests cached_array decorator functionality with in-place array reuse for performance optimization.
 

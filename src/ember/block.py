@@ -470,13 +470,13 @@ Indexing and slicing return a view over a sub-region::
     print(b2.x)  # -6.0
 """
 
-import ember.struct
+import ember._struct
 import ember.perturbation
 import ember.collections
 import numpy as np
 from ember.util import pol_to_pseudocart
 from ember import util
-from ember.struct import cached_array, cached_object, derived_array, scratch_array
+from ember._struct import cached_array, cached_object, derived_array, scratch_array
 from functools import wraps
 import ember.fortran
 
@@ -820,7 +820,7 @@ class _MaskedBlock:
         return wrapper
 
 
-class Block(ember.struct.StructuredData):
+class Block(ember._struct.StructuredData):
     def __init__(self, shape=()):
         """Allocate a structured grid block.
 
@@ -1222,7 +1222,7 @@ class Block(ember.struct.StructuredData):
     def _primitive_buffer(self, cache_key, shape):
         """Existing cached buffer for `cache_key`, unlocked for writing.
 
-        The buffers are the very ones :func:`ember.struct.cached_array` hands to
+        The buffers are the very ones :func:`ember._struct.cached_array` hands to
         its wrapped function as ``out``, so reusing them keeps every pointer
         stable and allocates nothing after the first step.
         """

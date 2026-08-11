@@ -101,7 +101,7 @@ import pickle
 
 import numpy as np
 import time as _time
-from ember.struct import StructuredData
+from ember._struct import StructuredData
 
 f32 = np.float32
 
@@ -132,7 +132,7 @@ class ConvergenceHistory(StructuredData):
         ----------
         shape : tuple
             Shape of a single property array (see
-            :py:meth:`ember.struct.StructuredData.__init__`).
+            :py:meth:`ember._struct.StructuredData.__init__`).
         n_row : int, optional
             Number of blade rows this history tracks (default 1, i.e. 2
             stations: inlet and exit).
