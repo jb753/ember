@@ -37,6 +37,7 @@ interface, while the heavy computations run through compiled Fortran for speed.
    api/perturbation
    api/util
    api/yaml_util
+   api/cases
    references
 
 Indices

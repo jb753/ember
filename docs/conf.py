@@ -100,7 +100,6 @@ nitpick_ignore = [
     ("py:meth", "ember.fluid._Fluid.get_P_h_T"),
     ("py:meth", "ember._struct.StructuredData.__init__"),
     ("py:func", "ember._struct.cached_array"),
-    ("py:func", "ember.cases.build_duct_grid"),
     ("py:func", "ember.nonreflecting.calc_backflow_rho"),
     # Compiled Fortran extension: no autodoc page, so :func: refs to its kernels
     # (used throughout the solver docstrings) cannot resolve.
