@@ -58,6 +58,8 @@ methods are constructors, returning a new :class:`Grid`.
    Grid.write_fvbnd
    Grid.write_plot3d
 
+.. _grid-connectivity:
+
 Connectivity
 ============
 
@@ -72,11 +74,8 @@ the block they sit on, and are added and removed there.
 :attr:`Grid.connectivity` manages communicators that exchange data across
 the seams between blocks, one per patch type, reached as
 ``grid.connectivity.periodic`` and likewise ``mixing``, ``nonmatch``, ``cusp``.
-
-A communicator pairs its patches -- matching each to its partner on a
-neighbouring block -- the first time it is used, and caches the result for subsequent usages. Pairing
-is therefore automatic, and trigger by the first exchange, e.g. a call to
-:meth:`Grid.apply_bconds`.
+Pairing each patch to its partner on a neighbouring block, and the exchange
+itself, are described in :doc:`communicators`.
 
 Changing grid topology -- adding or removing a block or a patch -- may break the
 indexing describing pairing, and unfortunately the cache does not detect this.
@@ -87,18 +86,6 @@ In these situations, the cache must be flushed by hand and the next communicator
     grid.append(another_block)
     grid.connectivity.clear()  # drop stale pairs
     grid.apply_bconds()  # will pair the new topology
-
-The pairings can also be inspected directly, by calling say ``grid.connectivity.periodic.pair()`` for periodic patches.
-It returns a dict keyed by the ``(bid, pid)``
-identifier of each patch, indexing like ``grid[bid].patches[pid]``.
-The dict values are the corresponding ``(bid, pid)`` of the patch it matches
-and the geometric transform between the two. Both halves of a pair appear as
-keys, so the mapping can be followed from either side::
-
-    pairs = grid.connectivity.periodic.pair()
-    # block 0 patch 0 is paired with block 1 patch 0, and vice versa
-    pairs[(0, 0)]  # ((1, 0), transform)
-    pairs[(1, 0)]  # ((0, 0), transform)
 
 Blocks joined to one another by periodic patches make up a single blade row.
 Rows are separated from one another by mixing patches, and

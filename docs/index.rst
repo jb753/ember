@@ -28,6 +28,7 @@ interface, while the heavy computations run through compiled Fortran for speed.
    api/block_util
    api/set_iterative
    api/grid
+   api/communicators
    api/patch
    api/average
    api/cut

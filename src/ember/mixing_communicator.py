@@ -1,7 +1,7 @@
 """Mixing plane boundary condition communication.
 
 :class:`MixingCommunicator` pairs the two sides of the mixing plane of
-:mod:`ember.mixing`, holds the relaxation factor and the per-pair diagnostics,
+:class:`~ember.mixing.MixingPatch`, holds the relaxation factor and the per-pair diagnostics,
 and carries out the exchange itself: it takes the cross-plane *flux* mismatch,
 splits it by direction of propagation after :cite:t:`Saxer1993`, and writes the
 result in the mix variables :math:`[h_0, s, V_r, V_\\theta, p]` its patches
