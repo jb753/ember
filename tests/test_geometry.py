@@ -1,4 +1,4 @@
-"""Test module for ember.geometry face area and volume calculations.
+"""Test module for face area, volume and node-to-face calculations.
 
 Tests geometric calculations for structured grids in polar coordinates including face areas and cell volumes.
 
@@ -12,14 +12,11 @@ Test cases:
 - test_geometry_dA_dispatch: Area calculation method dispatch
 - test_structured_vs_triangulated_total_area: Comparison of structured vs triangulated total areas
 - test_structured_vs_triangulated_flux: Flux calculation comparison between methods
-- test_cell_to_node_quasi_1d: Cell to node operations in quasi-1D
-- test_cell_to_node_quasi_1d_edge_cases: Edge cases for cell to node operations
 - test_radial_momentum_flux_pressure: Radial momentum flux and pressure calculations
 """
 
 import numpy as np
 import pytest
-import ember.geometry
 import ember.block
 import ember.nonmatch_communicator
 from ember import util
@@ -28,6 +25,63 @@ import ember.fluxes
 
 
 rtol = 1e-7
+
+
+def _handle_output(result, out=None):
+    """Copy `result` into `out` if given, otherwise return `result` unchanged."""
+    if out is not None:
+        out[...] = result
+        return out
+    return result
+
+
+def _node_to_face(x, out=None):
+    """Average nodal values to the centres of all three families of cell faces.
+
+    Test-only helper for :func:`test_box`, which needs face-centred theta to
+    build the expected unit normals -- there is no production caller of this
+    logic. See ``git log`` for the version that lived in ``ember.geometry``.
+    """
+    if x.ndim == 0:
+        x = np.stack([x, x], axis=0)
+        x = np.stack([x, x], axis=1)
+        x = np.stack([x, x], axis=2)
+    elif x.ndim == 1:
+        x = np.stack([x, x], axis=1)
+        x = np.stack([x, x], axis=2)
+    elif x.ndim == 2:
+        x = np.stack([x, x], axis=2)
+
+    if out is not None and len(out) == 3:
+        out_xi, out_xj, out_xk = out
+    else:
+        out_xi = out_xj = out_xk = None
+
+    xi_computed = 0.25 * (
+        x[:, :-1, :-1, ...]
+        + x[:, 1:, :-1, ...]
+        + x[:, 1:, 1:, ...]
+        + x[:, :-1, 1:, ...]
+    )
+    xi = _handle_output(xi_computed, out_xi)
+
+    xj_computed = 0.25 * (
+        x[:-1, :, :-1, ...]
+        + x[1:, :, :-1, ...]
+        + x[1:, :, 1:, ...]
+        + x[:-1, :, 1:, ...]
+    )
+    xj = _handle_output(xj_computed, out_xj)
+
+    xk_computed = 0.25 * (
+        x[:-1, :-1, :, ...]
+        + x[1:, :-1, :, ...]
+        + x[1:, 1:, :, ...]
+        + x[:-1, 1:, :, ...]
+    )
+    xk = _handle_output(xk_computed, out_xk)
+
+    return xi, xj, xk
 
 
 def test_box():
@@ -53,7 +107,7 @@ def test_box():
     xrt = np.stack((x, r, t), axis=-1)
 
     # Face-centered theta
-    tface = ember.geometry.node_to_face(t)
+    tface = _node_to_face(t)
 
     # Get polar unit vectors for each cartesian dirn
     ex = np.stack(
@@ -563,198 +617,6 @@ def test_structured_vs_triangulated_flux():
     print("  ✓ Fluxes match within tolerance")
 
 
-def test_cell_to_node_quasi_1d():
-    """Test cell_to_node function with quasi-1D grids where nj == nk == 2."""
-    print("Testing cell_to_node for quasi-1D grids...")
-
-    # Create quasi-1D grid: ni=5, nj=2, nk=2
-    ni, nj, nk = 5, 2, 2
-
-    # Set up coordinates - axial variation in x, minimal variation in r and theta
-    xv = np.linspace(0.0, 1.0, ni)  # Axial direction
-    rv = np.linspace(0.9, 1.1, nj)  # Small radial variation
-    tv = np.linspace(0.0, 0.1, nk)  # Small theta variation
-
-    x, r, t = np.meshgrid(xv, rv, tv, indexing="ij")
-
-    # Create test cell data with linear variation in x-direction
-    # Cell data has shape (ni-1, nj-1, nk-1, nvar) = (4, 1, 1, 2)
-    cell_shape = (ni - 1, nj - 1, nk - 1, 2)  # 2 variables for testing
-    cell_data = np.zeros(cell_shape, dtype=np.float32, order="F")
-
-    # Variable 0: constant value (should stay constant after interpolation)
-    cell_data[..., 0] = 5.0
-
-    # Variable 1: linear ramp in i-direction (x-direction)
-    for i in range(ni - 1):
-        cell_data[i, 0, 0, 1] = float(i + 1)  # Values: 1, 2, 3, 4
-
-    # Test the cell_to_node interpolation
-    node_data = ember.geometry.cell_to_node(cell_data)
-
-    # Check output shape
-    expected_shape = (ni, nj, nk, 2)
-    assert node_data.shape == expected_shape, (
-        f"Expected shape {expected_shape}, got {node_data.shape}"
-    )
-
-    print(f"  Input cell shape: {cell_data.shape}")
-    print(f"  Output node shape: {node_data.shape}")
-
-    # Test constant variable (should remain constant everywhere)
-    assert np.allclose(node_data[..., 0], 5.0, rtol=1e-6), (
-        "Constant cell data should interpolate to constant node data"
-    )
-    print("  ✓ Constant variable correctly preserved")
-
-    # Test linear ramp variable
-    # Interior nodes should be averages of neighboring cells
-    # Boundary nodes should copy from adjacent cell
-
-    # Check boundary nodes (should equal adjacent cell values)
-    assert np.isclose(node_data[0, 0, 0, 1], 1.0), (
-        f"First boundary node should be 1.0, got {node_data[0, 0, 0, 1]}"
-    )
-    assert np.isclose(node_data[-1, 0, 0, 1], 4.0), (
-        f"Last boundary node should be 4.0, got {node_data[-1, 0, 0, 1]}"
-    )
-
-    # Check interior nodes (should be averages of neighboring cells)
-    for i in range(1, ni - 1):
-        expected_value = (cell_data[i - 1, 0, 0, 1] + cell_data[i, 0, 0, 1]) / 2.0
-        actual_value = node_data[i, 0, 0, 1]
-        assert np.isclose(actual_value, expected_value, rtol=1e-6), (
-            f"Interior node {i} should be {expected_value}, got {actual_value}"
-        )
-
-    print("  ✓ Linear ramp correctly interpolated at boundaries")
-    print("  ✓ Linear ramp correctly interpolated at interior nodes")
-
-    # Check that quasi-1D properties are preserved in j and k directions
-    # All nodes in j and k directions should have same values
-    for j in range(nj):
-        for k in range(nk):
-            np.testing.assert_allclose(
-                node_data[:, j, k, :],
-                node_data[:, 0, 0, :],
-                rtol=1e-6,
-                err_msg=f"Quasi-1D property not preserved at j={j}, k={k}",
-            )
-
-    print("  ✓ Quasi-1D properties preserved in j and k directions")
-
-    # Test with more complex cell data (quadratic variation)
-    cell_data_quad = np.zeros(cell_shape, dtype=np.float32, order="F")
-    for i in range(ni - 1):
-        cell_data_quad[i, 0, 0, 0] = (i + 1) ** 2  # Quadratic: 1, 4, 9, 16
-
-    node_data_quad = ember.geometry.cell_to_node(cell_data_quad)
-
-    # Check that quadratic interpolation is reasonable
-    # Interior nodes should be averages
-    expected_interior = [
-        (1 + 4) / 2,  # node 1: (cell 0 + cell 1) / 2 = 2.5
-        (4 + 9) / 2,  # node 2: (cell 1 + cell 2) / 2 = 6.5
-        (9 + 16) / 2,  # node 3: (cell 2 + cell 3) / 2 = 12.5
-    ]
-
-    for i, expected in enumerate(expected_interior, start=1):
-        actual = node_data_quad[i, 0, 0, 0]
-        assert np.isclose(actual, expected, rtol=1e-6), (
-            f"Quadratic interpolation node {i}: expected {expected}, got {actual}"
-        )
-
-    print("  ✓ Quadratic variation correctly interpolated")
-    print(f"  ✓ Successfully tested quasi-1D grid with shape ({ni}, {nj}, {nk})")
-
-
-def test_cell_to_node_quasi_1d_edge_cases():
-    """Test edge cases for cell_to_node with quasi-1D grids."""
-    print("Testing cell_to_node edge cases for quasi-1D grids...")
-
-    # Test minimal quasi-1D grid: ni=3, nj=2, nk=2 (smallest meaningful quasi-1D)
-    ni, nj, nk = 3, 2, 2
-    cell_shape = (ni - 1, nj - 1, nk - 1, 1)  # (2, 1, 1, 1)
-
-    cell_data = np.zeros(cell_shape, dtype=np.float32, order="F")
-    cell_data[0, 0, 0, 0] = 10.0  # First cell
-    cell_data[1, 0, 0, 0] = 30.0  # Second cell
-
-    node_data = ember.geometry.cell_to_node(cell_data)
-
-    # Check shape
-    assert node_data.shape == (ni, nj, nk, 1), f"Wrong shape: {node_data.shape}"
-
-    # Check interpolation: boundary nodes should equal adjacent cell, interior node should be average
-    assert np.isclose(node_data[0, 0, 0, 0], 10.0), "First node should be 10.0"
-    assert np.isclose(node_data[1, 0, 0, 0], 20.0), (
-        "Interior node should be 20.0 (average)"
-    )
-    assert np.isclose(node_data[2, 0, 0, 0], 30.0), "Last node should be 30.0"
-
-    # Test single cell quasi-1D grid: ni=2, nj=2, nk=2
-    cell_shape_single = (1, 1, 1, 1)
-
-    cell_data_single = np.full(cell_shape_single, 42.0, dtype=np.float32, order="F")
-    node_data_single = ember.geometry.cell_to_node(cell_data_single)
-
-    # All nodes should have the same value as the single cell
-    assert node_data_single.shape == (2, 2, 2, 1), (
-        f"Wrong single-cell shape: {node_data_single.shape}"
-    )
-    assert np.allclose(node_data_single, 42.0), (
-        "Single cell should map to all nodes with same value"
-    )
-
-    print("  ✓ Minimal quasi-1D grid (ni=3) handled correctly")
-    print("  ✓ Single cell quasi-1D grid handled correctly")
-
-    # Test with higher dimensional data
-    ni, nj, nk = 4, 2, 2
-    cell_shape_multi = (ni - 1, nj - 1, nk - 1, 5)  # 5 variables
-    cell_data_multi = np.random.rand(*cell_shape_multi).astype(np.float32, order="F")
-
-    node_data_multi = ember.geometry.cell_to_node(cell_data_multi)
-    assert node_data_multi.shape == (ni, nj, nk, 5), (
-        f"Multi-variable shape wrong: {node_data_multi.shape}"
-    )
-
-    # Check that each variable is interpolated independently
-    for var in range(5):
-        # Interior nodes should be averages for each variable
-        for i in range(1, ni - 1):
-            expected = (
-                cell_data_multi[i - 1, 0, 0, var] + cell_data_multi[i, 0, 0, var]
-            ) / 2.0
-            actual = node_data_multi[i, 0, 0, var]
-            assert np.isclose(actual, expected, rtol=1e-6), (
-                f"Variable {var}, node {i}: expected {expected}, got {actual}"
-            )
-
-    print("  ✓ Multi-variable cell data correctly interpolated")
-
-    # Test Fortran function directly to ensure it works with quasi-1D
-    from ember import fortran
-
-    ni, nj, nk = 4, 2, 2
-    cell_shape_fortran = (ni - 1, nj - 1, nk - 1, 1)
-    cell_data_fortran = np.ones(cell_shape_fortran, dtype=np.float32, order="F") * 7.0
-
-    node_shape_fortran = (ni, nj, nk, 1)
-    node_data_fortran = np.zeros(node_shape_fortran, dtype=np.float32, order="F")
-
-    # Call Fortran function directly
-    fortran.cell_to_node(cell_data_fortran, node_data_fortran)
-
-    # All nodes should be 7.0 for constant input
-    assert np.allclose(node_data_fortran, 7.0), (
-        "Fortran function should preserve constant values"
-    )
-
-    print("  ✓ Direct Fortran function call works with quasi-1D grids")
-    print("  ✓ All edge cases passed")
-
-
 def test_radial_momentum_flux_pressure():
     """Test that radial momentum flux equals pressure P when Vr=0 for 2D, but 0 for 3D."""
     print("Testing radial momentum flux vs pressure relationship...")
@@ -827,8 +689,6 @@ def test_radial_momentum_flux_pressure():
 if __name__ == "__main__":
     test_box()
     test_cylinder()
-    test_cell_to_node_quasi_1d()
-    test_cell_to_node_quasi_1d_edge_cases()
     try:
         test_geometry_caching()
     except NameError:
