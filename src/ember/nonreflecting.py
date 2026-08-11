@@ -388,7 +388,7 @@ class NonReflectingPatch(RevolutionPatch):
         """The entering state as a tuple of four span-indexed arrays.
 
         Rows 0-3 of the target, in the ``[ho, s, Vr, Vt]`` order
-        :func:`~ember.outlet.calc_backflow_rho` and :meth:`_calc_override` read
+        :func:`~ember.nonreflecting.calc_backflow_rho` and :meth:`_calc_override` read
         them in -- so only meaningful in a mix target space, which is why
         :attr:`_nodal_backflow` gates its only caller. Each has a pitch axis of
         length one, so they broadcast against the patch-shaped face state.

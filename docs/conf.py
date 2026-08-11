@@ -96,14 +96,11 @@ nitpick_ignore = [
     # Objects that do not yet have a documentation page. Remove an entry once
     # the corresponding module gains an autodoc page so the link resolves.
     ("py:class", "ember.collections._LabelledList"),
+    # Private base class, so no page of its own; ``:show-inheritance:`` on
+    # PerfectFluid still emits a reference to it from the rendered "Bases:" line.
     ("py:class", "ember.fluid._Fluid"),
-    ("py:meth", "ember.fluid._Fluid.get_P_h_T"),
     ("py:meth", "ember._struct.StructuredData.__init__"),
     ("py:func", "ember._struct.cached_array"),
-    ("py:func", "ember.nonreflecting.calc_backflow_rho"),
-    # Compiled Fortran extension: no autodoc page, so :func: refs to its kernels
-    # (used throughout the solver docstrings) cannot resolve.
-    ("py:func", "ember.fortran.smooth3d_const"),
 ]
 
 html_theme = "alabaster"

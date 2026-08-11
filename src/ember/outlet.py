@@ -255,8 +255,10 @@ class OutletPatch(NonReflectingPatch):
 
         A **node** whose interior neighbour is pushing flow inward, at a station
         whose mean is still forward, is overwritten with the same four
-        quantities and a density relaxed from the interior by
-        :func:`~ember.nonreflecting.calc_backflow_rho`. There is no
+        quantities and a density, the one quantity those four leave free, taken
+        from the interior: relaxed from its start-of-step value toward the
+        current one at a rate that falls away with the local axial Mach number,
+        and capped to keep the axial velocity real. There is no
         characteristic split to change at that level -- the split belongs to the
         station's mean, and the Hilbert transform couples every node of a
         station to every other -- so this one is a limiter on the linear theory,
