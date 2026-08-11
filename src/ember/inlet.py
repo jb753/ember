@@ -55,7 +55,7 @@ class InletPatch(NonReflectingPatch):
     The angles are what makes this condition different from every other in the
     family. A physical inlet knows its flow angles and not its
     velocity magnitude, so :math:`(\tan\alpha, \sin\beta)` are the right
-    variables here, and :attr:`_chic_to_target` is
+    variables here, and the target space's Jacobian is
     :func:`~ember.perturbation.chic_to_bcond` rather than the base class's
     :func:`~ember.perturbation.chic_to_mix`. Only rows 2 and 3 of the two
     Jacobians differ; rows 0, 1 and 4 are identical.

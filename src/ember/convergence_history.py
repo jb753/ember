@@ -493,8 +493,7 @@ class ConvergenceHistory(StructuredData):
             One step's monitors, from :meth:`ember.grid.Grid.get_convergence`.
             The ``mdot``, ``ho`` and ``s`` station vectors are unpacked into one
             scalar column per station; the history must have been constructed
-            with a matching ``n_row`` (see :meth:`__init__`) to have enough
-            station columns allocated.
+            with a matching ``n_row`` to have enough station columns allocated.
         time : float, optional
             Elapsed time for this record, in seconds. Defaults to the wall-clock
             time since the history was created (the live-solver behaviour); a

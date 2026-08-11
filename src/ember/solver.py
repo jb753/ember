@@ -384,13 +384,12 @@ class Solver(BaseSolver):
     def run(self, grid):
         """Drive ``grid`` through ``n_step`` steps in place; return the history.
 
-        See :func:`_run` for the stage-by-stage march; this is the public
-        :class:`BaseSolver` entry point.
+        The public :class:`BaseSolver` entry point for the stage-by-stage march.
         """
         return _run(grid, self)
 
     def run_fmg(self, grid):
-        """Full-multigrid startup on ``grid`` in place; see :func:`_run_fmg`.
+        """Full-multigrid startup on ``grid`` in place.
 
         Returns a list of per-level :class:`ConvergenceHistory`, coarsest first.
         Not part of the :class:`BaseSolver` contract (plugins have no FMG
@@ -598,10 +597,10 @@ def advance_rk_stage_mg(
     free between kernel calls); the coarse timestep (``dtblk``), the restriction
     accumulators, ``corr_all``/``acc0``/``acc1``, the separable-prolong scratch
     (``aplane``, ``bb``) and the coarse-IRS buffers (``cres``, ``triw``) are all
-    carved from ``block.tau_q_halo`` at non-overlapping offsets (see
-    :func:`_mg_coarse_carve`) -- dead outside the viscous pass and a distinct
-    buffer from ``scratch``, so they survive alongside the increment within the
-    call. The scatter reads the snapshot from ``block.store`` and writes
+    carved from ``block.tau_q_halo`` at non-overlapping offsets -- dead outside
+    the viscous pass and a distinct buffer from ``scratch``, so they survive
+    alongside the increment within the call. The scatter reads the snapshot
+    from ``block.store`` and writes
     ``conserved_nd`` directly (frozen pressure, bypasses the P/T cache).
 
     ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is
@@ -628,13 +627,11 @@ def advance_rk_stage_mg(
     passed to it, so the choice is a Python-side branch
     with no ``sf_irs`` test inside the engine (the fine term is never smoothed
     here -- it already carries the fine residual the caller smoothed). The
-    per-level scratch it needs (``cres``, ``triw``) is carved by
-    :func:`_mg_coarse_carve` from ``block.tau_q_halo`` -- caller-owned, no
-    per-call allocation.
+    per-level scratch it needs (``cres``, ``triw``) is carved from
+    ``block.tau_q_halo`` -- caller-owned, no per-call allocation.
 
     Assumes ``block.dt_vol_nd`` and ``block.residual_nd`` are populated and the
     caller refreshes P/T, boundary conditions and the residual between stages.
-    Requires :func:`_validate_mg` to have passed.
 
     ``fac_mgrid == 0`` scales every coarse correction to identically zero, so it
     collapses to the plain-RK fast path (``n_levels`` passed as 0, empty coarse

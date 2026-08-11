@@ -520,7 +520,7 @@ class OutletPatch(NonReflectingPatch):
         :meth:`ember.grid.Grid.get_convergence` records for a grid whose outlet
         holds a plain pressure.
 
-        Only :attr:`_mdot` and the running error sum are stored; the correction
+        Only the measured mass flow and the running error sum are stored; the correction
         terms below are derived here from them and the gains, so there is no
         second copy of the controller state to keep in step. The values are
         those of the last :meth:`update_target`, so under

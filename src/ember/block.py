@@ -3241,8 +3241,7 @@ class Block(ember._struct.StructuredData):
     def u_nd(self):
         r"""Nondimensional specific internal energy :math:`u/u_\mathrm{ref}` [-], nodal array.
 
-        Raises if the thermodynamic state is unset; for the
-        uninitialised-tolerant form see :attr:`_u_nd_uninit`.
+        Raises if the thermodynamic state is unset.
         """
         self._get_data_by_keys(("rho",))
         self._get_data_by_keys(("rhoe",))

@@ -91,7 +91,7 @@ class MixingPatch(NonReflectingPatch):
     no setter, and seeds every row from its own pitchwise mean before the first
     exchange has happened. Which side of the plane it is on, and so which rows
     it actually imposes, is settled from the flow rather than declared; see the
-    module docstring and :meth:`_enter_resolved`.
+    module docstring.
 
     A note on which average is which. The communicator evaluates its Jacobians
     on the *symmetrised cross-plane* average, so both sides linearise the

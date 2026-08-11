@@ -696,13 +696,12 @@ class RevolutionPatch(Patch):
 
     The second is the interface frame. A surface of revolution need not be a
     plane of constant :math:`x`, so a condition written against the velocity
-    through the face cannot read that velocity off :math:`V_x`.
-    :meth:`_build_rot_matrices` derives the face normal from the geometry, one
-    direction per span node, and :meth:`resolve_to_interface` /
-    :meth:`resolve_from_interface` turn the meridional momentum into that frame
-    and back. :meth:`_resolved` is the context manager that holds a face in it
-    for the duration of a calculation, so a subclass can be written entirely in
-    terms of a face-normal velocity and work at any orientation; see
+    through the face cannot read that velocity off :math:`V_x`. The face
+    normal is derived from the geometry, one direction per span node, and
+    :meth:`resolve_to_interface` / :meth:`resolve_from_interface` turn the
+    meridional momentum into that frame and back, held for the duration of a
+    calculation so a subclass can be written entirely in terms of a
+    face-normal velocity and work at any orientation; see
     :class:`~ember.patch.NonReflectingPatch` for what that buys and what it
     costs. On a plane of constant :math:`x` the rotation is the identity and is
     skipped, so a subclass pays nothing for the generality it does not use.

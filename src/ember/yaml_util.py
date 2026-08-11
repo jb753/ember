@@ -162,9 +162,9 @@ def _float_loader():
 def read_yaml(fname):
     """Read a dictionary from a YAML file.
 
-    Uses :func:`_float_loader` in place of the stock ``yaml.SafeLoader``,
-    so that scientific-notation floats without a decimal point parse
-    correctly; see the module docstring.
+    Uses a patched loader in place of the stock ``yaml.SafeLoader``, so that
+    scientific-notation floats without a decimal point parse correctly; see
+    the module docstring.
 
     Parameters
     ----------

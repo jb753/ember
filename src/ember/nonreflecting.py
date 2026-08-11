@@ -281,13 +281,11 @@ class _TargetRow:
 class NonReflectingPatch(RevolutionPatch):
     r"""The steady non-reflecting boundary condition.
 
-    Subclasses supply :attr:`_desc`, a description used in error messages;
-    :attr:`_sign_interior`, the inward face normal, or ``None`` to take whatever
-    the geometry gives; :attr:`_chic_to_target` and :attr:`_target_names`, naming
-    the space the prescribed target lives in; :attr:`_target_setters`, mapping
-    each required target row to the setter that fills it; and
-    :attr:`_target_seeded`, the rows taken from the flow when nothing prescribes
-    them. They add the setters themselves and nothing else: the characteristic
+    Subclasses declare a description for error messages, the inward face
+    normal (or leave the geometry to decide it), the target space's name and
+    Jacobian, a mapping of each required target row to the setter that fills
+    it, and which rows are seeded from the flow when nothing prescribes them.
+    They add the setters themselves and nothing else: the characteristic
     treatment, both harmonic relations and the reversed-flow handling are all
     here.
 
@@ -1487,10 +1485,10 @@ class NonReflectingPatch(RevolutionPatch):
     def advance(self):
         r"""Take the boundary condition's one step; call once per timestep.
 
-        :meth:`_calc_dchic` supplies the change in the incoming characteristics
-        and :attr:`sigma` scales it, which is exactly Giles' Eq. 5.25
-        correction. This is the whole of a timestep's boundary-condition
-        change: :meth:`apply` only imposes the result, once per stage.
+        The change in the incoming characteristics is scaled by :attr:`sigma`,
+        which is exactly Giles' Eq. 5.25 correction. This is the whole of a
+        timestep's boundary-condition change: :meth:`apply` only imposes the
+        result, once per stage.
 
         Per timestep and not per stage because the harmonic relations couple
         every pitchwise node to every other through the Hilbert transform, so
@@ -1526,11 +1524,11 @@ class NonReflectingPatch(RevolutionPatch):
         :attr:`sigma`-relaxed correction that advances that state is taken there,
         once per timestep, not here.
 
-        :meth:`_calc_override` is given the chance to change what actually
+        A node-level override is then given the chance to change what actually
         reaches the block, and its result is deliberately not carried back into
-        :attr:`_prim_prev`, so a condition that has to depart from its own linear
-        theory somewhere does not thereby corrupt the characteristic state it is
-        still solving on.
+        the state the solve is still working from, so a condition that has to
+        depart from its own linear theory somewhere does not thereby corrupt
+        the characteristic state it is still solving on.
         """
         if not self._target_set[list(self._target_setters)].all():
             self._raise_unset()
@@ -1603,17 +1601,17 @@ class NonReflectingPatch(RevolutionPatch):
         than only before the patches are configured.
 
         Rows nothing prescribed are cleared instead, to be taken afresh from the
-        rescaled face by :meth:`_seed_target` -- they are a frozen picture of the
-        flow, and the only honest way to re-express one is to look again. They
-        are cleared before the replay so that a row which *is* prescribed, and
-        merely happens to be seedable, is refilled by its own setter.
+        rescaled face -- they are a frozen picture of the flow, and the only
+        honest way to re-express one is to look again. They are cleared before
+        the replay so that a row which *is* prescribed, and merely happens to
+        be seedable, is refilled by its own setter.
 
-        The characteristic state (:attr:`_ref`, :attr:`_prim_prev` and the
-        start-of-step density) is nondimensional with no dimensional original to
-        return to, so it is dropped and rebuilt from the face. A fluid changed
-        mid-march therefore restarts the condition from the marched state rather
-        than continuing on the one it was solving: a small perturbation, and the
-        alternative is carrying numbers that mean nothing under the new scales.
+        The characteristic state is nondimensional with no dimensional
+        original to return to, so it is dropped and rebuilt from the face. A
+        fluid changed mid-march therefore restarts the condition from the
+        marched state rather than continuing on the one it was solving: a
+        small perturbation, and the alternative is carrying numbers that mean
+        nothing under the new scales.
         """
         super().update_ref_scales()
 

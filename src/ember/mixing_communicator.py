@@ -32,7 +32,7 @@ class MixingCommunicator:
     following Holmes' Eq. 15 rather than re-anchoring to the live interface
     state every step: the fixed point of the integrating form is exact flux
     balance, where the proportional form leaves a standing offset the size of
-    the residual mismatch. :attr:`leak` and :meth:`_clamp_physical` are the
+    the residual mismatch. :attr:`leak` and a non-physical-state guard are the
     anti-windup this needs in return.
 
     The relaxation factor is read from the patches at every exchange, so it is
@@ -62,7 +62,7 @@ class MixingCommunicator:
     r"""Anti-windup leak on the integrating relaxation, as a fraction of
     :attr:`rf_exchange` per exchange.
 
-    :meth:`_write_targets` accumulates its correction onto the previous target
+    The exchange accumulates its correction onto the previous target
     rather than re-anchoring to the live interface baseline every step, so
     that the fixed point is exact flux balance rather than the proportional
     form's standing offset (:cite:t:`Holmes2008` Eq. 15, applied to the
