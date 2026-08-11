@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import ember.block
 import ember.fluid
-import ember.set_iter
+import ember.set_iterative
 from ember import util
 from ember.util import angles_to_components, components_to_angles
 
@@ -994,7 +994,7 @@ def test_consistency_with_block_properties():
     Alpha_rel = np.zeros(ni)  # No relative swirl (pure radial in relative frame)
     Beta = np.full(ni, 90.0)  # Pure radial flow
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1054,7 +1054,7 @@ def test_consistency_with_rotating_block():
     Alpha_rel = np.zeros(ni)  # No relative swirl (pure radial in relative frame)
     Beta = np.full(ni, 90.0)  # Pure radial outward flow
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1117,7 +1117,7 @@ def test_tangential_velocity_consistency():
     Alpha_rel = np.zeros(ni)  # No relative swirl (pure radial in relative frame)
     Beta = np.full(ni, 90.0)  # Pure radial outward flow
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1184,7 +1184,7 @@ def test_tangential_velocity_consistency():
     Alpha_rel_mixed = np.zeros(ni_mixed)  # No relative swirl
     Beta_mixed = np.full(ni_mixed, -45.0)  # Mixed axial/radial inward flow
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         mixed_block, Po_mixed, To_mixed, Ma_rel_mixed, Alpha_rel_mixed, Beta_mixed
     )
 

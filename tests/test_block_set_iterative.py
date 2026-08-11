@@ -5,7 +5,7 @@ state given different constraints:
 - set_ho_s_Ma_Alpha_Beta: Given Mach number constraint
 - set_ho_s_rhoVm_Alpha_Beta: Given meridional mass flux (rhoVm) constraint
 
-Both methods use iterative solvers in ember.set_iter to converge to the
+Both methods use iterative solvers in ember.set_iterative to converge to the
 correct thermodynamic state while satisfying the given velocity constraint.
 
 Test cases for set_ho_s_Ma_Alpha_Beta:
@@ -36,7 +36,7 @@ import numpy as np
 import pytest
 import ember.fluid
 import ember.block
-import ember.set_iter
+import ember.set_iterative
 
 
 # ============================================================================
@@ -62,7 +62,7 @@ def test_set_ho_s_ma_perfect_gas():
     test_mach = np.array([0.2, 0.5, 0.8, 1.0])
 
     # Set stagnation state and Mach numbers
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, test_mach)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, test_mach)
 
     # Check that stagnation conditions are recovered
     assert np.allclose(block.ho, ho1, rtol=1e-6)
@@ -93,7 +93,7 @@ def test_set_ho_s_ma_energy_conservation():
 
     Ma_test = np.array([0.3, 0.7, 1.2])
 
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_test)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_test)
 
     # Check energy balance: ho = h + V²/2
     h_static = block.h
@@ -118,7 +118,7 @@ def test_set_ho_s_ma_entropy_conservation():
 
     Ma_array = np.array([0.1, 0.4, 0.8, 1.0, 1.5])
 
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_array)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_array)
 
     # Entropy should be constant (relaxed tolerance for float32 precision)
     assert np.allclose(block.s, s1, rtol=1e-4)
@@ -140,7 +140,7 @@ def test_set_ho_s_ma_convergence():
     # Test edge cases
     Ma_edge = np.array([0.01, 1.0, 2.0])  # Very low, sonic, supersonic
 
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_edge)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_edge)
 
     # Should converge without errors
     assert np.allclose(block.Ma, Ma_edge, rtol=1e-5)
@@ -163,7 +163,7 @@ def test_set_ho_s_ma_array_broadcasting():
     # 2D array of Mach numbers
     Ma_2d = np.array([[0.3, 0.6, 0.9], [0.4, 0.8, 1.2]])
 
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_2d)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_2d)
 
     assert block.Ma.shape == (2, 3)
     assert np.allclose(block.Ma, Ma_2d, rtol=1e-5)
@@ -186,7 +186,7 @@ def test_set_ho_s_ma_robustness():
     Ma_test = np.array([2.5, 3.0])
 
     # Should converge successfully even with extreme conditions
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_test)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_test)
 
     assert np.allclose(block.Ma, Ma_test, rtol=1e-5)
     assert np.allclose(block.ho, ho1, rtol=1e-5)
@@ -207,7 +207,7 @@ def test_set_ho_s_ma_float32_consistency():
 
     Ma_test = np.array([0.2, 0.6, 1.0], dtype=np.float32)
 
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_test)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_test)
 
     # Check that all properties maintain float32
     assert block.rho.dtype == np.float32
@@ -240,7 +240,7 @@ def test_set_ho_s_ma_uniform_pressure():
         Ma_uniform = 0.6
 
         # Set uniform conditions
-        ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_uniform)
+        ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, Ma_uniform)
 
         # All pressures should be EXACTLY equal (within float32 precision)
         P_min = np.min(block.P)
@@ -300,7 +300,7 @@ def test_set_ho_s_rhoVm_basic_conservation():
     rhoVm_test = np.array([50.0, 100.0, 200.0])
 
     # Set stagnation state and meridional mass flux (Alpha=0, so Vm=V)
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
 
     # Check that stagnation conditions are recovered
     assert np.allclose(block.ho, ho1, rtol=1e-6)
@@ -327,7 +327,7 @@ def test_set_ho_s_rhoVm_energy_conservation():
 
     rhoVm_test = np.array([25.0, 50.0, 100.0, 150.0])
 
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
 
     # Check energy balance: ho = h + V²/2
     h_static = block.h
@@ -352,7 +352,7 @@ def test_set_ho_s_rhoVm_entropy_conservation():
 
     rhoVm_array = np.array([10.0, 30.0, 60.0, 100.0, 140.0])
 
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_array)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_array)
 
     # Entropy should be constant
     assert np.allclose(block.s, s1, rtol=1e-4)
@@ -374,7 +374,7 @@ def test_set_ho_s_rhoVm_mass_flux_consistency():
     # Test different meridional mass flux levels
     rhoVm_test = np.array([5.0, 25.0, 80.0])
 
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
 
     # Verify meridional mass flux constraint is satisfied exactly
     rhoVm_calculated = block.rho * block.Vm
@@ -404,7 +404,7 @@ def test_set_ho_s_rhoVm_array_broadcasting():
     # 2D array of meridional mass flux values
     rhoVm_2d = np.array([[20.0, 40.0, 60.0], [30.0, 50.0, 80.0]])
 
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_2d)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_2d)
 
     assert block.rho.shape == (2, 3)
     assert block.V.shape == (2, 3)
@@ -430,7 +430,7 @@ def test_set_ho_s_rhoVm_convergence():
     # Test edge cases: very low, moderate, high meridional mass flux
     rhoVm_edge = np.array([1.0, 25.0, 75.0, 120.0])
 
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_edge)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_edge)
 
     # Should converge without errors
     rhoVm_calc = block.rho * block.Vm
@@ -455,11 +455,11 @@ def test_set_ho_s_rhoVm_comparison_with_Ma():
 
     # Set same state using Mach number
     Ma_test = np.array([0.2, 0.5, 0.8])
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block1, ho1, s1, Ma_test)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block1, ho1, s1, Ma_test)
 
     # Get resulting meridional mass flux and apply to second block
     rhoVm_from_Ma = block1.rho * block1.Vm
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block2, ho1, s1, rhoVm_from_Ma)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block2, ho1, s1, rhoVm_from_Ma)
 
     # Both blocks should have nearly identical states (within float32 precision)
     assert np.allclose(block1.rho, block2.rho, rtol=1e-5)
@@ -484,7 +484,7 @@ def test_set_ho_s_rhoVm_float32_consistency():
 
     rhoVm_test = np.array([20.0, 50.0, 100.0], dtype=np.float32)
 
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
 
     # Check that all properties maintain float32
     assert block.rho.dtype == np.float32
@@ -510,7 +510,7 @@ def test_set_ho_s_rhoVm_nonzero_alpha():
     Alpha = np.array([30.0, 45.0, 60.0])  # degrees
     rhoVm_test = np.array([50.0, 75.0, 100.0])
 
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test, Alpha=Alpha)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test, Alpha=Alpha)
 
     # Verify relationship: rhoVm = rho * Vm = rho * V * cos(Alpha)
     rhoVm_calc = block.rho * block.Vm
@@ -541,7 +541,7 @@ def test_set_ho_s_rhoVm_nonzero_beta():
     Beta = np.array([10.0, 20.0, 30.0])  # degrees
     rhoVm_test = np.array([50.0, 75.0, 100.0])
 
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(
         block, ho1, s1, rhoVm_test, Alpha=0.0, Beta=Beta
     )
 
@@ -571,7 +571,7 @@ def test_set_ho_s_rhoVm_combined_angles():
     Beta = np.array([10.0, 15.0])
     rhoVm_test = np.array([40.0, 60.0])
 
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(
         block, ho1, s1, rhoVm_test, Alpha=Alpha, Beta=Beta
     )
 
@@ -617,7 +617,7 @@ def test_set_ho_s_ma_nonunity_refs():
     s1 = fluid.get_s(rho_o, u_o) * fluid.Rgas_ref
 
     test_mach = np.array([0.3, 0.6, 0.9])
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, test_mach)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho1, s1, test_mach)
 
     assert np.allclose(block.ho, ho1, rtol=1e-5)
     assert np.allclose(block.s, s1, rtol=1e-4)
@@ -651,7 +651,7 @@ def test_set_ho_s_rhoVm_nonunity_refs():
     s1 = fluid.get_s(rho_o, u_o) * fluid.Rgas_ref
 
     rhoVm_test = np.array([50.0, 100.0, 150.0])
-    ember.set_iter.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test)
 
     assert np.allclose(block.ho, ho1, rtol=1e-5)
     assert np.allclose(block.s, s1, rtol=1e-4)
@@ -683,7 +683,7 @@ def test_set_Po_To_Ma_rel_nonunity_refs():
 
     Po_inlet, To_inlet = 101325.0, 300.0
     Ma_rel = np.array([0.3, 0.6, 0.9])
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, 0.0, 0.0
     )
 
@@ -817,7 +817,7 @@ def test_set_Po_To_Ma_rel_perfect_gas():
     Beta = np.zeros(4)
 
     # Set flow field using total conditions
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, test_mach_rel, Alpha_rel, Beta
     )
 
@@ -865,7 +865,7 @@ def test_set_Po_To_Ma_rel_pure_radial_flow():
     Beta = 90.0  # Pure radial flow
 
     # Set flow field
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -912,7 +912,7 @@ def test_set_Po_To_Ma_rel_with_rotation():
     Beta = 0.0  # Axial flow
 
     # Set flow field
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -959,7 +959,7 @@ def test_set_Po_To_Ma_rel_flow_angle_consistency():
     Beta = np.array([90.0, 60.0, 45.0])  # Different pitch angles
 
     # Set flow field
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1002,7 +1002,7 @@ def test_set_Po_To_Ma_rel_energy_conservation():
     Beta = 0.0
 
     # Set flow field
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1042,7 +1042,7 @@ def test_set_Po_To_Ma_rel_isentropic():
     Alpha_rel = 0.0
     Beta = 0.0
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1069,7 +1069,7 @@ def test_set_Po_To_Ma_rel_method_chaining():
     block.set_r(r)
     block.set_t(t)
 
-    result = ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    result = ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, 101325.0, 300.0, 0.5, 0.0, 0.0
     )
     assert result is block
@@ -1098,7 +1098,7 @@ def test_set_Po_To_Ma_rel_array_broadcasting():
     Beta = np.array([0.0, 45.0, 90.0])  # array
 
     # Should not raise an error
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1125,8 +1125,8 @@ def test_set_Po_To_Ma_rel_convergence_parameters():
     block.set_r(r)
     block.set_t(t)
 
-    # Test with default convergence parameters (handled internally in set_iter.py)
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    # Test with default convergence parameters (handled internally in set_iterative.py)
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po=101325.0, To=300.0, Ma_rel=0.6, Alpha_rel=0.0, Beta=0.0
     )
 
@@ -1148,7 +1148,7 @@ def test_set_Po_To_Ma_rel_requires_coordinates():
     with pytest.raises(
         ValueError, match="Radial coordinates \\(r\\) must be initialized"
     ):
-        ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+        ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
             block, 101325.0, 300.0, 0.5, 0.0, 0.0
         )
 
@@ -1221,7 +1221,7 @@ def test_iterative_setters_self_consistency():
     Alpha_current = block.Alpha
     Beta_current = block.Beta
 
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(
         block, ho_current, s_current, Ma_current, Alpha_current, Beta_current
     )
 
@@ -1249,7 +1249,7 @@ def test_iterative_setters_self_consistency():
     Alpha_rel_current = block.Alpha_rel
     Beta_current = block.Beta
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_current, To_current, Ma_rel_current, Alpha_rel_current, Beta_current
     )
 
@@ -1277,7 +1277,7 @@ def test_iterative_setters_self_consistency():
     Alpha_rel_current = block.Alpha_rel
     Beta_current = block.Beta
 
-    ember.set_iter.set_I_s_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta(
         block, I_current, s_current, Ma_rel_current, Alpha_rel_current, Beta_current
     )
 
@@ -1332,7 +1332,7 @@ def test_iterative_setters_realistic_conditions():
     Beta = np.linspace(45.0, 75.0, ni)  # Varying pitch angle (includes user's 60°)
 
     # Set flow field
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 

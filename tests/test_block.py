@@ -66,7 +66,7 @@ Test cases:
 """
 
 import ember.block
-import ember.set_iter
+import ember.set_iterative
 import pytest
 import ember.geometry
 import ember.fluid
@@ -2155,7 +2155,7 @@ def test_set_I_s_Ma_rel_Alpha_rel_Beta(block):
     Beta = np.full(shape, 90.0, dtype=np.float32)  # Pure radial flow
 
     # Set flow field
-    ember.set_iter.set_I_s_Ma_rel_Alpha_rel_Beta(block, I, s, Ma, Alpha_rel, Beta)
+    ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta(block, I, s, Ma, Alpha_rel, Beta)
 
     # Test rothalpy conservation
     np.testing.assert_allclose(block.I, I, rtol=rtol, err_msg="Rothalpy not conserved")
@@ -2172,7 +2172,7 @@ def test_set_I_s_Ma_rel_Alpha_rel_Beta(block):
 
     # Test axial flow case
     Beta_axial = np.zeros(shape, dtype=np.float32)  # Pure axial flow
-    ember.set_iter.set_I_s_Ma_rel_Alpha_rel_Beta(block, I, s, Ma, Alpha_rel, Beta_axial)
+    ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta(block, I, s, Ma, Alpha_rel, Beta_axial)
 
     np.testing.assert_allclose(
         block.Vr, 0, atol=1e-3, err_msg="Should be pure axial flow (Vr ≈ 0)"
@@ -2185,7 +2185,7 @@ def test_set_I_s_Ma_rel_Alpha_rel_Beta(block):
     Alpha_rel_swirl = np.full(shape, 30.0, dtype=np.float32)  # 30° relative swirl
     Beta_mixed = np.full(shape, 45.0, dtype=np.float32)  # 45° pitch angle
 
-    ember.set_iter.set_I_s_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta(
         block, I, s, Ma, Alpha_rel_swirl, Beta_mixed
     )
 

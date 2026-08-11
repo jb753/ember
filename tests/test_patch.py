@@ -87,7 +87,7 @@ Test cases:
 import pytest
 import numpy as np
 import ember.block
-import ember.set_iter
+import ember.set_iterative
 from ember.patch import (
     Patch,
     PeriodicPatch,

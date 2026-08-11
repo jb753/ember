@@ -18,7 +18,7 @@ from ember import util
 from ember import block_util
 from ember import perturbation
 from ember import fluxes as ember_fluxes
-from ember import set_iter
+from ember import set_iterative
 from ember.geometry import node_to_face_2d
 
 
@@ -446,7 +446,7 @@ def mix_out(block, AR=1.0):
         # conserved, so rho*Vm scales as 1/AR.
         rhoVm_target = mix.rho * mix.Vm / AR
 
-        set_iter.set_ho_s_rhoVm_Vt_Beta(
+        set_iterative.set_ho_s_rhoVm_Vt_Beta(
             mix,
             mix.ho,
             mix.s,

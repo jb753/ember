@@ -30,7 +30,7 @@ import numpy as np
 import ember.block
 import ember.block_util
 import ember.fluid
-import ember.set_iter
+import ember.set_iterative
 import ember.patch
 import ember.util as util
 
@@ -1045,7 +1045,7 @@ class TestMemoryUsage:
         Po1, To1 = 1e5, 300.0
         s1 = fluid.get_s(*fluid.set_P_T(Po1, To1))
         ho1 = fluid.get_h(*fluid.set_P_T(Po1, To1))
-        ember.set_iter.set_ho_s_Ma_Alpha_Beta(b, ho1, s1, 0.3, 0.0, 0.0)
+        ember.set_iterative.set_ho_s_Ma_Alpha_Beta(b, ho1, s1, 0.3, 0.0, 0.0)
         b.set_wdist(0.0)
 
         return ember.grid.Grid([b])
