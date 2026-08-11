@@ -39,6 +39,7 @@ interface, while the heavy computations run through compiled Fortran for speed.
    api/yaml_util
    api/cases
    references
+   changelog
 
 Indices
 -------
