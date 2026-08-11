@@ -718,6 +718,9 @@ class RevolutionPatch(Patch):
         self._rot_to = None
         self._rot_from = None
         self._rot_buf = None
+        # The angle _rot_to/_rot_from were built from, broadcast to the same
+        # shape; see chi_node.
+        self._chi_node = None
         # Whether _rot_to is the identity, so a face already aligned with the
         # (x, r) axes skips the rotation entirely; see resolve_to_interface.
         self._rot_identity = None
@@ -879,30 +882,25 @@ class RevolutionPatch(Patch):
 
         if not inward:
             c_node, s_node = -c_node, -s_node
-        c = c_node.astype(np.float32)
-        s = s_node.astype(np.float32)
-        n = len(c)
-        rot_to = np.empty((n, 2, 2), dtype=np.float32, order="F")
-        rot_to[:, 0, 0] = c
-        rot_to[:, 0, 1] = s
-        rot_to[:, 1, 0] = -s
-        rot_to[:, 1, 1] = c
-        rot_from = np.empty((n, 2, 2), dtype=np.float32, order="F")
-        rot_from[:, 0, 0] = c
-        rot_from[:, 0, 1] = -s
-        rot_from[:, 1, 0] = s
-        rot_from[:, 1, 1] = c
+        # Recover the angle from the already branch-safe (c_node, s_node) --
+        # lossless, since each is now a single resolved direction rather than
+        # an average straddling the cut -- so the matrix assembly can be the
+        # one shared with resolve_to_interface's chi rather than a second copy
+        # of it.
+        chi_node = np.arctan2(s_node, c_node).astype(np.float32)
+        rot_to, rot_from = util.rotation_matrices(chi_node)
         bcast_shape = [1, 1, 1]
         bcast_shape[self._dim_span] = -1
         self._rot_to = rot_to.reshape(bcast_shape + [2, 2])
         self._rot_from = rot_from.reshape(bcast_shape + [2, 2])
+        self._chi_node = chi_node.reshape(bcast_shape)
         # A face already aligned with the (x, r) axes rotates by nothing, which
         # is the common case: every axial inlet, outlet and mixing plane. Noted
         # here so the resolve methods can skip not only the two matvecs but the
         # cache invalidation that goes with writing to conserved_nd, which a
         # block_view shares with its whole parent block.
         self._rot_identity = bool(
-            np.allclose(c, 1.0, atol=1e-6) and np.allclose(s, 0.0, atol=1e-6)
+            np.allclose(c_node, 1.0, atol=1e-6) and np.allclose(s_node, 0.0, atol=1e-6)
         )
 
     def set_block_avg(self):
@@ -1143,8 +1141,8 @@ class RevolutionPatch(Patch):
         # an angle into the frame must get the same answer as one resolving a
         # velocity, and the velocity is not being rotated at all.
         if self._rot_identity:
-            return np.zeros_like(self._rot_to[..., 0, 1])
-        return np.arctan2(self._rot_to[..., 0, 1], self._rot_to[..., 0, 0])
+            return np.zeros_like(self._chi_node)
+        return self._chi_node
 
     def smooth_pitch_121(self, field, alpha):
         r"""Apply a periodic 1-2-1 smoothing pass along the pitch axis.

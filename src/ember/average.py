@@ -397,9 +397,14 @@ def mix_out(block, AR=1.0):
         if np.all(np.abs(err_flow) < atol):
             break
 
-        # Resolve to interface-aligned velocities
+        # Resolve to interface-aligned velocities. Beta moves every iteration
+        # as mix's state does, so the matrix can't be hoisted out of the loop
+        # -- but building both directions from it here, once, means the
+        # to/from pair below shares one sine and cosine rather than each
+        # re-deriving its own.
         Beta = mix.Beta
-        block_util.resolve_to_interface(mix, Beta)
+        rot_to, rot_from = util.rotation_matrices(np.radians(Beta))
+        block_util.resolve_to_interface(mix, rot_to)
 
         # Calculate Jacobian of conserved/flux transformation (nondimensional)
         f2c = perturbation.flux_to_conserved(mix)
@@ -417,7 +422,7 @@ def mix_out(block, AR=1.0):
             raise Exception("Negative density")
 
         # Resolve back to physical velocities
-        block_util.resolve_from_interface(mix, Beta)
+        block_util.resolve_from_interface(mix, rot_from)
 
     if (np.abs(err_flow) >= atol).any():
         print(f"  FAILED after {max_iter} iters: err_flow={err_flow}, atol={atol}")

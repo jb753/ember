@@ -818,6 +818,50 @@ def matmat(A, B):
     return np.asfortranarray(result.astype(f32))
 
 
+def rotation_matrices(chi):
+    r"""Build a paired 2x2 rotation matrix and its inverse from a meridional-plane angle.
+
+    Both :class:`~ember.patch.RevolutionPatch`'s interface frame and
+    :func:`~ember.block_util.resolve_to_interface` rotate a velocity pair
+    :math:`(V_x, V_r)` by the same convention, so this is the one place that
+    convention is written down:
+
+    .. math::
+
+        V_n &= \cos\chi\, V_x + \sin\chi\, V_r \\
+        V_s &= -\sin\chi\, V_x + \cos\chi\, V_r
+
+    ``rot_from`` is the transpose of ``rot_to`` -- the rotation is
+    orthogonal -- so it undoes exactly this and nothing has to be re-derived
+    to invert it.
+
+    Parameters
+    ----------
+    chi : float or Array
+        Angle [rad] of the frame axis from :math:`+x`, any shape.
+
+    Returns
+    -------
+    rot_to, rot_from : Array, shape ``chi.shape + (2, 2)``
+        ``rot_to`` turns :math:`(V_x, V_r)` into :math:`(V_n, V_s)`;
+        ``rot_from`` turns :math:`(V_n, V_s)` back into :math:`(V_x, V_r)`.
+    """
+    chi = np.asarray(chi)
+    c = np.cos(chi).astype(f32)
+    s = np.sin(chi).astype(f32)
+    rot_to = np.empty(c.shape + (2, 2), dtype=f32, order="F")
+    rot_to[..., 0, 0] = c
+    rot_to[..., 0, 1] = s
+    rot_to[..., 1, 0] = -s
+    rot_to[..., 1, 1] = c
+    rot_from = np.empty_like(rot_to)
+    rot_from[..., 0, 0] = c
+    rot_from[..., 0, 1] = -s
+    rot_from[..., 1, 0] = s
+    rot_from[..., 1, 1] = c
+    return rot_to, rot_from
+
+
 def matvec(A, b, out=None):
     """Matrix-vector multiplication using einsum over trailing dimensions.
 

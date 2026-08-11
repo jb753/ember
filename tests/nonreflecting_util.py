@@ -138,7 +138,8 @@ def make_block(
     block.set_Vt(Vt * np.ones(shape))
     # The velocities were given in duct coordinates, so turn them with it.
     if chi:
-        block_util.resolve_from_interface(block, chi)
+        _, rot_from = util.rotation_matrices(np.radians(chi))
+        block_util.resolve_from_interface(block, rot_from)
     return block
 
 

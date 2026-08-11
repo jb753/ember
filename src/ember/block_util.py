@@ -17,8 +17,8 @@ Combining and reshaping blocks
 Interface-aligned velocities
 =============================
 
-Paired functions that rotate the meridional velocity components (Vx, Vr)
-to and from the coordinates of an interface at angle :math:`\chi`, each the
+Paired functions that rotate the meridional velocity components (Vx, Vr) by a
+precomputed 2x2 matrix from :func:`~ember.util.rotation_matrices`, each the
 inverse of its partner.
 
 .. autosummary::
@@ -275,106 +275,105 @@ def _concatenate_two_blocks(block1, block2, axis=0):
     return result
 
 
-def resolve_to_interface(block, chi):
-    r"""Convert meridional velocity to interface-aligned velocities.
+def _rotate_meridional(block, rot):
+    r"""Rotate a block's meridional velocity :math:`(V_x, V_r)` in place by ``rot``.
 
-    Resolves the meridional velocity components :math:`(V_x, V_r)` to
-    velocities aligned with an interface at angle :math:`\chi`: velocity
-    through the interface :math:`V_m` and velocity normal to the interface
-    :math:`V_n`,
-
-    .. math::
-
-        V_m &= \cos\chi\, V_x + \sin\chi\, V_r \\
-        V_n &= -\sin\chi\, V_x + \cos\chi\, V_r
-
-    Inverse of :func:`resolve_from_interface`. See also
-    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface`, the equivalent rotation
-    applied to conserved momentum on a patch's averaging plane.
+    Shared by :func:`resolve_to_interface` and :func:`resolve_from_interface`,
+    which differ only in which of the paired matrices from
+    :func:`~ember.util.rotation_matrices` they are handed -- the two are each
+    other's inverse, so there is nothing else to tell them apart. ``Vt`` is
+    untouched.
 
     Parameters
     ----------
     block : Block
-        Block containing velocity data to be resolved.
-    chi : float or Array
-        Interface angle in degrees. When :math:`\chi=0`, :math:`V_m=V_x` and
-        :math:`V_n=V_r`. When :math:`\chi=90`, :math:`V_m=V_r` and
-        :math:`V_n=-V_x`.
+        Block whose velocity is rotated.
+    rot : Array, shape ``chi.shape + (2, 2)``
+        Rotation matrix, from :func:`~ember.util.rotation_matrices`.
 
     Returns
     -------
     Block
-        The input block with velocities updated to interface-aligned form.
-        :math:`V_m` becomes the new Vx, :math:`V_n` becomes the new Vr, Vt
-        unchanged.
+        ``block``, with ``Vx`` and ``Vr`` updated in place.
     """
-    chi_rad = np.radians(chi)
-    cos_chi = np.cos(chi_rad)
-    sin_chi = np.sin(chi_rad)
-
-    # Current meridional velocities
-    Vx_old = block.Vx
-    Vr_old = block.Vr
-    Vt = block.Vt
-
-    # Transform to interface coordinates
-    Vm = cos_chi * Vx_old + sin_chi * Vr_old
-    Vn = -sin_chi * Vx_old + cos_chi * Vr_old
-
-    # Update block velocities: Vm->Vx, Vn->Vr, Vt unchanged
-    block.set_Vx(Vm)
-    block.set_Vr(Vn)
-    block.set_Vt(Vt)
+    V = util.matvec(rot, np.stack([block.Vx, block.Vr], axis=-1))
+    block.set_Vx(V[..., 0])
+    block.set_Vr(V[..., 1])
     return block
 
 
-def resolve_from_interface(block, chi):
-    r"""Convert interface-aligned velocities back to meridional components.
+def resolve_to_interface(block, rot_to):
+    r"""Convert meridional velocity to interface-aligned velocities.
 
-    Converts interface-aligned velocities (:math:`V_m` = ``block.Vx`` through
-    the interface, :math:`V_n` = ``block.Vr`` normal to the interface) back to
-    meridional components :math:`(V_x, V_r)` using interface angle
-    :math:`\chi`,
+    Resolves the meridional velocity components :math:`(V_x, V_r)` to
+    velocities aligned with an interface: velocity through the interface
+    :math:`V_n` and velocity in it :math:`V_s`,
 
     .. math::
 
-        V_x &= \cos\chi\, V_m - \sin\chi\, V_n \\
-        V_r &= \sin\chi\, V_m + \cos\chi\, V_n
+        V_n &= \cos\chi\, V_x + \sin\chi\, V_r \\
+        V_s &= -\sin\chi\, V_x + \cos\chi\, V_r
 
-    Inverse of :func:`resolve_to_interface`. See also
-    :meth:`~ember.patch.RevolutionPatch.resolve_from_interface`, the equivalent
+    for the interface angle :math:`\chi` that ``rot_to`` was built from by
+    :func:`~ember.util.rotation_matrices`. Inverse of
+    :func:`resolve_from_interface`. See also
+    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface`, the equivalent
     rotation applied to conserved momentum on a patch's averaging plane.
 
     Parameters
     ----------
     block : Block
-        Block containing interface-aligned velocities (Vm=block.Vx, Vn=block.Vr).
-    chi : float or Array
-        Interface angle in degrees.
+        Block containing velocity data to be resolved.
+    rot_to : Array, shape ``chi.shape + (2, 2)``
+        Rotation matrix, the first of the pair returned by
+        :func:`~ember.util.rotation_matrices`. Building it once and reusing
+        it across repeated to/from calls at the same angle -- as
+        :func:`~ember.average.mix_out` does each Newton iteration -- avoids
+        re-deriving the same sine and cosine on every call.
+
+    Returns
+    -------
+    Block
+        The input block with velocities updated to interface-aligned form.
+        :math:`V_n` becomes the new Vx, :math:`V_s` becomes the new Vr, Vt
+        unchanged.
+    """
+    return _rotate_meridional(block, rot_to)
+
+
+def resolve_from_interface(block, rot_from):
+    r"""Convert interface-aligned velocities back to meridional components.
+
+    Converts interface-aligned velocities (:math:`V_n` = ``block.Vx`` through
+    the interface, :math:`V_s` = ``block.Vr`` in it) back to meridional
+    components :math:`(V_x, V_r)`,
+
+    .. math::
+
+        V_x &= \cos\chi\, V_n - \sin\chi\, V_s \\
+        V_r &= \sin\chi\, V_n + \cos\chi\, V_s
+
+    for the interface angle :math:`\chi` that ``rot_from`` was built from by
+    :func:`~ember.util.rotation_matrices`. Inverse of
+    :func:`resolve_to_interface`. See also
+    :meth:`~ember.patch.RevolutionPatch.resolve_from_interface`, the
+    equivalent rotation applied to conserved momentum on a patch's averaging
+    plane.
+
+    Parameters
+    ----------
+    block : Block
+        Block containing interface-aligned velocities (Vn=block.Vx, Vs=block.Vr).
+    rot_from : Array, shape ``chi.shape + (2, 2)``
+        Rotation matrix, the second of the pair returned by
+        :func:`~ember.util.rotation_matrices`.
 
     Returns
     -------
     Block
         The input block with velocities updated to meridional form.
     """
-    chi_rad = np.radians(chi)
-    cos_chi = np.cos(chi_rad)
-    sin_chi = np.sin(chi_rad)
-
-    # Current interface-aligned velocities
-    Vm = block.Vx
-    Vn = block.Vr
-    Vt = block.Vt
-
-    # Transform from interface coordinates to meridional
-    Vx = cos_chi * Vm - sin_chi * Vn
-    Vr = sin_chi * Vm + cos_chi * Vn
-
-    # Update block velocities
-    block.set_Vx(Vx)
-    block.set_Vr(Vr)
-    block.set_Vt(Vt)
-    return block
+    return _rotate_meridional(block, rot_from)
 
 
 def resample(block, factors):
