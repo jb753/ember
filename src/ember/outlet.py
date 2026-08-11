@@ -655,6 +655,25 @@ class OutletPatch(NonReflectingPatch):
         self._target[..., 4] = self._P_level_nd + dP_nd + self._P_last_nd
 
     @property
+    def Ki(self):
+        """Integral gain of the throttle, dimensionless.
+
+        Zero when no throttle is set; see :attr:`Kp`.
+        """
+        return self._Ki
+
+    @property
+    def Kp(self):
+        """Proportional gain of the throttle, dimensionless.
+
+        Zero when no throttle is set, since :meth:`set_throttle` clears both
+        gains along with the setpoint; test :attr:`mdot_target` against None to
+        tell an unthrottled patch from one deliberately given a zero gain. Set
+        through :meth:`set_throttle`, which documents what the value means.
+        """
+        return self._Kp
+
+    @property
     def mdot_target(self):
         """Throttle setpoint [kg/s], or None when the patch holds a pressure.
 

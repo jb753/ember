@@ -17,6 +17,8 @@ without a deprecation period.
   private.
 * Replaced the reflecting mixing plane with the non-reflecting one.
 * Generalised non-reflecting patches to any surface of revolution.
+* Added ``OutletPatch.Kp`` and ``OutletPatch.Ki``, exposing the throttle gains
+  set by ``set_throttle``.
 * Added ``wall_yplus`` for y+ post-processing.
 * Added ``Block.memory_usage``.
 * Added precompiled wheels for macOS (arm64) and Windows (AMD64), alongside
