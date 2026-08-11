@@ -68,7 +68,6 @@ Test cases:
 import ember.block
 import ember.set_iterative
 import pytest
-import ember.geometry
 import ember.fluid
 import numpy as np
 from ember import util
@@ -105,10 +104,10 @@ def test_block_dA(block):
     # Test with the block fixture using its coordinate system
     xrt = block.xrt
 
-    dAi = ember.geometry.get_dAi(xrt)
-    dAj = ember.geometry.get_dAj(xrt)
-    dAk = ember.geometry.get_dAk(xrt)
-    vol = ember.geometry.get_vol(xrt, dAi, dAj, dAk)
+    dAi = ember.block._get_dai(xrt)
+    dAj = ember.block._get_daj(xrt)
+    dAk = ember.block._get_dak(xrt)
+    vol = ember.block._get_vol(xrt, dAi, dAj, dAk)
 
     assert np.allclose(block.dAi, np.moveaxis(dAi, -1, 0))
     assert np.allclose(block.dAj, np.moveaxis(dAj, -1, 0))

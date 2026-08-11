@@ -19,7 +19,6 @@ from ember import block_util
 from ember import perturbation
 from ember import fluxes as ember_fluxes
 from ember import set_iterative
-from ember.geometry import node_to_face_2d
 
 
 def _get_axes(axes, triangulated):
@@ -71,6 +70,34 @@ def _integrate_vector(vector_face, dA_face, axes):
     return np.sum(util.dot(vector_face, dA_face), axis=axes)
 
 
+def _node_to_face_2d(nodal_data):
+    r"""Average nodal values to face centres for 2D data.
+
+    For a :math:`(n_i, n_j)` array of nodal values, the face-centred value is
+
+    .. math::
+
+        \bar{q}_{i,j} = \tfrac{1}{4}\bigl(
+            q_{i,j} + q_{i+1,j} + q_{i+1,j+1} + q_{i,j+1}\bigr)
+
+    Parameters
+    ----------
+    nodal_data : Array, shape (ni, nj, ...)
+        Values at grid nodes.
+
+    Returns
+    -------
+    Array, shape (ni-1, nj-1, ...)
+        Values averaged to face centres.
+    """
+    return 0.25 * (
+        nodal_data[:-1, :-1, ...]
+        + nodal_data[1:, :-1, ...]
+        + nodal_data[1:, 1:, ...]
+        + nodal_data[:-1, 1:, ...]
+    )
+
+
 def _node_to_face(nodal_data, triangulated):
     """Distribute nodal data to faces."""
     if triangulated:
@@ -78,7 +105,7 @@ def _node_to_face(nodal_data, triangulated):
         return np.mean(nodal_data, axis=1)
     else:
         # Use 2D node_to_face distribution
-        return node_to_face_2d(nodal_data)
+        return _node_to_face_2d(nodal_data)
 
 
 def flow_mass(block, axes=None):

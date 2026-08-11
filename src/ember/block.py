@@ -471,7 +471,6 @@ Indexing and slicing return a view over a sub-region::
 """
 
 import ember.struct
-import ember.geometry
 import ember.perturbation
 import ember.collections
 import numpy as np
@@ -484,6 +483,295 @@ import ember.fortran
 __all__ = [
     "Block",
 ]
+
+
+def _handle_output(result, out=None):
+    """Copy `result` into `out` if given, otherwise return `result` unchanged.
+
+    Parameters
+    ----------
+    result : Array
+        The computed result array.
+    out : Array, optional
+        Output array to store results. Must have compatible shape with result.
+
+    Returns
+    -------
+    Array
+        Either `result`, or `out` with `result` copied into it.
+    """
+    if out is not None:
+        out[...] = result
+        return out
+    return result
+
+
+def _get_da_tri(xrt, out=None):
+    r"""Area vectors of triangular faces, backing :attr:`Block.dA_tri`.
+
+    For a triangle with vertices :math:`A, B, C` in pseudo-Cartesian space
+    :math:`(x, r, r\theta)`:
+
+    .. math::
+
+        \delta\!\mathbf{A} = \tfrac{1}{2}\,\overrightarrow{AC} \times \overrightarrow{AB}
+
+    Parameters
+    ----------
+    xrt : Array, shape (ntri, 3, 3)
+        Polar coordinates :math:`(x, r, \theta)` at the three vertices of each triangle.
+    out : Array, optional
+        Output array to store results. Must have shape (ntri, 3).
+
+    Returns
+    -------
+    dA : Array, shape (ntri, 3)
+        Face area vectors in pseudo-Cartesian components :math:`(x, r, r\theta)`.
+    """
+    xrrt = pol_to_pseudocart(xrt)
+    qAB = xrrt[:, 1, :] - xrrt[:, 0, :]
+    qAC = xrrt[:, 2, :] - xrrt[:, 0, :]
+    # Swap order to match structured area orientation
+    return _handle_output(0.5 * np.cross(qAC, qAB, axis=-1), out)
+
+
+def _get_dai(xrt, out=None):
+    r"""Area vectors of constant-i faces, backing :attr:`Block.dAi_nd`.
+
+    Each face is bounded by the four nodes
+    :math:`(i,j,k),\,(i,j,k{+}1),\,(i,j{+}1,k{+}1),\,(i,j{+}1,k)`,
+    circulating so that the area vector points along increasing i.
+    Evaluated as half the cross product of the face diagonals, which is
+    exact for a warped face; see :ref:`face-areas`.
+
+    Parameters
+    ----------
+    xrt : Array, shape (ni, nj, nk, 3)
+        Polar coordinates :math:`(x, r, \theta)` at grid nodes.
+    out : Array, optional
+        Output array. Must have shape (ni, nj-1, nk-1, 3).
+
+    Returns
+    -------
+    dAi : Array, shape (ni, nj-1, nk-1, 3)
+        Face area vectors in pseudo-Cartesian components :math:`(x, r, r\theta)`.
+    """
+    # Validate input
+    ndim = xrt.ndim - 1  # Spatial dimensions only
+    if ndim != 3:
+        raise ValueError(f"dAi is not defined for ndim={ndim}.")
+
+    # Preserve input dtype for precision
+    input_dtype = xrt.dtype
+
+    # Ensure inputs are Fortran-ordered and float64 for Fortran compatibility
+    xrt_f = np.asarray(xrt, dtype=np.float64, order="F")
+
+    # Allocate output array if not provided
+    ni, nj, nk = xrt.shape[:3]
+    dAi_temp = util.allocate_or_reuse(None, (ni, nj - 1, nk - 1, 3), dtype=np.float64)
+
+    # Call Fortran routine to perform face area calculation
+    ember.fortran.get_dai(xrt_f, dAi_temp)
+
+    # Convert back to input dtype to preserve precision
+    dAi = dAi_temp.astype(input_dtype, copy=False)
+
+    return _handle_output(dAi, out)
+
+
+def _get_daj(xrt, out=None):
+    r"""Area vectors of constant-j faces, backing :attr:`Block.dAj_nd`.
+
+    Each face is bounded by the four nodes
+    :math:`(i,j,k),\,(i{+}1,j,k),\,(i{+}1,j,k{+}1),\,(i,j,k{+}1)`,
+    circulating so that the area vector points along increasing j.
+    Evaluated as half the cross product of the face diagonals, which is
+    exact for a warped face; see :ref:`face-areas`.
+
+    Parameters
+    ----------
+    xrt : Array, shape (ni, nj, nk, 3)
+        Polar coordinates :math:`(x, r, \theta)` at grid nodes.
+    out : Array, optional
+        Output array. Must have shape (ni-1, nj, nk-1, 3).
+
+    Returns
+    -------
+    dAj : Array, shape (ni-1, nj, nk-1, 3)
+        Face area vectors in pseudo-Cartesian components :math:`(x, r, r\theta)`.
+    """
+    # Validate input
+    ndim = xrt.ndim - 1  # Spatial dimensions only
+    if ndim != 3:
+        raise ValueError(f"dAj is not defined for ndim={ndim}.")
+
+    # Preserve input dtype for precision
+    input_dtype = xrt.dtype
+
+    # Ensure inputs are Fortran-ordered and float64 for Fortran compatibility
+    xrt_f = np.asarray(xrt, dtype=np.float64, order="F")
+
+    # Allocate output array if not provided
+    ni, nj, nk = xrt.shape[:3]
+    dAj_temp = util.allocate_or_reuse(None, (ni - 1, nj, nk - 1, 3), dtype=np.float64)
+
+    # Call Fortran routine to perform face area calculation
+    ember.fortran.get_daj(xrt_f, dAj_temp)
+
+    # Convert back to input dtype to preserve precision
+    dAj = dAj_temp.astype(input_dtype, copy=False)
+
+    return _handle_output(dAj, out)
+
+
+def _get_dak(xrt, out=None):
+    r"""Area vectors of constant-k faces, backing :attr:`Block.dAk_nd`.
+
+    Each face is bounded by the four nodes
+    :math:`(i,j,k),\,(i,j{+}1,k),\,(i{+}1,j{+}1,k),\,(i{+}1,j,k)`,
+    circulating so that the area vector points along increasing k.
+    Evaluated as half the cross product of the face diagonals, which is
+    exact for a warped face; see :ref:`face-areas`.
+
+    Parameters
+    ----------
+    xrt : Array, shape (ni, nj, nk, 3)
+        Polar coordinates :math:`(x, r, \theta)` at grid nodes.
+    out : Array, optional
+        Output array. Must have shape (ni-1, nj-1, nk, 3).
+
+    Returns
+    -------
+    dAk : Array, shape (ni-1, nj-1, nk, 3)
+        Face area vectors in pseudo-Cartesian components :math:`(x, r, r\theta)`.
+    """
+    # Validate input
+    ndim = xrt.ndim - 1  # Spatial dimensions only
+    if ndim != 3:
+        raise ValueError(f"dAk is not defined for ndim={ndim}.")
+
+    # Preserve input dtype for precision
+    input_dtype = xrt.dtype
+
+    # Ensure inputs are Fortran-ordered and float64 for Fortran compatibility
+    xrt_f = np.asarray(xrt, dtype=np.float64, order="F")
+
+    # Allocate output array if not provided
+    ni, nj, nk = xrt.shape[:3]
+    dAk_temp = util.allocate_or_reuse(None, (ni - 1, nj - 1, nk, 3), dtype=np.float64)
+
+    # Call Fortran routine to perform face area calculation
+    ember.fortran.get_dak(xrt_f, dAk_temp)
+
+    # Convert back to input dtype to preserve precision
+    dAk = dAk_temp.astype(input_dtype, copy=False)
+
+    return _handle_output(dAk, out)
+
+
+def _get_da_quad(xrt, out=None):
+    r"""Area vectors of quadrilateral faces on a 2D cut, backing :attr:`Block.dA_quad`.
+
+    Delegates to :func:`_get_dak` with a dummy third dimension added and then
+    removed.  The four nodes of each face are
+    :math:`(i,j),\,(i,j{+}1),\,(i{+}1,j{+}1),\,(i{+}1,j)`.
+
+    Parameters
+    ----------
+    xrt : Array, shape (ni, nj, 3)
+        Polar coordinates :math:`(x, r, \theta)` at cut nodes.
+    out : Array, optional
+        Output array. Must have shape (ni-1, nj-1, 3).
+
+    Returns
+    -------
+    dA : Array, shape (ni-1, nj-1, 3)
+        Face area vectors in pseudo-Cartesian components :math:`(x, r, r\theta)`.
+    """
+    ndim = xrt.ndim - 1  # Exclude the coordinate index
+    assert ndim == 2, "Face area is only defined for 2D grids"
+
+    # Add a dummy third dimension for compatibility and calculate dAk
+    xrt = xrt[:, :, None, :]
+    dA = _get_dak(xrt)
+    dA = dA[:, :, 0, :]
+
+    return _handle_output(dA, out)
+
+
+def _get_vol(xrt, dAi, dAj, dAk, out=None):
+    r"""Cell volumes via the divergence theorem, backing :attr:`Block.vol_nd`.
+
+    With the vector field :math:`\mathbf{F} = (x,\, r/2,\, r\theta)`,
+    :math:`\nabla\cdot\mathbf{F} = 3` in cylindrical coordinates, so
+
+    .. math::
+
+        \delta\mathcal{V} = \frac{1}{3}
+            \sum_{\text{faces}} \mathbf{F}_f \cdot \delta\mathbf{A}_f
+
+    where :math:`\mathbf{F}_f` is the average of the four corner nodes on
+    each face.
+
+    Parameters
+    ----------
+    xrt : Array, shape (ni, nj, nk, 3)
+        Polar coordinates :math:`(x, r, \theta)` at grid nodes.
+    dAi : Array, shape (3, ni, nj-1, nk-1) or (ni, nj-1, nk-1, 3)
+        Constant-i face area vectors.
+    dAj : Array, shape (3, ni-1, nj, nk-1) or (ni-1, nj, nk-1, 3)
+        Constant-j face area vectors.
+    dAk : Array, shape (3, ni-1, nj-1, nk) or (ni-1, nj-1, nk, 3)
+        Constant-k face area vectors.
+    out : Array, optional
+        Output array. Must have shape (ni-1, nj-1, nk-1).
+
+    Returns
+    -------
+    vol : Array, shape (ni-1, nj-1, nk-1)
+        Cell volumes.
+    """
+    # Check number of spatial dimensions
+    ndim = xrt.ndim - 1  # Exclude the coordinate index
+    assert ndim == 3, "Volume is only defined for 3D grids"
+
+    ni, nj, nk = xrt.shape[:3]
+
+    # Accept both (3, ...) components-first and (..., 3) components-last layouts
+    if dAi.shape == (ni, nj - 1, nk - 1, 3):
+        dAi = np.moveaxis(dAi, -1, 0)
+    if dAj.shape == (ni - 1, nj, nk - 1, 3):
+        dAj = np.moveaxis(dAj, -1, 0)
+    if dAk.shape == (ni - 1, nj - 1, nk, 3):
+        dAk = np.moveaxis(dAk, -1, 0)
+
+    if dAi.shape != (3, ni, nj - 1, nk - 1):
+        raise ValueError(f"Invalid shape for dAi: {dAi.shape}")
+    if dAj.shape != (3, ni - 1, nj, nk - 1):
+        raise ValueError(f"Invalid shape for dAj: {dAj.shape}")
+    if dAk.shape != (3, ni - 1, nj - 1, nk):
+        raise ValueError(f"Invalid shape for dAk: {dAk.shape}")
+
+    # Preserve input dtype for precision (use xrt as reference)
+    input_dtype = xrt.dtype
+
+    # Ensure inputs are Fortran-ordered and float64 for Fortran compatibility
+    xrt_f = np.asarray(xrt, dtype=np.float64, order="F")
+    dAi_f = np.asarray(dAi, dtype=np.float64, order="F")
+    dAj_f = np.asarray(dAj, dtype=np.float64, order="F")
+    dAk_f = np.asarray(dAk, dtype=np.float64, order="F")
+
+    # Allocate output array if not provided
+    vol_temp = util.allocate_or_reuse(None, (ni - 1, nj - 1, nk - 1), dtype=np.float64)
+
+    # Call Fortran routine to perform volume calculation
+    ember.fortran.get_vol(xrt_f, dAi_f, dAj_f, dAk_f, vol_temp)
+
+    # Convert back to input dtype to preserve precision
+    vol = vol_temp.astype(input_dtype, copy=False)
+
+    return _handle_output(vol, out)
 
 
 class _MaskedBlock:
@@ -2158,7 +2446,7 @@ class Block(ember.struct.StructuredData):
         """
         assert self.ndim == 2, "dA_quad is only defined for a two-dimensional cut."
         assert not self.triangulated, "dA_quad requires triangulated=False"
-        return ember.geometry.get_dA_quad(self._xrt_nd) * self.L_ref**2
+        return _get_da_quad(self._xrt_nd) * self.L_ref**2
 
     @derived_array
     def dA_tri(self):
@@ -2172,7 +2460,7 @@ class Block(ember.struct.StructuredData):
                 f"got shape {self.shape}"
             )
         assert self.triangulated, "dA_tri requires triangulated=True"
-        return ember.geometry.get_dA_tri(self._xrt_nd) * self.L_ref**2
+        return _get_da_tri(self._xrt_nd) * self.L_ref**2
 
     @derived_array
     def dAi(self):
@@ -2188,7 +2476,7 @@ class Block(ember.struct.StructuredData):
 
         See :ref:`face-areas` for the calculation.
         """
-        dAi = ember.geometry.get_dAi(self._xrt_nd)
+        dAi = _get_dai(self._xrt_nd)
         out = util.allocate_or_reuse(out, (3,) + self.shape_iface)
         out[...] = np.moveaxis(dAi, -1, 0)
         return out
@@ -2207,7 +2495,7 @@ class Block(ember.struct.StructuredData):
 
         See :ref:`face-areas` for the calculation.
         """
-        dAj = ember.geometry.get_dAj(self._xrt_nd)
+        dAj = _get_daj(self._xrt_nd)
         out = util.allocate_or_reuse(out, (3,) + self.shape_jface)
         out[...] = np.moveaxis(dAj, -1, 0)
         return out
@@ -2226,7 +2514,7 @@ class Block(ember.struct.StructuredData):
 
         See :ref:`face-areas` for the calculation.
         """
-        dAk = ember.geometry.get_dAk(self._xrt_nd)
+        dAk = _get_dak(self._xrt_nd)
         out = util.allocate_or_reuse(out, (3,) + self.shape_kface)
         out[...] = np.moveaxis(dAk, -1, 0)
         return out
@@ -3029,7 +3317,7 @@ class Block(ember.struct.StructuredData):
         See :ref:`cell-volumes` for the calculation.
         """
         assert self.ndim == 3, "volume is only defined for a three-dimensional block."
-        out = ember.geometry.get_vol(
+        out = _get_vol(
             self._xrt_nd, self.dAi_nd, self.dAj_nd, self.dAk_nd, out
         )
         return out

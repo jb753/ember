@@ -32,7 +32,7 @@ import numpy as np
 import pytest
 from ember.block import Block
 from ember import average, util
-from ember.geometry import node_to_face_2d
+from ember.average import _node_to_face_2d as node_to_face_2d
 import ember.fluid
 import ember.average
 
