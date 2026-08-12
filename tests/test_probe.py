@@ -12,7 +12,7 @@ import pytest
 from ember.block import Block
 from ember.fluid import PerfectFluid
 from ember.patch import InletPatch, ProbePatch
-import ember.util_yaml as util_yaml
+import ember.yaml_util as util_yaml
 
 
 def _make_block(shape=(6, 5, 4), rpm=3600.0, Nb=16):

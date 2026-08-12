@@ -70,6 +70,7 @@ from ember.cut import (
     _cube_index,
     _vijk,
     _eijk,
+    _signed_distance,
 )
 
 
@@ -1715,3 +1716,116 @@ class TestSingleBlockAcceptance:
 
             assert cut_min >= orig_min
             assert cut_max <= orig_max
+
+
+class TestSignedDistance:
+    """Test signed distance function."""
+
+    def test_signed_distance_vertical_line(self):
+        """Test signed distance with a vertical line segment."""
+        # Vertical line from (0,1) to (0,2)
+        segments = np.array([[0, 1], [0, 2]], dtype=np.float32)
+
+        # Points on either side
+        points = np.array([[-1, 1.5], [1, 1.5]], dtype=np.float32)
+
+        dist = _signed_distance(segments, points)
+
+        # Check shape
+        assert dist.shape == (2,)
+
+        # Check magnitudes are correct (distance = 1)
+        assert np.allclose(np.abs(dist), [1, 1])
+
+        # Check signs are opposite
+        assert np.sign(dist[0]) != np.sign(dist[1])
+
+    def test_signed_distance_horizontal_line(self):
+        """Test signed distance with a horizontal line segment."""
+        # Horizontal line from (1,0) to (2,0)
+        segments = np.array([[1, 0], [2, 0]], dtype=np.float32)
+
+        # Points above and below
+        points = np.array([[1.5, -1], [1.5, 1]], dtype=np.float32)
+
+        dist = _signed_distance(segments, points)
+
+        # Check shape and magnitudes
+        assert dist.shape == (2,)
+        assert np.allclose(np.abs(dist), [1, 1])
+
+    def test_signed_distance_point_on_line(self):
+        """Test that points exactly on the line have zero distance."""
+        # Diagonal line from (0,0) to (1,1)
+        segments = np.array([[0, 0], [1, 1]], dtype=np.float32)
+
+        # Point exactly on the line
+        points = np.array([[0.5, 0.5]], dtype=np.float32)
+
+        dist = _signed_distance(segments, points)
+
+        assert dist.shape == (1,)
+        assert np.allclose(dist, [0], atol=1e-6)
+
+    def test_signed_distance_multidimensional(self):
+        """Test signed distance with multi-dimensional point arrays."""
+        # Simple vertical line extending beyond test range
+        segments = np.array([[0, -2], [0, 2]], dtype=np.float32)
+
+        # Create a 2D grid of points
+        x_pts = np.linspace(-1, 1, 3)
+        r_pts = np.linspace(-1, 1, 4)
+        x_grid, r_grid = np.meshgrid(x_pts, r_pts, indexing="ij")
+        points = np.stack([x_grid, r_grid], axis=-1)  # Shape (3, 4, 2)
+
+        dist = _signed_distance(segments, points)
+
+        # Check output shape
+        assert dist.shape == (3, 4)
+
+        # Points at x=0 should have distances equal to their x-coordinates
+        assert np.allclose(np.abs(dist[1, :]), 0, atol=1e-6)  # Points on the line
+
+        # Points at x=-1 and x=1 should have distance 1
+        assert np.allclose(np.abs(dist[0, :]), 1, atol=1e-6)
+        assert np.allclose(np.abs(dist[2, :]), 1, atol=1e-6)
+
+    def test_signed_distance_shape_validation(self):
+        """Test that function validates input shapes correctly."""
+        # Wrong segment shape (components not in last axis)
+        bad_segments = np.array(
+            [[0, 1], [0, 1], [2, 2]], dtype=np.float32
+        )  # Shape (3, 2) but wrong structure
+        points = np.array([[0.5, 0.5]], dtype=np.float32)
+
+        # This should work fine - shape is correct
+        dist = _signed_distance(bad_segments, points)
+        assert dist.shape == (1,)
+
+        # Wrong points shape - only 1 component instead of 2
+        segments = np.array([[0, 0], [1, 1]], dtype=np.float32)
+        bad_points = np.array([[0.5]], dtype=np.float32)  # Shape (1, 1) - wrong!
+
+        with pytest.raises(AssertionError, match="Points must have shape"):
+            _signed_distance(segments, bad_points)
+
+    def test_signed_distance_l_shaped_curve(self):
+        """Test with an L-shaped curve having multiple segments."""
+        # L-shaped curve: (0,0) -> (1,0) -> (1,1)
+        segments = np.array([[0, 0], [1, 0], [1, 1]], dtype=np.float32)
+
+        # Test points near each segment
+        points = np.array(
+            [
+                [0.5, -0.5],  # Below horizontal segment
+                [0.5, 0.5],  # Above horizontal segment
+                [0.5, 0.5],  # Left of vertical segment
+                [1.5, 0.5],  # Right of vertical segment
+            ],
+            dtype=np.float32,
+        )
+
+        dist = _signed_distance(segments, points)
+
+        assert dist.shape == (4,)
+        assert np.all(np.isfinite(dist))

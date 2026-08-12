@@ -10,6 +10,41 @@ itself was fixed. Read **"Dos and don'ts"** below before trusting any number
 you produce here, then **"Kernel optimization history"** for what's already
 known.
 
+## Performance tuning for a new CPU
+
+The hot kernels carry blocking constants tuned against a specific cache
+hierarchy and vector width. They are correct on any machine — every one of
+them is bitwise-neutral, affecting only the order in which work is done — but
+a value tuned for one CPU can cost tens of percent on another. Re-sweep them
+when moving to a new architecture, and do it **in the real build** (`make
+compile`, which compiles the whole `_fortran/` tree with `-flto
+-fwhole-program`); a standalone single-file compile has inverted results here
+before.
+
+| constant | where | what bounds it |
+| --- | --- | --- |
+| `IRS_BJ = 32` | `_fortran/residual.f90` | **Vector-chain count, then nothing.** Sets how many independent lanes the i-solve's recurrence runs over. Below 32 it goes latency-bound (16 costs +19%); above 32 it is flat (64 and 128 are within ±2%), so the tile spilling L1d no longer matters. The least fussy of these constants — but only because the transpose is blocked; it was a sharp L1d-capacity optimum before that. |
+| `IRS_TB = 8` | `_fortran/residual.f90` | **SIMD lane count** (8 for AVX2, 16 for AVX-512). Edge of the transpose block, so one staged row is exactly one vector load. Steeply optimal — 4 and 16 are both large regressions on AVX2. |
+| `IRS_W = 64` | `_fortran/residual.f90` | **L2 capacity.** The i-strip carried through the fused j+k solves is `IRS_W*(nj-1)*(nk-1)*4` bytes — 917 KB on a 273×65×57 block, inside a 2 MB L2. Also sets the vector loop length, so it trades off in two directions at once. |
+| `_KB_SLAB = 8` | `grid.py` | **L2/L3 capacity.** Depth of the k-slab that `set_residual` and `set_visc_force` stream their nodal working set in. Re-sweep if blocks grow past ~1M cells. |
+| `njp` pad rule | `grid.py` | **Page size.** Pads the rolling face-flow plane by one j-row when `ni*nj` is a multiple of 1024 (= 4096-byte page ÷ 4-byte float), to dodge a 4K-aliasing penalty at power-of-two plane sizes. |
+
+Build flags matter as much as the constants:
+
+- `EMBER_MARCH` defaults to `-march=haswell` for portable wheels. Set
+  `EMBER_MARCH="-march=native -mtune=native"` when building for one machine.
+- The pinned GCC inline budgets in `setup.py`
+  (`inline-unit-growth`, `large-function-growth`) are worth **−53% serial** on
+  `set_residual` — without them its face helpers are simply not inlined. Do
+  not drop them. Both are needed; `inline-unit-growth` alone is worth only
+  2.3% but is necessary for the other to bind.
+- **Do not enable PGO** (`EMBER_PGO=use`). On this code it is a **+169%
+  regression** — profile data makes GCC un-inline exactly the helpers whose
+  inlining is worth the 53%.
+
+`bench/README.md` documents the benchmarking harness and the protocol these
+numbers were measured under, including several ways of measuring them that
+produced confidently wrong answers.
 ## Why this harness looks the way it does
 
 The `set_residual` pass-structure question ("multall/multall evaluates the
@@ -454,6 +489,40 @@ the headline number, and where it lives.
   `-inline-factor=10000`; diff `set_residual`'s fingerprint with and without
   the pinned budgets on the production compiler before assuming this result
   transfers.
+- **Extract `wall_core` out of `wall_func`** (`viscous.f90`'s
+  `viscous_helpers` module), so a new diagnostic (`wall_yplus`/
+  `wall_yplus_iface/jface/kface`/`wall_yplus_field`, post-processing y+ for
+  `block_util.wall_yplus`) shares its Re/skin-friction physics with the
+  production wall function instead of duplicating it. `set_visc_force`'s own
+  source is untouched -- same call sites, same names, only `wall_func`'s
+  callee moves -- and in the real (no `EMBER_BENCH_KERNELS`) build,
+  `set_visc_force_`'s codegen fingerprint is **bitwise identical**
+  before/after (`32b4f45a7fd9b39a`, 17560 insns, both sides of the refactor):
+  GCC fully absorbs the extra call under whole-program inlining. **Zero
+  regression, proven by codegen identity, not inferred from noisy timing.**
+  2026-08-07, gfortran/Haswell, this harness.
+  **A same-build A/B against a frozen pre-refactor copy (the usual protocol
+  for a kernel change, see `viscij`/`viscijk`/`viscpol` above) was tried
+  first and gave a false alarm**: with both `set_visc_force` (refactored)
+  and a full frozen `set_visc_force_pre` (~370 lines each, near-duplicates)
+  sharing one translation unit, `visc` timed 57.1 ns/cell and `viscpre`
+  89.3 ns/cell at 1M cells/8-rank contention -- `viscpre` +56.5% slower than
+  the kernel it was frozen FROM. Isolating `visc` alone (no other arm in the
+  build, Rule 7) reproduced its own plain-build fingerprint exactly and timed
+  58.2 ns/cell, tight and reproducible (0.39% stdev over 10 launches) --
+  proving the two-arm number was contaminated, not a real property of either
+  arm's code. **New finding for the cross-cutting section below: two large
+  (~300+ instruction) near-duplicate kernel bodies sharing one unit-level
+  inline-budget translation unit can starve each other's inlining in either
+  direction, not just perturb instruction count by a few percent** -- the
+  existing "4 identical / 5 different" finding was a codegen-identity check;
+  this is the same mechanism costing real, large (>50%), asymmetric timing
+  swings. **Prefer fingerprint identity over same-build timing when a
+  refactor is provably code-motion-only** (unchanged call sites/signatures);
+  reach for a same-build A/B only when the fingerprint actually differs and
+  a timing verdict is unavoidable, and even then, isolate any arm whose
+  result looks anomalous (Rule 7) before trusting it, especially for
+  full-kernel-sized arms.
 
 ### Rejected or negative results worth remembering
 
@@ -596,6 +665,17 @@ the headline number, and where it lives.
   which is why `visc` is always re-measured alongside its arms rather than
   compared to a stored baseline -- but never assume a cross-build number is
   comparable without re-running the gauge.
+  (3) **This is not always harmless even within one build**: freezing a full
+  ~370-line pre-refactor copy of `set_visc_force` alongside production for a
+  same-build A/B (the `wall_core` extraction study, "Adopted" above) produced
+  a +56% timing swing that vanished when the frozen arm was isolated in its
+  own build -- two large near-duplicate kernel bodies competing for the same
+  unit-level inline budget can starve each other's inlining by a lot, not
+  just perturb instruction count by a few percent. A within-build A/B is only
+  as trustworthy as the arms sharing the unit are small/dissimilar (the
+  fvisc-fusion ladder's arms, ~90% shared code, have never shown this); two
+  full independent kernel bodies is a different regime -- isolate (Rule 7)
+  before trusting a timing result that surprises you.
 - **A `PARTIAL LOOP WAS VECTORIZED` or a clean `LOOP WAS VECTORIZED` report
   is a lead, never a verdict, in either direction.** A blemished report can
   cost nothing (the damp-split scaling loop); a clean report can hide a slow

@@ -24,10 +24,8 @@ class CuspPatch(Patch):
 
     Must be on a constant-k face and must span the full j extent of the block.
     Paired with the corresponding face on the other side of the trailing edge
-    via :py:meth:`~ember.basepatch.Patch.check_match`.
+    via :py:meth:`~ember.patch.Patch.check_match`.
     """
-
-    _collection_name = "cusp"
 
     def _get_viable_transforms(self, other_shape):
         """Get viable permutation/flip combinations based on patch shapes.

@@ -31,7 +31,6 @@ Test cases:
 
 import ember.block
 import pytest
-import ember.geometry
 import ember.fluid
 import numpy as np
 from ember import util

@@ -1,12 +1,55 @@
-"""Utility functions for Block operations including concatenation, resampling, and I/O."""
+r"""Operations on :class:`~ember.block.Block` instances that don't belong on the class itself.
+
+Each function below takes one or more :class:`~ember.block.Block`\ s and
+returns a new one (or mutates in place, per its docstring). Grid-level
+counterparts such as :meth:`~ember.grid.Grid.resample` and
+:meth:`~ember.grid.Grid.interp_from` are thin loops over these
+block-granularity functions.
+
+Combining and reshaping blocks
+===============================
+
+.. autosummary::
+
+   concatenate
+   resample
+
+Interface-aligned velocities
+=============================
+
+Paired functions that rotate the meridional velocity components (Vx, Vr) by a
+precomputed 2x2 matrix from :func:`~ember.util.rotation_matrices`, each the
+inverse of its partner.
+
+.. autosummary::
+
+   resolve_to_interface
+   resolve_from_interface
+
+Solution transfer
+==================
+
+.. autosummary::
+
+   interp_from
+
+Post-processing and I/O
+=========================
+
+.. autosummary::
+
+   wall_yplus
+   to_tm3
+"""
 
 import logging
-import sys
 
 import numpy as np
 
 import ember.collections
+import ember.fortran
 from ember import util
+from ember.block import Block
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +111,6 @@ def _concatenate_two_blocks(block1, block2, axis=0):
         If blocks have incompatible working fluids, incompatible shapes,
         or patches on concatenation interfaces
     """
-    from ember.block import Block
-
     # Check that shapes are compatible for concatenation
     shape1 = block1.shape
     shape2 = block2.shape
@@ -234,6 +275,120 @@ def _concatenate_two_blocks(block1, block2, axis=0):
     return result
 
 
+def _rotate_meridional(block, rot):
+    r"""Rotate a block's meridional momentum :math:`(\rho V_x, \rho V_r)` in place by ``rot``.
+
+    Shared by :func:`resolve_to_interface` and :func:`resolve_from_interface`,
+    which differ only in which of the paired matrices from
+    :func:`~ember.util.rotation_matrices` they are handed -- the two are each
+    other's inverse, so there is nothing else to tell them apart. ``Vt`` is
+    untouched.
+
+    Operates directly on the nondimensional momentum components of
+    :attr:`~ember.block.Block.conserved_nd`, mirroring
+    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface`. A proper
+    rotation leaves :math:`V_x^2 + V_r^2` exactly invariant, so density and
+    energy need no update -- going via :meth:`~ember.block.Block.set_Vx` and
+    :meth:`~ember.block.Block.set_Vr` instead would rebuild energy from
+    internal energy plus new kinetic energy on every call, subtracting and
+    re-adding terms of very different magnitude for no mathematical reason.
+
+    Parameters
+    ----------
+    block : Block
+        Block whose momentum is rotated.
+    rot : Array, shape ``chi.shape + (2, 2)``
+        Rotation matrix, from :func:`~ember.util.rotation_matrices`.
+
+    Returns
+    -------
+    Block
+        ``block``, with the momentum components of ``conserved_nd`` updated
+        in place.
+    """
+    cons = block.conserved_nd
+    cons[..., 1:3] = util.matvec(rot, cons[..., 1:3])
+    block.update_cached_conserved()
+    return block
+
+
+def resolve_to_interface(block, rot_to):
+    r"""Convert meridional velocity to interface-aligned velocities.
+
+    Resolves the meridional velocity components :math:`(V_x, V_r)` to
+    velocities aligned with an interface: velocity through the interface
+    :math:`V_n` and velocity in it :math:`V_s`,
+
+    .. math::
+
+        V_n &= \cos\chi\, V_x + \sin\chi\, V_r \\
+        V_s &= -\sin\chi\, V_x + \cos\chi\, V_r
+
+    for the interface angle :math:`\chi` that ``rot_to`` was built from by
+    :func:`~ember.util.rotation_matrices`. Inverse of
+    :func:`resolve_from_interface`. Applies the rotation directly to the
+    nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,
+    the same approach as
+    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface` on a
+    patch's averaging plane -- see :func:`_rotate_meridional`.
+
+    Parameters
+    ----------
+    block : Block
+        Block containing velocity data to be resolved.
+    rot_to : Array, shape ``chi.shape + (2, 2)``
+        Rotation matrix, the first of the pair returned by
+        :func:`~ember.util.rotation_matrices`. Building it once and reusing
+        it across repeated to/from calls at the same angle -- as
+        :func:`~ember.average.mix_out` does each Newton iteration -- avoids
+        re-deriving the same sine and cosine on every call.
+
+    Returns
+    -------
+    Block
+        The input block with momentum updated to interface-aligned form.
+        :math:`V_n` becomes the new Vx, :math:`V_s` becomes the new Vr, Vt
+        unchanged.
+    """
+    return _rotate_meridional(block, rot_to)
+
+
+def resolve_from_interface(block, rot_from):
+    r"""Convert interface-aligned velocities back to meridional components.
+
+    Converts interface-aligned velocities (:math:`V_n` = ``block.Vx`` through
+    the interface, :math:`V_s` = ``block.Vr`` in it) back to meridional
+    components :math:`(V_x, V_r)`,
+
+    .. math::
+
+        V_x &= \cos\chi\, V_n - \sin\chi\, V_s \\
+        V_r &= \sin\chi\, V_n + \cos\chi\, V_s
+
+    for the interface angle :math:`\chi` that ``rot_from`` was built from by
+    :func:`~ember.util.rotation_matrices`. Inverse of
+    :func:`resolve_to_interface`. Applies the rotation directly to the
+    nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,
+    the same approach as
+    :meth:`~ember.patch.RevolutionPatch.resolve_from_interface` on a
+    patch's averaging plane -- see :func:`_rotate_meridional`.
+
+    Parameters
+    ----------
+    block : Block
+        Block containing interface-aligned velocities (Vn=block.Vx, Vs=block.Vr).
+    rot_from : Array, shape ``chi.shape + (2, 2)``
+        Rotation matrix, the second of the pair returned by
+        :func:`~ember.util.rotation_matrices`.
+
+    Returns
+    -------
+    Block
+        The input block with momentum updated to meridional form.
+    """
+    return _rotate_meridional(block, rot_from)
+
+
 def resample(block, factors):
     """Resample 3D block with vectorized interpolation while preserving patch connectivity.
 
@@ -280,8 +435,6 @@ def resample(block, factors):
     new_shape = tuple(len(coords) for coords in ijk_new)
 
     # 3. Interpolate all variables in a single Fortran call
-    import ember.fortran
-
     data_new = ember.fortran.map_coordinates_3d(
         block._data,
         ijk_new[0].astype(np.float32),
@@ -334,8 +487,24 @@ def _interp_coords(block, src):
     block index space into src index space, preserving the critical locations
     exactly.
 
-    Returns a list of three float32 arrays, one per dimension, each of length
-    block.shape[d], containing src-index-space coordinates.
+    Parameters
+    ----------
+    block : Block
+        Target block whose index space the returned coordinates are defined over.
+    src : Block
+        Source block being queried; the returned coordinates are expressed
+        in this block's index space.
+
+    Returns
+    -------
+    list of Array
+        Three float32 arrays, one per dimension, each of length
+        ``block.shape[d]``, containing src-index-space coordinates.
+
+    Raises
+    ------
+    ValueError
+        If a dimension's critical-index count differs between src and block.
     """
     coords = []
     for d in range(3):
@@ -364,20 +533,6 @@ def _interp_coords(block, src):
     return coords
 
 
-def interp_from_conserved(block, conserved):
-    if block.shape == conserved.shape[:-1]:
-        block.set_conserved(conserved)
-    else:
-        import ember.fortran
-
-        coords = [
-            np.linspace(0, conserved.shape[d] - 1, block.shape[d], dtype=np.float32)
-            for d in range(3)
-        ]
-        data_out = ember.fortran.map_coordinates_3d(conserved, *coords)
-        block.set_conserved(data_out)
-
-
 def interp_from(block, src):
     """Interpolate solution from src onto block by index-space trilinear interpolation.
 
@@ -391,6 +546,14 @@ def interp_from(block, src):
         Target block to receive the interpolated solution.
     src : Block
         Source block providing the solution.
+
+    Raises
+    ------
+    AssertionError
+        If a different-shape interpolation produces conserved variables
+        outside the source's value range (trilinear interpolation must not
+        create new extrema), or if the target block ends up with a
+        non-finite or non-positive temperature.
     """
 
     logger.debug("interp_from: src %s -> block %s", src.shape, block.shape)
@@ -399,8 +562,6 @@ def interp_from(block, src):
         block.set_conserved(src.conserved)
         block.set_mu_turb(src.mu_turb)
     else:
-        import ember.fortran
-
         data_in = np.concatenate(
             [src.conserved, src.mu_turb[..., np.newaxis]], axis=-1
         ).astype(np.float32)
@@ -428,45 +589,46 @@ def interp_from(block, src):
     )
 
 
-def memory_usage(block):
-    """Return memory usage of a block's data, metadata, and cached properties.
+def wall_yplus(block):
+    """y+ on all six wall-adjacent boundary faces of ``block``.
+
+    Post-processing only -- NOT part of the per-step viscous kernel.
+    ``wall_yplus_field`` (``_fortran/viscous.f90``) reuses the exact Re/cf/d
+    that ``set_visc_force``'s own wall function uses (both call the shared
+    ``wall_core``), so this cannot silently drift from what the solver
+    actually modeled at a face; it carries none of ``set_visc_force``'s
+    k-slab/rolling-buffer machinery since it costs O(surface) per call, not
+    O(volume) per step.
 
     Parameters
     ----------
     block : Block
-        The block to measure.
 
     Returns
     -------
-    data_usage : dict
-        Bytes per data key (equal share of the contiguous _data array).
-    metadata_usage : dict
-        Bytes per metadata key (nbytes for arrays, sys.getsizeof for others).
-    cache_usage : dict
-        Bytes per cached property in _store (nbytes for arrays, sys.getsizeof for others).
+    dict[str, numpy.ndarray]
+        Keys ``yplus_i1``, ``yplus_j1``, ``yplus_k1``, ``yplus_ni``,
+        ``yplus_nj``, ``yplus_nk``, each shaped like the corresponding
+        :attr:`~ember.block.Block.ijk_wall_visc` face array, zero on
+        non-wall cells.
     """
-    # Data: each field occupies 1/nvar of the contiguous array
-    bytes_per_field = block._data.nbytes // block.nvar
-    data_usage = {key: bytes_per_field for key in block._data_keys}
-
-    # Metadata
-    metadata_usage = {}
-    for key, val in block._metadata.items():
-        if isinstance(val, np.ndarray):
-            metadata_usage[key] = val.nbytes
-        else:
-            metadata_usage[key] = sys.getsizeof(val)
-
-    # Cached properties in _store: tuple (version, result) entries from cached_array.
-    cache_usage = {}
-    for key, entry in block._store.items():
-        result = entry[1]
-        if isinstance(result, np.ndarray):
-            cache_usage[key] = result.nbytes
-        else:
-            cache_usage[key] = sys.getsizeof(result)
-
-    return data_usage, metadata_usage, cache_usage
+    keys = ("yplus_i1", "yplus_j1", "yplus_k1", "yplus_ni", "yplus_nj", "yplus_nk")
+    result = ember.fortran.wall_yplus_field(
+        cons=block.conserved_nd,
+        vol=block.vol_nd,
+        dai=block.dAi_nd,
+        daj=block.dAj_nd,
+        dak=block.dAk_nd,
+        omega_block=block.Omega_nd,
+        r=block.r_nd,
+        mu=block.mu_nd,
+        vx=block.Vx_nd,
+        vr=block.Vr_nd,
+        vt=block.Vt_rel_nd,
+        **block.ijk_wall_visc,
+        **block.Omega_wall_nd,
+    )
+    return dict(zip(keys, result))
 
 
 def to_tm3(block, filename, clip_quantile=0.01, **kwargs):

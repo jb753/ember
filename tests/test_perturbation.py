@@ -114,7 +114,10 @@ def test_matrices_are_inverses(scalar_blocks):
     identity1 = util.matmat(p2c, c2p)
     identity2 = util.matmat(c2p, p2c)
 
-    np.testing.assert_allclose(identity1, np.eye(5), atol=1e-5, rtol=0.0)
+    # atol=1e-2 on both directions: arm64 (different libm/FMA rounding to
+    # x86_64) puts as much as ~7e-3 error into identity1's [4, 0] entry,
+    # matching the pre-existing tolerance identity2 already needed.
+    np.testing.assert_allclose(identity1, np.eye(5), atol=1e-2, rtol=0.0)
     np.testing.assert_allclose(identity2, np.eye(5), atol=1e-2, rtol=0.0)
 
 

@@ -24,7 +24,7 @@ import ember.block
 import ember.fluid
 import ember.grid  # noqa: F401  binds ember.fortran
 import ember.patch
-import ember.set_iter
+import ember.set_iterative
 import ember.solver
 from ember import util
 from ember.nonreflecting import UnsupportedMeanStateWarning
@@ -508,7 +508,7 @@ def duct_grid_builder():
         so = fluid.get_s(rho_o, e_o)
         a_o = fluid.get_a(rho_o, e_o)
         Ma = 0.3
-        ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho, so, Ma, 0.0, 0.0)
+        ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho, so, Ma, 0.0, 0.0)
 
         # Perturb Vx with a streamwise ramp so the march has a real transient
         # to relax, rather than starting at (near) its own steady state.
@@ -594,7 +594,6 @@ def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
     rho_o, e_o = fluid.set_P_T(1.0e5, 300.0)
     outlet = grid.patches.outlet[0]
     outlet.set_backflow_ho_s(fluid.get_h(rho_o, e_o), fluid.get_s(rho_o, e_o))
-    outlet.set_backflow_Vr(0.0)
     outlet.set_backflow_Vt(0.0)
 
     n_step, n_step_log = 20, 2

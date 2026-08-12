@@ -1291,53 +1291,52 @@ end subroutine damp_residual
 
 
 ! =====================================================================
-! Implicit residual smoothing (Jameson IRS) -- j and k EXACT factored
-! tridiagonal (ADI), i APPROXIMATE via two Jacobi sweeps.
+! Implicit residual smoothing (Jameson IRS) -- EXACT factored tridiagonal
+! (ADI), with the i-direction solve transpose-tiled so it vectorises.
 !
 ! The unfactored operator (1 - sf*grad^2) is applied as the ADI-style
 ! factored product
 !   (1 - sf*d2_i) (1 - sf*d2_j) (1 - sf*d2_k) R* = R
 ! where d2_d is the 1D second difference along direction d with zero-
-! gradient (Neumann) ends. The three orthogonal 1D operators commute.
+! gradient (Neumann) ends. The three orthogonal 1D operators commute, so
+! the inverse is three successive EXACT tridiagonal (Thomas) solves, one
+! per direction, in place on dU -- no sweep count, each direction solved to
+! the last bit in O(n) per line. The matrix is identical for every line in
+! a given direction (a=c=-sf, b=1+2sf interior, b=1+sf at the ends), so its
+! Thomas factors cp(.) and reciprocal pivots minv(.) are built ONCE per
+! direction by tri_coeffs and reused for all lines. Constant fields are
+! preserved exactly and IRS(0)=0, so the converged solution is unchanged.
 !
 ! The j- and k-solves run their recurrences over operands contiguous in the
 ! stride-1 i index, so they vectorise as-is, and they are FUSED over
 ! i-strips so a strip is read and written once for the pair rather than
-! once each (irs_jk_strips): still solved EXACTLY, one Thomas recurrence per
-! line, coefficients built ONCE per direction by tri_coeffs and reused for
-! every line.
+! once each (irs_jk_strips). The i-solve recurrence runs along the
+! unit-stride axis and cannot vectorise directly, so an IRS_BJ-wide block
+! of j-lines is transposed into a small (IRS_BJ,nci) pad; the recurrence's
+! innermost loop then runs over the IRS_BJ contiguous, independent lanes --
+! vectorises and hides the FMA-latency chain -- and the tile is scattered
+! back. Both transposes are themselves blocked (irs_gather_tile).
 !
-! The i-direction recurrence runs along the unit-stride axis and cannot
-! vectorise directly as a Thomas solve -- production used to pay for that
-! with a blocked transpose (irs_gather_tile / irs_tile_solve /
-! irs_scatter_tile, see git history), 53.6% of the smoother's time for 20%
-! of its traffic. Two Jacobi sweeps (irs_jac_line) solve the same 1D
-! operator APPROXIMATELY instead, entirely along the unit-stride axis with
-! no transpose at all: -10.7% on the whole smoother at 8-rank socket
-! contention (bench/irs_arms.py `jaci2`), holding at 2-rank contention too,
-! so the win is not itself contention-sensitive even though its size was
-! discovered that way. Two sweeps is the textbook 1980s choice (Blazek, CFD:
-! Principles and Applications, sec. 6.2.4, citing Jameson's contemporaries on
-! Cray vector hardware -- "two iterations are usually sufficient"). NOT
-! bitwise against the old exact i-solve -- a genuine numerics change: a
-! truncated iteration under-relaxes relative to the exact inverse, so a
-! given sf damps less than it used to. Constants are still preserved
-! exactly and IRS(0)=0 still holds, so the smoother's fixed point is
-! unchanged, but its convergence/stability behaviour at this sf has not
-! been independently verified beyond that -- re-verify before raising sf
-! far from its current operating range.
+! Commit 3bf9b22 tried replacing this i-solve with two Jacobi sweeps
+! (irs_jac_line) for a 10.7% win under socket contention, on the reasoning
+! that a truncated iteration only under-relaxes the smoother and so cannot
+! change the converged solution (IRS(0)=0 held in isolation). In practice
+! the coarse-MG correction this smoother sits inside compounded that
+! under-relaxation across levels and steps enough to stall convergence --
+! an initial residual dip followed by a slow rise rather than a pure speed
+! loss -- so it is reverted back to the exact solve here. See git history
+! (3bf9b22 and this revert) for the Jacobi arm if the contention win is
+! ever worth re-pricing against a fuller convergence check.
 !
 ! This routine is now a driver: every primitive lives in residual_helpers,
 ! shared with smooth_residual_scale_tri, which is the fine-grid path and
-! folds the change limiter's scaling into the i-solve's gather -- THAT
-! routine still uses the exact transpose-tiled i-solve; only THIS one
-! (what scree.f90's coarse-MG path hands to its `smoother` dummy argument,
-! where there is no limiter to fold in) has been switched to Jacobi.
+! folds the change limiter's scaling into the i-solve's gather. THIS one is
+! what scree.f90's coarse-MG path hands to its `smoother` dummy argument,
+! where there is no limiter to fold in.
 !
-! Scratch: in place on dU; work is a 1D buffer holding the j/k coefficient
-! vectors, >= 2*((ni-1)+(nj-1)+(nk-1)) elements as before (the i-direction
-! slots are simply unused now) (e.g. a leading slice of block.scratch via
-! util.carve_view).
+! Scratch: the Thomas solve is in place on dU; work is a 1D buffer holding
+! the six coefficient vectors back-to-back, >= 2*((ni-1)+(nj-1)+(nk-1))
+! elements (e.g. a leading slice of block.scratch via util.carve_view).
 ! =====================================================================
 subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
 
@@ -1351,10 +1350,9 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
     ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
     real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
 
-    integer :: j, k, m, nci, ncj, nck, it
-    integer :: bcpj, bmij, bcpk, bmik
-    real    :: rint, rend
-    real    :: b1(ni-1), b2(ni-1)           ! sweep-1, sweep-2 Jacobi rows
+    integer :: k, m, nci, ncj, nck, j0, nb
+    integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
+    real    :: tile(IRS_BJ, ni-1)           ! (lane, i) transposed i-solve pad
 
     if (sf <= 0.0e0) return
 
@@ -1363,34 +1361,38 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
     nck = nk-1
     if (nci < 1 .or. ncj < 1 .or. nck < 1) return
 
-    ! Base offsets of the four j/k coefficient vectors packed into work:
-    ! [(unused nci) | (unused nci) | cpj | minvj | cpk | minvk].
+    ! Base offsets of the six coefficient vectors packed into work:
+    ! [cpi | minvi | cpj | minvj | cpk | minvk], lengths nci,nci,ncj,ncj,nck,nck.
+    bcpi = 0
+    bmii = nci
     bcpj = 2*nci
     bmij = 2*nci + ncj
     bcpk = 2*nci + 2*ncj
     bmik = 2*nci + 2*ncj + nck
+    call irs_tri_coeffs(sf, nci, work(bcpi+1:bcpi+nci), work(bmii+1:bmii+nci))
     call irs_tri_coeffs(sf, ncj, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj))
     call irs_tri_coeffs(sf, nck, work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck))
 
-    ! ---- i-direction: two Jacobi sweeps, per row, along i ----
-    rint = 1.0e0 / (1.0e0 + 2.0e0*sf)
-    rend = 1.0e0 / (1.0e0 + sf)
+    ! ---- i-direction: blocked-transpose gather, solve in the tile,
+    ! blocked-transpose scatter back. ----
     if (nci >= 2) then
         do m = 1, 5
         do k = 1, nck
-        do j = 1, ncj
-            ! Sweep 1 starts from x = d, so dU's row serves as both operands.
-            call irs_jac_line(dU(1,j,k,m), dU(1,j,k,m), b1, nci, sf, rint, rend)
-            call irs_jac_line(dU(1,j,k,m), b1, b2, nci, sf, rint, rend)
-            do it = 1, nci
-                dU(it,j,k,m) = b2(it)
-            end do
+        do j0 = 1, ncj, IRS_BJ
+            nb = min(IRS_BJ, ncj - j0 + 1)
+            ! dU(:, j0:j0+nb-1, k, m) is contiguous with leading dimension
+            ! nci, so it binds to a (nci, nb) dummy by sequence association --
+            ! no array temporary, and the block kernels see plain 2D arrays.
+            call irs_gather_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
+            call irs_tile_solve(tile, IRS_BJ, sf, work(bcpi+1:bcpi+nci), &
+                                work(bmii+1:bmii+nci), nci, nb)
+            call irs_scatter_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
         end do
         end do
         end do
     end if
 
-    ! ---- j- and k-directions, fused over i-strips, EXACT ----
+    ! ---- j- and k-directions, fused over i-strips ----
     call irs_jk_strips(dU, sf, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj), &
                        work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck), &
                        nci, ncj, nck)

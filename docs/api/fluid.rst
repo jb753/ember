@@ -12,3 +12,4 @@ Fluid
    :undoc-members:
    :show-inheritance:
    :inherited-members:
+   :autosummary:

@@ -9,8 +9,9 @@ module viscous_helpers
     implicit none
     private
     public :: iface, jface, kface
-    public :: wall_func
+    public :: wall_core, wall_func, wall_yplus
     public :: wall_func_iface, wall_func_jface, wall_func_kface
+    public :: wall_yplus_iface, wall_yplus_jface, wall_yplus_kface
     public :: kface_flow
     public :: polar_src, scale_visc_halos, zero_wall_fvisc_border
 
@@ -40,12 +41,19 @@ contains
         sum4 = x(i,j,k) + x(i+1,j,k) + x(i,j+1,k) + x(i+1,j+1,k)
     end function kface
 
-    pure subroutine wall_func(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, flow)
+    ! Shared core of wall_func/wall_yplus: the local wall-friction physics --
+    ! slip velocity, Reynolds number on the cell-thickness scale
+    ! d = vol/dA_mag, and the skin-friction curve fit -- with none of either
+    ! caller's own output assembly. Splitting this out means wall_func's flux
+    ! and wall_yplus's y+ can never silently drift apart: one Re/d
+    ! definition, one curve fit, two three-line callers. See wall_yplus's own
+    ! comment for the y+ derivation in terms of these outputs.
+    pure subroutine wall_core(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, &
+                               V, dA_mag, Vt_slip, cf, Re, tau)
         implicit none
         real, intent(in) :: r, dA(3), vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt
-        real, intent(out) :: flow(4)
-        real :: V, Re, d, cf, tau, vec(3), dA_mag
-        real :: lnRew, Vt_slip
+        real, intent(out) :: V, dA_mag, Vt_slip, cf, Re, tau
+        real :: d, lnRew
         real, parameter :: a1 = -1.767e-3
         real, parameter :: a2 = 3.177e-2
         real, parameter :: a3 = 2.5614e-1
@@ -55,13 +63,26 @@ contains
         dA_mag = sqrt(dA(1)**2 + dA(2)**2 + dA(3)**2)
         d = vol / dA_mag
         Re = rho * V * d / mu
-        lnRew = log(Re)
         if (Re .lt. 127.53373025e0) then
             cf = 2e0/Re
         else
+            ! lnRew moved inside this branch (it used to be computed
+            ! unconditionally and wasted below Re=127.5) -- a drive-by
+            ! cleanup that fell out of extracting this core, not a change in
+            ! what either branch computes.
+            lnRew = log(Re)
             cf = (a1 + a2/lnRew + a3/lnRew/lnRew)
         end if
         tau = cf * 0.5e0 * rho * V * V
+    end subroutine wall_core
+
+    pure subroutine wall_func(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, flow)
+        implicit none
+        real, intent(in) :: r, dA(3), vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt
+        real, intent(out) :: flow(4)
+        real :: V, dA_mag, Vt_slip, cf, Re, tau, vec(3)
+        call wall_core(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, &
+                       V, dA_mag, Vt_slip, cf, Re, tau)
         vec(1) = Vx     / V * dA_mag
         vec(2) = Vr     / V * dA_mag
         vec(3) = Vt_slip / V * dA_mag
@@ -70,6 +91,22 @@ contains
         flow(3) = r * vec(3) * tau
         flow(4) = Omega_wall * r * vec(3) * tau
     end subroutine wall_func
+
+    ! y+ at this wall face, using the SAME Re/d wall_func itself uses (not
+    ! the geometric wdist -- this reports what the wall function is actually
+    ! modelling at this face, not a different distance definition). Closed
+    ! form: y+ = rho*u_tau*d/mu, u_tau = sqrt(tau/rho), d = Re*mu/(rho*V)
+    ! => y+ = Re*sqrt(cf/2). Diagnostic-only -- see wall_yplus_field, never
+    ! called from set_visc_force's per-step hot path.
+    pure subroutine wall_yplus(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, yplus)
+        implicit none
+        real, intent(in) :: r, dA(3), vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt
+        real, intent(out) :: yplus
+        real :: V, dA_mag, Vt_slip, cf, Re, tau
+        call wall_core(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, &
+                       V, dA_mag, Vt_slip, cf, Re, tau)
+        yplus = Re * sqrt(cf * 0.5e0)
+    end subroutine wall_yplus
 
     pure subroutine wall_func_iface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, di, flow)
         implicit none
@@ -121,6 +158,58 @@ contains
         call wall_func(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * dk
     end subroutine wall_func_kface
+
+    ! Diagnostic y+ counterparts of wall_func_iface/jface/kface above -- same
+    ! face-averaging, calling wall_yplus instead of wall_func. No `* di/dj/dk`
+    ! sign multiply: y+ has no direction, unlike a flux vector. Used only by
+    ! wall_yplus_field (post-processing), never set_visc_force.
+    pure subroutine wall_yplus_iface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, di, yplus)
+        implicit none
+        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
+        real, intent(in) :: Omega_block, Omega_wall, mu
+        integer, intent(in) :: i, j, k, di
+        real :: Vxf, Vrf, Vtf, rf, rhof
+        real, intent(out) :: yplus
+        Vxf  = iface(Vx,  i+di, j, k) * 0.25e0
+        Vrf  = iface(Vr,  i+di, j, k) * 0.25e0
+        Vtf  = iface(Vt,  i+di, j, k) * 0.25e0
+        rhof = iface(rho, i+di, j, k) * 0.25e0
+        rf   = iface(r, i, j, k) * 0.25e0
+        call wall_yplus(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, yplus)
+    end subroutine wall_yplus_iface
+
+    pure subroutine wall_yplus_jface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dj, yplus)
+        implicit none
+        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
+        real, intent(in) :: Omega_block, Omega_wall, mu
+        integer, intent(in) :: i, j, k, dj
+        real :: Vxf, Vrf, Vtf, rf, rhof
+        real, intent(out) :: yplus
+        Vxf  = jface(Vx,  i, j+dj, k) * 0.25e0
+        Vrf  = jface(Vr,  i, j+dj, k) * 0.25e0
+        Vtf  = jface(Vt,  i, j+dj, k) * 0.25e0
+        rhof = jface(rho, i, j+dj, k) * 0.25e0
+        rf   = jface(r, i, j, k) * 0.25e0
+        call wall_yplus(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, yplus)
+    end subroutine wall_yplus_jface
+
+    pure subroutine wall_yplus_kface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dk, yplus)
+        implicit none
+        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
+        real, intent(in) :: Omega_block, Omega_wall, mu
+        integer, intent(in) :: i, j, k, dk
+        real :: Vxf, Vrf, Vtf, rf, rhof
+        real, intent(out) :: yplus
+        Vxf  = kface(Vx,  i, j, k+dk) * 0.25e0
+        Vrf  = kface(Vr,  i, j, k+dk) * 0.25e0
+        Vtf  = kface(Vt,  i, j, k+dk) * 0.25e0
+        rhof = kface(rho, i, j, k+dk) * 0.25e0
+        rf   = kface(r, i, j, k) * 0.25e0
+        call wall_yplus(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, yplus)
+    end subroutine wall_yplus_kface
 
     ! One k-face viscous flux at face plane k: identical arithmetic to the
     ! k-direction face loop in set_visc_force. Used only by the O(surface)
@@ -454,7 +543,23 @@ subroutine set_tau_q_soa( &
             w2 = gVx(i,3) - gVt(i,1)
             w3 = gVr(i,1) - gVx(i,2)
             vm = sqrt(w1*w1 + w2*w2 + w3*w3)
-            mut = min(rhoc(i) * xlength(i,j,k) * vm, visc_lim)
+            ! The max(0) is not physics -- mut is analytically confined to
+            ! [0, visc_lim] already, since rhoc, xlength and vm are all
+            ! non-negative and nothing here divides. It contains a gfortran 13
+            ! codegen fault: built with the setup.py production flags (the
+            ! raised --param=vect-max-version-for-alias-checks is what forces
+            ! this loop to vectorize at all), gfortran 13.3 returns -inf from
+            ! this line for about two thirds of cells whenever the vorticity
+            ! sits at the float32 cancellation noise floor, i.e. a uniform flow
+            ! with no real shear -- the chi = 90/270 duct cases in
+            ! tests/test_nonreflecting_integration.py. The -inf then travels
+            ! fac -> tau_cell -> F_body -> residual and NaNs the whole field
+            ! inside one step. gfortran 14.2 is unaffected, as is any build at
+            ! -O2, without fast-math, or at the default alias-check budget.
+            ! Ubuntu 24.04 (the CI runner) ships gfortran 13.3, so this is a
+            ! live target, not a historical one. The clamp costs one vmaxps
+            ! and leaves the loop vectorized.
+            mut = max(0.0e0, min(rhoc(i) * xlength(i,j,k) * vm, visc_lim))
             mu_turb(i,j,k) = mut
             fac = (mu + mut) * 0.5e0
             tau_cell(i+1,j+1,k+1,1) = t1*fac
@@ -820,15 +925,43 @@ subroutine set_visc_force( &
     pb = stmp
     end do
 
+    ! ===== Cusp seam: replace each seam face flux with the two-sided average =====
+    ! The seam is non-local in k, so under the sweep both seam cells have
+    ! accumulated their raw one-sided flux; replacing it with
+    ! avg = 0.5*(flow(k=1) + flow(k=nk)) is the same delta for both cells.
+    !
+    ! fcorr is a REPLACEMENT DELTA, not a face difference, so it carries the
+    ! accumulate's sign convention -- fvisc = high-minus-low here (this kernel
+    ! produces the residual's sign directly; there is no trailing negation pass
+    ! as there was before commit 2381658745). Deriving it for the k=1 cell,
+    ! which holds flow(2) - flow(1): swapping flow(1) for avg adds
+    ! flow(1) - avg = 0.5*(flow(1) - flow(nk)). The k=nk-1 cell holds
+    ! flow(nk) - flow(nk-1), and swapping flow(nk) for avg adds
+    ! avg - flow(nk) = the same thing -- which is why one fcorr serves both.
+    !
+    ! NB the pre-2381658745 code accumulated low-minus-high and negated
+    ! everything at the end, so it added the opposite, 0.5*(flow(nk) - flow(1)),
+    ! and the negation flipped accumulate and correction together. When that
+    ! commit flipped the accumulate it left this pass alone, on the reasoning
+    ! that fcorr's own high-minus-low ordering already matched the new
+    ! convention. It does not follow: a replacement delta must flip with the
+    ! quantity it corrects regardless of how it is spelled internally, and the
+    ! seam cells took +2*fcorr of spurious, anti-diffusive viscous force every
+    ! step as a result. See tests/test_viscous_cusp_seam.py.
+    !
+    ! The two raw seam-face fluxes are recomputed via kface_flow: tau_cell/
+    ! q_cell are unchanged since the entry halo scaling and neither seam plane
+    ! takes a wall-function injection, so the recompute matches the sweep's
+    ! values. (nk=2, where the two seam cells coincide, is not supported here.)
     if (i_cusp_start > 0 .and. nk > 2) then
         do j = 1, nj-1
         do i = i_cusp_start, i_cusp_end-1
             call kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, 1, flow1)
             call kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, nk, flownk)
-            fcorr(1) = 0.5e0 * (flownk(1) - flow1(1))
-            fcorr(2) = 0.5e0 * (flownk(2) - flow1(2))
-            fcorr(3) = 0.5e0 * (flownk(3) - flow1(3))
-            fcorr(4) = 0.5e0 * (flownk(4) - flow1(4))
+            fcorr(1) = 0.5e0 * (flow1(1) - flownk(1))
+            fcorr(2) = 0.5e0 * (flow1(2) - flownk(2))
+            fcorr(3) = 0.5e0 * (flow1(3) - flownk(3))
+            fcorr(4) = 0.5e0 * (flow1(4) - flownk(4))
             fvisc(i,j,1,1) = fvisc(i,j,1,1) + fcorr(1)
             fvisc(i,j,1,2) = fvisc(i,j,1,2) + fcorr(2)
             fvisc(i,j,1,3) = fvisc(i,j,1,3) + fcorr(3)
@@ -883,3 +1016,111 @@ subroutine set_visc_force( &
     end if
 
 end subroutine set_visc_force
+
+
+! =====================================================================
+! y+ on all six wall-adjacent boundary faces of a block -- POST-PROCESSING
+! ONLY, never called from set_visc_force's per-step hot path. Reuses
+! wall_yplus_iface/jface/kface (viscous_helpers), which share their Re/cf/d
+! definition with the production wall function via wall_core, so this
+! cannot silently drift from what the solver actually modelled at a face.
+!
+! Costs O(surface) per call and carries none of set_visc_force's k-slab or
+! rolling-buffer machinery -- there is no per-step budget to protect here,
+! so a plain double-nested loop per face is the right shape. The six output
+! arrays are zeroed on entry and only written on wall cells (walli1 etc. are
+! 0.0=wall, 1.0=free, per Block.ijk_wall_visc's convention); non-wall and
+! non-computed cells stay at that zero fill.
+!
+! The (i, j, k, di/dj/dk) argument patterns at each of the six call sites
+! below are copied from set_visc_force's own six wall_func_*face call
+! sites -- keep them in lockstep if that kernel's wall-face indexing ever
+! changes.
+! =====================================================================
+subroutine wall_yplus_field( &
+    cons, vol, dAi, dAj, dAk, &
+    Omega_block, r, mu, &
+    Vx, Vr, Vt, &
+    walli1, wallj1, wallk1, &
+    wallni, wallnj, wallnk, &
+    Omega_walli1_nd, Omega_wallj1_nd, Omega_wallk1_nd, &
+    Omega_wallni_nd, Omega_wallnj_nd, Omega_wallnk_nd, &
+    yplus_i1, yplus_j1, yplus_k1, &
+    yplus_ni, yplus_nj, yplus_nk, &
+    ni, nj, nk)
+
+    use viscous_helpers
+    implicit none
+
+    integer, intent(in) :: ni, nj, nk
+    real, intent(in) :: cons(ni, nj, nk, 5)
+    real, intent(in) :: vol(ni-1, nj-1, nk-1)
+    real, intent(in) :: dAi(3, ni, nj-1, nk-1)
+    real, intent(in) :: dAj(3, ni-1, nj, nk-1)
+    real, intent(in) :: dAk(3, ni-1, nj-1, nk)
+    real, intent(in) :: r(ni, nj, nk)
+    real, intent(in) :: Omega_block, mu
+    real, intent(in) :: Vx(ni, nj, nk), Vr(ni, nj, nk), Vt(ni, nj, nk)
+    real, intent(in) :: walli1(nj-1, nk-1), wallni(nj-1, nk-1)
+    real, intent(in) :: wallj1(ni-1, nk-1), wallnj(ni-1, nk-1)
+    real, intent(in) :: wallk1(ni-1, nj-1), wallnk(ni-1, nj-1)
+    real, intent(in) :: Omega_walli1_nd(nj-1, nk-1), Omega_wallni_nd(nj-1, nk-1)
+    real, intent(in) :: Omega_wallj1_nd(ni-1, nk-1), Omega_wallnj_nd(ni-1, nk-1)
+    real, intent(in) :: Omega_wallk1_nd(ni-1, nj-1), Omega_wallnk_nd(ni-1, nj-1)
+    real, intent(out) :: yplus_i1(nj-1, nk-1), yplus_ni(nj-1, nk-1)
+    real, intent(out) :: yplus_j1(ni-1, nk-1), yplus_nj(ni-1, nk-1)
+    real, intent(out) :: yplus_k1(ni-1, nj-1), yplus_nk(ni-1, nj-1)
+
+    integer :: i, j, k
+    real :: yp
+
+    yplus_i1 = 0.0e0; yplus_ni = 0.0e0
+    yplus_j1 = 0.0e0; yplus_nj = 0.0e0
+    yplus_k1 = 0.0e0; yplus_nk = 0.0e0
+
+    do j = 1, nj-1
+    do i = 1, ni-1
+        if (wallk1(i,j) == 0.0e0) then
+            call wall_yplus_kface(r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, &
+                                   cons(:,:,:,1), Vx, Vr, Vt, i, j, 1, 1, yp)
+            yplus_k1(i,j) = yp
+        end if
+        if (wallnk(i,j) == 0.0e0) then
+            call wall_yplus_kface(r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, &
+                                   cons(:,:,:,1), Vx, Vr, Vt, i, j, nk, -1, yp)
+            yplus_nk(i,j) = yp
+        end if
+    end do
+    end do
+
+    do k = 1, nk-1
+    do i = 1, ni-1
+        if (wallj1(i,k) == 0.0e0) then
+            call wall_yplus_jface(r, dAj, vol, Omega_block, Omega_wallj1_nd(i,k), mu, &
+                                   cons(:,:,:,1), Vx, Vr, Vt, i, 1, k, 1, yp)
+            yplus_j1(i,k) = yp
+        end if
+        if (wallnj(i,k) == 0.0e0) then
+            call wall_yplus_jface(r, dAj, vol, Omega_block, Omega_wallnj_nd(i,k), mu, &
+                                   cons(:,:,:,1), Vx, Vr, Vt, i, nj, k, -1, yp)
+            yplus_nj(i,k) = yp
+        end if
+    end do
+    end do
+
+    do k = 1, nk-1
+    do j = 1, nj-1
+        if (walli1(j,k) == 0.0e0) then
+            call wall_yplus_iface(r, dAi, vol, Omega_block, Omega_walli1_nd(j,k), mu, &
+                                   cons(:,:,:,1), Vx, Vr, Vt, 1, j, k, 1, yp)
+            yplus_i1(j,k) = yp
+        end if
+        if (wallni(j,k) == 0.0e0) then
+            call wall_yplus_iface(r, dAi, vol, Omega_block, Omega_wallni_nd(j,k), mu, &
+                                   cons(:,:,:,1), Vx, Vr, Vt, ni, j, k, -1, yp)
+            yplus_ni(j,k) = yp
+        end if
+    end do
+    end do
+
+end subroutine wall_yplus_field

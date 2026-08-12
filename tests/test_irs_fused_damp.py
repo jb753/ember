@@ -1,29 +1,20 @@
-"""Gate the fine-grid IRS path that fuses the change limiter into the i-solve.
+"""Gate Grid.update_residual's post-processing order: smooth, then damp.
 
-``Grid.update_residual`` used to run three full-volume read/write pairs after
-the residual sweep: the limiter's scaling (``set_residual``'s trailing
-``scale_du``), then the IRS i-solve, then the j+k solves. The scaling is
-pointwise and the i-solve for a row depends only on that row's scaled values,
-so the first two now share one traversal -- ``set_residual`` hands out the
-block means it already accumulates and skips its own scaling, and
-``smooth_residual_scale_tri`` applies it inside the tile gather.
+Historically (commits 0384c83..495b415) the change limiter was fused into
+``set_residual``/the IRS i-solve for a performance win, which as a side
+effect reordered the post-processing to damp-before-IRS -- a genuine
+numerics change (see those commits' messages: the two orderings differ by
+~19% of the field scale at production defaults). ``update_residual`` has
+since been rewired back to the original order -- IRS then the limiter --
+by calling the same kernels unfused: ``set_residual`` with ``dampin=0``,
+then ``smooth_residual_scale_tri`` with ``dampin=0`` (IRS only) when
+``sf > 0``, then ``damp_residual`` as a separate pass when ``dampin`` is
+set.
 
-That fusion must be BITWISE, not merely close: the arithmetic is unchanged and
-only the traversal differs, so any deviation is a bug rather than a tolerance
-to widen. It is gated here because nothing else covers it -- the header of
-``set_residual`` records that no test drove ``update_residual`` with ``dampin``
-set and ``sf > 0`` together, which is precisely the combination the fusion
-changes. All four (``dampin``, ``sf``) combinations are checked, since the two
-flags select different paths through the kernel.
-
-The reference is the unfused sequence, called kernel-by-kernel: full
-``set_residual`` including its own ``scale_du``, then
-``smooth_residual_scale_tri`` with ``dampin=0.0`` (its plain-gather, unscaled
-branch -- exact, byte-identical to what a standalone exact i+j+k smoother
-would do). NOT ``smooth_residual_tri_tiled``: that routine is ``scree.f90``'s
-coarse-MG smoother, whose i-solve is now an approximate 2-sweep Jacobi
-iteration rather than the exact Thomas recurrence this test needs as its
-baseline.
+This test gates that wiring: the reference calls those three kernels
+directly, independent of ``Grid.update_residual``, so a future edit to the
+method's call order (e.g. reintroducing a fusion that changes the
+composition) is caught rather than silently accepted.
 """
 
 import numpy as np
@@ -66,23 +57,46 @@ def _case(ncell=100_000):
 
 
 def _reference(grid, b, dampin, sf):
-    """The unfused sequence: set_residual with its own scaling, then the
-    exact three-direction smoother.
-
-    Uses ``smooth_residual_scale_tri`` with ``dampin=0.0`` (its plain-gather,
-    unscaled branch) rather than ``smooth_residual_tri_tiled``:
-    ``smooth_residual_tri_tiled`` is the coarse-MG smoother, whose i-solve
-    switched from the exact Thomas recurrence to two Jacobi sweeps and so is
-    no longer bitwise against the fine-grid path this test gates.
-    ``smooth_residual_scale_tri``'s exact i-solve is untouched, and its
-    ``dampin<=0`` branch runs the identical gather/tile-solve/scatter/jk-strips
-    sequence the old standalone routine did."""
+    """set_residual, then IRS (if sf > 0), then damp_residual (if dampin is
+    set) -- called kernel-by-kernel, independent of update_residual's own
+    wiring."""
+    b.update_primitive()
     ni, nj, nk = b.shape
-    # dampin=None disables the limiter in update_residual's own convention.
-    grid.update_residual(dampin=dampin, sf=0.0)
+    i_cusp_start, i_cusp_end = b.i_cusp
+    kb = min(ember.grid._KB_SLAB, nk - 1)
+    njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
+    planes, rows = util.carve_view(b.tau_q_halo, (ni, njp, 5, 2), (ni, 5, 3))
     du = b.residual_nd
+    du.flags.writeable = True
+    ember.fortran.set_residual(
+        cons=b.conserved_nd,
+        p=b.P_nd,
+        p_offset=b.P_offset_nd,
+        r=b.r_nd,
+        omega=b.Omega_nd,
+        dai=b.dAi_nd,
+        daj=b.dAj_nd,
+        dak=b.dAk_nd,
+        du=du,
+        f_body=b.F_body_nd,
+        vx=b.Vx_nd,
+        vr=b.Vr_nd,
+        vt=b.Vt_nd,
+        ho=b.ho_nd,
+        planes=planes,
+        rows=rows,
+        **b.ijk_wall_conv,
+        i_cusp_start=i_cusp_start,
+        i_cusp_end=i_cusp_end,
+        kb=kb,
+        njp=njp,
+        ni=ni,
+        nj=nj,
+        nk=nk,
+        dt_vol=b.dt_vol_nd,
+        dampin=0.0,
+    )
     if sf > 0.0:
-        du.flags.writeable = True
         nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
         ember.fortran.smooth_residual_scale_tri(
             du=du,
@@ -95,25 +109,34 @@ def _reference(grid, b, dampin, sf):
             nj=nj,
             nk=nk,
         )
-        du.flags.writeable = False
+    if dampin is not None:
+        ember.fortran.damp_residual(
+            du=du,
+            dt_vol=b.dt_vol_nd,
+            dampin=dampin,
+            ni=ni,
+            nj=nj,
+            nk=nk,
+        )
+    du.flags.writeable = False
     return np.array(du, copy=True)
 
 
 @pytest.mark.parametrize("dampin", [None, DAMPIN])
 @pytest.mark.parametrize("sf", [0.0, SF])
-def test_fused_limiter_is_bitwise(dampin, sf):
-    """update_residual(dampin, sf) == scale-then-smooth, byte for byte."""
+def test_update_residual_matches_unfused_kernels(dampin, sf):
+    """update_residual(dampin, sf) == set_residual, IRS, damp -- byte for byte."""
     grid, b = _case()
     want = _reference(grid, b, dampin, sf)
 
-    # Rebuild the same state so the fused path starts from identical inputs.
+    # Rebuild the same state so update_residual starts from identical inputs.
     grid2, b2 = _case()
     grid2.update_residual(dampin=dampin, sf=sf)
     got = np.array(b2.residual_nd, copy=True)
 
     assert np.array_equal(got, want), (
-        f"fused limiter+IRS differs at dampin={dampin}, sf={sf}: "
-        f"max |diff| = {np.abs(got - want).max():.3e}, "
+        f"update_residual differs from the unfused kernel sequence at "
+        f"dampin={dampin}, sf={sf}: max |diff| = {np.abs(got - want).max():.3e}, "
         f"{np.count_nonzero(got != want)} of {got.size} elements"
     )
 
@@ -136,3 +159,39 @@ def test_limiter_and_irs_both_actually_act():
 
     assert not np.array_equal(plain, damped), "change limiter had no effect"
     assert not np.array_equal(plain, smoothed), "IRS had no effect"
+
+
+def test_damp_runs_after_irs_not_before():
+    """The order is smooth-then-damp: damping the already-smoothed residual
+    must differ from smoothing an already-damped one, confirming
+    update_residual takes the former path (the pre-0384c83 order)."""
+    grid, b = _case()
+    grid.update_residual(dampin=DAMPIN, sf=SF)
+    smooth_then_damp = np.array(b.residual_nd, copy=True)
+
+    ni, nj, nk = b.shape
+    grid2, b2 = _case()
+    du = b2.residual_nd
+    du.flags.writeable = True
+    ember.fortran.damp_residual(
+        du=du, dt_vol=b2.dt_vol_nd, dampin=DAMPIN, ni=ni, nj=nj, nk=nk
+    )
+    nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
+    ember.fortran.smooth_residual_scale_tri(
+        du=du,
+        dt_vol=b2.dt_vol_nd,
+        ravg=np.zeros(5, dtype=du.dtype),
+        dampin=0.0,
+        sf=SF,
+        work=util.carve_view(b2.scratch, (nwork,)),
+        ni=ni,
+        nj=nj,
+        nk=nk,
+    )
+    du.flags.writeable = False
+    damp_then_smooth = np.array(du, copy=True)
+
+    assert not np.array_equal(smooth_then_damp, damp_then_smooth), (
+        "update_residual's output matches damp-before-IRS: the order "
+        "reverted to the fused (0384c83) sequence"
+    )

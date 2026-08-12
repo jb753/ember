@@ -1,27 +1,6 @@
-"""Tests for corner extraction function (ember.util).
+"""Tests for permutation/flip and clustering utility functions (ember.util).
 
 Module tested: ember.util
-
-Test cases:
-- test_corners_1d_array: Corners with 1D array
-- test_corners_2d_array: Corners with 2D array
-- test_corners_3d_array: Corners with 3D array
-- test_corners_2d_exclude_last_axis: 2D array excluding last axis
-- test_corners_2d_exclude_first_axis: 2D array excluding first axis
-- test_corners_3d_exclude_last_axis: 3D array excluding last axis
-- test_corners_3d_exclude_middle_axis: 3D array excluding middle axis
-- test_corners_exclude_multiple_axes: Excluding multiple axes
-- test_corners_negative_axis_exclude: Negative axis exclude indices
-- test_corners_single_axis_tuple: Single axis in tuple
-- test_corners_exclude_all_axes: Excluding all axes
-- test_corners_float_array: Corners with float array
-- test_corners_empty_exclude_set: Empty axis_exclude
-- test_corners_higher_dimensions: Higher dimensional arrays
-- test_corners_preserve_dtype: Preserve array dtype
-- test_corners_list_input: Corners with list input
-- test_corners_single_element_array: Single element array
-- test_corners_axis_exclude_out_of_bounds_positive: Out-of-bounds positive axis indices
-- test_corners_multidimensional_exclude_consistency: Consistency of different exclusion specifications
 """
 
 import itertools
@@ -29,237 +8,9 @@ import numpy as np
 import pytest
 import ember.block
 import ember.fluid
-import ember.set_iter
+import ember.set_iterative
 from ember import util
 from ember.util import angles_to_components, components_to_angles
-
-
-class TestCorners:
-    """Test corner extraction from N-dimensional arrays."""
-
-    def test_corners_1d_array(self):
-        """Test corners with 1D array."""
-        x = np.array([10, 20, 30, 40, 50])
-        result = util.corners(x)
-
-        assert result.shape == (2,)
-        np.testing.assert_array_equal(result, [10, 50])  # x[0], x[-1]
-
-    def test_corners_2d_array(self):
-        """Test corners with 2D array."""
-        x = np.arange(20).reshape(4, 5)
-        # x = [[0,  1,  2,  3,  4],
-        #      [5,  6,  7,  8,  9],
-        #      [10, 11, 12, 13, 14],
-        #      [15, 16, 17, 18, 19]]
-        result = util.corners(x)
-
-        assert result.shape == (4,)
-        expected = np.array([0, 4, 15, 19])  # x[0,0], x[0,-1], x[-1,0], x[-1,-1]
-        np.testing.assert_array_equal(result, expected)
-
-    def test_corners_3d_array(self):
-        """Test corners with 3D array."""
-        x = np.arange(24).reshape(2, 3, 4)
-        result = util.corners(x)
-
-        assert result.shape == (8,)
-        expected = np.array(
-            [
-                0,  # x[0,0,0]
-                3,  # x[0,0,-1]
-                8,  # x[0,-1,0]
-                11,  # x[0,-1,-1]
-                12,  # x[-1,0,0]
-                15,  # x[-1,0,-1]
-                20,  # x[-1,-1,0]
-                23,  # x[-1,-1,-1]
-            ]
-        )
-        np.testing.assert_array_equal(result, expected)
-
-    def test_corners_2d_exclude_last_axis(self):
-        """Test corners with 2D array excluding last axis."""
-        x = np.arange(20).reshape(4, 5)
-        result = util.corners(x, axis_exclude=-1)
-
-        assert result.shape == (2, 5)
-        expected = np.array(
-            [
-                [0, 1, 2, 3, 4],  # x[0, :]
-                [15, 16, 17, 18, 19],  # x[-1, :]
-            ]
-        )
-        np.testing.assert_array_equal(result, expected)
-
-    def test_corners_2d_exclude_first_axis(self):
-        """Test corners with 2D array excluding first axis."""
-        x = np.arange(20).reshape(4, 5)
-        result = util.corners(x, axis_exclude=0)
-
-        assert result.shape == (2, 4)
-        expected = np.array(
-            [
-                [0, 5, 10, 15],  # x[:, 0]
-                [4, 9, 14, 19],  # x[:, -1]
-            ]
-        )
-        np.testing.assert_array_equal(result, expected)
-
-    def test_corners_3d_exclude_last_axis(self):
-        """Test corners with 3D array excluding last axis."""
-        x = np.arange(60).reshape(3, 4, 5)
-        result = util.corners(x, axis_exclude=-1)
-
-        assert result.shape == (4, 5)
-        expected = np.array(
-            [
-                x[0, 0, :],  # x[0,0,:]
-                x[0, -1, :],  # x[0,-1,:]
-                x[-1, 0, :],  # x[-1,0,:]
-                x[-1, -1, :],  # x[-1,-1,:]
-            ]
-        )
-        np.testing.assert_array_equal(result, expected)
-
-    def test_corners_3d_exclude_middle_axis(self):
-        """Test corners with 3D array excluding middle axis."""
-        x = np.arange(60).reshape(3, 4, 5)
-        result = util.corners(x, axis_exclude=1)
-
-        assert result.shape == (4, 4)
-        expected = np.array(
-            [
-                x[0, :, 0],  # x[0,:,0]
-                x[0, :, -1],  # x[0,:,-1]
-                x[-1, :, 0],  # x[-1,:,0]
-                x[-1, :, -1],  # x[-1,:,-1]
-            ]
-        )
-        np.testing.assert_array_equal(result, expected)
-
-    def test_corners_exclude_multiple_axes(self):
-        """Test corners excluding multiple axes."""
-        x = np.arange(120).reshape(2, 3, 4, 5)
-        result = util.corners(x, axis_exclude=(1, 3))
-
-        assert result.shape == (4, 3, 5)
-        expected = np.array(
-            [
-                x[0, :, 0, :],  # x[0,:,0,:]
-                x[0, :, -1, :],  # x[0,:,-1,:]
-                x[-1, :, 0, :],  # x[-1,:,0,:]
-                x[-1, :, -1, :],  # x[-1,:,-1,:]
-            ]
-        )
-        np.testing.assert_array_equal(result, expected)
-
-    def test_corners_negative_axis_exclude(self):
-        """Test corners with negative axis exclude indices."""
-        x = np.arange(60).reshape(3, 4, 5)
-
-        # Test -1 (last axis)
-        result1 = util.corners(x, axis_exclude=-1)
-        result2 = util.corners(x, axis_exclude=2)
-        np.testing.assert_array_equal(result1, result2)
-
-        # Test -2 (middle axis)
-        result3 = util.corners(x, axis_exclude=-2)
-        result4 = util.corners(x, axis_exclude=1)
-        np.testing.assert_array_equal(result3, result4)
-
-    def test_corners_single_axis_tuple(self):
-        """Test corners with single axis in tuple."""
-        x = np.arange(60).reshape(3, 4, 5)
-        result1 = util.corners(x, axis_exclude=(2,))
-        result2 = util.corners(x, axis_exclude=2)
-        np.testing.assert_array_equal(result1, result2)
-
-    def test_corners_exclude_all_axes(self):
-        """Test corners excluding all axes."""
-        x = np.arange(24).reshape(2, 3, 4)
-        result = util.corners(x, axis_exclude=(0, 1, 2))
-
-        assert result.shape == (1, 2, 3, 4)
-        np.testing.assert_array_equal(result[0], x)
-
-    def test_corners_float_array(self):
-        """Test corners with float array."""
-        x = np.array([[1.5, 2.7, 3.9], [4.2, 5.8, 6.1]])
-        result = util.corners(x)
-
-        expected = np.array([1.5, 3.9, 4.2, 6.1])
-        np.testing.assert_array_equal(result, expected)
-
-    def test_corners_empty_exclude_set(self):
-        """Test corners with empty axis_exclude."""
-        x = np.arange(12).reshape(3, 4)
-        result1 = util.corners(x, axis_exclude=None)
-        result2 = util.corners(x, axis_exclude=())
-        result3 = util.corners(x)
-
-        np.testing.assert_array_equal(result1, result2)
-        np.testing.assert_array_equal(result1, result3)
-
-    def test_corners_higher_dimensions(self):
-        """Test corners with higher dimensional arrays."""
-        # 4D array
-        x = np.arange(120).reshape(2, 3, 4, 5)
-        result = util.corners(x)
-
-        assert result.shape == (16,)  # 2^4 = 16 corners
-
-        # Check a few specific corners
-        assert result[0] == x[0, 0, 0, 0]  # All first indices
-        assert result[-1] == x[-1, -1, -1, -1]  # All last indices
-
-    def test_corners_preserve_dtype(self):
-        """Test that corners preserves array dtype."""
-        x_int = np.arange(12, dtype=np.int32).reshape(3, 4)
-        result_int = util.corners(x_int)
-        assert result_int.dtype == x_int.dtype
-
-        x_float = np.arange(12, dtype=np.float64).reshape(3, 4)
-        result_float = util.corners(x_float)
-        assert result_float.dtype == x_float.dtype
-
-    def test_corners_list_input(self):
-        """Test corners with list input."""
-        x_list = [[1, 2, 3], [4, 5, 6]]
-        result = util.corners(x_list)
-
-        expected = np.array([1, 3, 4, 6])
-        np.testing.assert_array_equal(result, expected)
-
-    def test_corners_single_element_array(self):
-        """Test corners with single element array."""
-        x = np.array([42])
-        result = util.corners(x)
-
-        assert result.shape == (2,)
-        np.testing.assert_array_equal(
-            result, [42, 42]
-        )  # Both first and last are the same
-
-    def test_corners_axis_exclude_out_of_bounds_positive(self):
-        """Test that out-of-bounds positive axis indices are handled via modulo."""
-        x = np.arange(12).reshape(3, 4)
-        # axis_exclude=5 should be equivalent to axis_exclude=1 (5 % 2 = 1)
-        result1 = util.corners(x, axis_exclude=5)
-        result2 = util.corners(x, axis_exclude=1)
-        np.testing.assert_array_equal(result1, result2)
-
-    def test_corners_multidimensional_exclude_consistency(self):
-        """Test that different ways of specifying the same exclusion give same results."""
-        x = np.arange(120).reshape(2, 3, 4, 5)
-
-        # These should all exclude axes 0 and 2
-        result1 = util.corners(x, axis_exclude=(0, 2))
-        result2 = util.corners(x, axis_exclude=(2, 0))  # Different order
-        result3 = util.corners(x, axis_exclude=(-4, -2))  # Negative indices
-
-        np.testing.assert_array_equal(result1, result2)
-        np.testing.assert_array_equal(result1, result3)
 
 
 class TestApplyPermFlip:
@@ -327,144 +78,8 @@ class TestApplyPermFlip:
             )
 
 
-class TestReversePermFlip:
-    """Test reverse_perm_flip function."""
-
-    def test_identity_reverse(self):
-        """Test reverse of identity transformation."""
-        coords = np.random.randn(3, 4, 5, 3).astype(np.float32)
-        result = util.reverse_perm_flip(coords, perm=(0, 1, 2), flip=())
-        np.testing.assert_array_equal(result, coords)
-
-    def test_simple_permutation_reverse(self):
-        """Test reverse of simple permutation."""
-        coords = np.random.randn(3, 4, 5, 3).astype(np.float32)
-
-        # Apply perm=(1,0,2): (3,4,5,3) -> (4,3,5,3)
-        transformed = util.apply_perm_flip(coords, perm=(1, 0, 2))
-
-        # Reverse should restore original
-        restored = util.reverse_perm_flip(transformed, perm=(1, 0, 2))
-        np.testing.assert_array_equal(restored, coords)
-
-    def test_simple_flip_reverse(self):
-        """Test reverse of simple flip."""
-        coords = np.random.randn(3, 4, 5, 3).astype(np.float32)
-
-        # Apply flip along axis 0
-        transformed = util.apply_perm_flip(coords, perm=(0, 1, 2), flip=(0,))
-
-        # Reverse should restore original
-        restored = util.reverse_perm_flip(transformed, perm=(0, 1, 2), flip=(0,))
-        np.testing.assert_array_equal(restored, coords)
-
-    def test_complex_transformation_reverse(self):
-        """Test reverse of complex transformation."""
-        coords = np.random.randn(2, 3, 4, 3).astype(np.float32)
-
-        # Apply complex transformation
-        perm, flip = (2, 0, 1), (0, 2)
-        transformed = util.apply_perm_flip(coords, perm, flip)
-
-        # Reverse should restore original
-        restored = util.reverse_perm_flip(transformed, perm, flip)
-        np.testing.assert_array_equal(restored, coords)
-
-
-class TestRoundTrip:
-    """Test round-trip functionality: apply_perm_flip followed by reverse_perm_flip."""
-
-    @pytest.mark.parametrize("perm", list(itertools.permutations([0, 1, 2])))
-    @pytest.mark.parametrize(
-        "flip", [(), (0,), (1,), (2,), (0, 1), (0, 2), (1, 2), (0, 1, 2)]
-    )
-    def test_all_permutations_and_flips(self, perm, flip):
-        """Test round-trip for all possible permutations and flip combinations."""
-        # Create test array with distinctive values to catch errors
-        np.random.seed(42)  # For reproducibility
-        coords = np.random.randn(3, 4, 5, 3).astype(np.float32)
-
-        # Apply transformation
-        transformed = util.apply_perm_flip(coords, perm, flip)
-
-        # Reverse transformation
-        restored = util.reverse_perm_flip(transformed, perm, flip)
-
-        # Should restore original exactly
-        np.testing.assert_array_equal(
-            restored, coords, err_msg=f"Round-trip failed for perm={perm}, flip={flip}"
-        )
-
-    def test_different_array_shapes(self):
-        """Test round-trip works for different array shapes."""
-        shapes = [(2, 2, 2, 3), (1, 3, 4, 3), (5, 1, 2, 3), (10, 8, 6, 3)]
-
-        perm, flip = (1, 2, 0), (0, 1)
-
-        for shape in shapes:
-            coords = np.random.randn(*shape).astype(np.float32)
-            transformed = util.apply_perm_flip(coords, perm, flip)
-            restored = util.reverse_perm_flip(transformed, perm, flip)
-
-            np.testing.assert_array_equal(
-                restored, coords, err_msg=f"Round-trip failed for shape {shape}"
-            )
-
-    def test_edge_case_single_elements(self):
-        """Test edge cases with single-element dimensions."""
-        # Test with some dimensions of size 1
-        coords = np.random.randn(1, 1, 3, 3).astype(np.float32)
-
-        all_perms = list(itertools.permutations([0, 1, 2]))
-        all_flips = [(), (0,), (1,), (2,), (0, 1), (0, 2), (1, 2), (0, 1, 2)]
-
-        for perm in all_perms:
-            for flip in all_flips:
-                transformed = util.apply_perm_flip(coords, perm, flip)
-                restored = util.reverse_perm_flip(transformed, perm, flip)
-
-                np.testing.assert_array_equal(
-                    restored,
-                    coords,
-                    err_msg=f"Single-element round-trip failed for perm={perm}, flip={flip}",
-                )
-
-    def test_numerical_precision(self):
-        """Test that round-trip maintains numerical precision."""
-        # Use values that could expose floating-point precision issues
-        coords = np.array(
-            [[[[1e-10, 1e10, 0.123456789]]], [[[np.pi, np.e, np.sqrt(2)]]]],
-            dtype=np.float32,
-        )
-
-        perm, flip = (2, 1, 0), (1, 2)
-        transformed = util.apply_perm_flip(coords, perm, flip)
-        restored = util.reverse_perm_flip(transformed, perm, flip)
-
-        # Should be exactly equal for these operations
-        np.testing.assert_array_equal(restored, coords)
-
-
 class TestFunctionProperties:
     """Test mathematical properties of the functions."""
-
-    def test_apply_inverse_property(self):
-        """Test that reverse_perm_flip is indeed the inverse of apply_perm_flip."""
-        coords = np.random.randn(3, 4, 2, 3).astype(np.float32)
-
-        # For any transformation, applying it then reversing should be identity
-        test_cases = [
-            ((0, 1, 2), ()),  # Identity
-            ((1, 0, 2), ()),  # Simple swap
-            ((0, 1, 2), (0,)),  # Simple flip
-            ((2, 1, 0), (0, 1, 2)),  # Complex case
-        ]
-
-        for perm, flip in test_cases:
-            # Forward then backward should be identity
-            forward = util.apply_perm_flip(coords, perm, flip)
-            backward = util.reverse_perm_flip(forward, perm, flip)
-            np.testing.assert_array_equal(backward, coords)
 
     def test_double_application_flips(self):
         """Test that applying the same flip twice returns to original."""
@@ -882,208 +497,6 @@ class TestClusterSymmetric:
         assert np.allclose(util.cluster_symmetric(n, ER, 1.0), expected, atol=1e-7)
 
 
-class TestSignedDistance:
-    """Test signed distance function."""
-
-    def test_signed_distance_vertical_line(self):
-        """Test signed distance with a vertical line segment."""
-        # Vertical line from (0,1) to (0,2)
-        segments = np.array([[0, 1], [0, 2]], dtype=np.float32)
-
-        # Points on either side
-        points = np.array([[-1, 1.5], [1, 1.5]], dtype=np.float32)
-
-        dist = util.signed_distance(segments, points)
-
-        # Check shape
-        assert dist.shape == (2,)
-
-        # Check magnitudes are correct (distance = 1)
-        assert np.allclose(np.abs(dist), [1, 1])
-
-        # Check signs are opposite
-        assert np.sign(dist[0]) != np.sign(dist[1])
-
-    def test_signed_distance_horizontal_line(self):
-        """Test signed distance with a horizontal line segment."""
-        # Horizontal line from (1,0) to (2,0)
-        segments = np.array([[1, 0], [2, 0]], dtype=np.float32)
-
-        # Points above and below
-        points = np.array([[1.5, -1], [1.5, 1]], dtype=np.float32)
-
-        dist = util.signed_distance(segments, points)
-
-        # Check shape and magnitudes
-        assert dist.shape == (2,)
-        assert np.allclose(np.abs(dist), [1, 1])
-
-    def test_signed_distance_point_on_line(self):
-        """Test that points exactly on the line have zero distance."""
-        # Diagonal line from (0,0) to (1,1)
-        segments = np.array([[0, 0], [1, 1]], dtype=np.float32)
-
-        # Point exactly on the line
-        points = np.array([[0.5, 0.5]], dtype=np.float32)
-
-        dist = util.signed_distance(segments, points)
-
-        assert dist.shape == (1,)
-        assert np.allclose(dist, [0], atol=1e-6)
-
-    def test_signed_distance_multidimensional(self):
-        """Test signed distance with multi-dimensional point arrays."""
-        # Simple vertical line extending beyond test range
-        segments = np.array([[0, -2], [0, 2]], dtype=np.float32)
-
-        # Create a 2D grid of points
-        x_pts = np.linspace(-1, 1, 3)
-        r_pts = np.linspace(-1, 1, 4)
-        x_grid, r_grid = np.meshgrid(x_pts, r_pts, indexing="ij")
-        points = np.stack([x_grid, r_grid], axis=-1)  # Shape (3, 4, 2)
-
-        dist = util.signed_distance(segments, points)
-
-        # Check output shape
-        assert dist.shape == (3, 4)
-
-        # Points at x=0 should have distances equal to their x-coordinates
-        assert np.allclose(np.abs(dist[1, :]), 0, atol=1e-6)  # Points on the line
-
-        # Points at x=-1 and x=1 should have distance 1
-        assert np.allclose(np.abs(dist[0, :]), 1, atol=1e-6)
-        assert np.allclose(np.abs(dist[2, :]), 1, atol=1e-6)
-
-    def test_signed_distance_shape_validation(self):
-        """Test that function validates input shapes correctly."""
-        # Wrong segment shape (components not in last axis)
-        bad_segments = np.array(
-            [[0, 1], [0, 1], [2, 2]], dtype=np.float32
-        )  # Shape (3, 2) but wrong structure
-        points = np.array([[0.5, 0.5]], dtype=np.float32)
-
-        # This should work fine - shape is correct
-        dist = util.signed_distance(bad_segments, points)
-        assert dist.shape == (1,)
-
-        # Wrong points shape - only 1 component instead of 2
-        segments = np.array([[0, 0], [1, 1]], dtype=np.float32)
-        bad_points = np.array([[0.5]], dtype=np.float32)  # Shape (1, 1) - wrong!
-
-        with pytest.raises(AssertionError, match="Points must have shape"):
-            util.signed_distance(segments, bad_points)
-
-    def test_signed_distance_l_shaped_curve(self):
-        """Test with an L-shaped curve having multiple segments."""
-        # L-shaped curve: (0,0) -> (1,0) -> (1,1)
-        segments = np.array([[0, 0], [1, 0], [1, 1]], dtype=np.float32)
-
-        # Test points near each segment
-        points = np.array(
-            [
-                [0.5, -0.5],  # Below horizontal segment
-                [0.5, 0.5],  # Above horizontal segment
-                [0.5, 0.5],  # Left of vertical segment
-                [1.5, 0.5],  # Right of vertical segment
-            ],
-            dtype=np.float32,
-        )
-
-        dist = util.signed_distance(segments, points)
-
-        assert dist.shape == (4,)
-        assert np.all(np.isfinite(dist))
-
-
-class TestPermFlipToDirs:
-    """Test conversion from permutation/flip to direction indices."""
-
-    def test_identity_no_flip_const_dim_0(self):
-        """Test identity transformation with constant i dimension."""
-        result = util.perm_flip_to_dirs((0, 1, 2), (), 0)
-        assert result == (6, 1, 2)
-
-    def test_identity_no_flip_const_dim_1(self):
-        """Test identity transformation with constant j dimension."""
-        result = util.perm_flip_to_dirs((0, 1, 2), (), 1)
-        assert result == (0, 6, 2)
-
-    def test_identity_no_flip_const_dim_2(self):
-        """Test identity transformation with constant k dimension."""
-        result = util.perm_flip_to_dirs((0, 1, 2), (), 2)
-        assert result == (0, 1, 6)
-
-    def test_permutation_ij_swap_const_k(self):
-        """Test i-j axis swap with constant k."""
-        # perm[0] = 1 means self's i aligns with other's j
-        # perm[1] = 0 means self's j aligns with other's i
-        result = util.perm_flip_to_dirs((1, 0, 2), (), 2)
-        assert result == (1, 0, 6)
-
-    def test_permutation_ik_swap_const_j(self):
-        """Test i-k axis swap with constant j."""
-        result = util.perm_flip_to_dirs((2, 1, 0), (), 1)
-        assert result == (2, 6, 0)
-
-    def test_permutation_jk_swap_const_i(self):
-        """Test j-k axis swap with constant i."""
-        result = util.perm_flip_to_dirs((0, 2, 1), (), 0)
-        assert result == (6, 2, 1)
-
-    def test_flip_single_axis_const_k(self):
-        """Test flipping i-axis only with constant k."""
-        result = util.perm_flip_to_dirs((0, 1, 2), (0,), 2)
-        assert result == (3, 1, 6)  # i flipped -> 0+3=3
-
-    def test_flip_multiple_axes_const_k(self):
-        """Test flipping both i and j axes with constant k."""
-        result = util.perm_flip_to_dirs((0, 1, 2), (0, 1), 2)
-        assert result == (3, 4, 6)  # i flipped -> 0+3=3, j flipped -> 1+3=4
-
-    def test_permutation_with_flip_const_i(self):
-        """Test permutation combined with flip."""
-        # j-k swap with j-axis flipped, constant i
-        result = util.perm_flip_to_dirs((0, 2, 1), (1,), 0)
-        assert result == (6, 5, 1)  # j flipped -> 2+3=5
-
-    def test_complex_transformation_const_j(self):
-        """Test complex permutation and flip."""
-        # i-k swap with both axes flipped, constant j
-        result = util.perm_flip_to_dirs((2, 1, 0), (0, 2), 1)
-        assert result == (5, 6, 3)  # i flipped -> 2+3=5, k flipped -> 0+3=3
-
-    def test_cyclic_permutation_const_k(self):
-        """Test cyclic permutation i->j->k->i."""
-        result = util.perm_flip_to_dirs((1, 2, 0), (), 2)
-        assert result == (1, 2, 6)
-
-    def test_reverse_cyclic_permutation_const_i(self):
-        """Test reverse cyclic permutation i->k->j->i."""
-        result = util.perm_flip_to_dirs((0, 2, 1), (), 0)
-        assert result == (6, 2, 1)
-
-    def test_all_constant_dims(self):
-        """Test function works for all possible constant dimensions."""
-        perm, flip = (1, 0, 2), (1,)
-
-        # const_dim = 0: i is constant
-        result_0 = util.perm_flip_to_dirs(perm, flip, 0)
-        assert result_0 == (6, 3, 2)  # i=6, j flipped -> 0+3=3, k -> 2
-
-        # const_dim = 1: j is constant
-        result_1 = util.perm_flip_to_dirs(perm, flip, 1)
-        assert result_1 == (1, 6, 2)  # i -> 1, j=6, k -> 2
-
-        # const_dim = 2: k is constant
-        result_2 = util.perm_flip_to_dirs(perm, flip, 2)
-        assert result_2 == (1, 3, 6)  # i -> 1, j flipped -> 0+3=3, k=6
-
-    def test_edge_case_all_flipped(self):
-        """Test edge case where all non-constant axes are flipped."""
-        result = util.perm_flip_to_dirs((0, 1, 2), (0, 1, 2), 0)
-        assert result == (6, 4, 5)  # i=6, j flipped -> 1+3=4, k flipped -> 2+3=5
-
-
 if __name__ == "__main__":
     """Run all tests when executed directly."""
     pytest.main([__file__, "-v"])
@@ -1492,16 +905,21 @@ def test_roundtrip_consistency():
             f"Alpha mismatch for case {V_rel_orig, Alpha_rel_orig, Beta_orig}"
         )
 
-        # Handle angle wrapping: Beta can differ by 360° for equivalent angles
+        # Handle angle wrapping: Beta can differ by 360° for equivalent angles.
+        # 1e-3 degrees, not 1e-5: atan2/degrees float32 rounding through this
+        # branch cut differs by a few ULP across platforms (observed 1.5e-5
+        # degrees off on arm64 vs exact on x86_64 for the ±180 case).
         Beta_diff = np.abs(Beta_recovered - Beta_orig)
         angle_equivalent = (
-            Beta_diff < 1e-5
-            or np.abs(Beta_diff - 360) < 1e-5
-            or np.abs(Beta_diff - 180) < 1e-5
+            Beta_diff < 1e-3
+            or np.abs(Beta_diff - 360) < 1e-3
+            or np.abs(Beta_diff - 180) < 1e-3
         )
         if not angle_equivalent:
-            # For pure tangential case (Alpha=90°), Vx≈0 can give ambiguous Beta
-            pure_tangential = np.abs(Alpha_rel_orig) == 90.0 and np.abs(Vx) < 1e-6
+            # For pure tangential case (Alpha=90°), Vx≈0 can give ambiguous
+            # Beta. 1e-4 not 1e-6: Vx's noise floor here is V_rel * float32
+            # eps (~4e-6 for V_rel=100), not machine epsilon itself.
+            pure_tangential = np.abs(Alpha_rel_orig) == 90.0 and np.abs(Vx) < 1e-4
             if not pure_tangential:
                 assert False, (
                     f"Beta mismatch for case {V_rel_orig, Alpha_rel_orig, Beta_orig}: got {Beta_recovered}, expected {Beta_orig}"
@@ -1540,7 +958,11 @@ def test_negative_angle_handling():
 
     # Test negative Vx (reverse axial)
     V_rel, Alpha_rel_deg, Beta_deg = components_to_angles(-50.0, 0.0, 0.0)
-    assert abs(Beta_deg) == 180.0 or abs(Beta_deg) < 1e-10, (
+    # atan2(0, -50) is exactly pi, but degrees(atan2(...)) in float32 lands
+    # a few ULP off 180.0 depending on the platform's libm (observed
+    # 179.99998 on arm64 vs exactly 180.0 on x86_64) -- not a formula bug,
+    # this branch cut is inherently platform-sensitive at the float32 level.
+    assert abs(abs(Beta_deg) - 180.0) < 1e-3 or abs(Beta_deg) < 1e-10, (
         "Negative Vx should give ±180° Beta"
     )
 
@@ -1572,7 +994,7 @@ def test_consistency_with_block_properties():
     Alpha_rel = np.zeros(ni)  # No relative swirl (pure radial in relative frame)
     Beta = np.full(ni, 90.0)  # Pure radial flow
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1632,7 +1054,7 @@ def test_consistency_with_rotating_block():
     Alpha_rel = np.zeros(ni)  # No relative swirl (pure radial in relative frame)
     Beta = np.full(ni, 90.0)  # Pure radial outward flow
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1695,7 +1117,7 @@ def test_tangential_velocity_consistency():
     Alpha_rel = np.zeros(ni)  # No relative swirl (pure radial in relative frame)
     Beta = np.full(ni, 90.0)  # Pure radial outward flow
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         block, Po_inlet, To_inlet, Ma_rel, Alpha_rel, Beta
     )
 
@@ -1762,7 +1184,7 @@ def test_tangential_velocity_consistency():
     Alpha_rel_mixed = np.zeros(ni_mixed)  # No relative swirl
     Beta_mixed = np.full(ni_mixed, -45.0)  # Mixed axial/radial inward flow
 
-    ember.set_iter.set_Po_To_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
         mixed_block, Po_mixed, To_mixed, Ma_rel_mixed, Alpha_rel_mixed, Beta_mixed
     )
 

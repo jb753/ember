@@ -420,24 +420,6 @@ def test_perfect_fluid_datum_default_and_custom():
     assert np.isclose(fluid_custom.T_dtm, 400.0)
 
 
-def test_main_script_execution():
-    """Test the __main__ script execution path."""
-
-    # This tests the lines 573-577 that are marked as missing coverage
-    # We can't directly test __main__ execution, but we can test the functionality
-    x = np.asfortranarray(np.array([[1, 2], [3, 4]]), dtype=np.float32)
-    y = np.asfortranarray(np.array([[1, 2]]), dtype=np.float32)
-
-    # Import util to access full_bcast
-    from ember import util
-
-    z = util.full_bcast(x, y, 0.0)
-
-    # Test that output has expected properties (matching __main__ expectations)
-    assert z.flags["F_CONTIGUOUS"]
-    assert z.dtype == np.float32
-
-
 def test_fluid_member_order():
     """_Fluid and all concrete subclasses follow the standard member ordering convention."""
     import inspect

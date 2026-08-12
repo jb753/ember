@@ -29,6 +29,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "autodocsumm",
     "tikz",
+    "trim_module_prefix",
     "sphinxcontrib.bibtex",
     "sphinx_gallery.gen_gallery",
 ]
@@ -94,20 +95,12 @@ nitpick_ignore_regex = [
 nitpick_ignore = [
     # Objects that do not yet have a documentation page. Remove an entry once
     # the corresponding module gains an autodoc page so the link resolves.
-    ("py:class", "ember.mixing_communicator.MixingCommunicator"),
-    ("py:class", "ember.mixing_communicator.NonReflectingMixingCommunicator"),
-    ("py:class", "ember.nonmatch_communicator.NonMatchCommunicator"),
     ("py:class", "ember.collections._LabelledList"),
+    # Private base class, so no page of its own; ``:show-inheritance:`` on
+    # PerfectFluid still emits a reference to it from the rendered "Bases:" line.
     ("py:class", "ember.fluid._Fluid"),
-    ("py:meth", "ember.fluid._Fluid.get_P_h_T"),
-    ("py:meth", "ember.struct.StructuredData.__init__"),
-    ("py:func", "ember.struct.cached_array"),
-    ("py:func", "ember.block_util.resample"),
-    ("py:func", "ember.cases.build_duct_grid"),
-    ("py:func", "ember.nonreflecting.calc_backflow_rho"),
-    # Compiled Fortran extension: no autodoc page, so :func: refs to its kernels
-    # (used throughout the solver docstrings) cannot resolve.
-    ("py:func", "ember.fortran.smooth3d_const"),
+    ("py:meth", "ember._struct.StructuredData.__init__"),
+    ("py:func", "ember._struct.cached_array"),
 ]
 
 html_theme = "alabaster"

@@ -29,8 +29,8 @@ Datum state
 ===========
 
 Only changes in internal energy, enthalpy, and entropy are physically
-meaningful, therefore we have the freedom to set the physical state at which
-these properties are zero to improve numerics and reduce precision errors due
+meaningful. Therefore, we have freedom to set the physical state at which
+these properties are zero, to improve numerics and reduce precision errors due
 to subtracting two large floats. We define a thermodynamic datum
 :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})` where :math:`u = s = 0`
 simultaneously. Enthalpy at the datum is not zero because of the pressure term
@@ -47,7 +47,7 @@ same properties but shifted datum. The current datum is accessible via
 Reference scales
 ================
 
-The constructors for fluid instances take optional reference scales for non-dimensionalisation, which default to unity such that all quantities are in SI units. If reference scales are provided, then internally the class uses them to form a consistent system of non-dimensional quantities, and all inputs and outputs are taken as non-dimensional. The advantage of setting reference scales is improved numerical precision when working with non-dimensional quantities all of order unity.
+The constructors for fluid instances take optional reference scales for non-dimensionalisation, which default to unity such that all quantities are in SI units. If reference scales are provided, all inputs and outputs are taken as non-dimensional. The advantage of setting reference scales is improved numerical precision when working with non-dimensional quantities all of order unity.
 
 The user specifies:
 
@@ -75,6 +75,7 @@ We can get a new instance with different reference scales using the :meth:`Perfe
 import numpy as np
 from abc import ABC, abstractmethod
 from ember import util
+import ember.fortran
 
 
 class _Fluid(ABC):
@@ -263,7 +264,10 @@ class _Fluid(ABC):
 
     @property
     def P_dtm(self):
-        r"""Datum pressure :math:`p_\mathrm{dtm}` where :math:`u = s = 0` [Pa]."""
+        r"""Datum pressure :math:`p_\mathrm{dtm}` where :math:`u = s = 0` [Pa].
+
+        User-selectable as discussed in  :ref:`datum-state`.
+        """
         return self._P_dtm
 
     @property
@@ -304,7 +308,10 @@ class _Fluid(ABC):
 
     @property
     def T_dtm(self):
-        r"""Datum temperature :math:`T_\mathrm{dtm}` where :math:`u = s = 0` [K]."""
+        r"""Datum temperature :math:`T_\mathrm{dtm}` where :math:`u = s = 0` [K].
+
+        User-selectable as discussed in  :ref:`datum-state`.
+        """
         return self._T_dtm
 
     @property
@@ -426,7 +433,7 @@ class PerfectFluid(_Fluid):
 
         Temperature is recovered from :math:`h`, then pressure from :math:`s`
         , then :math:`\rho` and :math:`u` follow from
-        :meth:`set_P_T`:
+        :meth:`set_P_T`,
 
         .. math::
 
@@ -456,7 +463,7 @@ class PerfectFluid(_Fluid):
     def set_P_h(self, P, h):
         r"""Density and internal energy from pressure and specific enthalpy.
 
-        Temperature is recovered from :math:`h = c_p T - R T_\mathrm{dtm}`:
+        Temperature is recovered from :math:`h`,
 
         .. math::
 
@@ -484,7 +491,7 @@ class PerfectFluid(_Fluid):
     def set_P_rho(self, P, rho):
         r"""Density and internal energy from pressure and density.
 
-        Temperature follows from the ideal gas law, giving:
+        Temperature follows from the ideal gas law, giving,
 
         .. math::
 
@@ -511,7 +518,7 @@ class PerfectFluid(_Fluid):
         r"""Density and internal energy from pressure and specific entropy.
 
         Inverting the Gibbs relation gives temperature, then :math:`\rho` and
-        :math:`u` follow from :meth:`set_P_T`:
+        :math:`u` follow from :meth:`set_P_T`,
 
         .. math::
 
@@ -552,7 +559,7 @@ class PerfectFluid(_Fluid):
     def set_P_T(self, P, T):
         r"""Density and internal energy from pressure and temperature.
 
-        From the ideal gas law and the calorific equation of state:
+        From the ideal gas law and the definition of internal energy,
 
         .. math::
 
@@ -615,7 +622,7 @@ class PerfectFluid(_Fluid):
     def set_T_rho(self, T, rho):
         r"""Density and internal energy from temperature and density.
 
-        From the calorific equation of state:
+        From the definition of internal energy,
 
         .. math::
 
@@ -1004,17 +1011,10 @@ class PerfectFluid(_Fluid):
         return out
 
     def get_P_h_T(self, rho, u, out_P=None, out_h=None, out_T=None):
-        """Fused perfect-gas evaluation of pressure, enthalpy and temperature.
+        """Batched evaluation of pressure, enthalpy and temperature.
 
-        Overrides :meth:`~ember.fluid._Fluid.get_P_h_T` purely for speed. ``T = u/cv +
-        T_dtm`` is already computed inside ``P``, so one pass over ``(rho, u)``
-        yields all three: 8 B read and 12 B written per node, against ~36 B of
-        traffic for the three separate calls.
-
-        Falls back to the base implementation unless every array is
-        float32, contiguous, the same shape, and all three outputs were
-        supplied -- the kernel writes in place, so a non-contiguous output (or
-        a dtype f2py would have to copy) would silently drop the result.
+        The base class calls :meth:`get_P`, :meth:`get_h` and :meth:`get_T` in sequence, so this method is an optional override for subclasses that can compute all three in a single pass over the state. The CFD solver calls
+        this method once per Runge-Kutta stage, so a fused evaluation can save time.
 
         Parameters
         ----------
@@ -1030,8 +1030,6 @@ class PerfectFluid(_Fluid):
         tuple of ndarray
             ``(P, h, T)``.
         """
-        import ember.fortran
-
         outs = (out_P, out_h, out_T)
         arrs = (rho, u) + outs
         usable = (
@@ -1039,9 +1037,7 @@ class PerfectFluid(_Fluid):
             and all(isinstance(a, np.ndarray) for a in arrs)
             and all(a.dtype == np.float32 for a in arrs)
             and all(a.shape == np.shape(rho) for a in arrs)
-            and all(
-                a.flags["F_CONTIGUOUS"] or a.flags["C_CONTIGUOUS"] for a in arrs
-            )
+            and all(a.flags["F_CONTIGUOUS"] or a.flags["C_CONTIGUOUS"] for a in arrs)
         )
         if not usable:
             return super().get_P_h_T(rho, u, out_P, out_h, out_T)
@@ -1188,7 +1184,7 @@ class PerfectFluid(_Fluid):
     def change_datum(self, P_dtm, T_dtm):
         """Get a new :class:`PerfectFluid` with shifted datum.
 
-        The new instance will have zero internal energy and entropy at the specified pressure and temperature.
+        The new instance will have zero internal energy and entropy at the specified pressure and temperature. See :ref:`datum-state`.
 
         Parameters
         ----------

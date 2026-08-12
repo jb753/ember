@@ -15,10 +15,10 @@ across blade rows.
 import numpy as np
 
 from ember import util
+from ember import block_util
 from ember import perturbation
 from ember import fluxes as ember_fluxes
-from ember import set_iter
-from ember.geometry import node_to_face_2d
+from ember import set_iterative
 
 
 def _get_axes(axes, triangulated):
@@ -41,6 +41,23 @@ def _get_dA(block):
     return block.dA_tri if block.triangulated else block.dA_quad
 
 
+def _get_dA_nd(block):
+    """Nondimensional counterpart of :func:`_get_dA`."""
+    return block.dA_tri_nd if block.triangulated else block.dA_quad_nd
+
+
+def _dot_conserved(flux, dA, axes):
+    """Specialized dot product for conserved variable fluxes."""
+    return np.sum(
+        np.einsum(
+            "...ij,...i->...j",
+            flux,
+            dA,
+        ),
+        axis=axes,
+    )
+
+
 def _integrate_scalar(scalar_face, dA_face, axes):
     """Helper function to integrate scalar over faces.
 
@@ -58,6 +75,34 @@ def _integrate_vector(vector_face, dA_face, axes):
     return np.sum(util.dot(vector_face, dA_face), axis=axes)
 
 
+def _node_to_face_2d(nodal_data):
+    r"""Average nodal values to face centres for 2D data.
+
+    For a :math:`(n_i, n_j)` array of nodal values, the face-centred value is
+
+    .. math::
+
+        \bar{q}_{i,j} = \tfrac{1}{4}\bigl(
+            q_{i,j} + q_{i+1,j} + q_{i+1,j+1} + q_{i,j+1}\bigr)
+
+    Parameters
+    ----------
+    nodal_data : Array, shape (ni, nj, ...)
+        Values at grid nodes.
+
+    Returns
+    -------
+    Array, shape (ni-1, nj-1, ...)
+        Values averaged to face centres.
+    """
+    return 0.25 * (
+        nodal_data[:-1, :-1, ...]
+        + nodal_data[1:, :-1, ...]
+        + nodal_data[1:, 1:, ...]
+        + nodal_data[:-1, 1:, ...]
+    )
+
+
 def _node_to_face(nodal_data, triangulated):
     """Distribute nodal data to faces."""
     if triangulated:
@@ -65,7 +110,7 @@ def _node_to_face(nodal_data, triangulated):
         return np.mean(nodal_data, axis=1)
     else:
         # Use 2D node_to_face distribution
-        return node_to_face_2d(nodal_data)
+        return _node_to_face_2d(nodal_data)
 
 
 def flow_mass(block, axes=None):
@@ -133,8 +178,21 @@ def flow_conserved(block, axes=None):
     flow_conserved : Array shape (5,)
         Integrated conserved flows
     """
+    return (
+        flow_conserved_nd(block, axes) * ember_fluxes.flux_ref(block) * block.L_ref**2
+    )
+
+
+def flow_conserved_nd(block, axes=None):
+    r"""Nondimensional counterpart of :func:`flow_conserved`, shape (5,).
+
+    Scaled by ``fluxes.flux_ref(block) * block.L_ref**2``, this is
+    :func:`flow_conserved`. Working directly in this form lets :func:`mix_out`
+    run its Newton iteration without any reference-scale bookkeeping, since
+    the Jacobian from :mod:`ember.perturbation` is nondimensional too.
+    """
     axes = _get_axes(axes, block.triangulated)
-    return util.dot_conserved(ember_fluxes.get_flux(block), _get_dA(block), axes)
+    return _dot_conserved(ember_fluxes.get_flux_nd(block), _get_dA_nd(block), axes)
 
 
 def mass_average(scalar_node, block, axes=None):
@@ -245,9 +303,17 @@ def total_area(block):
     A : Array, shape (3,)
         Total area of the cut [m^2] in polar coordinates (Ax, Ar, At)
     """
+    return total_area_nd(block) * block.L_ref**2
+
+
+def total_area_nd(block):
+    r"""Nondimensional counterpart of :func:`total_area`, shape (3,).
+
+    Total vector area divided by :math:`L_\mathrm{ref}^2`.
+    """
     assert block.ndim == 2
     axes = _get_axes(None, block.triangulated)
-    return np.sum(_get_dA(block), axis=axes)
+    return np.sum(_get_dA_nd(block), axis=axes)
 
 
 def mix_out(block, AR=1.0):
@@ -294,9 +360,11 @@ def mix_out(block, AR=1.0):
 
     """
 
-    # Calculate total area and conserved quantities
-    A = total_area(block)
-    flow = flow_conserved(block)
+    # Calculate total area and conserved quantities. The whole Newton loop
+    # below runs nondimensionally, matching the ND Jacobian from
+    # ember.perturbation, so no reference scales appear in it at all.
+    A = total_area_nd(block)
+    flow = flow_conserved_nd(block)
 
     # Ensure that mass flow is positive
     if flow[0] <= 0.0:
@@ -314,19 +382,23 @@ def mix_out(block, AR=1.0):
     mix = block.empty()
 
     # Mixed out coordinates
-    rmix = util.rms([block.r.min(), block.r.max()])
-    xmix = util.bounds(block.x).mean()
-    tmix = util.bounds(block.t).mean()
+    rmix = np.sqrt(np.mean(np.array([block.r.min(), block.r.max()]) ** 2))
+    xmix = util.extent(block.x).mean()
+    tmix = util.extent(block.t).mean()
     mix.set_x(xmix)
     mix.set_r(rmix)
     mix.set_t(tmix)
 
-    # Initial guess for conserved variables simple mean
-    mix.set_conserved(block.conserved.mean(axis=(0, 1)))
+    # Initial guess for conserved variables simple mean, written direct on the
+    # ND storage. This skips set_conserved's density/finite validation, which
+    # a mean of valid input data cannot trip, and the loop's own mix.rho check
+    # still guards against Newton-step divergence below.
+    mix.conserved_nd[...] = block.conserved_nd.mean(axis=(0, 1))
+    mix.update_cached_conserved()
 
-    # Get absolute tolerance for flows
-    rho_ref = mix.rho
-    V_ref = mix.V
+    # Get absolute tolerance for flows, on the same ND scale as the flows
+    rho_ref = mix.rho_nd
+    V_ref = mix.V_nd
     rhoV_ref = rho_ref * V_ref
     rhoVsq_ref = rho_ref * V_ref**2
     de_ref = rho_ref * V_ref**3
@@ -336,7 +408,7 @@ def mix_out(block, AR=1.0):
                 rhoV_ref,
                 rhoVsq_ref,
                 rhoVsq_ref,
-                rhoVsq_ref * rmix,
+                rhoVsq_ref * block.r_mid_nd,
                 de_ref,
             ]
         )
@@ -344,73 +416,70 @@ def mix_out(block, AR=1.0):
         * 1e-4
     )
 
-    # Reference scales for converting between dimensional and nondimensional
-    # Jacobians operate in ND space, so we scale err_flux to ND, apply J, scale back
-    _rho_ref = mix.fluid.rho_ref
-    _V_ref = mix.fluid.V_ref
-    _L_ref = mix.L_ref
-    _rhoV_ref = _rho_ref * _V_ref
-    _flux_ref = np.array(
-        [
-            _rhoV_ref,
-            _rhoV_ref * _V_ref,
-            _rhoV_ref * _V_ref,
-            _rhoV_ref * _V_ref * _L_ref,
-            _rhoV_ref * _V_ref**2,
-        ]
-    )
-    _cons_ref = np.array(
-        [
-            _rho_ref,
-            _rhoV_ref,
-            _rhoV_ref,
-            _rhoV_ref * _L_ref,
-            _rhoV_ref * _V_ref,
-        ]
-    )
-
     # Iteratively adjust conserved variables to match total flow
     rf = 0.1
     max_iter = 10000
+    n_stall = 50
     err_flow = np.inf
+    best_err = np.inf
+    best_iter = 0
     for niter in range(max_iter):
         # Calculate current fluxes and flows (xr system)
-        flux_mix = ember_fluxes.get_flux(mix)[:2, :]
-        flow_mix = util.dot_conserved(flux_mix, A, axes=())
+        flux_mix = ember_fluxes.get_flux_nd(mix)[:2, :]
+        flow_mix = _dot_conserved(flux_mix, A, axes=())
         err_flow = flow - flow_mix
         err_flux = err_flow / A_ref
 
-        # Update error
-        if np.all(np.abs(err_flow) < atol):
+        # Stop once the residual stops improving, not the moment it first drops
+        # below atol. Breaking at the atol crossing makes the answer depend on
+        # which iterate happens to land inside the tolerance ball first, and
+        # that in turn depends on the last bit of the input ordering -- mixing
+        # a cut and its k-axis-reversed twin then differ by ~3x the atol scale.
+        # Iterating on to the float32 fixed point costs ~2x the iterations and
+        # brings that difference down to the storage floor (~2e-6). atol
+        # survives below as the scale that makes the five residuals comparable
+        # and as the post-loop divergence check.
+        err_scaled = np.max(np.abs(err_flow) / atol)
+        if err_scaled < best_err * (1.0 - 1e-6):
+            best_err = err_scaled
+            best_iter = niter
+        elif niter - best_iter > n_stall:
             break
 
-        # Resolve to interface-aligned velocities
+        # Resolve to interface-aligned velocities. Beta moves every iteration
+        # as mix's state does, so the matrix can't be hoisted out of the loop
+        # -- but building both directions from it here, once, means the
+        # to/from pair below shares one sine and cosine rather than each
+        # re-deriving its own.
         Beta = mix.Beta
-        util.resolve_to_interface(mix, Beta)
+        rot_to, rot_from = util.rotation_matrices(np.radians(Beta))
+        block_util.resolve_to_interface(mix, rot_to)
 
         # Calculate Jacobian of conserved/flux transformation (nondimensional)
         f2c = perturbation.flux_to_conserved(mix)
 
-        # Scale flux error to ND, apply ND Jacobian, scale correction back to dim
-        dcons = util.matvec(f2c, err_flux / _flux_ref) * _cons_ref
+        # Apply the ND Jacobian to the (already ND) flux error to get the ND
+        # conserved correction directly
+        dcons_nd = util.matvec(f2c, err_flux)
 
-        # Apply relaxation to avoid overshoot
-        mix.set_conserved(mix.conserved + rf * dcons)
+        # Apply relaxation to avoid overshoot, direct on the ND storage
+        mix.conserved_nd[...] += rf * dcons_nd
+        mix.update_cached_conserved()
 
         if mix.rho < 0.0:
             print(
-                f"  NEGATIVE DENSITY at iter {niter}: rho={mix.rho:.6g}, dcons={dcons}"
+                f"  NEGATIVE DENSITY at iter {niter}: rho={mix.rho:.6g}, dcons_nd={dcons_nd}"
             )
             raise Exception("Negative density")
 
         # Resolve back to physical velocities
-        util.resolve_from_interface(mix, Beta)
+        block_util.resolve_from_interface(mix, rot_from)
 
     if (np.abs(err_flow) >= atol).any():
-        print(f"  FAILED after {max_iter} iters: err_flow={err_flow}, atol={atol}")
+        print(f"  FAILED after {niter + 1} iters: err_flow={err_flow}, atol={atol}")
         print(f"  final conserved: {mix.conserved}")
         raise RuntimeError(
-            f"Failed to converge mixing after {max_iter} iterations, err_flow={err_flow}, atol={atol}"
+            f"Failed to converge mixing after {niter + 1} iterations, err_flow={err_flow}, atol={atol}"
         )
 
     # Optionally contract the uniform mixed-out state isentropically from area
@@ -428,7 +497,7 @@ def mix_out(block, AR=1.0):
         # conserved, so rho*Vm scales as 1/AR.
         rhoVm_target = mix.rho * mix.Vm / AR
 
-        set_iter.set_ho_s_rhoVm_Vt_Beta(
+        set_iterative.set_ho_s_rhoVm_Vt_Beta(
             mix,
             mix.ho,
             mix.s,

@@ -12,7 +12,7 @@ import ember.block
 import ember.grid
 import ember.fluid
 import ember.patch
-import ember.set_iter
+import ember.set_iterative
 from ember import util
 
 
@@ -125,7 +125,7 @@ def build_duct_grid(
     so = fluid.get_s(rho_o, e_o)
     a_o = fluid.get_a(rho_o, e_o)
     Vbar = Ma_bulk * a_o
-    ember.set_iter.set_ho_s_Ma_Alpha_Beta(block, ho, so, Ma_bulk, 0.0, 0.0)
+    ember.set_iterative.set_ho_s_Ma_Alpha_Beta(block, ho, so, Ma_bulk, 0.0, 0.0)
 
     U = Vbar / np.inf
     Omega = U / r_mid
@@ -150,7 +150,6 @@ def build_duct_grid(
     block.patches["inlet"].set_Beta(0.0)
     block.patches["outlet"].set_P(P_out)
     block.patches["outlet"].set_backflow_ho_s(ho, so)
-    block.patches["outlet"].set_backflow_Vr(0.0)
     block.patches["outlet"].set_backflow_Vt(0.0)
 
     # Velocity ripple, applied before the non-dimensional reference is set (as in

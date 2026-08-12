@@ -294,24 +294,6 @@ class StructuredData:
         else:
             raise KeyError(f"Metadata key '{key}' not found.")  # end method
 
-    def _increment_data(self, keys, delta, slice_obj=None):
-        """Increment data in-place for specified keys at given slice."""
-        # Get indices for the keys
-        inds = [self._data_inds[k] for k in keys]
-
-        # Check that indices are consecutive
-        if len(inds) > 1 and sorted(inds) != list(range(min(inds), max(inds) + 1)):
-            raise ValueError(
-                f"Variable indices must be consecutive. Got indices {inds} for keys {keys}"
-            )
-
-        # Apply increment for each variable individually
-        for i, var_ind in enumerate(inds):
-            if slice_obj is None:
-                self._data[..., var_ind] += delta[..., i]
-            else:
-                self._data[slice_obj + (var_ind,)] += delta[..., i]  # end method
-
     def _set_data_by_keys(self, keys, val, store_init=True):
         """Set data variables at once.
 
@@ -435,7 +417,7 @@ class StructuredData:
 
         This forces all cached properties to recalculate on next access.
         """
-        import traceback
+        import traceback  # noqa: PLC0415 - only needed on this debug path
 
         caller = traceback.extract_stack()[-2]
         keys = list(self._store)
@@ -611,7 +593,7 @@ class StructuredData:
         return out  # end method
 
     def reshape(self, shape):
-        """Reshape the data axes to a different shape.
+        """Reshape the data axes to a different shape, keeping the total node count.
 
         Returns a new instance sharing metadata with the original. The output
         data is a zero-copy view where possible;
@@ -702,7 +684,7 @@ class StructuredData:
         return out  # end method
 
     def view(self):
-        """Create a new view onto the original data, not a copy.
+        """Create a new instance sharing the same data and metadata, not a copy.
 
         Returns a new instance of the same class sharing the underlying data
         array, metadata dict, and version counters with the original. Mutations

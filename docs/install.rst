@@ -19,10 +19,11 @@ Supported versions and platforms
    versions.
 
 ember follows `SPEC 0 <https://scientific-python.org/specs/spec-0000/>`_ for
-its Python support window, currently Python 3.12 or newer. We
-only test and provide precompiled wheels on Linux. The code may possibly be
-coerced to work on other operating systems, with some modifications, but you
-will need a working Fortran toolchain to build it from source.
+its Python support window, currently Python 3.12 or newer. We test on, and
+provide precompiled wheels for, Linux (x86_64), macOS (arm64), and Windows
+(AMD64). The code may possibly be coerced to work on other platforms, with
+some modifications, but you will need a working Fortran toolchain to build it
+from source.
 
 Via the Python Package Index
 ----------------------------
@@ -34,8 +35,9 @@ Ask for the distribution name ``ember-cfd``, not the import name ``ember``:
 
    pip install ember-cfd
 
-We precompile and distribute wheels for Linux (x86_64), so if your system
-is the same you should not need a Fortran compiler to install from PyPI. On other
+We precompile and distribute wheels for Linux (x86_64), macOS (arm64), and
+Windows (AMD64), so if your system is one of these you should not need a
+Fortran compiler to install from PyPI. On other
 systems, pip will automatically attempt to build from source, which requires a
 Fortran toolchain. Install these packages from your distribution's package
 manager, for example on Debian/Ubuntu:

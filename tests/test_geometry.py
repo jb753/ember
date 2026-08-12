@@ -1,4 +1,4 @@
-"""Test module for ember.geometry face area and volume calculations.
+"""Test module for face area, volume and node-to-face calculations.
 
 Tests geometric calculations for structured grids in polar coordinates including face areas and cell volumes.
 
@@ -12,20 +12,76 @@ Test cases:
 - test_geometry_dA_dispatch: Area calculation method dispatch
 - test_structured_vs_triangulated_total_area: Comparison of structured vs triangulated total areas
 - test_structured_vs_triangulated_flux: Flux calculation comparison between methods
-- test_cell_to_node_quasi_1d: Cell to node operations in quasi-1D
-- test_cell_to_node_quasi_1d_edge_cases: Edge cases for cell to node operations
 - test_radial_momentum_flux_pressure: Radial momentum flux and pressure calculations
 """
 
 import numpy as np
 import pytest
-import ember.geometry
+import ember.block
+import ember.nonmatch_communicator
 from ember import util
 from ember.block import Block
 import ember.fluxes
 
 
 rtol = 1e-7
+
+
+def _handle_output(result, out=None):
+    """Copy `result` into `out` if given, otherwise return `result` unchanged."""
+    if out is not None:
+        out[...] = result
+        return out
+    return result
+
+
+def _node_to_face(x, out=None):
+    """Average nodal values to the centres of all three families of cell faces.
+
+    Test-only helper for :func:`test_box`, which needs face-centred theta to
+    build the expected unit normals -- there is no production caller of this
+    logic. See ``git log`` for the version that lived in ``ember.geometry``.
+    """
+    if x.ndim == 0:
+        x = np.stack([x, x], axis=0)
+        x = np.stack([x, x], axis=1)
+        x = np.stack([x, x], axis=2)
+    elif x.ndim == 1:
+        x = np.stack([x, x], axis=1)
+        x = np.stack([x, x], axis=2)
+    elif x.ndim == 2:
+        x = np.stack([x, x], axis=2)
+
+    if out is not None and len(out) == 3:
+        out_xi, out_xj, out_xk = out
+    else:
+        out_xi = out_xj = out_xk = None
+
+    xi_computed = 0.25 * (
+        x[:, :-1, :-1, ...]
+        + x[:, 1:, :-1, ...]
+        + x[:, 1:, 1:, ...]
+        + x[:, :-1, 1:, ...]
+    )
+    xi = _handle_output(xi_computed, out_xi)
+
+    xj_computed = 0.25 * (
+        x[:-1, :, :-1, ...]
+        + x[1:, :, :-1, ...]
+        + x[1:, :, 1:, ...]
+        + x[:-1, :, 1:, ...]
+    )
+    xj = _handle_output(xj_computed, out_xj)
+
+    xk_computed = 0.25 * (
+        x[:-1, :-1, :, ...]
+        + x[1:, :-1, :, ...]
+        + x[1:, 1:, :, ...]
+        + x[:-1, 1:, :, ...]
+    )
+    xk = _handle_output(xk_computed, out_xk)
+
+    return xi, xj, xk
 
 
 def test_box():
@@ -51,7 +107,7 @@ def test_box():
     xrt = np.stack((x, r, t), axis=-1)
 
     # Face-centered theta
-    tface = ember.geometry.node_to_face(t)
+    tface = _node_to_face(t)
 
     # Get polar unit vectors for each cartesian dirn
     ex = np.stack(
@@ -79,12 +135,12 @@ def test_box():
         axis=-1,
     )
 
-    dAi = ember.geometry.get_dAi(xrt)
-    dAj = ember.geometry.get_dAj(xrt)
-    dAk = ember.geometry.get_dAk(xrt)
+    dAi = ember.block._get_dai(xrt)
+    dAj = ember.block._get_daj(xrt)
+    dAk = ember.block._get_dak(xrt)
 
     # Check the total volume
-    vol = ember.geometry.get_vol(xrt, dAi, dAj, dAk)
+    vol = ember.block._get_vol(xrt, dAi, dAj, dAk)
     vol_nominal = (2 * L) ** 3
     err = vol.sum() / vol_nominal - 1.0
     print(f"Volume error = {err:.2e}")
@@ -134,10 +190,10 @@ def test_cylinder():
     At = L * dr
     vol_nominal = Ax * L
 
-    dAi = ember.geometry.get_dAi(xrt)
-    dAj = ember.geometry.get_dAj(xrt)
-    dAk = ember.geometry.get_dAk(xrt)
-    vol = ember.geometry.get_vol(xrt, dAi, dAj, dAk)
+    dAi = ember.block._get_dai(xrt)
+    dAj = ember.block._get_daj(xrt)
+    dAk = ember.block._get_dak(xrt)
+    vol = ember.block._get_vol(xrt, dAi, dAj, dAk)
 
     # Check the total volume
     err = vol.sum() / vol_nominal - 1.0
@@ -190,10 +246,10 @@ def test_cylinder():
     xrt_j0 = xrt[:, 0, :, :]
     xrt_j1 = xrt[:, -1, :, :]
     xrt_k0 = xrt[:, :, 0, :]
-    dA_i0 = ember.geometry.get_dA_quad(xrt_i0)
-    dA_j0 = ember.geometry.get_dA_quad(xrt_j0)
-    dA_j1 = ember.geometry.get_dA_quad(xrt_j1)
-    dA_k0 = ember.geometry.get_dA_quad(xrt_k0)
+    dA_i0 = ember.block._get_da_quad(xrt_i0)
+    dA_j0 = ember.block._get_da_quad(xrt_j0)
+    dA_j1 = ember.block._get_da_quad(xrt_j1)
+    dA_k0 = ember.block._get_da_quad(xrt_k0)
 
     atolA = vol_nominal ** (2 / 3) * rtol
     erri = np.abs(dA_i0 - dAi[0, :, :, :])
@@ -215,7 +271,7 @@ def test_get_dA_tri_basic_functionality():
     # Expected area = 0.5 * base * height = 0.5 * 1 * 1 = 0.5
     xrt_right = np.array([[[0.0, 1.0, 0.0], [1.0, 1.0, 0.0], [0.0, 2.0, 0.0]]])
 
-    dA_right = ember.geometry.get_dA_tri(xrt_right)
+    dA_right = ember.block._get_da_tri(xrt_right)
     area_mag_right = util.vecnorm(dA_right)
 
     assert dA_right.shape == (1, 3), f"Wrong output shape: {dA_right.shape}"
@@ -228,7 +284,7 @@ def test_get_dA_tri_basic_functionality():
     h = np.sqrt(3)
     xrt_equi = np.array([[[0.0, 1.0, 0.0], [2.0, 1.0, 0.0], [1.0, 1.0 + h, 0.0]]])
 
-    dA_equi = ember.geometry.get_dA_tri(xrt_equi)
+    dA_equi = ember.block._get_da_tri(xrt_equi)
     area_mag_equi = util.vecnorm(dA_equi)
     expected_area_equi = np.sqrt(3)
 
@@ -244,7 +300,7 @@ def test_get_dA_tri_basic_functionality():
         ]
     )  # Equilateral
 
-    dA_multi = ember.geometry.get_dA_tri(xrt_multi)
+    dA_multi = ember.block._get_da_tri(xrt_multi)
     area_mag_multi = util.vecnorm(dA_multi)
 
     assert dA_multi.shape == (2, 3), f"Wrong multi-triangle shape: {dA_multi.shape}"
@@ -266,12 +322,12 @@ def test_get_dA_tri_input_validation():
     valid_input = np.random.rand(5, 3, 3)  # 5 triangles, 3 vertices, 3 coordinates
     valid_input[..., 1] = np.abs(valid_input[..., 1]) + 0.1  # Ensure positive r
 
-    result = ember.geometry.get_dA_tri(valid_input)
+    result = ember.block._get_da_tri(valid_input)
     assert result.shape == (5, 3), f"Wrong output shape for valid input: {result.shape}"
 
     # Test single triangle
     single_triangle = np.array([[[0.0, 1.0, 0.0], [1.0, 1.0, 0.0], [0.0, 2.0, 0.0]]])
-    result_single = ember.geometry.get_dA_tri(single_triangle)
+    result_single = ember.block._get_da_tri(single_triangle)
     assert result_single.shape == (1, 3), (
         f"Wrong shape for single triangle: {result_single.shape}"
     )
@@ -279,7 +335,7 @@ def test_get_dA_tri_input_validation():
     # Test large batch
     large_batch = np.random.rand(100, 3, 3)
     large_batch[..., 1] = np.abs(large_batch[..., 1]) + 0.1  # Positive r
-    result_large = ember.geometry.get_dA_tri(large_batch)
+    result_large = ember.block._get_da_tri(large_batch)
     assert result_large.shape == (100, 3), (
         f"Wrong shape for large batch: {result_large.shape}"
     )
@@ -325,7 +381,7 @@ def test_get_dA_tri_integration():
     tri_coords = tri_block._data[..., :3]  # Shape (ntri, 3, 3)
 
     # Calculate triangle areas
-    dA_tri = ember.geometry.get_dA_tri(tri_coords)
+    dA_tri = ember.block._get_da_tri(tri_coords)
 
     # Verify output shape and properties
     ntri = tri_block.shape[0]
@@ -348,7 +404,7 @@ def test_get_dA_tri_integration():
         [[[0.0, 1.0, 0.0], [0.5, 1.0, 0.0], [1.0, 1.0, 0.0]]]
     )  # All same r, same theta
 
-    dA_degenerate = ember.geometry.get_dA_tri(degenerate_tri)
+    dA_degenerate = ember.block._get_da_tri(degenerate_tri)
     area_mag_degenerate = util.vecnorm(dA_degenerate)
     assert area_mag_degenerate[0] < 1e-10, (
         f"Degenerate triangle should have zero area: {area_mag_degenerate[0]}"
@@ -561,198 +617,6 @@ def test_structured_vs_triangulated_flux():
     print("  ✓ Fluxes match within tolerance")
 
 
-def test_cell_to_node_quasi_1d():
-    """Test cell_to_node function with quasi-1D grids where nj == nk == 2."""
-    print("Testing cell_to_node for quasi-1D grids...")
-
-    # Create quasi-1D grid: ni=5, nj=2, nk=2
-    ni, nj, nk = 5, 2, 2
-
-    # Set up coordinates - axial variation in x, minimal variation in r and theta
-    xv = np.linspace(0.0, 1.0, ni)  # Axial direction
-    rv = np.linspace(0.9, 1.1, nj)  # Small radial variation
-    tv = np.linspace(0.0, 0.1, nk)  # Small theta variation
-
-    x, r, t = np.meshgrid(xv, rv, tv, indexing="ij")
-
-    # Create test cell data with linear variation in x-direction
-    # Cell data has shape (ni-1, nj-1, nk-1, nvar) = (4, 1, 1, 2)
-    cell_shape = (ni - 1, nj - 1, nk - 1, 2)  # 2 variables for testing
-    cell_data = np.zeros(cell_shape, dtype=np.float32, order="F")
-
-    # Variable 0: constant value (should stay constant after interpolation)
-    cell_data[..., 0] = 5.0
-
-    # Variable 1: linear ramp in i-direction (x-direction)
-    for i in range(ni - 1):
-        cell_data[i, 0, 0, 1] = float(i + 1)  # Values: 1, 2, 3, 4
-
-    # Test the cell_to_node interpolation
-    node_data = ember.geometry.cell_to_node(cell_data)
-
-    # Check output shape
-    expected_shape = (ni, nj, nk, 2)
-    assert node_data.shape == expected_shape, (
-        f"Expected shape {expected_shape}, got {node_data.shape}"
-    )
-
-    print(f"  Input cell shape: {cell_data.shape}")
-    print(f"  Output node shape: {node_data.shape}")
-
-    # Test constant variable (should remain constant everywhere)
-    assert np.allclose(node_data[..., 0], 5.0, rtol=1e-6), (
-        "Constant cell data should interpolate to constant node data"
-    )
-    print("  ✓ Constant variable correctly preserved")
-
-    # Test linear ramp variable
-    # Interior nodes should be averages of neighboring cells
-    # Boundary nodes should copy from adjacent cell
-
-    # Check boundary nodes (should equal adjacent cell values)
-    assert np.isclose(node_data[0, 0, 0, 1], 1.0), (
-        f"First boundary node should be 1.0, got {node_data[0, 0, 0, 1]}"
-    )
-    assert np.isclose(node_data[-1, 0, 0, 1], 4.0), (
-        f"Last boundary node should be 4.0, got {node_data[-1, 0, 0, 1]}"
-    )
-
-    # Check interior nodes (should be averages of neighboring cells)
-    for i in range(1, ni - 1):
-        expected_value = (cell_data[i - 1, 0, 0, 1] + cell_data[i, 0, 0, 1]) / 2.0
-        actual_value = node_data[i, 0, 0, 1]
-        assert np.isclose(actual_value, expected_value, rtol=1e-6), (
-            f"Interior node {i} should be {expected_value}, got {actual_value}"
-        )
-
-    print("  ✓ Linear ramp correctly interpolated at boundaries")
-    print("  ✓ Linear ramp correctly interpolated at interior nodes")
-
-    # Check that quasi-1D properties are preserved in j and k directions
-    # All nodes in j and k directions should have same values
-    for j in range(nj):
-        for k in range(nk):
-            np.testing.assert_allclose(
-                node_data[:, j, k, :],
-                node_data[:, 0, 0, :],
-                rtol=1e-6,
-                err_msg=f"Quasi-1D property not preserved at j={j}, k={k}",
-            )
-
-    print("  ✓ Quasi-1D properties preserved in j and k directions")
-
-    # Test with more complex cell data (quadratic variation)
-    cell_data_quad = np.zeros(cell_shape, dtype=np.float32, order="F")
-    for i in range(ni - 1):
-        cell_data_quad[i, 0, 0, 0] = (i + 1) ** 2  # Quadratic: 1, 4, 9, 16
-
-    node_data_quad = ember.geometry.cell_to_node(cell_data_quad)
-
-    # Check that quadratic interpolation is reasonable
-    # Interior nodes should be averages
-    expected_interior = [
-        (1 + 4) / 2,  # node 1: (cell 0 + cell 1) / 2 = 2.5
-        (4 + 9) / 2,  # node 2: (cell 1 + cell 2) / 2 = 6.5
-        (9 + 16) / 2,  # node 3: (cell 2 + cell 3) / 2 = 12.5
-    ]
-
-    for i, expected in enumerate(expected_interior, start=1):
-        actual = node_data_quad[i, 0, 0, 0]
-        assert np.isclose(actual, expected, rtol=1e-6), (
-            f"Quadratic interpolation node {i}: expected {expected}, got {actual}"
-        )
-
-    print("  ✓ Quadratic variation correctly interpolated")
-    print(f"  ✓ Successfully tested quasi-1D grid with shape ({ni}, {nj}, {nk})")
-
-
-def test_cell_to_node_quasi_1d_edge_cases():
-    """Test edge cases for cell_to_node with quasi-1D grids."""
-    print("Testing cell_to_node edge cases for quasi-1D grids...")
-
-    # Test minimal quasi-1D grid: ni=3, nj=2, nk=2 (smallest meaningful quasi-1D)
-    ni, nj, nk = 3, 2, 2
-    cell_shape = (ni - 1, nj - 1, nk - 1, 1)  # (2, 1, 1, 1)
-
-    cell_data = np.zeros(cell_shape, dtype=np.float32, order="F")
-    cell_data[0, 0, 0, 0] = 10.0  # First cell
-    cell_data[1, 0, 0, 0] = 30.0  # Second cell
-
-    node_data = ember.geometry.cell_to_node(cell_data)
-
-    # Check shape
-    assert node_data.shape == (ni, nj, nk, 1), f"Wrong shape: {node_data.shape}"
-
-    # Check interpolation: boundary nodes should equal adjacent cell, interior node should be average
-    assert np.isclose(node_data[0, 0, 0, 0], 10.0), "First node should be 10.0"
-    assert np.isclose(node_data[1, 0, 0, 0], 20.0), (
-        "Interior node should be 20.0 (average)"
-    )
-    assert np.isclose(node_data[2, 0, 0, 0], 30.0), "Last node should be 30.0"
-
-    # Test single cell quasi-1D grid: ni=2, nj=2, nk=2
-    cell_shape_single = (1, 1, 1, 1)
-
-    cell_data_single = np.full(cell_shape_single, 42.0, dtype=np.float32, order="F")
-    node_data_single = ember.geometry.cell_to_node(cell_data_single)
-
-    # All nodes should have the same value as the single cell
-    assert node_data_single.shape == (2, 2, 2, 1), (
-        f"Wrong single-cell shape: {node_data_single.shape}"
-    )
-    assert np.allclose(node_data_single, 42.0), (
-        "Single cell should map to all nodes with same value"
-    )
-
-    print("  ✓ Minimal quasi-1D grid (ni=3) handled correctly")
-    print("  ✓ Single cell quasi-1D grid handled correctly")
-
-    # Test with higher dimensional data
-    ni, nj, nk = 4, 2, 2
-    cell_shape_multi = (ni - 1, nj - 1, nk - 1, 5)  # 5 variables
-    cell_data_multi = np.random.rand(*cell_shape_multi).astype(np.float32, order="F")
-
-    node_data_multi = ember.geometry.cell_to_node(cell_data_multi)
-    assert node_data_multi.shape == (ni, nj, nk, 5), (
-        f"Multi-variable shape wrong: {node_data_multi.shape}"
-    )
-
-    # Check that each variable is interpolated independently
-    for var in range(5):
-        # Interior nodes should be averages for each variable
-        for i in range(1, ni - 1):
-            expected = (
-                cell_data_multi[i - 1, 0, 0, var] + cell_data_multi[i, 0, 0, var]
-            ) / 2.0
-            actual = node_data_multi[i, 0, 0, var]
-            assert np.isclose(actual, expected, rtol=1e-6), (
-                f"Variable {var}, node {i}: expected {expected}, got {actual}"
-            )
-
-    print("  ✓ Multi-variable cell data correctly interpolated")
-
-    # Test Fortran function directly to ensure it works with quasi-1D
-    from ember import fortran
-
-    ni, nj, nk = 4, 2, 2
-    cell_shape_fortran = (ni - 1, nj - 1, nk - 1, 1)
-    cell_data_fortran = np.ones(cell_shape_fortran, dtype=np.float32, order="F") * 7.0
-
-    node_shape_fortran = (ni, nj, nk, 1)
-    node_data_fortran = np.zeros(node_shape_fortran, dtype=np.float32, order="F")
-
-    # Call Fortran function directly
-    fortran.cell_to_node(cell_data_fortran, node_data_fortran)
-
-    # All nodes should be 7.0 for constant input
-    assert np.allclose(node_data_fortran, 7.0), (
-        "Fortran function should preserve constant values"
-    )
-
-    print("  ✓ Direct Fortran function call works with quasi-1D grids")
-    print("  ✓ All edge cases passed")
-
-
 def test_radial_momentum_flux_pressure():
     """Test that radial momentum flux equals pressure P when Vr=0 for 2D, but 0 for 3D."""
     print("Testing radial momentum flux vs pressure relationship...")
@@ -786,7 +650,7 @@ def test_radial_momentum_flux_pressure():
         :, :, 1, 2
     ]  # component [1,2] is r-momentum in r-direction
     # Get face-centered pressure to match flux dimensions
-    from ember.geometry import node_to_face_2d
+    from ember.average import _node_to_face_2d as node_to_face_2d
 
     pressure_2d_face = node_to_face_2d(block_2d.P)
     print(f"2D structured radial momentum flux: {radial_momentum_flux_2d[0, 0]:.1f}")
@@ -825,8 +689,6 @@ def test_radial_momentum_flux_pressure():
 if __name__ == "__main__":
     test_box()
     test_cylinder()
-    test_cell_to_node_quasi_1d()
-    test_cell_to_node_quasi_1d_edge_cases()
     try:
         test_geometry_caching()
     except NameError:
@@ -852,7 +714,7 @@ class TestComputeParametricCoords:
         xrt = np.stack([xv, rv, tv], axis=-1).astype(np.float32)
 
         # Compute parametric coords
-        uv = ember.geometry.compute_parametric_coords(xrt, const_dim=0)
+        uv = ember.nonmatch_communicator._compute_parametric_coords(xrt, const_dim=0)
 
         # Check shape
         assert uv.shape == (ni, nj, nk, 2)
@@ -880,21 +742,21 @@ class TestComputeParametricCoords:
 
         # Test i=0 face (const_dim=0)
         xrt_i0 = xrt_full[0:1, :, :]
-        uv_i0 = ember.geometry.compute_parametric_coords(xrt_i0, const_dim=0)
+        uv_i0 = ember.nonmatch_communicator._compute_parametric_coords(xrt_i0, const_dim=0)
         assert uv_i0.shape == (1, nj, nk, 2)
         assert np.isclose(uv_i0[0, 0, 0, :], [0.0, 0.0]).all()
         assert np.isclose(uv_i0[0, -1, -1, :], [1.0, 1.0]).all()
 
         # Test j=0 face (const_dim=1)
         xrt_j0 = xrt_full[:, 0:1, :]
-        uv_j0 = ember.geometry.compute_parametric_coords(xrt_j0, const_dim=1)
+        uv_j0 = ember.nonmatch_communicator._compute_parametric_coords(xrt_j0, const_dim=1)
         assert uv_j0.shape == (ni, 1, nk, 2)
         assert np.isclose(uv_j0[0, 0, 0, :], [0.0, 0.0]).all()
         assert np.isclose(uv_j0[-1, 0, -1, :], [1.0, 1.0]).all()
 
         # Test k=0 face (const_dim=2)
         xrt_k0 = xrt_full[:, :, 0:1]
-        uv_k0 = ember.geometry.compute_parametric_coords(xrt_k0, const_dim=2)
+        uv_k0 = ember.nonmatch_communicator._compute_parametric_coords(xrt_k0, const_dim=2)
         assert uv_k0.shape == (ni, nj, 1, 2)
         assert np.isclose(uv_k0[0, 0, 0, :], [0.0, 0.0]).all()
         assert np.isclose(uv_k0[-1, -1, 0, :], [1.0, 1.0]).all()
@@ -911,7 +773,7 @@ class TestComputeParametricCoords:
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1).astype(np.float32)
 
-        uv = ember.geometry.compute_parametric_coords(xrt, const_dim=0)
+        uv = ember.nonmatch_communicator._compute_parametric_coords(xrt, const_dim=0)
 
         # Corners still at 0 and 1
         assert np.isclose(uv[0, 0, 0, :], [0.0, 0.0]).all()
@@ -934,7 +796,7 @@ class TestComputeParametricCoords:
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1).astype(np.float32)
 
-        uv = ember.geometry.compute_parametric_coords(xrt, const_dim=0)
+        uv = ember.nonmatch_communicator._compute_parametric_coords(xrt, const_dim=0)
 
         # Basic properties
         assert uv.shape == (ni, nj, nk, 2)
@@ -952,7 +814,7 @@ class TestComputeParametricCoords:
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1).astype(np.float32)
 
-        uv = ember.geometry.compute_parametric_coords(xrt, const_dim=0)
+        uv = ember.nonmatch_communicator._compute_parametric_coords(xrt, const_dim=0)
 
         # Check monotonicity along each direction
         for k in range(nk):
@@ -973,7 +835,7 @@ class TestComputeParametricCoords:
         xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
         xrt = np.stack([xv, rv, tv], axis=-1).astype(np.float32)
 
-        uv = ember.geometry.compute_parametric_coords(xrt, const_dim=0)
+        uv = ember.nonmatch_communicator._compute_parametric_coords(xrt, const_dim=0)
 
         # Check that corners form proper rectangle in parametric space
         corners_uv = np.array(
@@ -995,12 +857,12 @@ class TestComputeParametricCoords:
         xrt_3d = np.random.rand(5, 6, 7, 3).astype(np.float32)
 
         with pytest.raises(ValueError):  # Either numpy or our error
-            ember.geometry.compute_parametric_coords(xrt_3d, const_dim=0)
+            ember.nonmatch_communicator._compute_parametric_coords(xrt_3d, const_dim=0)
 
         # Test with wrong last dimension size
         xrt_wrong = np.random.rand(1, 5, 6, 2).astype(np.float32)
         with pytest.raises(ValueError, match="Expected 2D patch"):
-            ember.geometry.compute_parametric_coords(xrt_wrong, const_dim=0)
+            ember.nonmatch_communicator._compute_parametric_coords(xrt_wrong, const_dim=0)
 
     def test_parametric_coords_different_resolutions(self):
         """Test that patches with different resolutions both map to [0,1]^2."""
@@ -1019,8 +881,8 @@ class TestComputeParametricCoords:
         xv_f, rv_f, tv_f = np.meshgrid(x, r_fine, t_fine, indexing="ij")
         xrt_fine = np.stack([xv_f, rv_f, tv_f], axis=-1).astype(np.float32)
 
-        uv_coarse = ember.geometry.compute_parametric_coords(xrt_coarse, const_dim=0)
-        uv_fine = ember.geometry.compute_parametric_coords(xrt_fine, const_dim=0)
+        uv_coarse = ember.nonmatch_communicator._compute_parametric_coords(xrt_coarse, const_dim=0)
+        uv_fine = ember.nonmatch_communicator._compute_parametric_coords(xrt_fine, const_dim=0)
 
         # Both map to [0,1]^2
         assert np.isclose(uv_coarse[0, 0, 0, :], [0.0, 0.0]).all()
@@ -1055,9 +917,9 @@ def _warped_grid(jitter, theta_offset=0.0, seed=2):
 
 def _face_areas(xrt):
     return (
-        ember.geometry.get_dAi(xrt),
-        ember.geometry.get_dAj(xrt),
-        ember.geometry.get_dAk(xrt),
+        ember.block._get_dai(xrt),
+        ember.block._get_daj(xrt),
+        ember.block._get_dak(xrt),
     )
 
 
@@ -1090,8 +952,8 @@ def test_vol_invariant_to_theta_origin(jitter, theta_offset):
     xrt_ref = _warped_grid(jitter)
     xrt_got = _warped_grid(jitter, theta_offset)
 
-    vol_ref = ember.geometry.get_vol(xrt_ref, *_face_areas(xrt_ref))
-    vol_got = ember.geometry.get_vol(xrt_got, *_face_areas(xrt_got))
+    vol_ref = ember.block._get_vol(xrt_ref, *_face_areas(xrt_ref))
+    vol_got = ember.block._get_vol(xrt_got, *_face_areas(xrt_got))
 
     assert np.abs(vol_got - vol_ref).max() < 1e-12 * np.abs(vol_ref).max()
 
@@ -1112,5 +974,5 @@ def test_vol_annular_sector_exact_at_offset_theta():
     for theta_offset in (0.0, 3.0, 2.0 * np.pi):
         t = np.linspace(0.0, dtheta, n)[None, None, :] * ones + theta_offset
         xrt = np.asfortranarray(np.stack([x, r, t], axis=-1))
-        vol = ember.geometry.get_vol(xrt, *_face_areas(xrt))
+        vol = ember.block._get_vol(xrt, *_face_areas(xrt))
         np.testing.assert_allclose(vol, expected, rtol=1e-12)

@@ -1,68 +1,92 @@
-"""Utility functions for EMBER CFD computations.
+r"""Array functions shared across the codebase.
 
-This module provides a comprehensive collection of utility functions for computational
-fluid dynamics simulations in turbomachinery applications. Functions are organized
-into several categories:
+Each function below is a standalone operation on plain NumPy arrays. This
+module acts a a place to collect common conventions, patterns, and conversions
+so that they can be used consistently across the code.
 
-**Flow Angle and Velocity Conversions**
-- `angles_to_components()` - Convert velocity magnitude and flow angles to components
-- `components_to_angles()` - Convert velocity components to magnitude and flow angles
+Flow angle and coordinate conversions
+======================================
 
-**Vector and Matrix Operations**
-- `dot()` - Dot product along last axis using einsum
-- `vecnorm()` - Vector norm along last axis
-- `matmat()` - Matrix-matrix multiplication over trailing dimensions
-- `matvec()` - Matrix-vector multiplication over trailing dimensions
-- `inv()` - Matrix inversion for stacks of matrices
+Paired functions convert between the native ember data representation
+and and other conventions, each the inverse of its partner. There are utilities
+for conversion between flow angles and velocity components, between Cartesian
+and polar coordinates, and between polar and pseudo-Cartesian coordinates.
 
-**Array Creation and Broadcasting**
-- `zeros()` - Create zero array with F-order and float32
-- `empty()` - Create empty array with F-order and float32
-- `full()` - Create filled array with F-order and float32
-- `allocate_or_reuse()` - Allocate output array if not provided (for out= parameters)
-- `full_bcast()` - Create filled array with broadcast shape
-- `stack_matrix()` - Stack nested iterables into matrix with trailing dimensions
+.. autosummary::
 
-**Coordinate System Utilities**
-- `meshgrid3()` - Create 3D coordinate meshgrid for EMBER (x,r,θ)
-- `linmesh3()` - Create 3D meshgrid from coordinate ranges and shape
-- `cart_to_pol()` - Convert Cartesian coordinates/velocities to polar form
-- `pol_to_cart()` - Convert polar coordinates/velocities to Cartesian form
-- `pol_to_pseudocart()` - Convert (x,r,θ) to pseudo-Cartesian (x,r,rθ)
+   angles_to_components
+   components_to_angles
+   cart_to_pol
+   pol_to_cart
+   pol_to_pseudocart
 
-**CFD-Specific Utilities**
-- `get_atol()` - Calculate absolute tolerances for flux conservation tests
-- `resolve_to_interface()` - Convert meridional velocities to interface-aligned
-- `resolve_from_interface()` - Convert interface-aligned velocities to meridional
-- `signed_distance()` - Distance above/below piecewise line in meridional plane
-- `dot_conserved()` - Specialized dot product for conserved variable fluxes
-- `rms()` - Root mean square calculation
+Vector and matrix operations
+=============================
 
-**Turbomachinery Operations**
-- `pitchwise_repeat()` - Repeat blocks pitchwise in theta direction
-- `bounds()` - Calculate min/max values of arrays
-- `bounding_box()` - Calculate bounding box vertices from Cartesian coordinates
+These functions are intended for use batches of vectors or matrices stacked
+along leading axes, with the last one or two axes holding the vector or matrix
+components. Some are thin wrappers around :obj:`numpy.einsum`, but for
+operations on the hot path of a solver loop they are implemented in Fortran for
+better performance.
 
-**Grid Spacing**
-- `cosine_cluster()` - Cosine-clustered points on [0, 1], dense at both ends
-- `cluster()` - Geometrically spaced points on [0, 1] with expansion ratio and max spacing
+.. autosummary::
 
-**Array Manipulation**
-- `corners()` - Extract corner elements from N-D arrays
-- `resample()` - Resample vector with specified factor preserving critical points
-- `apply_perm_flip()` - Apply permutation and flipping while preserving coordinates
-- `reverse_perm_flip()` - Reverse transformations from apply_perm_flip
+   dot
+   vecnorm
+   matmat
+   matvec
 
-**Patch and Grid Utilities**
-- `perm_flip_to_dirs()` - Convert permutation/flip to TS3-style direction encoding
+Grid construction
+=================
 
-All functions are optimized for performance with Fortran-order arrays and float32
-precision where appropriate. The module supports both scalar and array inputs with
-proper broadcasting behavior.
+The below functions are used to build coordinate arrays for the solver. For
+simple duct geometries, they allow convenient construction of uniform or
+clustered :attr:`~ember.block.Block.xrt` arrays. The :func:`resample` is
+useful for coarsening or refining the distribution of an existing grid.
+
+.. autosummary::
+
+   meshgrid3
+   linmesh3
+   cosine_cluster
+   cluster
+   cluster_symmetric
+   resample
+
+Array allocation and buffers
+============================
+
+Many of these functions are are thin wrappers around their :mod:`numpy`
+namesakes that fix the dtype and memory layout that weember standardises on:
+Fortran order and single-precision ``float32``. Calling these rather than the
+bare NumPy functions signals intent and keeps that convention in one place --
+use them for any new array creation. There are also functions for memory
+management: allocation, or buffer creation and reuse.
+
+.. autosummary::
+
+   zeros
+   array
+   empty
+   full
+   allocate_or_reuse
+   bcast_if_needed
+   carve_view
+
+Miscellaneous geometry
+========================
+
+Assorted utilities for working with coordinates and bounding boxes.
+
+.. autosummary::
+
+   extent
+   bounding_box
+   apply_perm_flip
 """
 
 import numpy as np
-import itertools
+import ember.fortran
 
 try:
     from line_profiler import profile
@@ -94,16 +118,24 @@ def dot(a, b):
     return np.einsum("...i,...i", a, b)
 
 
-def angles_to_components(V_rel, Alpha_rel_deg, Beta_deg):
-    """Resolve relative velocity into axial, radial, and tangential components.
+def angles_to_components(V, Alpha, Beta):
+    """Resolve velocity magnitude into polar components.
+
+    Uses numerically stable trigonometry for all angles including 90 degrees.
+
+    Flow angle conventions:
+
+    - Alpha = 0°: No swirl (Vt = 0)
+    - Beta = 0°: Pure axial flow (Vr = 0)
+    - Beta = ±90°: Pure radial flow (Vx = 0)
 
     Parameters
     ----------
     V_rel : Array
         Relative velocity magnitude [m/s]
-    Alpha_rel_deg : Array
+    Alpha : Array
         Relative yaw angle (tangential flow direction) [degrees]
-    Beta_deg : Array
+    Beta : Array
         Pitch angle (radial flow direction) [degrees]
 
     Returns
@@ -112,26 +144,14 @@ def angles_to_components(V_rel, Alpha_rel_deg, Beta_deg):
         Axial velocity component [m/s]
     Vr : Array
         Radial velocity component [m/s]
-    Vt_rel : Array
-        Relative tangential velocity component [m/s]
+    Vt : Array
+        Tangential velocity component [m/s]
 
-    Notes
-    -----
-    Uses numerically stable trigonometry for all angles including ±90°.
-
-    Flow angle conventions:
-    - Alpha_rel = 0°: No relative swirl (Vt_rel = 0)
-    - Beta = 0°: Pure axial flow (Vr = 0)
-    - Beta = ±90°: Pure radial flow (Vx = 0)
-
-    The velocity decomposition follows turbomachinery conventions:
-    1. Alpha decomposition: V_rel → V_meridional, Vt_rel
-    2. Beta decomposition: V_meridional → Vx, Vr
     """
     # Convert to consistent dtype and radians
-    V_rel = np.asarray(V_rel, dtype=f32)
-    alpha_rad = np.radians(np.asarray(Alpha_rel_deg, dtype=f32))
-    beta_rad = np.radians(np.asarray(Beta_deg, dtype=f32))
+    V = np.asarray(V, dtype=f32)
+    alpha_rad = np.radians(np.asarray(Alpha, dtype=f32))
+    beta_rad = np.radians(np.asarray(Beta, dtype=f32))
 
     # Use pure trigonometry for numerical stability
     cos_alpha = np.cos(alpha_rad)
@@ -140,18 +160,27 @@ def angles_to_components(V_rel, Alpha_rel_deg, Beta_deg):
     sin_beta = np.sin(beta_rad)
 
     # Alpha decomposition: meridional and tangential components
-    V_rel_m = V_rel * cos_alpha  # Meridional velocity magnitude
-    Vt_rel = V_rel * sin_alpha  # Tangential relative velocity
+    Vm = V * cos_alpha  # Meridional velocity magnitude
+    Vt = V * sin_alpha  # Tangential relative velocity
 
     # Beta decomposition: axial and radial components
-    Vx = V_rel_m * cos_beta  # Axial velocity
-    Vr = V_rel_m * sin_beta  # Radial velocity
+    Vx = Vm * cos_beta  # Axial velocity
+    Vr = Vm * sin_beta  # Radial velocity
 
-    return Vx, Vr, Vt_rel
+    return Vx, Vr, Vt
 
 
-def components_to_angles(Vx, Vr, Vt_rel):
-    """Convert velocity components to relative velocity magnitude and flow angles.
+def components_to_angles(Vx, Vr, Vt):
+    """Convert velocity components to velocity magnitude and flow angles.
+
+    This is the inverse of :func:`angles_to_components`, obeying the conventions:
+
+    - Alpha = 0°: No swirl (Vt_rel = 0)
+    - Beta = 0°: Pure axial flow (Vr = 0)
+    - Beta = ±90°: Pure radial flow (Vx = 0)
+
+    For velocity components with very small magnitudes, angles may be
+    numerically unstable. Zero velocity returns (0, 0, 0).
 
     Parameters
     ----------
@@ -159,59 +188,50 @@ def components_to_angles(Vx, Vr, Vt_rel):
         Axial velocity component [m/s]
     Vr : Array
         Radial velocity component [m/s]
-    Vt_rel : Array
-        Relative tangential velocity component [m/s]
+    Vt : Array
+        Tangential velocity component [m/s]
 
     Returns
     -------
-    V_rel : Array
-        Relative velocity magnitude [m/s]
-    Alpha_rel_deg : Array
-        Relative yaw angle (tangential flow direction) [degrees]
-    Beta_deg : Array
+    V : Array
+        Velocity magnitude [m/s]
+    Alpha : Array
+        Yaw angle (tangential flow direction) [degrees]
+    Beta : Array
         Pitch angle (radial flow direction) [degrees]
 
-    Notes
-    -----
-    This is the inverse of angles_to_components. Flow angle conventions:
-    - Alpha_rel = 0°: No relative swirl (Vt_rel = 0)
-    - Beta = 0°: Pure axial flow (Vr = 0)
-    - Beta = ±90°: Pure radial flow (Vx = 0)
-
-    For velocity components with very small magnitudes, angles may be
-    numerically unstable. Zero velocity returns (0, 0, 0).
     """
     # Convert to consistent dtype
     Vx = np.asarray(Vx, dtype=f32)
     Vr = np.asarray(Vr, dtype=f32)
-    Vt_rel = np.asarray(Vt_rel, dtype=f32)
+    Vt = np.asarray(Vt, dtype=f32)
 
     # Calculate meridional velocity magnitude
-    V_rel_m = np.sqrt(Vx**2 + Vr**2)
+    Vm = np.sqrt(Vx**2 + Vr**2)
 
     # Calculate total relative velocity magnitude
-    V_rel = np.sqrt(V_rel_m**2 + Vt_rel**2)
+    V = np.sqrt(Vm**2 + Vt**2)
 
     # Handle zero velocity case
-    zero_velocity = V_rel < 1e-12
+    zero_velocity = V < 1e-12
 
     # Calculate Alpha_rel (yaw angle from meridional vs tangential)
-    # atan2(Vt_rel, V_rel_m) but handle zero meridional velocity
-    Alpha_rel_rad = np.where(zero_velocity, 0.0, np.arctan2(Vt_rel, V_rel_m))
+    # atan2(Vt, V_rel_m) but handle zero meridional velocity
+    Alpha_rad = np.where(zero_velocity, 0.0, np.arctan2(Vt, Vm))
 
     # Calculate Beta (pitch angle from axial vs radial)
     # atan2(Vr, Vx) but handle zero meridional velocity
     Beta_rad = np.where(
-        V_rel_m < 1e-12,  # Pure tangential flow or zero velocity
+        Vm < 1e-12,  # Pure tangential flow or zero velocity
         0.0,
         np.arctan2(Vr, Vx),
     )
 
     # Convert to degrees
-    Alpha_rel_deg = np.degrees(Alpha_rel_rad)
+    Alpha_deg = np.degrees(Alpha_rad)
     Beta_deg = np.degrees(Beta_rad)
 
-    return V_rel, Alpha_rel_deg, Beta_deg
+    return V, Alpha_deg, Beta_deg
 
 
 def vecnorm(x):
@@ -232,18 +252,88 @@ def vecnorm(x):
 
 
 def zeros(shape, dtype=np.float32):
+    """Zero-filled array in standard layout and dtype.
+
+    Equivalent to :obj:`numpy.zeros`, but defaulting to ``dtype=float32``
+    and always ``order="F"``.
+
+    Parameters
+    ----------
+    shape : int or tuple of int
+        Shape of the new array.
+    dtype : numpy dtype, optional
+        Data type for the new array. Default is ``np.float32``.
+
+    Returns
+    -------
+    Array
+        Fortran-ordered array of the given shape and dtype, filled with 0.
+    """
     return np.zeros(shape, dtype=dtype, order="F")
 
 
 def array(x, dtype=np.float32):
+    """Copy array data into standard layout and dtype.
+
+    Equivalent to :obj:`numpy.array`, but defaulting to ``dtype=float32``
+    and always ``order="F"``.
+
+    Parameters
+    ----------
+    x : array_like
+        Data to copy into the new array.
+    dtype : numpy dtype, optional
+        Data type for the new array. Default is ``np.float32``.
+
+    Returns
+    -------
+    Array
+        Fortran-ordered array of the given dtype, holding a copy of ``x``.
+    """
     return np.array(x, dtype=dtype, order="F")
 
 
 def empty(shape):
+    """Uninitialised array in standard layout and dtype.
+
+    Equivalent to :obj:`numpy.empty`, but always ``dtype=float32`` and
+    ``order="F"``. As with :obj:`numpy.empty`, contents are arbitrary until
+    written -- use this only where every element will be set before being
+    read.
+
+    Parameters
+    ----------
+    shape : int or tuple of int
+        Shape of the new array.
+
+    Returns
+    -------
+    Array
+        Fortran-ordered, float32 array of the given shape with
+        uninitialised contents.
+    """
     return np.empty(shape, dtype=np.float32, order="F")
 
 
 def full(shape, fill_value):
+    """Constant-filled array in standard layout and dtype.
+
+    Equivalent to :obj:`numpy.full`, but always ``dtype=float32`` and
+    ``order="F"``.
+
+    Parameters
+    ----------
+    shape : int or tuple of int
+        Shape of the new array.
+    fill_value : scalar
+        Value to fill every element with.
+
+    Returns
+    -------
+    Array
+        Fortran-ordered, float32 array of the given shape, filled with
+        ``fill_value``.
+    """
     return np.full(shape, fill_value, dtype=np.float32, order="F")
 
 
@@ -251,7 +341,7 @@ def allocate_or_reuse(out, shape, dtype=np.float32):
     """Allocate output array if not provided, otherwise reuse existing array.
 
     Helper function for functions that accept an optional `out` parameter.
-    If `out` is None, allocates a new F-contiguous zero array with the
+    If ``out is None``, allocates a new F-contiguous zero array with the
     specified shape and dtype. Otherwise returns the provided array.
 
     Parameters
@@ -271,7 +361,7 @@ def allocate_or_reuse(out, shape, dtype=np.float32):
     Examples
     --------
     >>> def my_function(x, out=None):
-    ...     out = allocate_or_reuse(out, x.shape, dtype=np.float64)
+    ...     out = allocate_or_reuse(out, x.shape)
     ...     # ... compute results into out ...
     ...     return out
     """
@@ -309,20 +399,19 @@ def bcast_if_needed(a, shape):
 
 
 def carve_view(buf, *shapes):
-    """Carve one or more non-overlapping zero-copy F-order views from a buffer.
+    """Carve one or more zero-copy Fortran-order views from a buffer of any shape.
 
     Reinterprets successive spans of a Fortran-contiguous `buf` as arrays of the
     requested `shapes`, packing them end-to-end (view ``k`` starts where view
     ``k-1`` ends) so every returned view aliases distinct storage and all may be
     held live simultaneously. Used to borrow differently-shaped scratch arrays
-    out of one oversized solver buffer (e.g. a block's ``scratch``, ``store`` or
-    ``tau_q_halo``) without allocating.
+    out of one oversized solver buffer without allocating.
 
     The offsets are computed internally, so a caller carving several coexisting
-    slots (e.g. the ``aplane``/``bb``/``corr`` MG scratch out of ``tau_q_halo``)
-    cannot accidentally overlap or gap them. ``buf.reshape(-1, order="F")`` on
-    such a buffer is itself a free view, so repeated calls stay zero-copy and
-    there is no need to hoist a shared flat view at the call site.
+    slots cannot accidentally overlap or gap them. ``buf.reshape(-1,
+    order="F")`` on such a buffer is itself a free view, so repeated calls stay
+    zero-copy and there is no need to hoist a shared flat view at the call
+    site.
 
     Parameters
     ----------
@@ -359,77 +448,8 @@ def carve_view(buf, *shapes):
     return views[0] if len(shapes) == 1 else views
 
 
-def stack_matrix(*args, shape, out=None):
-    """Stack nested iterables into a matrix with trailing matrix dimensions.
-
-    Parameters
-    ----------
-    args : nested iterables length [nrow][ncol]
-        Variables to stack, where args[i][j] contains the (i,j) matrix element.
-        Use None for zero entries to skip the copy.
-    shape : tuple
-        Grid shape for the batch dimensions.
-    out : array, optional
-        Preallocated output array of shape (*shape, nrow, ncol). If None, a new
-        array is allocated.
-
-    Returns
-    -------
-    out : Array, shape (*shape, nrow, ncol)
-        A composite matrix variable with matrix dimensions in trailing axes.
-        Uses f32 precision and Fortran ordering for optimal performance.
-    """
-    nrow = len(args)
-    ncol = len(args[0])
-
-    if out is None:
-        out = np.empty(shape + (nrow, ncol), dtype=f32, order="F")
-    out.fill(0.0)
-    for i in range(nrow):
-        for j in range(ncol):
-            v = args[i][j]
-            if v is not None:
-                out[..., i, j] = v
-    return out
-
-
-def full_bcast(a, b, fill_value):
-    """Create a filled array with broadcast shape of two input arrays.
-
-    This function determines the broadcast shape of two arrays and creates
-    a new array filled with the specified value using that shape. The resulting
-    array has optimal memory layout (Fortran order) and consistent dtype.
-
-    Parameters
-    ----------
-    a : array_like
-        First input array for shape broadcasting.
-    b : array_like
-        Second input array for shape broadcasting.
-    fill_value : scalar
-        Value to fill the array with.
-
-    Returns
-    -------
-    Array
-        New array with broadcast shape filled with fill_value, using
-        dtype=np.float32 and order="F" for optimal performance.
-
-    Examples
-    --------
-    >>> a = np.array([[1, 2]])  # shape (1, 2)
-    >>> b = np.array([[1], [2], [3]])  # shape (3, 1)
-    >>> result = full_bcast(a, b, 5.0)
-    >>> result.shape
-    (3, 2)
-    >>> np.all(result == 5.0)
-    True
-    """
-    return full(np.broadcast(a, b).shape, fill_value)
-
-
 def meshgrid3(xv, rv, tv):
-    """Create 3D coordinate meshgrid for EMBER.
+    """Create 3D coordinate rectangular meshgrid.
 
     This function combines the common pattern of creating a 3D meshgrid
     and stacking the results into a single coordinate array. It preserves
@@ -465,25 +485,25 @@ def meshgrid3(xv, rv, tv):
 def linmesh3(x, r, t, shape):
     """Create 3D coordinate meshgrid from ranges and shape.
 
-    This function creates linspace vectors from coordinate ranges and then
-    generates a 3D meshgrid. It combines the common pattern of creating
-    linspace vectors and then meshing them.
+    This function creates linearly spaced vectors from coordinate ranges and
+    then generates a 3D meshgrid using :func:`meshgrid3`. It combines the
+    common pattern of creating linspace vectors and then meshing them.
 
     Parameters
     ----------
     x : tuple or array_like
-        X-coordinate range [x_min, x_max].
+        Axial coordinate range [x_min, x_max].
     r : tuple or array_like
-        R-coordinate range [r_min, r_max].
+        Radial coordinate range [r_min, r_max].
     t : tuple or array_like
-        Theta-coordinate range [t_min, t_max].
+        Angular coordinate range [t_min, t_max].
     shape : tuple
         Shape of the grid (ni, nj, nk).
 
     Returns
     -------
     Array, shape (ni, nj, nk, 3)
-        Coordinate array with [x, r, t] components, dtype=float32.
+        Coordinate array with (x, r, t) components, dtype=float32.
 
     Examples
     --------
@@ -498,158 +518,6 @@ def linmesh3(x, r, t, shape):
     rv = np.linspace(r[0], r[1], nj, dtype=np.float32)
     tv = np.linspace(t[0], t[1], nk, dtype=np.float32)
     return meshgrid3(xv, rv, tv)
-
-
-def get_atol(conserved, r_av, rtol):
-    """Calculate absolute tolerances for flux conservation tests.
-
-    This function computes physically-based absolute tolerances for testing
-    flux conservation in CFD simulations. The tolerances are based on
-    mean flow properties and account for the different physical scales
-    of each conserved variable.
-
-    Parameters
-    ----------
-    conserved : Array, shape (..., 5)
-        Conserved variables [rho, rho*Vx, rho*Vr, rho*r*Vt, rho*e].
-    r : Array
-        Radial coordinate.
-    rtol : float
-        Relative tolerance multiplier.
-
-    Returns
-    -------
-    Array, shape (5,)
-        Absolute tolerances for [mass, x-momentum, r-momentum, θ-momentum, energy] fluxes.
-
-    Examples
-    --------
-    >>> atol = get_atol(block.conserved, block.r.mean(), 1e-12)
-    >>> assert np.all(np.abs(net_flow) <= atol)
-    """
-
-    r_av = np.mean(r_av)
-
-    # Mean conserved quantities for physical scales
-    rho_av = conserved[..., 0].mean()  # Density scale
-    Vx_av = np.abs(conserved[..., 1] / conserved[..., 0]).mean()
-    Vr_av = np.abs(conserved[..., 2] / conserved[..., 0]).mean()
-    Vt_av = np.abs(conserved[..., 3] / conserved[..., 0] / r_av).mean()
-    V_av = np.sqrt(Vx_av**2 + Vr_av**2 + Vt_av**2)  # Representative velocity scale
-
-    # Assemble absolute tolerances for each conserved variable
-    atol = (
-        np.array(
-            [
-                rho_av,
-                rho_av * V_av,
-                rho_av * V_av,
-                rho_av * r_av * V_av,
-                rho_av * V_av**2,
-            ]
-        )
-        * rtol
-    )
-
-    return atol
-
-
-def pitchwise_repeat(blocks, n, symmetric=False):
-    """Repeat blocks pitchwise in theta direction.
-
-    This function creates copies of blocks with shifted theta coordinates to
-    simulate pitchwise repetition in turbomachinery applications. Each repeated
-    block has its Nb updated to match the new periodicity.
-
-    Parameters
-    ----------
-    blocks : Grid, list of Block, or Block
-        Original blocks to repeat. Can be:
-        - A Grid object (returns Grid)
-        - A list of Block objects (returns list)
-        - A single Block (returns list)
-    n : int
-        Number of repetitions:
-        - n > 0: repeat n times
-        - n = 0: return empty list/Grid
-        - If symmetric=False: range is [0, 1, ..., n-1] for positive n
-        - If symmetric=True: range is [-n, -n+1, ..., -1, 1, 2, ..., n] (excludes 0)
-    symmetric : bool, optional
-        If True, create symmetric repetitions around the original position.
-        If False, create repetitions in one direction only. Default: False.
-
-    Returns
-    -------
-    Grid or list of Block
-        Returns same type as input (Grid→Grid, list→list, Block→list).
-        Contains repeated blocks with shifted theta coordinates.
-        Each block has Nb = original_Nb * total_repetitions to match the new periodicity.
-
-    Examples
-    --------
-    >>> # Repeat single block 3 times in positive direction
-    >>> repeated = pitchwise_repeat(block, 3)
-    >>> len(repeated)  # 3 blocks: [0, 1, 2]
-    3
-
-    >>> # Repeat symmetrically: 3 negative + 3 positive (excludes original)
-    >>> repeated = pitchwise_repeat(block, 3, symmetric=True)
-    >>> len(repeated)  # 6 blocks: [-3, -2, -1, 1, 2, 3]
-    6
-
-    >>> # Single repetition symmetrically
-    >>> repeated = pitchwise_repeat(block, 1, symmetric=True)
-    >>> len(repeated)  # 2 blocks: [-1, 1]
-    2
-
-    >>> # Repeat Grid object
-    >>> grid = Grid([block1, block2])
-    >>> repeated_grid = pitchwise_repeat(grid, 3)
-    >>> isinstance(repeated_grid, Grid)  # Returns Grid
-    True
-    """
-    from ember.grid import Grid
-
-    # Track input type to return matching output type
-    input_was_grid = isinstance(blocks, Grid)
-
-    # Convert single block to list
-    if not input_was_grid and not isinstance(blocks, list):
-        blocks = [blocks]
-
-    if n == 0:
-        if input_was_grid:
-            return Grid([])
-        return []
-
-    if n < 0:
-        raise ValueError("n must be >= 0")
-
-    if symmetric:
-        # Create symmetric range: [-n, -n+1, ..., -1, 1, 2, ..., n]
-        # Excludes the original position at i=0
-        i_range = list(range(-n, 0)) + list(range(1, n + 1))
-        total_repetitions = 2 * n
-    else:
-        # Create asymmetric range: [0, 1, ..., n-1]
-        i_range = list(range(0, n))
-        total_repetitions = n
-
-    result = []
-    for i in i_range:
-        for block in blocks:
-            new_block = block.copy()
-            new_block.set_t(new_block.t + new_block.pitch * i)
-            # Update Nb to match the new periodicity
-            new_block.set_Nb(int(new_block.Nb * total_repetitions))
-            result.append(new_block)
-
-    # Return same type as input
-    if input_was_grid:
-        from ember.grid import Grid
-
-        return Grid(result)
-    return result
 
 
 def pol_to_pseudocart(xrt, inplace=False):
@@ -684,20 +552,20 @@ def pol_to_pseudocart(xrt, inplace=False):
         return result
 
 
-def bounds(*args):
-    """Calculate the minimum and maximum values of arrays.
+def extent(*args):
+    """Calculate per-component min and max values.
 
     Parameters
     ----------
     *args : array_like
-        Arrays to compute bounds for, must have same number of dimensions, and
-        same trailing dimension if ndim > 1.
+        Arrays to compute the extent of, must have same number of
+        dimensions, and same trailing dimension if ndim > 1.
 
     Returns
     -------
     Array, shape (2, ...)
-        Bounds array where bounds[0, ...] contains minimum values and
-        bounds[1, ...] contains maximum values.
+        Extent array where extent[0, ...] contains minimum values and
+        extent[1, ...] contains maximum values.
     """
 
     # Check all args have same ndim
@@ -709,7 +577,7 @@ def bounds(*args):
     # Determine axes to take min/max over
     axes = tuple(range(ndim - 1)) if ndim > 1 else (0,)
 
-    # Find bounds over axes of all arrays
+    # Find extent over axes of all arrays
     min_vals = np.stack([np.min(arr, axis=axes) for arr in arrays]).min(axis=0)
     max_vals = np.stack([np.max(arr, axis=axes) for arr in arrays]).max(axis=0)
 
@@ -733,25 +601,44 @@ def bounding_box(xyz):
     xyz = np.asarray(xyz)
     assert xyz.shape[-1] == 3, "xyz must have 3 components on last axis"
 
-    # Get min/max bounds for each coordinate
-    xyz_bounds = bounds(xyz)  # Shape (2, 3)
+    # Get the per-component extent (min/max) of the coordinates
+    xyz_extent = extent(xyz)  # Shape (2, 3)
 
     # Generate all 8 combinations using meshgrid
-    meshes = np.meshgrid(*xyz_bounds.T, indexing="ij")
+    meshes = np.meshgrid(*xyz_extent.T, indexing="ij")
     vertices = np.stack([mesh.ravel() for mesh in meshes], axis=1)
 
     return vertices
 
 
 def cart_to_pol(xyz, Vxyz, perm=(0, 1, 2), signs=(1, 1, 1)):
-    """Convert Cartesian coordinates and velocities to polar form.
+    r"""Convert Cartesian coordinates and velocities to polar form.
+
+    Inverts the ember :math:`(x, r, \theta)` convention described at
+    :ref:`coordinate-system`, i.e. the map implemented by :func:`pol_to_cart`:
+
+    .. math::
+
+        y = r \cos\theta, \qquad z = -r \sin\theta
+
+    This function takes Cartesian data stacked on the last axis, and returns
+    polar data of the same shape, e.g. for setting a block's raw coordinates
+    and velocities :attr:`~ember.block.Block.xrt` and
+    :attr:`~ember.block.Block.Vxrt` after reading a Cartesian solution.
+
+    ``perm`` and ``signs`` arguments, when supplied, reorient the input before
+    conversion, for source data that doesn't already follow our
+    Cartesian axis order or sense. ``perm=(1, 0, 2)`` swaps :math:`x` and :math:`y`
+    values at every point. ``signs[i] = -1`` negates the (already permuted)
+    component ``i``. A mesh authored with :math:`z` pointing the opposite
+    way to our convention should be read with ``signs=(1, 1, -1)``, for example.
 
     Parameters
     ----------
     xyz : array_like, shape (..., 3)
-        Cartesian coordinates [x, y, z] with components on last axis
+        Cartesian coordinates (x, y, z) with components on last axis
     Vxyz : array_like, shape (..., 3)
-        Cartesian velocity components [Vx, Vy, Vz] with components on last axis
+        Cartesian velocity components (Vx, Vy, Vz) with components on last axis
     perm : tuple of int, optional
         Coordinate permutation (0, 1, 2) -> reordered indices. Default: (0, 1, 2)
     signs : tuple of int, optional
@@ -760,9 +647,9 @@ def cart_to_pol(xyz, Vxyz, perm=(0, 1, 2), signs=(1, 1, 1)):
     Returns
     -------
     xrt : Array, shape (..., 3)
-        Polar coordinates [x, r, t] with components on last axis
+        Polar coordinates (x, r, t) with components on last axis
     Vxrt : Array, shape (..., 3)
-        Polar velocity components [Vx, Vr, Vt] with components on last axis
+        Polar velocity components (Vx, Vr, Vt) with components on last axis
     """
     # Use double precision for intermediate calculations
     xyz = np.asarray(xyz, dtype=np.float64)
@@ -810,14 +697,37 @@ def cart_to_pol(xyz, Vxyz, perm=(0, 1, 2), signs=(1, 1, 1)):
 
 
 def pol_to_cart(xrt, Vxrt, perm=(0, 1, 2), signs=(1, 1, 1)):
-    """Convert polar coordinates and velocities to Cartesian form.
+    r"""Convert polar coordinates and velocities to Cartesian form.
+
+    The reverse of :func:`cart_to_pol`. Implements the ember :math:`(x, r,
+    \theta)` convention described at :ref:`coordinate-system`:
+
+    .. math::
+
+        y = r \cos\theta, \qquad z = -r \sin\theta
+
+    The inputs are typically read from :attr:`~ember.block.Block.xrt` and
+    :attr:`~ember.block.Block.Vxrt`; the returned arrays are
+    Cartesian data of the same shape.
+
+    ``perm`` and ``signs`` reorient the output after conversion, for a target
+    convention that isn't ember's own axis order or sense.
+    ``perm[i]`` says which converted component
+    supplies output component ``i``, and then ``signs[i] = -1`` negates the
+    (already permuted) component ``i``.
+
+    Note that reorientation is applied on the way in by :func:`cart_to_pol` but
+    on the way out here, so the two are not simply symmetric for general
+    ``perm`` and ``signs``. :meth:`ember.grid.Grid.align_cart_unstr` detects
+    the correct orientation to align with a destination grid automatically when
+    given Cartesian data.
 
     Parameters
     ----------
     xrt : array_like, shape (..., 3)
-        Polar coordinates [x, r, t] with components on last axis
+        Polar coordinates (x, r, t) with components on last axis
     Vxrt : array_like, shape (..., 3)
-        Polar velocity components [Vx, Vr, Vt] with components on last axis
+        Polar velocity components (Vx, Vr, Vt) with components on last axis
     perm : tuple of int, optional
         Coordinate permutation (0, 1, 2) -> reordered indices. Default: (0, 1, 2)
     signs : tuple of int, optional
@@ -826,9 +736,9 @@ def pol_to_cart(xrt, Vxrt, perm=(0, 1, 2), signs=(1, 1, 1)):
     Returns
     -------
     xyz : Array, shape (..., 3)
-        Cartesian coordinates [x, y, z] with components on last axis
+        Cartesian coordinates (x, y, z) with components on last axis
     Vxyz : Array, shape (..., 3)
-        Cartesian velocity components [Vx, Vy, Vz] with components on last axis
+        Cartesian velocity components (Vx, Vy, Vz) with components on last axis
     """
     # Use double precision for intermediate calculations
     xrt = np.asarray(xrt, dtype=np.float64)
@@ -873,7 +783,7 @@ def pol_to_cart(xrt, Vxrt, perm=(0, 1, 2), signs=(1, 1, 1)):
 
 
 def matmat(A, B):
-    """Matrix-matrix multiplication using einsum over trailing dimensions.
+    """Matrix-matrix multiplication over trailing dimensions.
 
     Performs matrix multiplication on stacks of matrices where the matrices
     are stored in the trailing dimensions. This is optimized for arrays with
@@ -909,12 +819,52 @@ def matmat(A, B):
     return np.asfortranarray(result.astype(f32))
 
 
+def rotation_matrices(chi):
+    r"""Build a paired 2x2 rotation matrix and its inverse from a meridional-plane angle.
+
+    Both :class:`~ember.patch.RevolutionPatch`'s interface frame and
+    :func:`~ember.block_util.resolve_to_interface` rotate a velocity pair
+    :math:`(V_x, V_r)` by the same convention, so this is the one place that
+    convention is written down:
+
+    .. math::
+
+        V_n &= \cos\chi\, V_x + \sin\chi\, V_r \\
+        V_s &= -\sin\chi\, V_x + \cos\chi\, V_r
+
+    ``rot_from`` is the transpose of ``rot_to`` -- the rotation is
+    orthogonal -- so it undoes exactly this and nothing has to be re-derived
+    to invert it.
+
+    Parameters
+    ----------
+    chi : float or Array
+        Angle [rad] of the frame axis from :math:`+x`, any shape.
+
+    Returns
+    -------
+    rot_to, rot_from : Array, shape ``chi.shape + (2, 2)``
+        ``rot_to`` turns :math:`(V_x, V_r)` into :math:`(V_n, V_s)`;
+        ``rot_from`` turns :math:`(V_n, V_s)` back into :math:`(V_x, V_r)`.
+    """
+    chi = np.asarray(chi)
+    c = np.cos(chi).astype(f32)
+    s = np.sin(chi).astype(f32)
+    rot_to = np.empty(c.shape + (2, 2), dtype=f32, order="F")
+    rot_to[..., 0, 0] = c
+    rot_to[..., 0, 1] = s
+    rot_to[..., 1, 0] = -s
+    rot_to[..., 1, 1] = c
+    rot_from = np.empty_like(rot_to)
+    rot_from[..., 0, 0] = c
+    rot_from[..., 0, 1] = -s
+    rot_from[..., 1, 0] = s
+    rot_from[..., 1, 1] = c
+    return rot_to, rot_from
+
+
 def matvec(A, b, out=None):
     """Matrix-vector multiplication using einsum over trailing dimensions.
-
-    Performs matrix-vector multiplication on stacks of matrices and vectors
-    where the matrices are in trailing dimensions (..., n, m) and vectors
-    are in trailing dimensions (..., m).
 
     Parameters
     ----------
@@ -922,6 +872,9 @@ def matvec(A, b, out=None):
         Input matrices with matrix dimensions in the last two axes.
     b : Array, shape (..., m)
         Input vectors with vector dimension in the last axis.
+    out : Array, shape (..., n), optional
+        Preallocated array to write the result into, sparing a new
+        allocation.
 
     Returns
     -------
@@ -929,6 +882,35 @@ def matvec(A, b, out=None):
         Result of matrix-vector multiplication A @ b for each corresponding
         matrix and vector in the trailing dimensions. Uses f32 precision and
         Fortran ordering for optimal performance.
+
+    Notes
+    -----
+    When ``out`` is given, ``A`` and ``b`` are checked against two specific
+    hot-path shapes -- the per-grid-point 5x5 Jacobian contractions the
+    solver runs every iteration -- and dispatched to a specialised Fortran
+    kernel if they match. Any other shape combination falls back to
+    ``numpy.matmul(..., out=...)``, which is still correct but without the
+    specialised kernel. Either way ``out`` is updated in place and returned
+    by identity.
+
+    The two fast-path shapes, with ``b.shape[-1]`` fixed at 5 in every case:
+
+    - **Single batch axis**: ``b.shape == (N, 5)`` and ``A.shape == (N, 5, 5)`` -- one matrix per vector, no broadcasting.
+    - **Three-dimensional grid with one broadcast**: ``b.shape === (ni, nj, nk, 5)``,
+      and ``A.shape`` one of:
+
+      - ``(ni, nj, 1, 5, 5)`` -- one matrix per :math:`(i,j)`, shared
+        across :math:`k`
+      - ``(1, 1, nk, 5, 5)`` -- one matrix per :math:`k`, shared across
+        :math:`(i,j)`
+      - ``(ni, 1, 1, 5, 5)`` -- one matrix per :math:`i`, shared across
+        :math:`(j,k)`
+
+      A parallel set of kernels handles the same three broadcast patterns
+      for ``b.shape[-1] == 2`` instead of 5.
+      Any other broadcast pattern within the 3-grid-axis case,  including
+      a full ``A`` shape ``(ni, nj, nk, n, m)`` with no broadcast axis at
+      all, falls back to :obj:`numpy.matmul`.
 
     Examples
     --------
@@ -941,357 +923,49 @@ def matvec(A, b, out=None):
     >>> A = np.eye(3, dtype=np.float32, order='F')
     >>> b = np.array([1, 2, 3], dtype=np.float32, order='F')
     >>> y = matvec(A, b)  # y = b
+
+    >>> # Write into a preallocated buffer instead of allocating
+    >>> A = np.random.randn(4, 5, 5).astype(np.float32, order='F')
+    >>> b = np.random.randn(4, 5).astype(np.float32, order='F')
+    >>> out = np.empty((4, 5), dtype=np.float32, order='F')
+    >>> matvec(A, b, out=out) is out
+    True
     """
     if out is not None:
-        import ember.fortran
-
         ndim = b.ndim - 1
         if ndim == 1:
             ember.fortran.matvec5(A, b, out)
         elif ndim == 3:
+            # The two-axis broadcasts are tested before the one-axis one: an
+            # (ni, 1, 1) matrix also satisfies the A.shape[2] == 1 test that
+            # selects _bcast_j, so checking _bcast_j first would make _bcast_i
+            # unreachable and hand the j kernel an nj it cannot use.
             if A.shape[-1] == 2:
-                if A.shape[2] == 1:
-                    ember.fortran.matvec2_bcast_j(A, b, out)
-                elif A.shape[0] == 1 and A.shape[1] == 1:
+                if A.shape[0] == 1 and A.shape[1] == 1:
                     ember.fortran.matvec2_bcast_k(A, b, out)
                 elif A.shape[1] == 1 and A.shape[2] == 1:
                     ember.fortran.matvec2_bcast_i(A, b, out)
+                elif A.shape[2] == 1:
+                    ember.fortran.matvec2_bcast_j(A, b, out)
                 else:
                     np.matmul(A, b[..., np.newaxis], out=out[..., np.newaxis])
-            elif A.shape[2] == 1:
-                ember.fortran.matvec5_bcast_j(A, b, out)
             elif A.shape[0] == 1 and A.shape[1] == 1:
                 ember.fortran.matvec5_bcast_k(A, b, out)
             elif A.shape[1] == 1 and A.shape[2] == 1:
                 ember.fortran.matvec5_bcast_i(A, b, out)
+            elif A.shape[2] == 1:
+                ember.fortran.matvec5_bcast_j(A, b, out)
             else:
-                return np.matmul(
-                    A, b[..., np.newaxis], out=out[..., np.newaxis]
-                ).squeeze(-1)
+                np.matmul(A, b[..., np.newaxis], out=out[..., np.newaxis])
         else:
-            return np.matmul(A, b[..., np.newaxis], out=out[..., np.newaxis]).squeeze(
-                -1
-            )
+            np.matmul(A, b[..., np.newaxis], out=out[..., np.newaxis])
         return out
     result = np.matmul(A, b[..., np.newaxis]).squeeze(-1)
     return np.asfortranarray(result.astype(f32))
 
 
-def inv(A):
-    """Matrix inverse for arrays where matrix dims are last two axes.
-
-    Parameters
-    ----------
-    A : array_like, shape (..., m, m)
-        Input matrices with matrix dimensions as trailing axes
-
-    Returns
-    -------
-    A_inv : array_like, shape (..., m, m)
-        Inverse matrices with same shape as input
-    """
-    # For trailing dimensions, numpy.linalg.inv already expects (..., m, m)
-    return np.linalg.inv(A)
-
-
-def signed_distance(xr, xr_query):
-    """Distance above or below a piecewise line in meridional plane.
-
-    Note that this becomes increasingly inaccurate far away from the
-    curve but the zero level is correct (which is sufficient for cutting).
-
-    Parameters
-    ----------
-    xr : Array, shape (nseg, 2)
-        Coordinates of the cut plane segments following ember convention
-        with components in last axis.
-    xr_query : Array, shape (..., 2)
-        Meridional coordinates to evaluate distance at.
-
-    Returns
-    -------
-    Array, shape (...)
-        Signed distance above or below the cut.
-
-    """
-
-    assert xr.shape[-1] == 2, "Segments must have shape (..., 2)"
-    assert xr_query.shape[-1] == 2, "Points must have shape (..., 2)"
-    assert xr.ndim >= 2, "Segments must be at least 2D"
-
-    # Preallocate the signed distance
-    d = np.full(xr_query.shape[:-1], np.inf)
-
-    # Number of segments
-    nseg = xr.shape[0]
-
-    # Loop over line segments
-    for i in range(nseg - 1):
-        # Get segment endpoints: current and next points
-        seg_start = xr[i]  # Shape (..., 2)
-        seg_end = xr[i + 1]  # Shape (..., 2)
-
-        # Calculate vectors from segment start to points and along segment
-        a = xr_query - seg_start  # Point vector from segment start
-        b = seg_end - seg_start  # Segment direction vector
-
-        # Project point onto segment and clamp to [0,1]
-        L = np.maximum(dot(b, b), 1e-9)  # Segment length squared
-        h = np.clip(dot(a, b) / L, 0.0, 1.0)  # Normalized distance along segment
-
-        # Get perpendicular component (shortest distance to segment)
-        parallel_component = b * h[..., np.newaxis]  # Add axis for broadcasting
-        perpendicular = a - parallel_component  # Perpendicular vector
-        di = np.sqrt(dot(perpendicular, perpendicular))  # Distance magnitude
-
-        # Find points where this segment gives the closest distance
-        ind = np.where(di < np.abs(d))
-
-        # Make the distance signed using perpendicular vector to segment
-        # For 2D, perpendicular to [bx, br] is [-br, bx]
-        normal = np.stack([-b[1], b[0]], axis=-1)  # Normal vector to segment
-        di *= np.sign(dot(perpendicular, normal))
-
-        # Update minimum distance where this segment is closest
-        d[ind] = di[ind]
-
-    return d
-
-
-def rms(*args):
-    """Compute root mean square."""
-    if len(args) == 1:
-        arrays = np.asarray(args[0])
-    else:
-        arrays = np.concatenate(args)
-    return np.sqrt(np.mean(arrays**2))
-
-
-def dot_conserved(flux, dA, axes):
-    return np.sum(
-        np.einsum(
-            "...ij,...i->...j",
-            flux,
-            dA,
-        ),
-        axis=axes,
-    )
-
-
-def resolve_to_interface(block, chi):
-    """Convert meridional velocity to interface-aligned velocities.
-
-    Resolves the meridional velocity components (Vx, Vr) to velocities
-    aligned with an interface at angle chi: velocity through the interface (Vm)
-    and velocity normal to the interface (Vn).
-
-    Parameters
-    ----------
-    block : Block
-        Block containing velocity data to be resolved.
-    chi : float or Array
-        Interface angle in degrees. When chi=0, Vm=Vx and Vn=Vr.
-        When chi=90, Vm=Vr and Vn=-Vx.
-
-    Returns
-    -------
-    Block
-        The input block with velocities updated to interface-aligned form.
-        Vm becomes the new Vx, Vn becomes the new Vr, Vt unchanged.
-    """
-    chi_rad = np.radians(chi)
-    cos_chi = np.cos(chi_rad)
-    sin_chi = np.sin(chi_rad)
-
-    # Current meridional velocities
-    Vx_old = block.Vx
-    Vr_old = block.Vr
-    Vt = block.Vt
-
-    # Transform to interface coordinates
-    Vm = cos_chi * Vx_old + sin_chi * Vr_old
-    Vn = -sin_chi * Vx_old + cos_chi * Vr_old
-
-    # Update block velocities: Vm->Vx, Vn->Vr, Vt unchanged
-    block.set_Vx(Vm)
-    block.set_Vr(Vn)
-    block.set_Vt(Vt)
-    return block
-
-
-def resolve_from_interface(block, chi):
-    """Convert interface-aligned velocities back to meridional components.
-
-    Converts interface-aligned velocities (Vm=block.Vx through interface,
-    Vn=block.Vr normal to interface) back to meridional components (Vx, Vr)
-    using interface angle chi.
-
-    Parameters
-    ----------
-    block : Block
-        Block containing interface-aligned velocities (Vm=block.Vx, Vn=block.Vr).
-    chi : float or Array
-        Interface angle in degrees.
-
-    Returns
-    -------
-    Block
-        The input block with velocities updated to meridional form.
-    """
-    chi_rad = np.radians(chi)
-    cos_chi = np.cos(chi_rad)
-    sin_chi = np.sin(chi_rad)
-
-    # Current interface-aligned velocities
-    Vm = block.Vx
-    Vn = block.Vr
-    Vt = block.Vt
-
-    # Transform from interface coordinates to meridional
-    Vx = cos_chi * Vm - sin_chi * Vn
-    Vr = sin_chi * Vm + cos_chi * Vn
-
-    # Update block velocities
-    block.set_Vx(Vx)
-    block.set_Vr(Vr)
-    block.set_Vt(Vt)
-    return block
-
-
-def perm_flip_to_dirs(perm, flip, const_dim):
-    """Convert permutation/flip to (idir, jdir, kdir) encoding.
-
-    This function converts the permutation and flip information from patch
-    matching into the TS3-style direction indices used to describe how patch
-    coordinates align between blocks.
-
-    Parameters
-    ----------
-    perm : tuple of int
-        Permutation tuple where perm[self_axis] = other_axis.
-        For example, perm[0] = 1 means self's i-axis aligns with other's j-axis.
-    flip : tuple of int
-        Axes to flip after permutation (applied to self coordinate system).
-        Flip is applied AFTER the permutation to align permuted other with self.
-    const_dim : int
-        Which dimension (0=i, 1=j, 2=k) is constant for this patch.
-
-    Returns
-    -------
-    tuple of int
-        (idir, jdir, kdir) where each value encodes:
-        0: aligns with i-axis of other (positive)
-        1: aligns with j-axis of other (positive)
-        2: aligns with k-axis of other (positive)
-        3: aligns with i-axis of other (negative)
-        4: aligns with j-axis of other (negative)
-        5: aligns with k-axis of other (negative)
-        6: patch lies on constant face in that dimension
-
-    Examples
-    --------
-    >>> # Identity transformation on j-constant patch
-    >>> perm_flip_to_dirs((0, 1, 2), (), 1)
-    (0, 6, 2)
-
-    >>> # Permuted with flip on k-constant patch
-    >>> perm_flip_to_dirs((1, 0, 2), (0,), 2)
-    (4, 3, 6)
-    """
-    dirs = []
-
-    for self_axis in range(3):
-        if self_axis == const_dim:
-            # This dimension is constant, so direction is 6
-            dirs.append(6)
-        else:
-            # Find which other axis this self axis aligns with
-            other_axis = perm[self_axis]
-
-            # Check if this self axis is flipped
-            is_flipped = self_axis in flip
-
-            # Encode as 0-2 for positive, 3-5 for negative alignment
-            dir_value = other_axis + (3 if is_flipped else 0)
-            dirs.append(dir_value)
-
-    return tuple(dirs)
-
-
-def corners(x, axis_exclude=None):
-    """Extract corner elements from an ND numpy array.
-
-    This function extracts all corner elements from an N-dimensional array
-    by taking the first and last indices (0, -1) along each dimension,
-    except for dimensions specified in axis_exclude. The corners are
-    stacked along axis 0 in the returned array.
-
-    Parameters
-    ----------
-    x : array_like
-        Input N-dimensional array from which to extract corners.
-    axis_exclude : int or tuple of int, optional
-        Axis or axes to exclude from corner extraction. These axes
-        will be preserved in full (using slice(None)). Default: None.
-
-    Returns
-    -------
-    Array
-        Array containing all corner elements stacked along axis 0.
-        Shape is (2^n_varying_dims, ...) where n_varying_dims is the
-        number of dimensions not excluded.
-
-    Examples
-    --------
-    >>> # 2D array corners
-    >>> x = np.arange(20).reshape(4, 5)
-    >>> corners(x).shape
-    (4, ...)
-    >>> # Returns x[0,0], x[0,-1], x[-1,0], x[-1,-1] stacked along axis 0
-
-    >>> # 3D array with last axis excluded
-    >>> x = np.arange(60).reshape(3, 4, 5)
-    >>> corners(x, axis_exclude=-1).shape
-    (4, 5)
-    >>> # Returns x[0,0,:], x[0,-1,:], x[-1,0,:], x[-1,-1,:] stacked along axis 0
-
-    >>> # 3D array, all corners
-    >>> corners(x).shape
-    (8, ...)
-    >>> # Returns all 8 corners: x[0,0,0], x[0,0,-1], x[0,-1,0], etc.
-    """
-    x = np.asarray(x)
-
-    # Handle axis_exclude parameter
-    if axis_exclude is None:
-        exclude_set = set()
-    elif isinstance(axis_exclude, int):
-        exclude_set = {axis_exclude % x.ndim}
-    else:
-        exclude_set = {ax % x.ndim for ax in axis_exclude}
-
-    # Build corner indices for each dimension
-    corner_indices = []
-    for dim in range(x.ndim):
-        if dim in exclude_set:
-            corner_indices.append([slice(None)])
-        else:
-            corner_indices.append([0, -1])
-
-    # Generate all combinations of corner indices
-    index_combinations = list(itertools.product(*corner_indices))
-
-    # Extract each corner and collect results
-    corner_arrays = []
-    for indices in index_combinations:
-        corner_arrays.append(x[indices])
-
-    # Stack all corners along axis 0
-    return np.stack(corner_arrays, axis=0)
-
-
 def resample(factor, vector, i_crit=None):
-    """Return resampled vector with specified factor, optionally preserving critical points.
+    """Resampled a vector with specified factor, optionally preserving critical points.
 
     Creates a new vector by resampling with a given factor. The new length equals
     len(vector) * factor (approximately). Critical indices are preserved, and for
@@ -1442,61 +1116,6 @@ def resample(factor, vector, i_crit=None):
     return resampled_values, crit_mapping
 
 
-def upsample_1d(zeta_fine, zeta_coarse, y_coarse):
-    """Upsample coarse data to fine grid using linear interpolation.
-
-    Interpolates coarse grid data onto a fine grid using linear interpolation.
-    Assumes coarse grid points correspond to every other fine grid point
-    (i.e., coarse points are at even indices 0, 2, 4, ... of the fine grid).
-
-    Parameters
-    ----------
-    zeta_fine : array_like, shape (n_fine,)
-        Fine grid normalized arc length values [0 to 1].
-    zeta_coarse : array_like, shape (n_coarse,)
-        Coarse grid normalized arc length values [0 to 1].
-        Must be a subset of zeta_fine at even indices.
-    y_coarse : array_like, shape (n_coarse,)
-        Data values at coarse grid points.
-
-    Returns
-    -------
-    y_fine : Array, shape (n_fine,)
-        Linearly interpolated data at fine grid points.
-
-    Examples
-    --------
-    >>> zeta_fine = np.linspace(0, 1, 9)
-    >>> zeta_coarse = zeta_fine[::2]  # [0.0, 0.25, 0.5, 0.75, 1.0]
-    >>> y_coarse = zeta_coarse**2
-    >>> y_fine = upsample_1d(zeta_fine, zeta_coarse, y_coarse)
-    >>> # y_fine contains interpolated values at all 9 fine grid points
-    """
-
-    zeta_fine = np.asarray(zeta_fine, dtype=f32, order="F")
-    zeta_coarse = np.asarray(zeta_coarse, dtype=f32, order="F")
-    y_coarse = np.asarray(y_coarse, dtype=f32, order="F")
-
-    n_fine = len(zeta_fine)
-    n_coarse = len(zeta_coarse)
-
-    # Validate inputs
-    if n_coarse != (n_fine + 1) // 2:
-        raise ValueError(
-            f"Expected n_coarse={(n_fine + 1) // 2} for n_fine={n_fine}, got {n_coarse}"
-        )
-
-    # Allocate output array
-    y_fine = zeros(n_fine)
-
-    # Call Fortran implementation
-    import ember.fortran
-
-    ember.fortran.upsample_1d(zeta_fine, zeta_coarse, y_coarse, y_fine)
-
-    return y_fine
-
-
 def apply_perm_flip(array, perm, flip=()):
     """Apply permutation and flipping to array while preserving coordinate dimension.
 
@@ -1536,53 +1155,6 @@ def apply_perm_flip(array, perm, flip=()):
     if flip:
         array_transformed = np.flip(array_transformed, axis=flip)
     return array_transformed
-
-
-def reverse_perm_flip(array, perm, flip=()):
-    """Reverse the transformations applied by apply_perm_flip.
-
-    This function reverses the permutation and flipping operations applied by
-    apply_perm_flip, restoring the array to its original orientation. The operations
-    are applied in reverse order: first reverse the flip, then reverse the permutation.
-
-    Parameters
-    ----------
-    array : Array
-        Input array that was transformed by apply_perm_flip.
-    perm : tuple
-        The same permutation that was used in apply_perm_flip.
-    flip : tuple, optional
-        The same flip dimensions that were used in apply_perm_flip. Default is () (no flipping).
-
-    Returns
-    -------
-    Array
-        Array restored to its original orientation before apply_perm_flip was applied.
-
-    Examples
-    --------
-    >>> coords = np.random.randn(5, 4, 3).astype(np.float32, order='F')
-    >>> # Apply transformation
-    >>> transformed = apply_perm_flip(coords, perm=(1, 0, 2), flip=(0,))
-    >>> # Reverse transformation
-    >>> restored = reverse_perm_flip(transformed, perm=(1, 0, 2), flip=(0,))
-    >>> np.allclose(coords, restored)
-    True
-    """
-    # Reverse the flip first (flipping is its own inverse)
-    array_unflipped = array
-    if flip:
-        array_unflipped = np.flip(array, axis=flip)
-
-    # Reverse the permutation by computing the inverse permutation
-    # If perm = (1, 0, 2), then inverse_perm[perm[i]] = i
-    inverse_perm = [0] * len(perm)
-    for i, p in enumerate(perm):
-        inverse_perm[p] = i
-
-    # Apply inverse permutation to spatial dimensions, keep coordinate index (last dim)
-    array_restored = array_unflipped.transpose(tuple(inverse_perm) + (3,))
-    return array_restored
 
 
 def cosine_cluster(n):

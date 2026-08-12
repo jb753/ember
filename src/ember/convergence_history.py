@@ -54,7 +54,7 @@ non-dimensional, hence the ``_nd`` suffix:
 * :attr:`ConvergenceHistory.mdot_nd`, :attr:`ConvergenceHistory.ho_nd`,
   :attr:`ConvergenceHistory.s_nd`
 
-Throttle state, driven by :meth:`ember.outlet.OutletPatch.set_throttle` and
+Throttle state, driven by :meth:`ember.patch.OutletPatch.set_throttle` and
 reading zero on a run whose outlets all hold a plain prescribed pressure.
 Unlike the stations above, they are dimensional:
 
@@ -101,7 +101,7 @@ import pickle
 
 import numpy as np
 import time as _time
-from ember.struct import StructuredData
+from ember._struct import StructuredData
 
 f32 = np.float32
 
@@ -132,7 +132,7 @@ class ConvergenceHistory(StructuredData):
         ----------
         shape : tuple
             Shape of a single property array (see
-            :py:meth:`ember.struct.StructuredData.__init__`).
+            :py:meth:`ember._struct.StructuredData.__init__`).
         n_row : int, optional
             Number of blade rows this history tracks (default 1, i.e. 2
             stations: inlet and exit).
@@ -493,8 +493,7 @@ class ConvergenceHistory(StructuredData):
             One step's monitors, from :meth:`ember.grid.Grid.get_convergence`.
             The ``mdot``, ``ho`` and ``s`` station vectors are unpacked into one
             scalar column per station; the history must have been constructed
-            with a matching ``n_row`` (see :meth:`__init__`) to have enough
-            station columns allocated.
+            with a matching ``n_row`` to have enough station columns allocated.
         time : float, optional
             Elapsed time for this record, in seconds. Defaults to the wall-clock
             time since the history was created (the live-solver behaviour); a
@@ -536,7 +535,7 @@ class ConvergenceHistory(StructuredData):
         directory : str or path-like, optional
             Output directory (default current directory).
         """
-        import os
+        import os  # noqa: PLC0415 - only needed on this path
 
         n = self.i_log + 1
         x = [float(self.i_step[i]) for i in range(n)]
@@ -608,7 +607,7 @@ class ConvergenceHistory(StructuredData):
         total correction :math:`\Delta p_\mathrm{throttle}` the outlet adds to
         its prescribed static pressure. This one is always zero: the throttle is
         a PI controller, and the column survives so the on-disk layout reads in
-        both directions. See :meth:`ember.outlet.OutletPatch.set_throttle`.
+        both directions. See :meth:`ember.patch.OutletPatch.set_throttle`.
         """
         return self._get_data_by_keys(("dP_D",))
 

@@ -19,20 +19,27 @@ interface, while the heavy computations run through compiled Fortran for speed.
    auto_examples/index
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Reference manual
 
    coordinate_system
    api/fluid
    api/block
+   api/block_util
+   api/set_iterative
    api/grid
+   api/communicators
    api/patch
    api/average
    api/cut
    api/solver
    api/convergence_history
    api/perturbation
+   api/util
+   api/yaml_util
+   api/cases
    references
+   changelog
 
 Indices
 -------

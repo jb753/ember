@@ -21,4 +21,3 @@ class InviscidPatch(Patch):
     suppressed, for example on a symmetry plane or an inviscid endwall.
     """
 
-    _collection_name = "inviscid"

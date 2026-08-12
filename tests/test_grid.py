@@ -30,6 +30,7 @@ import pytest
 import numpy as np
 import ember.block
 import ember.fluid
+import ember.grid
 from ember.grid import Grid
 from ember.block import Block
 from ember import util
@@ -1035,3 +1036,88 @@ class TestApplyBconds:
         cons_sigma1 = grid1[0].conserved.copy()
 
         assert not np.allclose(cons_sigma0, cons_sigma1)
+
+
+EXPECTED_GRID_DOCSTRING_GROUPS = (
+    "Construction and file formats",
+    "Connectivity",
+    "Global flow field setting",
+    "Time marching",
+    "Metadata",
+)
+
+
+def _grid_docstring_autosummary_tables():
+    """Parse the ``ember.grid`` module docstring into (heading, entries) pairs,
+    one per ``.. autosummary::`` table, attributed to the nearest preceding
+    RST section heading (a line followed by a line of ``=`` of the same
+    length).
+    """
+    import inspect
+    import re
+
+    doc = inspect.cleandoc(ember.grid.__doc__)
+    lines = doc.splitlines()
+
+    heading = None
+    tables = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if (
+            i + 1 < len(lines)
+            and line.strip()
+            and not line.startswith(" ")
+            and re.fullmatch(r"=+", lines[i + 1].strip())
+        ):
+            heading = line.strip()
+            i += 2
+            continue
+        if line.strip() == ".. autosummary::":
+            i += 1
+            while i < len(lines) and lines[i].strip() == "":
+                i += 1
+            entries = []
+            while i < len(lines):
+                m = re.match(r"^\s+Grid\.(\w+)\s*$", lines[i])
+                if not m:
+                    break
+                entries.append(m.group(1))
+                i += 1
+            tables.append((heading, entries))
+            continue
+        i += 1
+
+    return tables
+
+
+def test_grid_module_docstring_lists_all_members():
+    """Every public member defined directly on Grid (not inherited from
+    _LabelledList) is listed exactly once across the module docstring's
+    autosummary tables, grouped under the expected headings."""
+    tables = _grid_docstring_autosummary_tables()
+    headings = tuple(dict.fromkeys(h for h, _ in tables))
+
+    listed = [name for _, entries in tables for name in entries]
+    actual = {n for n in vars(ember.grid.Grid) if not n.startswith("_")}
+
+    assert actual, "introspection found no members defined directly on Grid"
+    assert headings == EXPECTED_GRID_DOCSTRING_GROUPS
+    duplicated = sorted({n for n in listed if listed.count(n) > 1})
+    assert not duplicated, f"listed in more than one table: {duplicated}"
+    assert set(listed) == actual, (
+        f"missing from docstring: {sorted(actual - set(listed))}; "
+        f"listed but not defined on Grid: {sorted(set(listed) - actual)}"
+    )
+
+
+def test_grid_module_docstring_tables_alphabetical():
+    """Every autosummary table in the ember.grid module docstring lists its
+    entries in alphabetical order, case-insensitively."""
+    tables = _grid_docstring_autosummary_tables()
+
+    assert len(tables) >= 6, f"found only {len(tables)} autosummary tables"
+    for heading, entries in tables:
+        assert entries == sorted(entries, key=str.lower), (
+            f"table under {heading!r} not in alphabetical order: {entries}"
+        )

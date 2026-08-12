@@ -125,8 +125,15 @@ def test_residual_matches_golden(region):
     # scaled to each region's own field magnitude rather than a fixed floor, so
     # cells where the flux balance nearly cancels are governed by float32 noise
     # (~1e-5 of the field scale) instead of a runaway relative error.
-    atol = 1e-5 * float(np.abs(expected).max())
-    np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=atol)
+    #
+    # Both coefficients were tuned against x86_64 only: the golden itself is
+    # generated on x86_64, and arm64's independent reduction order (different
+    # FMA contraction / vectorization from gfortran's arm64 vs x86_64 codegen)
+    # pushes a near-cancelling interior cell ~1.8x past the old 1e-4/1e-5
+    # coefficients (observed 4.07e-4 relative, 2.4e-3 absolute). Widened with
+    # margin rather than to the exact observed value.
+    atol = 2e-5 * float(np.abs(expected).max())
+    np.testing.assert_allclose(actual, expected, rtol=3e-4, atol=atol)
 
 
 @pytest.mark.parametrize("kb", [1, 2, 3])

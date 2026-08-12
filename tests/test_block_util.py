@@ -1,6 +1,6 @@
-"""Tests for interface velocity resolution functions (ember.util).
+"""Tests for interface velocity resolution functions (ember.block_util).
 
-Module tested: ember.util
+Module tested: ember.block_util
 
 Test cases:
 - test_chi_zero: Chi=0 case where Vm equals Vx and Vn equals Vr
@@ -30,7 +30,7 @@ import numpy as np
 import ember.block
 import ember.block_util
 import ember.fluid
-import ember.set_iter
+import ember.set_iterative
 import ember.patch
 import ember.util as util
 
@@ -58,6 +58,23 @@ def block():
     return b
 
 
+def _resolve_to(block, chi_deg):
+    """Call resolve_to_interface via a chi-in-degrees rotation matrix.
+
+    The public function now takes a precomputed matrix (so a repeated to/from
+    pair at the same angle, as in mix_out, builds it once); these tests still
+    read most naturally in degrees, so build the matrix here.
+    """
+    rot_to, _ = util.rotation_matrices(np.radians(chi_deg))
+    return ember.block_util.resolve_to_interface(block, rot_to)
+
+
+def _resolve_from(block, chi_deg):
+    """Call resolve_from_interface via a chi-in-degrees rotation matrix. See _resolve_to."""
+    _, rot_from = util.rotation_matrices(np.radians(chi_deg))
+    return ember.block_util.resolve_from_interface(block, rot_from)
+
+
 class TestResolveToInterface:
     """Test resolve_to_interface function."""
 
@@ -68,7 +85,7 @@ class TestResolveToInterface:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 0.0)
+        _resolve_to(block, 0.0)
 
         # When chi=0: Vm=Vx, Vn=Vr, Vt unchanged
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-6)
@@ -83,7 +100,7 @@ class TestResolveToInterface:
         block.set_Vt(Vt_orig)
 
         chi = 45.0  # 45 degrees
-        util.resolve_to_interface(block, chi)
+        _resolve_to(block, chi)
 
         # Expected values for 45° rotation
         sqrt2 = np.sqrt(2.0)
@@ -101,7 +118,7 @@ class TestResolveToInterface:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 90.0)
+        _resolve_to(block, 90.0)
 
         # When chi=90°: Vm=Vr, Vn=-Vx, Vt unchanged
         np.testing.assert_allclose(block.Vx, Vr_orig, rtol=1e-6)
@@ -119,7 +136,7 @@ class TestResolveToInterface:
         chi = np.linspace(0, 90.0, block.shape[0])  # Varies along i direction
         chi_full = np.broadcast_to(chi[:, np.newaxis, np.newaxis], block.shape)
 
-        util.resolve_to_interface(block, chi_full)
+        _resolve_to(block, chi_full)
 
         # Check first plane (chi≈0): should be close to original
         np.testing.assert_allclose(block.Vx[0], Vx_orig, rtol=1e-2)
@@ -143,7 +160,7 @@ class TestResolveFromInterface:
         block.set_Vr(50.0)
         block.set_Vt(25.0)
 
-        util.resolve_from_interface(block, 0.0)
+        _resolve_from(block, 0.0)
 
         # When chi=0: should be unchanged (Vx=Vm, Vr=Vn)
         np.testing.assert_allclose(block.Vx, 100.0, rtol=1e-6)
@@ -158,7 +175,7 @@ class TestResolveFromInterface:
         block.set_Vr(-100.0)
         block.set_Vt(25.0)
 
-        util.resolve_from_interface(block, 90.0)
+        _resolve_from(block, 90.0)
 
         # When chi=90°: Vx=-Vn=100, Vr=Vm=50
         np.testing.assert_allclose(block.Vx, 100.0, rtol=1e-6)
@@ -178,10 +195,10 @@ class TestRoundtripConsistency:
         block.set_Vt(Vt_orig)
 
         # Forward transformation
-        util.resolve_to_interface(block, chi)
+        _resolve_to(block, chi)
 
         # Inverse transformation
-        util.resolve_from_interface(block, chi)
+        _resolve_from(block, chi)
 
         # Should recover original values
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-6)
@@ -204,10 +221,10 @@ class TestRoundtripConsistency:
         chi = np.random.uniform(0, 360.0, block.shape).astype(np.float32)
 
         # Forward transformation
-        util.resolve_to_interface(block, chi)
+        _resolve_to(block, chi)
 
         # Inverse transformation
-        util.resolve_from_interface(block, chi)
+        _resolve_from(block, chi)
 
         # Should recover original values
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-5)
@@ -224,7 +241,7 @@ class TestSpecialCases:
         block.set_Vr(0.0)
         block.set_Vt(25.0)
 
-        util.resolve_to_interface(block, 45.0)
+        _resolve_to(block, 45.0)
 
         # Should remain zero for meridional components
         np.testing.assert_allclose(block.Vx, 0.0, rtol=1e-6)
@@ -239,9 +256,9 @@ class TestSpecialCases:
         block.set_Vt(Vt_orig)
 
         # Test roundtrip with large values
-        util.resolve_to_interface(block, 180.0 / 3)
+        _resolve_to(block, 180.0 / 3)
 
-        util.resolve_from_interface(block, 180.0 / 3)
+        _resolve_from(block, 180.0 / 3)
 
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-5)
         np.testing.assert_allclose(block.Vr, Vr_orig, rtol=1e-5)
@@ -254,7 +271,7 @@ class TestSpecialCases:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 180.0 / 6)  # 30 degrees
+        _resolve_to(block, 180.0 / 6)  # 30 degrees
 
         # Verify transformation preserves magnitude
         Vm_squared = block.Vx**2 + block.Vr**2
@@ -274,7 +291,7 @@ class TestSpecialCases:
             block.set_Vx(Vx_orig)
             block.set_Vr(Vr_orig)
             block.set_Vt(Vt_orig)
-            util.resolve_to_interface(block, chi)
+            _resolve_to(block, chi)
 
             # Magnitude should be preserved for meridional components
             Vm_squared = block.Vx**2 + block.Vr**2
@@ -301,7 +318,7 @@ class TestSpecialCases:
 
         # Apply transformation
         chi = 25.7  # Random angle
-        util.resolve_to_interface(block, chi)
+        _resolve_to(block, chi)
 
         # Check magnitude preservation
         new_mag = np.sqrt(block.Vx**2 + block.Vr**2)
@@ -321,7 +338,7 @@ class TestSpecificAngles:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 180.0)  # 180 degrees
+        _resolve_to(block, 180.0)  # 180 degrees
 
         # When chi=180°: Vm=-Vx, Vn=-Vr, Vt unchanged
         np.testing.assert_allclose(block.Vx, -Vx_orig, rtol=1e-6)
@@ -335,7 +352,7 @@ class TestSpecificAngles:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 270.0)  # 270 degrees
+        _resolve_to(block, 270.0)  # 270 degrees
 
         # When chi=270°: Vm=-Vr, Vn=Vx, Vt unchanged
         np.testing.assert_allclose(block.Vx, -Vr_orig, rtol=1e-6)
@@ -351,10 +368,10 @@ class TestIntegration:
         block.set_Vx(100)
         block.set_Vr(50)
         block.set_Vt(25)
-        result = util.resolve_to_interface(block, 0.0)
+        result = _resolve_to(block, 0.0)
         assert result is block, "Function should return the block"
 
-        result2 = util.resolve_from_interface(block, 0.0)
+        result2 = _resolve_from(block, 0.0)
         assert result2 is block, "Function should return the block"
 
     def test_preserves_block_properties(self, block):
@@ -371,7 +388,7 @@ class TestIntegration:
         orig_coords = block.xrt.copy()
 
         # Apply transformation
-        util.resolve_to_interface(block, 45.0)
+        _resolve_to(block, 45.0)
 
         # Verify non-velocity properties unchanged
         np.testing.assert_array_equal(block.rho, orig_rho)
@@ -391,7 +408,7 @@ class TestIntegration:
         orig_V = block.V.copy()
 
         # Apply transformation
-        util.resolve_to_interface(block, 45.0)
+        _resolve_to(block, 45.0)
 
         # New meridional magnitude should equal old one (orthogonal transformation)
         np.testing.assert_allclose(block.Vm, orig_Vm, rtol=1e-5)
@@ -410,7 +427,7 @@ class TestEdgeCases:
         block.set_Vr(Vr_orig)
         block.set_Vt(Vt_orig)
 
-        util.resolve_to_interface(block, 45.0)
+        _resolve_to(block, 45.0)
 
         # Should handle small values without numerical issues
         assert np.all(np.isfinite(block.Vx))
@@ -436,9 +453,9 @@ class TestEdgeCases:
         block.set_Vt(Vt_orig)
 
         # Test roundtrip
-        util.resolve_to_interface(block, 180.0 / 3)
+        _resolve_to(block, 180.0 / 3)
 
-        util.resolve_from_interface(block, 180.0 / 3)
+        _resolve_from(block, 180.0 / 3)
 
         np.testing.assert_allclose(block.Vx, Vx_orig, rtol=1e-5)
         np.testing.assert_allclose(block.Vr, Vr_orig, rtol=1e-5)
@@ -1008,7 +1025,7 @@ class TestConcatenateEdgeCases:
 
 
 class TestMemoryUsage:
-    """Test memory_usage function."""
+    """Test Block.memory_usage method."""
 
     @pytest.fixture
     def mixing_grid(self):
@@ -1028,21 +1045,19 @@ class TestMemoryUsage:
         Po1, To1 = 1e5, 300.0
         s1 = fluid.get_s(*fluid.set_P_T(Po1, To1))
         ho1 = fluid.get_h(*fluid.set_P_T(Po1, To1))
-        ember.set_iter.set_ho_s_Ma_Alpha_Beta(b, ho1, s1, 0.3, 0.0, 0.0)
+        ember.set_iterative.set_ho_s_Ma_Alpha_Beta(b, ho1, s1, 0.3, 0.0, 0.0)
         b.set_wdist(0.0)
 
         return ember.grid.Grid([b])
 
     def test_returns_three_nonempty_dicts(self, mixing_grid):
         """All 3 returned dicts are non-empty."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
         # Access some cached properties to populate cache
         _ = block.P
         _ = block.Ma
 
-        data_usage, metadata_usage, cache_usage = memory_usage(block)
+        data_usage, metadata_usage, cache_usage = block.memory_usage()
 
         assert isinstance(data_usage, dict) and len(data_usage) > 0
         assert isinstance(metadata_usage, dict) and len(metadata_usage) > 0
@@ -1050,10 +1065,8 @@ class TestMemoryUsage:
 
     def test_data_has_all_keys(self, mixing_grid):
         """Data dict has all 10 data keys."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
-        data_usage, _, _ = memory_usage(block)
+        data_usage, _, _ = block.memory_usage()
 
         expected_keys = {
             "x",
@@ -1071,13 +1084,11 @@ class TestMemoryUsage:
 
     def test_all_values_positive_int(self, mixing_grid):
         """All values are positive integers."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
         _ = block.P
         _ = block.Ma
 
-        data_usage, metadata_usage, cache_usage = memory_usage(block)
+        data_usage, metadata_usage, cache_usage = block.memory_usage()
 
         for d in (data_usage, metadata_usage, cache_usage):
             for key, val in d.items():
@@ -1086,21 +1097,17 @@ class TestMemoryUsage:
 
     def test_cache_nonempty_after_access(self, mixing_grid):
         """After accessing cached properties, cache dict is non-empty."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
         _ = block.P
         _ = block.Ma
 
-        _, _, cache_usage = memory_usage(block)
+        _, _, cache_usage = block.memory_usage()
         assert len(cache_usage) > 0
 
     def test_metadata_contains_expected_keys(self, mixing_grid):
         """Metadata dict contains at least fluid, patches, triangulated."""
-        from ember.block_util import memory_usage
-
         block = mixing_grid[0]
-        _, metadata_usage, _ = memory_usage(block)
+        _, metadata_usage, _ = block.memory_usage()
 
         for key in ("fluid", "patches", "triangulated"):
             assert key in metadata_usage, f"Expected '{key}' in metadata_usage"

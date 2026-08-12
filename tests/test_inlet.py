@@ -28,6 +28,7 @@ from nonreflecting_util import (
     P_MEAN,
     T_MEAN,
     VT_MEAN,
+    VX_MEAN,
     attached,
     face_chic,
     face_prim,
@@ -35,6 +36,7 @@ from nonreflecting_util import (
     make_block,
     reference_state,
     seed_chic,
+    turn,
 )
 
 
@@ -138,6 +140,55 @@ def test_set_Po_To_matches_set_ho_s():
 
     np.testing.assert_allclose(patch_a.ho_nd, patch_b.ho_nd, rtol=1e-6)
     np.testing.assert_allclose(patch_a.s_nd, patch_b.s_nd, rtol=1e-6, atol=1e-6)
+
+
+def test_Po_To_properties_agree_however_prescribed():
+    """Po/To read back the same whether set via set_Po_To or set_ho_s."""
+    block_a, block_b = make_block(), make_block()
+    patch_a = InletPatch(i=0)
+    patch_b = InletPatch(i=0)
+    block_a.patches.append(patch_a)
+    block_b.patches.append(patch_b)
+
+    state = reference_state()
+    patch_a.set_Po_To(float(state.Po), float(state.To))
+    patch_b.set_ho_s(float(state.ho), float(state.s))
+
+    np.testing.assert_allclose(patch_a.Po, patch_b.Po, rtol=1e-5)
+    np.testing.assert_allclose(patch_a.To, patch_b.To, rtol=1e-5)
+
+
+def test_Po_To_properties_recover_the_prescribed_state():
+    """Po and To round-trip back through set_Po_To to the values passed in."""
+    block, patch = attached("inlet")
+    state = reference_state()
+    np.testing.assert_allclose(patch.Po, state.Po, rtol=1e-4)
+    np.testing.assert_allclose(patch.To, state.To, rtol=1e-4)
+
+
+def test_Alpha_Beta_properties_recover_the_prescribed_angles():
+    """Alpha and Beta round-trip back through set_Alpha/set_Beta."""
+    block, patch = attached("inlet")
+    state = reference_state()
+    np.testing.assert_allclose(patch.Alpha, state.Alpha, atol=1e-3)
+    np.testing.assert_allclose(patch.Beta, state.Beta, atol=1e-3)
+
+
+def test_Beta_property_accounts_for_a_canted_face():
+    """Beta reads back the machine-frame pitch angle, not the face-frame one.
+
+    attached() prescribes Beta through the face frame at whatever chi the
+    block was built at, so a nonzero chi_node exercises the correction
+    :attr:`~ember.inlet.InletPatch.Beta` adds back.
+    """
+    block, patch = attached("inlet", chi=45.0)
+    assert np.any(patch.chi_node != 0.0)
+    # attached() turns the duct-frame velocity it is given into the machine
+    # frame before prescribing, exactly as the geometry itself turns; redo
+    # that here to get the machine-frame state it actually set.
+    Vx, Vr = turn(VX_MEAN, 0.0, 45.0)
+    state = reference_state(Vx=Vx, Vr=Vr)
+    np.testing.assert_allclose(patch.Beta, state.Beta, atol=1e-3)
 
 
 def test_set_targets_before_attach_raises():

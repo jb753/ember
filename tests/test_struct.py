@@ -1,14 +1,9 @@
-"""Tests for StructuredData class (ember.struct).
+"""Tests for StructuredData class (ember._struct).
 
-Module tested: ember.struct
+Module tested: ember._struct
 
 Test cases:
 - test_shape_and_dimension_properties: Shape and dimension properties
-- test_increment_data_slice: _increment_data method for in-place increments with slice
-- test_increment_data_full_array: _increment_data method for full array increments
-- test_increment_data_single_variable: _increment_data with a single variable
-- test_increment_data_consecutive_variables: _increment_data with consecutive variables
-- test_increment_data_non_consecutive_variables_error: Error for non-consecutive variables
 - test_transpose_keeps_variable_axis_last_and_reorders_spatial_axes: Transpose functionality
 - test_transpose_invalid_axes_raises: Invalid axes for transpose
 - test_flip_negative_and_positive_axes_match_numpy_flip: Flip functionality
@@ -64,8 +59,8 @@ Test cases:
 import numpy as np
 import pytest
 
-from ember.struct import StructuredData, cached_array
-import ember.struct
+from ember._struct import StructuredData, cached_array
+import ember._struct
 
 
 # helper subclasses for tests
@@ -100,118 +95,6 @@ def test_shape_and_dimension_properties():
     # nk should be invalid for 2D and raise AttributeError (per our agreed API)
     with pytest.raises(AttributeError):
         _ = data.nk
-
-
-def test_increment_data_slice():
-    """Test the _increment_data method for in-place increments with slice."""
-    data = fill_threevar(ThreeVarData(shape=(3, 4)))
-
-    # Store original values
-    orig_a = data._get_data_by_keys(("a",)).copy()
-    orig_b = data._get_data_by_keys(("b",)).copy()
-    orig_c = data._get_data_by_keys(("c",)).copy()
-
-    # Create increment for a specific slice
-    test_slice = (slice(1, 3), slice(None))  # Rows 1-2, all columns
-    delta = np.ones((2, 4, 2), dtype=np.float32)  # Shape matches slice + 2 variables
-    delta[..., 0] = 10.0  # Increment for variable "a"
-    delta[..., 1] = 20.0  # Increment for variable "b"
-
-    # Apply increment to variables "a" and "b"
-    data._increment_data(("a", "b"), delta, test_slice)
-
-    # Check that variables "a" and "b" were incremented in the slice
-    np.testing.assert_allclose(
-        data._get_data_by_keys(("a",))[test_slice], orig_a[test_slice] + 10.0
-    )
-    np.testing.assert_allclose(
-        data._get_data_by_keys(("b",))[test_slice], orig_b[test_slice] + 20.0
-    )
-
-    # Check that variable "c" was unchanged
-    np.testing.assert_allclose(data._get_data_by_keys(("c",)), orig_c)
-
-    # Check that regions outside the slice were unchanged for "a" and "b"
-    mask = np.ones((3, 4), dtype=bool)
-    mask[test_slice] = False
-    np.testing.assert_allclose(data._get_data_by_keys(("a",))[mask], orig_a[mask])
-    np.testing.assert_allclose(data._get_data_by_keys(("b",))[mask], orig_b[mask])
-
-
-def test_increment_data_full_array():
-    """Test the _increment_data method for full array increments (no slice)."""
-    data = fill_threevar(ThreeVarData(shape=(3, 4)))
-
-    # Store original values
-    orig_a = data._get_data_by_keys(("a",)).copy()
-    orig_b = data._get_data_by_keys(("b",)).copy()
-    orig_c = data._get_data_by_keys(("c",)).copy()
-
-    # Create increment for full array
-    delta = np.ones(
-        (3, 4, 2), dtype=np.float32
-    )  # Shape matches full array + 2 variables
-    delta[..., 0] = 5.0  # Increment for variable "a"
-    delta[..., 1] = 15.0  # Increment for variable "b"
-
-    # Apply increment to variables "a" and "b" (no slice)
-    data._increment_data(("a", "b"), delta)
-
-    # Check that variables "a" and "b" were incremented everywhere
-    np.testing.assert_allclose(data._get_data_by_keys(("a",)), orig_a + 5.0)
-    np.testing.assert_allclose(data._get_data_by_keys(("b",)), orig_b + 15.0)
-
-    # Check that variable "c" was unchanged
-    np.testing.assert_allclose(data._get_data_by_keys(("c",)), orig_c)
-
-
-def test_increment_data_single_variable():
-    """Test _increment_data with a single variable."""
-    data = OneVarData(shape=(2, 3))
-    data._set_data_by_keys(("q",), np.ones((2, 3), dtype=np.float32))
-
-    orig_q = data._get_data_by_keys(("q",)).copy()
-
-    # Increment entire array
-    delta = np.full((2, 3, 1), 5.0, dtype=np.float32)
-    data._increment_data(("q",), delta, (slice(None), slice(None)))
-
-    # Check increment was applied
-    np.testing.assert_allclose(data._get_data_by_keys(("q",)), orig_q + 5.0)
-
-
-def test_increment_data_consecutive_variables():
-    """Test _increment_data with consecutive variables."""
-    data = fill_threevar(ThreeVarData(shape=(2, 2)))
-
-    orig_a = data._get_data_by_keys(("a",)).copy()
-    orig_b = data._get_data_by_keys(("b",)).copy()
-    orig_c = data._get_data_by_keys(("c",)).copy()
-
-    # Increment consecutive variables "a" and "b"
-    delta = np.ones((2, 2, 2), dtype=np.float32)
-    delta[..., 0] = 100.0  # For "a"
-    delta[..., 1] = 200.0  # For "b"
-
-    data._increment_data(("a", "b"), delta, (slice(None), slice(None)))
-
-    # Check "a" and "b" were incremented
-    np.testing.assert_allclose(data._get_data_by_keys(("a",)), orig_a + 100.0)
-    np.testing.assert_allclose(data._get_data_by_keys(("b",)), orig_b + 200.0)
-
-    # Check "c" was unchanged
-    np.testing.assert_allclose(data._get_data_by_keys(("c",)), orig_c)
-
-
-def test_increment_data_non_consecutive_variables_error():
-    """Test that _increment_data raises error for non-consecutive variables."""
-    data = fill_threevar(ThreeVarData(shape=(2, 2)))
-
-    # Try to increment non-consecutive variables "a" and "c" (indices 0 and 2)
-    delta = np.ones((2, 2, 2), dtype=np.float32)
-
-    with pytest.raises(ValueError, match="Variable indices must be consecutive"):
-        data._increment_data(("a", "c"), delta, (slice(None), slice(None)))
 
 
 def test_transpose_keeps_variable_axis_last_and_reorders_spatial_axes():
@@ -680,13 +563,13 @@ def test_structured_data_cannot_be_instantiated_directly():
     with pytest.raises(
         AssertionError, match="StructuredData must have at least one variable"
     ):
-        ember.struct.StructuredData(shape=(2, 2))
+        ember._struct.StructuredData(shape=(2, 2))
 
 
 def test_structured_data_with_empty_data_keys():
     """Test StructuredData behavior with empty _data_keys."""
 
-    class EmptyKeysData(ember.struct.StructuredData):
+    class EmptyKeysData(ember._struct.StructuredData):
         _data_keys = ()
 
     # Should fail - empty _data_keys means nvar=0 which violates assertion
@@ -699,7 +582,7 @@ def test_structured_data_with_empty_data_keys():
 def test_structured_data_defaults_inheritance():
     """Test that _defaults are properly inherited."""
 
-    class DefaultsData(ember.struct.StructuredData):
+    class DefaultsData(ember._struct.StructuredData):
         _defaults = {"custom_param": 42, "string_param": "default"}
         _data_keys = ("x",)
 
@@ -776,11 +659,11 @@ def test_module_constants_and_attributes():
     """Test module-level constants and attributes."""
 
     # Test that required classes exist
-    assert hasattr(ember.struct, "StructuredData")
+    assert hasattr(ember._struct, "StructuredData")
 
     # Test module constants
-    assert hasattr(ember.struct, "f32")
-    assert ember.struct.f32 == np.float32
+    assert hasattr(ember._struct, "f32")
+    assert ember._struct.f32 == np.float32
 
 
 # Nanmean tests merged from test_struct_nanmean.py
@@ -1197,7 +1080,7 @@ def test_copy_independence_with_memory_layout():
     np.testing.assert_array_equal(original._get_data_by_keys(("y",)), expected_y)
 
 
-"""Test module for ember.struct.cached_array decorator.
+"""Test module for ember._struct.cached_array decorator.
 
 Tests cached_array decorator functionality with in-place array reuse for performance optimization.
 

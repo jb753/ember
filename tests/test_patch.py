@@ -87,7 +87,7 @@ Test cases:
 import pytest
 import numpy as np
 import ember.block
-import ember.set_iter
+import ember.set_iterative
 from ember.patch import (
     Patch,
     PeriodicPatch,
@@ -99,8 +99,19 @@ from ember.patch import (
     NonMatchPatch,
     CoolingPatch,
 )
-from ember.patch import BlockPatchCollection
+from ember.patch import BlockPatchCollection, RevolutionPatch
 from ember.fluid import PerfectFluid
+from ember.basepatch import _corners
+
+
+class _RevolutionVehicle(RevolutionPatch):
+    """Minimal concrete RevolutionPatch for exercising the base geometry.
+
+    Every shipped RevolutionPatch subclass is a characteristic condition that
+    restricts itself to a plane of constant x, so none of them can carry the
+    tests below, which need the pitch/span machinery on faces that are canted
+    or that vary in x along the span.
+    """
 
 
 def _make_patch_collection():
@@ -2550,18 +2561,6 @@ Test cases:
 - test_xrt_centre_shape_and_bounds: xrt_centre returns expected shape and reasonable values
 - test_xrt_centre_different_patches: Different patches have different centres
 - test_custom_patch_type_different_matching: Custom patch type could implement different matching
-- test_mixing_patch_identical_match: Identical MixingPatches match
-- test_mixing_patch_same_xr_different_theta: Patches with same x,r but different theta match
-- test_mixing_patch_different_k_size: Patches with same x,r but different k-dimension size match
-- test_mixing_patch_permutation_match: Patches that match after dimension permutation
-- test_mixing_patch_flip_match: Patches that match after flipping dimensions
-- test_mixing_patch_different_x_no_match: Patches at different x locations don't match
-- test_mixing_patch_different_r_no_match: Patches at different r locations don't match
-- test_mixing_patch_different_types_no_match: MixingPatch doesn't match with other patch types
-- test_mixing_patch_incompatible_ij_dimensions: Patches with incompatible i,j dimensions don't match
-- test_mixing_patch_different_constant_dimensions: Mixing patches with different constant dimensions
-- test_mixing_patch_different_radial_ranges: Patches with different radial ranges affecting tolerance
-- test_mixing_patch_corner_matching_logic: Corner matching optimization works correctly
 - test_interpolate_spanwise_default_true: interpolate_spanwise defaults to True
 - test_interpolate_spanwise_set_method: interpolate_spanwise can be set using set_interpolate method
 - test_interpolate_spanwise_property_setter: interpolate_spanwise property can be modified
@@ -2771,287 +2770,6 @@ class TestSubclassMatchingFlexibility:
 
         # But our custom type should match (only x,r compared)
         assert patch1.check_match(patch2) is not None
-
-
-class TestMixingPatchCheckMatch:
-    """Test MixingPatch.check_match implementation."""
-
-    def setup_method(self):
-        """Set up blocks for testing."""
-        self.block1 = ember.block.Block(shape=(10, 20, 30))
-        self.block2 = ember.block.Block(shape=(10, 20, 40))  # Different k-size
-
-        # Set up coordinates for block1
-        x1 = np.linspace(0.0, 1.0, 10)
-        r1 = np.linspace(0.5, 1.5, 20)
-        t1 = np.linspace(0.0, 2 * np.pi, 30)
-        xv1, rv1, tv1 = np.meshgrid(x1, r1, t1, indexing="ij")
-        xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0])
-        self.block1.set_r(xrt1[..., 1])
-        self.block1.set_t(xrt1[..., 2])
-
-        # Set up coordinates for block2 (same x,r but different theta resolution)
-        x2 = np.linspace(0.0, 1.0, 10)
-        r2 = np.linspace(0.5, 1.5, 20)
-        t2 = np.linspace(0.0, 2 * np.pi, 40)  # Different theta resolution
-        xv2, rv2, tv2 = np.meshgrid(x2, r2, t2, indexing="ij")
-        xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0])
-        self.block2.set_r(xrt2[..., 1])
-        self.block2.set_t(xrt2[..., 2])
-
-    def test_mixing_patch_identical_match(self):
-        """Test that identical MixingPatches match."""
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = MixingPatch(i=0, j=(5, 15), k=(10, 20))
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)
-
-        # Should match with no span flip needed
-        transform = patch1.check_match(patch2)
-        assert not transform
-
-    def test_mixing_patch_same_xr_different_theta(self):
-        """Test that patches with same x,r but different theta match."""
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(10, 15))  # 5 theta points
-        patch2 = MixingPatch(i=0, j=(5, 15), k=(15, 20))  # Different 5 theta points
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)
-
-        # Should match despite different theta ranges
-        transform = patch1.check_match(patch2)
-        assert transform is not None
-
-    def test_mixing_patch_different_k_size(self):
-        """Test that patches with same x,r but different k-dimension size match."""
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(10, 20))  # 10 theta points
-        patch2 = MixingPatch(
-            i=0, j=(5, 15), k=(15, 25)
-        )  # 10 theta points, different range
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block2)  # Different k-size block
-
-        # Should match despite different k-dimension sizes
-        transform = patch1.check_match(patch2)
-        assert transform is not None
-
-    def test_mixing_patch_permutation_match(self):
-        """Test patches that match after dimension permutation."""
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = MixingPatch(j=(5, 15), i=0, k=(10, 20))  # Swapped i,j specification
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)
-
-        # Should find appropriate permutation
-        transform = patch1.check_match(patch2)
-        assert transform is not None
-
-    def test_mixing_patch_flip_match(self):
-        """Test patches that match after flipping dimensions."""
-        # Create two blocks with coordinates that would match after flipping
-        # Block 1: normal coordinates
-        block1 = ember.block.Block(shape=(6, 8, 10))
-        x = np.linspace(0.0, 1.0, 6)
-        r = np.linspace(0.5, 1.5, 8)
-        t = np.linspace(0.0, 2 * np.pi, 10)
-        xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
-        xrt1 = np.stack([xv, rv, tv], axis=-1)
-        block1.set_x(xrt1[..., 0])
-        block1.set_r(xrt1[..., 1])
-        block1.set_t(xrt1[..., 2])
-
-        # Block 2: same coordinates but with j-dimension flipped
-        block2 = ember.block.Block(shape=(6, 8, 10))
-        r_flipped = np.flip(r)  # Flip the r coordinate array
-        xv2, rv2, tv2 = np.meshgrid(x, r_flipped, t, indexing="ij")
-        xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        block2.set_x(xrt2[..., 0])
-        block2.set_r(xrt2[..., 1])
-        block2.set_t(xrt2[..., 2])
-
-        # Create patches that would match if we flip the j-dimension
-        patch1 = MixingPatch(i=0, j=(2, 5), k=(3, 7))
-        patch2 = MixingPatch(i=0, j=(2, 5), k=(3, 7))  # Same indices
-
-        patch1.attach_to_block(block1)
-        patch2.attach_to_block(block2)
-
-        # Should match with span flip needed
-        transform = patch1.check_match(patch2)
-        assert transform is True
-
-    def test_mixing_patch_different_x_no_match(self):
-        """Test that patches at different x locations don't match."""
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(10, 20))  # x at index 0 (start)
-        patch2 = MixingPatch(i=9, j=(5, 15), k=(10, 20))  # x at index 9 (end)
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)
-
-        # Should not match due to different x coordinates
-        assert patch1.check_match(patch2) is None
-
-    def test_mixing_patch_different_r_no_match(self):
-        """Test that patches at different r locations don't match."""
-        patch1 = MixingPatch(i=0, j=(2, 8), k=(10, 20))  # r at indices 2-8
-        patch2 = MixingPatch(i=0, j=(12, 18), k=(10, 20))  # r at indices 12-18
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)
-
-        # Should not match due to different r coordinates
-        assert patch1.check_match(patch2) is None
-
-    def test_mixing_patch_different_types_no_match(self):
-        """Test that MixingPatch doesn't match with other patch types."""
-        mixing_patch = MixingPatch(i=0, j=(5, 15), k=(10, 20))
-        periodic_patch = PeriodicPatch(i=0, j=(5, 15), k=(10, 20))
-        inlet_patch = InviscidPatch(i=0, j=(5, 15), k=(10, 20))
-
-        mixing_patch.attach_to_block(self.block1)
-        periodic_patch.attach_to_block(self.block1)
-        inlet_patch.attach_to_block(self.block1)
-
-        # Should not match with different patch types
-        assert mixing_patch.check_match(periodic_patch) is None
-        assert mixing_patch.check_match(inlet_patch) is None
-        assert periodic_patch.check_match(mixing_patch) is None
-
-    def test_mixing_patch_incompatible_ij_dimensions(self):
-        """Test that patches with incompatible i,j dimensions don't match."""
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(10, 20))  # j-size: 11
-        patch2 = MixingPatch(i=0, j=(5, 12), k=(10, 20))  # j-size: 8
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)
-
-        # Should not match due to incompatible j-dimension sizes
-        assert patch1.check_match(patch2) is None
-
-    def test_mixing_patch_different_radial_ranges(self):
-        """Test patches with different radial ranges affecting tolerance."""
-        # Create block with wider radial range
-        block_wide = ember.block.Block(shape=(10, 20, 30))
-        x = np.linspace(0.0, 1.0, 10)
-        r_wide = np.linspace(0.1, 3.0, 20)  # Much wider radial range
-        t = np.linspace(0.0, 2 * np.pi, 30)
-        xv, rv, tv = np.meshgrid(x, r_wide, t, indexing="ij")
-        xrt_wide = np.stack([xv, rv, tv], axis=-1)
-        block_wide.set_x(xrt_wide[..., 0])
-        block_wide.set_r(xrt_wide[..., 1])
-        block_wide.set_t(xrt_wide[..., 2])
-
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(10, 20))
-        patch2 = MixingPatch(i=0, j=(5, 15), k=(10, 20))
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(block_wide)
-
-        # Should handle different radial ranges in tolerance calculation
-        # Exact match depends on coordinate alignment
-        transform = patch1.check_match(patch2)
-        assert isinstance(transform, (bool, type(None)))
-
-    def test_mixing_patch_corner_matching_logic(self):
-        """Test that corner matching optimization works correctly."""
-        patch1 = MixingPatch(i=0, j=(5, 10), k=(8, 12))
-        patch2 = MixingPatch(i=0, j=(5, 10), k=(15, 19))  # Different theta range
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)
-
-        # Should match if corners align (same x,r ranges)
-        transform = patch1.check_match(patch2)
-        assert transform is not None
-
-        # Verify no span flip needed for this case
-        assert not transform
-
-
-class TestMixingPatchSpanwiseMatching:
-    """Test MixingPatch spanwise matching with corner-only comparison."""
-
-    def setup_method(self):
-        """Set up blocks for testing."""
-        self.block1 = ember.block.Block(shape=(10, 20, 30))
-        self.block2 = ember.block.Block(shape=(10, 15, 40))  # Different j,k sizes
-
-        # Set up coordinates for block1
-        x1 = np.linspace(0.0, 1.0, 10)
-        r1 = np.linspace(0.5, 1.5, 20)
-        t1 = np.linspace(0.0, 2 * np.pi, 30)
-        xv1, rv1, tv1 = np.meshgrid(x1, r1, t1, indexing="ij")
-        xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0])
-        self.block1.set_r(xrt1[..., 1])
-        self.block1.set_t(xrt1[..., 2])
-
-        # Set up coordinates for block2 (same x but different r,t resolution)
-        x2 = np.linspace(0.0, 1.0, 10)  # Same x coordinates
-        r2 = np.linspace(0.5, 1.5, 15)  # Different r resolution
-        t2 = np.linspace(0.0, 2 * np.pi, 40)  # Different theta resolution
-        xv2, rv2, tv2 = np.meshgrid(x2, r2, t2, indexing="ij")
-        xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0])
-        self.block2.set_r(xrt2[..., 1])
-        self.block2.set_t(xrt2[..., 2])
-
-    def test_flexible_matching_different_pitchwise(self):
-        """Test matching patches with different pitchwise resolutions."""
-        patch1 = MixingPatch(i=0, j=(5, 10), k=(8, 15))  # k-size: 8
-        patch2 = MixingPatch(
-            i=0, j=(5, 10), k=(18, 25)
-        )  # k-size: 8, same i,j, different k range
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)  # Same block
-
-        transform = patch1.check_match(patch2)
-        assert transform is not None
-
-    def test_identical_patches_match(self):
-        """Test that identical patches match."""
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(8, 18))
-        patch2 = MixingPatch(i=0, j=(5, 15), k=(8, 18))
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)  # Same block shape
-
-        transform = patch1.check_match(patch2)
-        assert transform is not None
-
-    def test_corner_alignment_required(self):
-        """Test that matching still requires corner alignment."""
-        # Patch 1 at block1 boundary i=0 (x=0.0)
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(8, 18))
-        # Patch 2 at block1 boundary i=9 (x=1.0) - different x location
-        patch2 = MixingPatch(i=9, j=(3, 10), k=(12, 25))
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block1)
-
-        # Should NOT match because corners don't align (different x coordinates)
-        transform = patch1.check_match(patch2)
-        assert transform is None
-
-    def test_different_constant_dimensions(self):
-        """Test matching with patches having different constant dimensions."""
-        # Patch with i-constant (mixing plane perpendicular to x)
-        patch1 = MixingPatch(i=0, j=(5, 15), k=(8, 18))
-        # Patch with j-constant (mixing plane perpendicular to r)
-        patch2 = MixingPatch(i=(2, 8), j=0, k=(12, 25))
-
-        patch1.attach_to_block(self.block1)
-        patch2.attach_to_block(self.block2)
-
-        # Result depends on coordinate alignment, but should handle different constant dims
-        transform = patch1.check_match(patch2)
-        assert isinstance(transform, (bool, type(None)))
 
 
 """Tests for patch setter methods (ember.patch).
@@ -3439,7 +3157,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vt(0.0)
 
         # Patch on i=0 face, so const_dim=0, varying dims are j and k
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         # k should be pitch (no x,r variation), j should be span (x varies)
@@ -3475,7 +3193,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         assert patch.span_dim == 1
@@ -3510,7 +3228,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         # All three dimensions should be different
@@ -3551,7 +3269,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         assert patch.pitch_dim == 1
@@ -3581,7 +3299,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         # spf should be accessible and be an array
@@ -3609,7 +3327,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         assert np.isclose(patch.weight_pitch.sum(), 1.0)
@@ -3634,7 +3352,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         # With npitch nodes uniformly spaced over [0, pitch], spacing is pitch/(npitch-1).
@@ -3668,7 +3386,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_fluid(fluid)
         block.set_P_T(1e5, 300.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         # Midpoints: 0.05, 0.35, 0.8 (fractions of pitch)
@@ -3709,7 +3427,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(10.0)
         block.set_Vt(20.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
 
@@ -3727,7 +3445,7 @@ class TestPatchSurfaceOfRevolution:
         cons = rng.uniform(0.5, 1.5, shape + (5,)).astype(np.float32)
         block.set_conserved(cons)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
 
@@ -3750,7 +3468,7 @@ class TestPatchSurfaceOfRevolution:
         cons[..., 1] = np.array([1.0, 2.0, 3.0, 4.0])  # rhoVx varies over pitch
         block.set_conserved(cons)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
 
@@ -3796,7 +3514,7 @@ class TestPatchSurfaceOfRevolution:
         block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.0)
         block.set_P_T(1e5, 300.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
         patch._build_rot_matrices()
 
@@ -3824,7 +3542,7 @@ class TestPatchSurfaceOfRevolution:
         block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.1)
         block.set_P_T(1e5, 300.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
         patch._build_rot_matrices()
 
@@ -3843,7 +3561,7 @@ class TestPatchSurfaceOfRevolution:
         block = self._make_conical_sor_block(shape, slope=0.0, dRi=0.0)
         block.set_P_T(1e5, 300.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
         patch._build_rot_matrices(inward=True)
         rot_to_in = patch._rot_to.copy()
@@ -3867,7 +3585,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(7.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
         patch._build_rot_matrices()
@@ -3894,7 +3612,7 @@ class TestPatchSurfaceOfRevolution:
         block.set_Vr(rng.uniform(-10.0, 10.0, shape))
         block.set_Vt(rng.uniform(-10.0, 10.0, shape))
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
         patch.set_block_avg()
         patch._build_rot_matrices()
@@ -3943,7 +3661,7 @@ class TestPatchNonSurfaceOfRevolution:
         """Test that RevolutionPatch subclass raises on attach when not a surface of revolution."""
         block = self._make_non_sor_block()
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         with pytest.raises(ValueError, match="not a surface of revolution"):
             patch.attach_to_block(block)
 
@@ -3951,7 +3669,7 @@ class TestPatchNonSurfaceOfRevolution:
         """Test that OutletPatch raises on attach when not a surface of revolution."""
         block = self._make_non_sor_block()
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         with pytest.raises(ValueError, match="not a surface of revolution"):
             patch.attach_to_block(block)
 
@@ -3976,7 +3694,7 @@ class TestPatchNonSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         # Should raise error on attach - no clear span or pitch
         with pytest.raises(ValueError, match="not a surface of revolution"):
             patch.attach_to_block(block)
@@ -4009,7 +3727,7 @@ class TestPatchNonSurfaceOfRevolution:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         # This is actually a valid surface of revolution
@@ -4050,7 +3768,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         # Patch on i=0 face has shape (1, nj, nk) -> squeezed to (nj, nk)
@@ -4089,7 +3807,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4124,7 +3842,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4160,7 +3878,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4192,7 +3910,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4225,7 +3943,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4266,7 +3984,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4303,7 +4021,7 @@ class TestPatchSpanFractionVector:
         block.set_Vr(0.0)
         block.set_Vt(0.0)
 
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         spf = patch.spf
@@ -4348,7 +4066,7 @@ class TestMdot:
         shape = (10, 6, 8)
         block = self._make_sor_block(shape)
         block.set_P_T(1e5, 300.0)
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
         assert patch._dA_node.shape == (shape[1],)
 
@@ -4357,7 +4075,7 @@ class TestMdot:
         shape = (10, 5, 8)
         block = self._make_sor_block(shape)
         block.set_P_T(1e5, 300.0)
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         ws = patch._dA_node
@@ -4373,7 +4091,7 @@ class TestMdot:
         r_span = np.linspace(0.5, 1.5, shape[1])
         block = self._make_sor_block(shape, r_span=r_span)
         block.set_P_T(1e5, 300.0)
-        patch = MixingPatch(i=0)
+        patch = _RevolutionVehicle(i=0)
         patch.attach_to_block(block)
 
         ws = patch._dA_node
@@ -4496,3 +4214,231 @@ class TestPatchDocstringExamples:
 
     def test_patch_examples(self):
         _exec_patch_example("patch_examples")
+
+
+class TestCorners:
+    """Test corner extraction from N-dimensional arrays (ember.basepatch._corners)."""
+
+    def test_corners_1d_array(self):
+        """Test corners with 1D array."""
+        x = np.array([10, 20, 30, 40, 50])
+        result = _corners(x)
+
+        assert result.shape == (2,)
+        np.testing.assert_array_equal(result, [10, 50])  # x[0], x[-1]
+
+    def test_corners_2d_array(self):
+        """Test corners with 2D array."""
+        x = np.arange(20).reshape(4, 5)
+        # x = [[0,  1,  2,  3,  4],
+        #      [5,  6,  7,  8,  9],
+        #      [10, 11, 12, 13, 14],
+        #      [15, 16, 17, 18, 19]]
+        result = _corners(x)
+
+        assert result.shape == (4,)
+        expected = np.array([0, 4, 15, 19])  # x[0,0], x[0,-1], x[-1,0], x[-1,-1]
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_3d_array(self):
+        """Test corners with 3D array."""
+        x = np.arange(24).reshape(2, 3, 4)
+        result = _corners(x)
+
+        assert result.shape == (8,)
+        expected = np.array(
+            [
+                0,  # x[0,0,0]
+                3,  # x[0,0,-1]
+                8,  # x[0,-1,0]
+                11,  # x[0,-1,-1]
+                12,  # x[-1,0,0]
+                15,  # x[-1,0,-1]
+                20,  # x[-1,-1,0]
+                23,  # x[-1,-1,-1]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_2d_exclude_last_axis(self):
+        """Test corners with 2D array excluding last axis."""
+        x = np.arange(20).reshape(4, 5)
+        result = _corners(x, axis_exclude=-1)
+
+        assert result.shape == (2, 5)
+        expected = np.array(
+            [
+                [0, 1, 2, 3, 4],  # x[0, :]
+                [15, 16, 17, 18, 19],  # x[-1, :]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_2d_exclude_first_axis(self):
+        """Test corners with 2D array excluding first axis."""
+        x = np.arange(20).reshape(4, 5)
+        result = _corners(x, axis_exclude=0)
+
+        assert result.shape == (2, 4)
+        expected = np.array(
+            [
+                [0, 5, 10, 15],  # x[:, 0]
+                [4, 9, 14, 19],  # x[:, -1]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_3d_exclude_last_axis(self):
+        """Test corners with 3D array excluding last axis."""
+        x = np.arange(60).reshape(3, 4, 5)
+        result = _corners(x, axis_exclude=-1)
+
+        assert result.shape == (4, 5)
+        expected = np.array(
+            [
+                x[0, 0, :],  # x[0,0,:]
+                x[0, -1, :],  # x[0,-1,:]
+                x[-1, 0, :],  # x[-1,0,:]
+                x[-1, -1, :],  # x[-1,-1,:]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_3d_exclude_middle_axis(self):
+        """Test corners with 3D array excluding middle axis."""
+        x = np.arange(60).reshape(3, 4, 5)
+        result = _corners(x, axis_exclude=1)
+
+        assert result.shape == (4, 4)
+        expected = np.array(
+            [
+                x[0, :, 0],  # x[0,:,0]
+                x[0, :, -1],  # x[0,:,-1]
+                x[-1, :, 0],  # x[-1,:,0]
+                x[-1, :, -1],  # x[-1,:,-1]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_exclude_multiple_axes(self):
+        """Test corners excluding multiple axes."""
+        x = np.arange(120).reshape(2, 3, 4, 5)
+        result = _corners(x, axis_exclude=(1, 3))
+
+        assert result.shape == (4, 3, 5)
+        expected = np.array(
+            [
+                x[0, :, 0, :],  # x[0,:,0,:]
+                x[0, :, -1, :],  # x[0,:,-1,:]
+                x[-1, :, 0, :],  # x[-1,:,0,:]
+                x[-1, :, -1, :],  # x[-1,:,-1,:]
+            ]
+        )
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_negative_axis_exclude(self):
+        """Test corners with negative axis exclude indices."""
+        x = np.arange(60).reshape(3, 4, 5)
+
+        # Test -1 (last axis)
+        result1 = _corners(x, axis_exclude=-1)
+        result2 = _corners(x, axis_exclude=2)
+        np.testing.assert_array_equal(result1, result2)
+
+        # Test -2 (middle axis)
+        result3 = _corners(x, axis_exclude=-2)
+        result4 = _corners(x, axis_exclude=1)
+        np.testing.assert_array_equal(result3, result4)
+
+    def test_corners_single_axis_tuple(self):
+        """Test corners with single axis in tuple."""
+        x = np.arange(60).reshape(3, 4, 5)
+        result1 = _corners(x, axis_exclude=(2,))
+        result2 = _corners(x, axis_exclude=2)
+        np.testing.assert_array_equal(result1, result2)
+
+    def test_corners_exclude_all_axes(self):
+        """Test corners excluding all axes."""
+        x = np.arange(24).reshape(2, 3, 4)
+        result = _corners(x, axis_exclude=(0, 1, 2))
+
+        assert result.shape == (1, 2, 3, 4)
+        np.testing.assert_array_equal(result[0], x)
+
+    def test_corners_float_array(self):
+        """Test corners with float array."""
+        x = np.array([[1.5, 2.7, 3.9], [4.2, 5.8, 6.1]])
+        result = _corners(x)
+
+        expected = np.array([1.5, 3.9, 4.2, 6.1])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_empty_exclude_set(self):
+        """Test corners with empty axis_exclude."""
+        x = np.arange(12).reshape(3, 4)
+        result1 = _corners(x, axis_exclude=None)
+        result2 = _corners(x, axis_exclude=())
+        result3 = _corners(x)
+
+        np.testing.assert_array_equal(result1, result2)
+        np.testing.assert_array_equal(result1, result3)
+
+    def test_corners_higher_dimensions(self):
+        """Test corners with higher dimensional arrays."""
+        # 4D array
+        x = np.arange(120).reshape(2, 3, 4, 5)
+        result = _corners(x)
+
+        assert result.shape == (16,)  # 2^4 = 16 corners
+
+        # Check a few specific corners
+        assert result[0] == x[0, 0, 0, 0]  # All first indices
+        assert result[-1] == x[-1, -1, -1, -1]  # All last indices
+
+    def test_corners_preserve_dtype(self):
+        """Test that corners preserves array dtype."""
+        x_int = np.arange(12, dtype=np.int32).reshape(3, 4)
+        result_int = _corners(x_int)
+        assert result_int.dtype == x_int.dtype
+
+        x_float = np.arange(12, dtype=np.float64).reshape(3, 4)
+        result_float = _corners(x_float)
+        assert result_float.dtype == x_float.dtype
+
+    def test_corners_list_input(self):
+        """Test corners with list input."""
+        x_list = [[1, 2, 3], [4, 5, 6]]
+        result = _corners(x_list)
+
+        expected = np.array([1, 3, 4, 6])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_corners_single_element_array(self):
+        """Test corners with single element array."""
+        x = np.array([42])
+        result = _corners(x)
+
+        assert result.shape == (2,)
+        np.testing.assert_array_equal(
+            result, [42, 42]
+        )  # Both first and last are the same
+
+    def test_corners_axis_exclude_out_of_bounds_positive(self):
+        """Test that out-of-bounds positive axis indices are handled via modulo."""
+        x = np.arange(12).reshape(3, 4)
+        # axis_exclude=5 should be equivalent to axis_exclude=1 (5 % 2 = 1)
+        result1 = _corners(x, axis_exclude=5)
+        result2 = _corners(x, axis_exclude=1)
+        np.testing.assert_array_equal(result1, result2)
+
+    def test_corners_multidimensional_exclude_consistency(self):
+        """Test that different ways of specifying the same exclusion give same results."""
+        x = np.arange(120).reshape(2, 3, 4, 5)
+
+        # These should all exclude axes 0 and 2
+        result1 = _corners(x, axis_exclude=(0, 2))
+        result2 = _corners(x, axis_exclude=(2, 0))  # Different order
+        result3 = _corners(x, axis_exclude=(-4, -2))  # Negative indices
+
+        np.testing.assert_array_equal(result1, result2)
+        np.testing.assert_array_equal(result1, result3)

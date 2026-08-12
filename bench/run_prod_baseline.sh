@@ -7,10 +7,21 @@
 # thermal state are re-drawn every time. Repeats at that level are the only
 # thing that produces a real error bar.
 #
-# 16 ranks = cores 0-15 = 8 physical cores on EACH socket. SMT siblings
-# (16-31) are left idle, so no two ranks share a core. Two memory
-# controllers, 8 ranks per controller. This is NOT the 6-rank one-socket
-# regime used earlier and must not be spliced with it.
+# Historical default: 16 ranks = cores 0-15 = 8 physical cores on EACH
+# socket. SMT siblings (16-31) are left idle, so no two ranks share a core.
+# Two memory controllers, 8 ranks per controller. This is NOT the 8-rank
+# one-socket regime and must not be spliced with it.
+#
+# CPU pinning: set CPUS explicitly ("0 1 2 ... 7") to override, exactly like
+# run_all_arms.sh's own CPUS -- needed on a hybrid part or any machine where
+# consecutive cpu ids are not what you think they are (see that script's
+# comment). Left unset, this auto-detects NRANKS distinct physical cores on
+# one NUMA node/socket (bench/socket_cpus.py, ported from duct/job_timing.py's
+# detect_socket_cpus) whenever such a node exists -- correct for the 8-rank
+# one-socket regime on any topology, not just the Haswell workstation this
+# harness's numbers were first measured on. When no single node has NRANKS
+# physical cores (e.g. NRANKS=16 spanning both sockets on a 2x8-core part),
+# it falls back to the historical sequential 0..NRANKS-1.
 #
 # Usage: bench/run_prod_baseline.sh [launches] [nranks] [ncell] [reps]
 set -euo pipefail
@@ -31,8 +42,26 @@ export OMP_NUM_THREADS=1
 export UV_NO_SYNC=1
 [ "${KEEP:-0}" = 1 ] || rm -f "$RESULTS"
 
+CPUS="${CPUS:-}"
+if [ -z "$CPUS" ]; then
+    CPUS="$(uv run python bench/socket_cpus.py --n "$NRANKS" 2>/dev/null || true)"
+    if [ -z "$CPUS" ]; then
+        for ((c = 0; c < NRANKS; c++)); do CPUS="$CPUS $c"; done
+        REGIME="cores 0-$((NRANKS - 1)) (sequential fallback; no single socket has $NRANKS physical cores)"
+    else
+        REGIME="cpus [$CPUS] (auto-detected: $NRANKS physical cores, one socket)"
+    fi
+else
+    REGIME="cpus [$CPUS] (explicit CPUS override)"
+fi
+read -r -a CPU_LIST <<< "$CPUS"
+if [ "${#CPU_LIST[@]}" -lt "$NRANKS" ]; then
+    echo "CPUS lists ${#CPU_LIST[@]} cpus but NRANKS=$NRANKS" >&2
+    exit 1
+fi
+
 echo "=== $(hostname): $LAUNCHES launches x $NRANKS ranks, ncell=$NCELL, $REPS reps ==="
-echo "=== cores 0-$((NRANKS - 1)), SMT siblings idle, no flush, prod only ==="
+echo "=== $REGIME, SMT siblings idle, no flush, arm=$ARM kernel=$KERNEL ==="
 
 for ((L = 0; L < LAUNCHES; L++)); do
     # Unique segment per launch so a crashed run cannot poison the next one.
@@ -40,7 +69,7 @@ for ((L = 0; L < LAUNCHES; L++)); do
     pids=()
     for ((rk = 0; rk < NRANKS; rk++)); do
         EMBER_BENCH_RANK=$rk EMBER_BARRIER="$BARRIER" \
-            taskset -c "$rk" uv run python bench/bench_prod_baseline.py \
+            taskset -c "${CPU_LIST[$rk]}" uv run python bench/bench_prod_baseline.py \
             --nranks "$NRANKS" --ncell "$NCELL" --reps "$REPS" --arm "$ARM" \
             --kernel "$KERNEL" \
             --launch "$L" --json "$RESULTS" &

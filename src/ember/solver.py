@@ -30,7 +30,7 @@ Overview of one time step
    recomputed every few steps to save cost.
 4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes
    the time step and stores it pre-divided by cell volume in
-   attr:``ember.block.Block.block.dt_vol_nd``.
+   :attr:``ember.block.Block.block.dt_vol_nd``.
 5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
    unintegrated net-flow residual, with optional implicit residual smoothing
    , :attr:`~Solver.sf_resid`, or negative feedback limiter
@@ -223,17 +223,18 @@ Inlet, outlet, and mixing-plane patches each relax their own state towards a
 target every step, with their own relaxation factor rather than a single
 solver-wide setting:
 
-- :class:`~ember.inlet.InletPatch` and :class:`~ember.outlet.OutletPatch` take
+- :class:`~ember.patch.InletPatch` and :class:`~ember.patch.OutletPatch` take
   one under-relaxed step of the characteristic condition per timestep, scaled
-  by :attr:`~ember.nonreflecting.NonReflectingPatch.sigma`; see
+  by :attr:`~ember.patch.NonReflectingPatch.sigma`; see
   :attr:`~ember.solver.Solver.rf_inlet` and :attr:`~ember.solver.Solver.rf_outlet`.
-- :class:`~ember.mixing.MixingPatch` holds no relaxation of its own: it imposes
-  whatever target the exchange last wrote.
+- :class:`~ember.patch.MixingPatch` takes the same under-relaxed
+  characteristic step as the inlet and outlet, scaled by its own
+  :attr:`~ember.patch.NonReflectingPatch.sigma`; see
+  :attr:`~ember.solver.Solver.rf_mix`.
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
   mixing-plane target exchanged between adjacent blocks with the patches'
-  ``rf_exchange`` (default 0.05), which is the only damping the reflecting
-  plane has.
-- :class:`~ember.outlet.OutletPatch` relaxes its spanwise radial-equilibrium
+  ``rf_exchange``, separately from either side's own step.
+- :class:`~ember.patch.OutletPatch` relaxes its spanwise radial-equilibrium
   profile separately, via ``set_adjustment(rf=...)``, and damps its mass-flow
   throttle separately again, via the dimensionless gains of
   ``set_throttle(mdot_target, Kp=..., Ki=...)``.
@@ -352,32 +353,30 @@ class Solver(BaseSolver):
     """Scaling factor on multigrid corrections. Honored by both integrators
     (:func:`scree_step` and :func:`rk_step`)."""
 
-    expon_mgrid: float = 2.0
+    expon_mgrid: float = 1.414
     """Base of the per-level multigrid decay, ``coef_l ~ expon_mgrid**-(l-1)``.
     Honored by both integrators (:func:`scree_step` and :func:`rk_step`)."""
 
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
-    (:attr:`~ember.nonreflecting.NonReflectingPatch.sigma`) on every
-    :class:`~ember.inlet.InletPatch`. Imposed on every such patch at the start
+    (:attr:`~ember.patch.NonReflectingPatch.sigma`) on every
+    :class:`~ember.patch.InletPatch`. Imposed on every such patch at the start
     of the run, so the default overrides a value the patches carried in; pass
     None to leave whatever they already hold."""
 
     rf_outlet: float | None = 0.05
-    """As :attr:`rf_inlet`, for every :class:`~ember.outlet.OutletPatch`. This
+    """As :attr:`rf_inlet`, for every :class:`~ember.patch.OutletPatch`. This
     is the characteristic relaxation only; the spanwise radial-equilibrium
     profile has its own, set via ``set_adjustment(rf=...)``."""
 
     rf_mix: float | None = 0.01
-    """As :attr:`rf_inlet`, for every
-    :class:`~ember.mixing_nonreflecting.NonReflectingMixingPatch`. This is each
-    side's own characteristic relaxation; :attr:`rf_exchange` is the separate
-    factor on the cross-plane exchange between them."""
+    """As :attr:`rf_inlet`, for every :class:`~ember.patch.MixingPatch`. This
+    is each side's own characteristic relaxation; :attr:`rf_exchange` is the
+    separate factor on the cross-plane exchange between them."""
 
     rf_exchange: float | None = 0.01
-    """Relaxation of the cross-plane mismatch on every mixing plane, reflecting
-    (:class:`~ember.mixing.MixingPatch`) and non-reflecting alike. Read from the
-    patches by
+    """Relaxation of the cross-plane mismatch on every
+    :class:`~ember.patch.MixingPatch`. Read from the patches by
     :class:`~ember.mixing_communicator.MixingCommunicator` at each exchange.
     As :attr:`rf_inlet`, the default is imposed and None leaves each plane's own
     value alone."""
@@ -385,13 +384,12 @@ class Solver(BaseSolver):
     def run(self, grid):
         """Drive ``grid`` through ``n_step`` steps in place; return the history.
 
-        See :func:`_run` for the stage-by-stage march; this is the public
-        :class:`BaseSolver` entry point.
+        The public :class:`BaseSolver` entry point for the stage-by-stage march.
         """
         return _run(grid, self)
 
     def run_fmg(self, grid):
-        """Full-multigrid startup on ``grid`` in place; see :func:`_run_fmg`.
+        """Full-multigrid startup on ``grid`` in place.
 
         Returns a list of per-level :class:`ConvergenceHistory`, coarsest first.
         Not part of the :class:`BaseSolver` contract (plugins have no FMG
@@ -541,7 +539,9 @@ def _mg_coarse_carve(block, ni, nj, nk, n_levels_eff):
     )
 
 
-def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0):
+def advance_rk_stage_mg(
+    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0
+):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
     The single RK stage integrator. Each stage marches every block off its
@@ -597,10 +597,10 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, 
     free between kernel calls); the coarse timestep (``dtblk``), the restriction
     accumulators, ``corr_all``/``acc0``/``acc1``, the separable-prolong scratch
     (``aplane``, ``bb``) and the coarse-IRS buffers (``cres``, ``triw``) are all
-    carved from ``block.tau_q_halo`` at non-overlapping offsets (see
-    :func:`_mg_coarse_carve`) -- dead outside the viscous pass and a distinct
-    buffer from ``scratch``, so they survive alongside the increment within the
-    call. The scatter reads the snapshot from ``block.store`` and writes
+    carved from ``block.tau_q_halo`` at non-overlapping offsets -- dead outside
+    the viscous pass and a distinct buffer from ``scratch``, so they survive
+    alongside the increment within the call. The scatter reads the snapshot
+    from ``block.store`` and writes
     ``conserved_nd`` directly (frozen pressure, bypasses the P/T cache).
 
     ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is
@@ -627,13 +627,11 @@ def advance_rk_stage_mg(grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, 
     passed to it, so the choice is a Python-side branch
     with no ``sf_irs`` test inside the engine (the fine term is never smoothed
     here -- it already carries the fine residual the caller smoothed). The
-    per-level scratch it needs (``cres``, ``triw``) is carved by
-    :func:`_mg_coarse_carve` from ``block.tau_q_halo`` -- caller-owned, no
-    per-call allocation.
+    per-level scratch it needs (``cres``, ``triw``) is carved from
+    ``block.tau_q_halo`` -- caller-owned, no per-call allocation.
 
     Assumes ``block.dt_vol_nd`` and ``block.residual_nd`` are populated and the
     caller refreshes P/T, boundary conditions and the residual between stages.
-    Requires :func:`_validate_mg` to have passed.
 
     ``fac_mgrid == 0`` scales every coarse correction to identically zero, so it
     collapses to the plain-RK fast path (``n_levels`` passed as 0, empty coarse
@@ -743,19 +741,18 @@ def _apply_bcond_relaxation(grid, conf):
     for sigma, patches in (
         (conf.rf_inlet, grid.patches.inlet),
         (conf.rf_outlet, grid.patches.outlet),
-        (conf.rf_mix, grid.patches.mixing_nonreflecting),
+        (conf.rf_mix, grid.patches.mixing),
     ):
         if sigma is not None:
             for patch in patches:
                 patch.sigma = sigma
 
     if conf.rf_exchange is not None:
-        # Both plane types carry rf_exchange; the communicators read it from
-        # the patches at every exchange, so a cached communicator picks this up
-        # without being rebuilt.
-        for patches in (grid.patches.mixing, grid.patches.mixing_nonreflecting):
-            for patch in patches:
-                patch.rf_exchange = conf.rf_exchange
+        # The communicator reads rf_exchange from the patches at every
+        # exchange, so a cached communicator picks this up without being
+        # rebuilt.
+        for patch in grid.patches.mixing:
+            patch.rf_exchange = conf.rf_exchange
 
 
 def _validate_mg(grid, n_levels):
@@ -785,7 +782,7 @@ def _validate_mg(grid, n_levels):
 def _validate_throttle(grid):
     """Raise if more than one outlet patch is throttled to a mass flow.
 
-    Each :class:`~ember.outlet.OutletPatch` runs its own controller on the mass
+    Each :class:`~ember.patch.OutletPatch` runs its own controller on the mass
     flow through its own face, so two throttles on one exit would each see most
     of the same error and each apply the whole correction for it, over-throttling
     by roughly the number of patches. Splitting a target between them is not the
@@ -793,7 +790,7 @@ def _validate_throttle(grid):
 
     An exit spread over several blocks therefore has to prescribe pressure on
     all but one of its patches, or be closed by a single patch. Checked at the
-    start of a run rather than in :meth:`~ember.outlet.OutletPatch.set_throttle`,
+    start of a run rather than in :meth:`~ember.patch.OutletPatch.set_throttle`,
     which sees one patch and cannot know what the rest of the grid carries.
     """
     throttled = [p for p in grid.patches.outlet if p.mdot_target is not None]

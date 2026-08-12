@@ -6,9 +6,9 @@ after the steady non-reflecting theory of :cite:t:`Giles1988` (his Sections
 5.3-5.4) extended to three dimensions by :cite:t:`Saxer1993`.
 
 The characteristic treatment is entirely
-:class:`~ember.nonreflecting.NonReflectingPatch`'s; what this class adds is an
-interior on the :math:`+x` side and the variables a physical inlet knows. Of the
-five characteristics at an axially subsonic inflow plane four are incoming
+:class:`~ember.patch.NonReflectingPatch`'s; what this class adds is an
+interior on the downstream side of the face and the variables a physical inlet
+knows. Of the five characteristics at a subsonic inflow face four are incoming
 (entropy, two vorticity waves, the downstream-running pressure wave) and one,
 the upstream-running pressure wave, is outgoing, so four quantities are
 prescribed: the pitchwise means of :math:`h_0`, :math:`s`, :math:`\tan\alpha`
@@ -27,8 +27,8 @@ inlet and nothing else.
 
 See Also
 --------
-ember.nonreflecting.NonReflectingPatch : The condition itself
-ember.outlet.OutletPatch : The outflow counterpart
+ember.patch.NonReflectingPatch : The condition itself
+ember.patch.OutletPatch : The outflow counterpart
 ember.perturbation.chic_to_bcond : Jacobian this patch's mean-mode solve is built on
 """
 
@@ -44,7 +44,7 @@ class InletPatch(NonReflectingPatch):
     Prescribes stagnation enthalpy :math:`h_0`, entropy :math:`s`, yaw angle
     :math:`\alpha` and pitch angle :math:`\beta` as pitchwise-mean quantities,
     while absorbing outgoing acoustic waves rather than reflecting them. All
-    four must be set before :meth:`~ember.nonreflecting.NonReflectingPatch.apply`
+    four must be set before :meth:`~ember.patch.NonReflectingPatch.apply`
     is called, via :meth:`set_ho_s` or :meth:`set_Po_To` together with
     :meth:`set_Alpha` and :meth:`set_Beta`. Each setter converts its target and
     stores it nondimensionally in the corresponding row of the prescribed
@@ -55,7 +55,7 @@ class InletPatch(NonReflectingPatch):
     The angles are what makes this condition different from every other in the
     family. A physical inlet knows its flow angles and not its
     velocity magnitude, so :math:`(\tan\alpha, \sin\beta)` are the right
-    variables here, and :attr:`_chic_to_target` is
+    variables here, and the target space's Jacobian is
     :func:`~ember.perturbation.chic_to_bcond` rather than the base class's
     :func:`~ember.perturbation.chic_to_mix`. Only rows 2 and 3 of the two
     Jacobians differ; rows 0, 1 and 4 are identical.
@@ -68,8 +68,6 @@ class InletPatch(NonReflectingPatch):
     spaces -- so the factor of :math:`V_x` those rows carry never takes the
     solve singular.
     """
-
-    _collection_name = "inlet"
 
     _desc = "inlet patch"
 
@@ -99,16 +97,34 @@ class InletPatch(NonReflectingPatch):
     _nodal_backflow = False
 
     def _target_from_prim(self, prim):
-        """The target-space quantities (ho, s, tanAlpha, sinBeta, P) of a primitive state.
+        r"""The target-space quantities (ho, s, tanAlpha, sinBeta, P) of a primitive state.
 
         The angles in place of the base class's transverse velocities, measured
         against the meridional speed as
         :func:`~ember.perturbation.chic_to_bcond` differentiates them.
+
+        Read in the interface frame, where rows 1 and 2 of ``prim`` are the
+        velocity along the frame axis and the one in the surface. The yaw angle
+        is unaffected -- :math:`V_m = \sqrt{V_n^2 + V_s^2} = \sqrt{V_x^2 +
+        V_r^2}` is invariant under the rotation -- while the pitch angle that
+        comes out is measured from the frame axis rather than from :math:`x`.
+        The two differ by exactly :attr:`~ember.patch.RevolutionPatch.chi_node`,
+        which is where :meth:`set_Beta` puts it back.
         """
         ho_nd, s_nd = self._ho_s_from_prim(prim)
-        Vx, Vr, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
-        Vm = np.sqrt(Vx**2 + Vr**2)
-        return ho_nd, s_nd, Vt / Vm, Vr / Vm, prim[..., 4]
+        Vn, Vs, Vt = prim[..., 1], prim[..., 2], prim[..., 3]
+        Vm = np.sqrt(Vn**2 + Vs**2)
+        return ho_nd, s_nd, Vt / Vm, Vs / Vm, prim[..., 4]
+
+    def _stagnation_state(self):
+        """Nondimensional stagnation density and internal energy of the prescribed inflow.
+
+        Shared by :attr:`Po` and :attr:`To` so the two do not each repeat the
+        equation-of-state solve :func:`~ember.fluid.PerfectFluid.set_h_s`
+        performs.
+        """
+        fluid = self.block.fluid
+        return fluid.set_h_s(self.ho_nd, self.s_nd)
 
     @replayable
     def set_Alpha(self, Alpha):
@@ -119,7 +135,7 @@ class InletPatch(NonReflectingPatch):
         Alpha : float or array
             Prescribed inflow yaw angle :math:`\alpha` [deg], measured from the
             meridional plane; must satisfy :math:`|\alpha| < 90`. A scalar or an
-            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`, of
+            array that broadcasts to :attr:`~ember.patch.Patch.shape`, of
             which only the pitchwise mean at each span station is imposed.
         """
         if not (np.abs(np.asarray(Alpha)) < 90.0).all():
@@ -149,12 +165,12 @@ class InletPatch(NonReflectingPatch):
         P : float or array
             Static pressure :math:`p` [Pa]; must be positive and finite. A
             scalar or an array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise
             mean at each span station is imposed.
 
         See Also
         --------
-        ember.outlet.OutletPatch.set_backflow_ho_s : The mirror of this,
+        ember.patch.OutletPatch.set_backflow_ho_s : The mirror of this,
             prescribing the inflow state an outflow face falls back on
         """
         arr = np.asarray(P)
@@ -168,19 +184,47 @@ class InletPatch(NonReflectingPatch):
     def set_Beta(self, Beta):
         r"""Prescribe the inflow pitch angle.
 
+        The angle is measured from the machine axis, :math:`\tan\beta = V_r /
+        V_x`, whatever the orientation of the face it is prescribed on. The
+        condition itself works in the interface frame, where the same flow
+        makes the angle :math:`\beta - \chi` with the frame axis, so what is
+        stored is :math:`\sin(\beta - \chi)` for the face angle
+        :attr:`~ember.patch.RevolutionPatch.chi_node`. On a face of constant
+        :math:`x` the frame axis is :math:`x` and the two coincide.
+
+        What it must satisfy is that flow actually comes in through the face:
+        :math:`|\beta - \chi| \leq 90`. On a face of constant :math:`x` that is
+        the familiar :math:`|\beta| \leq 90`, and on a radial or reversed face
+        it is the same condition said properly -- a duct running along
+        :math:`-x` takes :math:`\beta = 180`, one flowing inward radially
+        :math:`\beta = -90`.
+
         Parameters
         ----------
         Beta : float or array
-            Prescribed inflow pitch angle :math:`\beta` [deg]; must satisfy
-            :math:`|\beta| \leq 90`. A scalar or an array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
-            mean at each span station is imposed.
+            Prescribed inflow pitch angle :math:`\beta` [deg], measured from
+            the machine axis as :math:`\arctan(V_r/V_x)` over the full turn. A
+            scalar or an array that broadcasts to
+            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise mean
+            at each span station is imposed.
         """
-        if not (np.abs(np.asarray(Beta)) <= 90.0).all():
-            raise ValueError("Beta must be within +/-90 degrees inclusive")
-        self._set_target_row(
-            3, "Beta", np.sin(np.radians(np.asarray(Beta, dtype=np.float32)))
-        )
+        Beta_face = np.radians(np.asarray(Beta, dtype=np.float32)) - self.chi_node
+        # Onto (-180, 180] before testing, so an angle that reaches the face
+        # the long way round is judged on where it points and not on how it was
+        # spelled. The sine stored below is periodic and does not care.
+        Beta_face = np.arctan2(np.sin(Beta_face), np.cos(Beta_face))
+        # The stored sine cannot tell an inflow from an outflow, so a pitch
+        # angle that leaves no velocity along the frame axis to come in on is
+        # refused here rather than silently read back as its reflection.
+        if not (np.abs(Beta_face) <= 0.5 * np.pi + 1e-5).all():
+            worst = float(np.degrees(Beta_face).flat[np.argmax(np.abs(Beta_face))])
+            raise ValueError(
+                "Beta must be within +/-90 degrees of the face normal, which "
+                f"lies at {float(np.degrees(self.chi_node).mean()):.4g} degrees "
+                f"to the axis; the prescribed angle is {worst:.4g} degrees from "
+                "it, so no flow would enter through the face."
+            )
+        self._set_target_row(3, "Beta", np.sin(Beta_face))
 
     @replayable
     def set_ho_s(self, ho, s):
@@ -197,7 +241,7 @@ class InletPatch(NonReflectingPatch):
         ----------
         ho : float or array
             Prescribed stagnation enthalpy :math:`h_0` [J/kg]. A scalar or an
-            array that broadcasts to :attr:`~ember.basepatch.Patch.shape`, of
+            array that broadcasts to :attr:`~ember.patch.Patch.shape`, of
             which only the pitchwise mean at each span station is imposed.
         s : float or array
             Prescribed entropy :math:`s` [J/kg/K].
@@ -222,7 +266,7 @@ class InletPatch(NonReflectingPatch):
         Po : float or array
             Prescribed stagnation pressure :math:`p_0` [Pa]; must be positive.
             A scalar or an array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`, of which only the pitchwise
+            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise
             mean at each span station is imposed.
         To : float or array
             Prescribed stagnation temperature :math:`T_0` [K]; must be positive.
@@ -243,3 +287,42 @@ class InletPatch(NonReflectingPatch):
         )
         self._set_target_row(0, "Po and To", fluid.get_h(rhoo_nd, uo_nd))
         self._set_target_row(1, "Po and To", fluid.get_s(rhoo_nd, uo_nd))
+
+    @property
+    def Alpha(self):
+        r"""Prescribed inflow yaw angle :math:`\alpha` [deg]. Inverse of :meth:`set_Alpha`."""
+        return np.degrees(np.arctan(self.tanAlpha))
+
+    @property
+    def Beta(self):
+        r"""Prescribed inflow pitch angle :math:`\beta` [deg], measured from the machine axis.
+
+        Inverse of :meth:`set_Beta`: the stored sine is that of the face-frame
+        angle :math:`\beta - \chi`, which :meth:`set_Beta` keeps within
+        :math:`\pm 90` degrees, exactly :obj:`numpy.arcsin`'s range, so the
+        recovery is exact up to that wrap.
+        """
+        Beta_face = np.arcsin(self.sinBeta)
+        return np.degrees(Beta_face) + np.degrees(self.chi_node)
+
+    @property
+    def Po(self):
+        """Prescribed inflow stagnation pressure [Pa].
+
+        Recovered from the currently stored :attr:`ho_nd` and :attr:`s_nd`
+        through the block's fluid, so it reads back the prescribed state
+        however it was set -- by :meth:`set_Po_To` or by :meth:`set_ho_s` --
+        rather than undoing one setter in particular.
+
+        See Also
+        --------
+        To : The stagnation temperature this state also implies
+        """
+        rhoo_nd, uo_nd = self._stagnation_state()
+        return self.block.fluid.get_P(rhoo_nd, uo_nd) * self.block.fluid.P_ref
+
+    @property
+    def To(self):
+        """Prescribed inflow stagnation temperature [K]. See :attr:`Po`."""
+        rhoo_nd, uo_nd = self._stagnation_state()
+        return self.block.fluid.get_T(rhoo_nd, uo_nd) * self.block.fluid.T_ref

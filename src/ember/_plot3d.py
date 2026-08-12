@@ -1,6 +1,10 @@
 """Plot3D multi-block grid format I/O utilities.
 
-This module provides read and write functionality for the Plot3D multi-block structured
+This is a private implementation module backing :meth:`~ember.grid.Grid.read_plot3d`
+and :meth:`~ember.grid.Grid.write_plot3d`, which are the public entry points; it is
+not meant to be imported directly outside of :mod:`ember.grid`.
+
+It provides read and write functionality for the Plot3D multi-block structured
 grid format, a widely-used NASA standard for storing grid coordinates in CFD applications.
 The module handles conversion between Ember's Grid objects and Plot3D ASCII format files,
 with automatic handling of coordinate ordering transformations between Plot3D's (k,j,i)
@@ -113,8 +117,10 @@ def read_plot3d(filename, flip_k=True):
     ValueError
         If file format is invalid
     """
-    from ember.grid import Grid
-    from ember.block import Block
+    # grid.py imports this module back, so this import must stay lazy to
+    # avoid a circular import.
+    from ember.grid import Grid  # noqa: PLC0415
+    from ember.block import Block  # noqa: PLC0415
 
     # Read all file content as numpy array
     with open(filename, "r") as f:

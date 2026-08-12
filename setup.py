@@ -1,6 +1,7 @@
 """Custom setup.py for building Fortran extensions with f2py."""
 
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -20,7 +21,11 @@ GFORTRAN_DEBUG = False
 # (yum-installed gcc-gfortran) may still ship an older GCC.
 # Override with EMBER_MARCH (e.g. "-march=native -mtune=native") for perf
 # runs tuned to a specific machine, without having to repeat every other flag.
-GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
+# The haswell baseline is x86_64-only; on arm64 (Apple Silicon macOS
+# runners) there is no equivalent portable-baseline flag worth pinning, so
+# default to nothing there rather than an invalid x86 flag.
+_default_march = "-march=haswell" if platform.machine() in ("x86_64", "AMD64") else ""
+GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", _default_march)
 # -fipa-pta deliberately omitted: verified a no-op on the current whole-program
 # build (identical .text section with/without it, GCC 14.2), but in an isolated
 # single-file compile it suppressed AVX2 vectorization of the residual face-flux
@@ -50,7 +55,22 @@ GFORTRAN_MARCH = os.environ.get("EMBER_MARCH", "-march=haswell")
 # the fused tau/q experiment; the limit is a vectorizer budget, not a
 # correctness knob -- the checks it permits are still emitted and still run.
 # NOTE the --param=X=Y spelling: f2py re-splits "--param X=Y" on the space.
-GFORTRAN_FLAGS = f"-Ofast {GFORTRAN_MARCH} -funroll-all-loops -finline-functions -finline-limit=10000 --param early-inlining-insns=200 --param=inline-unit-growth=1000000 --param=large-function-growth=1000000 --param=vect-max-version-for-alias-checks=200 -flto -fwhole-program -fno-trapping-math -freciprocal-math -floop-nest-optimize -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror -Warray-temporaries -Wfatal-errors"
+GFORTRAN_FLAGS = " ".join(
+    filter(
+        None,
+        [
+            "-Ofast",
+            GFORTRAN_MARCH,
+            "-funroll-all-loops -finline-functions -finline-limit=10000"
+            " --param early-inlining-insns=200 --param=inline-unit-growth=1000000"
+            " --param=large-function-growth=1000000"
+            " --param=vect-max-version-for-alias-checks=200 -flto -fwhole-program"
+            " -fno-trapping-math -freciprocal-math -floop-nest-optimize"
+            " -fvect-cost-model=unlimited -ffree-line-length-132 -Wall -Werror"
+            " -Warray-temporaries -Wfatal-errors",
+        ],
+    )
+)
 # Appended verbatim to the gfortran flags. Used to test whether pinning
 # GCC's UNIT-level inline budgets makes production codegen invariant to
 # what else is in the build -- see bench/codegen_gauge.py.
@@ -346,13 +366,16 @@ class F2PyBuildExt(build_ext):
                 f"f2py compilation failed with return code {result.returncode}"
             )
 
-        # Move the compiled extension to the correct location
-        so_pattern = "fortran*.so"
-        so_files = glob.glob(os.path.join(build_tmp, so_pattern))
+        # Move the compiled extension to the correct location. Extension
+        # module suffix is .so everywhere except Windows, where it's .pyd.
+        so_patterns = ["fortran*.so", "fortran*.pyd"]
+        so_files = [
+            f for pattern in so_patterns for f in glob.glob(os.path.join(build_tmp, pattern))
+        ]
         if not so_files:
             raise RuntimeError(
-                f"f2py compilation succeeded but no {so_pattern} found in {os.getcwd()}. "
-                f"Check f2py output above."
+                f"f2py compilation succeeded but no {' or '.join(so_patterns)} found in "
+                f"{os.getcwd()}. Check f2py output above."
             )
         for so_file in so_files:
             dest = output_dir / os.path.basename(so_file)

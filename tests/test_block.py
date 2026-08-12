@@ -60,20 +60,18 @@ Test cases:
 - test_inlet_patch_at_i0_is_free_surface: InletPatch at i=0 sets walli1 to 1.0
 - test_outlet_patch_at_ini_is_free_surface: OutletPatch at i=-1 sets wallni to 1.0
 - test_periodic_patch_at_j0_is_free_surface: PeriodicPatch at j=0 sets wallj1 to 1.0
-- test_mixing_patch_at_jnj_is_free_surface: MixingPatch at j=-1 sets wallnj to 1.0
+- test_nonmatch_patch_at_jnj_is_free_surface: NonMatchPatch at j=-1 sets wallnj to 1.0
 - test_Vxrt_rel_no_rotation: Vxrt_rel equals Vxrt when Omega is zero.
 - test_Vxrt_rel_with_rotation: Vxrt_rel tangential component equals Vt minus blade speed.
 """
 
 import ember.block
-import ember.set_iter
+import ember.set_iterative
 import pytest
-import ember.geometry
 import ember.fluid
 import numpy as np
 from ember import util
-from ember.patch import InletPatch, OutletPatch, PeriodicPatch
-from ember.mixing import MixingPatch
+from ember.patch import InletPatch, NonMatchPatch, OutletPatch, PeriodicPatch
 
 
 @pytest.fixture
@@ -106,10 +104,10 @@ def test_block_dA(block):
     # Test with the block fixture using its coordinate system
     xrt = block.xrt
 
-    dAi = ember.geometry.get_dAi(xrt)
-    dAj = ember.geometry.get_dAj(xrt)
-    dAk = ember.geometry.get_dAk(xrt)
-    vol = ember.geometry.get_vol(xrt, dAi, dAj, dAk)
+    dAi = ember.block._get_dai(xrt)
+    dAj = ember.block._get_daj(xrt)
+    dAk = ember.block._get_dak(xrt)
+    vol = ember.block._get_vol(xrt, dAi, dAj, dAk)
 
     assert np.allclose(block.dAi, np.moveaxis(dAi, -1, 0))
     assert np.allclose(block.dAj, np.moveaxis(dAj, -1, 0))
@@ -2156,7 +2154,7 @@ def test_set_I_s_Ma_rel_Alpha_rel_Beta(block):
     Beta = np.full(shape, 90.0, dtype=np.float32)  # Pure radial flow
 
     # Set flow field
-    ember.set_iter.set_I_s_Ma_rel_Alpha_rel_Beta(block, I, s, Ma, Alpha_rel, Beta)
+    ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta(block, I, s, Ma, Alpha_rel, Beta)
 
     # Test rothalpy conservation
     np.testing.assert_allclose(block.I, I, rtol=rtol, err_msg="Rothalpy not conserved")
@@ -2173,7 +2171,7 @@ def test_set_I_s_Ma_rel_Alpha_rel_Beta(block):
 
     # Test axial flow case
     Beta_axial = np.zeros(shape, dtype=np.float32)  # Pure axial flow
-    ember.set_iter.set_I_s_Ma_rel_Alpha_rel_Beta(block, I, s, Ma, Alpha_rel, Beta_axial)
+    ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta(block, I, s, Ma, Alpha_rel, Beta_axial)
 
     np.testing.assert_allclose(
         block.Vr, 0, atol=1e-3, err_msg="Should be pure axial flow (Vr ≈ 0)"
@@ -2186,7 +2184,7 @@ def test_set_I_s_Ma_rel_Alpha_rel_Beta(block):
     Alpha_rel_swirl = np.full(shape, 30.0, dtype=np.float32)  # 30° relative swirl
     Beta_mixed = np.full(shape, 45.0, dtype=np.float32)  # 45° pitch angle
 
-    ember.set_iter.set_I_s_Ma_rel_Alpha_rel_Beta(
+    ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta(
         block, I, s, Ma, Alpha_rel_swirl, Beta_mixed
     )
 
@@ -2250,9 +2248,9 @@ def test_periodic_patch_at_j0_is_free_surface(block):
     assert np.all(w["wallnj"] == 0.0)
 
 
-def test_mixing_patch_at_jnj_is_free_surface(block):
-    """MixingPatch at j=-1 marks wallnj as free surface (1.0), wallj1 stays wall (0.0)."""
-    block.patches.append(MixingPatch(i=(0, -1), j=-1, k=(0, -1)))
+def test_nonmatch_patch_at_jnj_is_free_surface(block):
+    """NonMatchPatch at j=-1 marks wallnj as free surface (1.0), wallj1 stays wall (0.0)."""
+    block.patches.append(NonMatchPatch(i=(0, -1), j=-1, k=(0, -1)))
     w = block.ijk_wall_conv
     assert np.all(w["wallnj"] == 1.0)
     assert np.all(w["wallj1"] == 0.0)
@@ -2467,8 +2465,8 @@ def test_module_docstring_lists_all_setters():
 
     doc = inspect.cleandoc(ember.block.__doc__)
 
-    # Attribute each bullet to the most recent 'Label:' line. Labels carrying no
-    # set_ bullets, such as the Array methods groups, drop out.
+    # Attribute each autosummary entry to the most recent 'Label:' line. Labels
+    # carrying no set_ entries, such as the Array methods groups, drop out.
     groups = {}
     label = None
     for line in doc.splitlines():
@@ -2476,9 +2474,9 @@ def test_module_docstring_lists_all_setters():
         if m_label:
             label = m_label.group(1)
             continue
-        m_bullet = re.match(r"^\* :meth:`Block\.(set_\w+)`", line)
-        if m_bullet:
-            groups.setdefault(label, []).append(m_bullet.group(1))
+        m_entry = re.match(r"^\s+Block\.(set_\w+)\s*$", line)
+        if m_entry:
+            groups.setdefault(label, []).append(m_entry.group(1))
 
     listed = [name for names in groups.values() for name in names]
     actual = {
@@ -2495,6 +2493,143 @@ def test_module_docstring_lists_all_setters():
         f"missing from docstring: {sorted(actual - set(listed))}; "
         f"listed but not on Block: {sorted(set(listed) - actual)}"
     )
+
+
+EXPECTED_PROPERTY_GROUPS = (
+    "Geometry",
+    "Kinematics",
+    "Thermodynamic state",
+    "Combined",
+    "Grid shape and array metadata",
+    "Metadata",
+    "Miscellaneous",
+    "Nondimensional",
+)
+
+
+def test_module_docstring_lists_all_properties():
+    """Every Block property is listed exactly once in the docstring's Properties groups."""
+    import inspect
+    import re
+
+    doc = inspect.cleandoc(ember.block.__doc__)
+
+    # Attribute each autosummary entry to the most recent 'Label:' line, but only
+    # for labels that belong to the Properties section -- the Setter methods and
+    # Array methods sections reuse some of the same label names (e.g.
+    # 'Geometry', 'Miscellaneous') for their own, disjoint, method listings.
+    groups = {}
+    label = None
+    for line in doc.splitlines():
+        m_label = re.match(r"^(\w[\w ]*):$", line)
+        if m_label:
+            label = m_label.group(1)
+            continue
+        m_entry = re.match(r"^\s+Block\.(?!set_)(\w+)\s*$", line)
+        if m_entry and label in EXPECTED_PROPERTY_GROUPS:
+            groups.setdefault(label, []).append(m_entry.group(1))
+
+    listed = [name for names in groups.values() for name in names]
+    actual = {
+        n
+        for n in dir(ember.block.Block)
+        if not n.startswith("_")
+        and isinstance(inspect.getattr_static(ember.block.Block, n), property)
+    }
+
+    assert actual, "introspection found no properties"
+    assert tuple(groups) == EXPECTED_PROPERTY_GROUPS
+    duplicated = sorted({n for n in listed if listed.count(n) > 1})
+    assert not duplicated, f"listed in more than one group: {duplicated}"
+    assert set(listed) == actual, (
+        f"missing from docstring: {sorted(actual - set(listed))}; "
+        f"listed but not on Block: {sorted(set(listed) - actual)}"
+    )
+
+
+EXPECTED_METHOD_GROUPS = (
+    "Views and copies",
+    "Reshaping and reordering (a zero-copy view where the layout allows, otherwise a copy)",
+    "Reduction over a spatial axis",
+    "Cache",
+    "Diagnostics",
+)
+
+
+def test_module_docstring_lists_all_methods():
+    """Every other Block method (not a setter or a property) is listed exactly
+    once in the docstring's Array methods and Cache groups."""
+    import inspect
+    import re
+
+    doc = inspect.cleandoc(ember.block.__doc__)
+
+    # Unlike the setters and properties groups, these labels contain
+    # punctuation, so match any unindented ':'-terminated line rather than
+    # requiring bare words.
+    groups = {}
+    label = None
+    for line in doc.splitlines():
+        m_label = re.match(r"^(?!\.\. )(\S.*):$", line)
+        if m_label:
+            label = m_label.group(1)
+            continue
+        m_entry = re.match(r"^\s+Block\.(\w+)\s*$", line)
+        if m_entry and label in EXPECTED_METHOD_GROUPS:
+            groups.setdefault(label, []).append(m_entry.group(1))
+
+    listed = [name for names in groups.values() for name in names]
+    actual = {
+        n
+        for n in dir(ember.block.Block)
+        if not n.startswith("_")
+        and not n.startswith("set_")
+        and not isinstance(inspect.getattr_static(ember.block.Block, n), property)
+        and callable(getattr(ember.block.Block, n))
+    }
+
+    assert actual, "introspection found no methods"
+    assert tuple(groups) == EXPECTED_METHOD_GROUPS
+    duplicated = sorted({n for n in listed if listed.count(n) > 1})
+    assert not duplicated, f"listed in more than one group: {duplicated}"
+    assert set(listed) == actual, (
+        f"missing from docstring: {sorted(actual - set(listed))}; "
+        f"listed but not on Block: {sorted(set(listed) - actual)}"
+    )
+
+
+def test_module_docstring_tables_alphabetical():
+    """Every autosummary table in the module docstring lists its entries in
+    alphabetical order, case-insensitively."""
+    import inspect
+    import re
+
+    doc = inspect.cleandoc(ember.block.__doc__)
+    lines = doc.splitlines()
+
+    tables = []
+    i = 0
+    while i < len(lines):
+        if lines[i].strip() != ".. autosummary::":
+            i += 1
+            continue
+        i += 1
+        while i < len(lines) and lines[i].strip() == "":
+            i += 1
+        entries = []
+        while i < len(lines):
+            m = re.match(r"^\s+Block\.(\w+)\s*$", lines[i])
+            if not m:
+                break
+            entries.append(m.group(1))
+            i += 1
+        tables.append(entries)
+
+    assert len(tables) >= 18, f"found only {len(tables)} autosummary tables"
+    for entries in tables:
+        assert entries == sorted(entries, key=str.lower), (
+            f"table not in alphabetical order: {entries}"
+        )
 
 
 def _exec_docstring_example(name):

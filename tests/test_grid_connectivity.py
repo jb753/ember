@@ -433,31 +433,24 @@ class TestGridMixingConnectivity:
     """Test mixing patch connectivity functionality."""
 
     def setup_method(self):
-        """Set up test grid with mixing patches."""
+        """Set up a two-block grid, butted end to end at a mixing plane."""
 
-        # Create two blocks with compatible coordinates
+        # Different k-sizes: the two sides of a plane may differ in pitchwise
+        # resolution and blade count, but not spanwise.
         self.block1 = ember.block.Block(shape=(5, 8, 12))
-        self.block2 = ember.block.Block(shape=(5, 8, 16))  # Different k-size
+        self.block2 = ember.block.Block(shape=(5, 8, 16))
 
-        # Set up coordinates for block1
-        x1 = np.linspace(0.0, 1.0, 5)
-        r1 = np.linspace(0.5, 1.5, 8)
-        t1 = np.linspace(0.0, 2 * np.pi, 12)
-        xv1, rv1, tv1 = np.meshgrid(x1, r1, t1, indexing="ij")
-        xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0])
-        self.block1.set_r(xrt1[..., 1])
-        self.block1.set_t(xrt1[..., 2])
-
-        # Set up coordinates for block2 (same x,r but different theta resolution)
-        x2 = np.linspace(0.0, 1.0, 5)
-        r2 = np.linspace(0.5, 1.5, 8)
-        t2 = np.linspace(0.0, 2 * np.pi, 16)  # Different theta resolution
-        xv2, rv2, tv2 = np.meshgrid(x2, r2, t2, indexing="ij")
-        xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0])
-        self.block2.set_r(xrt2[..., 1])
-        self.block2.set_t(xrt2[..., 2])
+        r = np.linspace(0.5, 1.5, 8)
+        for block, x_lim, npitch in (
+            (self.block1, (0.0, 1.0), 12),
+            (self.block2, (1.0, 2.0), 16),
+        ):
+            x = np.linspace(*x_lim, 5)
+            t = np.linspace(0.0, 2 * np.pi, npitch)
+            xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
+            block.set_x(xv)
+            block.set_r(rv)
+            block.set_t(tv)
 
         # Create grid
         self.grid = Grid()
@@ -465,6 +458,16 @@ class TestGridMixingConnectivity:
         self.block2.set_label("block2")
         self.grid.append(self.block1)
         self.grid.append(self.block2)
+
+    def _add_plane(self):
+        """Put the two sides of one mixing plane on the shared block face."""
+        from ember.patch import MixingPatch
+
+        patch1 = MixingPatch(i=-1)
+        patch2 = MixingPatch(i=0)
+        self.block1.patches.append(patch1)
+        self.block2.patches.append(patch2)
+        return patch1, patch2
 
     def test_mixing_connectivity_manager_property(self):
         """Test that mixing connectivity manager is accessible."""
@@ -477,146 +480,15 @@ class TestGridMixingConnectivity:
 
         assert isinstance(mixing_manager, GridConnectivity)
 
-    def test_mixing_patch_pairing(self):
-        """Test basic mixing patch pairing functionality."""
-        from ember.patch import MixingPatch
-
-        # Create two blocks with the same coordinates to ensure patches can match
-        # Make both blocks have identical x,r coordinates
-        x = np.linspace(0.0, 1.0, 5)
-        r = np.linspace(0.5, 1.5, 8)
-        t1 = np.linspace(0.0, 2 * np.pi, 12)
-        t2 = np.linspace(0.0, 2 * np.pi, 16)
-
-        # Block1 coordinates
-        xv1, rv1, tv1 = np.meshgrid(x, r, t1, indexing="ij")
-        xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0])
-        self.block1.set_r(xrt1[..., 1])
-        self.block1.set_t(xrt1[..., 2])
-
-        # Block2 coordinates (same x,r)
-        xv2, rv2, tv2 = np.meshgrid(x, r, t2, indexing="ij")
-        xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0])
-        self.block2.set_r(xrt2[..., 1])
-        self.block2.set_t(xrt2[..., 2])
-
-        # Add matching mixing patches at block boundaries
-        patch1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))  # End boundary of block1
-        patch2 = MixingPatch(i=4, j=(2, 6), k=(5, 10))  # End boundary of block2
-
-        self.block1.patches.append(patch1)
-        self.block2.patches.append(patch2)
-
-        # Get mixing patch pairs
-        pairs = self.grid.connectivity.mixing.pair()
-
-        # Should find one pair
-        assert len(pairs) == 2  # Both directions
-
-        # Check that patches are paired correctly
-        assert (0, 0) in pairs  # block1, patch0
-        assert (1, 0) in pairs  # block2, patch0
-
-        # Check bidirectional pairing
-        pair_info_1 = pairs[(0, 0)]
-        pair_info_2 = pairs[(1, 0)]
-
-        assert pair_info_1[0] == (1, 0)  # Points to block2, patch0
-        assert pair_info_2[0] == (0, 0)  # Points to block1, patch0
-
-        # Both should have transform information
-        assert pair_info_1[1] is not None
-        assert pair_info_2[1] is not None
-
     def test_combined_connectivity_pairing(self):
         """Test that grid.connectivity.pair() includes mixing patches."""
-        from ember.patch import MixingPatch
+        self._add_plane()
 
-        # Create matching coordinates like in the main pairing test
-        x = np.linspace(0.0, 1.0, 5)
-        r = np.linspace(0.5, 1.5, 8)
-        t1 = np.linspace(0.0, 2 * np.pi, 12)
-        t2 = np.linspace(0.0, 2 * np.pi, 16)
-
-        # Set same x,r coordinates
-        xv1, rv1, tv1 = np.meshgrid(x, r, t1, indexing="ij")
-        xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0])
-        self.block1.set_r(xrt1[..., 1])
-        self.block1.set_t(xrt1[..., 2])
-
-        xv2, rv2, tv2 = np.meshgrid(x, r, t2, indexing="ij")
-        xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0])
-        self.block2.set_r(xrt2[..., 1])
-        self.block2.set_t(xrt2[..., 2])
-
-        # Add matching mixing patches
-        patch1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))
-        patch2 = MixingPatch(i=4, j=(2, 6), k=(5, 10))  # Same i,j coordinates
-
-        self.block1.patches.append(patch1)
-        self.block2.patches.append(patch2)
-
-        # Get all patch pairs (should include mixing)
         all_pairs = self.grid.connectivity.pair()
 
-        # Should include the mixing patch pairs
-        assert len(all_pairs) >= 2  # At least the mixing patches
-        assert (0, 0) in all_pairs
-        assert (1, 0) in all_pairs
-
-    def test_mixing_patches_different_k_sizes(self):
-        """Test mixing patches with different k-dimension sizes."""
-        from ember.patch import MixingPatch
-
-        # Set up same coordinates like in main test
-        x = np.linspace(0.0, 1.0, 5)
-        r = np.linspace(0.5, 1.5, 8)
-        t1 = np.linspace(0.0, 2 * np.pi, 12)
-        t2 = np.linspace(0.0, 2 * np.pi, 16)
-
-        xv1, rv1, tv1 = np.meshgrid(x, r, t1, indexing="ij")
-        xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0])
-        self.block1.set_r(xrt1[..., 1])
-        self.block1.set_t(xrt1[..., 2])
-
-        xv2, rv2, tv2 = np.meshgrid(x, r, t2, indexing="ij")
-        xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0])
-        self.block2.set_r(xrt2[..., 1])
-        self.block2.set_t(xrt2[..., 2])
-
-        # Create patches with same x,r but different k ranges/sizes
-        patch1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))  # 5 theta points
-        patch2 = MixingPatch(i=4, j=(2, 6), k=(4, 12))  # 8 theta points, same i,j
-
-        self.block1.patches.append(patch1)
-        self.block2.patches.append(patch2)
-
-        # Should still pair successfully
-        pairs = self.grid.connectivity.mixing.pair()
-        assert len(pairs) == 2
-        assert (0, 0) in pairs
-        assert (1, 0) in pairs
-
-    def test_mixing_patches_no_match(self):
-        """Test that non-matching mixing patches raise error."""
-        from ember.patch import MixingPatch
-
-        # Create patches with different x,r coordinates
-        patch1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))  # End of block1
-        patch2 = MixingPatch(i=0, j=(1, 5), k=(5, 10))  # Different j range
-
-        self.block1.patches.append(patch1)
-        self.block2.patches.append(patch2)
-
-        # Should raise error for unmatched patches
-        with pytest.raises(ValueError, match="Unmatched"):
-            self.grid.connectivity.mixing.pair()
+        assert len(all_pairs) == 2
+        assert all_pairs[(0, 0)][0] == (1, 0)
+        assert all_pairs[(1, 0)][0] == (0, 0)
 
     def test_mixing_connectivity_with_no_patches(self):
         """Test mixing connectivity when no mixing patches exist."""
@@ -631,8 +503,7 @@ class TestGridMixingConnectivity:
         from ember.patch import MixingPatch
 
         # Add only one mixing patch
-        patch1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))
-        self.block1.patches.append(patch1)
+        self.block1.patches.append(MixingPatch(i=-1))
 
         # Should return empty dictionary (no pairs possible)
         pairs = self.grid.connectivity.mixing.pair()
@@ -640,38 +511,15 @@ class TestGridMixingConnectivity:
 
     def test_mixing_separate_from_periodic(self):
         """Test that mixing and periodic patches are handled separately."""
-        from ember.patch import MixingPatch
+        self._add_plane()
 
-        # Set up same coordinates
-        x = np.linspace(0.0, 1.0, 5)
-        r = np.linspace(0.5, 1.5, 8)
-        t1 = np.linspace(0.0, 2 * np.pi, 12)
-        t2 = np.linspace(0.0, 2 * np.pi, 16)
-
-        xv1, rv1, tv1 = np.meshgrid(x, r, t1, indexing="ij")
-        xrt1 = np.stack([xv1, rv1, tv1], axis=-1)
-        self.block1.set_x(xrt1[..., 0])
-        self.block1.set_r(xrt1[..., 1])
-        self.block1.set_t(xrt1[..., 2])
-
-        xv2, rv2, tv2 = np.meshgrid(x, r, t2, indexing="ij")
-        xrt2 = np.stack([xv2, rv2, tv2], axis=-1)
-        self.block2.set_x(xrt2[..., 0])
-        self.block2.set_r(xrt2[..., 1])
-        self.block2.set_t(xrt2[..., 2])
-
-        # Add mixing patches
-        mixing1 = MixingPatch(i=4, j=(2, 6), k=(3, 8))
-        mixing2 = MixingPatch(i=4, j=(2, 6), k=(5, 10))  # Same i,j
-
-        # Add periodic patches at k boundaries (block1 has k=0-11, block2 has k=0-15)
-        periodic1 = PeriodicPatch(k=0, i=(1, 4), j=(2, 6))
-        periodic2 = PeriodicPatch(
-            k=15, i=(1, 4), j=(2, 6)
-        )  # Matching periodic at other block's end
-
-        self.block1.patches.extend([mixing1, periodic1])
-        self.block2.patches.extend([mixing2, periodic2])
+        # A periodic seam within the upstream block, on its two pitchwise faces.
+        self.block1.patches.extend(
+            [
+                PeriodicPatch(k=0, i=(1, 4), j=(2, 6)),
+                PeriodicPatch(k=-1, i=(1, 4), j=(2, 6)),
+            ]
+        )
 
         # Get separate connectivity
         mixing_pairs = self.grid.connectivity.mixing.pair()

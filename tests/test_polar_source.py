@@ -13,9 +13,9 @@ residual with the SAME sign convention as the inter-cell flux balance
 ``dU = flux_in - flux_out + f_body`` (see ``residual.f90``). Hence a
 positive ``S`` must push the radial momentum outward, i.e. add ``+vol*S``.
 
-Reference: Multall ``tblock`` builds the same term as
+Reference: Multall builds the same term as
 ``SOURCE = (P + rho*Vt^2)*vol/r`` and ADDS it to the radial-momentum
-change (tblock-p-2_3_1.f:7070, :7626).
+change.
 """
 
 from ember import fortran

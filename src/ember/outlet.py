@@ -6,9 +6,9 @@ non-reflecting theory of :cite:t:`Giles1988` (his Section 5.6) extended to three
 dimensions by :cite:t:`Saxer1993` (his Section 5.4.5 and Appendix D.3).
 
 The characteristic treatment is entirely
-:class:`~ember.nonreflecting.NonReflectingPatch`'s; what this class adds is an
-interior on the :math:`-x` side and the pressure a physical exit plane is held
-at. Of the five characteristics at an axially subsonic outflow plane four are
+:class:`~ember.patch.NonReflectingPatch`'s; what this class adds is an
+interior on the upstream side of the face and the pressure a physical exit
+plane is held at. Of the five characteristics at a subsonic outflow face four are
 outgoing and only the upstream-running pressure wave is incoming, so a single
 quantity is prescribed: the pitchwise mean of the static pressure at each span
 station.
@@ -27,18 +27,21 @@ variables. Reverse a span station and four of its five characteristics turn
 incoming, so one prescribed quantity becomes four and the exit pressure stops
 being one of them: the base class switches that station to the inflow split and
 drives it to rows 0-3 of the target, in the mix variables
-:math:`[h_0, s, V_r, V_\theta]` this patch works in.
+:math:`[h_0, s, V_s, V_\theta]` this patch works in, where :math:`V_s` is the
+velocity in the exit surface.
 :meth:`OutletPatch.set_backflow_ho_s` and its companions prescribe them; left
 alone, they are seeded once from the pitchwise mean of the exit plane as it
 stands at the first timestep and frozen there, which for a run started from a
-design guess is the design exit state. Reversal confined to nodes within a
+design guess is the design exit state. :math:`V_s` is the exception: it is
+pinned at zero rather than prescribed or seeded, so backflow enters normal to
+the exit surface whatever that surface's orientation. Reversal confined to nodes within a
 station whose mean still runs forward is handled node by node as a limiter
 instead, by the base class's ``_calc_override``.
 
 See Also
 --------
-ember.nonreflecting.NonReflectingPatch : The condition itself
-ember.inlet.InletPatch : The inflow counterpart
+ember.patch.NonReflectingPatch : The condition itself
+ember.patch.InletPatch : The inflow counterpart
 ember.perturbation.chic_to_mix : Jacobian the mean-mode solves are built on
 """
 
@@ -69,7 +72,7 @@ def calc_radial_equilibrium(patch):
 
     Parameters
     ----------
-    patch : ember.basepatch.RevolutionPatch
+    patch : ember.patch.RevolutionPatch
         Outflow patch to read the interior layer and pitch weights from.
 
     Returns
@@ -81,7 +84,7 @@ def calc_radial_equilibrium(patch):
 
     See Also
     --------
-    ember.outlet.OutletPatch.set_adjustment : Enables this on the outlet
+    ember.patch.OutletPatch.set_adjustment : Enables this on the outlet
     """
     b1 = patch.block_view_offset_1
     w = patch.weight_pitch
@@ -108,13 +111,13 @@ class OutletPatch(NonReflectingPatch):
     Prescribes the static pressure :math:`p` as a pitchwise-mean quantity at
     each span station, while absorbing outgoing waves rather than reflecting
     them. It must be set before
-    :meth:`~ember.nonreflecting.NonReflectingPatch.apply` is called, via
+    :meth:`~ember.patch.NonReflectingPatch.apply` is called, via
     :meth:`set_P`, which stores its target nondimensionally in :attr:`P_nd`, so
     the patch must already be attached to a block whose fluid is set.
 
     Giles takes the mean-mode residual against the flux-averaged pressure; the
     mean here is the weighted pitch mean of
-    :attr:`~ember.basepatch.RevolutionPatch.weight_pitch`, the same average
+    :attr:`~ember.patch.RevolutionPatch.weight_pitch`, the same average
     every other residual in the family is taken against.
 
     :meth:`set_adjustment` adds a spanwise radial-equilibrium profile to the
@@ -129,13 +132,16 @@ class OutletPatch(NonReflectingPatch):
     is still what the boundary imposes -- the throttle only chooses which
     pressure -- so the characteristic treatment is untouched by it.
 
-    :meth:`set_backflow_ho_s` (or :meth:`set_backflow_Po_To`),
-    :meth:`set_backflow_Vr` and :meth:`set_backflow_Vt` prescribe the inflow
-    state a reversed span station is driven to; see those methods and the module
-    docstring.
+    :meth:`set_backflow_ho_s` (or :meth:`set_backflow_Po_To`) and
+    :meth:`set_backflow_Vt` prescribe the inflow state a reversed span station
+    is driven to; see those methods and the module docstring. Its meridional
+    direction is not prescribed and cannot be: backflow comes in normal to the
+    exit surface, so the row that would carry it is pinned at zero. Unlike an
+    angle, a meridional velocity cannot be resolved onto a face of arbitrary
+    orientation without knowing the normal component, which is what the
+    reversed-station solve derives from :math:`h_0` -- so there is nothing
+    consistent for a setter to mean.
     """
-
-    _collection_name = "outlet"
 
     _desc = "outlet patch"
 
@@ -145,8 +151,9 @@ class OutletPatch(NonReflectingPatch):
 
     # The inflow state a reversed station is driven to. Not required of the
     # user: seeded from the exit plane if the set_backflow_* setters are never
-    # called.
-    _target_seeded = (0, 1, 2, 3)
+    # called. Row 2, the velocity in the surface, is not seeded and not
+    # settable; attach_to_block pins it at zero.
+    _target_seeded = (0, 1, 3)
 
     def _copy(self, c):
         super()._copy(c)
@@ -248,18 +255,22 @@ class OutletPatch(NonReflectingPatch):
 
         A **node** whose interior neighbour is pushing flow inward, at a station
         whose mean is still forward, is overwritten with the same four
-        quantities and a density relaxed from the interior by
-        :func:`~ember.nonreflecting.calc_backflow_rho`. There is no
+        quantities and a density, the one quantity those four leave free, taken
+        from the interior: relaxed from its start-of-step value toward the
+        current one at a rate that falls away with the local axial Mach number,
+        and capped to keep the axial velocity real. There is no
         characteristic split to change at that level -- the split belongs to the
         station's mean, and the Hilbert transform couples every node of a
         station to every other -- so this one is a limiter on the linear theory,
         applied to what reaches the block and kept out of the state the solve
         carries forward.
 
-        The four rows are set independently, by this method or
-        :meth:`set_backflow_Po_To` for the thermodynamic pair and by
-        :meth:`set_backflow_Vr` and :meth:`set_backflow_Vt` for the velocities,
-        so a run can prescribe one and leave the rest seeded.
+        The rows that can be prescribed are set independently, by this method
+        or :meth:`set_backflow_Po_To` for the thermodynamic pair and by
+        :meth:`set_backflow_Vt` for the swirl, so a run can prescribe one and
+        leave the rest seeded. The meridional direction is not among them: the
+        backflow comes in normal to the exit surface, so the velocity in the
+        surface is pinned at zero. See the class docstring.
 
         Both quantities here are measured from the fluid datum state where
         :math:`u = s = 0` at :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`, the same
@@ -282,7 +293,7 @@ class OutletPatch(NonReflectingPatch):
 
         See Also
         --------
-        ember.inlet.InletPatch.set_backflow_P : The mirror of this, prescribing
+        ember.patch.InletPatch.set_backflow_P : The mirror of this, prescribing
             the pressure an inflow face falls back on
         """
         fluid = self.block.fluid
@@ -328,20 +339,6 @@ class OutletPatch(NonReflectingPatch):
         self._set_target_row(1, "Po and To", fluid.get_s(rhoo_nd, uo_nd))
 
     @replayable
-    def set_backflow_Vr(self, Vr):
-        r"""Prescribe the radial velocity imposed where the exit flow reverses.
-
-        See :meth:`set_backflow_ho_s` for what the backflow rows do.
-
-        Parameters
-        ----------
-        Vr : float or array
-            Radial velocity :math:`V_r` [m/s]. A scalar or a spanwise profile,
-            of which only the pitchwise mean at each span station is imposed.
-        """
-        self._set_target_row(2, "Vr", np.asarray(Vr) / self.block.fluid.V_ref)
-
-    @replayable
     def set_backflow_Vt(self, Vt):
         r"""Prescribe the tangential velocity imposed where the exit flow reverses.
 
@@ -371,7 +368,7 @@ class OutletPatch(NonReflectingPatch):
         P : float or array
             Prescribed static pressure :math:`p_\mathrm{out}` [Pa]; must be
             positive and finite. A scalar or any array that broadcasts to
-            :attr:`~ember.basepatch.Patch.shape`.
+            :attr:`~ember.patch.Patch.shape`.
         """
         arr = np.asarray(P)
         if not np.isfinite(arr).all():
@@ -492,7 +489,7 @@ class OutletPatch(NonReflectingPatch):
 
         See Also
         --------
-        ember.outlet.OutletPatch.get_throttle_stats : Controller state, as
+        ember.patch.OutletPatch.get_throttle_stats : Controller state, as
             logged to the convergence history
         """
         if mdot_target is None:
@@ -523,7 +520,7 @@ class OutletPatch(NonReflectingPatch):
         :meth:`ember.grid.Grid.get_convergence` records for a grid whose outlet
         holds a plain pressure.
 
-        Only :attr:`_mdot` and the running error sum are stored; the correction
+        Only the measured mass flow and the running error sum are stored; the correction
         terms below are derived here from them and the gains, so there is no
         second copy of the controller state to keep in step. The values are
         those of the last :meth:`update_target`, so under
@@ -562,6 +559,23 @@ class OutletPatch(NonReflectingPatch):
             dP_I=dP_I,
             dP_D=0.0,
         )
+
+    def attach_to_block(self, block):
+        """Attach to a block and pin the in-surface backflow velocity at zero.
+
+        Done here rather than in a setter because it is not a prescription the
+        user makes but a property of the condition; and after the base class,
+        which is what allocates the target this writes into. Re-pinned on every
+        attach, since a target rebuilt at a new shape comes back zeroed and
+        unset.
+        """
+        super().attach_to_block(block)
+
+        if self._block_ref is None:
+            return
+
+        self._target[..., 2] = 0.0
+        self._target_set[2] = True
 
     def update_ref_scales(self):
         r"""Re-derive the prescribed pressure and drop the spanwise adjustment.
@@ -641,6 +655,25 @@ class OutletPatch(NonReflectingPatch):
         self._target[..., 4] = self._P_level_nd + dP_nd + self._P_last_nd
 
     @property
+    def Ki(self):
+        """Integral gain of the throttle, dimensionless.
+
+        Zero when no throttle is set; see :attr:`Kp`.
+        """
+        return self._Ki
+
+    @property
+    def Kp(self):
+        """Proportional gain of the throttle, dimensionless.
+
+        Zero when no throttle is set, since :meth:`set_throttle` clears both
+        gains along with the setpoint; test :attr:`mdot_target` against None to
+        tell an unthrottled patch from one deliberately given a zero gain. Set
+        through :meth:`set_throttle`, which documents what the value means.
+        """
+        return self._Kp
+
+    @property
     def mdot_target(self):
         """Throttle setpoint [kg/s], or None when the patch holds a pressure.
 
@@ -649,3 +682,14 @@ class OutletPatch(NonReflectingPatch):
         set through :meth:`set_throttle`.
         """
         return self._mdot_target
+
+    @property
+    def P(self):
+        """Prescribed outlet static pressure [Pa]. Inverse of :meth:`set_P`.
+
+        Reads back the level actually imposed, :attr:`P_nd`, so with
+        :meth:`set_throttle` or :meth:`set_adjustment` configured this is the
+        current throttled level or spanwise profile, not the value last
+        passed to :meth:`set_P`.
+        """
+        return self.P_nd * self.block.fluid.P_ref

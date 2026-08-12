@@ -145,6 +145,23 @@ def test_set_P_accepts_a_scalar_and_a_spanwise_profile():
     assert np.ptp(patch.P_nd, axis=patch.pitch_dim).max() < 1e-6
 
 
+def test_P_property_recovers_the_prescribed_pressure():
+    """P reads back what set_P stored, dimensional again."""
+    block = make_block()
+    patch = OutletPatch(i=-1)
+    block.patches.append(patch)
+
+    patch.set_P(P_MEAN)
+    np.testing.assert_allclose(patch.P, P_MEAN, rtol=1e-6)
+
+    nspan = patch.shape[patch.span_dim]
+    profile = P_MEAN * (1.0 + 0.05 * np.linspace(0.0, 1.0, nspan))
+    shape = [1, 1, 1]
+    shape[patch.span_dim] = nspan
+    patch.set_P(profile.reshape(shape))
+    np.testing.assert_allclose(patch.P.ravel(), profile, rtol=1e-6)
+
+
 @pytest.mark.parametrize(
     "value, match",
     [
@@ -1042,15 +1059,16 @@ def test_grid_closed_by_this_patch_alone():
 
 # Reversed flow returns with some swirl and a little more entropy than the
 # through-flow, so every prescribed quantity differs from the block state and
-# an imposed node is told apart from an untouched one by any of them.
-BACK_VR = 5.0
+# an imposed node is told apart from an untouched one by any of them. The
+# meridional direction is not among them: backflow comes in normal to the exit
+# surface, so the in-surface velocity is pinned at zero rather than prescribed.
 BACK_VT = 30.0
 
 
 def _snapshot():
-    """Dimensional ``(ho, s, Vr, Vt)`` to hand to set_backflow."""
-    state = reference_state(Vx=0.0, Vr=BACK_VR, Vt=BACK_VT, T=320.0)
-    return float(state.ho), float(state.s), BACK_VR, BACK_VT
+    """Dimensional ``(ho, s, Vt)`` to hand to set_backflow."""
+    state = reference_state(Vx=0.0, Vr=0.0, Vt=BACK_VT, T=320.0)
+    return float(state.ho), float(state.s), BACK_VT
 
 
 def _backflow_block(
@@ -1086,10 +1104,9 @@ def _backflow_block(
     return block
 
 
-def _set_backflow(patch, ho, s, Vr, Vt):
-    """Drive the four split backflow setters from one four-tuple."""
+def _set_backflow(patch, ho, s, Vt):
+    """Drive the split backflow setters from one tuple."""
     patch.set_backflow_ho_s(ho, s)
-    patch.set_backflow_Vr(Vr)
     patch.set_backflow_Vt(Vt)
 
 
@@ -1112,14 +1129,23 @@ def _backflow_state(patch, j=0):
 def test_set_backflow_stores_the_state_nondimensionally():
     """The four quantities are stored in the units the residuals are taken in."""
     _, patch = _attached()
-    ho, s, Vr, Vt = _snapshot()
+    ho, s, Vt = _snapshot()
     patch.set_backflow_ho_s(ho, s)
-    patch.set_backflow_Vr(Vr)
     patch.set_backflow_Vt(Vt)
 
-    expect = (ho / FLUID.u_ref, s / FLUID.Rgas_ref, Vr / FLUID.V_ref, Vt / FLUID.V_ref)
-    np.testing.assert_allclose(_backflow_state(patch), expect, rtol=1e-6)
+    expect = (ho / FLUID.u_ref, s / FLUID.Rgas_ref, 0.0, Vt / FLUID.V_ref)
+    np.testing.assert_allclose(_backflow_state(patch), expect, rtol=1e-6, atol=1e-12)
     assert patch._target_set[0:4].all()
+
+
+def test_the_in_surface_backflow_velocity_is_pinned_at_zero():
+    """Backflow comes in normal to the exit surface, and nothing can ask otherwise."""
+    _, patch = _attached()
+    # Pinned from attach, before anything is prescribed, and counted as set so
+    # the reversed-station solve never waits on it.
+    assert patch._target_set[2]
+    assert float(np.asarray(patch._target[..., 2]).ravel()[0]) == 0.0
+    assert not hasattr(patch, "set_backflow_Vr")
 
 
 def test_set_backflow_Po_To_matches_the_state_it_names():
@@ -1141,8 +1167,9 @@ def test_set_backflow_Po_To_matches_the_state_it_names():
     )
     np.testing.assert_allclose(got, expect, rtol=1e-6)
     assert patch._target_set[0:2].all()
-    # The velocity rows are not this setter's business.
-    assert not patch._target_set[2:4].any()
+    # The swirl row is not this setter's business. Row 2 is nobody's: it is
+    # pinned at zero from attach.
+    assert not patch._target_set[3]
 
 
 def test_set_backflow_Po_To_overrides_set_backflow_ho_s():
@@ -1152,7 +1179,7 @@ def test_set_backflow_Po_To_overrides_set_backflow_ho_s():
     replayed in has to be the order they were called in.
     """
     block, patch = _attached()
-    ho, s, _, _ = _snapshot()
+    ho, s, _ = _snapshot()
     patch.set_backflow_ho_s(ho, s)
     patch.set_backflow_Po_To(1.3e5, 340.0)
     after_Po_To = np.copy(_backflow_state(patch)[0:2])
@@ -1191,12 +1218,11 @@ def test_set_backflow_accepts_a_spanwise_profile():
     """A profile is allowed, since the seed it replaces is one; the pitch mean is kept."""
     _, patch = _attached()
     nspan = patch.shape[patch.span_dim]
-    ho, s, Vr, _ = _snapshot()
+    ho, s, _ = _snapshot()
     Vt = BACK_VT * np.linspace(0.5, 1.5, nspan).reshape(
         [nspan if d == patch.span_dim else 1 for d in range(3)]
     )
     patch.set_backflow_ho_s(ho, s)
-    patch.set_backflow_Vr(Vr)
     patch.set_backflow_Vt(Vt)
 
     got = np.asarray(patch._backflow()[3]).ravel()
@@ -1207,15 +1233,18 @@ def test_backflow_seeds_from_the_exit_plane_when_not_set():
     """Left alone, the four rows are taken from the face once and then frozen."""
     block = _backflow_block(rev_span=(2,))
     patch = _backflow_patch(block, backflow=False)
-    assert not patch._target_set[0:4].any()
+    # Row 2 is excepted throughout: pinned at zero from attach, never seeded.
+    assert not patch._target_set[[0, 1, 3]].any()
     patch.update_soln()
 
     # Station 0 still runs forward, so its seed is the block state it was built
     # with rather than anything the reversed station carries.
     assert patch._target_set[0:4].all()
     b = patch.block_view
-    expect = [_span_profile(patch, f)[0] for f in (b.ho_nd, b.s_nd, b.Vr_nd, b.Vt_nd)]
-    np.testing.assert_allclose(_backflow_state(patch, 0), expect, rtol=1e-5)
+    expect = [_span_profile(patch, f)[0] for f in (b.ho_nd, b.s_nd, b.Vt_nd)]
+    got = _backflow_state(patch, 0)
+    np.testing.assert_allclose(got[0:2] + got[3:4], expect, rtol=1e-5)
+    assert got[2] == 0.0
 
     # Frozen: a later step does not re-derive it from a face this patch has
     # since been writing, which would leave the residual identically zero.
@@ -1328,11 +1357,14 @@ def test_nodal_backflow_imposes_the_prescribed_state_on_reversed_nodes():
 
     assert not patch._entering.any()
     b = patch.block_view
-    ho_snap, s_snap, Vr_snap, Vt_snap = _backflow_state(patch, 3)
+    ho_snap, s_snap, Vs_snap, Vt_snap = _backflow_state(patch, 3)
     assert float(b.ho_nd[0, 3, 5]) == pytest.approx(float(ho_snap), rel=1e-5)
     assert float(b.s_nd[0, 3, 5]) == pytest.approx(float(s_snap), rel=1e-5)
-    assert float(b.Vr_nd[0, 3, 5]) == pytest.approx(float(Vr_snap), rel=1e-5)
     assert float(b.Vt_nd[0, 3, 5]) == pytest.approx(float(Vt_snap), rel=1e-5)
+    # The in-surface component is the pinned zero, so the node comes in normal
+    # to the face -- which on this constant-x face means purely axially.
+    assert Vs_snap == 0.0
+    assert float(b.Vr_nd[0, 3, 5]) == pytest.approx(0.0, abs=1e-6)
     # Reversed, which the primitive write can express directly: unlike the
     # reflecting outlet there is no sign to flip back afterwards.
     assert float(b.Vx_nd[0, 3, 5]) < 0.0
@@ -1386,13 +1418,15 @@ def test_nodal_backflow_defers_to_a_reversed_station():
     patch.apply()
 
     b = patch.block_view
-    Vr_snap = _backflow_state(patch, 3)[2]
+    Vt_snap = _backflow_state(patch, 3)[3]
+    Vt_start = VT_MEAN / FLUID.V_ref
     # The node-level case is imposed outright, so it lands on the snapshot.
-    assert float(b.Vr_nd[0, 3, 5]) == pytest.approx(Vr_snap, rel=1e-5)
+    assert float(b.Vt_nd[0, 3, 5]) == pytest.approx(Vt_snap, rel=1e-5)
     # The reversed station is stepped toward it under-relaxed instead, so after
-    # one stage it is on the way rather than there.
-    Vr_station = float(b.Vr_nd[0, 2, 5])
-    assert 0.0 < Vr_station < 0.9 * Vr_snap
+    # one stage it is a fraction of the way rather than there. Measured as that
+    # fraction, since the snapshot swirl is below the through-flow's, not above.
+    frac = (float(b.Vt_nd[0, 2, 5]) - Vt_start) / (Vt_snap - Vt_start)
+    assert 0.0 < frac < 0.9
 
 
 def test_reversed_station_release_is_hysteretic():

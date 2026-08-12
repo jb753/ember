@@ -15,8 +15,6 @@ from ember.basepatch import Patch
 class CoolingPatch(Patch):
     """Cooling flow through a boundary."""
 
-    _collection_name = "cooling"
-
     def _setup(self):
         self.type = np.nan
         self.mass = np.nan

@@ -1,7 +1,11 @@
 """Integration test for the mixing plane boundary condition.
 
+Modules tested: ember.mixing, ember.mixing_communicator
+
 Test cases:
 - test_mixing_plane_no_nan: Two-block mixing-plane run completes without divergence
+- test_mixing_communicator_get_stats: get_stats is None before the first exchange
+  and carries the relaxation increment after it
 - test_target_re_seeds_when_the_reference_scales_move: the exchanged target is
   taken again rather than carried across a change of fluid
 """
@@ -140,20 +144,26 @@ def test_mixing_communicator_get_stats(mixing_grid):
 def test_target_re_seeds_when_the_reference_scales_move():
     """The exchanged target is dropped and taken again on a change of fluid.
 
-    It is a nondimensional conserved state with no dimensional original to
-    reconvert, so carrying it across would impose the old scales' numbers on
-    the new ones -- an inconsistency at the plane that nothing reports.
+    It is a nondimensional state with no dimensional original to reconvert, so
+    carrying it across would impose the old scales' numbers on the new ones --
+    an inconsistency at the plane that nothing reports. Every row of this
+    patch's target is seeded rather than prescribed, so there are no setter
+    calls to replay and all five are re-taken from the rescaled face.
     """
+    rho_old, V_old = 1.1, 100.0
+    rho_new, V_new = 0.7, 250.0
     fluid = ember.fluid.PerfectFluid(
-        cp=1005.0, gamma=1.4, mu=1.8e-4, Pr=1.0, rho_ref=1.1, V_ref=100.0
+        cp=1005.0, gamma=1.4, mu=1.8e-4, Pr=1.0, rho_ref=rho_old, V_ref=V_old
     )
+    Nb = 126
+    pitch = 2.0 * np.pi / Nb
     shape = (5, 5, 5)
-    xrt = util.linmesh3([0.0, 0.1], [1.0, 1.1], [0.0, 0.05], shape)
+    xrt = util.linmesh3([0.0, 0.1], [1.0, 1.1], [-pitch / 2, pitch / 2], shape)
     block = ember.block.Block(shape=shape)
     block.set_x(xrt[..., 0])
     block.set_r(xrt[..., 1])
     block.set_t(xrt[..., 2])
-    block.set_Nb(20)
+    block.set_Nb(Nb)
     block.set_fluid(fluid)
     block.set_P_T(1.0e5, 300.0)
     block.set_Vx(100.0)
@@ -163,17 +173,16 @@ def test_target_re_seeds_when_the_reference_scales_move():
     patch = ember.patch.MixingPatch(i=-1)
     block.patches.append(patch)
     before = patch.get_target().copy()
-    assert patch._target is not None
+    assert patch._target_set.all()
 
-    block.set_fluid(fluid.change_ref(rho_ref=0.7, V_ref=250.0))
-    assert patch._target is None
+    block.set_fluid(fluid.change_ref(rho_ref=rho_new, V_ref=V_new))
+    assert not patch._target_set.any()
 
     # Re-seeded from the rescaled field, so the plane still carries the state
-    # the block is actually in: the same density and axial mass flux, read
-    # against the new scales.
+    # the block is actually in, read against the new scales. Rows are
+    # [ho, s, Vr, Vt, P]; entropy is nondimensionalised on Rgas_ref, which has
+    # not moved, so its row is the same number either side.
     after = patch.get_target()
-    scale_old = np.array([1.1, 1.1 * 100.0])
-    scale_new = np.array([0.7, 0.7 * 250.0])
-    np.testing.assert_allclose(
-        after[:, :2] * scale_new, before[:, :2] * scale_old, rtol=1e-5
-    )
+    scale_old = np.array([V_old**2, 1.0, V_old, V_old, rho_old * V_old**2])
+    scale_new = np.array([V_new**2, 1.0, V_new, V_new, rho_new * V_new**2])
+    np.testing.assert_allclose(after * scale_new, before * scale_old, rtol=1e-5)

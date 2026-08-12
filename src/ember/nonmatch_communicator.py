@@ -13,8 +13,97 @@ interpolation to transfer data at each timestep.
 
 import numpy as np
 
-from ember.geometry import compute_parametric_coords
-from ember.util import apply_perm_flip
+import ember.fortran
+from ember.util import apply_perm_flip, pol_to_pseudocart
+
+f32 = np.float32
+
+
+def _compute_parametric_coords(xrt, const_dim):
+    """Compute parametric coordinates for a structured patch face.
+
+    Maps a 3D patch to 2D parametric space (u,v) ∈ [0,1]^2 using
+    arc length along grid lines. Both u and v span [0,1] with
+    u=0,v=0 at one corner and u=1,v=1 at opposite corner.
+
+    Used to interpolate conserved variables between a non-matching patch
+    pair, where two block faces occupy the same physical space but have
+    different nodal distributions. The parametric coordinates provide a
+    common reference frame for transferring data between patches.
+
+    Parameters
+    ----------
+    xrt : Array, shape (..., ..., 3)
+        Patch coordinates in (x, r, theta). One dimension should be size 1
+        (the constant dimension indicating this is a 2D patch face).
+    const_dim : int
+        Constant dimension (0=i, 1=j, 2=k) that defines the face orientation.
+
+    Returns
+    -------
+    uv : Array, shape (..., ..., 2)
+        Parametric coordinates normalized to [0,1] x [0,1]. Last dimension
+        contains [u, v] coordinates. For a patch with varying dimensions
+        (i1, i2), the parametric coords have shape (i1, i2, 2).
+
+    Examples
+    --------
+    >>> # Patch on i=0 face with shape (1, 10, 20, 3)
+    >>> xrt = block[patch.slice].xrt
+    >>> uv = _compute_parametric_coords(xrt, const_dim=0)
+    >>> # Result has shape (1, 10, 20, 2) with u,v ∈ [0,1]
+    >>> assert uv[0, 0, 0, :] == [0.0, 0.0]  # Corner
+    >>> assert uv[0, -1, -1, :] == [1.0, 1.0]  # Opposite corner
+    """
+    # Squeeze out the constant dimension to get 2D patch
+    xrt_2d = np.squeeze(xrt, axis=const_dim)
+
+    if xrt_2d.ndim != 3 or xrt_2d.shape[-1] != 3:
+        raise ValueError(
+            f"Expected 2D patch after squeezing const_dim={const_dim}, "
+            f"got shape {xrt_2d.shape}"
+        )
+
+    ni, nj, _ = xrt_2d.shape
+
+    # Convert to pseudo-Cartesian for distance calculations
+    # This handles the polar coordinate metric properly
+    xyz = pol_to_pseudocart(xrt_2d)
+
+    # Compute parametric coordinate u along first dimension (i-direction)
+    # Arc length between consecutive nodes
+    u = np.zeros((ni, nj), dtype=f32, order="F")
+    for j in range(nj):
+        # Distance between consecutive nodes along i-direction at constant j
+        dx = np.diff(xyz[:, j, :], axis=0)
+        ds = np.linalg.norm(dx, axis=-1)
+        # Cumulative distance
+        u[1:, j] = np.cumsum(ds)
+        # Normalize to [0, 1]
+        total_length = u[-1, j]
+        if total_length > 0:
+            u[:, j] /= total_length
+
+    # Compute parametric coordinate v along second dimension (j-direction)
+    v = np.zeros((ni, nj), dtype=f32, order="F")
+    for i in range(ni):
+        # Distance between consecutive nodes along j-direction at constant i
+        dx = np.diff(xyz[i, :, :], axis=0)
+        ds = np.linalg.norm(dx, axis=-1)
+        # Cumulative distance
+        v[i, 1:] = np.cumsum(ds)
+        # Normalize to [0, 1]
+        total_length = v[i, -1]
+        if total_length > 0:
+            v[i, :] /= total_length
+
+    # Stack u and v into (ni, nj, 2) array
+    uv_2d = np.stack([u, v], axis=-1)
+
+    # Expand back to original dimensionality by adding the constant dimension
+    uv = np.expand_dims(uv_2d, axis=const_dim)
+
+    return uv
 
 
 class NonMatchCommunicator:
@@ -89,7 +178,7 @@ class NonMatchCommunicator:
             if (bid, pid) not in self.uv_coords:
                 source_patch = self._grid[bid].patches[pid]
                 source_xrt = self._grid[bid][source_patch.slice].xrt
-                self.uv_coords[(bid, pid)] = compute_parametric_coords(
+                self.uv_coords[(bid, pid)] = _compute_parametric_coords(
                     source_xrt, source_patch.const_dim
                 )
 
@@ -98,7 +187,7 @@ class NonMatchCommunicator:
                 target_patch = self._grid[nxbid].patches[nxpid]
                 target_xrt = self._grid[nxbid][target_patch.slice].xrt
                 target_xrt_transformed = apply_perm_flip(target_xrt, perm, flip)
-                self.uv_coords[(nxbid, nxpid)] = compute_parametric_coords(
+                self.uv_coords[(nxbid, nxpid)] = _compute_parametric_coords(
                     target_xrt_transformed, target_patch.const_dim
                 )
 
@@ -109,8 +198,6 @@ class NonMatchCommunicator:
         patches with different node distributions. Performs bidirectional
         interpolation and averaging for consistency at the interface.
         """
-        import ember.fortran
-
         for (bid, pid), ((nxbid, nxpid), _) in self.pairs.items():
             source_patch = self._grid[bid].patches[pid]
             target_patch = self._grid[nxbid].patches[nxpid]
