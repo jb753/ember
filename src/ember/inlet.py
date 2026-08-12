@@ -299,7 +299,7 @@ class InletPatch(NonReflectingPatch):
 
         Inverse of :meth:`set_Beta`: the stored sine is that of the face-frame
         angle :math:`\beta - \chi`, which :meth:`set_Beta` keeps within
-        :math:`\pm 90` degrees, exactly :func:`numpy.arcsin`'s range, so the
+        :math:`\pm 90` degrees, exactly :obj:`numpy.arcsin`'s range, so the
         recovery is exact up to that wrap.
         """
         Beta_face = np.arcsin(self.sinBeta)
