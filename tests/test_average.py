@@ -26,6 +26,7 @@ Test cases:
 - test_mix_radial: Radial mixing calculations
 - test_mix_out_k_axis_flip_invariance: Verify mixing is invariant to k-axis flip
 - test_mix_out_k_axis_flip_invariance_negative_vt: Verify k-axis flip invariance with negative Vt
+- test_mix_out_flip_invariance_beats_atol: Verify mix_out reproducibility beats its own atol
 """
 
 import numpy as np
@@ -52,7 +53,13 @@ def _get_atol(conserved, r_av, rtol):
     V_av = np.sqrt(Vx_av**2 + Vr_av**2 + Vt_av**2)
     return (
         np.array(
-            [rho_av, rho_av * V_av, rho_av * V_av, rho_av * r_av * V_av, rho_av * V_av**2]
+            [
+                rho_av,
+                rho_av * V_av,
+                rho_av * V_av,
+                rho_av * r_av * V_av,
+                rho_av * V_av**2,
+            ]
         )
         * rtol
     )
@@ -1002,6 +1009,52 @@ def test_mix_out_reference_invariance():
         rtol=rtol,
         err_msg="Vt should be invariant to reference values",
     )
+
+
+def test_mix_out_flip_invariance_beats_atol():
+    """Test that mix_out is reproducible far tighter than its own atol.
+
+    mix_out's Newton loop iterates on to the float32 fixed point rather than
+    stopping at the first iterate inside the atol ball. Without that, the exit
+    point -- and so the answer -- depends on the last bit of the input
+    ordering, and mixing a cut and its k-reversed twin differ by ~3x the atol
+    scale (~3e-4) rather than by the ~2e-6 storage floor. This test is the
+    guard against reinstating a bare `break` on the atol crossing.
+    """
+    rng = np.random.default_rng(4)
+    shape = (7, 8, 9)
+    xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 2 * np.pi), shape)
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
+    block.set_fluid(ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72))
+
+    # Non-uniform state, amplitudes randomised so the test is not tuned to one
+    # lucky flow field
+    a = rng.uniform(0.1, 0.4, 5)
+    block.set_P_T(
+        1e5 * (1.0 + a[0] * np.sin(2 * np.pi * block.x / 0.1)),
+        300.0 * (1.0 + a[1] * np.cos(2 * np.pi * block.r)),
+    )
+    block.set_Vx(100.0 + 40.0 * a[2] * np.sin(2 * np.pi * block.t))
+    block.set_Vr(30.0 * a[3] * np.cos(2 * np.pi * block.x / 0.1))
+    block.set_Vt(50.0 * a[4] * np.sin(2 * np.pi * block.r))
+
+    cut = block[3]
+    mixed = average.mix_out(cut)
+    mixed_flipped = average.mix_out(cut[:, ::-1])
+
+    # An order of magnitude tighter than the loop's 1e-4 atol scale, which the
+    # exit rule -- not the tolerance -- is what buys.
+    rtol = 1e-5
+    for name in ("rho", "P", "T", "Vx", "Vr", "Vt"):
+        np.testing.assert_allclose(
+            getattr(mixed, name),
+            getattr(mixed_flipped, name),
+            rtol=rtol,
+            err_msg=f"Mixed {name} should be k-flip invariant well inside atol",
+        )
 
 
 if __name__ == "__main__":

@@ -24,6 +24,10 @@ without a deprecation period.
   prescribed boundary state in physical units.
 * Added ``wall_yplus`` for y+ post-processing.
 * Added ``Block.memory_usage``.
+* Fixed ``mix_out`` returning slightly different states for a cut and its
+  k-reversed twin. The Newton loop now iterates to its fixed point instead of
+  stopping at the first iterate inside ``atol``, cutting that difference from
+  ~3e-4 to ~2e-6.
 * Added precompiled wheels for macOS (arm64) and Windows (AMD64), alongside
   the existing Linux (x86_64) wheels.
 * Fixed ``matvec`` broadcast dispatch order for ``(ni,1,1)`` matrices.

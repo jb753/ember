@@ -378,6 +378,8 @@ directly and are not usually needed by end users.
    Block.conserved_filt_nd
    Block.conserved_nd
    Block.cp_nd
+   Block.dA_quad_nd
+   Block.dA_tri_nd
    Block.dAi_nd
    Block.dAj_nd
    Block.dAk_nd
@@ -402,6 +404,7 @@ directly and are not usually needed by end users.
    Block.s_nd
    Block.T_nd
    Block.u_nd
+   Block.V_nd
    Block.vol_nd
    Block.Vr_nd
    Block.Vt_nd
@@ -2438,15 +2441,37 @@ class Block(ember._struct.StructuredData):
     def dA_quad(self):
         r"""Face area vectors for a 2D structured cut :math:`\delta A` [m^2], shape ``(ni-1, nj-1, 3)``.
 
+        See :attr:`dA_quad_nd` for the nondimensional form and the geometry
+        reference.
+        """
+        return self.dA_quad_nd * self.L_ref**2
+
+    @derived_array
+    def dA_quad_nd(self):
+        r"""Face area vectors for a 2D structured cut :math:`\delta A / L_\mathrm{ref}^2` [-], shape ``(ni-1, nj-1, 3)``.
+
+        Components on the trailing axis, as for :attr:`dA_quad`.
+
         See :ref:`face-areas` for the calculation.
         """
         assert self.ndim == 2, "dA_quad is only defined for a two-dimensional cut."
         assert not self.triangulated, "dA_quad requires triangulated=False"
-        return _get_da_quad(self._xrt_nd) * self.L_ref**2
+        return _get_da_quad(self._xrt_nd)
 
     @derived_array
     def dA_tri(self):
         r"""Face area vectors for a 2D unstructured cut :math:`\delta\!A` [m^2], shape ``(ntri, 3)``.
+
+        See :attr:`dA_tri_nd` for the nondimensional form and the geometry
+        reference.
+        """
+        return self.dA_tri_nd * self.L_ref**2
+
+    @derived_array
+    def dA_tri_nd(self):
+        r"""Face area vectors for a 2D unstructured cut :math:`\delta\!A / L_\mathrm{ref}^2` [-], shape ``(ntri, 3)``.
+
+        Components on the trailing axis, as for :attr:`dA_tri`.
 
         See :ref:`face-areas` for the calculation.
         """
@@ -2456,7 +2481,7 @@ class Block(ember._struct.StructuredData):
                 f"got shape {self.shape}"
             )
         assert self.triangulated, "dA_tri requires triangulated=True"
-        return _get_da_tri(self._xrt_nd) * self.L_ref**2
+        return _get_da_tri(self._xrt_nd)
 
     @derived_array
     def dAi(self):
@@ -3269,10 +3294,15 @@ class Block(ember._struct.StructuredData):
     @derived_array
     def V(self):
         r"""Absolute velocity magnitude :math:`V` [m/s], nodal array."""
+        return self.V_nd * self._V_ref
+
+    @derived_array
+    def V_nd(self):
+        r"""Nondimensional absolute velocity magnitude :math:`V/V_\mathrm{ref}` [-], nodal array."""
         # V = sqrt(2 * half|V|^2), reusing the cached kinetic energy. half|V|^2
         # is tolerant, so guard the momenta here (r tolerated, as for Vx/Vr/Vt).
         self._get_data_by_keys(("rhoVx", "rhoVr", "rhorVt"))
-        return np.sqrt(2.0 * self._halfVsq_nd_uninit) * self._V_ref
+        return np.sqrt(2.0 * self._halfVsq_nd_uninit)
 
     @derived_array
     def V_rel(self):
@@ -3312,9 +3342,7 @@ class Block(ember._struct.StructuredData):
         See :ref:`cell-volumes` for the calculation.
         """
         assert self.ndim == 3, "volume is only defined for a three-dimensional block."
-        out = _get_vol(
-            self._xrt_nd, self.dAi_nd, self.dAj_nd, self.dAk_nd, out
-        )
+        out = _get_vol(self._xrt_nd, self.dAi_nd, self.dAj_nd, self.dAk_nd, out)
         return out
 
     @derived_array

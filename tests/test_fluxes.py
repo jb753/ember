@@ -13,6 +13,9 @@ Test cases:
 - test_flow_0d_1d_errors: Error handling for 0D and 1D flow operations
 - test_flux_flow_dimensionality_coverage: Dimensionality coverage testing
 - test_flux_triangulated_shape: Triangulated mesh flux calculations
+- test_flux_nd_shapes: Nondimensional flux shapes match the dimensional ones
+- test_flux_nd_3d_error: Error handling for 3D nondimensional flux calculations
+- test_flux_nd_scales_to_dimensional: get_flux is get_flux_nd scaled by flux_ref
 
 Note: 3D Fortran-based flux calculations are tested in test_solver_block.py
 """
@@ -254,3 +257,55 @@ def test_flux_triangulated_shape(uniform_flow_block_2d):
 
     # Verify flux contains finite values
     assert np.all(np.isfinite(flux)), "Triangulated flux should contain finite values"
+
+
+def test_flux_nd_shapes(scalar_block, uniform_flow_block_1d, uniform_flow_block_2d):
+    """Test that get_flux_nd returns the same shapes as get_flux, all finite."""
+    from ember.cut import triangulate_to_unstructured
+
+    tri_block = triangulate_to_unstructured(uniform_flow_block_2d)
+    for block in (
+        scalar_block,
+        uniform_flow_block_1d,
+        uniform_flow_block_2d,
+        tri_block,
+    ):
+        flux_nd = ember.fluxes.get_flux_nd(block)
+        assert flux_nd.shape == ember.fluxes.get_flux(block).shape, (
+            f"ND flux shape should match dimensional, got {flux_nd.shape}"
+        )
+        assert np.all(np.isfinite(flux_nd)), "ND flux should contain finite values"
+
+
+def test_flux_nd_3d_error(uniform_flow_block):
+    """Test that get_flux_nd raises an error for 3D blocks, as get_flux does."""
+    with pytest.raises(ValueError):
+        _ = ember.fluxes.get_flux_nd(uniform_flow_block)
+
+
+def test_flux_nd_scales_to_dimensional(
+    scalar_block, uniform_flow_block_1d, uniform_flow_block_2d
+):
+    """Test that get_flux equals get_flux_nd scaled column-wise by flux_ref.
+
+    The five conserved-flux columns each carry a single reference scale, so the
+    dimensional flux tensor is the ND one times a constant (5,) vector -- this
+    is what lets get_flux be a thin wrapper over the ND implementation.
+    """
+    from ember.cut import triangulate_to_unstructured
+
+    tri_block = triangulate_to_unstructured(uniform_flow_block_2d)
+    for block in (
+        scalar_block,
+        uniform_flow_block_1d,
+        uniform_flow_block_2d,
+        tri_block,
+    ):
+        flux_ref = ember.fluxes.flux_ref(block)
+        assert flux_ref.shape == (5,), f"flux_ref should be (5,), got {flux_ref.shape}"
+        np.testing.assert_allclose(
+            ember.fluxes.get_flux(block),
+            ember.fluxes.get_flux_nd(block) * flux_ref,
+            rtol=1e-6,
+            err_msg="get_flux should equal get_flux_nd scaled by flux_ref",
+        )

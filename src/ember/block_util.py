@@ -276,7 +276,7 @@ def _concatenate_two_blocks(block1, block2, axis=0):
 
 
 def _rotate_meridional(block, rot):
-    r"""Rotate a block's meridional velocity :math:`(V_x, V_r)` in place by ``rot``.
+    r"""Rotate a block's meridional momentum :math:`(\rho V_x, \rho V_r)` in place by ``rot``.
 
     Shared by :func:`resolve_to_interface` and :func:`resolve_from_interface`,
     which differ only in which of the paired matrices from
@@ -284,21 +284,31 @@ def _rotate_meridional(block, rot):
     other's inverse, so there is nothing else to tell them apart. ``Vt`` is
     untouched.
 
+    Operates directly on the nondimensional momentum components of
+    :attr:`~ember.block.Block.conserved_nd`, mirroring
+    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface`. A proper
+    rotation leaves :math:`V_x^2 + V_r^2` exactly invariant, so density and
+    energy need no update -- going via :meth:`~ember.block.Block.set_Vx` and
+    :meth:`~ember.block.Block.set_Vr` instead would rebuild energy from
+    internal energy plus new kinetic energy on every call, subtracting and
+    re-adding terms of very different magnitude for no mathematical reason.
+
     Parameters
     ----------
     block : Block
-        Block whose velocity is rotated.
+        Block whose momentum is rotated.
     rot : Array, shape ``chi.shape + (2, 2)``
         Rotation matrix, from :func:`~ember.util.rotation_matrices`.
 
     Returns
     -------
     Block
-        ``block``, with ``Vx`` and ``Vr`` updated in place.
+        ``block``, with the momentum components of ``conserved_nd`` updated
+        in place.
     """
-    V = util.matvec(rot, np.stack([block.Vx, block.Vr], axis=-1))
-    block.set_Vx(V[..., 0])
-    block.set_Vr(V[..., 1])
+    cons = block.conserved_nd
+    cons[..., 1:3] = util.matvec(rot, cons[..., 1:3])
+    block.update_cached_conserved()
     return block
 
 
@@ -316,9 +326,11 @@ def resolve_to_interface(block, rot_to):
 
     for the interface angle :math:`\chi` that ``rot_to`` was built from by
     :func:`~ember.util.rotation_matrices`. Inverse of
-    :func:`resolve_from_interface`. See also
-    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface`, the equivalent
-    rotation applied to conserved momentum on a patch's averaging plane.
+    :func:`resolve_from_interface`. Applies the rotation directly to the
+    nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,
+    the same approach as
+    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface` on a
+    patch's averaging plane -- see :func:`_rotate_meridional`.
 
     Parameters
     ----------
@@ -334,7 +346,7 @@ def resolve_to_interface(block, rot_to):
     Returns
     -------
     Block
-        The input block with velocities updated to interface-aligned form.
+        The input block with momentum updated to interface-aligned form.
         :math:`V_n` becomes the new Vx, :math:`V_s` becomes the new Vr, Vt
         unchanged.
     """
@@ -355,10 +367,11 @@ def resolve_from_interface(block, rot_from):
 
     for the interface angle :math:`\chi` that ``rot_from`` was built from by
     :func:`~ember.util.rotation_matrices`. Inverse of
-    :func:`resolve_to_interface`. See also
-    :meth:`~ember.patch.RevolutionPatch.resolve_from_interface`, the
-    equivalent rotation applied to conserved momentum on a patch's averaging
-    plane.
+    :func:`resolve_to_interface`. Applies the rotation directly to the
+    nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,
+    the same approach as
+    :meth:`~ember.patch.RevolutionPatch.resolve_from_interface` on a
+    patch's averaging plane -- see :func:`_rotate_meridional`.
 
     Parameters
     ----------
@@ -371,7 +384,7 @@ def resolve_from_interface(block, rot_from):
     Returns
     -------
     Block
-        The input block with velocities updated to meridional form.
+        The input block with momentum updated to meridional form.
     """
     return _rotate_meridional(block, rot_from)
 
