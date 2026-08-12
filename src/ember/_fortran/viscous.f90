@@ -543,7 +543,23 @@ subroutine set_tau_q_soa( &
             w2 = gVx(i,3) - gVt(i,1)
             w3 = gVr(i,1) - gVx(i,2)
             vm = sqrt(w1*w1 + w2*w2 + w3*w3)
-            mut = min(rhoc(i) * xlength(i,j,k) * vm, visc_lim)
+            ! The max(0) is not physics -- mut is analytically confined to
+            ! [0, visc_lim] already, since rhoc, xlength and vm are all
+            ! non-negative and nothing here divides. It contains a gfortran 13
+            ! codegen fault: built with the setup.py production flags (the
+            ! raised --param=vect-max-version-for-alias-checks is what forces
+            ! this loop to vectorize at all), gfortran 13.3 returns -inf from
+            ! this line for about two thirds of cells whenever the vorticity
+            ! sits at the float32 cancellation noise floor, i.e. a uniform flow
+            ! with no real shear -- the chi = 90/270 duct cases in
+            ! tests/test_nonreflecting_integration.py. The -inf then travels
+            ! fac -> tau_cell -> F_body -> residual and NaNs the whole field
+            ! inside one step. gfortran 14.2 is unaffected, as is any build at
+            ! -O2, without fast-math, or at the default alias-check budget.
+            ! Ubuntu 24.04 (the CI runner) ships gfortran 13.3, so this is a
+            ! live target, not a historical one. The clamp costs one vmaxps
+            ! and leaves the loop vectorized.
+            mut = max(0.0e0, min(rhoc(i) * xlength(i,j,k) * vm, visc_lim))
             mu_turb(i,j,k) = mut
             fac = (mu + mut) * 0.5e0
             tau_cell(i+1,j+1,k+1,1) = t1*fac

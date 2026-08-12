@@ -29,6 +29,9 @@ without a deprecation period.
 * Fixed ``matvec`` broadcast dispatch order for ``(ni,1,1)`` matrices.
 * Fixed the sign of the cusp seam correction.
 * Restored the smooth-then-damp order in ``update_residual``.
+* Fixed the mixing-length viscosity returning ``-inf`` on flows with no
+  resolved shear when built with gfortran 13, which diverged the march within
+  one step.
 * Added API documentation pages for ``cases``, ``communicators``,
   ``block_util``, ``patch``, ``util``, and ``yaml_util``.
 
