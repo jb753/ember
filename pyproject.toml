@@ -18,7 +18,6 @@ classifiers = [
 # Follows SPEC 0's Python support window: https://scientific-python.org/specs/spec-0000/
 requires-python = ">=3.12"
 dependencies = [
-    "h5py~=3.16.0",
     "numpy~=2.5.0",
     "pykdtree~=1.4.3",
     "pyyaml~=6.0.3",
@@ -44,6 +43,13 @@ managed = true
 ignore = ["E741"]  # Allow ambiguous variable names like I (rothalpy)
 extend-select = ["PLC0415"]  # import-outside-top-level: flag inline imports
 
+[tool.ruff.lint.per-file-ignores]
+# Inline imports are idiomatic in tests -- importing inside a test keeps the
+# import under the assertion that needs it, and several suites import a module
+# mid-test on purpose to exercise import-time behaviour. The rule is aimed at
+# library code, where src stays clean.
+"tests/**" = ["PLC0415"]
+
 [tool.pytest.ini_options]
 filterwarnings = [
     "error",
@@ -64,9 +70,9 @@ version_file = "src/ember/_version.py"
 build = "cp312-* cp313-* cp314-*"
 skip = "*-musllinux*"
 archs = ["x86_64"]
-# h5py>=3.16 only ships manylinux_2_28 wheels (no manylinux2014), so the
-# build container must match or pip falls back to a source build that
-# fails without system HDF5 dev libraries.
+# numpy 2.5 only ships manylinux_2_27/manylinux_2_28 wheels (no
+# manylinux2014), so the build container must match or pip falls back to a
+# source build of it in the cibuildwheel test step.
 manylinux-x86_64-image = "manylinux_2_28"
 
 [tool.cibuildwheel.linux]
@@ -113,7 +119,10 @@ dev = [
     {"include-group" = "docs"},
     "pre-commit>=4.3.0",
     "pytest>=8.4.1",
-    "ruff>=0.12.8",
+    # Pinned, not floored: ruff gains rules between releases, so an unpinned
+    # floor turns CI's lint step red on a ruff release rather than on a change
+    # to this repo. Bump deliberately.
+    "ruff==0.15.20",
     'sphinx-autobuild',
     'twine',
     'bump-my-version',

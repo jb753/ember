@@ -127,7 +127,6 @@ def _wall_yplus_reference(block):
     Vr = np.asarray(block.Vr, dtype=np.float64)
     Vt = np.asarray(block.Vt_rel, dtype=np.float64)
     vol = np.asarray(block.vol, dtype=np.float64)
-    dAi = np.asarray(block.dAi, dtype=np.float64)  # (3, ni, nj-1, nk-1)
     dAj = np.asarray(block.dAj, dtype=np.float64)  # (3, ni-1, nj, nk-1)
     dAk = np.asarray(block.dAk, dtype=np.float64)  # (3, ni-1, nj-1, nk)
     Omega_block = float(block.Omega)
