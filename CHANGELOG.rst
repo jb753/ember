@@ -19,6 +19,9 @@ without a deprecation period.
 * Generalised non-reflecting patches to any surface of revolution.
 * Added ``OutletPatch.Kp`` and ``OutletPatch.Ki``, exposing the throttle gains
   set by ``set_throttle``.
+* Added ``InletPatch.Po``, ``InletPatch.To``, ``InletPatch.Alpha``,
+  ``InletPatch.Beta`` and ``OutletPatch.P``, reading back the currently
+  prescribed boundary state in physical units.
 * Added ``wall_yplus`` for y+ post-processing.
 * Added ``Block.memory_usage``.
 * Added precompiled wheels for macOS (arm64) and Windows (AMD64), alongside

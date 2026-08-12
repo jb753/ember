@@ -145,6 +145,23 @@ def test_set_P_accepts_a_scalar_and_a_spanwise_profile():
     assert np.ptp(patch.P_nd, axis=patch.pitch_dim).max() < 1e-6
 
 
+def test_P_property_recovers_the_prescribed_pressure():
+    """P reads back what set_P stored, dimensional again."""
+    block = make_block()
+    patch = OutletPatch(i=-1)
+    block.patches.append(patch)
+
+    patch.set_P(P_MEAN)
+    np.testing.assert_allclose(patch.P, P_MEAN, rtol=1e-6)
+
+    nspan = patch.shape[patch.span_dim]
+    profile = P_MEAN * (1.0 + 0.05 * np.linspace(0.0, 1.0, nspan))
+    shape = [1, 1, 1]
+    shape[patch.span_dim] = nspan
+    patch.set_P(profile.reshape(shape))
+    np.testing.assert_allclose(patch.P.ravel(), profile, rtol=1e-6)
+
+
 @pytest.mark.parametrize(
     "value, match",
     [

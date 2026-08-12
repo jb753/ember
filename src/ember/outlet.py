@@ -682,3 +682,14 @@ class OutletPatch(NonReflectingPatch):
         set through :meth:`set_throttle`.
         """
         return self._mdot_target
+
+    @property
+    def P(self):
+        """Prescribed outlet static pressure [Pa]. Inverse of :meth:`set_P`.
+
+        Reads back the level actually imposed, :attr:`P_nd`, so with
+        :meth:`set_throttle` or :meth:`set_adjustment` configured this is the
+        current throttled level or spanwise profile, not the value last
+        passed to :meth:`set_P`.
+        """
+        return self.P_nd * self.block.fluid.P_ref

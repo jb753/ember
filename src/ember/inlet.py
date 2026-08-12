@@ -116,6 +116,16 @@ class InletPatch(NonReflectingPatch):
         Vm = np.sqrt(Vn**2 + Vs**2)
         return ho_nd, s_nd, Vt / Vm, Vs / Vm, prim[..., 4]
 
+    def _stagnation_state(self):
+        """Nondimensional stagnation density and internal energy of the prescribed inflow.
+
+        Shared by :attr:`Po` and :attr:`To` so the two do not each repeat the
+        equation-of-state solve :func:`~ember.fluid.PerfectFluid.set_h_s`
+        performs.
+        """
+        fluid = self.block.fluid
+        return fluid.set_h_s(self.ho_nd, self.s_nd)
+
     @replayable
     def set_Alpha(self, Alpha):
         r"""Prescribe the inflow yaw angle.
@@ -277,3 +287,42 @@ class InletPatch(NonReflectingPatch):
         )
         self._set_target_row(0, "Po and To", fluid.get_h(rhoo_nd, uo_nd))
         self._set_target_row(1, "Po and To", fluid.get_s(rhoo_nd, uo_nd))
+
+    @property
+    def Alpha(self):
+        r"""Prescribed inflow yaw angle :math:`\alpha` [deg]. Inverse of :meth:`set_Alpha`."""
+        return np.degrees(np.arctan(self.tanAlpha))
+
+    @property
+    def Beta(self):
+        r"""Prescribed inflow pitch angle :math:`\beta` [deg], measured from the machine axis.
+
+        Inverse of :meth:`set_Beta`: the stored sine is that of the face-frame
+        angle :math:`\beta - \chi`, which :meth:`set_Beta` keeps within
+        :math:`\pm 90` degrees, exactly :func:`numpy.arcsin`'s range, so the
+        recovery is exact up to that wrap.
+        """
+        Beta_face = np.arcsin(self.sinBeta)
+        return np.degrees(Beta_face) + np.degrees(self.chi_node)
+
+    @property
+    def Po(self):
+        """Prescribed inflow stagnation pressure [Pa].
+
+        Recovered from the currently stored :attr:`ho_nd` and :attr:`s_nd`
+        through the block's fluid, so it reads back the prescribed state
+        however it was set -- by :meth:`set_Po_To` or by :meth:`set_ho_s` --
+        rather than undoing one setter in particular.
+
+        See Also
+        --------
+        To : The stagnation temperature this state also implies
+        """
+        rhoo_nd, uo_nd = self._stagnation_state()
+        return self.block.fluid.get_P(rhoo_nd, uo_nd) * self.block.fluid.P_ref
+
+    @property
+    def To(self):
+        """Prescribed inflow stagnation temperature [K]. See :attr:`Po`."""
+        rhoo_nd, uo_nd = self._stagnation_state()
+        return self.block.fluid.get_T(rhoo_nd, uo_nd) * self.block.fluid.T_ref
