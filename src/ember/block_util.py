@@ -600,6 +600,17 @@ def wall_yplus(block):
     k-slab/rolling-buffer machinery since it costs O(surface) per call, not
     O(volume) per step.
 
+    The height is the wall-adjacent cell thickness ``vol/|dA|``, i.e. the
+    distance to the first off-wall *node* -- the point whose velocity the wall
+    function actually samples in this cell-vertex scheme, so this is y+ where
+    the closure is evaluated. Cell-centred codes report y+ at the first cell
+    centroid instead, which is the usual "first cell y+" of mesh-sizing
+    guidance; **halve** these values for that convention, since y+ is linear
+    in wall distance at fixed friction velocity. That is not a conversion for
+    comparing against another code's number on the same mesh, though: a
+    cell-centred solver samples its velocity at the half height too, so it
+    infers its own friction velocity and does not simply see half of this.
+
     Parameters
     ----------
     block : Block
