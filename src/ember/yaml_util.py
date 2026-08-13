@@ -16,6 +16,10 @@ avoid two footguns in plain `PyYAML <https://pyyaml.org/>`_:
   strings instead of floats. This module patches the loader's implicit
   float resolver to catch that case too.
 
+Uses PyYAML's ``CSafeLoader``/``CSafeDumper`` (backed by libyaml's C
+scanner/parser/emitter) when available, falling back to the pure-Python
+``SafeLoader``/``SafeDumper`` otherwise.
+
 Ported from turbigen's ``yaml_utils`` module.
 """
 
@@ -122,6 +126,17 @@ yaml.representer.SafeRepresenter.add_representer(Path, _represent_path)
 yaml.representer.SafeRepresenter.add_representer(PosixPath, _represent_path)
 
 
+#: Loader/dumper classes used by :func:`read_yaml`/:func:`write_yaml`. The
+#: libyaml-backed ``CSafeLoader``/``CSafeDumper`` are used when available,
+#: since their C scanner/parser/emitter is faster than the pure-Python
+#: ``SafeLoader``/``SafeDumper``. ``CSafeDumper`` already inherits
+#: ``SafeRepresenter``, so the representers registered above apply to it
+#: unchanged; ``CSafeLoader`` does *not* inherit ``SafeLoader``, so its
+#: implicit float resolver is patched separately by :func:`_float_loader`.
+_Loader = yaml.CSafeLoader if yaml.__with_libyaml__ else yaml.SafeLoader
+_Dumper = yaml.CSafeDumper if yaml.__with_libyaml__ else yaml.SafeDumper
+
+
 #: Regex matching floats that ``yaml.SafeLoader``'s default implicit
 #: resolver misses, in particular scientific notation with no decimal point
 #: (``1e-5``). Passed to ``yaml.BaseResolver.add_implicit_resolver`` by
@@ -136,27 +151,31 @@ _FLOAT_PATTERN = """^(?:
 
 
 def _float_loader():
-    """Build a ``yaml.SafeLoader`` that parses scientific-notation floats.
+    """Build a loader that parses scientific-notation floats.
 
-    Patches ``yaml.SafeLoader``'s implicit resolver for the
+    Patches :data:`_Loader`'s implicit resolver for the
     ``tag:yaml.org,2002:float`` tag with :data:`_FLOAT_PATTERN`, so values
     such as ``1e-5`` load as :class:`float` rather than :class:`str`. The
-    patch is applied to the ``yaml.SafeLoader`` class itself, so it
-    persists for the lifetime of the process once called.
+    patch is applied to the :data:`_Loader` class itself, so it persists
+    for the lifetime of the process once called.
+
+    Note that :data:`_Loader` may be ``yaml.CSafeLoader``, which inherits
+    ``yaml.resolver.Resolver`` directly rather than ``yaml.SafeLoader`` --
+    patching ``yaml.SafeLoader`` would not affect it, so this must patch
+    :data:`_Loader` itself.
 
     Returns
     -------
     type
-        ``yaml.SafeLoader``, with the corrected float resolver installed,
+        :data:`_Loader`, with the corrected float resolver installed,
         suitable for passing as the ``Loader`` argument to ``yaml.load``.
     """
-    loader = yaml.SafeLoader
-    loader.add_implicit_resolver(
+    _Loader.add_implicit_resolver(
         "tag:yaml.org,2002:float",
         re.compile(_FLOAT_PATTERN, re.X),
         list("-+0123456789."),
     )
-    return loader
+    return _Loader
 
 
 def read_yaml(fname):
@@ -183,10 +202,10 @@ def read_yaml(fname):
 def write_yaml(d, fname, mode="w"):
     """Write a dictionary to a YAML file.
 
-    Uses ``yaml.safe_dump`` with the representers registered by this
-    module for numpy scalars, numpy arrays and :class:`~pathlib.Path`
-    objects; see the module docstring. The output is bracketed with
-    ``---``/``...`` document markers.
+    Uses :data:`_Dumper` with the representers registered by this module
+    for numpy scalars, numpy arrays and :class:`~pathlib.Path` objects;
+    see the module docstring. The output is bracketed with ``---``/``...``
+    document markers.
 
     Parameters
     ----------
@@ -199,4 +218,4 @@ def write_yaml(d, fname, mode="w"):
         append a further document to an existing file.
     """
     with open(fname, mode) as f:
-        yaml.safe_dump(d, f, explicit_start=True, explicit_end=True)
+        yaml.dump(d, f, Dumper=_Dumper, explicit_start=True, explicit_end=True)

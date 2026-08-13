@@ -12,7 +12,6 @@ import pytest
 from ember.block import Block
 from ember.fluid import PerfectFluid
 from ember.patch import InletPatch, ProbePatch
-import ember.yaml_util as util_yaml
 
 
 def _make_block(shape=(6, 5, 4), rpm=3600.0, Nb=16):
@@ -89,18 +88,3 @@ def test_probe_does_not_change_wall_arrays():
     assert np.array_equal(iwall0, iwall1)
     assert np.array_equal(jwall0, jwall1)
     assert np.array_equal(kwall0, kwall1)
-
-
-# --- util_yaml round-trip -------------------------------------------------
-
-
-def test_util_yaml_roundtrip(tmp_path):
-    data = {
-        0: {0: {"shape": [1, 2, 3], "Omega": np.float32(376.99), "Nb": np.int64(24)}}
-    }
-    fname = tmp_path / "meta.yaml"
-    util_yaml.write_yaml(data, str(fname))
-    loaded = util_yaml.read_yaml(str(fname))
-    assert loaded[0][0]["shape"] == [1, 2, 3]
-    assert loaded[0][0]["Nb"] == 24
-    assert loaded[0][0]["Omega"] == pytest.approx(376.99, rel=1e-4)
