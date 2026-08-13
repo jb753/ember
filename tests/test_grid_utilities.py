@@ -47,7 +47,7 @@ def _flatten(grid):
     The unstructured setters take a point cloud in this order, so the round-trip
     and alignment tests below build their inputs with it.
     """
-    return concatenate(*[block.flat() for block in grid])
+    return concatenate(*[block.flat for block in grid])
 
 
 def _get_atol(conserved, r_av, rtol):
@@ -1383,10 +1383,12 @@ class TestAlignCartesian:
         # Verify block indices map correctly
         for ib, block in enumerate(align_test_grid):
             assert block_indices[ib].shape == block.shape
-            # Check that indices are sequential for identity transform
+            # Check that indices are sequential for identity transform. The
+            # point cloud was built with Block.flat, which orders points
+            # column-major, so unflatten the expectation the same way.
             expected_indices = np.arange(
                 ib * block.size, (ib + 1) * block.size
-            ).reshape(block.shape)
+            ).reshape(block.shape, order="F")
             np.testing.assert_array_equal(block_indices[ib], expected_indices)
 
     @pytest.mark.parametrize(

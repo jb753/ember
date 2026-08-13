@@ -240,7 +240,7 @@ shaped = ember.block.Block(shape=(4, 3))
 shaped.set_x(np.arange(shaped.size).reshape(shaped.shape))
 print(
     f"shape {shaped.shape} -> transpose {shaped.transpose().shape} "
-    f"-> flat {shaped.flat().shape} -> reshape {shaped.reshape((2, 6)).shape}"
+    f"-> flat {shaped.flat.shape} -> reshape {shaped.reshape((2, 6)).shape}"
 )
 
 # %%

@@ -102,7 +102,6 @@ Reshaping and reordering (a zero-copy view where the layout allows, otherwise a 
 
 .. autosummary::
 
-   Block.flat
    Block.flip
    Block.reshape
    Block.squeeze
@@ -325,6 +324,7 @@ Grid shape and array metadata:
 
 .. autosummary::
 
+   Block.flat
    Block.ndim
    Block.ni
    Block.nj
@@ -2063,23 +2063,6 @@ class Block(ember._struct.StructuredData):
 
         return out
 
-    def flat(self):
-        """Flatten all axes into a single axis, returning a view rather than a copy.
-
-        This copies the metadata dict and but clears patches,
-        since 2D spatial patches have no meaning on a 1D flattened layout.
-
-        Returns
-        -------
-        out : Block, shape (npoints,)
-            A new instance with all points in a single dimension and no patches.
-
-        """
-        out = super().flat()
-        out._metadata = self._metadata.copy()
-        out._metadata["patches"] = ember.collections.BlockPatchCollection(out)
-        return out
-
     def masked(self, mask):
         r"""Confine subsequent setters to the nodes where `mask` is True.
 
@@ -2603,6 +2586,28 @@ class Block(ember._struct.StructuredData):
         ``(rho, rho*Vx, rho*Vr, rho*r*Vt, rho*E)``.
         """
         return util.allocate_or_reuse(out, self.shape_cell + (5,))
+
+    @property
+    def flat(self):
+        """Flatten all axes into a single axis, returning a view rather than a copy.
+
+        This copies the metadata dict and but clears patches,
+        since 2D spatial patches have no meaning on a 1D flattened layout.
+
+        Points are ordered Fortran-style; see
+        :py:attr:`ember._struct.StructuredData.flat` for the ordering and for
+        when this raises.
+
+        Returns
+        -------
+        out : Block, shape (npoints,)
+            A new instance with all points in a single dimension and no patches.
+
+        """
+        out = ember._struct.StructuredData.flat.fget(self)
+        out._metadata = self._metadata.copy()
+        out._metadata["patches"] = ember.collections.BlockPatchCollection(out)
+        return out
 
     @property
     def fluid(self):

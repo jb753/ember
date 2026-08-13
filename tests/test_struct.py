@@ -160,12 +160,48 @@ def test_squeeze_does_not_remove_variable_axis_for_nvar_one():
 
 def test_flat_shape_and_values_equal_numpy_reshape():
     orig = fill_threevar(ThreeVarData(shape=(2, 3)))
-    out = orig.flat()
+    out = orig.flat
     # shape must be (npoints, nvar)
     assert out._data.shape == (orig.size, orig.nvar)
-    # expected computed with numpy reshape on the original array
-    expected = orig._data.reshape(-1, orig.nvar)
+    # expected computed with numpy reshape on the original array; flat orders
+    # points column-major so that it can return a view rather than a copy
+    expected = orig._data.reshape((-1, orig.nvar), order="F")
     np.testing.assert_array_equal(out._data, expected)
+    # the result must share storage with the original, not be a detached copy
+    assert np.shares_memory(out._data, orig._data)
+
+
+@pytest.mark.parametrize("shape", [(), (5,), (2, 3), (2, 3, 4), (2, 3, 4, 5)])
+def test_flat_is_a_view_not_a_copy(shape):
+    """flat must share storage for any freshly allocated shape.
+
+    A C-ordered flattening of the column-major backing array would silently
+    copy for ndim >= 2, detaching the result from its parent. Pin the write
+    -through in both directions so that regression cannot return unnoticed.
+    """
+    orig = fill_threevar(ThreeVarData(shape=shape))
+    out = orig.flat
+
+    assert out.shape == (orig.size,)
+    assert np.shares_memory(out._data, orig._data)
+
+    # Parent -> flat
+    orig._set_data_by_keys(("a",), np.full(shape, 7.0, dtype=np.float32))
+    np.testing.assert_array_equal(out._get_data_by_keys(("a",)), 7.0)
+
+    # Flat -> parent
+    out._set_data_by_keys(("b",), np.full((orig.size,), 9.0, dtype=np.float32))
+    np.testing.assert_array_equal(orig._get_data_by_keys(("b",)), 9.0)
+
+
+def test_flat_raises_rather_than_copying_a_strided_view():
+    """A slice that cannot be flattened without copying must raise, not copy."""
+    orig = fill_threevar(ThreeVarData(shape=(4, 2)))
+
+    # A strided slice of the first (fastest-varying) axis leaves gaps in
+    # memory, so no contiguous single-axis view of it exists.
+    with pytest.raises(ValueError, match="without copying"):
+        orig[1:3].flat
 
 
 def test_getitem_scalar_index_and_slice_behavior():
@@ -974,7 +1010,7 @@ def test_flat_preserves_dtype():
     # Fill with data
     original._set_data_by_keys(("x",), np.ones((3, 4, 5), dtype=np.float32))
 
-    flattened = original.flat()
+    flattened = original.flat
 
     # Should preserve dtype
     assert flattened._data.dtype == np.float32, "Flat should preserve float32 dtype"

@@ -453,7 +453,7 @@ class Grid(_LabelledList):
             mapping_failed = False
 
             for block in self:
-                flat = block.flat()
+                flat = block.flat
                 distances, indices = kdtree.query(
                     np.stack([flat.x, flat.y, flat.z], axis=-1),
                     distance_upper_bound=atol,
@@ -463,7 +463,8 @@ class Grid(_LabelledList):
                     mapping_failed = True
                     break
 
-                block_indices.append(indices.reshape(block.shape))
+                # flat orders points column-major, so unflatten the same way.
+                block_indices.append(indices.reshape(block.shape, order="F"))
 
             if not mapping_failed:
                 return tuple(perm), tuple(signs.ravel()), block_indices
@@ -669,10 +670,12 @@ class Grid(_LabelledList):
         # Step 3: Set conserved variables on blocks using block indices
         for ib, block in enumerate(self):
             # Use indices from _align_cartesian
-            ind = block_indices[ib].flatten()
+            ind = block_indices[ib].flatten(order="F")
 
             # Set conserved variables
-            conserved_block = conserved_pol[ind, :].reshape(block.shape + (5,))
+            conserved_block = conserved_pol[ind, :].reshape(
+                block.shape + (5,), order="F"
+            )
             block.set_conserved(conserved_block)
 
     def set_fluid(self, fluid_obj):
@@ -780,11 +783,13 @@ class Grid(_LabelledList):
         # Step 3: Set primitive variables on blocks using block indices
         for ib, block in enumerate(self):
             # Use indices from _align_cartesian
-            ind = block_indices[ib].flatten()
+            ind = block_indices[ib].flatten(order="F")
 
             # Set primitive variables (convert back to float32)
             primitive_block = (
-                primitive_pol[ind, :].reshape(block.shape + (5,)).astype(np.float32)
+                primitive_pol[ind, :]
+                .reshape(block.shape + (5,), order="F")
+                .astype(np.float32)
             )
             block.set_P_rho(primitive_block[..., 4], primitive_block[..., 0])
             block.set_Vx(primitive_block[..., 1])

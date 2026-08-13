@@ -1374,7 +1374,7 @@ def test_patch_various_ndim():
 
 
 def test_block_flat_removes_patches():
-    """Test that block.flat() properly handles patches."""
+    """Test that block.flat properly handles patches."""
     import ember.patch
     from ember.block import Block
     from ember.fluid import PerfectFluid
@@ -1395,7 +1395,7 @@ def test_block_flat_removes_patches():
     assert len(block_3d.patches) == 2
 
     # flat() should clear patches since it creates a 1D block
-    block_flat = block_3d.flat()
+    block_flat = block_3d.flat
 
     # According to the recent commit, patches should be cleared
     assert len(block_flat.patches) == 0
