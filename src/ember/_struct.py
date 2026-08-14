@@ -226,11 +226,21 @@ class StructuredData:
     def __getstate__(self):
         state = self.__dict__.copy()
         state["_store"] = {}
+        # numpy does not carry an array's writeable flag through a pickle, so
+        # record frozen-ness explicitly for __setstate__ to reapply. Without
+        # this a frozen instance would come back writeable.
+        state["_frozen"] = self.frozen
         return state  # end method
 
     def __setstate__(self, state):
+        state = dict(state)
         state["_store"] = {}
-        self.__dict__.update(state)  # end method
+        # Absent from anything pickled before freeze() existed, which is
+        # writeable, so that is the default.
+        frozen = state.pop("_frozen", False)
+        self.__dict__.update(state)
+        if frozen:
+            self._data.flags.writeable = False  # end method
 
     def _bare_copy(self):
         """Create a new instance sharing metadata/init dicts, bypassing __init__."""
@@ -294,6 +304,20 @@ class StructuredData:
         else:
             raise KeyError(f"Metadata key '{key}' not found.")  # end method
 
+    def _raise_if_frozen(self, what):
+        """Raise a ValueError if this instance is frozen, naming `what`.
+
+        Every write to data and to metadata passes through one of the two
+        setters below, so calling this from those two covers the whole public
+        surface.
+        """
+        if self.frozen:
+            raise ValueError(
+                f"Cannot set {what} on a frozen {type(self).__name__}. "
+                f"freeze() returns a read-only value; take a copy() of it to "
+                f"get a writeable one."
+            )  # end method
+
     def _set_data_by_keys(self, keys, val, store_init=True):
         """Set data variables at once.
 
@@ -309,6 +333,8 @@ class StructuredData:
         store_init : bool
             Whether to mark the variables as initialised. Defaults to True.
         """
+        self._raise_if_frozen("data")
+
         # For a single key, add the trailing variable dimension that the rest
         # of this method expects, mirroring the old _set_data_by_key behaviour.
         if len(keys) == 1:
@@ -368,6 +394,11 @@ class StructuredData:
             Value to set for the metadata variable.
 
         """
+        # Metadata is held in a dict shared by every view, so freezing the
+        # backing array alone would leave the fluid, L_ref, Omega and Nb of a
+        # frozen instance writeable through any slice of it.
+        self._raise_if_frozen("metadata")
+
         if key in self._data_keys:
             raise ValueError(
                 f"Cannot set metadata key '{key}' - conflicts with data key"
@@ -538,6 +569,31 @@ class StructuredData:
         axis = axis % self.ndim  # handle negative indices
         out = self.view()
         out._data = np.flip(self._data, axis=axis)
+        return out  # end method
+
+    def freeze(self):
+        """Return a read-only copy, whose data and metadata cannot be set.
+
+        A frozen instance is a value. The setters refuse, and the backing array
+        is marked read-only, which also closes the writeable views handed out
+        for solver hot paths (:py:attr:`ember.block.Block.conserved_nd`) --
+        those bypass the setters entirely, so a guard written in Python alone
+        would not cover them. Derived properties remain readable and cached.
+
+        Freezing copies, so the original stays writeable and code holding it
+        cannot reach into what has been handed on. Views taken from the result
+        are frozen with it, because they share its array; :meth:`copy` and
+        :meth:`empty` allocate a new one and are writeable, which is how a
+        frozen state becomes the starting point for the next one.
+
+        Returns
+        -------
+        out : same type as ``self``
+            A read-only copy of this instance.
+
+        """
+        out = self.copy()
+        out._data.flags.writeable = False
         return out  # end method
 
     def mean(self, axis=0, keepdims=False):
@@ -723,6 +779,17 @@ class StructuredData:
 
         """
         return self._bare_copy()  # end method
+
+    @property
+    def frozen(self):
+        """Whether this instance is read-only, from :meth:`freeze`.
+
+        Read off the backing array's ``writeable`` flag rather than stored
+        alongside it, so the two cannot disagree. Every view shares that array
+        and so reports frozen with it, while :meth:`copy`, :meth:`empty` and the
+        reductions allocate their own and report writeable.
+        """
+        return not self._data.flags.writeable  # end property
 
     @property
     def ndim(self):

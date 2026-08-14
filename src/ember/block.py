@@ -95,8 +95,14 @@ Views and copies:
 
    Block.copy
    Block.empty
+   Block.freeze
    Block.masked
    Block.view
+
+A frozen block is read-only: its setters raise and its backing array is marked
+read-only, so views of it are read-only too. :attr:`Block.frozen` reports
+whether a block is in that state, and :meth:`Block.copy` returns a writeable
+one again.
 
 Reshaping and reordering (a zero-copy view where the layout allows, otherwise a copy):
 
@@ -325,6 +331,7 @@ Grid shape and array metadata:
 .. autosummary::
 
    Block.flat
+   Block.frozen
    Block.ndim
    Block.ni
    Block.nj
