@@ -83,6 +83,7 @@ Assorted utilities for working with coordinates and bounding boxes.
    extent
    bounding_box
    apply_perm_flip
+   unwrap_meridional
 """
 
 import numpy as np
@@ -609,6 +610,144 @@ def bounding_box(xyz):
     vertices = np.stack([mesh.ravel() for mesh in meshes], axis=1)
 
     return vertices
+
+
+def _segment_conformal(ds, r0, r1):
+    r"""Conformal distance along straight meridional segments.
+
+    With :math:`r` varying linearly from `r0` to `r1` over a segment of
+    meridional length `ds`, the integral has a closed form,
+
+    .. math::
+
+        \Delta m' = \int_0^1 \frac{\mathrm{d}s\,\mathrm{d}t}
+                              {r_0 + t(r_1 - r_0)}
+                  = \frac{\mathrm{d}s}{r_1 - r_0} \ln \frac{r_1}{r_0},
+
+    tending to :math:`\mathrm{d}s / r_0` as :math:`r_1 \to r_0`. Evaluating it
+    rather than quadrating leaves no discretisation error of its own: a
+    polyline's conformal distance is exact for that polyline.
+    """
+    dr = r1 - r0
+
+    # The logarithmic form loses all its significant figures as dr -> 0, where
+    # it is a ratio of two vanishing quantities, so the cylindrical limit is
+    # taken directly. The switch is on a relative tolerance because dr and r
+    # are both lengths and only their ratio says whether the segment is
+    # conical or cylindrical.
+    conical = np.abs(dr) > 1e-6 * np.abs(r0 + r1)
+    dr_safe = np.where(conical, dr, 1.0)
+    r_mid = 0.5 * (r0 + r1)
+
+    return np.where(
+        conical,
+        ds / dr_safe * np.log(np.where(conical, r1 / r0, 1.0)),
+        ds / r_mid,
+    )
+
+
+def unwrap_meridional(xr_curve, xr_query):
+    r"""Unwrap meridional coordinates onto conformal distance along a curve.
+
+    Returns the conformal (or "blade-to-blade") meridional coordinate
+
+    .. math::
+
+        m' = \int \frac{\mathrm{d}m}{r},
+        \qquad \mathrm{d}m = \sqrt{\mathrm{d}x^2 + \mathrm{d}r^2},
+
+    integrated along `xr_curve` from its first point. Paired with
+    :math:`\theta` in radians, :math:`m'` spans a conformal plane: angles and
+    aspect ratios are preserved, so an aerofoil section drawn on
+    :math:`(m', \theta)` axes keeps its shape at any radius.
+
+    The coordinate is a property of the *curve*, not of any grid: every query
+    point is referred to one datum by one integration, so points from
+    different blocks --- or from different cuts of the same machine --- come
+    back on a common scale with nothing to match up afterwards. Where the
+    curve is the same one passed to :func:`ember.cut.structured_meridional`,
+    the coordinate and the surface it describes are exactly consistent.
+
+    Query points are projected onto the curve and their perpendicular offset
+    discarded, so points lying near it rather than exactly on it --- the
+    triangulated output of :func:`ember.cut.unstructured`, say, or a blade
+    surface --- are handled without special-casing. A point beyond either end
+    clamps to that end.
+
+    Parameters
+    ----------
+    xr_curve : array_like, shape (n_point, 2)
+        Meridional :math:`(x, r)` polyline defining the curve, in order.
+        Must not touch the axis, where :math:`m'` diverges.
+    xr_query : array_like, shape (..., 2)
+        Meridional :math:`(x, r)` coordinates to evaluate.
+
+    Returns
+    -------
+    Array, shape (...)
+        Conformal distance :math:`m'` [-] at each query point, zero at the
+        first point of the curve.
+
+    Raises
+    ------
+    ValueError
+        If the curve has fewer than two points, or reaches the axis.
+
+    Examples
+    --------
+    >>> curve = np.array([[0.0, 2.0], [1.0, 2.0]])  # cylindrical, r = 2
+    >>> float(unwrap_meridional(curve, np.array([1.0, 2.0])))  # m' = m / r
+    0.5
+    """
+    xr_curve = np.asarray(xr_curve, dtype=np.float64)
+    xr_query = np.asarray(xr_query, dtype=np.float64)
+
+    if xr_curve.ndim != 2 or xr_curve.shape[-1] != 2:
+        raise ValueError(f"Expected xr_curve shape (n_point, 2), got {xr_curve.shape}")
+    if len(xr_curve) < 2:
+        raise ValueError("A meridional curve needs at least two points")
+    if xr_query.shape[-1] != 2:
+        raise ValueError(f"Expected xr_query shape (..., 2), got {xr_query.shape}")
+    if np.any(xr_curve[:, 1] <= 0.0):
+        raise ValueError("Conformal distance diverges on the axis, so r must be > 0")
+
+    start, end = xr_curve[:-1], xr_curve[1:]
+    delta = end - start
+    ds = np.sqrt(np.sum(delta**2, axis=-1))
+
+    # Cumulative conformal distance at each vertex, zero at the first.
+    mp_start = np.concatenate(
+        [[0.0], np.cumsum(_segment_conformal(ds, start[:, 1], end[:, 1]))]
+    )[:-1]
+
+    query = xr_query.reshape(-1, 2)
+    mp = np.zeros(len(query))
+    nearest = np.full(len(query), np.inf)
+
+    # Looped over segments rather than broadcast against them: a curve is
+    # short and a grid is not, so this costs one pass per segment but never
+    # materialises an (n_query, n_segment) array.
+    for i, (p0, d, length) in enumerate(zip(start, delta, ds)):
+        if length == 0.0:
+            continue
+
+        # Position along this segment of the closest point on it, clamped to
+        # the segment so the ends extrapolate flat rather than off the curve.
+        offset = query - p0
+        t = np.clip(offset @ d / (length**2), 0.0, 1.0)
+
+        distance = np.sqrt(np.sum((offset - t[:, None] * d) ** 2, axis=-1))
+        closer = distance < nearest
+
+        # The same closed form as the whole segment, stopped at the projected
+        # point, so a query at t = 1 gives exactly the next vertex's value.
+        r_projected = p0[1] + t * d[1]
+        mp_partial = _segment_conformal(t * length, p0[1], r_projected)
+
+        nearest = np.where(closer, distance, nearest)
+        mp = np.where(closer, mp_start[i] + mp_partial, mp)
+
+    return array(mp.reshape(xr_query.shape[:-1]))
 
 
 def cart_to_pol(xyz, Vxyz, perm=(0, 1, 2), signs=(1, 1, 1)):
