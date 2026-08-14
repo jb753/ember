@@ -113,6 +113,7 @@ def test_mixing_plane_no_nan(mixing_grid):
         n_step_avg=1,
         n_step_log=5,
         n_stage=4,
+        n_levels=0,
     )
 
     config.run(mixing_grid)

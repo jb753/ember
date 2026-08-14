@@ -315,7 +315,7 @@ class Solver(BaseSolver):
     n_step_avg: int = 1
     """Number of steps to average over."""
 
-    cfl: float = 0.4
+    cfl: float = 5.0
     """Constant CFL number for the march"""
 
     sf4: float = 0.008
@@ -324,7 +324,7 @@ class Solver(BaseSolver):
     sf2: float = 0.002
     """Second-order smoothing factor."""
 
-    dampin: float | None = None
+    dampin: float | None = 25
     """Negative-feedback damping factor on integrated residual."""
 
     inviscid: bool = False
@@ -334,7 +334,7 @@ class Solver(BaseSolver):
     """Multiplier on the turbulent-diffusion timestep radius; >1 tightens the
     viscous limit to recover the inviscid stable CFL."""
 
-    sf_resid: float = 0.0
+    sf_resid: float = 1.0
     """Implicit residual smoothing factor. Applied to the fine residual by
     :meth:`~ember.grid.Grid.update_residual` (``sf``) and, on both integrators,
     to the coarse block-restricted residual of the multigrid correction
@@ -351,7 +351,7 @@ class Solver(BaseSolver):
     n_stage: int = 0
     """Number of time integration stages per step. 0 for scree, >=1 for RK."""
 
-    n_levels: int = 0
+    n_levels: int = 3
     """Number of coarse multigrid levels; 0 disables multigrid. Honored by
     both integrators (:func:`scree_step` and :func:`rk_step`)."""
 

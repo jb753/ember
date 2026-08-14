@@ -527,7 +527,9 @@ def test_update_bconds_passes_the_cfl_down():
     assert outlet._eps_int == pytest.approx(eps * 4.0, rel=1e-4)
 
     # The solver is what supplies it in a real march.
-    conf = ember.solver.Solver(n_step=1, n_step_log=1, n_step_avg=1, cfl=3.0)
+    conf = ember.solver.Solver(
+        n_step=1, n_step_log=1, n_step_avg=1, cfl=3.0, n_levels=0
+    )
     outlet.set_throttle(outlet.mdot_target, Kp=0.0, Ki=0.05)
     conf.run(grid)
     assert outlet._eps_int != 0.0

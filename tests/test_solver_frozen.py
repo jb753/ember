@@ -34,7 +34,7 @@ def test_a_solver_cannot_be_mutated():
 
 def test_replace_makes_a_new_solver():
     """Retuning is expressed by building another one, not by editing this one."""
-    solver = ember.solver.Solver(n_step=10, cfl=0.4)
+    solver = ember.solver.Solver(n_step=10, cfl=0.4, n_levels=0)
 
     coarser = dataclasses.replace(solver, n_levels=2)
 
@@ -76,7 +76,9 @@ def test_a_solver_is_hashable():
 def test_running_does_not_change_the_solver():
     """A march writes to the grid; the configuration it was given is untouched."""
     grid = build_duct_grid(30_000, nj=33, nk=29)
-    solver = ember.solver.Solver(n_step=2, n_step_log=2, n_step_avg=1, n_stage=4)
+    solver = ember.solver.Solver(
+        n_step=2, n_step_log=2, n_step_avg=1, n_stage=4, n_levels=0
+    )
     before = dataclasses.asdict(solver)
 
     solver.run(grid)
