@@ -293,12 +293,18 @@ class BaseSolver(ABC):
         raise NotImplementedError
 
 
-@dataclass
+@dataclass(frozen=True)
 class Solver(BaseSolver):
     """Configuration for the explicit time-marching solver.
 
     Also the entry point: build one with the parameters below and call
     :meth:`run` (or :meth:`run_fmg`) to march a grid in place.
+
+    Frozen, because a solver is a set of parameters rather than a thing with
+    state: nothing here is written after construction, the march keeps its
+    working state on the grid, and :meth:`run_fmg` already derives its
+    per-level configurations with :func:`dataclasses.replace`. Settings that
+    would otherwise be adjusted in place are made by building another one.
     """
 
     n_step: int
