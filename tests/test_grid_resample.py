@@ -517,13 +517,20 @@ class TestGridInterpFrom:
         src = _make_state_block((4, 4, 4), P=2e5, T=350.0, Vx=100.0, mu_turb=2e-4)
         tgt = _make_state_block((4, 4, 4))
 
-        Grid([tgt]).interp_from(Grid([src]))
+        Grid([tgt]).interp_from_grid(Grid([src]))
 
         np.testing.assert_allclose(tgt.conserved, src.conserved, rtol=1e-5)
         np.testing.assert_allclose(tgt.mu_turb, src.mu_turb, rtol=1e-5)
 
-    def test_same_shape_different_fluid_references(self):
-        """Same-shape copy still correct when src and tgt have different reference scales."""
+    def test_same_shape_different_fluid(self):
+        """A different gas receives the same physical state, not the same numbers.
+
+        The transfer goes through pressure, temperature and velocity, which are
+        properties of the flow. The conserved variables are not: `rhoe` depends
+        on the gas through `cv` and on where its energy datum sits, so the same
+        state has different conserved variables under a different fluid, and
+        preserving those numbers would mean silently changing the temperature.
+        """
         src = _make_state_block((4, 4, 4), P=2e5, T=350.0)
 
         # Target with a different fluid (different V_ref, rho_ref)
@@ -540,11 +547,18 @@ class TestGridInterpFrom:
         tgt.set_P_T(101325.0, 300.0)
         tgt.set_mu_turb(np.ones((4, 4, 4)) * 1e-4)
 
-        Grid([tgt]).interp_from(Grid([src]))
+        Grid([tgt]).interp_from_grid(Grid([src]))
 
-        # Dimensional conserved variables must match
-        np.testing.assert_allclose(tgt.conserved, src.conserved, rtol=1e-4)
+        # The physical state crosses unchanged.
+        for name in ("P", "T", "Vx", "Vr", "Vt"):
+            np.testing.assert_allclose(
+                getattr(tgt, name), getattr(src, name), rtol=1e-4,
+                err_msg=f"{name} was not preserved across the fluid change",
+            )
         np.testing.assert_allclose(tgt.mu_turb, src.mu_turb, rtol=1e-4)
+
+        # And the conserved variables therefore differ, because cv does.
+        assert not np.allclose(tgt.conserved, src.conserved, rtol=1e-4)
 
     def test_upsample_constant_field(self):
         """Upsampling a uniform state gives the same uniform state everywhere."""
@@ -552,7 +566,7 @@ class TestGridInterpFrom:
         src = _make_state_block((3, 3, 3), P=P, T=T, Vx=Vx, mu_turb=mu)
         tgt = _make_state_block((6, 6, 6), P=101325.0, T=300.0)
 
-        Grid([tgt]).interp_from(Grid([src]))
+        Grid([tgt]).interp_from_grid(Grid([src]))
 
         ref = src.conserved[0, 0, 0]
         np.testing.assert_allclose(
@@ -566,7 +580,7 @@ class TestGridInterpFrom:
         src = _make_state_block((8, 8, 8), P=P, T=T, Vx=Vx, mu_turb=mu)
         tgt = _make_state_block((3, 3, 3), P=101325.0, T=300.0)
 
-        Grid([tgt]).interp_from(Grid([src]))
+        Grid([tgt]).interp_from_grid(Grid([src]))
 
         ref = src.conserved[0, 0, 0]
         np.testing.assert_allclose(
@@ -608,7 +622,7 @@ class TestGridInterpFrom:
         tgt.set_P_T(101325.0, 300.0)
         tgt.set_mu_turb(np.zeros((ni2, nj2, nk2)))
 
-        Grid([tgt]).interp_from(Grid([src]))
+        Grid([tgt]).interp_from_grid(Grid([src]))
 
         i_frac2 = np.linspace(0.0, 1.0, ni2).reshape(-1, 1, 1) * np.ones(
             (ni2, nj2, nk2)
@@ -623,7 +637,7 @@ class TestGridInterpFrom:
         tgt1 = _make_state_block((6, 6, 6))
         tgt2 = _make_state_block((6, 6, 6))
 
-        Grid([tgt1, tgt2]).interp_from(Grid([src1, src2]))
+        Grid([tgt1, tgt2]).interp_from_grid(Grid([src1, src2]))
 
         # Both target blocks should have the uniform state from their source
         ref1 = src1.conserved[0, 0, 0]
@@ -645,7 +659,7 @@ class TestGridInterpFrom:
         tgt = _make_state_block((4, 8, 4))
 
         with pytest.raises(ValueError, match="critical indices"):
-            Grid([tgt]).interp_from(Grid([src]))
+            Grid([tgt]).interp_from_grid(Grid([src]))
 
     def test_critical_index_aware_coords(self):
         """Patch j-boundary in src lands exactly at the corresponding boundary in tgt."""
@@ -685,9 +699,69 @@ class TestGridInterpFrom:
         tgt.set_mu_turb(np.zeros((ni2, nj2, nk2)))
         tgt.patches.append(InviscidPatch(i=0, j=(2, 6), k=(0, -1)))
 
-        Grid([tgt]).interp_from(Grid([src]))
+        Grid([tgt]).interp_from_grid(Grid([src]))
 
         # tgt j=2 should exactly match src j=1
         np.testing.assert_allclose(tgt.Vx[:, 2, :], src.Vx[:, 1, :], atol=1e-3)
         # tgt j=6 should exactly match src j=3
         np.testing.assert_allclose(tgt.Vx[:, 6, :], src.Vx[:, 3, :], atol=1e-3)
+
+
+class TestInterpFromArrays:
+    """Tests for interpolating a flow field that arrives without a mesh."""
+
+    def _arrays(self, shape, P=2e5, T=350.0, Vx=100.0, mu_turb=2e-4):
+        ones = np.ones(shape, dtype=np.float32)
+        return [P * ones, T * ones, Vx * ones, 0.0 * ones, 0.0 * ones, mu_turb * ones]
+
+    def test_same_shape_lands_verbatim(self):
+        tgt = _make_state_block((4, 4, 4))
+
+        Grid([tgt]).interp_from_arrays([self._arrays((4, 4, 4))])
+
+        np.testing.assert_allclose(tgt.P, 2e5, rtol=1e-5)
+        np.testing.assert_allclose(tgt.T, 350.0, rtol=1e-5)
+        np.testing.assert_allclose(tgt.Vx, 100.0, rtol=1e-5)
+
+    def test_a_patched_target_accepts_an_unpatched_field(self):
+        """The case block-to-block cannot do.
+
+        A bare field has no patch layout, so there is nothing to align to and
+        the mapping runs end to end. Interpolating a flow field, unlike
+        interpolating coordinates, does not need boundaries to land exactly.
+        """
+        tgt = _make_state_block((9, 5, 3))
+        tgt.patches.append(InviscidPatch(i=0, j=(1, 3), k=(0, -1)))
+
+        Grid([tgt]).interp_from_arrays([self._arrays((5, 3, 3))])
+
+        np.testing.assert_allclose(tgt.T, 350.0, rtol=1e-4)
+
+    def test_a_uniform_field_upsamples_uniformly(self):
+        tgt = _make_state_block((7, 7, 7), P=101325.0, T=300.0)
+
+        Grid([tgt]).interp_from_arrays([self._arrays((3, 3, 3))])
+
+        np.testing.assert_allclose(tgt.P, 2e5, rtol=1e-4)
+        np.testing.assert_allclose(tgt.T, 350.0, rtol=1e-4)
+
+    def test_the_block_count_must_match(self):
+        grid = Grid([_make_state_block((4, 4, 4)), _make_state_block((4, 4, 4))])
+
+        with pytest.raises(ValueError, match="1 block"):
+            grid.interp_from_arrays([self._arrays((4, 4, 4))])
+
+    def test_the_datum_of_the_target_is_irrelevant(self):
+        """Arrays carry no datum, so there is nothing to reinterpret.
+
+        Block-to-block, this is the case that used to turn 400 K into 1000 K.
+        """
+        shifted = PerfectFluid(
+            cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72
+        ).change_datum(P_dtm=3e5, T_dtm=900.0)
+        tgt = _make_state_block((4, 4, 4))
+        tgt.set_fluid(shifted)
+
+        Grid([tgt]).interp_from_arrays([self._arrays((4, 4, 4), T=400.0)])
+
+        np.testing.assert_allclose(tgt.T, 400.0, rtol=1e-4)

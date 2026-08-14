@@ -182,7 +182,7 @@ coarse-to-fine as a startup schedule, rather than within a single step. It
 builds :attr:`~Solver.n_levels` progressively-halved grids
 (:meth:`~ember.grid.Grid.resample`), solves the coarsest first, then
 prolongs each converged solution onto the next finer grid as its initial
-guess (:meth:`~ember.grid.Grid.interp_from`) and calls :meth:`Solver.run`
+guess (:meth:`~ember.grid.Grid.interp_from_grid`) and calls :meth:`Solver.run`
 again with the in-step multigrid depth set to that level's index -- so the
 coarsest level runs with no in-step multigrid and the finest runs at the full
 requested :attr:`~Solver.n_levels`, identical to calling :meth:`Solver.run`
@@ -927,7 +927,7 @@ def _run_fmg(grid, conf):
     this is exactly :func:`run(grid, conf) <run>`. Otherwise it builds
     ``n_levels`` grids successively halved by :meth:`~ember.grid.Grid.resample`
     at factor ``0.5``, solves the coarsest, and
-    :meth:`~ember.grid.Grid.interp_from`'s the solution up onto each finer grid
+    :meth:`~ember.grid.Grid.interp_from_grid`'s the solution up onto each finer grid
     as its initial guess. Sequencing level ``i`` (``0`` = coarsest) is marched
     with in-step Denton block-sum multigrid depth ``i`` -- the same grid
     hierarchy ``n_levels`` already names -- so the coarsest runs plain and the
@@ -971,7 +971,7 @@ def _run_fmg(grid, conf):
     histories = []
     for i, level_grid in enumerate(chain):  # i == in-step MG depth for this mesh
         if i > 0:
-            level_grid.interp_from(chain[i - 1])  # prolong previous solution
+            level_grid.interp_from_grid(chain[i - 1])  # prolong previous solution
         logger.info(
             "FMG level %d/%d, shape(s) %s",
             i,

@@ -116,7 +116,8 @@ onto the grid's structured topology via :meth:`Grid.align_cart_unstr`.
    Grid.align_cart_unstr
    Grid.apply_guess_meridional
    Grid.apply_guess_quasi3d
-   Grid.interp_from
+   Grid.interp_from_arrays
+   Grid.interp_from_grid
    Grid.set_conserved_cart_unstr
    Grid.set_primitive_cart_unstr
 
@@ -1359,13 +1360,39 @@ class Grid(_LabelledList):
             avg.fill(0.0)
             avg.flags.writeable = False
 
-    def interp_from(self, src):
-        """Trilinearly interpolate conserved variables from another grid.
+    def interp_from_arrays(self, arrays):
+        """Interpolate a flow field onto this grid from plain arrays.
 
-        Assumes the source grid has the same block topology as this one,
-        but different resolution. Each block's conserved variables are
-        interpolated from the source in index space, which is exact for
-        linear functions on a uniform grid only.
+        For a field that arrives without a mesh around it -- read back from a
+        file, say. Nothing is materialised on the source side, and with no
+        patch layout to align to the mapping simply runs end to end in index
+        space.
+
+        Parameters
+        ----------
+        arrays : sequence
+            One entry per block, each a sequence of arrays matching
+            :data:`ember.block_util.STATE`.
+
+        """
+        if len(arrays) != len(self):
+            raise ValueError(
+                f"Got {len(arrays)} block(s) of arrays for a grid of {len(self)}."
+            )
+        for tgt_block, block_arrays in zip(self, arrays):
+            ember.block_util.interp_from_arrays(tgt_block, block_arrays)
+
+    def interp_from_grid(self, src):
+        """Interpolate the solution from another grid onto this one.
+
+        Assumes the source grid has the same block topology as this one, but
+        possibly a different resolution. Each block is interpolated in index
+        space, which is exact for linear functions on a uniform grid only, and
+        which holds patch boundaries where they started.
+
+        The state is transferred as pressure, temperature and velocity, so the
+        two grids may carry different fluids -- different reference scales, and
+        different entropy and energy datums -- with no conversion needed.
 
         Parameters
         ----------
@@ -1374,7 +1401,7 @@ class Grid(_LabelledList):
 
         """
         for tgt_block, src_block in zip(self, src):
-            ember.block_util.interp_from(tgt_block, src_block)
+            ember.block_util.interp_from_grid(tgt_block, src_block)
 
     def resample(self, factors):
         """Resample all blocks, returning a new Grid at the new resolution."""

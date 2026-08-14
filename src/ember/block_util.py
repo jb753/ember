@@ -3,7 +3,7 @@ r"""Operations on :class:`~ember.block.Block` instances that don't belong on the
 Each function below takes one or more :class:`~ember.block.Block`\ s and
 returns a new one (or mutates in place, per its docstring). Grid-level
 counterparts such as :meth:`~ember.grid.Grid.resample` and
-:meth:`~ember.grid.Grid.interp_from` are thin loops over these
+:meth:`~ember.grid.Grid.interp_from_grid` are thin loops over these
 block-granularity functions.
 
 Combining and reshaping blocks
@@ -31,7 +31,8 @@ Solution transfer
 
 .. autosummary::
 
-   interp_from
+   interp_from_arrays
+   interp_from_grid
 
 Post-processing and I/O
 =========================
@@ -478,44 +479,74 @@ def resample(block, factors):
     return new_block
 
 
-def _interp_coords(block, src):
-    """Build per-dimension float32 query coordinate arrays for interp_from.
+def _patch_crit(block, src):
+    """Critical indices per dimension for a block-to-block interpolation.
 
-    For each dimension, critical indices (patch boundaries + endpoints) are
-    collected from both src and block. The number of critical indices must
-    match. Between each pair of consecutive critical indices a linspace maps
-    block index space into src index space, preserving the critical locations
-    exactly.
+    A critical index is a location that must land exactly where it started:
+    the ends of the block, and every patch boundary. Returned as one
+    ``(src, block)`` pair per dimension, which is all
+    :func:`_interp_coords` needs -- so the notion of a patch stays here, on
+    the side of the interface that has blocks, and never reaches the array
+    path.
+    """
+    crit = []
+    for d in range(3):
+        crit.append(
+            (
+                np.unique(
+                    [0, src.shape[d] - 1]
+                    + [int(idx) for p in src.patches for idx in p.ijk_lim_abs[d]]
+                ),
+                np.unique(
+                    [0, block.shape[d] - 1]
+                    + [int(idx) for p in block.patches for idx in p.ijk_lim_abs[d]]
+                ),
+            )
+        )
+    return crit
+
+
+def _interp_coords(block_shape, src_shape, crit=None):
+    """Build per-dimension float32 query coordinate arrays for interpolation.
+
+    Between each pair of consecutive critical indices a linspace maps block
+    index space into source index space, so those locations land exactly
+    where they started and only the spans between them are stretched.
+
+    With no critical indices given, the ends are the only ones: they line up
+    and everything between is stretched evenly. That is the right behaviour
+    for a bare field, which has no patch layout to align to -- and for a flow
+    field, unlike for coordinates, a boundary landing a fraction of a cell out
+    is immaterial.
 
     Parameters
     ----------
-    block : Block
-        Target block whose index space the returned coordinates are defined over.
-    src : Block
-        Source block being queried; the returned coordinates are expressed
-        in this block's index space.
+    block_shape : tuple
+        Shape of the target, whose index space the coordinates are defined over.
+    src_shape : tuple
+        Shape of the source, in whose index space they are expressed.
+    crit : list of tuple, optional
+        One ``(src, block)`` pair of critical index arrays per dimension.
 
     Returns
     -------
     list of Array
         Three float32 arrays, one per dimension, each of length
-        ``block.shape[d]``, containing src-index-space coordinates.
+        ``block_shape[d]``, containing source-index-space coordinates.
 
     Raises
     ------
     ValueError
-        If a dimension's critical-index count differs between src and block.
+        If a dimension's critical-index count differs between source and block.
     """
     coords = []
     for d in range(3):
-        src_crit = np.unique(
-            [0, src.shape[d] - 1]
-            + [int(idx) for p in src.patches for idx in p.ijk_lim_abs[d]]
-        )
-        blk_crit = np.unique(
-            [0, block.shape[d] - 1]
-            + [int(idx) for p in block.patches for idx in p.ijk_lim_abs[d]]
-        )
+        if crit is None:
+            src_crit = np.array([0, src_shape[d] - 1])
+            blk_crit = np.array([0, block_shape[d] - 1])
+        else:
+            src_crit, blk_crit = crit[d]
+
         if len(src_crit) != len(blk_crit):
             raise ValueError(
                 f"Dimension {d}: src has {len(src_crit)} critical indices "
@@ -533,40 +564,51 @@ def _interp_coords(block, src):
     return coords
 
 
-def interp_from(block, src):
-    """Interpolate solution from src onto block by index-space trilinear interpolation.
+STATE = ("P", "T", "Vx", "Vr", "Vt", "mu_turb")
+"""Quantities transferred by the interpolation functions below.
 
-    The caller must have already set the fluid on block. All quantities are
-    handled in dimensional form so that differing reference scales between
-    block and src are handled correctly.
+Primitives, not the conserved variables. Conserved energy is measured from its
+fluid's datum, so copying it between blocks whose fluids differ silently
+reinterprets it -- a datum 600 K apart turns 400 K into 1000 K, with nothing
+raised. Pressure, temperature and velocity are datum-free and cross unchanged,
+which is also why interpolating them cannot produce a negative temperature the
+way interpolating ``rhoe`` can.
+"""
+
+
+def interp_from_arrays(block, arrays, crit=None):
+    """Interpolate a flow field onto ``block`` by index-space trilinear interpolation.
+
+    The caller must have already set the fluid on block.
 
     Parameters
     ----------
     block : Block
-        Target block to receive the interpolated solution.
-    src : Block
-        Source block providing the solution.
+        Target block to receive the field.
+    arrays : sequence of Array
+        One array per entry of :data:`STATE`, in that order, all of the same
+        shape and all dimensional. They need not match ``block``'s shape.
+    crit : list of tuple, optional
+        One ``(src, block)`` pair of critical index arrays per dimension,
+        locations to be held fixed through the mapping. None for a bare
+        field, which maps end to end instead. Built from patches by
+        :func:`interp_from_grid`; this function has no notion of a patch.
 
     Raises
     ------
     AssertionError
-        If a different-shape interpolation produces conserved variables
-        outside the source's value range (trilinear interpolation must not
-        create new extrema), or if the target block ends up with a
-        non-finite or non-positive temperature.
+        If a different-shape interpolation produces values outside the
+        source's range -- trilinear interpolation must not create new extrema.
     """
+    data_in = np.stack([np.asarray(a, dtype=np.float32) for a in arrays], axis=-1)
+    src_shape = data_in.shape[:3]
 
-    logger.debug("interp_from: src %s -> block %s", src.shape, block.shape)
+    logger.debug("interp: src %s -> block %s", src_shape, block.shape)
 
-    if block.shape == src.shape:
-        block.set_conserved(src.conserved)
-        block.set_mu_turb(src.mu_turb)
+    if src_shape == tuple(block.shape):
+        data_out = data_in
     else:
-        data_in = np.concatenate(
-            [src.conserved, src.mu_turb[..., np.newaxis]], axis=-1
-        ).astype(np.float32)
-
-        coords = _interp_coords(block, src)
+        coords = _interp_coords(block.shape, src_shape, crit)
 
         data_out = ember.fortran.map_coordinates_3d(
             data_in, coords[0], coords[1], coords[2]
@@ -578,14 +620,39 @@ def interp_from(block, src):
         hi = data_in.reshape(-1, data_in.shape[-1]).max(axis=0)
         tol = np.maximum(np.float32(1e-4) * (hi - lo), np.float32(1e-4) * np.abs(hi))
         assert np.all(data_out >= lo - tol) and np.all(data_out <= hi + tol), (
-            "Interpolated conserved variables exceed source bounds"
+            "Interpolated values exceed source bounds"
         )
 
-        block.set_conserved(data_out[..., :5])
-        block.set_mu_turb(data_out[..., 5])
+    block.set_P_T(data_out[..., 0], data_out[..., 1])
+    block.set_Vx(data_out[..., 2])
+    block.set_Vr(data_out[..., 3])
+    block.set_Vt(data_out[..., 4])
+    block.set_mu_turb(data_out[..., 5])
 
     assert np.all(np.isfinite(block.T)) and np.all(block.T > 0), (
         "Target block has non-finite or non-positive temperatures after interpolation"
+    )
+
+
+def interp_from_grid(block, src):
+    """Interpolate the solution on ``src`` onto ``block``.
+
+    A thin unpacking of :func:`interp_from_arrays`: the state is read off
+    ``src`` dimensionally, so the two blocks may carry different fluids --
+    different reference scales, and different entropy and energy datums --
+    without any conversion being needed.
+
+    Parameters
+    ----------
+    block : Block
+        Target block to receive the interpolated solution.
+    src : Block
+        Source block providing the solution.
+    """
+    interp_from_arrays(
+        block,
+        [getattr(src, name) for name in STATE],
+        crit=_patch_crit(block, src),
     )
 
 
