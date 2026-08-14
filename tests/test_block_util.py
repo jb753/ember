@@ -1113,5 +1113,94 @@ class TestMemoryUsage:
             assert key in metadata_usage, f"Expected '{key}' in metadata_usage"
 
 
+class TestRepeatPitchwise:
+    """Test repeat_pitchwise function.
+
+    Test cases:
+    - test_returns_one_block_per_passage: the count asked for
+    - test_first_passage_is_where_it_started: no rotation of the original
+    - test_each_passage_is_one_pitch_further: the rotation itself
+    - test_passages_join_up: the last plane of one meets the first of the next
+    - test_only_theta_moves: x, r and the flow field are untouched
+    - test_the_original_is_not_modified: copies, not views
+    - test_patches_are_dropped: a rotated copy is not part of a grid
+    - test_a_single_passage_is_a_copy: the degenerate case still copies
+    - test_fewer_than_one_passage_is_refused
+    - test_without_a_blade_count_a_passage_is_the_whole_annulus: the Nb default
+    """
+
+    def test_returns_one_block_per_passage(self, block):
+        assert len(ember.block_util.repeat_pitchwise(block, 3)) == 3
+
+    def test_first_passage_is_where_it_started(self, block):
+        first = ember.block_util.repeat_pitchwise(block, 3)[0]
+
+        np.testing.assert_allclose(first.t, block.t)
+
+    def test_each_passage_is_one_pitch_further(self, block):
+        passages = ember.block_util.repeat_pitchwise(block, 4)
+
+        for i_passage, passage in enumerate(passages):
+            np.testing.assert_allclose(
+                passage.t,
+                block.t + i_passage * block.pitch,
+                rtol=1e-6,
+                err_msg=f"passage {i_passage} is not {i_passage} pitches round",
+            )
+
+    def test_passages_join_up(self, block):
+        """The fixture block spans exactly one pitch, so copies must abut.
+
+        A gap or an overlap here is what a plot of several passages would show
+        as a seam.
+        """
+        first, second = ember.block_util.repeat_pitchwise(block, 2)
+
+        np.testing.assert_allclose(second.t[..., 0], first.t[..., -1], rtol=1e-6)
+
+    def test_only_theta_moves(self, block):
+        second = ember.block_util.repeat_pitchwise(block, 2)[1]
+
+        np.testing.assert_allclose(second.x, block.x)
+        np.testing.assert_allclose(second.r, block.r)
+        np.testing.assert_allclose(second.P, block.P)
+
+    def test_the_original_is_not_modified(self, block):
+        before = block.t.copy()
+
+        ember.block_util.repeat_pitchwise(block, 3)
+
+        np.testing.assert_array_equal(block.t, before)
+
+    def test_patches_are_dropped(self, block):
+        block.patches.append(ember.patch.PeriodicPatch(k=0))
+
+        passages = ember.block_util.repeat_pitchwise(block, 2)
+
+        assert all(len(passage.patches) == 0 for passage in passages)
+
+    def test_a_single_passage_is_a_copy(self, block):
+        (only,) = ember.block_util.repeat_pitchwise(block, 1)
+
+        assert only is not block
+        np.testing.assert_allclose(only.t, block.t)
+
+    def test_fewer_than_one_passage_is_refused(self, block):
+        with pytest.raises(ValueError, match="at least one passage"):
+            ember.block_util.repeat_pitchwise(block, 0)
+
+    def test_without_a_blade_count_a_passage_is_the_whole_annulus(self, block):
+        """Nb defaults to one blade, so the copies coincide rather than tile.
+
+        Geometrically right -- one blade does occupy the whole annulus -- and
+        worth pinning, because it is what someone who forgot `set_Nb` sees.
+        """
+        block.set_Nb(1)
+
+        second = ember.block_util.repeat_pitchwise(block, 2)[1]
+
+        np.testing.assert_allclose(second.t, block.t + 2.0 * np.pi, rtol=1e-6)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

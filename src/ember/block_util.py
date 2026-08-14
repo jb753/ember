@@ -12,6 +12,7 @@ Combining and reshaping blocks
 .. autosummary::
 
    concatenate
+   repeat_pitchwise
    resample
 
 Interface-aligned velocities
@@ -654,6 +655,57 @@ def interp_from_grid(block, src):
         [getattr(src, name) for name in STATE],
         crit=_patch_crit(block, src),
     )
+
+
+def repeat_pitchwise(block, n_passage):
+    r"""Return copies of `block`, each one blade pitch further round.
+
+    A single passage is all a periodic solver computes, but it is rarely all
+    anyone wants to look at: repeating it shows the flow as a cascade, where
+    the passage-to-passage picture reads at a glance. The copies are
+    successively rotated by :attr:`~ember.block.Block.pitch`, the first left
+    where it is.
+
+    Copies rather than one concatenated block, deliberately. Joining them
+    would need to know which index runs pitchwise, which is a property of a
+    grid's topology and not something to guess; and a consumer that draws
+    blocks --- a contour plot, a mesh view --- draws a list just as happily,
+    while keeping one colour scale across the set.
+
+    Patches are dropped. A rotated copy is a view of the flow, not a member of
+    a connected grid, and its periodic patches would claim connections that no
+    longer hold.
+
+    Parameters
+    ----------
+    block : Block
+        Block to repeat. The rotation is :attr:`~ember.block.Block.pitch`, so
+        it follows the blade count: on a block whose
+        :attr:`~ember.block.Block.Nb` was never set, that is the default of one
+        blade, a pitch of a whole revolution, and copies that coincide.
+    n_passage : int
+        Number of passages to return, including the original.
+
+    Returns
+    -------
+    list of Block
+        `n_passage` blocks, rotated by 0, 1, ... pitches.
+
+    Raises
+    ------
+    ValueError
+        If `n_passage` is less than one.
+    """
+    if n_passage < 1:
+        raise ValueError(f"Need at least one passage, got n_passage={n_passage}")
+
+    passages = []
+    for i_passage in range(n_passage):
+        passage = block.copy(keep_patches=False)
+        passage.set_t(block.t + i_passage * block.pitch)
+        passages.append(passage)
+
+    return passages
 
 
 def wall_yplus(block):
