@@ -41,7 +41,6 @@ from ember.patch import (
     InviscidPatch,
     OutletPatch,
     PeriodicPatch,
-    RotatingPatch,
 )
 
 
@@ -820,126 +819,6 @@ def _make_block():
     block.set_r(_xrt[..., 1])
     block.set_t(_xrt[..., 2])
     return block
-
-
-class TestApplyRotation:
-    """Tests for Grid.apply_rotation()."""
-
-    def test_stationary_sets_omega(self):
-        """Stationary row sets Omega on block."""
-        block = _make_block()
-        grid = Grid([block])
-        grid.apply_rotation(["stationary"], [0.0])
-        assert block.Omega == 0.0
-
-    def test_stationary_adds_no_patches(self):
-        """Stationary row does not add any rotating patches."""
-        block = _make_block()
-        grid = Grid([block])
-        n_before = len(block.patches)
-        grid.apply_rotation(["stationary"], [0.0])
-        assert len(block.patches) == n_before
-
-    def test_tip_gap_sets_omega(self):
-        """tip_gap row sets Omega on block."""
-        block = _make_block()
-        grid = Grid([block])
-        grid.apply_rotation(["tip_gap"], [500.0])
-        assert block.Omega == 500.0
-
-    def test_tip_gap_adds_five_rotating_patches(self):
-        """tip_gap row adds exactly 5 RotatingPatch objects."""
-        block = _make_block()
-        grid = Grid([block])
-        n_before = len(block.patches)
-        grid.apply_rotation(["tip_gap"], [500.0])
-        new_patches = block.patches[n_before:]
-        assert len(new_patches) == 5
-        assert all(isinstance(p, RotatingPatch) for p in new_patches)
-
-    def test_tip_gap_patch_faces(self):
-        """tip_gap patches cover i=0, i=-1, j=0, k=0, k=-1."""
-        block = _make_block()
-        grid = Grid([block])
-        n_before = len(block.patches)
-        grid.apply_rotation(["tip_gap"], [500.0])
-        new_patches = block.patches[n_before:]
-        # Each patch has one constant dim; collect (const_dim, start_val) pairs
-        face_ids = {(p.const_dim, p._ijk_lim[p.const_dim, 0]) for p in new_patches}
-        assert face_ids == {(0, 0), (0, -1), (1, 0), (2, 0), (2, -1)}
-
-    def test_tip_gap_patches_have_correct_omega(self):
-        """tip_gap rotating patches carry the specified Omega."""
-        block = _make_block()
-        grid = Grid([block])
-        n_before = len(block.patches)
-        grid.apply_rotation(["tip_gap"], [300.0])
-        new_patches = block.patches[n_before:]
-        assert all(p.Omega == 300.0 for p in new_patches)
-
-    def test_shroud_sets_omega(self):
-        """shroud row sets Omega on block."""
-        block = _make_block()
-        grid = Grid([block])
-        grid.apply_rotation(["shroud"], [1000.0])
-        assert block.Omega == 1000.0
-
-    def test_shroud_adds_six_rotating_patches(self):
-        """shroud row adds exactly 6 RotatingPatch objects."""
-        block = _make_block()
-        grid = Grid([block])
-        n_before = len(block.patches)
-        grid.apply_rotation(["shroud"], [1000.0])
-        new_patches = block.patches[n_before:]
-        assert len(new_patches) == 6
-        assert all(isinstance(p, RotatingPatch) for p in new_patches)
-
-    def test_shroud_patch_faces(self):
-        """shroud patches cover all six faces."""
-        block = _make_block()
-        grid = Grid([block])
-        n_before = len(block.patches)
-        grid.apply_rotation(["shroud"], [1000.0])
-        new_patches = block.patches[n_before:]
-        face_ids = {(p.const_dim, p._ijk_lim[p.const_dim, 0]) for p in new_patches}
-        assert face_ids == {(0, 0), (0, -1), (1, 0), (1, -1), (2, 0), (2, -1)}
-
-    def test_shroud_patches_have_correct_omega(self):
-        """shroud rotating patches carry the specified Omega."""
-        block = _make_block()
-        grid = Grid([block])
-        n_before = len(block.patches)
-        grid.apply_rotation(["shroud"], [200.0])
-        new_patches = block.patches[n_before:]
-        assert all(p.Omega == 200.0 for p in new_patches)
-
-    def test_mismatched_lengths_raises(self):
-        """Mismatched row_types and Omega lengths raise AssertionError."""
-        block = _make_block()
-        grid = Grid([block])
-        with pytest.raises(AssertionError):
-            grid.apply_rotation(["stationary", "tip_gap"], [0.0])
-
-    def test_unknown_row_type_raises(self):
-        """Unknown row type raises ValueError."""
-        block = _make_block()
-        grid = Grid([block])
-        with pytest.raises(ValueError, match="Unknown row type"):
-            grid.apply_rotation(["rotating"], [100.0])
-
-    def test_multi_block_single_row(self):
-        """Blocks connected by periodic patches (same row) both get Omega and patches."""
-        block1 = _make_block()
-        block2 = _make_block()
-        # Connect the two blocks into one row via periodic patches
-        block1.patches.append(PeriodicPatch(i=0, label="p1"))
-        block2.patches.append(PeriodicPatch(i=0, label="p2"))
-        grid = Grid([block1, block2])
-        grid.apply_rotation(["shroud"], [400.0])
-        for block in [block1, block2]:
-            assert block.Omega == 400.0
-            rotating = [p for p in block.patches if isinstance(p, RotatingPatch)]
-            assert len(rotating) == 6
 
 
 def _make_flow_block(shape=(5, 6, 8), Nb=30):

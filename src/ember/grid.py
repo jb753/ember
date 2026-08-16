@@ -139,7 +139,6 @@ has blown up.
 
    Grid.accumulate_avg
    Grid.apply_bconds
-   Grid.apply_rotation
    Grid.calculate_wdist
    Grid.check_nan
    Grid.finalise_average
@@ -186,7 +185,6 @@ from ember.patch import (
     NonMatchPatch,
     OutletPatch,
     PeriodicPatch,
-    RotatingPatch,
 )
 import ember.periodic_communicator
 import ember.mixing_communicator
@@ -1190,70 +1188,6 @@ class Grid(_LabelledList):
                 block.set_Vt(Vt_snapped)
 
             block.set_mu_turb(np.full((ni, nj, nk), mu_mean))
-
-    def apply_rotation(self, row_types, Omega):
-        """Apply rotation settings to blocks based on row types.
-
-        Sets angular velocity and adds appropriate rotating wall patches to blocks
-        based on the specified row type configuration. Supports stationary, tip_gap,
-        and shroud configurations for turbomachinery applications.
-
-        Parameters
-        ----------
-        row_types : list of str
-            List of row type strings, one per row in the grid. Valid values:
-            - "stationary": No rotating patches (fixed frame)
-            - "tip_gap": Rotating patches on i=0, i=-1, j=0, k=0, k=-1
-            - "shroud": Rotating patches on all boundaries (i=0, i=-1, j=0, j=-1, k=0, k=-1)
-        Omega : list of float
-            List of angular velocities [rad/s], one per row in the grid.
-            Positive values indicate rotation direction.
-
-        Raises
-        ------
-        AssertionError
-            If length of row_types and Omega don't match
-        ValueError
-            If unknown row_type is specified
-
-        Examples
-        --------
-        >>> grid = Grid([block1, block2])
-        >>> grid.apply_rotation(["tip_gap"], [1000.0])  # Single rotating row
-        """
-        assert len(row_types) == len(Omega), (
-            f"row_types length ({len(row_types)}) must match Omega length ({len(Omega)})"
-        )
-
-        for row_block, row_type, Omegai in zip(self.rows, row_types, Omega):
-            for block in row_block:
-                block.set_Omega(Omegai)
-                if row_type == "stationary":
-                    patches = []
-                elif row_type == "tip_gap":
-                    patches = [
-                        RotatingPatch(i=0),
-                        RotatingPatch(i=-1),
-                        RotatingPatch(j=0),
-                        RotatingPatch(k=0),
-                        RotatingPatch(k=-1),
-                    ]
-                elif row_type == "shroud":
-                    patches = [
-                        RotatingPatch(i=0),
-                        RotatingPatch(i=-1),
-                        RotatingPatch(j=0),
-                        RotatingPatch(j=-1),
-                        RotatingPatch(k=0),
-                        RotatingPatch(k=-1),
-                    ]
-                else:
-                    raise ValueError(f"Unknown row type '{row_type}'")
-
-                for patch in patches:
-                    patch.set_Omega(Omegai)
-
-                block.patches.extend(patches)
 
     def calculate_wdist(self, limit_pitch=np.inf):
         """
