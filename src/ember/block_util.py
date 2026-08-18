@@ -3,7 +3,7 @@ r"""Operations on :class:`~ember.block.Block` instances that don't belong on the
 Each function below takes one or more :class:`~ember.block.Block`\ s and
 returns a new one (or mutates in place, per its docstring). Grid-level
 counterparts such as :meth:`~ember.grid.Grid.resample` and
-:meth:`~ember.grid.Grid.interp_from` are thin loops over these
+:meth:`~ember.grid.Grid.interp_from_grid` are thin loops over these
 block-granularity functions.
 
 Combining and reshaping blocks
@@ -12,6 +12,7 @@ Combining and reshaping blocks
 .. autosummary::
 
    concatenate
+   repeat_pitchwise
    resample
 
 Interface-aligned velocities
@@ -31,7 +32,8 @@ Solution transfer
 
 .. autosummary::
 
-   interp_from
+   interp_from_arrays
+   interp_from_grid
 
 Post-processing and I/O
 =========================
@@ -478,44 +480,74 @@ def resample(block, factors):
     return new_block
 
 
-def _interp_coords(block, src):
-    """Build per-dimension float32 query coordinate arrays for interp_from.
+def _patch_crit(block, src):
+    """Critical indices per dimension for a block-to-block interpolation.
 
-    For each dimension, critical indices (patch boundaries + endpoints) are
-    collected from both src and block. The number of critical indices must
-    match. Between each pair of consecutive critical indices a linspace maps
-    block index space into src index space, preserving the critical locations
-    exactly.
+    A critical index is a location that must land exactly where it started:
+    the ends of the block, and every patch boundary. Returned as one
+    ``(src, block)`` pair per dimension, which is all
+    :func:`_interp_coords` needs -- so the notion of a patch stays here, on
+    the side of the interface that has blocks, and never reaches the array
+    path.
+    """
+    crit = []
+    for d in range(3):
+        crit.append(
+            (
+                np.unique(
+                    [0, src.shape[d] - 1]
+                    + [int(idx) for p in src.patches for idx in p.ijk_lim_abs[d]]
+                ),
+                np.unique(
+                    [0, block.shape[d] - 1]
+                    + [int(idx) for p in block.patches for idx in p.ijk_lim_abs[d]]
+                ),
+            )
+        )
+    return crit
+
+
+def _interp_coords(block_shape, src_shape, crit=None):
+    """Build per-dimension float32 query coordinate arrays for interpolation.
+
+    Between each pair of consecutive critical indices a linspace maps block
+    index space into source index space, so those locations land exactly
+    where they started and only the spans between them are stretched.
+
+    With no critical indices given, the ends are the only ones: they line up
+    and everything between is stretched evenly. That is the right behaviour
+    for a bare field, which has no patch layout to align to -- and for a flow
+    field, unlike for coordinates, a boundary landing a fraction of a cell out
+    is immaterial.
 
     Parameters
     ----------
-    block : Block
-        Target block whose index space the returned coordinates are defined over.
-    src : Block
-        Source block being queried; the returned coordinates are expressed
-        in this block's index space.
+    block_shape : tuple
+        Shape of the target, whose index space the coordinates are defined over.
+    src_shape : tuple
+        Shape of the source, in whose index space they are expressed.
+    crit : list of tuple, optional
+        One ``(src, block)`` pair of critical index arrays per dimension.
 
     Returns
     -------
     list of Array
         Three float32 arrays, one per dimension, each of length
-        ``block.shape[d]``, containing src-index-space coordinates.
+        ``block_shape[d]``, containing source-index-space coordinates.
 
     Raises
     ------
     ValueError
-        If a dimension's critical-index count differs between src and block.
+        If a dimension's critical-index count differs between source and block.
     """
     coords = []
     for d in range(3):
-        src_crit = np.unique(
-            [0, src.shape[d] - 1]
-            + [int(idx) for p in src.patches for idx in p.ijk_lim_abs[d]]
-        )
-        blk_crit = np.unique(
-            [0, block.shape[d] - 1]
-            + [int(idx) for p in block.patches for idx in p.ijk_lim_abs[d]]
-        )
+        if crit is None:
+            src_crit = np.array([0, src_shape[d] - 1])
+            blk_crit = np.array([0, block_shape[d] - 1])
+        else:
+            src_crit, blk_crit = crit[d]
+
         if len(src_crit) != len(blk_crit):
             raise ValueError(
                 f"Dimension {d}: src has {len(src_crit)} critical indices "
@@ -533,40 +565,51 @@ def _interp_coords(block, src):
     return coords
 
 
-def interp_from(block, src):
-    """Interpolate solution from src onto block by index-space trilinear interpolation.
+STATE = ("P", "T", "Vx", "Vr", "Vt", "mu_turb")
+"""Quantities transferred by the interpolation functions below.
 
-    The caller must have already set the fluid on block. All quantities are
-    handled in dimensional form so that differing reference scales between
-    block and src are handled correctly.
+Primitives, not the conserved variables. Conserved energy is measured from its
+fluid's datum, so copying it between blocks whose fluids differ silently
+reinterprets it -- a datum 600 K apart turns 400 K into 1000 K, with nothing
+raised. Pressure, temperature and velocity are datum-free and cross unchanged,
+which is also why interpolating them cannot produce a negative temperature the
+way interpolating ``rhoe`` can.
+"""
+
+
+def interp_from_arrays(block, arrays, crit=None):
+    """Interpolate a flow field onto ``block`` by index-space trilinear interpolation.
+
+    The caller must have already set the fluid on block.
 
     Parameters
     ----------
     block : Block
-        Target block to receive the interpolated solution.
-    src : Block
-        Source block providing the solution.
+        Target block to receive the field.
+    arrays : sequence of Array
+        One array per entry of :data:`STATE`, in that order, all of the same
+        shape and all dimensional. They need not match ``block``'s shape.
+    crit : list of tuple, optional
+        One ``(src, block)`` pair of critical index arrays per dimension,
+        locations to be held fixed through the mapping. None for a bare
+        field, which maps end to end instead. Built from patches by
+        :func:`interp_from_grid`; this function has no notion of a patch.
 
     Raises
     ------
     AssertionError
-        If a different-shape interpolation produces conserved variables
-        outside the source's value range (trilinear interpolation must not
-        create new extrema), or if the target block ends up with a
-        non-finite or non-positive temperature.
+        If a different-shape interpolation produces values outside the
+        source's range -- trilinear interpolation must not create new extrema.
     """
+    data_in = np.stack([np.asarray(a, dtype=np.float32) for a in arrays], axis=-1)
+    src_shape = data_in.shape[:3]
 
-    logger.debug("interp_from: src %s -> block %s", src.shape, block.shape)
+    logger.debug("interp: src %s -> block %s", src_shape, block.shape)
 
-    if block.shape == src.shape:
-        block.set_conserved(src.conserved)
-        block.set_mu_turb(src.mu_turb)
+    if src_shape == tuple(block.shape):
+        data_out = data_in
     else:
-        data_in = np.concatenate(
-            [src.conserved, src.mu_turb[..., np.newaxis]], axis=-1
-        ).astype(np.float32)
-
-        coords = _interp_coords(block, src)
+        coords = _interp_coords(block.shape, src_shape, crit)
 
         data_out = ember.fortran.map_coordinates_3d(
             data_in, coords[0], coords[1], coords[2]
@@ -578,15 +621,91 @@ def interp_from(block, src):
         hi = data_in.reshape(-1, data_in.shape[-1]).max(axis=0)
         tol = np.maximum(np.float32(1e-4) * (hi - lo), np.float32(1e-4) * np.abs(hi))
         assert np.all(data_out >= lo - tol) and np.all(data_out <= hi + tol), (
-            "Interpolated conserved variables exceed source bounds"
+            "Interpolated values exceed source bounds"
         )
 
-        block.set_conserved(data_out[..., :5])
-        block.set_mu_turb(data_out[..., 5])
+    block.set_P_T(data_out[..., 0], data_out[..., 1])
+    block.set_Vx(data_out[..., 2])
+    block.set_Vr(data_out[..., 3])
+    block.set_Vt(data_out[..., 4])
+    block.set_mu_turb(data_out[..., 5])
 
     assert np.all(np.isfinite(block.T)) and np.all(block.T > 0), (
         "Target block has non-finite or non-positive temperatures after interpolation"
     )
+
+
+def interp_from_grid(block, src):
+    """Interpolate the solution on ``src`` onto ``block``.
+
+    A thin unpacking of :func:`interp_from_arrays`: the state is read off
+    ``src`` dimensionally, so the two blocks may carry different fluids --
+    different reference scales, and different entropy and energy datums --
+    without any conversion being needed.
+
+    Parameters
+    ----------
+    block : Block
+        Target block to receive the interpolated solution.
+    src : Block
+        Source block providing the solution.
+    """
+    interp_from_arrays(
+        block,
+        [getattr(src, name) for name in STATE],
+        crit=_patch_crit(block, src),
+    )
+
+
+def repeat_pitchwise(block, n_passage):
+    r"""Return copies of `block`, each one blade pitch further round.
+
+    A single passage is all a periodic solver computes, but it is rarely all
+    anyone wants to look at: repeating it shows the flow as a cascade, where
+    the passage-to-passage picture reads at a glance. The copies are
+    successively rotated by :attr:`~ember.block.Block.pitch`, the first left
+    where it is.
+
+    Copies rather than one concatenated block, deliberately. Joining them
+    would need to know which index runs pitchwise, which is a property of a
+    grid's topology and not something to guess; and a consumer that draws
+    blocks --- a contour plot, a mesh view --- draws a list just as happily,
+    while keeping one colour scale across the set.
+
+    Patches are dropped. A rotated copy is a view of the flow, not a member of
+    a connected grid, and its periodic patches would claim connections that no
+    longer hold.
+
+    Parameters
+    ----------
+    block : Block
+        Block to repeat. The rotation is :attr:`~ember.block.Block.pitch`, so
+        it follows the blade count: on a block whose
+        :attr:`~ember.block.Block.Nb` was never set, that is the default of one
+        blade, a pitch of a whole revolution, and copies that coincide.
+    n_passage : int
+        Number of passages to return, including the original.
+
+    Returns
+    -------
+    list of Block
+        `n_passage` blocks, rotated by 0, 1, ... pitches.
+
+    Raises
+    ------
+    ValueError
+        If `n_passage` is less than one.
+    """
+    if n_passage < 1:
+        raise ValueError(f"Need at least one passage, got n_passage={n_passage}")
+
+    passages = []
+    for i_passage in range(n_passage):
+        passage = block.copy(keep_patches=False)
+        passage.set_t(block.t + i_passage * block.pitch)
+        passages.append(passage)
+
+    return passages
 
 
 def wall_yplus(block):
@@ -599,6 +718,17 @@ def wall_yplus(block):
     actually modeled at a face; it carries none of ``set_visc_force``'s
     k-slab/rolling-buffer machinery since it costs O(surface) per call, not
     O(volume) per step.
+
+    The height is the wall-adjacent cell thickness ``vol/|dA|``, i.e. the
+    distance to the first off-wall *node* -- the point whose velocity the wall
+    function actually samples in this cell-vertex scheme, so this is y+ where
+    the closure is evaluated. Cell-centred codes report y+ at the first cell
+    centroid instead, which is the usual "first cell y+" of mesh-sizing
+    guidance; **halve** these values for that convention, since y+ is linear
+    in wall distance at fixed friction velocity. That is not a conversion for
+    comparing against another code's number on the same mesh, though: a
+    cell-centred solver samples its velocity at the half height too, so it
+    infers its own friction velocity and does not simply see half of this.
 
     Parameters
     ----------

@@ -1301,5 +1301,125 @@ def test_bcast_if_needed_broadcasts_when_shape_differs():
     np.testing.assert_array_equal(out, np.broadcast_to(a, (3, 5)))
 
 
+class TestUnwrapMeridional:
+    """Test unwrap_meridional function.
+
+    Test cases:
+    - test_cylindrical_curve_is_distance_over_radius: the analytic case
+    - test_conical_curve_matches_the_closed_form: r varying along a segment
+    - test_a_refined_polyline_agrees_with_a_coarse_one: no quadrature error
+    - test_curve_start_is_the_datum: zero where the integration begins
+    - test_many_segments_accumulate: a polyline is its segments summed
+    - test_a_point_off_the_curve_projects_onto_it: perpendicular offset dropped
+    - test_a_point_beyond_the_end_clamps: no extrapolation off the curve
+    - test_query_shape_is_preserved: grid-shaped input, grid-shaped output
+    - test_two_cuts_of_one_curve_share_a_datum: the reason it takes a curve
+    - test_a_curve_on_the_axis_is_refused: m' diverges there
+    - test_a_curve_needs_two_points: nothing to integrate along
+    """
+
+    def test_cylindrical_curve_is_distance_over_radius(self):
+        """At constant radius the integral collapses to m' = m / r."""
+        radius = 2.0
+        curve = np.array([[0.0, radius], [1.0, radius]])
+
+        mp = util.unwrap_meridional(curve, np.array([[0.5, radius], [1.0, radius]]))
+
+        np.testing.assert_allclose(mp, [0.5 / radius, 1.0 / radius], rtol=1e-6)
+
+    def test_conical_curve_matches_the_closed_form(self):
+        """With r linear along the segment, m' = (ds / dr) ln(r1 / r0)."""
+        curve = np.array([[0.0, 1.0], [3.0, 5.0]])  # ds = 5, r from 1 to 5
+
+        mp = util.unwrap_meridional(curve, curve[-1])
+
+        np.testing.assert_allclose(mp, 5.0 / 4.0 * np.log(5.0), rtol=1e-6)
+
+    def test_a_refined_polyline_agrees_with_a_coarse_one(self):
+        """The segment integral is exact, so refining the curve changes nothing.
+
+        A quadrature would converge on this answer from below; the closed form
+        is already there.
+        """
+        ends = np.array([[0.0, 1.0], [3.0, 5.0]])
+        fine = np.stack(
+            [np.linspace(0.0, 3.0, 257), np.linspace(1.0, 5.0, 257)], axis=1
+        )
+
+        coarse_mp = util.unwrap_meridional(ends, ends[-1])
+        fine_mp = util.unwrap_meridional(fine, fine[-1])
+
+        np.testing.assert_allclose(fine_mp, coarse_mp, rtol=1e-6)
+
+    def test_curve_start_is_the_datum(self):
+        curve = np.array([[1.0, 2.0], [2.0, 2.0]])
+
+        assert util.unwrap_meridional(curve, curve[0]) == pytest.approx(0.0)
+
+    def test_many_segments_accumulate(self):
+        """A point at the end of a polyline sums every segment before it."""
+        curve = np.stack([np.linspace(0.0, 1.0, 11), np.full(11, 2.0)], axis=1)
+
+        mp = util.unwrap_meridional(curve, np.array([[0.25, 2.0], [1.0, 2.0]]))
+
+        np.testing.assert_allclose(mp, [0.125, 0.5], rtol=1e-6)
+
+    def test_a_point_off_the_curve_projects_onto_it(self):
+        """The perpendicular offset is discarded, not added to the distance.
+
+        This is what lets a triangulated cut, or a blade surface, share the
+        coordinate of the curve it sits near.
+        """
+        curve = np.array([[0.0, 2.0], [1.0, 2.0]])
+
+        on = util.unwrap_meridional(curve, np.array([0.5, 2.0]))
+        off = util.unwrap_meridional(curve, np.array([0.5, 2.3]))
+
+        assert off == pytest.approx(on)
+
+    def test_a_point_beyond_the_end_clamps(self):
+        curve = np.array([[0.0, 2.0], [1.0, 2.0]])
+
+        mp = util.unwrap_meridional(curve, np.array([[-5.0, 2.0], [7.0, 2.0]]))
+
+        np.testing.assert_allclose(mp, [0.0, 0.5], rtol=1e-6)
+
+    def test_query_shape_is_preserved(self):
+        curve = np.array([[0.0, 2.0], [1.0, 2.0]])
+        query = np.zeros((4, 3, 2))
+        query[..., 1] = 2.0
+
+        assert util.unwrap_meridional(curve, query).shape == (4, 3)
+
+    def test_two_cuts_of_one_curve_share_a_datum(self):
+        """Points evaluated separately land on one scale, with nothing to match.
+
+        This is the whole reason the coordinate belongs to the curve: two
+        blocks of a cut, or two cuts of a machine, are directly comparable
+        because they were integrated from the same origin.
+        """
+        curve = np.stack([np.linspace(0.0, 2.0, 21), np.linspace(1.0, 3.0, 21)], axis=1)
+        upstream = curve[:8]
+        downstream = curve[12:]
+
+        separately = np.concatenate(
+            [
+                util.unwrap_meridional(curve, upstream),
+                util.unwrap_meridional(curve, downstream),
+            ]
+        )
+        together = util.unwrap_meridional(curve, np.concatenate([upstream, downstream]))
+
+        np.testing.assert_allclose(separately, together, rtol=1e-6)
+
+    def test_a_curve_on_the_axis_is_refused(self):
+        with pytest.raises(ValueError, match="diverges on the axis"):
+            util.unwrap_meridional(np.array([[0.0, 0.0], [1.0, 1.0]]), np.zeros(2))
+
+    def test_a_curve_needs_two_points(self):
+        with pytest.raises(ValueError, match="at least two points"):
+            util.unwrap_meridional(np.array([[0.0, 1.0]]), np.zeros(2))
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

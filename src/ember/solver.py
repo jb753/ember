@@ -182,7 +182,7 @@ coarse-to-fine as a startup schedule, rather than within a single step. It
 builds :attr:`~Solver.n_levels` progressively-halved grids
 (:meth:`~ember.grid.Grid.resample`), solves the coarsest first, then
 prolongs each converged solution onto the next finer grid as its initial
-guess (:meth:`~ember.grid.Grid.interp_from`) and calls :meth:`Solver.run`
+guess (:meth:`~ember.grid.Grid.interp_from_grid`) and calls :meth:`Solver.run`
 again with the in-step multigrid depth set to that level's index -- so the
 coarsest level runs with no in-step multigrid and the finest runs at the full
 requested :attr:`~Solver.n_levels`, identical to calling :meth:`Solver.run`
@@ -293,12 +293,18 @@ class BaseSolver(ABC):
         raise NotImplementedError
 
 
-@dataclass
+@dataclass(frozen=True)
 class Solver(BaseSolver):
     """Configuration for the explicit time-marching solver.
 
     Also the entry point: build one with the parameters below and call
     :meth:`run` (or :meth:`run_fmg`) to march a grid in place.
+
+    Frozen, because a solver is a set of parameters rather than a thing with
+    state: nothing here is written after construction, the march keeps its
+    working state on the grid, and :meth:`run_fmg` already derives its
+    per-level configurations with :func:`dataclasses.replace`. Settings that
+    would otherwise be adjusted in place are made by building another one.
     """
 
     n_step: int
@@ -309,7 +315,7 @@ class Solver(BaseSolver):
     n_step_avg: int = 1
     """Number of steps to average over."""
 
-    cfl: float = 0.4
+    cfl: float = 5.0
     """Constant CFL number for the march"""
 
     sf4: float = 0.008
@@ -318,7 +324,7 @@ class Solver(BaseSolver):
     sf2: float = 0.002
     """Second-order smoothing factor."""
 
-    dampin: float | None = None
+    dampin: float | None = 25
     """Negative-feedback damping factor on integrated residual."""
 
     inviscid: bool = False
@@ -328,7 +334,7 @@ class Solver(BaseSolver):
     """Multiplier on the turbulent-diffusion timestep radius; >1 tightens the
     viscous limit to recover the inviscid stable CFL."""
 
-    sf_resid: float = 0.0
+    sf_resid: float = 1.0
     """Implicit residual smoothing factor. Applied to the fine residual by
     :meth:`~ember.grid.Grid.update_residual` (``sf``) and, on both integrators,
     to the coarse block-restricted residual of the multigrid correction
@@ -345,7 +351,7 @@ class Solver(BaseSolver):
     n_stage: int = 0
     """Number of time integration stages per step. 0 for scree, >=1 for RK."""
 
-    n_levels: int = 0
+    n_levels: int = 3
     """Number of coarse multigrid levels; 0 disables multigrid. Honored by
     both integrators (:func:`scree_step` and :func:`rk_step`)."""
 
@@ -921,7 +927,7 @@ def _run_fmg(grid, conf):
     this is exactly :func:`run(grid, conf) <run>`. Otherwise it builds
     ``n_levels`` grids successively halved by :meth:`~ember.grid.Grid.resample`
     at factor ``0.5``, solves the coarsest, and
-    :meth:`~ember.grid.Grid.interp_from`'s the solution up onto each finer grid
+    :meth:`~ember.grid.Grid.interp_from_grid`'s the solution up onto each finer grid
     as its initial guess. Sequencing level ``i`` (``0`` = coarsest) is marched
     with in-step Denton block-sum multigrid depth ``i`` -- the same grid
     hierarchy ``n_levels`` already names -- so the coarsest runs plain and the
@@ -965,7 +971,7 @@ def _run_fmg(grid, conf):
     histories = []
     for i, level_grid in enumerate(chain):  # i == in-step MG depth for this mesh
         if i > 0:
-            level_grid.interp_from(chain[i - 1])  # prolong previous solution
+            level_grid.interp_from_grid(chain[i - 1])  # prolong previous solution
         logger.info(
             "FMG level %d/%d, shape(s) %s",
             i,

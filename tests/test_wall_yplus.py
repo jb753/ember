@@ -15,6 +15,14 @@ of a single rotating, sheared block whose i-faces are frictionless
 (:class:`~ember.inviscid.InviscidPatch`) and whose j/k faces are left as the
 default no-slip walls -- exercising both the "zero on non-wall cells" path
 and the "nonzero, correctly-valued on wall cells" path in one fixture.
+
+Being a transcription, this pins the formula by duplicating it: it cannot say
+whether ``wall_core`` computes the right thing, only whether it still computes
+the same thing. ``tests/test_wall_function_limits.py`` is the complement,
+asserting the physical identities the formula has to satisfy. It is also the
+only test that reaches the ``Re < RE_SMALL`` branch -- this fixture's
+production ``MU`` puts every face at ``Re ~ 1e5-1e7``, so ``_wall_core_np``'s
+``small`` arm below is never evaluated here.
 """
 
 import numpy as np

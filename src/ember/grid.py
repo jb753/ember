@@ -116,7 +116,8 @@ onto the grid's structured topology via :meth:`Grid.align_cart_unstr`.
    Grid.align_cart_unstr
    Grid.apply_guess_meridional
    Grid.apply_guess_quasi3d
-   Grid.interp_from
+   Grid.interp_from_arrays
+   Grid.interp_from_grid
    Grid.set_conserved_cart_unstr
    Grid.set_primitive_cart_unstr
 
@@ -138,7 +139,6 @@ has blown up.
 
    Grid.accumulate_avg
    Grid.apply_bconds
-   Grid.apply_rotation
    Grid.calculate_wdist
    Grid.check_nan
    Grid.finalise_average
@@ -185,7 +185,6 @@ from ember.patch import (
     NonMatchPatch,
     OutletPatch,
     PeriodicPatch,
-    RotatingPatch,
 )
 import ember.periodic_communicator
 import ember.mixing_communicator
@@ -453,7 +452,7 @@ class Grid(_LabelledList):
             mapping_failed = False
 
             for block in self:
-                flat = block.flat()
+                flat = block.flat
                 distances, indices = kdtree.query(
                     np.stack([flat.x, flat.y, flat.z], axis=-1),
                     distance_upper_bound=atol,
@@ -463,7 +462,8 @@ class Grid(_LabelledList):
                     mapping_failed = True
                     break
 
-                block_indices.append(indices.reshape(block.shape))
+                # flat orders points column-major, so unflatten the same way.
+                block_indices.append(indices.reshape(block.shape, order="F"))
 
             if not mapping_failed:
                 return tuple(perm), tuple(signs.ravel()), block_indices
@@ -669,10 +669,12 @@ class Grid(_LabelledList):
         # Step 3: Set conserved variables on blocks using block indices
         for ib, block in enumerate(self):
             # Use indices from _align_cartesian
-            ind = block_indices[ib].flatten()
+            ind = block_indices[ib].flatten(order="F")
 
             # Set conserved variables
-            conserved_block = conserved_pol[ind, :].reshape(block.shape + (5,))
+            conserved_block = conserved_pol[ind, :].reshape(
+                block.shape + (5,), order="F"
+            )
             block.set_conserved(conserved_block)
 
     def set_fluid(self, fluid_obj):
@@ -780,11 +782,13 @@ class Grid(_LabelledList):
         # Step 3: Set primitive variables on blocks using block indices
         for ib, block in enumerate(self):
             # Use indices from _align_cartesian
-            ind = block_indices[ib].flatten()
+            ind = block_indices[ib].flatten(order="F")
 
             # Set primitive variables (convert back to float32)
             primitive_block = (
-                primitive_pol[ind, :].reshape(block.shape + (5,)).astype(np.float32)
+                primitive_pol[ind, :]
+                .reshape(block.shape + (5,), order="F")
+                .astype(np.float32)
             )
             block.set_P_rho(primitive_block[..., 4], primitive_block[..., 0])
             block.set_Vx(primitive_block[..., 1])
@@ -1185,70 +1189,6 @@ class Grid(_LabelledList):
 
             block.set_mu_turb(np.full((ni, nj, nk), mu_mean))
 
-    def apply_rotation(self, row_types, Omega):
-        """Apply rotation settings to blocks based on row types.
-
-        Sets angular velocity and adds appropriate rotating wall patches to blocks
-        based on the specified row type configuration. Supports stationary, tip_gap,
-        and shroud configurations for turbomachinery applications.
-
-        Parameters
-        ----------
-        row_types : list of str
-            List of row type strings, one per row in the grid. Valid values:
-            - "stationary": No rotating patches (fixed frame)
-            - "tip_gap": Rotating patches on i=0, i=-1, j=0, k=0, k=-1
-            - "shroud": Rotating patches on all boundaries (i=0, i=-1, j=0, j=-1, k=0, k=-1)
-        Omega : list of float
-            List of angular velocities [rad/s], one per row in the grid.
-            Positive values indicate rotation direction.
-
-        Raises
-        ------
-        AssertionError
-            If length of row_types and Omega don't match
-        ValueError
-            If unknown row_type is specified
-
-        Examples
-        --------
-        >>> grid = Grid([block1, block2])
-        >>> grid.apply_rotation(["tip_gap"], [1000.0])  # Single rotating row
-        """
-        assert len(row_types) == len(Omega), (
-            f"row_types length ({len(row_types)}) must match Omega length ({len(Omega)})"
-        )
-
-        for row_block, row_type, Omegai in zip(self.rows, row_types, Omega):
-            for block in row_block:
-                block.set_Omega(Omegai)
-                if row_type == "stationary":
-                    patches = []
-                elif row_type == "tip_gap":
-                    patches = [
-                        RotatingPatch(i=0),
-                        RotatingPatch(i=-1),
-                        RotatingPatch(j=0),
-                        RotatingPatch(k=0),
-                        RotatingPatch(k=-1),
-                    ]
-                elif row_type == "shroud":
-                    patches = [
-                        RotatingPatch(i=0),
-                        RotatingPatch(i=-1),
-                        RotatingPatch(j=0),
-                        RotatingPatch(j=-1),
-                        RotatingPatch(k=0),
-                        RotatingPatch(k=-1),
-                    ]
-                else:
-                    raise ValueError(f"Unknown row type '{row_type}'")
-
-                for patch in patches:
-                    patch.set_Omega(Omegai)
-
-                block.patches.extend(patches)
-
     def calculate_wdist(self, limit_pitch=np.inf):
         """
         This method creates a pitchwise-repeated grid to include neighboring passages,
@@ -1354,13 +1294,39 @@ class Grid(_LabelledList):
             avg.fill(0.0)
             avg.flags.writeable = False
 
-    def interp_from(self, src):
-        """Trilinearly interpolate conserved variables from another grid.
+    def interp_from_arrays(self, arrays):
+        """Interpolate a flow field onto this grid from plain arrays.
 
-        Assumes the source grid has the same block topology as this one,
-        but different resolution. Each block's conserved variables are
-        interpolated from the source in index space, which is exact for
-        linear functions on a uniform grid only.
+        For a field that arrives without a mesh around it -- read back from a
+        file, say. Nothing is materialised on the source side, and with no
+        patch layout to align to the mapping simply runs end to end in index
+        space.
+
+        Parameters
+        ----------
+        arrays : sequence
+            One entry per block, each a sequence of arrays matching
+            :data:`ember.block_util.STATE`.
+
+        """
+        if len(arrays) != len(self):
+            raise ValueError(
+                f"Got {len(arrays)} block(s) of arrays for a grid of {len(self)}."
+            )
+        for tgt_block, block_arrays in zip(self, arrays):
+            ember.block_util.interp_from_arrays(tgt_block, block_arrays)
+
+    def interp_from_grid(self, src):
+        """Interpolate the solution from another grid onto this one.
+
+        Assumes the source grid has the same block topology as this one, but
+        possibly a different resolution. Each block is interpolated in index
+        space, which is exact for linear functions on a uniform grid only, and
+        which holds patch boundaries where they started.
+
+        The state is transferred as pressure, temperature and velocity, so the
+        two grids may carry different fluids -- different reference scales, and
+        different entropy and energy datums -- with no conversion needed.
 
         Parameters
         ----------
@@ -1369,7 +1335,7 @@ class Grid(_LabelledList):
 
         """
         for tgt_block, src_block in zip(self, src):
-            ember.block_util.interp_from(tgt_block, src_block)
+            ember.block_util.interp_from_grid(tgt_block, src_block)
 
     def resample(self, factors):
         """Resample all blocks, returning a new Grid at the new resolution."""

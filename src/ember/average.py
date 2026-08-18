@@ -242,8 +242,11 @@ def mass_average(scalar_node, block, axes=None):
     numerator = np.sum(scalar_mass_flow, axis=axes)
     denominator = flow_mass(block, axes)
 
-    # Check for zero net mass flux
-    if np.abs(denominator) < 1e-14:
+    # Check for zero net mass flux. `np.any` because a partial reduction --
+    # `axes=(1,)` to average over the pitch and keep the span, say -- leaves an
+    # array here rather than a scalar, and a bare `<` on one of those raises
+    # about an ambiguous truth value instead of reporting the flux.
+    if np.any(np.abs(denominator) < 1e-14):
         raise ValueError(
             "Net mass flux through the block is zero. "
             "Mass averaging requires non-zero net mass flux. "

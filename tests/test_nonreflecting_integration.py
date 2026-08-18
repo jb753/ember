@@ -191,7 +191,9 @@ def mdot(patch):
 def test_duct_run_stays_finite(chi, bow):
     """A march with both ends non-reflecting completes at any orientation."""
     grid = make_duct(chi, bow)
-    ember.solver.Solver(n_step=20, n_step_avg=1, n_step_log=20, n_stage=4).run(grid)
+    ember.solver.Solver(
+        n_step=20, n_step_avg=1, n_step_log=20, n_stage=4, n_levels=0
+    ).run(grid)
     assert_physical(grid)
 
 
@@ -206,7 +208,7 @@ def test_duct_converges_to_the_prescribed_state(chi, bow):
     """
     grid = make_duct(chi, bow)
     history = ember.solver.Solver(
-        n_step=200, n_step_avg=1, n_step_log=10, n_stage=4
+        n_step=200, n_step_avg=1, n_step_log=10, n_stage=4, n_levels=0
     ).run(grid)
     assert not history.diverged
     assert_physical(grid)
@@ -240,7 +242,9 @@ def test_duct_converges_to_the_prescribed_state(chi, bow):
 def test_duct_conserves_mass_end_to_end(chi, bow):
     """What goes in comes out, whichever way the duct points."""
     grid = make_duct(chi, bow)
-    ember.solver.Solver(n_step=200, n_step_avg=1, n_step_log=20, n_stage=4).run(grid)
+    ember.solver.Solver(
+        n_step=200, n_step_avg=1, n_step_log=20, n_stage=4, n_levels=0
+    ).run(grid)
 
     mdot_in = mdot(grid.patches.inlet[0])
     mdot_out = mdot(grid.patches.outlet[0])
@@ -263,7 +267,9 @@ def test_mixing_plane_run_stays_finite(chi, bow):
     case that exercises the settle rather than merely tolerating it.
     """
     grid = make_stage(chi, bow)
-    ember.solver.Solver(n_step=20, n_step_avg=1, n_step_log=20, n_stage=4).run(grid)
+    ember.solver.Solver(
+        n_step=20, n_step_avg=1, n_step_log=20, n_stage=4, n_levels=0
+    ).run(grid)
     assert_physical(grid)
 
     # Settled, opposite, and each side reading its own flow direction: the
@@ -277,7 +283,9 @@ def test_mixing_plane_run_stays_finite(chi, bow):
 def test_mixing_plane_conserves_mass(chi, bow):
     """Mass flow matches across the plane and through both ends of the stage."""
     grid = make_stage(chi, bow)
-    ember.solver.Solver(n_step=200, n_step_avg=1, n_step_log=20, n_stage=4).run(grid)
+    ember.solver.Solver(
+        n_step=200, n_step_avg=1, n_step_log=20, n_stage=4, n_levels=0
+    ).run(grid)
     assert_physical(grid)
 
     patch_up, patch_dn = grid.patches.mixing

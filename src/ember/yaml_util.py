@@ -16,13 +16,17 @@ avoid two footguns in plain `PyYAML <https://pyyaml.org/>`_:
   strings instead of floats. This module patches the loader's implicit
   float resolver to catch that case too.
 
+Uses PyYAML's ``CSafeLoader``/``CSafeDumper`` (backed by libyaml's C
+scanner/parser/emitter) when available, falling back to the pure-Python
+``SafeLoader``/``SafeDumper`` otherwise.
+
 Ported from turbigen's ``yaml_utils`` module.
 """
 
 import re
 import yaml
 import numpy as np
-from pathlib import Path, PosixPath
+from pathlib import Path, PurePath
 
 
 def _represent_float(dumper, data):
@@ -93,16 +97,23 @@ def _represent_ndarray(dumper, data):
 def _represent_path(dumper, data):
     """Represent a path object as a YAML string scalar.
 
-    Registered as a representer for :class:`pathlib.Path` and
-    :class:`pathlib.PosixPath`. The path is expanded with
-    :meth:`~pathlib.Path.expanduser` before representing, so a leading
-    ``~`` is resolved to the user's home directory in the dumped string.
+    Registered as a *multi* representer for :class:`pathlib.PurePath`, which
+    matches along the mro and so covers every concrete path class at once.
+    Registering :class:`~pathlib.Path` and :class:`~pathlib.PosixPath` by
+    name did not: PyYAML dispatches on the exact runtime type, ``Path(...)``
+    instantiates ``PosixPath`` on this platform and ``WindowsPath`` on
+    Windows, and the bare ``Path`` registration therefore never fires at all.
+
+    The path is expanded with :meth:`~pathlib.Path.expanduser` before
+    representing, so a leading ``~`` is resolved to the user's home directory
+    in the dumped string. Pure paths have no ``expanduser``, and none is
+    wanted: they name a path without a filesystem to resolve it against.
 
     Parameters
     ----------
     dumper : Dumper
         Dumper instance requesting the representation.
-    data : Path or PosixPath
+    data : PurePath
         Path to represent.
 
     Returns
@@ -110,7 +121,9 @@ def _represent_path(dumper, data):
     ScalarNode
         YAML string scalar node.
     """
-    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data.expanduser()))
+    if isinstance(data, Path):
+        data = data.expanduser()
+    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data))
 
 
 yaml.representer.SafeRepresenter.add_representer(np.float64, _represent_float)
@@ -118,8 +131,18 @@ yaml.representer.SafeRepresenter.add_representer(np.float32, _represent_float)
 yaml.representer.SafeRepresenter.add_representer(np.int64, _represent_int)
 yaml.representer.SafeRepresenter.add_representer(np.int32, _represent_int)
 yaml.representer.SafeRepresenter.add_representer(np.ndarray, _represent_ndarray)
-yaml.representer.SafeRepresenter.add_representer(Path, _represent_path)
-yaml.representer.SafeRepresenter.add_representer(PosixPath, _represent_path)
+yaml.representer.SafeRepresenter.add_multi_representer(PurePath, _represent_path)
+
+
+#: Loader/dumper classes used by :func:`read_yaml`/:func:`write_yaml`. The
+#: libyaml-backed ``CSafeLoader``/``CSafeDumper`` are used when available,
+#: since their C scanner/parser/emitter is faster than the pure-Python
+#: ``SafeLoader``/``SafeDumper``. ``CSafeDumper`` already inherits
+#: ``SafeRepresenter``, so the representers registered above apply to it
+#: unchanged; ``CSafeLoader`` does *not* inherit ``SafeLoader``, so its
+#: implicit float resolver is patched separately by :func:`_float_loader`.
+_Loader = yaml.CSafeLoader if yaml.__with_libyaml__ else yaml.SafeLoader
+_Dumper = yaml.CSafeDumper if yaml.__with_libyaml__ else yaml.SafeDumper
 
 
 #: Regex matching floats that ``yaml.SafeLoader``'s default implicit
@@ -136,27 +159,31 @@ _FLOAT_PATTERN = """^(?:
 
 
 def _float_loader():
-    """Build a ``yaml.SafeLoader`` that parses scientific-notation floats.
+    """Build a loader that parses scientific-notation floats.
 
-    Patches ``yaml.SafeLoader``'s implicit resolver for the
+    Patches :data:`_Loader`'s implicit resolver for the
     ``tag:yaml.org,2002:float`` tag with :data:`_FLOAT_PATTERN`, so values
     such as ``1e-5`` load as :class:`float` rather than :class:`str`. The
-    patch is applied to the ``yaml.SafeLoader`` class itself, so it
-    persists for the lifetime of the process once called.
+    patch is applied to the :data:`_Loader` class itself, so it persists
+    for the lifetime of the process once called.
+
+    Note that :data:`_Loader` may be ``yaml.CSafeLoader``, which inherits
+    ``yaml.resolver.Resolver`` directly rather than ``yaml.SafeLoader`` --
+    patching ``yaml.SafeLoader`` would not affect it, so this must patch
+    :data:`_Loader` itself.
 
     Returns
     -------
     type
-        ``yaml.SafeLoader``, with the corrected float resolver installed,
+        :data:`_Loader`, with the corrected float resolver installed,
         suitable for passing as the ``Loader`` argument to ``yaml.load``.
     """
-    loader = yaml.SafeLoader
-    loader.add_implicit_resolver(
+    _Loader.add_implicit_resolver(
         "tag:yaml.org,2002:float",
         re.compile(_FLOAT_PATTERN, re.X),
         list("-+0123456789."),
     )
-    return loader
+    return _Loader
 
 
 def read_yaml(fname):
@@ -176,17 +203,20 @@ def read_yaml(fname):
     dict
         Parsed contents of the file.
     """
-    with open(fname, "r") as f:
+    # Explicit encoding, because Python's default is the locale's: a file with
+    # a degree sign in it reads differently on a machine that is not UTF-8, and
+    # YAML is UTF-8 by specification anyway.
+    with open(fname, "r", encoding="utf-8") as f:
         return yaml.load(f, Loader=_float_loader())
 
 
 def write_yaml(d, fname, mode="w"):
     """Write a dictionary to a YAML file.
 
-    Uses ``yaml.safe_dump`` with the representers registered by this
-    module for numpy scalars, numpy arrays and :class:`~pathlib.Path`
-    objects; see the module docstring. The output is bracketed with
-    ``---``/``...`` document markers.
+    Uses :data:`_Dumper` with the representers registered by this module
+    for numpy scalars, numpy arrays and :class:`~pathlib.Path` objects;
+    see the module docstring. The output is bracketed with ``---``/``...``
+    document markers.
 
     Parameters
     ----------
@@ -198,5 +228,5 @@ def write_yaml(d, fname, mode="w"):
         Mode to open `fname` with. Defaults to ``"w"``; pass ``"a"`` to
         append a further document to an existing file.
     """
-    with open(fname, mode) as f:
-        yaml.safe_dump(d, f, explicit_start=True, explicit_end=True)
+    with open(fname, mode, encoding="utf-8") as f:
+        yaml.dump(d, f, Dumper=_Dumper, explicit_start=True, explicit_end=True)
