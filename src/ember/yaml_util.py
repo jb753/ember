@@ -195,7 +195,10 @@ def read_yaml(fname):
     dict
         Parsed contents of the file.
     """
-    with open(fname, "r") as f:
+    # Explicit encoding, because Python's default is the locale's: a file with
+    # a degree sign in it reads differently on a machine that is not UTF-8, and
+    # YAML is UTF-8 by specification anyway.
+    with open(fname, "r", encoding="utf-8") as f:
         return yaml.load(f, Loader=_float_loader())
 
 
@@ -217,5 +220,5 @@ def write_yaml(d, fname, mode="w"):
         Mode to open `fname` with. Defaults to ``"w"``; pass ``"a"`` to
         append a further document to an existing file.
     """
-    with open(fname, mode) as f:
+    with open(fname, mode, encoding="utf-8") as f:
         yaml.dump(d, f, Dumper=_Dumper, explicit_start=True, explicit_end=True)
