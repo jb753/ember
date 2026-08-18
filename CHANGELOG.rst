@@ -5,7 +5,7 @@ ember follows `semantic versioning <https://semver.org/>`_ from 0.1.0 onwards.
 Until 1.0.0, minor releases may make breaking changes to the public API
 without a deprecation period.
 
-0.2.0 (unreleased)
+0.2.0 (2026-08-18)
 ------------------
 
 * Renamed ``ember.set_iter`` to ``ember.set_iterative``.
