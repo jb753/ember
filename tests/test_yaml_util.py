@@ -5,7 +5,7 @@ patch, and that the module actually selects the libyaml-backed
 ``CSafeLoader``/``CSafeDumper`` when available.
 """
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import numpy as np
 import pytest
@@ -32,6 +32,24 @@ def test_roundtrip_path(tmp_path):
     util_yaml.write_yaml(data, str(fname))
     loaded = util_yaml.read_yaml(str(fname))
     assert loaded["workdir"] == str(Path("/some/directory").expanduser())
+
+
+@pytest.mark.parametrize("cls", [PurePosixPath, PureWindowsPath])
+def test_writes_a_path_class_that_is_not_this_platform_s(cls, tmp_path):
+    """Every path class is representable, not only the one Path() builds here.
+
+    PyYAML dispatches a representer on the exact runtime type, so registering
+    Path and PosixPath by name covered this platform and nothing else: on
+    Windows, Path() builds a WindowsPath that was registered nowhere, and
+    writing one raised RepresenterError. Caught by the Windows wheel job, and
+    the mro-matching multi representer that fixes it is testable from here,
+    against a class this platform never instantiates on its own.
+    """
+    fname = tmp_path / "path.yaml"
+
+    util_yaml.write_yaml({"workdir": cls("/some/directory")}, str(fname))
+
+    assert util_yaml.read_yaml(fname)["workdir"] == str(cls("/some/directory"))
 
 
 def test_read_yaml_parses_bare_scientific_notation(tmp_path):

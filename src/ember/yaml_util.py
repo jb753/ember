@@ -26,7 +26,7 @@ Ported from turbigen's ``yaml_utils`` module.
 import re
 import yaml
 import numpy as np
-from pathlib import Path, PosixPath
+from pathlib import Path, PurePath
 
 
 def _represent_float(dumper, data):
@@ -97,16 +97,23 @@ def _represent_ndarray(dumper, data):
 def _represent_path(dumper, data):
     """Represent a path object as a YAML string scalar.
 
-    Registered as a representer for :class:`pathlib.Path` and
-    :class:`pathlib.PosixPath`. The path is expanded with
-    :meth:`~pathlib.Path.expanduser` before representing, so a leading
-    ``~`` is resolved to the user's home directory in the dumped string.
+    Registered as a *multi* representer for :class:`pathlib.PurePath`, which
+    matches along the mro and so covers every concrete path class at once.
+    Registering :class:`~pathlib.Path` and :class:`~pathlib.PosixPath` by
+    name did not: PyYAML dispatches on the exact runtime type, ``Path(...)``
+    instantiates ``PosixPath`` on this platform and ``WindowsPath`` on
+    Windows, and the bare ``Path`` registration therefore never fires at all.
+
+    The path is expanded with :meth:`~pathlib.Path.expanduser` before
+    representing, so a leading ``~`` is resolved to the user's home directory
+    in the dumped string. Pure paths have no ``expanduser``, and none is
+    wanted: they name a path without a filesystem to resolve it against.
 
     Parameters
     ----------
     dumper : Dumper
         Dumper instance requesting the representation.
-    data : Path or PosixPath
+    data : PurePath
         Path to represent.
 
     Returns
@@ -114,7 +121,9 @@ def _represent_path(dumper, data):
     ScalarNode
         YAML string scalar node.
     """
-    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data.expanduser()))
+    if isinstance(data, Path):
+        data = data.expanduser()
+    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data))
 
 
 yaml.representer.SafeRepresenter.add_representer(np.float64, _represent_float)
@@ -122,8 +131,7 @@ yaml.representer.SafeRepresenter.add_representer(np.float32, _represent_float)
 yaml.representer.SafeRepresenter.add_representer(np.int64, _represent_int)
 yaml.representer.SafeRepresenter.add_representer(np.int32, _represent_int)
 yaml.representer.SafeRepresenter.add_representer(np.ndarray, _represent_ndarray)
-yaml.representer.SafeRepresenter.add_representer(Path, _represent_path)
-yaml.representer.SafeRepresenter.add_representer(PosixPath, _represent_path)
+yaml.representer.SafeRepresenter.add_multi_representer(PurePath, _represent_path)
 
 
 #: Loader/dumper classes used by :func:`read_yaml`/:func:`write_yaml`. The
