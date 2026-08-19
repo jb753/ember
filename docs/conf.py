@@ -100,6 +100,9 @@ nitpick_ignore = [
     # PerfectFluid still emits a reference to it from the rendered "Bases:" line.
     ("py:class", "ember.fluid._Fluid"),
     ("py:meth", "ember._struct.StructuredData.__init__"),
+    # Documented on the private base, which has no page of its own; Block.flat
+    # points readers at it for the ordering rules.
+    ("py:attr", "ember._struct.StructuredData.flat"),
     ("py:func", "ember._struct.cached_array"),
 ]
 
