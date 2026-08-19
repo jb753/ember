@@ -113,6 +113,29 @@ html_theme_options = {
     "fixed_sidebar": True,
 }
 
+# Docs are published as one directory per version, so a build has to know the
+# slug it will be served under: the rolling master build lives at "dev", not at
+# setuptools-scm's "0.2.1.devN+g<sha>". The picker template reads this to mark
+# the current entry.
+html_context = {"ember_version_slug": os.environ.get("EMBER_DOCS_VERSION", release)}
+
+# Setting html_sidebars replaces alabaster's theme-level default wholesale, so
+# its stock blocks are re-listed here around the version picker.
+html_sidebars = {
+    "**": [
+        "about.html",
+        "versions.html",
+        "searchfield.html",
+        "navigation.html",
+        "relations.html",
+        "donate.html",
+    ]
+}
+
+# html_baseurl is deliberately unset. Without it Sphinx emits only relative
+# links, so one build tree serves correctly both from a GitHub Pages project
+# subpath and from the site apex, with no rebuild in between.
+
 rst_epilog = rf"""
 .. |ProjectVersion| replace:: {release}
 .. |PythonVersion| replace:: {python_version}
