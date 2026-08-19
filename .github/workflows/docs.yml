@@ -151,6 +151,11 @@ jobs:
           # sphinx-build writes its doctree cache into the output directory.
           rsync -a --delete --exclude=.doctrees docs/_build/html/ "site/$SLUG/"
 
+          # The generator describes the site rather than any one version, so
+          # always run the current one: a backfilled tag predates the script
+          # entirely, and an older copy would lay the site out to old rules.
+          git fetch --no-tags origin master
+          git checkout FETCH_HEAD -- tools/gen_docs_index.py
           uv run --no-project --with packaging python tools/gen_docs_index.py site
 
           cd site
