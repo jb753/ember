@@ -1,5 +1,5 @@
-Changelog
-=========
+Version history
+===============
 
 ember follows `semantic versioning <https://semver.org/>`_ from 0.1.0 onwards.
 Until 1.0.0, minor releases may make breaking changes to the public API
