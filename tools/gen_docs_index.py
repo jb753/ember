@@ -12,8 +12,8 @@ deploy has synced its own:
   .nojekyll      stops GitHub Pages running Jekyll, which silently discards
                  the _static/ and _sources/ directories Sphinx emits
 
-Directories are ordered dev first, then releases newest first, then anything
-else alphabetically. Only a non-prerelease version is ever a redirect target,
+Directories are ordered latest first, then releases newest first, then
+anything else alphabetically. Only a non-prerelease version is ever a redirect target,
 so a throwaway or prerelease deploy is listed but never becomes the landing
 page.
 
@@ -26,7 +26,7 @@ from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
-DEV = "dev"
+LATEST = "latest"
 
 # GitHub Pages serves static files and cannot answer with a 3xx, so the root
 # has to redirect from the page itself. location.replace runs before the body
@@ -67,15 +67,15 @@ def parse(name):
 
 
 def order(names):
-    """Sort names dev first, then releases newest first, then the rest."""
-    dev = [name for name in names if name == DEV]
+    """Sort names latest first, then releases newest first, then the rest."""
+    latest = [name for name in names if name == LATEST]
     releases = sorted(
-        (n for n in names if n != DEV and parse(n) is not None),
+        (n for n in names if n != LATEST and parse(n) is not None),
         key=parse,
         reverse=True,
     )
-    other = sorted(n for n in names if n != DEV and parse(n) is None)
-    return dev + releases + other
+    other = sorted(n for n in names if n != LATEST and parse(n) is None)
+    return latest + releases + other
 
 
 def newest_release(names):
@@ -83,7 +83,7 @@ def newest_release(names):
     stable = [
         name
         for name in names
-        if name != DEV and parse(name) is not None and not parse(name).is_prerelease
+        if name != LATEST and parse(name) is not None and not parse(name).is_prerelease
     ]
     if not stable:
         return None
@@ -111,7 +111,7 @@ def main(argv):
     )
 
     # Fall back to the first listed directory when no release has been
-    # published yet, so a site holding only `dev` still has a working root.
+    # published yet, so a site holding only `latest` still has a working root.
     landing = newest_release(names) or ordered[0]
     (site / "index.html").write_text(REDIRECT.format(name=landing))
 
