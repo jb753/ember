@@ -28,17 +28,21 @@ from packaging.version import InvalidVersion, Version
 
 DEV = "dev"
 
+# GitHub Pages serves static files and cannot answer with a 3xx, so the root
+# has to redirect from the page itself. location.replace runs before the body
+# paints, so nothing flashes, and it leaves no history entry -- a meta refresh
+# alone can trap the back button on the page it just left. The refresh stays as
+# the fallback for a browser running without scripts.
 REDIRECT = """<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Redirecting to {name}</title>
+    <title>ember documentation</title>
+    <script>location.replace("./{name}/index.html");</script>
     <meta http-equiv="refresh" content="0; url=./{name}/index.html">
     <link rel="canonical" href="./{name}/index.html">
   </head>
-  <body>
-    <p>Redirecting to <a href="./{name}/index.html">the {name} documentation</a>.</p>
-  </body>
+  <body></body>
 </html>
 """
 
