@@ -14,8 +14,8 @@ on:
       slug:
         description: "Directory to publish under, e.g. 0.1.0"
         required: true
-      graft_picker:
-        description: "Graft the version picker in from master (tags that predate it)"
+      backfill:
+        description: "Backfill a tag predating the current docs setup (grafts the picker, and does not treat warnings as errors)"
         type: boolean
         default: false
 
@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0
 
       - name: Graft the version picker in from master
-        if: ${{ inputs.graft_picker }}
+        if: ${{ inputs.backfill }}
         run: |
           # Tags released before the picker existed have neither the template
           # nor the conf.py wiring. Both are added to the checkout only, never
@@ -123,7 +123,16 @@ jobs:
           # Docs need the project (so autodoc can import the compiled Fortran
           # extension) and the docs group, but none of the dev tooling.
           uv sync --no-default-groups --group docs
-          make docs
+          if [ "${{ inputs.backfill }}" = "true" ]; then
+            # A backfill publishes a tag as it shipped. `make docs` runs -W,
+            # which gates new work against today's Sphinx -- applied to an old
+            # tag it refuses to publish over references that resolved when the
+            # tag was cut. Read the Docs never passed -W either, which is why
+            # these tags built there.
+            uv run sphinx-build -b html docs docs/_build/html
+          else
+            make docs
+          fi
 
       - name: Publish to gh-pages
         env:
@@ -145,6 +154,11 @@ jobs:
           # sphinx-build writes its doctree cache into the output directory.
           rsync -a --delete --exclude=.doctrees docs/_build/html/ "site/$SLUG/"
 
+          # The generator describes the site rather than any one version, so
+          # always run the current one: a backfilled tag predates the script
+          # entirely, and an older copy would lay the site out to old rules.
+          git fetch --no-tags origin master
+          git checkout FETCH_HEAD -- tools/gen_docs_index.py
           uv run --no-project --with packaging python tools/gen_docs_index.py site
 
           cd site
