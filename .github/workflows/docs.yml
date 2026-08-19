@@ -1,0 +1,137 @@
+name: Docs
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  # Backfilling an older tag, or publishing a throwaway directory to try the
+  # deploy out without touching dev or a release.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to build (branch, tag or SHA)"
+        required: true
+      slug:
+        description: "Directory to publish under, e.g. 0.1.0"
+        required: true
+      graft_picker:
+        description: "Graft the version picker in from master (tags that predate it)"
+        type: boolean
+        default: false
+
+# One deploy at a time. A release pushes a version-bump commit to master and a
+# tag, so two runs would otherwise race to push gh-pages. Queue rather than
+# cancel: a cancelled run leaves its version unpublished.
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Work out what to publish and where
+        id: target
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_REF: ${{ inputs.ref }}
+          INPUT_SLUG: ${{ inputs.slug }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            ref="$INPUT_REF"
+            slug="$INPUT_SLUG"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            ref="$REF_NAME"
+            # Directory names drop the leading v, matching `release` in conf.py.
+            slug="${REF_NAME#v}"
+          else
+            ref="$REF_NAME"
+            slug="dev"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+          echo "Publishing $ref as $slug"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.ref }}
+          # setuptools-scm needs full history and tags to compute the version.
+          fetch-depth: 0
+
+      - name: Graft the version picker in from master
+        if: ${{ inputs.graft_picker }}
+        run: |
+          # Tags released before the picker existed have neither the template
+          # nor the conf.py wiring. Both are added to the checkout only, never
+          # committed, so the published tag still documents its own code.
+          git fetch --no-tags origin master
+          git checkout FETCH_HEAD -- docs/_templates/versions.html
+          cat >> docs/conf.py <<'CONF'
+
+          # Appended by .github/workflows/docs.yml when backfilling this tag.
+          html_context = {"ember_version_slug": os.environ.get("EMBER_DOCS_VERSION", release)}
+          html_sidebars = {
+              "**": [
+                  "about.html",
+                  "versions.html",
+                  "searchfield.html",
+                  "navigation.html",
+                  "relations.html",
+                  "donate.html",
+              ]
+          }
+          CONF
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y gfortran ninja-build rsync
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build docs
+        env:
+          EMBER_DOCS_VERSION: ${{ steps.target.outputs.slug }}
+          # `make docs` shells out to `uv run`, which would otherwise re-sync
+          # the environment back to the default dev group installed above.
+          UV_NO_SYNC: "1"
+        run: |
+          # Docs need the project (so autodoc can import the compiled Fortran
+          # extension) and the docs group, but none of the dev tooling.
+          uv sync --no-default-groups --group docs
+          make docs
+
+      - name: Publish to gh-pages
+        env:
+          SLUG: ${{ steps.target.outputs.slug }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # On the first run the branch does not exist yet; create it as an
+          # orphan commit holding the empty tree.
+          git fetch origin gh-pages:gh-pages \
+            || git branch gh-pages \
+                 "$(git commit-tree "$(git hash-object -w -t tree /dev/null)" \
+                    -m 'Initialise gh-pages')"
+          git worktree add site gh-pages
+
+          # --delete scopes to this one version directory, so a rebuilt slug
+          # never keeps stale files while its siblings stay untouched.
+          # sphinx-build writes its doctree cache into the output directory.
+          rsync -a --delete --exclude=.doctrees docs/_build/html/ "site/$SLUG/"
+
+          uv run --no-project --with packaging python tools/gen_docs_index.py site
+
+          cd site
+          git add -A
+          if git diff --quiet --cached; then
+            echo "No change to publish."
+          else
+            git commit -m "Publish docs for $SLUG"
+            git push origin gh-pages
+          fi
