@@ -120,9 +120,29 @@ jobs:
           # the environment back to the default dev group installed above.
           UV_NO_SYNC: "1"
         run: |
+          if [ "$EMBER_DOCS_VERSION" != "dev" ]; then
+            # conf.py reads the version off the installed package. The graft
+            # edits conf.py, a tracked file, so setuptools-scm sees a dirty
+            # tree and labels a tag build 0.2.1.dev0+g<sha>.d<date> rather than
+            # 0.2.0. The slug is the tag, so say so outright.
+            export SETUPTOOLS_SCM_PRETEND_VERSION_FOR_EMBER_CFD="$EMBER_DOCS_VERSION"
+          fi
+
           # Docs need the project (so autodoc can import the compiled Fortran
           # extension) and the docs group, but none of the dev tooling.
           uv sync --no-default-groups --group docs
+
+          if [ "$EMBER_DOCS_VERSION" != "dev" ]; then
+            # A cached build could still carry the old version, and the only
+            # symptom would be pages quietly labelled with the wrong release.
+            installed=$(uv run --no-sync python -c \
+              "import importlib.metadata as m; print(m.version('ember-cfd'))")
+            if [ "$installed" != "$EMBER_DOCS_VERSION" ]; then
+              echo "installed version $installed does not match slug $EMBER_DOCS_VERSION" >&2
+              exit 1
+            fi
+          fi
+
           if [ "${{ inputs.backfill }}" = "true" ]; then
             # A backfill publishes a tag as it shipped. `make docs` runs -W,
             # which gates new work against today's Sphinx -- applied to an old

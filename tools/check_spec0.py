@@ -30,10 +30,15 @@ import json
 import re
 import sys
 import tomllib
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 PYPI_URL = "https://pypi.org/pypi/{name}/json"
+PYPI_ATTEMPTS = 3
+PYPI_TIMEOUT_S = 20
+PYPI_BACKOFF_S = 2
 CLASSIFIER_RE = re.compile(r"^Programming Language :: Python :: 3\.(\d+)$")
 CP_TAG_RE = re.compile(r"cp3(\d+)")
 # Wheel filenames are name-version-[build-]pytag-abitag-platform.whl; the
@@ -44,9 +49,49 @@ WHEEL_PY_TAG_RE = re.compile(r"-(?:cp|pp|py)3(\d+)-")
 
 def _pypi(name, _cache={}):
     if name not in _cache:
-        with urllib.request.urlopen(PYPI_URL.format(name=name)) as resp:
-            _cache[name] = json.load(resp)
+        _cache[name] = json.loads(_fetch(PYPI_URL.format(name=name)))
     return _cache[name]
+
+
+def _fetch(url):
+    """Read `url`, retrying a connection that fails rather than succeeds badly.
+
+    PyPI drops the occasional connection mid-handshake, which failed the whole
+    check on nothing to do with this repo. A retry covers that. What it must
+    not do is pass: the answers here decide the support window and the wheel
+    matrix, and a check that waves itself through when it cannot reach PyPI
+    reports the same success whether the window is right or unexamined. So an
+    exhausted retry raises, and the caller fails as before.
+    """
+    last = None
+    for attempt in range(1, PYPI_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=PYPI_TIMEOUT_S) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            # A 404 is an answer: the package or the name is wrong, and asking
+            # again will not change it. Only a server-side fault is worth a
+            # second attempt.
+            if exc.code < 500:
+                raise
+            last = exc
+            if attempt < PYPI_ATTEMPTS:
+                print(
+                    f"{url}: {exc}; retrying ({attempt}/{PYPI_ATTEMPTS - 1})",
+                    file=sys.stderr,
+                )
+                time.sleep(PYPI_BACKOFF_S * attempt)
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+            last = exc
+            if attempt < PYPI_ATTEMPTS:
+                print(
+                    f"{url}: {exc}; retrying ({attempt}/{PYPI_ATTEMPTS - 1})",
+                    file=sys.stderr,
+                )
+                time.sleep(PYPI_BACKOFF_S * attempt)
+    raise RuntimeError(
+        f"could not reach {url} after {PYPI_ATTEMPTS} attempts"
+    ) from last
 
 
 def latest_version(name):
@@ -165,7 +210,9 @@ def main():
 
     errors = []
     if our_floor != floor:
-        errors.append(f"requires-python floor is 3.{our_floor}, but should be 3.{floor}")
+        errors.append(
+            f"requires-python floor is 3.{our_floor}, but should be 3.{floor}"
+        )
     if build != expected_build:
         errors.append(
             f"cibuildwheel build versions {_fmt(build)} do not match the "
@@ -173,7 +220,8 @@ def main():
         )
     if achievable - expected_build:
         stale = ", ".join(
-            f"{name} {old} -> {new}" for name, (old, new, _) in sorted(dep_upgrade.items())
+            f"{name} {old} -> {new}"
+            for name, (old, new, _) in sorted(dep_upgrade.items())
         )
         errors.append(
             f"{_fmt(achievable - expected_build)} would be supportable after "
