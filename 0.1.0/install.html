@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Installation &#8212; ember 0.1.1.dev0+g8d029046d.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="_static/documentation_options.js?v=8e5ced4b"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Examples" href="auto_examples/index.html" />
+    <link rel="prev" title="ember" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.1.1.dev0+g8d029046d.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "./" + "../";
+    var current = "0.1.0";
+    var page = "install.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#supported-versions-and-platforms">Supported versions and platforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#via-the-python-package-index">Via the Python Package Index</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#from-source">From source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#verifying-the-install">Verifying the install</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#performance-tuning">Performance tuning</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">ember</a></li>
+      <li>Next: <a href="auto_examples/index.html" title="next chapter">Examples</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Link to this heading">¶</a></h1>
+<section id="supported-versions-and-platforms">
+<h2>Supported versions and platforms<a class="headerlink" href="#supported-versions-and-platforms" title="Link to this heading">¶</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Python environments may seem <a class="reference external" href="https://xkcd.com/1987/">complex</a> to new
+users. See the official tutorial on
+<a class="reference external" href="https://docs.python.org/3/tutorial/venv.html">Virtual Environments and Packages</a>
+for why they are necessary, and PyPA’s
+<a class="reference external" href="https://packaging.python.org/en/latest/guides/tool-recommendations/">Tool recommendations</a>.
+ember requires Python 3.12 or newer, and is incompatible with
+older versions of Python that may be provided by your operating system’s
+package manager.</p>
+<p>The author’s preference is <a class="reference external" href="https://docs.astral.sh/uv/">uv</a>, as it is
+the fastest solution, and manages both virtual environments and Python
+versions.</p>
+</div>
+<p>ember follows <a class="reference external" href="https://scientific-python.org/specs/spec-0000/">SPEC 0</a> for
+its Python support window, currently Python 3.12 or newer. We
+only test and provide precompiled wheels on Linux. The code may possibly be
+coerced to work on other operating systems, with some modifications, but you
+will need a working Fortran toolchain to build it from source.</p>
+</section>
+<section id="via-the-python-package-index">
+<h2>Via the Python Package Index<a class="headerlink" href="#via-the-python-package-index" title="Link to this heading">¶</a></h2>
+<p>The most convenient way to install ember is via the Python Package Index (PyPI).
+Ask for the distribution name <code class="docutils literal notranslate"><span class="pre">ember-cfd</span></code>, not the import name <code class="docutils literal notranslate"><span class="pre">ember</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>ember-cfd
+</pre></div>
+</div>
+<p>We precompile and distribute wheels for Linux (x86_64), so if your system
+is the same you should not need a Fortran compiler to install from PyPI. On other
+systems, pip will automatically attempt to build from source, which requires a
+Fortran toolchain. Install these packages from your distribution’s package
+manager, for example on Debian/Ubuntu:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>apt-get<span class="w"> </span>update
+apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>gfortran<span class="w"> </span>meson<span class="w"> </span>ninja-build
+</pre></div>
+</div>
+<p>The pip command above should then work without errors.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>On some cloud or CI images, the system <code class="docutils literal notranslate"><span class="pre">gfortran</span></code>
+symlink points at an uninstalled <code class="docutils literal notranslate"><span class="pre">gfortran-&lt;N&gt;</span></code> package. If the build
+fails with a missing <code class="docutils literal notranslate"><span class="pre">gfortran</span></code> error, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>apt-get<span class="w"> </span>update
+apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>--fix-broken
+</pre></div>
+</div>
+<p>to pull in the missing compiler and fix the symlink.</p>
+</div>
+</section>
+<section id="from-source">
+<h2>From source<a class="headerlink" href="#from-source" title="Link to this heading">¶</a></h2>
+<p>For performance tuning, or if you want to modify the code, you can build ember
+from source. You will need a Fortran compiler and build system:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>apt-get<span class="w"> </span>update
+apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>gfortran<span class="w"> </span>meson<span class="w"> </span>ninja-build
+</pre></div>
+</div>
+<p>Clone the repository and make an editable install with pip:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:jb753/ember.git
+<span class="nb">cd</span><span class="w"> </span>ember
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>Note that edits to <code class="docutils literal notranslate"><span class="pre">.f90</span></code> files are <em>not</em> picked up automatically and need
+<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> rerun; but edits to Python files are picked up immediately.
+This command always recompiles the Fortran extension from scratch, as when
+installing from a local directory there is no incremental build or wheel cache
+to go stale.</p>
+</section>
+<section id="verifying-the-install">
+<h2>Verifying the install<a class="headerlink" href="#verifying-the-install" title="Link to this heading">¶</a></h2>
+<p>Run this one-liner to check the Fortran extension is working:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from ember.fortran import set_residual; print(&#39;OK&#39;)&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="performance-tuning">
+<h2>Performance tuning<a class="headerlink" href="#performance-tuning" title="Link to this heading">¶</a></h2>
+<p>By default the Fortran extension is built for a portable x86_64 baseline
+(compiler flag <code class="docutils literal notranslate"><span class="pre">-march=haswell</span></code>), so a wheel or source build works on any
+Haswell-or-newer machine. For a build tuned to the exact CPU it will run
+on, replace that flag by setting the environment variable <code class="docutils literal notranslate"><span class="pre">EMBER_MARCH</span></code>
+before installing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">EMBER_MARCH</span><span class="o">=</span><span class="s2">&quot;-march=native -mtune=native&quot;</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>Both GNU and Intel Fortran toolchains are supported. To build with Intel
+compilers instead of gfortran, set <code class="docutils literal notranslate"><span class="pre">EMBER_COMPILER=ifort</span></code> before installing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">EMBER_COMPILER</span><span class="o">=</span>ifort<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>Compiler flags can be further customised by editing <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>. See the <code class="docutils literal notranslate"><span class="pre">tools/compile_wilkes.sh</span></code> script for an example of how to build on an HPC cluster.</p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/install.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

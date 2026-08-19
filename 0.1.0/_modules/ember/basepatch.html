@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.basepatch &#8212; ember 0.1.1.dev0+g8d029046d.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=8e5ced4b"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.1.1.dev0+g8d029046d.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.1.0";
+    var page = "_modules/ember/basepatch.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.basepatch</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Base patch classes for boundary condition specification.</span>
+
+<span class="sd">Defines the abstract Patch base class, the RevolutionPatch intermediate base</span>
+<span class="sd">class, and supporting utilities. Concrete patch types live in their own modules</span>
+<span class="sd">(ember.inlet, ember.outlet, ember.mixing, etc.) and are re-exported from</span>
+<span class="sd">ember.patch for convenience.</span>
+
+<span class="sd">## Limiting index rules</span>
+
+<span class="sd">Patches are defined by specifying which block face or part of a face they are</span>
+<span class="sd">on. A `Patch` constructor takes one argument for each of the three indexing</span>
+<span class="sd">directions `i`, `j`, and `k` subject to the following rules:</span>
+
+<span class="sd">* The first point in a direction is indexed 0; negative indices wrap around</span>
+<span class="sd">such that -1 is the last point.</span>
+<span class="sd">* Indices are inclusive, so `i=(0,-1)` spans the entire range of `i`</span>
+<span class="sd">coordinate.</span>
+<span class="sd">* Integer arguments are interpreted as a constant value of that index: `i=0`</span>
+<span class="sd">means the patch spans the first i face; `j=-1` means the patch spans the last j</span>
+<span class="sd">face. Integer arguments are shorthand for, e.g. `i=(0,0)`.</span>
+<span class="sd">* Patches must be 2D subsets of an external face of the block. This implies</span>
+<span class="sd">that at least one constant dimensions must be specified with a value 0 or -1.</span>
+<span class="sd">* Omitting a direction argument implies the patch should include every point in</span>
+<span class="sd">that direction, and is shorthand for e.g. `j=(0, -1)`.</span>
+<span class="sd">* The elements of a direction tuple should be in ascending order after negative</span>
+<span class="sd">indices are wrapped. `k=(6,4)` is not valid, and neither is `k=(-1, -2)`.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">weakref</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.util</span><span class="w"> </span><span class="kn">import</span> <span class="n">pol_to_pseudocart</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Patch">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Patch</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+    <span class="c1"># Passive-overlay opt-outs, both False for ordinary patches. Subclasses</span>
+    <span class="c1"># (e.g. ProbePatch) may set these True to relax the rules below.</span>
+    <span class="n">_allow_interior_const</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># allow a region patch on an interior plane</span>
+    <span class="n">_allow_overlap</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># allow coinciding with another patch</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_collection_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_cast_lim</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Cast a limit to a tuple of two integers.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">))</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">i</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;i must be an int, a tuple of two ints, or a length-2 numpy array, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="si">}</span><span class="s2"> with non-integer elements&quot;</span>
+                <span class="p">)</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">i</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;i must be an int, a tuple of two ints, or a length-2 numpy array, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">i</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+        <span class="n">j</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+        <span class="n">k</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+        <span class="n">label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize with start and end indices for each dimension.</span>
+
+<span class="sd">        Indices are inclusive and a single integer sets a constant value in</span>
+<span class="sd">        that dimension. See :mod:`ember.patch` for the full index rules.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        i : int or tuple</span>
+<span class="sd">            Start and end indices along the 1st axis.</span>
+<span class="sd">        j : int or tuple</span>
+<span class="sd">            Start and end indices along the 2nd axis.</span>
+<span class="sd">        k : int or tuple</span>
+<span class="sd">            Start and end indices along the 3rd axis.</span>
+<span class="sd">        label : str, optional</span>
+<span class="sd">            String identifier for the patch.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Allocate storage for limits</span>
+        <span class="c1"># Indexed [dimension, start/end]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+        <span class="c1"># Set the limits for each dimension</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_i_lim</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_j_lim</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_k_lim</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+
+        <span class="c1"># Need one of the dimensions to be constant, Error if this patch is not 2D</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Patch must have at least one constant dimension (2D patch required)&quot;</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_label</span> <span class="o">=</span> <span class="n">label</span>
+
+        <span class="c1"># Store weak reference to parent block</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_ref</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Store block view</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_view_offset_1</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_setup</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Hook for subclass attribute initialisation. Called at end of ``__init__``.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Restore pickled state, defaulting any attributes added since the pickle was made.</span>
+
+<span class="sd">        ``_setup()`` seeds today&#39;s default instance attributes first (patch</span>
+<span class="sd">        subclasses gain new cache/relaxation state over time, e.g. a solver</span>
+<span class="sd">        tuning change), then the pickled state is applied on top. Without</span>
+<span class="sd">        this, an EMB file written by an older ember version would unpickle</span>
+<span class="sd">        objects missing whatever attributes were added since, raising</span>
+<span class="sd">        AttributeError the first time solver code reads one of them.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_setup</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_lim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set limits for specified dimension.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cast_lim</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compare_coords</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">transform</span><span class="p">,</span> <span class="n">corners_only</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">xr_only</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-6</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compare coordinates of this patch against another after a transform.</span>
+
+<span class="sd">        Extracts coordinates, applies pitch-wrapping on theta, computes an</span>
+<span class="sd">        absolute tolerance, applies the transform to the other patch&#39;s coords,</span>
+<span class="sd">        and returns whether all points agree within tolerance.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        other : Patch</span>
+<span class="sd">            The other patch to compare with</span>
+<span class="sd">        transform : tuple</span>
+<span class="sd">            (perm, flip) to apply to the other patch&#39;s coordinates</span>
+<span class="sd">        corners_only : bool, optional</span>
+<span class="sd">            If True, compare only the corner points of each patch.</span>
+<span class="sd">        xr_only : bool, optional</span>
+<span class="sd">            If True, compare only x and r coordinates (ignore theta).</span>
+<span class="sd">            If False, convert to pseudo-Cartesian space before comparing.</span>
+<span class="sd">        rtol : float, optional</span>
+<span class="sd">            Relative tolerance for pitch-wrapping and distance comparison.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            True if all compared points are within tolerance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">perm</span><span class="p">,</span> <span class="n">flip</span> <span class="o">=</span> <span class="n">transform</span>
+
+        <span class="n">xrt_self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span><span class="o">.</span><span class="n">xrt</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">xrt_other</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">block</span><span class="p">[</span><span class="n">other</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span><span class="o">.</span><span class="n">xrt</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Pitch-wrap theta on both</span>
+        <span class="n">pitch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span><span class="o">.</span><span class="n">pitch</span>
+        <span class="k">for</span> <span class="n">xrt</span> <span class="ow">in</span> <span class="p">(</span><span class="n">xrt_self</span><span class="p">,</span> <span class="n">xrt_other</span><span class="p">):</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mod</span><span class="p">(</span><span class="n">xrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">pitch</span><span class="p">)</span>
+            <span class="n">xrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">t</span> <span class="o">/</span> <span class="n">pitch</span> <span class="o">&gt;</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">rtol</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+        <span class="n">atol</span> <span class="o">=</span> <span class="n">rtol</span> <span class="o">*</span> <span class="nb">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ptp</span><span class="p">(</span><span class="n">xrt_self</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">ptp</span><span class="p">(</span><span class="n">xrt_self</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]))</span>
+
+        <span class="n">xrt_other_t</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">apply_perm_flip</span><span class="p">(</span><span class="n">xrt_other</span><span class="p">,</span> <span class="n">perm</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">corners_only</span><span class="p">:</span>
+            <span class="n">xrt_self</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">corners</span><span class="p">(</span><span class="n">xrt_self</span><span class="p">,</span> <span class="n">axis_exclude</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">xrt_other_t</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">corners</span><span class="p">(</span><span class="n">xrt_other_t</span><span class="p">,</span> <span class="n">axis_exclude</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">xr_only</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">xrt_self</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">xrt_other_t</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">pol_to_pseudocart</span><span class="p">(</span><span class="n">xrt_self</span><span class="p">)</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">pol_to_pseudocart</span><span class="p">(</span><span class="n">xrt_other_t</span><span class="p">)</span>
+
+        <span class="n">distances</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">b</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">distances</span> <span class="o">&lt;=</span> <span class="n">atol</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_and_resolve_limits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate patch limits and return absolute indices.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Do not need block if all indices are positive</span>
+            <span class="c1"># But cannot validate in bounds</span>
+            <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+                <span class="n">ijk_lim_abs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Patch limits contain negative indices but patch is not attached to a block. Call attach_to_block() first.&quot;</span>
+                <span class="p">)</span>
+            <span class="n">block_shape</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">block_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="c1"># Convert negative indices to positive using block shape</span>
+            <span class="n">ijk_lim_abs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">block_shape</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span>
+            <span class="p">)</span>
+            <span class="c1"># Check that limits are within bounds</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">ijk_lim_abs</span> <span class="o">&gt;=</span> <span class="n">block_shape</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Patch limits </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="si">}</span><span class="s2"> are out of bounds for block shape </span><span class="si">{</span><span class="n">block_shape</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+
+        <span class="c1"># Should not have negative indices after conversion</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">ijk_lim_abs</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Patch limits out of bounds </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="si">}</span><span class="s2"> contain negative indices after absolute conversion </span><span class="si">{</span><span class="n">ijk_lim_abs</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># Should not have start &gt; end after conversion</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">ijk_lim_abs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Patch limits </span><span class="si">{</span><span class="n">ijk_lim_abs</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span><span class="si">}</span><span class="s2"> out of bounds: start index greater than end index.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Should either be on start or end of the constant dimension</span>
+        <span class="c1"># If not a point probe</span>
+        <span class="n">npts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">ijk_lim_abs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">npts</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">block_shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allow_interior_const</span><span class="p">:</span>
+            <span class="n">const_ind</span> <span class="o">=</span> <span class="n">ijk_lim_abs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">const_ind</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">const_ind</span> <span class="o">!=</span> <span class="n">block_shape</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Patch limits </span><span class="si">{</span><span class="n">ijk_lim_abs</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span><span class="si">}</span><span class="s2"> out of bounds: constant dimension is not at start or end.&quot;</span>
+                <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ijk_lim_abs</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_offset_slice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">offset</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Slice object offset along constant dimension.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        offset : int</span>
+<span class="sd">            Index offset along the constant dimension. Positive if patch at</span>
+<span class="sd">            const_dim == 0, negative if patch at const_dim &gt; 0.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">slices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">lim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">:</span>
+            <span class="c1"># Apply offset to constant dimension</span>
+            <span class="k">if</span> <span class="n">lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>  <span class="c1"># Constant dimension</span>
+                <span class="n">adjusted_lim</span> <span class="o">=</span> <span class="n">lim</span> <span class="o">+</span> <span class="n">offset</span> <span class="k">if</span> <span class="n">lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">lim</span> <span class="o">-</span> <span class="n">offset</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">adjusted_lim</span> <span class="o">=</span> <span class="n">lim</span>
+
+            <span class="c1"># Create slice</span>
+            <span class="k">if</span> <span class="n">adjusted_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">slices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">adjusted_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="kc">None</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">slices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">adjusted_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">adjusted_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)))</span>
+
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">slices</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Copy subclass-specific state onto a freshly constructed patch ``c``.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;String representation of the patch.&quot;&quot;&quot;</span>
+        <span class="c1"># Convert numpy arrays to Python tuples for cleaner display</span>
+        <span class="n">i_lim</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">j_lim</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">k_lim</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(i=</span><span class="si">{</span><span class="n">i_lim</span><span class="si">}</span><span class="s2">, j=</span><span class="si">{</span><span class="n">j_lim</span><span class="si">}</span><span class="s2">, k=</span><span class="si">{</span><span class="n">k_lim</span><span class="si">}</span><span class="s2">, label=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2">)&quot;</span>
+
+<div class="viewcode-block" id="Patch.set_i_lim">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.set_i_lim">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_i_lim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the start and end indices on the i dimension.</span>
+
+<span class="sd">        Indices are inclusive and a single integer sets a constant value in</span>
+<span class="sd">        that dimension. See :mod:`ember.patch` for the full index rules.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        i : int or tuple</span>
+<span class="sd">            Start and end indices along the 1st axis.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_lim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Patch.set_j_lim">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.set_j_lim">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_j_lim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the start and end indices on the j dimension.</span>
+
+<span class="sd">        Indices are inclusive and a single integer is shorthand for a constant</span>
+<span class="sd">        face, e.g. ``j=0`` is equivalent to ``j=(0, 0)``. See</span>
+<span class="sd">        :mod:`ember.patch` for the full index rules.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        j : int or tuple</span>
+<span class="sd">            Start and end indices along the 2nd axis.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_lim</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Patch.set_k_lim">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.set_k_lim">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_k_lim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the start and end indices on the k dimension.</span>
+
+<span class="sd">        Indices are inclusive and a single integer is shorthand for a constant</span>
+<span class="sd">        face, e.g. ``k=0`` is equivalent to ``k=(0, 0)``. See</span>
+<span class="sd">        :mod:`ember.patch` for the full index rules.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        k : int or tuple</span>
+<span class="sd">            Start and end indices along the 3rd axis.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_lim</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Patch.set_label">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.set_label">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_label</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">label</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set patch label.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_label</span> <span class="o">=</span> <span class="n">label</span></div>
+
+
+<div class="viewcode-block" id="Patch.get_ijk_face">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.get_ijk_face">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_ijk_face</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">perm</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">flip</span><span class="o">=</span><span class="p">()):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Block indices for faces on the patch.</span>
+
+<span class="sd">        For example the constant k face bounded by (i -&gt; i+1) and (j -&gt; j+1) has</span>
+<span class="sd">        indices (i, j, k).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        perm : tuple of int, optional</span>
+<span class="sd">            Permutation of the dimensions for the output. Default is (0, 1, 2) which</span>
+<span class="sd">            corresponds to (i, j, k).</span>
+<span class="sd">        flip : tuple of int, optional</span>
+<span class="sd">            Dimensions to flip in the output. Default is () which means no flipping.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">ijk_node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_ijk_node</span><span class="p">()</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># We need to exclude indices j==jmax and k==kmax if on const i face, etc</span>
+        <span class="k">match</span> <span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span><span class="p">:</span>
+            <span class="k">case</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># Constant i face, exclude jmax and kmax</span>
+                <span class="n">ijk_face</span> <span class="o">=</span> <span class="n">ijk_node</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="k">case</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="c1"># Constant j face, exclude imax and kmax</span>
+                <span class="n">ijk_face</span> <span class="o">=</span> <span class="n">ijk_node</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="k">case</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="c1"># Constant k face, exclude imax and jmax</span>
+                <span class="n">ijk_face</span> <span class="o">=</span> <span class="n">ijk_node</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span>
+            <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid constant dimension&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Apply permutation and flipping</span>
+        <span class="n">ijk_face</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">apply_perm_flip</span><span class="p">(</span><span class="n">ijk_face</span><span class="p">,</span> <span class="n">perm</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ijk_face</span></div>
+
+
+<div class="viewcode-block" id="Patch.get_ijk_node">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.get_ijk_node">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_ijk_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">perm</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">flip</span><span class="o">=</span><span class="p">()):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Block indices for nodes on the patch.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        perm : tuple of int, optional</span>
+<span class="sd">            Permutation of the dimensions for the output. Default is (0, 1, 2) which</span>
+<span class="sd">            corresponds to (i, j, k).</span>
+
+<span class="sd">        flip : tuple of int, optional</span>
+<span class="sd">            Dimensions to flip in the output. Default is () which means no flipping.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Get limits for each dimension compatible with range</span>
+        <span class="n">ijk_lim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">ijk_lim</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># Generate the ijk vectors (these can have different lengths)</span>
+        <span class="n">i_vec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ijk_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ijk_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">j_vec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ijk_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ijk_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">k_vec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ijk_lim</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ijk_lim</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+        <span class="c1"># Meshgrid to get nodal indices</span>
+        <span class="n">ijk_node</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">i_vec</span><span class="p">,</span> <span class="n">j_vec</span><span class="p">,</span> <span class="n">k_vec</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">&quot;ij&quot;</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Permutation and flipping</span>
+        <span class="c1"># Apply permutation to spatial dimensions, keep coordinate index (last dim)</span>
+        <span class="n">ijk_node</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">apply_perm_flip</span><span class="p">(</span><span class="n">ijk_node</span><span class="p">,</span> <span class="n">perm</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ijk_node</span></div>
+
+
+<div class="viewcode-block" id="Patch.attach_to_block">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.attach_to_block">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">attach_to_block</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach this patch to a block and validate limits against block shape.</span>
+
+<span class="sd">        Do not call directly; attachment is handled automatically when a patch</span>
+<span class="sd">        is added to :py:attr:`~ember.block.Block.patches` via</span>
+<span class="sd">        :py:class:`~ember.collections.BlockPatchCollection`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        block : :py:class:`~ember.block.Block`</span>
+<span class="sd">            The block this patch belongs to.</span>
+<span class="sd">            A weak reference is stored.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">block</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot attach patch to None block&quot;</span><span class="p">)</span>
+
+        <span class="n">block_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_ref</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
+
+        <span class="c1"># Check that block is 3D</span>
+        <span class="k">if</span> <span class="n">block_shape</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Patches require 3D blocks (ndim=3), but block has </span><span class="si">{</span><span class="n">block_shape</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2"> dimensions. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Got block shape=</span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">block_shape</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Validate patch limits against block shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_and_resolve_limits</span><span class="p">()</span>
+
+        <span class="c1"># Cache block_view for real Block objects (after validation resolves limits)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span> <span class="o">=</span> <span class="n">block</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_block_view_offset_1</span> <span class="o">=</span> <span class="n">block</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_offset_slice</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span></div>
+
+
+<div class="viewcode-block" id="Patch.check_match">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.check_match">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_match</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if this patch matches another patch for pairing purposes.</span>
+
+<span class="sd">        Base implementation always returns None. Subclasses should override</span>
+<span class="sd">        this method to implement their specific matching criteria.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        other : Patch</span>
+<span class="sd">            The other patch to compare with</span>
+<span class="sd">        rtol : float, optional</span>
+<span class="sd">            Relative tolerance for matching</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="Patch.copy">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.copy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a new unattached patch of the same type with the same limits, label, and boundary condition state.</span>
+
+<span class="sd">        The returned patch is fully independent: it shares no mutable state with</span>
+<span class="sd">        the original and is not attached to any block. Attach it to a block via</span>
+<span class="sd">        ``block.patches.append(copy)`` before using geometry-dependent properties.</span>
+
+<span class="sd">        Boundary condition parameters (e.g. stagnation conditions on an inlet,</span>
+<span class="sd">        static pressure on an outlet) are copied; any cached solver state that</span>
+<span class="sd">        depends on block geometry is not.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span>
+            <span class="n">i</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">j</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">k</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+            <span class="n">label</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_copy</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">c</span></div>
+
+
+<div class="viewcode-block" id="Patch.update_ref_scales">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.Patch.update_ref_scales">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_ref_scales</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Re-derive anything this patch holds in nondimensional form.</span>
+
+<span class="sd">        Called by :class:`~ember.block.Block` on every attached patch whenever</span>
+<span class="sd">        the reference scales change -- :meth:`~ember.block.Block.set_fluid` and</span>
+<span class="sd">        :meth:`~ember.block.Block.set_L_ref` -- after the block has swapped the</span>
+<span class="sd">        scales and rescaled its own stored field, so an override reads the new</span>
+<span class="sd">        scales straight off ``self.block``.</span>
+
+<span class="sd">        A patch that caches a nondimensional value must override this and either</span>
+<span class="sd">        re-derive it from the raw dimensional quantity it came from, or discard</span>
+<span class="sd">        it so it is rebuilt on next use. Leaving a stale nondimensional cache</span>
+<span class="sd">        behind does not raise: it silently imposes the wrong physics, which is</span>
+<span class="sd">        why this is the one hook a patch subclass has to know about.</span>
+
+<span class="sd">        What the base implementation handles is the sliced views of the face</span>
+<span class="sd">        this class caches at :meth:`attach_to_block`. They share the block&#39;s</span>
+<span class="sd">        data, so they see the rescaled field, but they carry derived-property</span>
+<span class="sd">        caches of their own that the block&#39;s own ``clear_cache`` does not reach</span>
+<span class="sd">        -- and a patch reads the face through them.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">view</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view_offset_1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">view</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">view</span><span class="o">.</span><span class="n">clear_cache</span><span class="p">()</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">block</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Access the parent block this patch is attached to.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Patch is not attached to any block. Call attach_to_block() first.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">block</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_ref</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">block</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Block has been garbage collected&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">block</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">block_view</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sliced view of the parent block at this patch location; :class:`~ember.block.Block` with shape :attr:`shape`.</span>
+
+<span class="sd">        Equivalent to ``block[patch.slice]``. Cached at :meth:`attach_to_block`</span>
+<span class="sd">        to avoid repeated sliced Block creation overhead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Patch is not attached to any block. Call attach_to_block() first.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">block_view_offset_1</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sliced view one layer interior to the patch face; :class:`~ember.block.Block` with shape :attr:`shape`.</span>
+
+<span class="sd">        Used to read the outgoing characteristic state (e.g. entropy at a</span>
+<span class="sd">        subsonic outlet) from the first interior layer. Equivalent to</span>
+<span class="sd">        ``block[patch.slice]`` offset by one along the constant dimension.</span>
+<span class="sd">        Cached at :meth:`attach_to_block` to avoid repeated sliced Block</span>
+<span class="sd">        creation overhead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view_offset_1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Patch is not attached to any block. Call attach_to_block() first.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view_offset_1</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">const_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Axis of the constant dimension; ``int`` in ``{0, 1, 2}``.&quot;&quot;&quot;</span>
+        <span class="n">cdim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">cdim</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Patch has ambigous constant dimension&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cdim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ien</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;End index in the i dimension; ``int``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ijk_lim_abs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Limits with negative indices resolved to positive; ``ndarray`` of shape ``(3, 2)``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_and_resolve_limits</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ist</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Start index in the i dimension; ``int``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">jen</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;End index in the j dimension; ``int``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">jst</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Start index in the j dimension; ``int``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ken</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;End index in the k dimension; ``int``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">kst</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Start index in the k dimension; ``int``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">label</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;String identifier for the patch; ``str`` or ``None``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_label</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extent of the patch in each dimension as ``(ni, nj, nk)``; the constant dimension is always 1.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Number of nodes on the patch; ``int``, equal to the product of :attr:`shape`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">slice</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;``tuple`` of ``slice`` objects for indexing the parent block array.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_offset_slice</span><span class="p">(</span><span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">xrt_centre</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Centre coordinates of the patch as ``(x, r, t)``; ``ndarray`` of shape ``(3,)``.&quot;&quot;&quot;</span>
+        <span class="n">block</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span>  <span class="c1"># Will raise if not attached</span>
+        <span class="n">xrt_corner</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">corners</span><span class="p">(</span><span class="n">block</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span><span class="o">.</span><span class="n">xrt</span><span class="p">,</span> <span class="n">axis_exclude</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">xrt_corner</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+
+
+    <span class="c1"># begin property</span>
+    <span class="c1"># end property</span>
+
+
+<div class="viewcode-block" id="RevolutionPatch">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.RevolutionPatch">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">RevolutionPatch</span><span class="p">(</span><span class="n">Patch</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Patch on a surface of revolution.</span>
+
+<span class="sd">    Intermediate base class for patches that require surface-of-revolution</span>
+<span class="sd">    geometry (inlet, outlet, mixing). A surface of revolution is an annular or</span>
+<span class="sd">    axisymmetric surface where one patch axis is purely circumferential (the</span>
+<span class="sd">    pitch direction, along which only theta varies) and the other runs</span>
+<span class="sd">    meridionally from hub to tip (the span direction, along which both x and r</span>
+<span class="sd">    vary).</span>
+
+<span class="sd">    When a patch is added to a block via :py:attr:`~ember.block.Block.patches`,</span>
+<span class="sd">    :meth:`attach_to_block` automatically identifies the span and pitch axes from</span>
+<span class="sd">    the block geometry. It raises :py:exc:`ValueError` if the geometry is not a</span>
+<span class="sd">    surface of revolution (i.e. a pitch axis with constant x and r cannot be</span>
+<span class="sd">    found).</span>
+
+<span class="sd">    The key operation provided by this class is pitch-averaging: computing a</span>
+<span class="sd">    circumferentially averaged flow state that subclasses (inlet, outlet, mixing)</span>
+<span class="sd">    use to apply boundary conditions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_setup</span><span class="p">()</span>
+        <span class="c1"># Cached span and pitch axes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dim_span</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dim_pitch</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_spf</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rot_to</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rot_from</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rot_buf</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_weight_pitch</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dA_node</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_attached</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise ValueError if this patch is not attached to a block.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Patch is not attached to a block.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span><span class="o">.</span><span class="n">fluid</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_match_xr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Match another patch on meridional geometry alone, ignoring theta.</span>
+
+<span class="sd">        The geometric half of the matching test used by the patch types that</span>
+<span class="sd">        exchange only pitch-averaged data across a plane -- the mixing planes,</span>
+<span class="sd">        whose two sides need not share a pitchwise node count or even a blade</span>
+<span class="sd">        count, so only x and r can be compared. Callers supply their own type</span>
+<span class="sd">        and spanwise-size guards first; this method assumes the two patches are</span>
+<span class="sd">        already candidates for pairing.</span>
+
+<span class="sd">        Every combination of spanwise and pitchwise flips is tried against the</span>
+<span class="sd">        corner coordinates, and the surviving candidate is confirmed by</span>
+<span class="sd">        comparing the span fractions of :attr:`spf`, which detects a spanwise</span>
+<span class="sd">        reversal that the corners alone cannot when the two sides are</span>
+<span class="sd">        symmetric about midspan.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        other : Patch</span>
+<span class="sd">            The other patch to compare with.</span>
+<span class="sd">        rtol : float, optional</span>
+<span class="sd">            Relative tolerance for matching.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool or None</span>
+<span class="sd">            None if the patches do not match. False if they match with no</span>
+<span class="sd">            spanwise flip needed. True if they match but ``other``&#39;s span must</span>
+<span class="sd">            be reversed. Always test with ``is not None``; do not use as a bare</span>
+<span class="sd">            truthiness check since False is a valid match result.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">perm</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">perm</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span><span class="p">]</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">const_dim</span>
+        <span class="n">perm</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">span_dim</span><span class="p">]</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">span_dim</span>
+        <span class="n">perm</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">]</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">pitch_dim</span>
+        <span class="n">perm</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">perm</span><span class="p">)</span>
+
+        <span class="n">flip_axes</span> <span class="o">=</span> <span class="p">[</span><span class="n">ax</span> <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">span_dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">ax</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">flip_candidates</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">combo</span>
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">flip_axes</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">combo</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations</span><span class="p">(</span><span class="n">flip_axes</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span>
+        <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">flip</span> <span class="ow">in</span> <span class="n">flip_candidates</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compare_coords</span><span class="p">(</span>
+                <span class="n">other</span><span class="p">,</span> <span class="p">(</span><span class="n">perm</span><span class="p">,</span> <span class="n">flip</span><span class="p">),</span> <span class="n">corners_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">xr_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="n">rtol</span>
+            <span class="p">):</span>
+                <span class="k">continue</span>
+
+            <span class="n">span_flipped</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">span_dim</span> <span class="ow">in</span> <span class="n">flip</span>
+            <span class="n">other_spf</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">other</span><span class="o">.</span><span class="n">spf</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">span_flipped</span> <span class="k">else</span> <span class="n">other</span><span class="o">.</span><span class="n">spf</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spf</span><span class="p">,</span> <span class="n">other_spf</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">span_flipped</span>
+
+            <span class="n">err</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spf</span> <span class="o">-</span> <span class="n">other_spf</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;spf mismatch with flip </span><span class="si">{</span><span class="n">flip</span><span class="si">}</span><span class="s2">: &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;self ends </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">spf</span><span class="p">[(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">),]</span><span class="si">}</span><span class="s2">, other ends </span><span class="si">{</span><span class="n">other_spf</span><span class="p">[(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">),]</span><span class="si">}</span><span class="s2">, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;max abs error </span><span class="si">{</span><span class="n">err</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">, mean abs error </span><span class="si">{</span><span class="n">err</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_std_perm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Permutation to standard (const, span, pitch) axis order.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">span_dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_rot_matrices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inward</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute xi, cosxi/sinxi and build rotation matrix pairs.</span>
+
+<span class="sd">        Derives the meridional face-normal angle from block_view geometry,</span>
+<span class="sd">        flips to point inward, averages to nodes, then builds rotation matrices.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        inward : bool</span>
+<span class="sd">            If True, rotation aligns with the inward-pointing face normal.</span>
+<span class="sd">            If False, shifts xi by pi so rotation aligns with the outward normal.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">x</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">r</span>
+        <span class="n">xm</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="n">rm</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="n">dx_face</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">xm</span><span class="p">)</span>
+        <span class="n">dr_face</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">rm</span><span class="p">)</span>
+        <span class="n">xi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">dx_face</span><span class="p">,</span> <span class="o">-</span><span class="n">dr_face</span><span class="p">)</span>
+
+        <span class="c1"># Flip xi so it always points inward</span>
+        <span class="n">block</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span>
+        <span class="n">xr_patch</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">xrt</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="p">][</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="n">xr_offset</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">block</span><span class="o">.</span><span class="n">xrt</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_offset_slice</span><span class="p">(</span><span class="mi">1</span><span class="p">)][</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+            <span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="n">inward_vec</span> <span class="o">=</span> <span class="n">xr_offset</span> <span class="o">-</span> <span class="n">xr_patch</span>  <span class="c1"># (nspan, 2)</span>
+        <span class="n">inward_face</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">inward_vec</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">inward_vec</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>  <span class="c1"># (nspan-1, 2)</span>
+        <span class="n">dot</span> <span class="o">=</span> <span class="n">inward_face</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">xi</span><span class="p">)</span> <span class="o">+</span> <span class="n">inward_face</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">xi</span><span class="p">)</span>
+        <span class="n">xi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">dot</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">xi</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">xi</span><span class="p">)</span>
+
+        <span class="c1"># Average xi to nodes</span>
+        <span class="n">xi_node</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">xi</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">xi</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">xi_node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">xi</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">xi_node</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">xi</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">xi</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="n">xi_node</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">xi</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">angle</span> <span class="o">=</span> <span class="n">xi_node</span> <span class="k">if</span> <span class="n">inward</span> <span class="k">else</span> <span class="n">xi_node</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="n">rot_to</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">n</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+        <span class="n">rot_to</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+        <span class="n">rot_to</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span>
+        <span class="n">rot_to</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">s</span>
+        <span class="n">rot_to</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+        <span class="n">rot_from</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">n</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+        <span class="n">rot_from</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+        <span class="n">rot_from</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">s</span>
+        <span class="n">rot_from</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span>
+        <span class="n">rot_from</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+        <span class="n">bcast_shape</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">bcast_shape</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dim_span</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rot_to</span> <span class="o">=</span> <span class="n">rot_to</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">bcast_shape</span> <span class="o">+</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rot_from</span> <span class="o">=</span> <span class="n">rot_from</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">bcast_shape</span> <span class="o">+</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+
+<div class="viewcode-block" id="RevolutionPatch.set_block_avg">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.RevolutionPatch.set_block_avg">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_block_avg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute pitch-averaged conserved variables and store in block_avg.</span>
+
+<span class="sd">        Uses node-based pitch weights to compute a weighted sum of</span>
+<span class="sd">        ``block_view.conserved_nd`` over the pitch dimension, writing the result</span>
+<span class="sd">        directly into ``self.block_avg.conserved_nd``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">ember.fortran</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ft</span>
+
+        <span class="n">cons</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_view</span><span class="o">.</span><span class="n">conserved_nd</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_pitch</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+        <span class="n">dest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">conserved_nd</span>
+        <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_view</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">ft</span><span class="o">.</span><span class="n">pitch_avg_i</span><span class="p">(</span><span class="n">cons</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">dest</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">ft</span><span class="o">.</span><span class="n">pitch_avg_j</span><span class="p">(</span><span class="n">cons</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">dest</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ft</span><span class="o">.</span><span class="n">pitch_avg_k</span><span class="p">(</span><span class="n">cons</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">dest</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="RevolutionPatch.attach_to_block">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.RevolutionPatch.attach_to_block">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">attach_to_block</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach to block and detect surface-of-revolution geometry.</span>
+
+<span class="sd">        Calls the base Patch attach, then determines span/pitch dimensions</span>
+<span class="sd">        and computes meridional properties. Raises ValueError if the patch</span>
+<span class="sd">        is not a surface of revolution.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">attach_to_block</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Determine if we are a surface of revolution</span>
+        <span class="c1"># and set span and pitch dimensions accordingly</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">x</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">r</span>
+        <span class="n">Lref</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ptp</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">ptp</span><span class="p">(</span><span class="n">r</span><span class="p">))</span>
+        <span class="n">rtol</span> <span class="o">=</span> <span class="mf">1e-4</span>
+        <span class="n">atol</span> <span class="o">=</span> <span class="n">rtol</span> <span class="o">*</span> <span class="n">Lref</span>
+        <span class="c1"># Loop over dimensions to find span and pitch</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dim_pitch</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dim_span</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">dx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">dim</span><span class="p">)</span>
+            <span class="n">dr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">dim</span><span class="p">)</span>
+            <span class="c1"># If no variation in x or r along this axis, it is pitch</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">dx</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">atol</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span> <span class="ow">and</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">dr</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">atol</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_dim_pitch</span> <span class="o">=</span> <span class="n">dim</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_dim_span</span> <span class="o">=</span> <span class="n">dim</span>
+
+        <span class="c1"># If we didn&#39;t find both span and pitch, raise</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dim_pitch</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dim_span</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dim_pitch</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dim_span</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Patch is not a surface of revolution: &quot;</span>
+                <span class="s2">&quot;could not identify both span and pitch dimensions.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Compute node-based pitch weights: fraction of block.pitch at each node</span>
+        <span class="c1"># Permute to (const, span, pitch) then squeeze const -&gt; (nspan, npitch)</span>
+        <span class="n">t_sp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">t</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_std_perm</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span>
+            <span class="n">axis</span><span class="o">=</span><span class="mi">0</span>
+        <span class="p">)</span>  <span class="c1"># (nspan, npitch)</span>
+        <span class="n">t1d</span> <span class="o">=</span> <span class="n">t_sp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># theta values along pitch, shape (npitch,)</span>
+        <span class="c1"># Midpoint intervals: dt[k] = t_mid[k] - t_mid[k-1]</span>
+        <span class="n">t_mid</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">t1d</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">t1d</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">t1d</span><span class="p">)</span>
+        <span class="n">dt</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">t_mid</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">t1d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">dt</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">t_mid</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">t_mid</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">dt</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">t1d</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">t_mid</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># Shape to broadcast against block_view: place weights at pitch_dim</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">dt</span> <span class="o">/</span> <span class="n">block</span><span class="o">.</span><span class="n">pitch</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">shape</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dim_pitch</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_weight_pitch</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="c1"># If we found a span direction, set span fraction vector</span>
+        <span class="n">xm</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="n">rm</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="n">ds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">xm</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">rm</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">spf_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(([</span><span class="mf">0.0</span><span class="p">],</span> <span class="n">ds</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_spf</span> <span class="o">=</span> <span class="n">spf_raw</span> <span class="o">/</span> <span class="n">spf_raw</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Compute pitch-normalised face area fractions</span>
+        <span class="c1"># Note: use if/elif rather than tuple indexing to avoid eagerly evaluating</span>
+        <span class="c1"># all three dA properties, which would error if xrt is not yet set.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">dA_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">dAi</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">dA_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">dAj</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dA_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">dAk</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dA_raw</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span>
+
+        <span class="c1"># Allocate pitch-averaged block with mean coordinates along pitch dim</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">ember.block</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_block_mod</span>
+
+        <span class="n">nspan</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">span_dim</span><span class="p">]</span>
+
+        <span class="c1"># Compute node-centred span area weights via trapezoid face-to-node mapping</span>
+        <span class="n">const_dim_reduced</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">const_dim</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="p">)</span>
+        <span class="n">A_face</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="n">const_dim_reduced</span><span class="p">)</span>  <span class="c1"># shape (nspan-1,)</span>
+        <span class="n">ws</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">nspan</span><span class="p">)</span>
+        <span class="n">ws</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">A_face</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">ws</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">A_face</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">A_face</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">ws</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">A_face</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dA_node</span> <span class="o">=</span> <span class="n">ws</span>
+
+        <span class="n">x_avg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="n">r_avg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="n">t_avg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">t</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span> <span class="o">=</span> <span class="n">_block_mod</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">nspan</span><span class="p">,))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span><span class="o">.</span><span class="n">set_L_ref</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">L_ref</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><span class="n">x_avg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><span class="n">r_avg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span><span class="o">.</span><span class="n">set_t</span><span class="p">(</span><span class="n">t_avg</span><span class="p">)</span>
+        <span class="c1"># self._block_avg.set_conserved(util.zeros((nspan, 5)))</span>
+
+        <span class="c1"># Scratch buffer for 2x2 rotation matvec output</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rot_buf</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_block_view</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">2</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="RevolutionPatch.resolve_from_interface">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.RevolutionPatch.resolve_from_interface">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">resolve_from_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Rotate block_view momentum in-place from (norm, span) to (x, r) coordinates.</span>
+
+<span class="sd">        Inverse of ``resolve_to_interface``::</span>
+
+<span class="sd">            rhoV_norm -&gt; rhoVx = cosxi * rhoV_norm - sinxi * rhoV_span</span>
+<span class="sd">            rhoV_span -&gt; rhoVr = sinxi * rhoV_norm + cosxi * rhoV_span</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cons</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_view</span><span class="o">.</span><span class="n">conserved_nd</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">matvec</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rot_from</span><span class="p">,</span> <span class="n">cons</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">out</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_rot_buf</span><span class="p">)</span>
+        <span class="n">cons</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rot_buf</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">block_view</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="RevolutionPatch.resolve_to_interface">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.RevolutionPatch.resolve_to_interface">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">resolve_to_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Rotate block_view momentum in-place from (x, r) to (norm, span) coordinates.</span>
+
+<span class="sd">        Modifies ``block_view.conserved`` so that the axial and radial momentum</span>
+<span class="sd">        components become the interface-normal and interface-span components::</span>
+
+<span class="sd">            rhoVx -&gt; rhoV_norm =  cosxi * rhoVx + sinxi * rhoVr</span>
+<span class="sd">            rhoVr -&gt; rhoV_span = -sinxi * rhoVx + cosxi * rhoVr</span>
+
+<span class="sd">        Uses the pre-computed rotation matrix ``_rot_to`` broadcast along</span>
+<span class="sd">        ``span_dim`` to match the full block shape.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cons</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_view</span><span class="o">.</span><span class="n">conserved_nd</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">matvec</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rot_to</span><span class="p">,</span> <span class="n">cons</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">out</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_rot_buf</span><span class="p">)</span>
+        <span class="n">cons</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rot_buf</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">block_view</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="RevolutionPatch.smooth_pitch_121">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.RevolutionPatch.smooth_pitch_121">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">smooth_pitch_121</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">alpha</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Apply a periodic 1-2-1 smoothing pass along the pitch axis.</span>
+
+<span class="sd">        Returns ``alpha * smoothed + (1 - alpha) * field`` where ``smoothed``</span>
+<span class="sd">        is one pass of the discrete 1-2-1 filter</span>
+<span class="sd">        ``f[i] = (f[i-1] + 2*f[i] + f[i+1]) / 4`` with periodic wrap along</span>
+<span class="sd">        :attr:`pitch_dim`. The pitch direction is circumferential, so periodic</span>
+<span class="sd">        wrap is exact for an annular passage.</span>
+
+<span class="sd">        The 1-2-1 filter has amplification :math:`\cos^2(k\Delta/2)`: it</span>
+<span class="sd">        preserves the pitch mean and smooth variation, and annihilates the</span>
+<span class="sd">        Nyquist (sawtooth) mode. Blending with the unsmoothed field by</span>
+<span class="sd">        ``alpha`` tunes the strength: ``alpha=1`` is a full 1-2-1 pass,</span>
+<span class="sd">        ``alpha=0`` leaves the field unchanged.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        field : ndarray</span>
+<span class="sd">            Field to smooth; any shape with axis :attr:`pitch_dim`.</span>
+<span class="sd">        alpha : float</span>
+<span class="sd">            Blend factor in ``[0, 1]``. ``0`` disables, ``1`` is a full pass.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ndarray</span>
+<span class="sd">            Smoothed field, same shape and dtype as ``field``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">alpha</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">field</span>
+        <span class="n">axis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span>
+        <span class="n">smoothed</span> <span class="o">=</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span> <span class="o">+</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">field</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">alpha</span> <span class="o">==</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">smoothed</span>
+        <span class="k">return</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">smoothed</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">alpha</span><span class="p">)</span> <span class="o">*</span> <span class="n">field</span></div>
+
+
+<div class="viewcode-block" id="RevolutionPatch.update_ref_scales">
+<a class="viewcode-back" href="../../api/patch.html#ember.basepatch.RevolutionPatch.update_ref_scales">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_ref_scales</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Re-sync the pitch-averaged block to the parent&#39;s reference scales.</span>
+
+<span class="sd">        :attr:`block_avg` is a :class:`~ember.block.Block` of its own, holding</span>
+<span class="sd">        coordinates and a pitch-mean flow field nondimensionalised against the</span>
+<span class="sd">        scales in force when the patch attached. Both have to follow the parent</span>
+<span class="sd">        block, or the pitch average decodes this block&#39;s state against stale</span>
+<span class="sd">        scales -- for the length scale that means angular momentum, the one</span>
+<span class="sd">        conserved variable carrying it, and every quantity derived from the</span>
+<span class="sd">        resulting tangential velocity.</span>
+
+<span class="sd">        Each half is applied only when its scale actually moved, so the</span>
+<span class="sd">        commoner call does not put the averaged field through a needless</span>
+<span class="sd">        dimensional round trip and its float32 rounding.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">update_ref_scales</span><span class="p">()</span>
+
+        <span class="n">avg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span>
+        <span class="k">if</span> <span class="n">avg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">block</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span>
+        <span class="k">if</span> <span class="n">avg</span><span class="o">.</span><span class="n">L_ref</span> <span class="o">!=</span> <span class="n">block</span><span class="o">.</span><span class="n">L_ref</span><span class="p">:</span>
+            <span class="n">avg</span><span class="o">.</span><span class="n">set_L_ref</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">L_ref</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">fluid_new</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">fluid_old</span> <span class="o">=</span> <span class="n">avg</span><span class="o">.</span><span class="n">fluid</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">fluid_old</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">fluid_old</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">fluid_new</span><span class="p">:</span>
+            <span class="n">avg</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid_new</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">block_avg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Pitch-averaged flow field; :class:`~ember.block.Block` of shape ``(nspan,)``.</span>
+
+<span class="sd">        Coordinates are the pitch-mean x, r, t at each span station. The</span>
+<span class="sd">        conserved variables are populated by calling :meth:`set_block_avg`;</span>
+<span class="sd">        before that call the flow-field arrays contain uninitialised values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_attached</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_avg</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pitch_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Axis of the pitchwise (circumferential) dimension; ``int`` in ``{0, 1, 2}``.</span>
+
+<span class="sd">        Detected automatically from block geometry on :meth:`attach_to_block`:</span>
+<span class="sd">        the axis along which only theta varies while x and r remain constant.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_attached</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dim_pitch</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">span_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Axis of the spanwise (meridional) dimension; ``int`` in ``{0, 1, 2}``.</span>
+
+<span class="sd">        Detected automatically from block geometry on :meth:`attach_to_block`:</span>
+<span class="sd">        the axis along which x and r vary (hub to tip).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_attached</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dim_span</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">spf</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Span fraction at each node, normalised to ``[0, 1]`` by meridional arc-length; ``ndarray`` of shape ``(nspan,)``.</span>
+
+<span class="sd">        ``spf[0] == 0.0`` at the hub/start corner and ``spf[-1] == 1.0`` at the</span>
+<span class="sd">        tip/end corner. Spacing reflects the actual meridional distances between</span>
+<span class="sd">        nodes, not their indices.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_attached</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spf</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">weight_pitch</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Pitch weights per node as a fraction of ``block.pitch``; ``ndarray`` broadcastable against :attr:`block_view`.</span>
+
+<span class="sd">        Weights sum to 1 along :attr:`pitch_dim`, so a pitch-averaged scalar</span>
+<span class="sd">        field is ``(field * patch.weight_pitch).sum(axis=patch.pitch_dim)``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_attached</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weight_pitch</span></div>
+
+
+    <span class="c1"># begin property</span>
+    <span class="c1"># end property</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

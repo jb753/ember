@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.fluid &#8212; ember 0.1.1.dev0+g8d029046d.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=8e5ced4b"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.1.1.dev0+g8d029046d.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.1.0";
+    var page = "_modules/ember/fluid.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.fluid</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Working fluid interface and equation of state implementations.</span>
+
+<span class="sd">This module defines an interface for computing thermodynamic properties of</span>
+<span class="sd">working fluids enabling manipulations of flow fields independent of the</span>
+<span class="sd">underlying equations of state. The abstraction cleanly separates thermodynamic</span>
+<span class="sd">relations from the flow solver, allowing easy extension to real gas models or</span>
+<span class="sd">tabulated properties.</span>
+
+<span class="sd">Currently, the only implementation of the interface is :class:`PerfectFluid` for ideal gases with</span>
+<span class="sd">constant specific heats.</span>
+
+<span class="sd">A fluid instance is immutable and only stores intrinsic fluid properties that never change, such</span>
+<span class="sd">as specific heats for a perfect gas, or the fluid species for a real</span>
+<span class="sd">fluid. These must passed into the constructor on initialisation. Storage of the actual flow solution is the responsibility of a :class:`~ember.block.Block`.</span>
+
+<span class="sd">Get and set methods</span>
+<span class="sd">===================</span>
+
+<span class="sd">The basic state variables are density and internal energy, :math:`(\rho, u)`, because these are the most natural in a conservative computational fluid dynamics solver. An equation of state must provide two types of methods: `get_?` and `set_?_?`.</span>
+
+<span class="sd">- `set_x_y(x,y)`: Take thermodynamic properties :math:`(x, y)` and return :math:`(\rho, u)`.</span>
+<span class="sd">- `get_z(rho, u, out=None)`: Take :math:`(\rho, u)` and return thermodynamic property :math:`z`.</span>
+
+<span class="sd">All methods support both scalar and array inputs, where the inputs must be broadcastable against each other. The output will have the broadcasted shape. Constructor inputs are cast to single-precision floats, and outputs will remain single-precision if all inputs are single-precision. Supplying an `out` keyword argument to `get_?` methods allows the output to be written into a pre-allocated array, following NumPy conventions, which may improve performance by avoiding temporary array allocations.</span>
+
+<span class="sd">.. _datum-state:</span>
+
+<span class="sd">Datum state</span>
+<span class="sd">===========</span>
+
+<span class="sd">Only changes in internal energy, enthalpy, and entropy are physically</span>
+<span class="sd">meaningful, therefore we have the freedom to set the physical state at which</span>
+<span class="sd">these properties are zero to improve numerics and reduce precision errors due</span>
+<span class="sd">to subtracting two large floats. We define a thermodynamic datum</span>
+<span class="sd">:math:`(p_\mathrm{dtm}, T_\mathrm{dtm})` where :math:`u = s = 0`</span>
+<span class="sd">simultaneously. Enthalpy at the datum is not zero because of the pressure term</span>
+<span class="sd">in :math:`h = u + p/\rho`.</span>
+
+<span class="sd">It is possible to shift the datum state of a :class:`PerfectFluid` instance</span>
+<span class="sd">using :meth:`PerfectFluid.change_datum`, which returns a new instance with the</span>
+<span class="sd">same properties but shifted datum. The current datum is accessible via</span>
+<span class="sd">:attr:`~PerfectFluid.P_dtm` and :attr:`~PerfectFluid.T_dtm` attributes.</span>
+
+
+<span class="sd">.. _reference-scales:</span>
+
+<span class="sd">Reference scales</span>
+<span class="sd">================</span>
+
+<span class="sd">The constructors for fluid instances take optional reference scales for non-dimensionalisation, which default to unity such that all quantities are in SI units. If reference scales are provided, then internally the class uses them to form a consistent system of non-dimensional quantities, and all inputs and outputs are taken as non-dimensional. The advantage of setting reference scales is improved numerical precision when working with non-dimensional quantities all of order unity.</span>
+
+<span class="sd">The user specifies:</span>
+
+<span class="sd">- :math:`\rho_\mathrm{ref}\,`: density [kg/m\ :sup:`3`], :attr:`~PerfectFluid.rho_ref`</span>
+<span class="sd">- :math:`V_\mathrm{ref}\,`: velocity [m/s], :attr:`~PerfectFluid.V_ref`</span>
+<span class="sd">- :math:`R_\mathrm{ref}\,`: gas constant [J/kg/K], :attr:`~PerfectFluid.Rgas_ref`</span>
+
+<span class="sd">and the class forms the following derived reference scales:</span>
+
+<span class="sd">- :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\,`: dynamic pressure [Pa], :attr:`~PerfectFluid.P_ref`</span>
+<span class="sd">- :math:`u_\mathrm{ref} = V_\mathrm{ref}^2\,`: specific energy [J/kg], :attr:`~PerfectFluid.u_ref`</span>
+<span class="sd">- :math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\,`: temperature [K], :attr:`~PerfectFluid.T_ref`</span>
+<span class="sd">- :math:`(\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}\,`: mass flux [kg/m\ :sup:`2`/s], :attr:`~PerfectFluid.rhoV_ref`</span>
+
+<span class="sd">Equations of state are unchanged when all quantities are scaled consistently. For example, taking the ideal gas law :math:`p = \rho R T` and dividing through by the reference pressure :math:`\rho_\mathrm{ref} V_\mathrm{ref}^2` gives</span>
+
+<span class="sd">.. math:: \frac{p}{\rho_\mathrm{ref} V_\mathrm{ref}^2} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{V_\mathrm{ref}^2 / R_\mathrm{ref}} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{T_\mathrm{ref}}</span>
+
+<span class="sd">Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters.</span>
+
+<span class="sd">We can get a new instance with different reference scales using the :meth:`PerfectFluid.change_ref` method.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_Fluid</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Interface for converting density and internal energy to and from other thermodynamic properties.</span>
+
+<span class="sd">    Constructors should cast all input parameters to single-precision floats; the output types of all methods are not explicitly cast, but will be single-precision if all inputs are single-precision.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho_ref</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">V_ref</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">Rgas_ref</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">rho_ref</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;rho_ref must be positive, got </span><span class="si">{</span><span class="n">rho_ref</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">V_ref</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;V_ref must be positive, got </span><span class="si">{</span><span class="n">V_ref</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rho_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">rho_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_V_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">V_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">Rgas_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_P_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_u_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">V_ref</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_T_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">V_ref</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">Rgas_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rhoV_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_h_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_P_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_P_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">rho</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_P_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_P_T</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">T</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_rho_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_T_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">rho</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_T_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_a</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_cp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_cv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dhdP_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Derivative of enthalpy with respect to pressure at constant density.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dhdrho_P</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Derivative of enthalpy with respect to density at constant pressure.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dsdP_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Derivative of entropy with respect to pressure at constant density.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dsdrho_P</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Derivative of entropy with respect to density at constant pressure.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dudP_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Derivative of internal energy with respect to pressure at constant density.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dudrho_P</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Derivative of internal energy with respect to density at constant pressure.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_gamma</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Quasi-dimensional dynamic viscosity, mu / (rho_ref * V_ref) [m].&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_P</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_P_h_T</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out_P</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">out_h</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">out_T</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Pressure, enthalpy and temperature together, from density and energy.</span>
+
+<span class="sd">        A batched form of :meth:`get_P`, :meth:`get_h` and :meth:`get_T`, for</span>
+<span class="sd">        callers that want all three from the same state -- the solver does, once</span>
+<span class="sd">        per Runge-Kutta stage. Evaluating them separately re-reads ``rho`` and</span>
+<span class="sd">        ``u`` three times, and for most equations of state the three share</span>
+<span class="sd">        nearly all of their work.</span>
+
+<span class="sd">        Deliberately NOT abstract: this base implementation simply delegates to</span>
+<span class="sd">        the three single-property methods, so every fluid -- present or future</span>
+<span class="sd">        -- is correct without implementing anything. A subclass may override it</span>
+<span class="sd">        with a fused evaluation purely as an optimisation, and is not obliged</span>
+<span class="sd">        to. :class:`PerfectFluid` does.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out_P, out_h, out_T : ndarray, optional</span>
+<span class="sd">            Pre-allocated output arrays.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of ndarray</span>
+<span class="sd">            ``(P, h, T)``.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_P</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out_P</span><span class="p">),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_h</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out_h</span><span class="p">),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_T</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out_T</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_Pr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_Rgas</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_T</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">change_datum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P_dtm_new</span><span class="p">,</span> <span class="n">T_dtm_new</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a new instance with datum shifted to (P_dtm_new, T_dtm_new).</span>
+
+<span class="sd">        A pure factory: the returned fluid carries the same properties on the</span>
+<span class="sd">        new datum, and no field values are transformed. To move a *stored* flow</span>
+<span class="sd">        field onto another datum, pass the new fluid to</span>
+<span class="sd">        :meth:`ember.block.Block.set_fluid`, which reads the state out through</span>
+<span class="sd">        the old fluid and re-expresses it through the new one.</span>
+
+<span class="sd">        Note that ``T_dtm_new = 0`` is not representable: the datum sets</span>
+<span class="sd">        ``u = s = 0`` simultaneously, and entropy carries a</span>
+<span class="sd">        :math:`\\ln(T/T_\\mathrm{dtm})` term that is singular there.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">change_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">V_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Rgas_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a new instance with different reference scales.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Subclasses must implement change_ref&quot;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">P_dtm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Datum pressure :math:`p_\mathrm{dtm}` where :math:`u = s = 0` [Pa].&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">P_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Reference pressure for nondimensionalisation, :math:`p_\mathrm{ref}` [Pa].</span>
+
+<span class="sd">        See :ref:`reference-scales`; derived from</span>
+
+<span class="sd">        .. math:: p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_ref</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">Rgas_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Reference gas constant for nondimensionalisation, :math:`R_\mathrm{ref}` [J/kg/K].</span>
+
+<span class="sd">        User-specified; see :ref:`reference-scales`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_ref</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rho_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Reference density for nondimensionalisation, :math:`\rho_\mathrm{ref}` [kg/m³].</span>
+
+<span class="sd">        User-specified; see :ref:`reference-scales`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_ref</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rhoV_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Reference mass flux for nondimensionalisation, :math:`(\rho V)_\mathrm{ref}` [kg/m²/s].</span>
+
+<span class="sd">        See :ref:`reference-scales`; derived from</span>
+
+<span class="sd">        .. math:: (\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rhoV_ref</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">T_dtm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Datum temperature :math:`T_\mathrm{dtm}` where :math:`u = s = 0` [K].&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">T_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Reference temperature for nondimensionalisation, :math:`T_\mathrm{ref}` [K].</span>
+
+<span class="sd">        See :ref:`reference-scales`; derived from</span>
+
+<span class="sd">        .. math:: T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_ref</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">u_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Reference specific energy for nondimensionalisation, :math:`u_\mathrm{ref}` [J/kg].</span>
+
+<span class="sd">        See :ref:`reference-scales`; derived from</span>
+
+<span class="sd">        .. math:: u_\mathrm{ref} = V_\mathrm{ref}^2</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_u_ref</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">V_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Reference velocity for nondimensionalisation, :math:`V_\mathrm{ref}` [m/s].</span>
+
+<span class="sd">        User-specified; see :ref:`reference-scales`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_V_ref</span>
+
+
+<div class="viewcode-block" id="PerfectFluid">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PerfectFluid</span><span class="p">(</span><span class="n">_Fluid</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">cp</span><span class="p">,</span>
+        <span class="n">gamma</span><span class="p">,</span>
+        <span class="n">mu</span><span class="p">,</span>
+        <span class="n">Pr</span><span class="p">,</span>
+        <span class="n">P_dtm</span><span class="o">=</span><span class="mf">1e5</span><span class="p">,</span>
+        <span class="n">T_dtm</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span>
+        <span class="n">rho_ref</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">V_ref</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">Rgas_ref</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Perfect gas with constant specific heats.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        cp : float</span>
+<span class="sd">            Specific heat at constant pressure [J/kg/K].</span>
+<span class="sd">        gamma : float</span>
+<span class="sd">            Ratio of specific heats [--].</span>
+<span class="sd">        mu : float</span>
+<span class="sd">            Dynamic viscosity [kg/m/s].</span>
+<span class="sd">        Pr : float</span>
+<span class="sd">            Prandtl number [--].</span>
+<span class="sd">        P_dtm : float, optional</span>
+<span class="sd">            Datum pressure where u = 0 and s = 0 [Pa].</span>
+<span class="sd">        T_dtm : float, optional</span>
+<span class="sd">            Datum temperature where u = 0 and s = 0 [K].</span>
+<span class="sd">        rho_ref : float, optional</span>
+<span class="sd">            Reference density for non-dimensionalisation.</span>
+<span class="sd">        V_ref : float, optional</span>
+<span class="sd">            Reference velocity for non-dimensionalisation.</span>
+<span class="sd">        Rgas_ref : float, optional</span>
+<span class="sd">            Reference gas constant for non-dimensionalisation.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">rho_ref</span><span class="p">,</span> <span class="n">V_ref</span><span class="p">,</span> <span class="n">Rgas_ref</span><span class="p">)</span>
+
+        <span class="c1"># Store dimensional fluid properties for change_datum / change_ref</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">gamma</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">mu</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mu_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">mu</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_Pr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">Pr</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">P_dtm</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">T_dtm</span><span class="p">)</span>
+
+        <span class="c1"># Check for nonsense values</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;cp=</span><span class="si">{</span><span class="n">cp</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">&lt;=</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;gamma=</span><span class="si">{</span><span class="n">gamma</span><span class="si">}</span><span class="s2"> must be greater than 1.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mu</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mu=</span><span class="si">{</span><span class="n">mu</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">Pr</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Pr=</span><span class="si">{</span><span class="n">Pr</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">T_dtm</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;T_dtm=</span><span class="si">{</span><span class="n">T_dtm</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">P_dtm</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;P_dtm=</span><span class="si">{</span><span class="n">P_dtm</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Derived dimensional</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span>
+
+        <span class="c1"># Nondim stored properties</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">cp</span> <span class="o">/</span> <span class="n">Rgas_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">T_dtm</span> <span class="o">*</span> <span class="n">Rgas_ref</span> <span class="o">/</span> <span class="n">V_ref</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">P_dtm</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rho_dtm_nd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm_nd</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gamma_m1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ga_gam1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma_m1</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_const_nd</span><span class="p">(</span><span class="n">rho_nd</span><span class="p">,</span> <span class="n">u_nd</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">out</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a constant broadcast to the shape of (rho_nd, u_nd).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">util</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span><span class="n">rho_nd</span><span class="p">,</span> <span class="n">u_nd</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+<div class="viewcode-block" id="PerfectFluid.set_h_s">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.set_h_s">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_h_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Density and internal energy from specific enthalpy and entropy.</span>
+
+<span class="sd">        Temperature is recovered from :math:`h`, then pressure from :math:`s`</span>
+<span class="sd">        , then :math:`\rho` and :math:`u` follow from</span>
+<span class="sd">        :meth:`set_P_T`:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            T = \frac{h}{c_p} + \frac{T_\mathrm{dtm}}{\gamma}, \qquad</span>
+<span class="sd">            p = p_\mathrm{dtm} \exp\!\left(\frac{c_p\ln(T/T_\mathrm{dtm}) - s}{R}\right)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        h : array_like</span>
+<span class="sd">            Specific enthalpy [J/kg].</span>
+<span class="sd">        s : array_like</span>
+<span class="sd">            Specific entropy [J/kg/K].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rho : ndarray</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : ndarray</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">h</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span>
+        <span class="n">P</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm_nd</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">)</span> <span class="o">-</span> <span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.set_P_h">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.set_P_h">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_P_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Density and internal energy from pressure and specific enthalpy.</span>
+
+<span class="sd">        Temperature is recovered from :math:`h = c_p T - R T_\mathrm{dtm}`:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            T = \frac{h}{c_p} + \frac{T_\mathrm{dtm}}{\gamma}</span>
+
+<span class="sd">        Then :math:`\rho` and :math:`u` follow from :meth:`set_P_T`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        P : array_like</span>
+<span class="sd">            Pressure [Pa].</span>
+<span class="sd">        h : array_like</span>
+<span class="sd">            Specific enthalpy [J/kg].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rho : ndarray</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : ndarray</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">h</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.set_P_rho">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.set_P_rho">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_P_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">rho</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Density and internal energy from pressure and density.</span>
+
+<span class="sd">        Temperature follows from the ideal gas law, giving:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            u = c_v\!\left(\frac{p}{\rho R} - T_\mathrm{dtm}\right)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        P : array_like</span>
+<span class="sd">            Pressure [Pa].</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rho : ndarray</span>
+<span class="sd">            Density [kg/m³] (returned unchanged).</span>
+<span class="sd">        u : ndarray</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span> <span class="o">*</span> <span class="p">(</span><span class="n">P</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span> <span class="o">*</span> <span class="n">rho</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.set_P_s">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.set_P_s">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_P_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Density and internal energy from pressure and specific entropy.</span>
+
+<span class="sd">        Inverting the Gibbs relation gives temperature, then :math:`\rho` and</span>
+<span class="sd">        :math:`u` follow from :meth:`set_P_T`:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            T = T_\mathrm{dtm} \exp\!\left(\frac{s + R\ln(p/p_\mathrm{dtm})}{c_p}\right)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        P : array_like</span>
+<span class="sd">            Pressure [Pa].</span>
+<span class="sd">        s : array_like</span>
+<span class="sd">            Specific entropy [J/kg/K].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rho : ndarray</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : ndarray</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># T = T_dtm * exp((s + R*ln(P/P_dtm)) / cp).</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">P</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm_nd</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">or</span> <span class="n">T</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Scalar/0-d setup path (cold): plain expression -- in-place ufuncs</span>
+            <span class="c1"># with out= reject numpy scalars, and allocation is irrelevant.</span>
+            <span class="n">T</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="n">s</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span><span class="p">))</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span>
+        <span class="c1"># Array hot path: fold the chain into the single T buffer with out=,</span>
+        <span class="c1"># collapsing the ~6 temporaries the expression form allocated. T is fresh</span>
+        <span class="c1"># (P / P_dtm never aliases the caller&#39;s P or s), so the steps are safe.</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">T</span><span class="p">)</span>
+        <span class="n">T</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span>
+        <span class="n">T</span> <span class="o">+=</span> <span class="n">s</span>
+        <span class="n">T</span> <span class="o">/=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">T</span><span class="p">)</span>
+        <span class="n">T</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.set_P_T">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.set_P_T">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_P_T</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">T</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Density and internal energy from pressure and temperature.</span>
+
+<span class="sd">        From the ideal gas law and the calorific equation of state:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            \rho = \frac{p}{RT}, \qquad u = c_v(T - T_\mathrm{dtm})</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        P : array_like</span>
+<span class="sd">            Pressure [Pa].</span>
+<span class="sd">        T : array_like</span>
+<span class="sd">            Temperature [K].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rho : ndarray</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : ndarray</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span> <span class="o">*</span> <span class="p">(</span><span class="n">T</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">)</span>
+        <span class="n">rho</span> <span class="o">=</span> <span class="n">P</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span> <span class="o">*</span> <span class="n">T</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.set_rho_s">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.set_rho_s">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_rho_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Density and internal energy from density and specific entropy.</span>
+
+<span class="sd">        Inverting the entropy relation for a perfect gas at fixed density gives</span>
+<span class="sd">        temperature directly:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            T = T_\mathrm{dtm} \exp\!\left(\frac{s}{c_v} + (\gamma-1)\ln\!\frac{\rho}{\rho_\mathrm{dtm}}\right)</span>
+
+<span class="sd">        where :math:`\rho_\mathrm{dtm} = p_\mathrm{dtm}/(R T_\mathrm{dtm})`, then:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            u = c_v(T - T_\mathrm{dtm})</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        s : array_like</span>
+<span class="sd">            Specific entropy [J/kg/K].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rho : ndarray</span>
+<span class="sd">            Density [kg/m³] (returned unchanged).</span>
+<span class="sd">        u : ndarray</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span>
+            <span class="n">s</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma_m1</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">rho</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_dtm_nd</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span> <span class="o">*</span> <span class="p">(</span><span class="n">T</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.set_T_rho">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.set_T_rho">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_T_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">rho</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Density and internal energy from temperature and density.</span>
+
+<span class="sd">        From the calorific equation of state:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            u = c_v(T - T_\mathrm{dtm})</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        T : array_like</span>
+<span class="sd">            Temperature [K].</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rho : ndarray</span>
+<span class="sd">            Density [kg/m³] (returned unchanged).</span>
+<span class="sd">        u : ndarray</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span> <span class="o">*</span> <span class="p">(</span><span class="n">T</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.set_T_s">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.set_T_s">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_T_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Density and internal energy from temperature and specific entropy.</span>
+
+<span class="sd">        Inverting the Gibbs relation gives pressure, then :math:`\rho` and</span>
+<span class="sd">        :math:`u` follow from :meth:`set_P_T`:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            p = p_\mathrm{dtm} \exp\!\left(\frac{c_p\ln(T/T_\mathrm{dtm}) - s}{R}\right)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        T : array_like</span>
+<span class="sd">            Temperature [K].</span>
+<span class="sd">        s : array_like</span>
+<span class="sd">            Specific entropy [J/kg/K].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rho : ndarray</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : ndarray</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">P</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm_nd</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">)</span> <span class="o">-</span> <span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_a">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_a">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_a</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Speed of sound from density and internal energy.</span>
+
+<span class="sd">        For a perfect gas, :math:`a^2 = \gamma R T`, combined with</span>
+<span class="sd">        the definition of internal energy :math:`u = c_v (T - T_\mathrm{dtm})` gives</span>
+
+<span class="sd">        .. math:: a = \sqrt{\gamma R \left(\frac{u}{c_v} + T_\mathrm{dtm}\right)}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        a : ndarray</span>
+<span class="sd">            Speed of sound [m/s].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span> <span class="o">*</span> <span class="p">(</span><span class="n">u</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span>
+        <span class="n">out</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_cp">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_cp">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_cp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Specific heat at constant pressure (constant for a perfect gas).</span>
+
+<span class="sd">        .. math:: c_p = \frac{\gamma R}{\gamma - 1}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        cp : ndarray</span>
+<span class="sd">            Specific heat at constant pressure [J/kg/K].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_cv">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_cv">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_cv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Specific heat at constant volume (constant for a perfect gas).</span>
+
+<span class="sd">        .. math:: c_v = \frac{R}{\gamma - 1} = \frac{c_p}{\gamma}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        cv : ndarray</span>
+<span class="sd">            Specific heat at constant volume [J/kg/K].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_dhdP_rho">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_dhdP_rho">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dhdP_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Derivative of specific enthalpy with respect to pressure at constant density.</span>
+
+<span class="sd">        From :math:`h = \gamma u + R T_\mathrm{dtm}` and</span>
+<span class="sd">        :math:`p = \rho R T`, differentiating at constant :math:`\rho`:</span>
+
+<span class="sd">        .. math:: \left.\frac{\partial h}{\partial p}\right|_\rho = \frac{\gamma}{\rho(\gamma-1)}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dhdP_rho : ndarray</span>
+<span class="sd">            Derivative :math:`(\partial h/\partial p)_\rho` [m³/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ga_gam1</span> <span class="o">/</span> <span class="n">rho</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ga_gam1</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_dhdrho_P">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_dhdrho_P">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dhdrho_P</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Derivative of specific enthalpy with respect to density at constant pressure.</span>
+
+<span class="sd">        From :math:`h = c_p T` and the ideal gas law :math:`T = p / (\rho R)`,</span>
+<span class="sd">        differentiating at constant :math:`p`:</span>
+
+<span class="sd">        .. math:: \left.\frac{\partial h}{\partial \rho}\right|_p = -\frac{c_p T}{\rho}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dhdrho_P : ndarray</span>
+<span class="sd">            Derivative :math:`(\partial h/\partial \rho)_p` [J·m³/kg²].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_T</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">*=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span>
+        <span class="n">out</span> <span class="o">/=</span> <span class="n">rho</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_dsdP_rho">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_dsdP_rho">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dsdP_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Derivative of specific entropy with respect to pressure at constant density.</span>
+
+<span class="sd">        From the Gibbs relation for a perfect gas, differentiating at constant</span>
+<span class="sd">        :math:`\rho` (so :math:`T \propto p`):</span>
+
+<span class="sd">        .. math:: \left.\frac{\partial s}{\partial p}\right|_\rho = \frac{c_v}{p}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dsdP_rho : ndarray</span>
+<span class="sd">            Derivative :math:`(\partial s/\partial p)_\rho` [J/kg/K/Pa].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_P</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span><span class="p">,</span> <span class="n">out</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_dsdrho_P">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_dsdrho_P">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dsdrho_P</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Derivative of specific entropy with respect to density at constant pressure.</span>
+
+<span class="sd">        From the Gibbs relation for a perfect gas, differentiating at constant</span>
+<span class="sd">        :math:`p` (so :math:`T \propto 1/\rho`):</span>
+
+<span class="sd">        .. math:: \left.\frac{\partial s}{\partial \rho}\right|_p = -\frac{c_p}{\rho}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dsdrho_P : ndarray</span>
+<span class="sd">            Derivative :math:`(\partial s/\partial \rho)_p` [J·m³/kg²/K].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">/</span> <span class="n">rho</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_dudP_rho">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_dudP_rho">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dudP_rho</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Derivative of specific internal energy with respect to pressure at constant density.</span>
+
+<span class="sd">        From :math:`u = c_v(T - T_\mathrm{dtm})` and :math:`p = \rho R T`,</span>
+<span class="sd">        differentiating at constant :math:`\rho`:</span>
+
+<span class="sd">        .. math:: \left.\frac{\partial u}{\partial p}\right|_\rho = \frac{1}{\rho(\gamma-1)}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dudP_rho : ndarray</span>
+<span class="sd">            Derivative :math:`(\partial u/\partial p)_\rho` [m³/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma_m1</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma_m1</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">reciprocal</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_dudrho_P">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_dudrho_P">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dudrho_P</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Derivative of specific internal energy with respect to density at constant pressure.</span>
+
+<span class="sd">        From :math:`u = c_v(T - T_\mathrm{dtm})` and :math:`T = p/(\rho R)`,</span>
+<span class="sd">        differentiating at constant :math:`p`:</span>
+
+<span class="sd">        .. math:: \left.\frac{\partial u}{\partial \rho}\right|_p = -\frac{p}{\rho^2(\gamma-1)}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dudrho_P : ndarray</span>
+<span class="sd">            Derivative :math:`(\partial u/\partial \rho)_p` [J·m³/kg²].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_P</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">/=</span> <span class="n">rho</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_gamma">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_gamma">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_gamma</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Ratio of specific heats (constant for a perfect gas).</span>
+
+<span class="sd">        .. math:: \gamma = \frac{c_p}{c_v}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        gamma : ndarray</span>
+<span class="sd">            Ratio of specific heats [--].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_h">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_h">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Specific enthalpy from density and internal energy.</span>
+
+<span class="sd">        Using the definitions of enthalpy :math:`h = u + p/\rho`, internal energy :math:`u = c_v(T-T_\mathrm{dtm})`, and the ideal gas law :math:`p = \rho R T` gives</span>
+
+<span class="sd">        .. math:: h = \gamma u + R T_\mathrm{dtm}</span>
+
+<span class="sd">        Enthalpy carries an offset dependent on the arbitrary datum state where</span>
+<span class="sd">        :math:`u = s = 0` at :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`; only</span>
+<span class="sd">        changes in :math:`h` are physically meaningful, so :math:`h \neq c_p T`.</span>
+<span class="sd">        See :ref:`datum-state`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        h : ndarray</span>
+<span class="sd">            Specific enthalpy [J/kg].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_mu">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_mu">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Dynamic viscosity (constant for a perfect gas).</span>
+
+<span class="sd">        If reference scales are set, then this method returns a quasi-dimensional viscosity in units of [m] --- see `Reference Scales`_ for details.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        mu : ndarray</span>
+<span class="sd">            Dynamic viscosity [kg/m/s].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mu_nd</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_P">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_P">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_P</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Pressure from density and internal energy.</span>
+
+<span class="sd">        From the ideal gas law and the definition of internal energy for a perfect gas,</span>
+<span class="sd">        :math:`u = c_v (T - T_\mathrm{dtm})`</span>
+
+<span class="sd">        .. math:: p = \rho R \left(\frac{u}{c_v} + T_\mathrm{dtm}\right)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        P : ndarray</span>
+<span class="sd">            Pressure [Pa].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span>
+        <span class="n">out</span> <span class="o">*=</span> <span class="n">rho</span>
+        <span class="n">out</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_P_h_T">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_P_h_T">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_P_h_T</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out_P</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">out_h</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">out_T</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Fused perfect-gas evaluation of pressure, enthalpy and temperature.</span>
+
+<span class="sd">        Overrides :meth:`~ember.fluid._Fluid.get_P_h_T` purely for speed. ``T = u/cv +</span>
+<span class="sd">        T_dtm`` is already computed inside ``P``, so one pass over ``(rho, u)``</span>
+<span class="sd">        yields all three: 8 B read and 12 B written per node, against ~36 B of</span>
+<span class="sd">        traffic for the three separate calls.</span>
+
+<span class="sd">        Falls back to the base implementation unless every array is</span>
+<span class="sd">        float32, contiguous, the same shape, and all three outputs were</span>
+<span class="sd">        supplied -- the kernel writes in place, so a non-contiguous output (or</span>
+<span class="sd">        a dtype f2py would have to copy) would silently drop the result.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out_P, out_h, out_T : ndarray, optional</span>
+<span class="sd">            Pre-allocated output arrays.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of ndarray</span>
+<span class="sd">            ``(P, h, T)``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">ember.fortran</span>
+
+        <span class="n">outs</span> <span class="o">=</span> <span class="p">(</span><span class="n">out_P</span><span class="p">,</span> <span class="n">out_h</span><span class="p">,</span> <span class="n">out_T</span><span class="p">)</span>
+        <span class="n">arrs</span> <span class="o">=</span> <span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span> <span class="o">+</span> <span class="n">outs</span>
+        <span class="n">usable</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">all</span><span class="p">(</span><span class="n">o</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">outs</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">arrs</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">arrs</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">rho</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">arrs</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span>
+                <span class="n">a</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s2">&quot;F_CONTIGUOUS&quot;</span><span class="p">]</span> <span class="ow">or</span> <span class="n">a</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s2">&quot;C_CONTIGUOUS&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">arrs</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">usable</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_P_h_T</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out_P</span><span class="p">,</span> <span class="n">out_h</span><span class="p">,</span> <span class="n">out_T</span><span class="p">)</span>
+
+        <span class="c1"># order=&quot;A&quot; ravels without copying for either contiguity, so these stay</span>
+        <span class="c1"># views and the kernel&#39;s writes land in the caller&#39;s arrays.</span>
+        <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">set_p_h_t_perfect</span><span class="p">(</span>
+            <span class="n">rho</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;A&quot;</span><span class="p">),</span>
+            <span class="n">u</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;A&quot;</span><span class="p">),</span>
+            <span class="n">cv</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span><span class="p">,</span>
+            <span class="n">t_dtm</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">,</span>
+            <span class="n">rgas</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span><span class="p">,</span>
+            <span class="n">gamma</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span><span class="p">,</span>
+            <span class="n">p</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">out_P</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;A&quot;</span><span class="p">),</span>
+            <span class="n">h</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">out_h</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;A&quot;</span><span class="p">),</span>
+            <span class="n">t</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">out_T</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;A&quot;</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">out_P</span><span class="p">,</span> <span class="n">out_h</span><span class="p">,</span> <span class="n">out_T</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_Pr">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_Pr">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_Pr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prandtl number (constant for a perfect gas).</span>
+
+<span class="sd">        .. math:: \mathit{Pr} = \frac{\mu c_p}{\kappa}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Pr : ndarray</span>
+<span class="sd">            Prandtl number [--].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Pr</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_Rgas">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_Rgas">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_Rgas</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Specific gas constant (constant for a perfect gas).</span>
+
+<span class="sd">        .. math:: R = c_p - c_v = \frac{(\gamma - 1)\, c_p}{\gamma}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        R : ndarray</span>
+<span class="sd">            Specific gas constant [J/kg/K].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_s">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_s">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Specific entropy from density and internal energy.</span>
+
+<span class="sd">        Using the Gibbs relation for a perfect gas, with the datum state</span>
+<span class="sd">        :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})` defining zero entropy</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            s = c_p \ln\!\frac{T}{T_\mathrm{dtm}} - R \ln\!\frac{p}{p_\mathrm{dtm}}</span>
+
+<span class="sd">        where :math:`T = u/c_v + T_\mathrm{dtm}` and :math:`p = \rho R T`.</span>
+
+<span class="sd">        Entropy is defined relative to the arbitrary datum state where</span>
+<span class="sd">        :math:`u = s = 0` at :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`; only</span>
+<span class="sd">        changes in :math:`s` are physically meaningful. See :ref:`datum-state`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        s : ndarray</span>
+<span class="sd">            Specific entropy [J/kg/K].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># s = cp*ln(T/T_dtm) - R*ln(P/P_dtm), with T = u/cv + T_dtm and P = rho*R*T.</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">u</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span>
+        <span class="n">P</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">or</span> <span class="n">T</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Scalar/0-d setup path (cold): keep the plain expression -- in-place</span>
+            <span class="c1"># ufuncs with out= reject numpy scalars, and allocation is irrelevant.</span>
+            <span class="n">T</span> <span class="o">=</span> <span class="n">T</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span>
+            <span class="n">P</span> <span class="o">=</span> <span class="n">P</span> <span class="o">*</span> <span class="n">T</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span><span class="p">),</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">P</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm_nd</span><span class="p">),</span>
+                <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="c1"># Array hot path: fold the two log terms in place in the T and P work</span>
+        <span class="c1"># buffers, collapsing the ~6 temporaries the expression form allocated.</span>
+        <span class="c1"># T (=u/cv) and P (=rho*R) are fresh (never alias the inputs), so the</span>
+        <span class="c1"># in-place steps are safe; P captures T before T is reused for term 1.</span>
+        <span class="n">T</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span>
+        <span class="n">P</span> <span class="o">*=</span> <span class="n">T</span>
+        <span class="n">T</span> <span class="o">/=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">T</span><span class="p">)</span>
+        <span class="n">T</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span>  <span class="c1"># T = cp*ln(T/T_dtm)</span>
+        <span class="n">P</span> <span class="o">/=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm_nd</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">P</span><span class="p">)</span>
+        <span class="n">P</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span>  <span class="c1"># P = R*ln(P/P_dtm)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.get_T">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_T">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_T</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Temperature from density and internal energy.</span>
+
+<span class="sd">        Rearranging the definition of internal energy for a perfect gas :math:`u = c_v (T - T_\mathrm{dtm})` gives</span>
+
+<span class="sd">        .. math:: T = \frac{u}{c_v} + T_\mathrm{dtm}</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        T : ndarray</span>
+<span class="sd">            Temperature [K].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv_nd</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm_nd</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.change_datum">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.change_datum">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">change_datum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P_dtm</span><span class="p">,</span> <span class="n">T_dtm</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get a new :class:`PerfectFluid` with shifted datum.</span>
+
+<span class="sd">        The new instance will have zero internal energy and entropy at the specified pressure and temperature.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        P_dtm : float</span>
+<span class="sd">            New datum pressure [Pa].</span>
+<span class="sd">        T_dtm : float</span>
+<span class="sd">            New datum temperature [K].</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        fluid_new : PerfectFluid</span>
+<span class="sd">            New fluid instance with shifted and entropy datum.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fluid_new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span>
+            <span class="n">cp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cp</span><span class="p">,</span>
+            <span class="n">gamma</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span><span class="p">,</span>
+            <span class="n">mu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mu</span><span class="p">,</span>
+            <span class="n">Pr</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_Pr</span><span class="p">,</span>
+            <span class="n">P_dtm</span><span class="o">=</span><span class="n">P_dtm</span><span class="p">,</span>
+            <span class="n">T_dtm</span><span class="o">=</span><span class="n">T_dtm</span><span class="p">,</span>
+            <span class="n">rho_ref</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rho_ref</span><span class="p">,</span>
+            <span class="n">V_ref</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">V_ref</span><span class="p">,</span>
+            <span class="n">Rgas_ref</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">Rgas_ref</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">fluid_new</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.change_ref">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.change_ref">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">change_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">V_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Rgas_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Make a new :class:`PerfectFluid` with different reference scales.</span>
+
+<span class="sd">        Omitted reference scales default to the current instance&#39;s reference scales, so only the scales that need to be changed must be specified.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho_ref : float, optional</span>
+<span class="sd">            New reference density for non-dimensionalisation.</span>
+<span class="sd">        V_ref : float, optional</span>
+<span class="sd">            New reference velocity for non-dimensionalisation.</span>
+<span class="sd">        Rgas_ref : float, optional</span>
+<span class="sd">            New reference gas constant for non-dimensionalisation.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        fluid_new : PerfectFluid</span>
+<span class="sd">            New fluid instance with the same properties but different reference scales.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span>
+            <span class="n">cp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cp</span><span class="p">,</span>
+            <span class="n">gamma</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span><span class="p">,</span>
+            <span class="n">mu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mu</span><span class="p">,</span>
+            <span class="n">Pr</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_Pr</span><span class="p">,</span>
+            <span class="n">P_dtm</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm</span><span class="p">,</span>
+            <span class="n">T_dtm</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm</span><span class="p">,</span>
+            <span class="n">rho_ref</span><span class="o">=</span><span class="n">rho_ref</span> <span class="k">if</span> <span class="n">rho_ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">rho_ref</span><span class="p">,</span>
+            <span class="n">V_ref</span><span class="o">=</span><span class="n">V_ref</span> <span class="k">if</span> <span class="n">V_ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">V_ref</span><span class="p">,</span>
+            <span class="n">Rgas_ref</span><span class="o">=</span><span class="n">Rgas_ref</span> <span class="k">if</span> <span class="n">Rgas_ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">Rgas_ref</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Index &#8212; ember 0.1.1.dev0+g8d029046d.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="_static/documentation_options.js?v=8e5ced4b"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="#" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.1.1.dev0+g8d029046d.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "./" + "../";
+    var current = "0.1.0";
+    var page = "genindex.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+
+<h1 id="index">Index</h1>
+
+<div class="genindex-jumpbox">
+ <a href="#_"><strong>_</strong></a>
+ | <a href="#A"><strong>A</strong></a>
+ | <a href="#B"><strong>B</strong></a>
+ | <a href="#C"><strong>C</strong></a>
+ | <a href="#D"><strong>D</strong></a>
+ | <a href="#E"><strong>E</strong></a>
+ | <a href="#F"><strong>F</strong></a>
+ | <a href="#G"><strong>G</strong></a>
+ | <a href="#H"><strong>H</strong></a>
+ | <a href="#I"><strong>I</strong></a>
+ | <a href="#J"><strong>J</strong></a>
+ | <a href="#K"><strong>K</strong></a>
+ | <a href="#L"><strong>L</strong></a>
+ | <a href="#M"><strong>M</strong></a>
+ | <a href="#N"><strong>N</strong></a>
+ | <a href="#O"><strong>O</strong></a>
+ | <a href="#P"><strong>P</strong></a>
+ | <a href="#R"><strong>R</strong></a>
+ | <a href="#S"><strong>S</strong></a>
+ | <a href="#T"><strong>T</strong></a>
+ | <a href="#U"><strong>U</strong></a>
+ | <a href="#V"><strong>V</strong></a>
+ | <a href="#W"><strong>W</strong></a>
+ | <a href="#X"><strong>X</strong></a>
+ | <a href="#Y"><strong>Y</strong></a>
+ | <a href="#Z"><strong>Z</strong></a>
+ 
+</div>
+<h2 id="_">_</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.__getitem__">__getitem__() (ember.block.Block method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="A">A</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.a">a (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.a_nd">a_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.accumulate_avg">accumulate_avg() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.DivergenceError.add_note">add_note() (ember.grid.DivergenceError method)</a>
+</li>
+      <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.advance">advance() (ember.nonreflecting.NonReflectingPatch method)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.advance_rk_stage_mg">advance_rk_stage_mg() (in module ember.solver)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.align_cart_unstr">align_cart_unstr() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Alpha">Alpha (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Alpha_rel">Alpha_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.ao">ao (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.append">append() (ember.collections.BlockPatchCollection method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.append">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/grid.html#ember.grid.GridConnectivity.apply">apply() (ember.grid.GridConnectivity method)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.mixing.MixingPatch.apply">(ember.mixing.MixingPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.apply">(ember.nonreflecting.NonReflectingPatch method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/grid.html#ember.grid.Grid.apply_bconds">apply_bconds() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.apply_guess_meridional">apply_guess_meridional() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.apply_guess_quasi3d">apply_guess_quasi3d() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.apply_guess_restart">apply_guess_restart() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.apply_rotation">apply_rotation() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/average.html#ember.average.area_average">area_average() (in module ember.average)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.DivergenceError.args">args (ember.grid.DivergenceError attribute)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.attach_to_block">attach_to_block() (ember.basepatch.Patch method)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.attach_to_block">(ember.basepatch.RevolutionPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.cusp.CuspPatch.attach_to_block">(ember.cusp.CuspPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.mixing.MixingPatch.attach_to_block">(ember.mixing.MixingPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.mixing_nonreflecting.NonReflectingMixingPatch.attach_to_block">(ember.mixing_nonreflecting.NonReflectingMixingPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.attach_to_block">(ember.nonreflecting.NonReflectingPatch method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="B">B</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/solver.html#ember.solver.BaseSolver">BaseSolver (class in ember.solver)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.bcond_to_primitive">bcond_to_primitive() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Beta">Beta (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block">Block (class in ember.block)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.basepatch.Patch.block">block (ember.basepatch.Patch property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.block_avg">block_avg (ember.basepatch.RevolutionPatch property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.block_view">block_view (ember.basepatch.Patch property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.block_view_offset_1">block_view_offset_1 (ember.basepatch.Patch property)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection">BlockPatchCollection (class in ember.collections)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="C">C</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/grid.html#ember.grid.Grid.calculate_wdist">calculate_wdist() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.cfl">cfl (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.change_datum">change_datum() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.change_ref">change_ref() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.check_convergence">check_convergence() (ember.convergence_history.ConvergenceHistory method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.check_match">check_match() (ember.basepatch.Patch method)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.cusp.CuspPatch.check_match">(ember.cusp.CuspPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.mixing.MixingPatch.check_match">(ember.mixing.MixingPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.mixing_nonreflecting.NonReflectingMixingPatch.check_match">(ember.mixing_nonreflecting.NonReflectingMixingPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.nonmatch.NonMatchPatch.check_match">(ember.nonmatch.NonMatchPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.periodic.PeriodicPatch.check_match">(ember.periodic.PeriodicPatch method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/grid.html#ember.grid.Grid.check_nan">check_nan() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.chic_to_bcond">chic_to_bcond() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.chic_to_mix">chic_to_mix() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.chic_to_primitive">chic_to_primitive() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.clear">clear() (ember.collections.BlockPatchCollection method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.clear">(ember.grid.Grid method)</a>
+</li>
+        <li><a href="api/grid.html#ember.grid.GridConnectivity.clear">(ember.grid.GridConnectivity method)</a>
+</li>
+        <li><a href="api/grid.html#ember.grid.GridConnectivityManager.clear">(ember.grid.GridConnectivityManager method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.clear_cache">clear_cache() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.connectivity">connectivity (ember.grid.Grid property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.conserved">conserved (ember.block.Block property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.conserved_avg_nd">conserved_avg_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.conserved_cell">conserved_cell (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.conserved_cell_nd">conserved_cell_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.conserved_filt_nd">conserved_filt_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.conserved_nd">conserved_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.conserved_to_flux">conserved_to_flux() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.conserved_to_primitive">conserved_to_primitive() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.const_dim">const_dim (ember.basepatch.Patch property)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory">ConvergenceHistory (class in ember.convergence_history)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.ConvergenceStep">ConvergenceStep (class in ember.grid)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.cooling">cooling (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.collections.GridPatchCollection.cooling">(ember.collections.GridPatchCollection property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.cooling.CoolingPatch">CoolingPatch (class in ember.cooling)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.copy">copy() (ember.basepatch.Patch method)</a>
+
+      <ul>
+        <li><a href="api/block.html#ember.block.Block.copy">(ember.block.Block method)</a>
+</li>
+        <li><a href="api/grid.html#ember.grid.Grid.copy">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.cp">cp (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.cp_nd">cp_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.cusp">cusp (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.GridConnectivityManager.cusp">(ember.grid.GridConnectivityManager property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.cusp.CuspPatch">CuspPatch (class in ember.cusp)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.cv">cv (ember.block.Block property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="D">D</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.dA_quad">dA_quad (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dA_tri">dA_tri (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dAi">dAi (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dAi_nd">dAi_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dAj">dAj (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dAj_nd">dAj_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dAk">dAk (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dAk_nd">dAk_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.dampin">dampin (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.delta_filt">delta_filt (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dhdP_rho_nd">dhdP_rho_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dhdrho_P_nd">dhdrho_P_nd (ember.block.Block property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.diverged">diverged (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.DivergenceError">DivergenceError</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.dP_D">dP_D (ember.convergence_history.ConvergenceHistory property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.ConvergenceStep.dP_D">(ember.grid.ConvergenceStep attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.dP_I">dP_I (ember.convergence_history.ConvergenceHistory property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.ConvergenceStep.dP_I">(ember.grid.ConvergenceStep attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.dP_P">dP_P (ember.convergence_history.ConvergenceHistory property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.ConvergenceStep.dP_P">(ember.grid.ConvergenceStep attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.dsdP_rho_nd">dsdP_rho_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dsdrho_P_nd">dsdrho_P_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dt_vol_nd">dt_vol_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dudP_rho_nd">dudP_rho_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.dudrho_P_nd">dudrho_P_nd (ember.block.Block property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="E">E</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    ember.average
+
+      <ul>
+        <li><a href="api/average.html#module-ember.average">module</a>
+</li>
+      </ul></li>
+      <li>
+    ember.block
+
+      <ul>
+        <li><a href="api/block.html#module-ember.block">module</a>
+</li>
+      </ul></li>
+      <li>
+    ember.convergence_history
+
+      <ul>
+        <li><a href="api/convergence_history.html#module-ember.convergence_history">module</a>
+</li>
+      </ul></li>
+      <li>
+    ember.cut
+
+      <ul>
+        <li><a href="api/cut.html#module-ember.cut">module</a>
+</li>
+      </ul></li>
+      <li>
+    ember.fluid
+
+      <ul>
+        <li><a href="api/fluid.html#module-ember.fluid">module</a>
+</li>
+      </ul></li>
+      <li>
+    ember.grid
+
+      <ul>
+        <li><a href="api/grid.html#module-ember.grid">module</a>
+</li>
+      </ul></li>
+      <li>
+    ember.patch
+
+      <ul>
+        <li><a href="api/patch.html#module-ember.patch">module</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    ember.perturbation
+
+      <ul>
+        <li><a href="api/perturbation.html#module-ember.perturbation">module</a>
+</li>
+      </ul></li>
+      <li>
+    ember.solver
+
+      <ul>
+        <li><a href="api/solver.html#module-ember.solver">module</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.empty">empty() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.err_mdot">err_mdot (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.err_mdot_row">err_mdot_row (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.GridConnectivity.exchange">exchange() (ember.grid.GridConnectivity method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.GridConnectivity.exchange_halos">exchange_halos() (ember.grid.GridConnectivity method)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.expon_mgrid">expon_mgrid (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.extend">extend() (ember.collections.BlockPatchCollection method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.extend">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="F">F</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.F_body_nd">F_body_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.fac_mgrid">fac_mgrid (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.fac_visc">fac_visc (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.finalise_average">finalise_average() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.find_settling_record">find_settling_record() (ember.convergence_history.ConvergenceHistory method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.flat">flat() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.flip">flip() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/average.html#ember.average.flow_conserved">flow_conserved() (in module ember.average)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/average.html#ember.average.flow_mass">flow_mass() (in module ember.average)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.fluid">fluid (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.mixing_nonreflecting.NonReflectingMixingPatch.flux_avg_nd">flux_avg_nd (ember.mixing_nonreflecting.NonReflectingMixingPatch property)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.flux_to_conserved">flux_to_conserved() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.flux_to_primitive">flux_to_primitive() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.format_message">format_message() (ember.convergence_history.ConvergenceHistory method)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.format_timing">format_timing() (ember.convergence_history.ConvergenceHistory method)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.from_grid">from_grid() (ember.convergence_history.ConvergenceHistory class method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="G">G</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/solver.html#ember.solver.Solver.gain_filt">gain_filt (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.gamma">gamma (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_a">get_a() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.get_convergence">get_convergence() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_cp">get_cp() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_cv">get_cv() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dhdP_rho">get_dhdP_rho() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dhdrho_P">get_dhdrho_P() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dsdP_rho">get_dsdP_rho() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dsdrho_P">get_dsdrho_P() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dudP_rho">get_dudP_rho() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dudrho_P">get_dudrho_P() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_gamma">get_gamma() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_h">get_h() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.get_ijk_face">get_ijk_face() (ember.basepatch.Patch method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.basepatch.Patch.get_ijk_node">get_ijk_node() (ember.basepatch.Patch method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_mu">get_mu() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_P">get_P() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_P_h_T">get_P_h_T() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_Pr">get_Pr() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.get_r_ref">get_r_ref() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_Rgas">get_Rgas() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_s">get_s() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_T">get_T() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/patch.html#ember.mixing.MixingPatch.get_target">get_target() (ember.mixing.MixingPatch method)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.mixing_nonreflecting.NonReflectingMixingPatch.get_target">(ember.mixing_nonreflecting.NonReflectingMixingPatch method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch.get_throttle_stats">get_throttle_stats() (ember.outlet.OutletPatch method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid">Grid (class in ember.grid)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.GridConnectivity">GridConnectivity (class in ember.grid)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.GridConnectivityManager">GridConnectivityManager (class in ember.grid)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.GridPatchCollection">GridPatchCollection (class in ember.collections)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="H">H</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.h">h (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.ho">ho (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.ConvergenceStep.ho">(ember.grid.ConvergenceStep attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.ho_nd">ho_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.ho_nd">(ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.ho_nd">(ember.nonreflecting.NonReflectingPatch attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.ho_rel">ho_rel (ember.block.Block property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="I">I</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.I">I (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.i_cusp">i_cusp (ember.block.Block property)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.i_log">i_log (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.i_perk">i_perk (ember.block.Block property)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.i_step">i_step (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.ien">ien (ember.basepatch.Patch property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.ijk_lim_abs">ijk_lim_abs (ember.basepatch.Patch property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.ijk_wall_conv">ijk_wall_conv (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.ijk_wall_visc">ijk_wall_visc (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.index">index() (ember.collections.BlockPatchCollection method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.index">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.inlet">inlet (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.collections.GridPatchCollection.inlet">(ember.collections.GridPatchCollection property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.inlet.InletPatch">InletPatch (class in ember.inlet)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.insert">insert() (ember.collections.BlockPatchCollection method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.insert">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/grid.html#ember.grid.Grid.interp_from">interp_from() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/cut.html#ember.cut.interpolate_to_structured">interpolate_to_structured() (in module ember.cut)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.inviscid">inviscid (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/solver.html#ember.solver.Solver.inviscid">(ember.solver.Solver attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.inviscid.InviscidPatch">InviscidPatch (class in ember.inviscid)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.ist">ist (ember.basepatch.Patch property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="J">J</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.basepatch.Patch.jen">jen (ember.basepatch.Patch property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.basepatch.Patch.jst">jst (ember.basepatch.Patch property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="K">K</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.basepatch.Patch.ken">ken (ember.basepatch.Patch property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.basepatch.Patch.kst">kst (ember.basepatch.Patch property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="L">L</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.L_ref">L_ref (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.label">label (ember.basepatch.Patch property)</a>
+
+      <ul>
+        <li><a href="api/block.html#ember.block.Block.label">(ember.block.Block property)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.labels">labels (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.labels">(ember.grid.Grid property)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="M">M</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.Ma">Ma (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Ma_rel">Ma_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Mam">Mam (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.masked">masked() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/average.html#ember.average.mass_average">mass_average() (in module ember.average)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Max">Max (ember.block.Block property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.ConvergenceStep.mdot">mdot (ember.grid.ConvergenceStep attribute)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.mdot_nd">mdot_nd (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.mdot_target">mdot_target (ember.convergence_history.ConvergenceHistory property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.ConvergenceStep.mdot_target">(ember.grid.ConvergenceStep attribute)</a>
+</li>
+        <li><a href="api/patch.html#ember.outlet.OutletPatch.mdot_target">(ember.outlet.OutletPatch property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.mdot_throttle">mdot_throttle (ember.convergence_history.ConvergenceHistory property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.ConvergenceStep.mdot_throttle">(ember.grid.ConvergenceStep attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.mean">mean() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/average.html#ember.average.mix_out">mix_out() (in module ember.average)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.mix_to_conserved">mix_to_conserved() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.mix_to_primitive">mix_to_primitive() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.mixing">mixing (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.collections.GridPatchCollection.mixing">(ember.collections.GridPatchCollection property)</a>
+</li>
+        <li><a href="api/grid.html#ember.grid.GridConnectivityManager.mixing">(ember.grid.GridConnectivityManager property)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.mixing_nonreflecting">mixing_nonreflecting (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.collections.GridPatchCollection.mixing_nonreflecting">(ember.collections.GridPatchCollection property)</a>
+</li>
+        <li><a href="api/grid.html#ember.grid.GridConnectivityManager.mixing_nonreflecting">(ember.grid.GridConnectivityManager property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.mixing.MixingPatch">MixingPatch (class in ember.mixing)</a>
+</li>
+      <li>
+    module
+
+      <ul>
+        <li><a href="api/average.html#module-ember.average">ember.average</a>
+</li>
+        <li><a href="api/block.html#module-ember.block">ember.block</a>
+</li>
+        <li><a href="api/convergence_history.html#module-ember.convergence_history">ember.convergence_history</a>
+</li>
+        <li><a href="api/cut.html#module-ember.cut">ember.cut</a>
+</li>
+        <li><a href="api/fluid.html#module-ember.fluid">ember.fluid</a>
+</li>
+        <li><a href="api/grid.html#module-ember.grid">ember.grid</a>
+</li>
+        <li><a href="api/patch.html#module-ember.patch">ember.patch</a>
+</li>
+        <li><a href="api/perturbation.html#module-ember.perturbation">ember.perturbation</a>
+</li>
+        <li><a href="api/solver.html#module-ember.solver">ember.solver</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.mu">mu (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.mu_nd">mu_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.mu_turb">mu_turb (ember.block.Block property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="N">N</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/solver.html#ember.solver.Solver.n_levels">n_levels (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.n_node">n_node (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.n_row">n_row (ember.grid.Grid property)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.n_stage">n_stage (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.n_step">n_step (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.n_step_avg">n_step_avg (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.n_step_log">n_step_log (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.nanmean">nanmean() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Nb">Nb (ember.block.Block property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.ndim">ndim (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.ni">ni (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.nj">nj (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.nk">nk (ember.block.Block property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.GridConnectivityManager.nonmatch">nonmatch (ember.grid.GridConnectivityManager property)</a>
+</li>
+      <li><a href="api/patch.html#ember.nonmatch.NonMatchPatch">NonMatchPatch (class in ember.nonmatch)</a>
+</li>
+      <li><a href="api/patch.html#ember.mixing_nonreflecting.NonReflectingMixingPatch">NonReflectingMixingPatch (class in ember.mixing_nonreflecting)</a>
+</li>
+      <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch">NonReflectingPatch (class in ember.nonreflecting)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.now">now (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.nvar">nvar (ember.block.Block property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="O">O</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.Omega">Omega (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.rotating.RotatingPatch.Omega">(ember.rotating.RotatingPatch property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.Omega_nd">Omega_nd (ember.block.Block property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.Omega_wall_nd">Omega_wall_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.outlet">outlet (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.collections.GridPatchCollection.outlet">(ember.collections.GridPatchCollection property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch">OutletPatch (class in ember.outlet)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="P">P</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.P">P (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.P_dtm">P_dtm (ember.fluid.PerfectFluid property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.P_nd">P_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.P_nd">(ember.nonreflecting.NonReflectingPatch attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.P_offset_nd">P_offset_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.P_ref">P_ref (ember.fluid.PerfectFluid property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.P_rot">P_rot (ember.block.Block property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.ConvergenceStep.P_throttle">P_throttle (ember.grid.ConvergenceStep attribute)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.GridConnectivity.pair">pair() (ember.grid.GridConnectivity method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.GridConnectivityManager.pair">(ember.grid.GridConnectivityManager method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.basepatch.Patch">Patch (class in ember.basepatch)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.patches">patches (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.patches">(ember.grid.Grid property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid">PerfectFluid (class in ember.fluid)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.periodic">periodic (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.collections.GridPatchCollection.periodic">(ember.collections.GridPatchCollection property)</a>
+</li>
+        <li><a href="api/grid.html#ember.grid.GridConnectivityManager.periodic">(ember.grid.GridConnectivityManager property)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.periodic.PeriodicPatch">PeriodicPatch (class in ember.periodic)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.permeable">permeable (ember.collections.BlockPatchCollection property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.pitch">pitch (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.pitch_dim">pitch_dim (ember.basepatch.RevolutionPatch property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Po">Po (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Po_rel">Po_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.pop">pop() (ember.collections.BlockPatchCollection method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.pop">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.Pr">Pr (ember.block.Block property)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.primitive_to_bcond">primitive_to_bcond() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.primitive_to_chic">primitive_to_chic() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.primitive_to_conserved">primitive_to_conserved() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.primitive_to_flux">primitive_to_flux() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/perturbation.html#ember.perturbation.primitive_to_mix">primitive_to_mix() (in module ember.perturbation)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.probe">probe (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.collections.GridPatchCollection.probe">(ember.collections.GridPatchCollection property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.probe.ProbePatch">ProbePatch (class in ember.probe)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.psi">psi (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="R">R</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.r">r (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.r_mid_nd">r_mid_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.r_nd">r_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.read_cnv">read_cnv() (ember.convergence_history.ConvergenceHistory class method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.read_emb">read_emb() (ember.grid.Grid class method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.read_plot3d">read_plot3d() (ember.grid.Grid class method)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.record_convergence">record_convergence() (ember.convergence_history.ConvergenceHistory method)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.remove">remove() (ember.collections.BlockPatchCollection method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.remove">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/grid.html#ember.grid.Grid.resample">resample() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.reshape">reshape() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.residual">residual (ember.convergence_history.ConvergenceHistory property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.ConvergenceStep.residual">(ember.grid.ConvergenceStep attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.residual_nd">residual_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.resolve_from_interface">resolve_from_interface() (ember.basepatch.RevolutionPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.resolve_to_interface">resolve_to_interface() (ember.basepatch.RevolutionPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch">RevolutionPatch (class in ember.basepatch)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.rf_exchange">rf_exchange (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.rf_inlet">rf_inlet (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.rf_mix">rf_mix (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.rf_outlet">rf_outlet (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Rgas">Rgas (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.Rgas_ref">Rgas_ref (ember.fluid.PerfectFluid property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.rho">rho (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.rho_nd">rho_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.rho_ref">rho_ref (ember.fluid.PerfectFluid property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.rhoe">rhoe (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.rhoo">rhoo (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.rhoo_rel">rhoo_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.rhorVt">rhorVt (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.rhoV_ref">rhoV_ref (ember.fluid.PerfectFluid property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.rhoVm">rhoVm (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.rhoVr">rhoVr (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.rhoVx">rhoVx (ember.block.Block property)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.rk_step">rk_step() (in module ember.solver)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.rotating">rotating (ember.collections.BlockPatchCollection property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.collections.GridPatchCollection.rotating">(ember.collections.GridPatchCollection property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.rotating.RotatingPatch">RotatingPatch (class in ember.rotating)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.row_station_bid_pid">row_station_bid_pid (ember.grid.Grid property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.rows">rows (ember.grid.Grid property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.rpm">rpm (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.rotating.RotatingPatch.rpm">(ember.rotating.RotatingPatch property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.rt">rt (ember.block.Block property)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.BaseSolver.run">run() (ember.solver.BaseSolver method)</a>
+
+      <ul>
+        <li><a href="api/solver.html#ember.solver.Solver.run">(ember.solver.Solver method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/solver.html#ember.solver.Solver.run_fmg">run_fmg() (ember.solver.Solver method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="S">S</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.s">s (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.ConvergenceStep.s">(ember.grid.ConvergenceStep attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.s_nd">s_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.s_nd">(ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.s_nd">(ember.nonreflecting.NonReflectingPatch attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.scratch">scratch (ember.block.Block property)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.scree_step">scree_step() (in module ember.solver)</a>
+</li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch.set_adjustment">set_adjustment() (ember.outlet.OutletPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.inlet.InletPatch.set_Alpha">set_Alpha() (ember.inlet.InletPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch.set_backflow_ho_s">set_backflow_ho_s() (ember.outlet.OutletPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.inlet.InletPatch.set_backflow_P">set_backflow_P() (ember.inlet.InletPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch.set_backflow_Po_To">set_backflow_Po_To() (ember.outlet.OutletPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch.set_backflow_Vr">set_backflow_Vr() (ember.outlet.OutletPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch.set_backflow_Vt">set_backflow_Vt() (ember.outlet.OutletPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.inlet.InletPatch.set_Beta">set_Beta() (ember.inlet.InletPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.set_block_avg">set_block_avg() (ember.basepatch.RevolutionPatch method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_conserved">set_conserved() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.set_conserved_cart_unstr">set_conserved_cart_unstr() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/patch.html#ember.cooling.CoolingPatch.set_cool">set_cool() (ember.cooling.CoolingPatch method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_fluid">set_fluid() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.set_fluid">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.mixing_nonreflecting.NonReflectingMixingPatch.set_flux_avg">set_flux_avg() (ember.mixing_nonreflecting.NonReflectingMixingPatch method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_h_s">set_h_s() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_h_s">(ember.fluid.PerfectFluid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.inlet.InletPatch.set_ho_s">set_ho_s() (ember.inlet.InletPatch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.set_i_lim">set_i_lim() (ember.basepatch.Patch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.set_j_lim">set_j_lim() (ember.basepatch.Patch method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.set_k_lim">set_k_lim() (ember.basepatch.Patch method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_L_ref">set_L_ref() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.set_L_ref">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.set_label">set_label() (ember.basepatch.Patch method)</a>
+
+      <ul>
+        <li><a href="api/block.html#ember.block.Block.set_label">(ember.block.Block method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.set_mu_turb">set_mu_turb() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_Nb">set_Nb() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_Omega">set_Omega() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.rotating.RotatingPatch.set_Omega">(ember.rotating.RotatingPatch method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch.set_P">set_P() (ember.outlet.OutletPatch method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_P_h">set_P_h() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_P_h">(ember.fluid.PerfectFluid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.set_P_rho">set_P_rho() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_P_rho">(ember.fluid.PerfectFluid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.set_P_rho_nd">set_P_rho_nd() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_P_s">set_P_s() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_P_s">(ember.fluid.PerfectFluid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.set_P_T">set_P_T() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_P_T">(ember.fluid.PerfectFluid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.inlet.InletPatch.set_Po_To">set_Po_To() (ember.inlet.InletPatch method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.set_primitive_cart_unstr">set_primitive_cart_unstr() (ember.grid.Grid method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.set_r">set_r() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_rho_s">set_rho_s() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_rho_s">(ember.fluid.PerfectFluid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.set_rho_u">set_rho_u() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_rho_u_Vxrt_nd">set_rho_u_Vxrt_nd() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_rpm">set_rpm() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.rotating.RotatingPatch.set_rpm">(ember.rotating.RotatingPatch method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.set_t">set_t() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_T_rho">set_T_rho() (ember.fluid.PerfectFluid method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_T_s">set_T_s() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_T_s">(ember.fluid.PerfectFluid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.mixing.MixingPatch.set_target">set_target() (ember.mixing.MixingPatch method)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.mixing_nonreflecting.NonReflectingMixingPatch.set_target">(ember.mixing_nonreflecting.NonReflectingMixingPatch method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch.set_throttle">set_throttle() (ember.outlet.OutletPatch method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_triangulated">set_triangulated() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_V_Alpha_Beta">set_V_Alpha_Beta() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_Vr">set_Vr() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_Vt">set_Vt() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_Vx">set_Vx() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_Vxrt">set_Vxrt() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_wdist">set_wdist() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_x">set_x() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_xrt">set_xrt() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.set_xyz">set_xyz() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.sf2">sf2 (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.sf4">sf4 (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver.sf_resid">sf_resid (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.shape">shape (ember.basepatch.Patch property)</a>
+
+      <ul>
+        <li><a href="api/block.html#ember.block.Block.shape">(ember.block.Block property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.shape_cell">shape_cell (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.shape_iface">shape_iface (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.shape_jface">shape_jface (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.shape_kface">shape_kface (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.sigma">sigma (ember.nonreflecting.NonReflectingPatch attribute)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.sinBeta">sinBeta (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.sinBeta">(ember.nonreflecting.NonReflectingPatch attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.size">size (ember.basepatch.Patch property)</a>
+
+      <ul>
+        <li><a href="api/block.html#ember.block.Block.size">(ember.block.Block property)</a>
+</li>
+        <li><a href="api/grid.html#ember.grid.Grid.size">(ember.grid.Grid property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.slice">slice (ember.basepatch.Patch property)</a>
+</li>
+      <li><a href="api/patch.html#ember.collections.BlockPatchCollection.slip">slip (ember.collections.BlockPatchCollection property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.smooth">smooth() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.smooth_pitch_121">smooth_pitch_121() (ember.basepatch.RevolutionPatch method)</a>
+</li>
+      <li><a href="api/solver.html#ember.solver.Solver">Solver (class in ember.solver)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.span_dim">span_dim (ember.basepatch.RevolutionPatch property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.spf">spf (ember.basepatch.RevolutionPatch property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.squeeze">squeeze() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.store">store (ember.block.Block property)</a>
+</li>
+      <li><a href="api/cut.html#ember.cut.structured_meridional">structured_meridional() (in module ember.cut)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="T">T</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.T">T (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.t">t (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.T_dtm">T_dtm (ember.fluid.PerfectFluid property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.T_nd">T_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.T_ref">T_ref (ember.fluid.PerfectFluid property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.tanAlpha">tanAlpha (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.tanAlpha">(ember.nonreflecting.NonReflectingPatch attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.tanAlpha_rel">tanAlpha_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.tanBeta">tanBeta (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.tau_q_halo">tau_q_halo (ember.block.Block property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.throttle">throttle (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.time">time (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.To">To (ember.block.Block property)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.to_json">to_json() (ember.convergence_history.ConvergenceHistory method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.To_rel">To_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/average.html#ember.average.total_area">total_area() (in module ember.average)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.tpnps">tpnps (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.transpose">transpose() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/cut.html#ember.cut.triangulate_to_unstructured">triangulate_to_unstructured() (in module ember.cut)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.triangulated">triangulated (ember.block.Block property)</a>
+</li>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.trim">trim() (ember.convergence_history.ConvergenceHistory method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="U">U</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.U">U (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.u">u (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.u_nd">u_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.u_ref">u_ref (ember.fluid.PerfectFluid property)</a>
+</li>
+      <li><a href="api/cut.html#ember.cut.unstructured">unstructured() (in module ember.cut)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.uo">uo (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.uo_rel">uo_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.update_bconds">update_bconds() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.update_cached_conserved">update_cached_conserved() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/grid.html#ember.grid.Grid.update_cached_conserved">(ember.grid.Grid method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/grid.html#ember.grid.Grid.update_filter">update_filter() (ember.grid.Grid method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.update_primitive">update_primitive() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.update_ref_scales">update_ref_scales() (ember.basepatch.Patch method)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.update_ref_scales">(ember.basepatch.RevolutionPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.mixing.MixingPatch.update_ref_scales">(ember.mixing.MixingPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.update_ref_scales">(ember.nonreflecting.NonReflectingPatch method)</a>
+</li>
+        <li><a href="api/patch.html#ember.outlet.OutletPatch.update_ref_scales">(ember.outlet.OutletPatch method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/grid.html#ember.grid.Grid.update_residual">update_residual() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.update_soln">update_soln() (ember.nonreflecting.NonReflectingPatch method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.update_sources">update_sources() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/patch.html#ember.outlet.OutletPatch.update_target">update_target() (ember.outlet.OutletPatch method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.update_timestep">update_timestep() (ember.grid.Grid method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="V">V</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.V">V (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.V_ref">V_ref (ember.fluid.PerfectFluid property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.V_rel">V_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.view">view() (ember.block.Block method)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vm">Vm (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.vol">vol (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.vol_nd">vol_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vr">Vr (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vr_nd">Vr_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.Vr_nd">(ember.nonreflecting.NonReflectingPatch attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.Vt">Vt (ember.block.Block property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.Vt_nd">Vt_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/patch.html#ember.nonreflecting.NonReflectingPatch.Vt_nd">(ember.nonreflecting.NonReflectingPatch attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.Vt_rel">Vt_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vt_rel_nd">Vt_rel_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vx">Vx (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vx_nd">Vx_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vxrt">Vxrt (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vxrt_nd">Vxrt_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vxrt_rel">Vxrt_rel (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vy">Vy (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.Vz">Vz (ember.block.Block property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="W">W</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.wdist">wdist (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.wdist_nd">wdist_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.RevolutionPatch.weight_pitch">weight_pitch (ember.basepatch.RevolutionPatch property)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.DivergenceError.with_traceback">with_traceback() (ember.grid.DivergenceError method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.write_cnv">write_cnv() (ember.convergence_history.ConvergenceHistory method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.write_emb">write_emb() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.write_fvbnd">write_fvbnd() (ember.grid.Grid method)</a>
+</li>
+      <li><a href="api/grid.html#ember.grid.Grid.write_plot3d">write_plot3d() (ember.grid.Grid method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="X">X</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.x">x (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.xlen_sq_nd">xlen_sq_nd (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.xr">xr (ember.block.Block property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.xrrt">xrrt (ember.block.Block property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.xrt">xrt (ember.block.Block property)</a>
+</li>
+      <li><a href="api/patch.html#ember.basepatch.Patch.xrt_centre">xrt_centre (ember.basepatch.Patch property)</a>
+</li>
+      <li><a href="api/block.html#ember.block.Block.xrt_nd">xrt_nd (ember.block.Block property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="Y">Y</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.y">y (ember.block.Block property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="Z">Z</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.z">z (ember.block.Block property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.zeta">zeta (ember.convergence_history.ConvergenceHistory property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

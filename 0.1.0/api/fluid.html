@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Fluid &#8212; ember 0.1.1.dev0+g8d029046d.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=8e5ced4b"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Block" href="block.html" />
+    <link rel="prev" title="Geometry and indexing" href="../coordinate_system.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.1.1.dev0+g8d029046d.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.1.0";
+    var page = "api/fluid.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Fluid</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#get-and-set-methods">Get and set methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#datum-state">Datum state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reference-scales">Reference scales</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.fluid.PerfectFluid"><code class="docutils literal notranslate"><span class="pre">ember.fluid.PerfectFluid</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="../coordinate_system.html" title="previous chapter">Geometry and indexing</a></li>
+      <li>Next: <a href="block.html" title="next chapter">Block</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.fluid">
+<span id="fluid"></span><h1>Fluid<a class="headerlink" href="#module-ember.fluid" title="Link to this heading">¶</a></h1>
+<p>Working fluid interface and equation of state implementations.</p>
+<p>This module defines an interface for computing thermodynamic properties of
+working fluids enabling manipulations of flow fields independent of the
+underlying equations of state. The abstraction cleanly separates thermodynamic
+relations from the flow solver, allowing easy extension to real gas models or
+tabulated properties.</p>
+<p>Currently, the only implementation of the interface is <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a> for ideal gases with
+constant specific heats.</p>
+<p>A fluid instance is immutable and only stores intrinsic fluid properties that never change, such
+as specific heats for a perfect gas, or the fluid species for a real
+fluid. These must passed into the constructor on initialisation. Storage of the actual flow solution is the responsibility of a <a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a>.</p>
+<section id="get-and-set-methods">
+<h2>Get and set methods<a class="headerlink" href="#get-and-set-methods" title="Link to this heading">¶</a></h2>
+<p>The basic state variables are density and internal energy, <span class="math notranslate nohighlight">\((\rho, u)\)</span>, because these are the most natural in a conservative computational fluid dynamics solver. An equation of state must provide two types of methods: <cite>get_?</cite> and <cite>set_?_?</cite>.</p>
+<ul class="simple">
+<li><p><cite>set_x_y(x,y)</cite>: Take thermodynamic properties <span class="math notranslate nohighlight">\((x, y)\)</span> and return <span class="math notranslate nohighlight">\((\rho, u)\)</span>.</p></li>
+<li><p><cite>get_z(rho, u, out=None)</cite>: Take <span class="math notranslate nohighlight">\((\rho, u)\)</span> and return thermodynamic property <span class="math notranslate nohighlight">\(z\)</span>.</p></li>
+</ul>
+<p>All methods support both scalar and array inputs, where the inputs must be broadcastable against each other. The output will have the broadcasted shape. Constructor inputs are cast to single-precision floats, and outputs will remain single-precision if all inputs are single-precision. Supplying an <cite>out</cite> keyword argument to <cite>get_?</cite> methods allows the output to be written into a pre-allocated array, following NumPy conventions, which may improve performance by avoiding temporary array allocations.</p>
+</section>
+<section id="datum-state">
+<span id="id1"></span><h2>Datum state<a class="headerlink" href="#datum-state" title="Link to this heading">¶</a></h2>
+<p>Only changes in internal energy, enthalpy, and entropy are physically
+meaningful, therefore we have the freedom to set the physical state at which
+these properties are zero to improve numerics and reduce precision errors due
+to subtracting two large floats. We define a thermodynamic datum
+<span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span> where <span class="math notranslate nohighlight">\(u = s = 0\)</span>
+simultaneously. Enthalpy at the datum is not zero because of the pressure term
+in <span class="math notranslate nohighlight">\(h = u + p/\rho\)</span>.</p>
+<p>It is possible to shift the datum state of a <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a> instance
+using <a class="reference internal" href="#ember.fluid.PerfectFluid.change_datum" title="ember.fluid.PerfectFluid.change_datum"><code class="xref py py-meth docutils literal notranslate"><span class="pre">PerfectFluid.change_datum()</span></code></a>, which returns a new instance with the
+same properties but shifted datum. The current datum is accessible via
+<a class="reference internal" href="#ember.fluid.PerfectFluid.P_dtm" title="ember.fluid.PerfectFluid.P_dtm"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_dtm</span></code></a> and <a class="reference internal" href="#ember.fluid.PerfectFluid.T_dtm" title="ember.fluid.PerfectFluid.T_dtm"><code class="xref py py-attr docutils literal notranslate"><span class="pre">T_dtm</span></code></a> attributes.</p>
+</section>
+<section id="reference-scales">
+<span id="id2"></span><h2>Reference scales<a class="headerlink" href="#reference-scales" title="Link to this heading">¶</a></h2>
+<p>The constructors for fluid instances take optional reference scales for non-dimensionalisation, which default to unity such that all quantities are in SI units. If reference scales are provided, then internally the class uses them to form a consistent system of non-dimensional quantities, and all inputs and outputs are taken as non-dimensional. The advantage of setting reference scales is improved numerical precision when working with non-dimensional quantities all of order unity.</p>
+<p>The user specifies:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(\rho_\mathrm{ref}\,\)</span>: density [kg/m<sup>3</sup>], <a class="reference internal" href="#ember.fluid.PerfectFluid.rho_ref" title="ember.fluid.PerfectFluid.rho_ref"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rho_ref</span></code></a></p></li>
+<li><p><span class="math notranslate nohighlight">\(V_\mathrm{ref}\,\)</span>: velocity [m/s], <a class="reference internal" href="#ember.fluid.PerfectFluid.V_ref" title="ember.fluid.PerfectFluid.V_ref"><code class="xref py py-attr docutils literal notranslate"><span class="pre">V_ref</span></code></a></p></li>
+<li><p><span class="math notranslate nohighlight">\(R_\mathrm{ref}\,\)</span>: gas constant [J/kg/K], <a class="reference internal" href="#ember.fluid.PerfectFluid.Rgas_ref" title="ember.fluid.PerfectFluid.Rgas_ref"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Rgas_ref</span></code></a></p></li>
+</ul>
+<p>and the class forms the following derived reference scales:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\,\)</span>: dynamic pressure [Pa], <a class="reference internal" href="#ember.fluid.PerfectFluid.P_ref" title="ember.fluid.PerfectFluid.P_ref"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_ref</span></code></a></p></li>
+<li><p><span class="math notranslate nohighlight">\(u_\mathrm{ref} = V_\mathrm{ref}^2\,\)</span>: specific energy [J/kg], <a class="reference internal" href="#ember.fluid.PerfectFluid.u_ref" title="ember.fluid.PerfectFluid.u_ref"><code class="xref py py-attr docutils literal notranslate"><span class="pre">u_ref</span></code></a></p></li>
+<li><p><span class="math notranslate nohighlight">\(T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\,\)</span>: temperature [K], <a class="reference internal" href="#ember.fluid.PerfectFluid.T_ref" title="ember.fluid.PerfectFluid.T_ref"><code class="xref py py-attr docutils literal notranslate"><span class="pre">T_ref</span></code></a></p></li>
+<li><p><span class="math notranslate nohighlight">\((\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}\,\)</span>: mass flux [kg/m<sup>2</sup>/s], <a class="reference internal" href="#ember.fluid.PerfectFluid.rhoV_ref" title="ember.fluid.PerfectFluid.rhoV_ref"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rhoV_ref</span></code></a></p></li>
+</ul>
+<p>Equations of state are unchanged when all quantities are scaled consistently. For example, taking the ideal gas law <span class="math notranslate nohighlight">\(p = \rho R T\)</span> and dividing through by the reference pressure <span class="math notranslate nohighlight">\(\rho_\mathrm{ref} V_\mathrm{ref}^2\)</span> gives</p>
+<div class="math notranslate nohighlight">
+\[\frac{p}{\rho_\mathrm{ref} V_\mathrm{ref}^2} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{V_\mathrm{ref}^2 / R_\mathrm{ref}} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{T_\mathrm{ref}}\]</div>
+<p>Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters.</p>
+<p>We can get a new instance with different reference scales using the <a class="reference internal" href="#ember.fluid.PerfectFluid.change_ref" title="ember.fluid.PerfectFluid.change_ref"><code class="xref py py-meth docutils literal notranslate"><span class="pre">PerfectFluid.change_ref()</span></code></a> method.</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">ember.fluid.</span></span><span class="sig-name descname"><span class="pre">PerfectFluid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cp</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Pr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">P_dtm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_dtm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Rgas_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">_Fluid</span></code></p>
+<p>Perfect gas with constant specific heats.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cp</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Specific heat at constant pressure [J/kg/K].</p></li>
+<li><p><strong>gamma</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Ratio of specific heats [–].</p></li>
+<li><p><strong>mu</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Dynamic viscosity [kg/m/s].</p></li>
+<li><p><strong>Pr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Prandtl number [–].</p></li>
+<li><p><strong>P_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Datum pressure where u = 0 and s = 0 [Pa].</p></li>
+<li><p><strong>T_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Datum temperature where u = 0 and s = 0 [K].</p></li>
+<li><p><strong>rho_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Reference density for non-dimensionalisation.</p></li>
+<li><p><strong>V_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Reference velocity for non-dimensionalisation.</p></li>
+<li><p><strong>Rgas_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Reference gas constant for non-dimensionalisation.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.set_h_s">
+<span class="sig-name descname"><span class="pre">set_h_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.set_h_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.set_h_s" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from specific enthalpy and entropy.</p>
+<p>Temperature is recovered from <span class="math notranslate nohighlight">\(h\)</span>, then pressure from <span class="math notranslate nohighlight">\(s\)</span>
+, then <span class="math notranslate nohighlight">\(\rho\)</span> and <span class="math notranslate nohighlight">\(u\)</span> follow from
+<a class="reference internal" href="#ember.fluid.PerfectFluid.set_P_T" title="ember.fluid.PerfectFluid.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a>:</p>
+<div class="math notranslate nohighlight">
+\[T = \frac{h}{c_p} + \frac{T_\mathrm{dtm}}{\gamma}, \qquad
+p = p_\mathrm{dtm} \exp\!\left(\frac{c_p\ln(T/T_\mathrm{dtm}) - s}{R}\right)\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>h</strong> (<em>array_like</em>) – Specific enthalpy [J/kg].</p></li>
+<li><p><strong>s</strong> (<em>array_like</em>) – Specific entropy [J/kg/K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.set_P_h">
+<span class="sig-name descname"><span class="pre">set_P_h</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.set_P_h"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.set_P_h" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from pressure and specific enthalpy.</p>
+<p>Temperature is recovered from <span class="math notranslate nohighlight">\(h = c_p T - R T_\mathrm{dtm}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[T = \frac{h}{c_p} + \frac{T_\mathrm{dtm}}{\gamma}\]</div>
+<p>Then <span class="math notranslate nohighlight">\(\rho\)</span> and <span class="math notranslate nohighlight">\(u\)</span> follow from <a class="reference internal" href="#ember.fluid.PerfectFluid.set_P_T" title="ember.fluid.PerfectFluid.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array_like</em>) – Pressure [Pa].</p></li>
+<li><p><strong>h</strong> (<em>array_like</em>) – Specific enthalpy [J/kg].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.set_P_rho">
+<span class="sig-name descname"><span class="pre">set_P_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.set_P_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.set_P_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from pressure and density.</p>
+<p>Temperature follows from the ideal gas law, giving:</p>
+<div class="math notranslate nohighlight">
+\[u = c_v\!\left(\frac{p}{\rho R} - T_\mathrm{dtm}\right)\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array_like</em>) – Pressure [Pa].</p></li>
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³] (returned unchanged).</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.set_P_s">
+<span class="sig-name descname"><span class="pre">set_P_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.set_P_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.set_P_s" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from pressure and specific entropy.</p>
+<p>Inverting the Gibbs relation gives temperature, then <span class="math notranslate nohighlight">\(\rho\)</span> and
+<span class="math notranslate nohighlight">\(u\)</span> follow from <a class="reference internal" href="#ember.fluid.PerfectFluid.set_P_T" title="ember.fluid.PerfectFluid.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a>:</p>
+<div class="math notranslate nohighlight">
+\[T = T_\mathrm{dtm} \exp\!\left(\frac{s + R\ln(p/p_\mathrm{dtm})}{c_p}\right)\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array_like</em>) – Pressure [Pa].</p></li>
+<li><p><strong>s</strong> (<em>array_like</em>) – Specific entropy [J/kg/K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.set_P_T">
+<span class="sig-name descname"><span class="pre">set_P_T</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.set_P_T"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.set_P_T" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from pressure and temperature.</p>
+<p>From the ideal gas law and the calorific equation of state:</p>
+<div class="math notranslate nohighlight">
+\[\rho = \frac{p}{RT}, \qquad u = c_v(T - T_\mathrm{dtm})\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array_like</em>) – Pressure [Pa].</p></li>
+<li><p><strong>T</strong> (<em>array_like</em>) – Temperature [K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.set_rho_s">
+<span class="sig-name descname"><span class="pre">set_rho_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.set_rho_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.set_rho_s" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from density and specific entropy.</p>
+<p>Inverting the entropy relation for a perfect gas at fixed density gives
+temperature directly:</p>
+<div class="math notranslate nohighlight">
+\[T = T_\mathrm{dtm} \exp\!\left(\frac{s}{c_v} + (\gamma-1)\ln\!\frac{\rho}{\rho_\mathrm{dtm}}\right)\]</div>
+<p>where <span class="math notranslate nohighlight">\(\rho_\mathrm{dtm} = p_\mathrm{dtm}/(R T_\mathrm{dtm})\)</span>, then:</p>
+<div class="math notranslate nohighlight">
+\[u = c_v(T - T_\mathrm{dtm})\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>s</strong> (<em>array_like</em>) – Specific entropy [J/kg/K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³] (returned unchanged).</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.set_T_rho">
+<span class="sig-name descname"><span class="pre">set_T_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">T</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.set_T_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.set_T_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from temperature and density.</p>
+<p>From the calorific equation of state:</p>
+<div class="math notranslate nohighlight">
+\[u = c_v(T - T_\mathrm{dtm})\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>T</strong> (<em>array_like</em>) – Temperature [K].</p></li>
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³] (returned unchanged).</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.set_T_s">
+<span class="sig-name descname"><span class="pre">set_T_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">T</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.set_T_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.set_T_s" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from temperature and specific entropy.</p>
+<p>Inverting the Gibbs relation gives pressure, then <span class="math notranslate nohighlight">\(\rho\)</span> and
+<span class="math notranslate nohighlight">\(u\)</span> follow from <a class="reference internal" href="#ember.fluid.PerfectFluid.set_P_T" title="ember.fluid.PerfectFluid.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a>:</p>
+<div class="math notranslate nohighlight">
+\[p = p_\mathrm{dtm} \exp\!\left(\frac{c_p\ln(T/T_\mathrm{dtm}) - s}{R}\right)\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>T</strong> (<em>array_like</em>) – Temperature [K].</p></li>
+<li><p><strong>s</strong> (<em>array_like</em>) – Specific entropy [J/kg/K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_a">
+<span class="sig-name descname"><span class="pre">get_a</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_a"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_a" title="Link to this definition">¶</a></dt>
+<dd><p>Speed of sound from density and internal energy.</p>
+<p>For a perfect gas, <span class="math notranslate nohighlight">\(a^2 = \gamma R T\)</span>, combined with
+the definition of internal energy <span class="math notranslate nohighlight">\(u = c_v (T - T_\mathrm{dtm})\)</span> gives</p>
+<div class="math notranslate nohighlight">
+\[a = \sqrt{\gamma R \left(\frac{u}{c_v} + T_\mathrm{dtm}\right)}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>a</strong> – Speed of sound [m/s].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_cp">
+<span class="sig-name descname"><span class="pre">get_cp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_cp"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_cp" title="Link to this definition">¶</a></dt>
+<dd><p>Specific heat at constant pressure (constant for a perfect gas).</p>
+<div class="math notranslate nohighlight">
+\[c_p = \frac{\gamma R}{\gamma - 1}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>cp</strong> – Specific heat at constant pressure [J/kg/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_cv">
+<span class="sig-name descname"><span class="pre">get_cv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_cv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_cv" title="Link to this definition">¶</a></dt>
+<dd><p>Specific heat at constant volume (constant for a perfect gas).</p>
+<div class="math notranslate nohighlight">
+\[c_v = \frac{R}{\gamma - 1} = \frac{c_p}{\gamma}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>cv</strong> – Specific heat at constant volume [J/kg/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_dhdP_rho">
+<span class="sig-name descname"><span class="pre">get_dhdP_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_dhdP_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_dhdP_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific enthalpy with respect to pressure at constant density.</p>
+<p>From <span class="math notranslate nohighlight">\(h = \gamma u + R T_\mathrm{dtm}\)</span> and
+<span class="math notranslate nohighlight">\(p = \rho R T\)</span>, differentiating at constant <span class="math notranslate nohighlight">\(\rho\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial h}{\partial p}\right|_\rho = \frac{\gamma}{\rho(\gamma-1)}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dhdP_rho</strong> – Derivative <span class="math notranslate nohighlight">\((\partial h/\partial p)_\rho\)</span> [m³/kg].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_dhdrho_P">
+<span class="sig-name descname"><span class="pre">get_dhdrho_P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_dhdrho_P"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_dhdrho_P" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific enthalpy with respect to density at constant pressure.</p>
+<p>From <span class="math notranslate nohighlight">\(h = c_p T\)</span> and the ideal gas law <span class="math notranslate nohighlight">\(T = p / (\rho R)\)</span>,
+differentiating at constant <span class="math notranslate nohighlight">\(p\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial h}{\partial \rho}\right|_p = -\frac{c_p T}{\rho}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dhdrho_P</strong> – Derivative <span class="math notranslate nohighlight">\((\partial h/\partial \rho)_p\)</span> [J·m³/kg²].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_dsdP_rho">
+<span class="sig-name descname"><span class="pre">get_dsdP_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_dsdP_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_dsdP_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific entropy with respect to pressure at constant density.</p>
+<p>From the Gibbs relation for a perfect gas, differentiating at constant
+<span class="math notranslate nohighlight">\(\rho\)</span> (so <span class="math notranslate nohighlight">\(T \propto p\)</span>):</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial s}{\partial p}\right|_\rho = \frac{c_v}{p}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dsdP_rho</strong> – Derivative <span class="math notranslate nohighlight">\((\partial s/\partial p)_\rho\)</span> [J/kg/K/Pa].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_dsdrho_P">
+<span class="sig-name descname"><span class="pre">get_dsdrho_P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_dsdrho_P"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_dsdrho_P" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific entropy with respect to density at constant pressure.</p>
+<p>From the Gibbs relation for a perfect gas, differentiating at constant
+<span class="math notranslate nohighlight">\(p\)</span> (so <span class="math notranslate nohighlight">\(T \propto 1/\rho\)</span>):</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial s}{\partial \rho}\right|_p = -\frac{c_p}{\rho}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dsdrho_P</strong> – Derivative <span class="math notranslate nohighlight">\((\partial s/\partial \rho)_p\)</span> [J·m³/kg²/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_dudP_rho">
+<span class="sig-name descname"><span class="pre">get_dudP_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_dudP_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_dudP_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific internal energy with respect to pressure at constant density.</p>
+<p>From <span class="math notranslate nohighlight">\(u = c_v(T - T_\mathrm{dtm})\)</span> and <span class="math notranslate nohighlight">\(p = \rho R T\)</span>,
+differentiating at constant <span class="math notranslate nohighlight">\(\rho\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial u}{\partial p}\right|_\rho = \frac{1}{\rho(\gamma-1)}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dudP_rho</strong> – Derivative <span class="math notranslate nohighlight">\((\partial u/\partial p)_\rho\)</span> [m³/kg].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_dudrho_P">
+<span class="sig-name descname"><span class="pre">get_dudrho_P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_dudrho_P"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_dudrho_P" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific internal energy with respect to density at constant pressure.</p>
+<p>From <span class="math notranslate nohighlight">\(u = c_v(T - T_\mathrm{dtm})\)</span> and <span class="math notranslate nohighlight">\(T = p/(\rho R)\)</span>,
+differentiating at constant <span class="math notranslate nohighlight">\(p\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial u}{\partial \rho}\right|_p = -\frac{p}{\rho^2(\gamma-1)}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dudrho_P</strong> – Derivative <span class="math notranslate nohighlight">\((\partial u/\partial \rho)_p\)</span> [J·m³/kg²].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_gamma">
+<span class="sig-name descname"><span class="pre">get_gamma</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_gamma"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_gamma" title="Link to this definition">¶</a></dt>
+<dd><p>Ratio of specific heats (constant for a perfect gas).</p>
+<div class="math notranslate nohighlight">
+\[\gamma = \frac{c_p}{c_v}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>gamma</strong> – Ratio of specific heats [–].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_h">
+<span class="sig-name descname"><span class="pre">get_h</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_h"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_h" title="Link to this definition">¶</a></dt>
+<dd><p>Specific enthalpy from density and internal energy.</p>
+<p>Using the definitions of enthalpy <span class="math notranslate nohighlight">\(h = u + p/\rho\)</span>, internal energy <span class="math notranslate nohighlight">\(u = c_v(T-T_\mathrm{dtm})\)</span>, and the ideal gas law <span class="math notranslate nohighlight">\(p = \rho R T\)</span> gives</p>
+<div class="math notranslate nohighlight">
+\[h = \gamma u + R T_\mathrm{dtm}\]</div>
+<p>Enthalpy carries an offset dependent on the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only
+changes in <span class="math notranslate nohighlight">\(h\)</span> are physically meaningful, so <span class="math notranslate nohighlight">\(h \neq c_p T\)</span>.
+See <a class="reference internal" href="#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>h</strong> – Specific enthalpy [J/kg].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_mu">
+<span class="sig-name descname"><span class="pre">get_mu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_mu"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_mu" title="Link to this definition">¶</a></dt>
+<dd><p>Dynamic viscosity (constant for a perfect gas).</p>
+<p>If reference scales are set, then this method returns a quasi-dimensional viscosity in units of [m] — see <a class="reference internal" href="#id2">Reference Scales</a> for details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>mu</strong> – Dynamic viscosity [kg/m/s].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_P">
+<span class="sig-name descname"><span class="pre">get_P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_P"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_P" title="Link to this definition">¶</a></dt>
+<dd><p>Pressure from density and internal energy.</p>
+<p>From the ideal gas law and the definition of internal energy for a perfect gas,
+<span class="math notranslate nohighlight">\(u = c_v (T - T_\mathrm{dtm})\)</span></p>
+<div class="math notranslate nohighlight">
+\[p = \rho R \left(\frac{u}{c_v} + T_\mathrm{dtm}\right)\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>P</strong> – Pressure [Pa].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_P_h_T">
+<span class="sig-name descname"><span class="pre">get_P_h_T</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_P</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_h</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_T</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_P_h_T"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_P_h_T" title="Link to this definition">¶</a></dt>
+<dd><p>Fused perfect-gas evaluation of pressure, enthalpy and temperature.</p>
+<p>Overrides <code class="xref py py-meth docutils literal notranslate"><span class="pre">get_P_h_T()</span></code> purely for speed. <code class="docutils literal notranslate"><span class="pre">T</span> <span class="pre">=</span> <span class="pre">u/cv</span> <span class="pre">+</span>
+<span class="pre">T_dtm</span></code> is already computed inside <code class="docutils literal notranslate"><span class="pre">P</span></code>, so one pass over <code class="docutils literal notranslate"><span class="pre">(rho,</span> <span class="pre">u)</span></code>
+yields all three: 8 B read and 12 B written per node, against ~36 B of
+traffic for the three separate calls.</p>
+<p>Falls back to the base implementation unless every array is
+float32, contiguous, the same shape, and all three outputs were
+supplied – the kernel writes in place, so a non-contiguous output (or
+a dtype f2py would have to copy) would silently drop the result.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out_P</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output arrays.</p></li>
+<li><p><strong>out_h</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output arrays.</p></li>
+<li><p><strong>out_T</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output arrays.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(P,</span> <span class="pre">h,</span> <span class="pre">T)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_Pr">
+<span class="sig-name descname"><span class="pre">get_Pr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_Pr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_Pr" title="Link to this definition">¶</a></dt>
+<dd><p>Prandtl number (constant for a perfect gas).</p>
+<div class="math notranslate nohighlight">
+\[\mathit{Pr} = \frac{\mu c_p}{\kappa}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>Pr</strong> – Prandtl number [–].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_Rgas">
+<span class="sig-name descname"><span class="pre">get_Rgas</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_Rgas"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_Rgas" title="Link to this definition">¶</a></dt>
+<dd><p>Specific gas constant (constant for a perfect gas).</p>
+<div class="math notranslate nohighlight">
+\[R = c_p - c_v = \frac{(\gamma - 1)\, c_p}{\gamma}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>R</strong> – Specific gas constant [J/kg/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_s">
+<span class="sig-name descname"><span class="pre">get_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_s" title="Link to this definition">¶</a></dt>
+<dd><p>Specific entropy from density and internal energy.</p>
+<p>Using the Gibbs relation for a perfect gas, with the datum state
+<span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span> defining zero entropy</p>
+<div class="math notranslate nohighlight">
+\[s = c_p \ln\!\frac{T}{T_\mathrm{dtm}} - R \ln\!\frac{p}{p_\mathrm{dtm}}\]</div>
+<p>where <span class="math notranslate nohighlight">\(T = u/c_v + T_\mathrm{dtm}\)</span> and <span class="math notranslate nohighlight">\(p = \rho R T\)</span>.</p>
+<p>Entropy is defined relative to the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only
+changes in <span class="math notranslate nohighlight">\(s\)</span> are physically meaningful. See <a class="reference internal" href="#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>s</strong> – Specific entropy [J/kg/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.get_T">
+<span class="sig-name descname"><span class="pre">get_T</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.get_T"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.get_T" title="Link to this definition">¶</a></dt>
+<dd><p>Temperature from density and internal energy.</p>
+<p>Rearranging the definition of internal energy for a perfect gas <span class="math notranslate nohighlight">\(u = c_v (T - T_\mathrm{dtm})\)</span> gives</p>
+<div class="math notranslate nohighlight">
+\[T = \frac{u}{c_v} + T_\mathrm{dtm}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>T</strong> – Temperature [K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.change_datum">
+<span class="sig-name descname"><span class="pre">change_datum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P_dtm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_dtm</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.change_datum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.change_datum" title="Link to this definition">¶</a></dt>
+<dd><p>Get a new <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a> with shifted datum.</p>
+<p>The new instance will have zero internal energy and entropy at the specified pressure and temperature.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – New datum pressure [Pa].</p></li>
+<li><p><strong>T_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – New datum temperature [K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>fluid_new</strong> – New fluid instance with shifted and entropy datum.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid">PerfectFluid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.change_ref">
+<span class="sig-name descname"><span class="pre">change_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Rgas_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#PerfectFluid.change_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.PerfectFluid.change_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Make a new <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a> with different reference scales.</p>
+<p>Omitted reference scales default to the current instance’s reference scales, so only the scales that need to be changed must be specified.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density for non-dimensionalisation.</p></li>
+<li><p><strong>V_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference velocity for non-dimensionalisation.</p></li>
+<li><p><strong>Rgas_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference gas constant for non-dimensionalisation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>fluid_new</strong> – New fluid instance with the same properties but different reference scales.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid">PerfectFluid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.P_dtm">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">P_dtm</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.P_dtm" title="Link to this definition">¶</a></dt>
+<dd><p>Datum pressure <span class="math notranslate nohighlight">\(p_\mathrm{dtm}\)</span> where <span class="math notranslate nohighlight">\(u = s = 0\)</span> [Pa].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.P_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">P_ref</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.P_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference pressure for nondimensionalisation, <span class="math notranslate nohighlight">\(p_\mathrm{ref}\)</span> [Pa].</p>
+<p>See <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>; derived from</p>
+<div class="math notranslate nohighlight">
+\[p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.Rgas_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Rgas_ref</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.Rgas_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference gas constant for nondimensionalisation, <span class="math notranslate nohighlight">\(R_\mathrm{ref}\)</span> [J/kg/K].</p>
+<p>User-specified; see <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.T_dtm">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">T_dtm</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.T_dtm" title="Link to this definition">¶</a></dt>
+<dd><p>Datum temperature <span class="math notranslate nohighlight">\(T_\mathrm{dtm}\)</span> where <span class="math notranslate nohighlight">\(u = s = 0\)</span> [K].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.T_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">T_ref</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.T_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference temperature for nondimensionalisation, <span class="math notranslate nohighlight">\(T_\mathrm{ref}\)</span> [K].</p>
+<p>See <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>; derived from</p>
+<div class="math notranslate nohighlight">
+\[T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.V_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">V_ref</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.V_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference velocity for nondimensionalisation, <span class="math notranslate nohighlight">\(V_\mathrm{ref}\)</span> [m/s].</p>
+<p>User-specified; see <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.rhoV_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhoV_ref</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.rhoV_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference mass flux for nondimensionalisation, <span class="math notranslate nohighlight">\((\rho V)_\mathrm{ref}\)</span> [kg/m²/s].</p>
+<p>See <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>; derived from</p>
+<div class="math notranslate nohighlight">
+\[(\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.rho_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rho_ref</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.rho_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference density for nondimensionalisation, <span class="math notranslate nohighlight">\(\rho_\mathrm{ref}\)</span> [kg/m³].</p>
+<p>User-specified; see <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.u_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">u_ref</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.u_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference specific energy for nondimensionalisation, <span class="math notranslate nohighlight">\(u_\mathrm{ref}\)</span> [J/kg].</p>
+<p>See <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>; derived from</p>
+<div class="math notranslate nohighlight">
+\[u_\mathrm{ref} = V_\mathrm{ref}^2\]</div>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/fluid.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>ember &#8212; ember 0.1.1.dev0+g8d029046d.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="_static/documentation_options.js?v=8e5ced4b"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="install.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.1.1.dev0+g8d029046d.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "./" + "../";
+    var current = "0.1.0";
+    var page = "index.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+      <li>Next: <a href="install.html" title="next chapter">Installation</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="ember">
+<h1>ember<a class="headerlink" href="#ember" title="Link to this heading">¶</a></h1>
+<p>An ‘Enhanced Multi-Block solvER’ for turbomachinery computational fluid
+dynamics, written by <a class="reference external" href="https://jamesbrind.uk/">James Brind</a> at the <a class="reference external" href="https://whittle.eng.cam.ac.uk/">Whittle Laboratory</a>, University of Cambridge.
+Solves the compressible Reynolds-averaged Navier-Stokes equations on
+multi-block structured meshes, using an evolution of the fast and robust Denton
+algorithms. Pre- and post-processing is handled through a numpy-like Python
+interface, while the heavy computations run through compiled Fortran for speed.</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="install.html#supported-versions-and-platforms">Supported versions and platforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install.html#via-the-python-package-index">Via the Python Package Index</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install.html#from-source">From source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install.html#verifying-the-install">Verifying the install</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install.html#performance-tuning">Performance tuning</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Examples</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="coordinate_system.html#indexing">Indexing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="coordinate_system.html#coordinate-system">Coordinate system</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#get-and-set-methods">Get and set methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#datum-state">Datum state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#reference-scales">Reference scales</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid"><code class="docutils literal notranslate"><span class="pre">ember.fluid.PerfectFluid</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#initialisation">Initialisation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#setter-methods">Setter methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#indexing-and-slicing">Indexing and slicing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#array-methods">Array methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#equations-of-state">Equations of state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#reference-scales">Reference scales</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#ember.block.Block"><code class="docutils literal notranslate"><span class="pre">ember.block.Block</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/grid.html">Grid</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#construction-and-labelled-access">Construction and labelled access</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#connectivity">Connectivity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#driving-a-solver">Driving a solver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#file-formats">File formats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.Grid"><code class="docutils literal notranslate"><span class="pre">ember.grid.Grid</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivity"><code class="docutils literal notranslate"><span class="pre">ember.grid.GridConnectivity</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivityManager"><code class="docutils literal notranslate"><span class="pre">ember.grid.GridConnectivityManager</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep"><code class="docutils literal notranslate"><span class="pre">ember.grid.ConvergenceStep</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.DivergenceError"><code class="docutils literal notranslate"><span class="pre">ember.grid.DivergenceError</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/patch.html">Patch</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#limiting-index-rules">Limiting index rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#types-of-patches">Types of patches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#storage-and-attachment-to-blocks">Storage and attachment to blocks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#base-classes">Base classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#concrete-patch-types">Concrete patch types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#collections">Collections</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/average.html">Averaging</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.flow_mass"><code class="docutils literal notranslate"><span class="pre">ember.average.flow_mass()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.flow_conserved"><code class="docutils literal notranslate"><span class="pre">ember.average.flow_conserved()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.mass_average"><code class="docutils literal notranslate"><span class="pre">ember.average.mass_average()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.area_average"><code class="docutils literal notranslate"><span class="pre">ember.average.area_average()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.total_area"><code class="docutils literal notranslate"><span class="pre">ember.average.total_area()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.mix_out"><code class="docutils literal notranslate"><span class="pre">ember.average.mix_out()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/cut.html">Cutting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#cuts-along-grid-surfaces-by-index">Cuts along grid surfaces by index</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#ember.cut.unstructured"><code class="docutils literal notranslate"><span class="pre">ember.cut.unstructured()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#ember.cut.structured_meridional"><code class="docutils literal notranslate"><span class="pre">ember.cut.structured_meridional()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#ember.cut.interpolate_to_structured"><code class="docutils literal notranslate"><span class="pre">ember.cut.interpolate_to_structured()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#ember.cut.triangulate_to_unstructured"><code class="docutils literal notranslate"><span class="pre">ember.cut.triangulate_to_unstructured()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/solver.html">Solver</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#overview-of-one-time-step">Overview of one time step</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#time-integrators">Time integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#cfl-number">CFL number</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#smoothing">Smoothing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#multigrid">Multigrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#body-forces-and-viscous-model">Body forces and viscous model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#boundary-patches-and-inter-block-coupling">Boundary patches and inter-block coupling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#logging-averaging-and-convergence-history">Logging, averaging, and convergence history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.BaseSolver"><code class="docutils literal notranslate"><span class="pre">ember.solver.BaseSolver</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.Solver"><code class="docutils literal notranslate"><span class="pre">ember.solver.Solver</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.scree_step"><code class="docutils literal notranslate"><span class="pre">ember.solver.scree_step()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.advance_rk_stage_mg"><code class="docutils literal notranslate"><span class="pre">ember.solver.advance_rk_stage_mg()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.rk_step"><code class="docutils literal notranslate"><span class="pre">ember.solver.rk_step()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/convergence_history.html">Convergence history</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#reading-a-history">Reading a history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#monitors">Monitors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#storage">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#reading-from-a-file">Reading from a file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory"><code class="docutils literal notranslate"><span class="pre">ember.convergence_history.ConvergenceHistory</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/perturbation.html">Jacobians</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_conserved"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.primitive_to_conserved()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.conserved_to_primitive"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.conserved_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_chic"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.primitive_to_chic()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.chic_to_primitive"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.chic_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_flux"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.primitive_to_flux()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.flux_to_primitive"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.flux_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_bcond"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.primitive_to_bcond()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.bcond_to_primitive"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.bcond_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_mix"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.primitive_to_mix()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.mix_to_primitive"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.mix_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.mix_to_conserved"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.mix_to_conserved()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.chic_to_bcond"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.chic_to_bcond()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.chic_to_mix"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.chic_to_mix()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.flux_to_conserved"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.flux_to_conserved()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.conserved_to_flux"><code class="docutils literal notranslate"><span class="pre">ember.perturbation.conserved_to_flux()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
+</ul>
+</div>
+<section id="indices">
+<h2>Indices<a class="headerlink" href="#indices" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+</ul>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
