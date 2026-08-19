@@ -5,6 +5,8 @@ ember follows `semantic versioning <https://semver.org/>`_ from 0.1.0 onwards.
 Until 1.0.0, minor releases may make breaking changes to the public API
 without a deprecation period.
 
+.. _v0.2.0:
+
 0.2.0 (2026-08-18)
 ------------------
 
@@ -99,6 +101,8 @@ without a deprecation period.
   one step.
 * Added API documentation pages for ``cases``, ``communicators``,
   ``block_util``, ``patch``, ``util``, and ``yaml_util``.
+
+.. _v0.1.0:
 
 0.1.0 (2026-08-06)
 ------------------
