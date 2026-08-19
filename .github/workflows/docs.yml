@@ -14,8 +14,8 @@ on:
       slug:
         description: "Directory to publish under, e.g. 0.1.0"
         required: true
-      graft_picker:
-        description: "Graft the version picker in from master (tags that predate it)"
+      backfill:
+        description: "Backfill a tag predating the current docs setup (grafts the picker, and does not treat warnings as errors)"
         type: boolean
         default: false
 
@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0
 
       - name: Graft the version picker in from master
-        if: ${{ inputs.graft_picker }}
+        if: ${{ inputs.backfill }}
         run: |
           # Tags released before the picker existed have neither the template
           # nor the conf.py wiring. Both are added to the checkout only, never
@@ -74,12 +74,6 @@ jobs:
           cat >> docs/conf.py <<'CONF'
 
           # Appended by .github/workflows/docs.yml when backfilling this tag.
-          # Block.flat points at the private base, which has no page, and the
-          # tag predates the entry that lets nitpicky ignore it -- without this
-          # the build fails under -W on a reference the code already shipped.
-          nitpick_ignore = nitpick_ignore + [
-              ("py:attr", "ember._struct.StructuredData.flat"),
-          ]
           html_context = {"ember_version_slug": os.environ.get("EMBER_DOCS_VERSION", release)}
           html_sidebars = {
               "**": [
@@ -129,7 +123,16 @@ jobs:
           # Docs need the project (so autodoc can import the compiled Fortran
           # extension) and the docs group, but none of the dev tooling.
           uv sync --no-default-groups --group docs
-          make docs
+          if [ "${{ inputs.backfill }}" = "true" ]; then
+            # A backfill publishes a tag as it shipped. `make docs` runs -W,
+            # which gates new work against today's Sphinx -- applied to an old
+            # tag it refuses to publish over references that resolved when the
+            # tag was cut. Read the Docs never passed -W either, which is why
+            # these tags built there.
+            uv run sphinx-build -b html docs docs/_build/html
+          else
+            make docs
+          fi
 
       - name: Publish to gh-pages
         env:
