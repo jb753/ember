@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.cases &#8212; ember 0.2.1.dev5+g520995120 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=bffc62d5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev5+g520995120</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "dev";
+    var page = "_modules/ember/cases.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.cases</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Canonical test cases assembled from the core building blocks.</span>
+
+<span class="sd">This module holds the case-construction scaffolding used by the square-duct</span>
+<span class="sd">CLI sweep driver (``scripts/run_duct.py``): a single :func:`build_duct_grid`</span>
+<span class="sd">that meshes the duct, sets the mean flow and boundary conditions, and applies</span>
+<span class="sd">the initial-condition perturbations.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.block</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.grid</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.fluid</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.patch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.set_iterative</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
+
+
+<div class="viewcode-block" id="build_duct_grid">
+<a class="viewcode-back" href="../../api/cases.html#ember.cases.build_duct_grid">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_duct_grid</span><span class="p">(</span>
+    <span class="n">ncell</span><span class="o">=</span><span class="mi">1_000_000</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">cluster</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">ER</span><span class="o">=</span><span class="mf">1.05</span><span class="p">,</span>
+    <span class="n">perturb_vx</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+    <span class="n">perturb_seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">ho_frac</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+    <span class="n">s_frac</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+    <span class="n">vx_ramp</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+    <span class="n">side</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">r_mid_ratio</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
+    <span class="n">length_ratio</span><span class="o">=</span><span class="mf">3.0</span><span class="p">,</span>
+    <span class="n">nj</span><span class="o">=</span><span class="mi">65</span><span class="p">,</span>
+    <span class="n">nk</span><span class="o">=</span><span class="mi">57</span><span class="p">,</span>
+    <span class="n">Ma_bulk</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+    <span class="n">Po</span><span class="o">=</span><span class="mf">1e5</span><span class="p">,</span>
+    <span class="n">To</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Assemble the square-duct grid at its perturbed initial condition.</span>
+
+<span class="sd">    The duct cross-section is a square of side ``side``, bent onto a mean radius</span>
+<span class="sd">    ``r_mid_ratio * side`` and repeated around the annulus at ``Nb`` passages,</span>
+<span class="sd">    with ``Nb`` chosen so the arc subtended by one passage at the mean radius is</span>
+<span class="sd">    as close to ``side`` as an integer passage count allows (a square section).</span>
+<span class="sd">    The streamwise mesh is uniform; the two cross-stream directions are either</span>
+<span class="sd">    clustered towards both walls at expansion ratio ``ER`` (``cluster=True``) or</span>
+<span class="sd">    uniform (``cluster=False``). The mean flow is fixed by a bulk Mach number at</span>
+<span class="sd">    a given stagnation state, then perturbed with a random velocity ripple plus</span>
+<span class="sd">    a deterministic streamwise ramp in enthalpy, entropy, and velocity.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ncell : int</span>
+<span class="sd">        Target cell count. The streamwise node count ``ni`` is derived from it</span>
+<span class="sd">        (``nj`` and ``nk`` fixed) and rounded so ``ni - 1`` is a multiple of 8,</span>
+<span class="sd">        making the block friendly to the two-level multigrid coarsening.</span>
+<span class="sd">    cluster : bool</span>
+<span class="sd">        Cluster the two cross-stream directions towards both walls (``True``) or</span>
+<span class="sd">        space them uniformly (``False``).</span>
+<span class="sd">    ER : float</span>
+<span class="sd">        Expansion ratio for the wall clustering; ignored when ``cluster`` is</span>
+<span class="sd">        ``False``.</span>
+<span class="sd">    perturb_vx : float</span>
+<span class="sd">        Amplitude of the random axial-velocity ripple (fraction of ``Vx``).</span>
+<span class="sd">    perturb_seed : int</span>
+<span class="sd">        Seed for the velocity-ripple RNG.</span>
+<span class="sd">    ho_frac : float</span>
+<span class="sd">        Stagnation enthalpy raised by this fraction of the local dynamic</span>
+<span class="sd">        enthalpy.</span>
+<span class="sd">    s_frac : float</span>
+<span class="sd">        Entropy raised by the entropy-equivalent of that enthalpy offset.</span>
+<span class="sd">    vx_ramp : float</span>
+<span class="sd">        Streamwise ramp applied to ``Vx``: inlet unchanged, outlet ``1 + vx_ramp``.</span>
+<span class="sd">    side, r_mid_ratio, length_ratio : float</span>
+<span class="sd">        Cross-section side, mean-radius ratio, and length ratio of the duct.</span>
+<span class="sd">    nj, nk : int</span>
+<span class="sd">        Cross-stream node counts. Must be odd for symmetric clustering.</span>
+<span class="sd">    Ma_bulk, Po, To : float</span>
+<span class="sd">        Bulk Mach number and inlet stagnation pressure and temperature.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ember.grid.Grid</span>
+<span class="sd">        The assembled, non-dimensionalised grid with wall distance computed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">r_mid</span> <span class="o">=</span> <span class="n">r_mid_ratio</span> <span class="o">*</span> <span class="n">side</span>
+    <span class="n">r_low</span> <span class="o">=</span> <span class="n">r_mid</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">side</span>
+    <span class="n">length</span> <span class="o">=</span> <span class="n">length_ratio</span> <span class="o">*</span> <span class="n">side</span>
+
+    <span class="c1"># ni derived from the target cell count, then rounded so ni-1 is a multiple</span>
+    <span class="c1"># of 8 for the two-level multigrid coarsening.</span>
+    <span class="n">ni</span> <span class="o">=</span> <span class="n">ncell</span> <span class="o">//</span> <span class="p">(</span><span class="n">nj</span> <span class="o">*</span> <span class="n">nk</span><span class="p">)</span>
+    <span class="n">ni</span> <span class="o">=</span> <span class="p">((</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">+</span> <span class="mi">4</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span><span class="p">)</span> <span class="o">*</span> <span class="mi">8</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="c1"># Below this the duct is too short to march: a handful of streamwise cells</span>
+    <span class="c1"># gives the inlet and outlet patches no interior between them, and ni=1</span>
+    <span class="c1"># (ncell &lt; nj*nk) yields zero cells, which the Fortran kernels reject.</span>
+    <span class="k">if</span> <span class="n">ni</span> <span class="o">&lt;</span> <span class="mi">25</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;ncell=</span><span class="si">{</span><span class="n">ncell</span><span class="si">}</span><span class="s2"> gives only ni=</span><span class="si">{</span><span class="n">ni</span><span class="si">}</span><span class="s2"> streamwise nodes &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;(nj=</span><span class="si">{</span><span class="n">nj</span><span class="si">}</span><span class="s2">, nk=</span><span class="si">{</span><span class="n">nk</span><span class="si">}</span><span class="s2">); need ni &gt;= 25, i.e. ncell &gt;= </span><span class="si">{</span><span class="mi">25</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">nj</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">nk</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">Nb</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">r_mid</span> <span class="o">/</span> <span class="n">side</span><span class="p">)</span>  <span class="c1"># pitch subtends ~side at mean radius</span>
+    <span class="n">pitch</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="n">Nb</span>
+
+    <span class="c1"># cluster_symmetric with ER=1.0 reduces to a uniform linspace, so the</span>
+    <span class="c1"># uniform mesh is just the ER=1.0 case of the same construction.</span>
+    <span class="n">ER_eff</span> <span class="o">=</span> <span class="n">ER</span> <span class="k">if</span> <span class="n">cluster</span> <span class="k">else</span> <span class="mf">1.0</span>
+    <span class="n">xv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">ni</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">rv</span> <span class="o">=</span> <span class="n">r_low</span> <span class="o">+</span> <span class="n">side</span> <span class="o">*</span> <span class="n">util</span><span class="o">.</span><span class="n">cluster_symmetric</span><span class="p">(</span><span class="n">nj</span><span class="p">,</span> <span class="n">ER_eff</span><span class="p">)</span>
+    <span class="n">tv</span> <span class="o">=</span> <span class="n">pitch</span> <span class="o">*</span> <span class="p">(</span><span class="n">util</span><span class="o">.</span><span class="n">cluster_symmetric</span><span class="p">(</span><span class="n">nk</span><span class="p">,</span> <span class="n">ER_eff</span><span class="p">)</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">xm</span><span class="p">,</span> <span class="n">rm</span><span class="p">,</span> <span class="n">tm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">xv</span><span class="p">,</span> <span class="n">rv</span><span class="p">,</span> <span class="n">tv</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">&quot;ij&quot;</span><span class="p">)</span>
+    <span class="n">xrt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">xm</span><span class="p">,</span> <span class="n">rm</span><span class="p">,</span> <span class="n">tm</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="n">fluid</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">PerfectFluid</span><span class="p">(</span>
+        <span class="n">cp</span><span class="o">=</span><span class="mf">1005.0</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="mf">1.4</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mf">1.0e-3</span><span class="p">,</span> <span class="n">Pr</span><span class="o">=</span><span class="mf">0.72</span><span class="p">,</span> <span class="n">T_dtm</span><span class="o">=</span><span class="mf">400.0</span>
+    <span class="p">)</span>
+
+    <span class="n">block</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">))</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_xrt</span><span class="p">(</span><span class="n">xrt</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Nb</span><span class="p">(</span><span class="n">Nb</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+
+    <span class="n">rho_o</span><span class="p">,</span> <span class="n">e_o</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="n">Po</span><span class="p">,</span> <span class="n">To</span><span class="p">)</span>
+    <span class="n">ho</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_h</span><span class="p">(</span><span class="n">rho_o</span><span class="p">,</span> <span class="n">e_o</span><span class="p">)</span>
+    <span class="n">so</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_s</span><span class="p">(</span><span class="n">rho_o</span><span class="p">,</span> <span class="n">e_o</span><span class="p">)</span>
+    <span class="n">a_o</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_a</span><span class="p">(</span><span class="n">rho_o</span><span class="p">,</span> <span class="n">e_o</span><span class="p">)</span>
+    <span class="n">Vbar</span> <span class="o">=</span> <span class="n">Ma_bulk</span> <span class="o">*</span> <span class="n">a_o</span>
+    <span class="n">ember</span><span class="o">.</span><span class="n">set_iterative</span><span class="o">.</span><span class="n">set_ho_s_Ma_Alpha_Beta</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">ho</span><span class="p">,</span> <span class="n">so</span><span class="p">,</span> <span class="n">Ma_bulk</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+
+    <span class="n">U</span> <span class="o">=</span> <span class="n">Vbar</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+    <span class="n">Omega</span> <span class="o">=</span> <span class="n">U</span> <span class="o">/</span> <span class="n">r_mid</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Omega</span><span class="p">(</span><span class="n">Omega</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="n">Omega</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">r</span><span class="p">)</span>
+
+    <span class="c1"># Boundary conditions consistent with the mean flow: inlet fixes stagnation</span>
+    <span class="c1"># conditions and swirl angle, outlet fixes static pressure with a backflow</span>
+    <span class="c1"># state for any transient reverse flow. Non-reflecting throughout, so a wave</span>
+    <span class="c1"># the perturbed initial condition throws at either end leaves the domain</span>
+    <span class="c1"># instead of bouncing back down the duct.</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;inlet&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">InletPatch</span><span class="p">(</span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;outlet&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">OutletPatch</span><span class="p">(</span><span class="n">i</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">Po_in</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">Po</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">To_in</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">To</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">Alpha_in</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">Alpha</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">P_out</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">P</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">T_out</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;inlet&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_Po_To</span><span class="p">(</span><span class="n">Po_in</span><span class="p">,</span> <span class="n">To_in</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;inlet&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_Alpha</span><span class="p">(</span><span class="n">Alpha_in</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;inlet&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_Beta</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;outlet&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_P</span><span class="p">(</span><span class="n">P_out</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;outlet&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_backflow_ho_s</span><span class="p">(</span><span class="n">ho</span><span class="p">,</span> <span class="n">so</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;outlet&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_backflow_Vt</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+
+    <span class="c1"># Velocity ripple, applied before the non-dimensional reference is set (as in</span>
+    <span class="c1"># the original example/script ordering).</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">perturb_seed</span><span class="p">)</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">Vx</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span>
+        <span class="n">Vx</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="n">perturb_vx</span> <span class="o">*</span> <span class="n">rng</span><span class="o">.</span><span class="n">standard_normal</span><span class="p">(</span><span class="n">Vx</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">Vx</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="n">grid</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">Grid</span><span class="p">([</span><span class="n">block</span><span class="p">])</span>
+    <span class="n">grid</span><span class="o">.</span><span class="n">set_L_ref</span><span class="p">(</span><span class="n">side</span><span class="p">)</span>
+    <span class="n">grid</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span>
+        <span class="n">fluid</span><span class="o">.</span><span class="n">change_datum</span><span class="p">(</span><span class="n">P_out</span><span class="p">,</span> <span class="n">T_out</span><span class="p">)</span><span class="o">.</span><span class="n">change_ref</span><span class="p">(</span><span class="n">rho_o</span><span class="p">,</span> <span class="n">Vbar</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">Rgas</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+    <span class="p">)</span>
+    <span class="n">grid</span><span class="o">.</span><span class="n">calculate_wdist</span><span class="p">()</span>
+
+    <span class="c1"># Deterministic thermodynamic ramp: offset ho and s, then ramp Vx along the</span>
+    <span class="c1"># duct, so the solution has to relax back to the boundary-consistent state.</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">V</span><span class="p">)</span>
+    <span class="n">ho_field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">ho</span><span class="p">)</span>
+    <span class="n">s_field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">s</span><span class="p">)</span>
+    <span class="n">T_field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">h_static</span> <span class="o">=</span> <span class="n">ho_field</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">V</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">dh</span> <span class="o">=</span> <span class="n">ho_frac</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">V</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">ds</span> <span class="o">=</span> <span class="n">s_frac</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">V</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">T_field</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">h_static</span> <span class="o">+</span> <span class="n">dh</span><span class="p">,</span> <span class="n">s_field</span> <span class="o">+</span> <span class="n">ds</span><span class="p">)</span>  <span class="c1"># velocity preserved</span>
+
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">Vx</span><span class="p">)</span>
+    <span class="n">ramp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="n">vx_ramp</span><span class="p">,</span> <span class="n">ni</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">Vx</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="n">Vx</span> <span class="o">*</span> <span class="n">ramp</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">grid</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

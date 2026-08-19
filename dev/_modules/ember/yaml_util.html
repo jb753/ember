@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.yaml_util &#8212; ember 0.2.1.dev5+g520995120 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=bffc62d5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev5+g520995120</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "dev";
+    var page = "_modules/ember/yaml_util.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.yaml_util</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Read and write YAML files with numpy and :class:`~pathlib.Path` support.</span>
+
+<span class="sd">This module is a convenience for **plugins**, not core code -- nothing</span>
+<span class="sd">in :mod:`ember` itself depends on it. A plugin that wants to load or save</span>
+<span class="sd">its own configuration as YAML can use :func:`read_yaml` and</span>
+<span class="sd">:func:`write_yaml` in place of ``yaml.safe_load`` and ``yaml.safe_dump`` to</span>
+<span class="sd">avoid two footguns in plain `PyYAML &lt;https://pyyaml.org/&gt;`_:</span>
+
+<span class="sd">- ``yaml.SafeDumper`` raises ``yaml.representer.RepresenterError`` on</span>
+<span class="sd">  ``numpy.float64``, ``numpy.int64``, :class:`numpy.ndarray` and</span>
+<span class="sd">  :class:`~pathlib.Path`, all of which turn up routinely in dicts built</span>
+<span class="sd">  from computed quantities. This module registers representers so they dump</span>
+<span class="sd">  as plain YAML scalars and lists instead.</span>
+<span class="sd">- ``yaml.SafeLoader`` fails to recognise scientific-notation floats</span>
+<span class="sd">  that have no decimal point, such as ``1e-5``, loading them back as</span>
+<span class="sd">  strings instead of floats. This module patches the loader&#39;s implicit</span>
+<span class="sd">  float resolver to catch that case too.</span>
+
+<span class="sd">Uses PyYAML&#39;s ``CSafeLoader``/``CSafeDumper`` (backed by libyaml&#39;s C</span>
+<span class="sd">scanner/parser/emitter) when available, falling back to the pure-Python</span>
+<span class="sd">``SafeLoader``/``SafeDumper`` otherwise.</span>
+
+<span class="sd">Ported from turbigen&#39;s ``yaml_utils`` module.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span><span class="p">,</span> <span class="n">PurePath</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_represent_float</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Represent a numpy float as a YAML float scalar.</span>
+
+<span class="sd">    Registered as a representer for ``numpy.float64`` and ``numpy.float32``</span>
+<span class="sd">    so that ``yaml.safe_dump`` does not raise on them.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dumper : Dumper</span>
+<span class="sd">        Dumper instance requesting the representation.</span>
+<span class="sd">    data : numpy scalar (float64 or float32)</span>
+<span class="sd">        Value to represent.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ScalarNode</span>
+<span class="sd">        YAML float scalar node.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_scalar</span><span class="p">(</span><span class="s2">&quot;tag:yaml.org,2002:float&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_represent_int</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Represent a numpy int as a YAML int scalar.</span>
+
+<span class="sd">    Registered as a representer for ``numpy.int64`` and ``numpy.int32`` so</span>
+<span class="sd">    that ``yaml.safe_dump`` does not raise on them.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dumper : Dumper</span>
+<span class="sd">        Dumper instance requesting the representation.</span>
+<span class="sd">    data : numpy scalar (int64 or int32)</span>
+<span class="sd">        Value to represent.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ScalarNode</span>
+<span class="sd">        YAML int scalar node.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_scalar</span><span class="p">(</span><span class="s2">&quot;tag:yaml.org,2002:int&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_represent_ndarray</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Represent a numpy array as a YAML list.</span>
+
+<span class="sd">    Registered as a representer for :class:`numpy.ndarray` so that</span>
+<span class="sd">    ``yaml.safe_dump`` does not raise on it. The array is converted with</span>
+<span class="sd">    :meth:`numpy.ndarray.tolist` before representing, so it round-trips</span>
+<span class="sd">    through YAML as a plain (possibly nested) list, not an array.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dumper : Dumper</span>
+<span class="sd">        Dumper instance requesting the representation.</span>
+<span class="sd">    data : numpy.ndarray</span>
+<span class="sd">        Array to represent.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    SequenceNode</span>
+<span class="sd">        YAML sequence node.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_represent_path</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Represent a path object as a YAML string scalar.</span>
+
+<span class="sd">    Registered as a *multi* representer for :class:`pathlib.PurePath`, which</span>
+<span class="sd">    matches along the mro and so covers every concrete path class at once.</span>
+<span class="sd">    Registering :class:`~pathlib.Path` and :class:`~pathlib.PosixPath` by</span>
+<span class="sd">    name did not: PyYAML dispatches on the exact runtime type, ``Path(...)``</span>
+<span class="sd">    instantiates ``PosixPath`` on this platform and ``WindowsPath`` on</span>
+<span class="sd">    Windows, and the bare ``Path`` registration therefore never fires at all.</span>
+
+<span class="sd">    The path is expanded with :meth:`~pathlib.Path.expanduser` before</span>
+<span class="sd">    representing, so a leading ``~`` is resolved to the user&#39;s home directory</span>
+<span class="sd">    in the dumped string. Pure paths have no ``expanduser``, and none is</span>
+<span class="sd">    wanted: they name a path without a filesystem to resolve it against.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dumper : Dumper</span>
+<span class="sd">        Dumper instance requesting the representation.</span>
+<span class="sd">    data : PurePath</span>
+<span class="sd">        Path to represent.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ScalarNode</span>
+<span class="sd">        YAML string scalar node.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_scalar</span><span class="p">(</span><span class="s2">&quot;tag:yaml.org,2002:str&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+
+
+<span class="n">yaml</span><span class="o">.</span><span class="n">representer</span><span class="o">.</span><span class="n">SafeRepresenter</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span> <span class="n">_represent_float</span><span class="p">)</span>
+<span class="n">yaml</span><span class="o">.</span><span class="n">representer</span><span class="o">.</span><span class="n">SafeRepresenter</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">_represent_float</span><span class="p">)</span>
+<span class="n">yaml</span><span class="o">.</span><span class="n">representer</span><span class="o">.</span><span class="n">SafeRepresenter</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">_represent_int</span><span class="p">)</span>
+<span class="n">yaml</span><span class="o">.</span><span class="n">representer</span><span class="o">.</span><span class="n">SafeRepresenter</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">_represent_int</span><span class="p">)</span>
+<span class="n">yaml</span><span class="o">.</span><span class="n">representer</span><span class="o">.</span><span class="n">SafeRepresenter</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">_represent_ndarray</span><span class="p">)</span>
+<span class="n">yaml</span><span class="o">.</span><span class="n">representer</span><span class="o">.</span><span class="n">SafeRepresenter</span><span class="o">.</span><span class="n">add_multi_representer</span><span class="p">(</span><span class="n">PurePath</span><span class="p">,</span> <span class="n">_represent_path</span><span class="p">)</span>
+
+
+<span class="c1">#: Loader/dumper classes used by :func:`read_yaml`/:func:`write_yaml`. The</span>
+<span class="c1">#: libyaml-backed ``CSafeLoader``/``CSafeDumper`` are used when available,</span>
+<span class="c1">#: since their C scanner/parser/emitter is faster than the pure-Python</span>
+<span class="c1">#: ``SafeLoader``/``SafeDumper``. ``CSafeDumper`` already inherits</span>
+<span class="c1">#: ``SafeRepresenter``, so the representers registered above apply to it</span>
+<span class="c1">#: unchanged; ``CSafeLoader`` does *not* inherit ``SafeLoader``, so its</span>
+<span class="c1">#: implicit float resolver is patched separately by :func:`_float_loader`.</span>
+<span class="n">_Loader</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">CSafeLoader</span> <span class="k">if</span> <span class="n">yaml</span><span class="o">.</span><span class="n">__with_libyaml__</span> <span class="k">else</span> <span class="n">yaml</span><span class="o">.</span><span class="n">SafeLoader</span>
+<span class="n">_Dumper</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">CSafeDumper</span> <span class="k">if</span> <span class="n">yaml</span><span class="o">.</span><span class="n">__with_libyaml__</span> <span class="k">else</span> <span class="n">yaml</span><span class="o">.</span><span class="n">SafeDumper</span>
+
+
+<span class="c1">#: Regex matching floats that ``yaml.SafeLoader``&#39;s default implicit</span>
+<span class="c1">#: resolver misses, in particular scientific notation with no decimal point</span>
+<span class="c1">#: (``1e-5``). Passed to ``yaml.BaseResolver.add_implicit_resolver`` by</span>
+<span class="c1">#: :func:`_float_loader`.</span>
+<span class="n">_FLOAT_PATTERN</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;^(?:</span>
+<span class="s2">        [-+]?(?:[0-9][0-9_]*)</span><span class="se">\\</span><span class="s2">.[0-9_]*(?:[eE][-+]?[0-9]+)?</span>
+<span class="s2">        |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)</span>
+<span class="s2">        |</span><span class="se">\\</span><span class="s2">.[0-9_]+(?:[eE][-+][0-9]+)?</span>
+<span class="s2">        |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+</span><span class="se">\\</span><span class="s2">.[0-9_]*</span>
+<span class="s2">        |[-+]?</span><span class="se">\\</span><span class="s2">.(?:inf|Inf|INF)</span>
+<span class="s2">        |</span><span class="se">\\</span><span class="s2">.(?:nan|NaN|NAN))$&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_float_loader</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a loader that parses scientific-notation floats.</span>
+
+<span class="sd">    Patches :data:`_Loader`&#39;s implicit resolver for the</span>
+<span class="sd">    ``tag:yaml.org,2002:float`` tag with :data:`_FLOAT_PATTERN`, so values</span>
+<span class="sd">    such as ``1e-5`` load as :class:`float` rather than :class:`str`. The</span>
+<span class="sd">    patch is applied to the :data:`_Loader` class itself, so it persists</span>
+<span class="sd">    for the lifetime of the process once called.</span>
+
+<span class="sd">    Note that :data:`_Loader` may be ``yaml.CSafeLoader``, which inherits</span>
+<span class="sd">    ``yaml.resolver.Resolver`` directly rather than ``yaml.SafeLoader`` --</span>
+<span class="sd">    patching ``yaml.SafeLoader`` would not affect it, so this must patch</span>
+<span class="sd">    :data:`_Loader` itself.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    type</span>
+<span class="sd">        :data:`_Loader`, with the corrected float resolver installed,</span>
+<span class="sd">        suitable for passing as the ``Loader`` argument to ``yaml.load``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_Loader</span><span class="o">.</span><span class="n">add_implicit_resolver</span><span class="p">(</span>
+        <span class="s2">&quot;tag:yaml.org,2002:float&quot;</span><span class="p">,</span>
+        <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">_FLOAT_PATTERN</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">X</span><span class="p">),</span>
+        <span class="nb">list</span><span class="p">(</span><span class="s2">&quot;-+0123456789.&quot;</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">_Loader</span>
+
+
+<div class="viewcode-block" id="read_yaml">
+<a class="viewcode-back" href="../../api/yaml_util.html#ember.yaml_util.read_yaml">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_yaml</span><span class="p">(</span><span class="n">fname</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read a dictionary from a YAML file.</span>
+
+<span class="sd">    Uses a patched loader in place of the stock ``yaml.SafeLoader``, so that</span>
+<span class="sd">    scientific-notation floats without a decimal point parse correctly; see</span>
+<span class="sd">    the module docstring.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fname : str or Path</span>
+<span class="sd">        Path to the YAML file to read.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        Parsed contents of the file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Explicit encoding, because Python&#39;s default is the locale&#39;s: a file with</span>
+    <span class="c1"># a degree sign in it reads differently on a machine that is not UTF-8, and</span>
+    <span class="c1"># YAML is UTF-8 by specification anyway.</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Loader</span><span class="o">=</span><span class="n">_float_loader</span><span class="p">())</span></div>
+
+
+
+<div class="viewcode-block" id="write_yaml">
+<a class="viewcode-back" href="../../api/yaml_util.html#ember.yaml_util.write_yaml">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">write_yaml</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;w&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Write a dictionary to a YAML file.</span>
+
+<span class="sd">    Uses :data:`_Dumper` with the representers registered by this module</span>
+<span class="sd">    for numpy scalars, numpy arrays and :class:`~pathlib.Path` objects;</span>
+<span class="sd">    see the module docstring. The output is bracketed with ``---``/``...``</span>
+<span class="sd">    document markers.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    d : dict</span>
+<span class="sd">        Dictionary to write.</span>
+<span class="sd">    fname : str or Path</span>
+<span class="sd">        Path to the YAML file to write.</span>
+<span class="sd">    mode : str, optional</span>
+<span class="sd">        Mode to open `fname` with. Defaults to ``&quot;w&quot;``; pass ``&quot;a&quot;`` to</span>
+<span class="sd">        append a further document to an existing file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">Dumper</span><span class="o">=</span><span class="n">_Dumper</span><span class="p">,</span> <span class="n">explicit_start</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">explicit_end</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

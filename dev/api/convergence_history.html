@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Convergence history &#8212; ember 0.2.1.dev5+g520995120 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=bffc62d5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Jacobians" href="perturbation.html" />
+    <link rel="prev" title="Solver" href="solver.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev5+g520995120</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "dev";
+    var page = "api/convergence_history.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Convergence history</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#reading-a-history">Reading a history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#monitors">Monitors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#storage">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reading-from-a-file">Reading from a file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.from_grid"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.from_grid()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.read_cnv"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.read_cnv()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.check_convergence"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.check_convergence()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.find_settling_record"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.find_settling_record()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.format_message"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.format_message()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.format_timing"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.format_timing()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.record_convergence"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.record_convergence()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.to_json"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.to_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.trim"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.trim()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.write_cnv"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.write_cnv()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.diverged"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.diverged</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_D"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.dP_D</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_I"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.dP_I</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_P"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.dP_P</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.err_mdot"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.err_mdot</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.err_mdot_row"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.err_mdot_row</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.ho_nd"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.ho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.i_log"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.i_log</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.i_step"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.i_step</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.mdot_nd"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.mdot_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.mdot_target"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.mdot_target</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.mdot_throttle"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.mdot_throttle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.n_node"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.n_node</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.now"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.now</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.psi"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.psi</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.residual"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.residual</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.s_nd"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.s_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.throttle"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.throttle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.time"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.tpnps"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.tpnps</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.zeta"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.zeta</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="solver.html" title="previous chapter">Solver</a></li>
+      <li>Next: <a href="perturbation.html" title="next chapter">Jacobians</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.convergence_history">
+<span id="convergence-history"></span><h1>Convergence history<a class="headerlink" href="#module-ember.convergence_history" title="Link to this heading">¶</a></h1>
+<p>Convergence history recorded by the time-marching loop.</p>
+<p>This module defines <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConvergenceHistory</span></code></a>, a 1D time series of flow
+monitors that <a class="reference internal" href="solver.html#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.solver.Solver.run()</span></code></a> fills as it marches. It holds one
+<em>record</em> per logged step, carrying the residuals, and the mass flow, stagnation
+enthalpy and entropy at each station. The residuals are whole-field block
+means; only the mass flow, enthalpy, and entropy are per-station quantities.</p>
+<p>Throughout, <em>record</em> means one entry in the history, and <em>row</em> is reserved for
+a blade row of the machine.</p>
+<p>A history is <em>returned to you</em> by <a class="reference internal" href="solver.html#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.solver.Solver.run()</span></code></a>; it is not something
+you build directly. <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.from_grid" title="ember.convergence_history.ConvergenceHistory.from_grid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ConvergenceHistory.from_grid()</span></code></a>,
+<a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.record_convergence" title="ember.convergence_history.ConvergenceHistory.record_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ConvergenceHistory.record_convergence()</span></code></a> exist for the solver to call, and
+are of no use outside it.</p>
+<section id="reading-a-history">
+<h2>Reading a history<a class="headerlink" href="#reading-a-history" title="Link to this heading">¶</a></h2>
+<p>Run a simulation, then read the monitors as plain numpy arrays:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">hist</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">Solver</span><span class="p">(</span><span class="n">n_step</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span>
+
+<span class="n">hist</span><span class="o">.</span><span class="n">i_step</span>            <span class="c1"># solver step index of each record</span>
+<span class="n">hist</span><span class="o">.</span><span class="n">residual</span><span class="p">[:,</span> <span class="mi">4</span><span class="p">]</span>    <span class="c1"># energy residual, drhoe</span>
+<span class="n">hist</span><span class="o">.</span><span class="n">err_mdot</span>          <span class="c1"># mass flow conservation error</span>
+<span class="n">hist</span><span class="o">.</span><span class="n">zeta</span>              <span class="c1"># entropy rise, outlet minus inlet station</span>
+</pre></div>
+</div>
+<p>Every property returns a single-precision float32 array of length <code class="docutils literal notranslate"><span class="pre">i_log</span> <span class="pre">+</span>
+<span class="pre">1</span></code>, one entry per record.</p>
+<p>The residuals, enthalpy and entropy are stored non-dimensionally on the fluid reference
+scales as described in <a class="reference internal" href="fluid.html#reference-scales"><span class="std std-ref">Reference scales</span></a>.</p>
+</section>
+<section id="monitors">
+<h2>Monitors<a class="headerlink" href="#monitors" title="Link to this heading">¶</a></h2>
+<p>Whole-field, one value per record:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.residual" title="ember.convergence_history.ConvergenceHistory.residual"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.residual</span></code></a> – block-mean <code class="docutils literal notranslate"><span class="pre">|residual_nd|</span></code> per
+conserved variable</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.err_mdot" title="ember.convergence_history.ConvergenceHistory.err_mdot"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.err_mdot</span></code></a> – mass flow conservation error, inlet to
+outlet</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.err_mdot_row" title="ember.convergence_history.ConvergenceHistory.err_mdot_row"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.err_mdot_row</span></code></a> – the same, resolved per blade row</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.psi" title="ember.convergence_history.ConvergenceHistory.psi"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.psi</span></code></a> – stagnation enthalpy rise across the machine</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.zeta" title="ember.convergence_history.ConvergenceHistory.zeta"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.zeta</span></code></a> – entropy rise across the machine</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.tpnps" title="ember.convergence_history.ConvergenceHistory.tpnps"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.tpnps</span></code></a> – wall-clock time per node per step</p></li>
+</ul>
+<p>Through-flow stations. Each blade row contributes an upstream and a downstream
+face, ordered inlet to outlet as <code class="docutils literal notranslate"><span class="pre">[row0_up,</span> <span class="pre">row0_dn,</span> <span class="pre">row1_up,</span> <span class="pre">row1_dn]</span></code>, so
+station <code class="docutils literal notranslate"><span class="pre">0</span></code> is the inlet and station <code class="docutils literal notranslate"><span class="pre">-1</span></code> the outlet. All three are
+non-dimensional, hence the <code class="docutils literal notranslate"><span class="pre">_nd</span></code> suffix:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.mdot_nd" title="ember.convergence_history.ConvergenceHistory.mdot_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.mdot_nd</span></code></a>, <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.ho_nd" title="ember.convergence_history.ConvergenceHistory.ho_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.ho_nd</span></code></a>,
+<a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.s_nd" title="ember.convergence_history.ConvergenceHistory.s_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.s_nd</span></code></a></p></li>
+</ul>
+<p>Throttle state, driven by <a class="reference internal" href="patch.html#ember.patch.OutletPatch.set_throttle" title="ember.patch.OutletPatch.set_throttle"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.patch.OutletPatch.set_throttle()</span></code></a> and
+reading zero on a run whose outlets all hold a plain prescribed pressure.
+Unlike the stations above, they are dimensional:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.throttle" title="ember.convergence_history.ConvergenceHistory.throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.throttle</span></code></a>, <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.mdot_target" title="ember.convergence_history.ConvergenceHistory.mdot_target"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.mdot_target</span></code></a>,
+<a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.mdot_throttle" title="ember.convergence_history.ConvergenceHistory.mdot_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.mdot_throttle</span></code></a></p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_P" title="ember.convergence_history.ConvergenceHistory.dP_P"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.dP_P</span></code></a>, <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_I" title="ember.convergence_history.ConvergenceHistory.dP_I"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.dP_I</span></code></a>,
+<a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_D" title="ember.convergence_history.ConvergenceHistory.dP_D"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.dP_D</span></code></a></p></li>
+</ul>
+<p>Bookkeeping:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.i_step" title="ember.convergence_history.ConvergenceHistory.i_step"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.i_step</span></code></a> – solver step index of each record</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.time" title="ember.convergence_history.ConvergenceHistory.time"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.time</span></code></a> – elapsed wall-clock time</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.i_log" title="ember.convergence_history.ConvergenceHistory.i_log"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.i_log</span></code></a> – index of the last written record</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.diverged" title="ember.convergence_history.ConvergenceHistory.diverged"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.diverged</span></code></a> – True if the march blew up</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.now" title="ember.convergence_history.ConvergenceHistory.now"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.now</span></code></a> – view of the record currently being written</p></li>
+<li><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.n_node" title="ember.convergence_history.ConvergenceHistory.n_node"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.n_node</span></code></a> – node count of the grid behind the history</p></li>
+</ul>
+</section>
+<section id="storage">
+<h2>Storage<a class="headerlink" href="#storage" title="Link to this heading">¶</a></h2>
+<p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.from_grid" title="ember.convergence_history.ConvergenceHistory.from_grid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ConvergenceHistory.from_grid()</span></code></a> allocates <code class="docutils literal notranslate"><span class="pre">n_log</span></code> records up front and
+fills them with NaN, one per log step; the solver passes
+<code class="docutils literal notranslate"><span class="pre">n_log</span> <span class="pre">=</span> <span class="pre">ceil(n_step</span> <span class="pre">/</span> <span class="pre">n_step_log)</span></code> for <code class="docutils literal notranslate"><span class="pre">n_step</span></code> marched steps logged every
+<code class="docutils literal notranslate"><span class="pre">n_step_log</span></code>. At each log step,
+<a class="reference internal" href="solver.html#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.solver.Solver.run()</span></code></a> calls <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.record_convergence" title="ember.convergence_history.ConvergenceHistory.record_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ConvergenceHistory.record_convergence()</span></code></a>
+to fill one record. A march that runs to completion fills every record; one that
+diverges breaks from the loop early before logging an invalid value, sets
+<a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.diverged" title="ember.convergence_history.ConvergenceHistory.diverged"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ConvergenceHistory.diverged</span></code></a>, and trims the history to drop the
+preallocated NaN for steps that were never reached. This means that we can
+always assume that history arrays are finite and valid for plotting or
+reduction, without having to mask out NaN values.</p>
+</section>
+<section id="reading-from-a-file">
+<h2>Reading from a file<a class="headerlink" href="#reading-from-a-file" title="Link to this heading">¶</a></h2>
+<p>A history is read back from disk with <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.read_cnv" title="ember.convergence_history.ConvergenceHistory.read_cnv"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ConvergenceHistory.read_cnv()</span></code></a>, which
+unpickles a history written by <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.write_cnv" title="ember.convergence_history.ConvergenceHistory.write_cnv"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ConvergenceHistory.write_cnv()</span></code></a>.</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">convergence_history.</span></span><span class="sig-name descname"><span class="pre">ConvergenceHistory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_row</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory" title="Link to this definition">¶</a></dt>
+<dd><p>Allocate the data array, sized for <code class="docutils literal notranslate"><span class="pre">n_row</span></code> blade rows.</p>
+<p>Station ordering and reference scales are documented in the module
+docstring. The station columns (<code class="docutils literal notranslate"><span class="pre">mdot_st&lt;i&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">ho_st&lt;i&gt;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">s_st&lt;i&gt;</span></code>) are sized to <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">n_row</span></code> each, one inlet/exit pair per
+row, rather than a fixed width – so <code class="docutils literal notranslate"><span class="pre">self._data_keys</span></code> is built
+here, per instance, before delegating to <code class="docutils literal notranslate"><span class="pre">StructuredData.__init__</span></code>,
+which reads it to size the backing array.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of a single property array (see
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">ember._struct.StructuredData.__init__()</span></code>).</p></li>
+<li><p><strong>n_row</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Number of blade rows this history tracks (default 1, i.e. 2
+stations: inlet and exit).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.from_grid">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_log</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.from_grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.from_grid" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize an empty convergence history sized for a solver run.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_log</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of records to allocate; one is filled per log step. The
+solver derives this as <code class="docutils literal notranslate"><span class="pre">ceil(n_step</span> <span class="pre">/</span> <span class="pre">n_step_log)</span></code> – floor
+division would under-allocate when <code class="docutils literal notranslate"><span class="pre">n_step</span></code> is not a multiple of
+<code class="docutils literal notranslate"><span class="pre">n_step_log</span></code>.</p></li>
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – Grid object containing blocks with patches</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Configured instance ready to record data</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory">ConvergenceHistory</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.read_cnv">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">read_cnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.read_cnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.read_cnv" title="Link to this definition">¶</a></dt>
+<dd><p>Read convergence history from CNV binary format file.</p>
+<p>Automatically detects gzip-compressed files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Input CNV file to read</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory">ConvergenceHistory</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.check_convergence">
+<span class="sig-name descname"><span class="pre">check_convergence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.check_convergence"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.check_convergence" title="Link to this definition">¶</a></dt>
+<dd><p>True when every enabled convergence criterion is met.</p>
+<p>Three independent signals reduce the history to a single verdict, and
+the result is their logical AND. Each criterion is disabled by passing
+its no-op threshold, so a bare <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.check_convergence" title="ember.convergence_history.ConvergenceHistory.check_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">check_convergence()</span></code></a> checks
+divergence alone.</p>
+<ul class="simple">
+<li><p><strong>Divergence</strong> reads <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.diverged" title="ember.convergence_history.ConvergenceHistory.diverged"><code class="xref py py-attr docutils literal notranslate"><span class="pre">diverged</span></code></a> only; it never touches the
+residual. A diverged march is never converged.</p></li>
+<li><p><strong>Decay</strong> and <strong>slope</strong> read the energy residual <code class="docutils literal notranslate"><span class="pre">drhoe</span></code> (column 4
+of <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.residual" title="ember.convergence_history.ConvergenceHistory.residual"><code class="xref py py-attr docutils literal notranslate"><span class="pre">residual</span></code></a>), the strictest conserved-variable residual and
+the one that lags in a stalled march, over the <code class="docutils literal notranslate"><span class="pre">i_log</span> <span class="pre">+</span> <span class="pre">1</span></code> written
+records.</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Required fall of the residual from its peak over the whole march, in
+decades: converged needs <code class="docutils literal notranslate"><span class="pre">log10(r.max()</span> <span class="pre">/</span> <span class="pre">r[-1])</span> <span class="pre">&gt;=</span> <span class="pre">decay</span></code>. The
+default <code class="docutils literal notranslate"><span class="pre">0</span></code> disables the check (0 decades of fall is always met).</p></li>
+<li><p><strong>slope</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Maximum allowed magnitude of the residual slope, in decades of
+residual per unit pseudo-time, where pseudo-time is <code class="docutils literal notranslate"><span class="pre">i_step</span> <span class="pre">*</span> <span class="pre">cfl</span></code>.
+Fitted over the last 20% of records so it reflects the recent tail
+rather than the startup transient. Converged needs
+<code class="docutils literal notranslate"><span class="pre">abs(d</span> <span class="pre">log10(r)</span> <span class="pre">/</span> <span class="pre">d(i_step</span> <span class="pre">*</span> <span class="pre">cfl))</span> <span class="pre">&lt;=</span> <span class="pre">slope</span></code>. The default <code class="docutils literal notranslate"><span class="pre">0</span></code>
+disables the check.</p></li>
+<li><p><strong>cfl</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – CFL number used to march, scaling the pseudo-time step so the slope
+is comparable across runs with different step sizes. Only affects
+the <code class="docutils literal notranslate"><span class="pre">slope</span></code> criterion.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)">bool</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.find_settling_record">
+<span class="sig-name descname"><span class="pre">find_settling_record</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.find_settling_record"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.find_settling_record" title="Link to this definition">¶</a></dt>
+<dd><p>Record index at which the entropy rise <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.zeta" title="ember.convergence_history.ConvergenceHistory.zeta"><code class="xref py py-attr docutils literal notranslate"><span class="pre">zeta</span></code></a> has settled.</p>
+<p>Complements <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.check_convergence" title="ember.convergence_history.ConvergenceHistory.check_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">check_convergence()</span></code></a>: where that reduces the <em>residual</em>
+history to a converged/not verdict, this locates when the <em>solution
+output</em> stopped moving. It returns the record index at which
+<a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.zeta" title="ember.convergence_history.ConvergenceHistory.zeta"><code class="xref py py-attr docutils literal notranslate"><span class="pre">zeta</span></code></a> has come within a fraction <code class="docutils literal notranslate"><span class="pre">tol</span></code> of its total change and
+stays there for the rest of the march.</p>
+<p>The asymptote is estimated as the mean of <code class="docutils literal notranslate"><span class="pre">zeta</span></code> over the final fifth
+of records (the same last-20% window <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.check_convergence" title="ember.convergence_history.ConvergenceHistory.check_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">check_convergence()</span></code></a> fits its
+slope over), and the band is <code class="docutils literal notranslate"><span class="pre">tol</span></code> of the total swing
+<code class="docutils literal notranslate"><span class="pre">abs(zeta[0]</span> <span class="pre">-</span> <span class="pre">target)</span></code> about it. The settling record is the one
+<em>after</em> the last record still outside that band – keying on the last
+exit rather than the first entry makes it robust to any overshoot that
+dips through the band and back out. Because the asymptote is the tail
+mean, the result is only physically meaningful once the march has
+actually levelled out (e.g. a run <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.check_convergence" title="ember.convergence_history.ConvergenceHistory.check_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">check_convergence()</span></code></a> accepts).</p>
+<p>The return is a <em>record index</em> into the history arrays, not a solver
+step number, so both the step it settled at and the wall-clock time to
+get there are one indexing away:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">idx</span>  <span class="o">=</span> <span class="n">hist</span><span class="o">.</span><span class="n">find_settling_record</span><span class="p">()</span>
+<span class="n">step</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">hist</span><span class="o">.</span><span class="n">i_step</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>                  <span class="c1"># solver step</span>
+<span class="n">wall</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">hist</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">-</span> <span class="n">hist</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>   <span class="c1"># ms to settle</span>
+</pre></div>
+</div>
+<p>(<code class="docutils literal notranslate"><span class="pre">hist.time[0]</span></code> is the one-iteration startup offset, not zero, so
+subtract it for elapsed march time.)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Settling band half-width, as a fraction of the total <code class="docutils literal notranslate"><span class="pre">zeta</span></code> swing.
+Default <code class="docutils literal notranslate"><span class="pre">0.01</span></code> (1%).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Record index of the settling point. Falls back to <code class="docutils literal notranslate"><span class="pre">0</span></code> when
+<code class="docutils literal notranslate"><span class="pre">zeta</span></code> is within the band from the start, or is flat (zero swing).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.format_message">
+<span class="sig-name descname"><span class="pre">format_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_step</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.format_message"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.format_message" title="Link to this definition">¶</a></dt>
+<dd><p>Format convergence message for current log step.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>n_step</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Total steps in this march. When given, a timing line (tpnps,
+elapsed, estimated remaining) is inserted after the step header.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Formatted convergence status message</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.format_timing">
+<span class="sig-name descname"><span class="pre">format_timing</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i_step</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_step</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.format_timing"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.format_timing" title="Link to this definition">¶</a></dt>
+<dd><p>Format timing line: tpnps, elapsed, and estimated remaining.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>i_step</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Current step index within this march.</p></li>
+<li><p><strong>n_step</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Total steps in this march.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.record_convergence">
+<span class="sig-name descname"><span class="pre">record_convergence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i_step</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.record_convergence"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.record_convergence" title="Link to this definition">¶</a></dt>
+<dd><p>Append one fully populated record, holding solver step <code class="docutils literal notranslate"><span class="pre">i_step</span></code>.</p>
+<p>Advances <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.i_log" title="ember.convergence_history.ConvergenceHistory.i_log"><code class="xref py py-attr docutils literal notranslate"><span class="pre">i_log</span></code></a> onto the next allocated record and writes every
+column of it: the step index, the time, and the monitors carried by
+<code class="docutils literal notranslate"><span class="pre">conv</span></code>. A record is never left half-written, so the only NaN a reader
+can meet is an untouched record past <code class="docutils literal notranslate"><span class="pre">i_log</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>i_step</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Index of the solver step being recorded.</p></li>
+<li><p><strong>conv</strong> (<a class="reference internal" href="grid.html#ember.grid.ConvergenceStep" title="ember.grid.ConvergenceStep"><em>ember.grid.ConvergenceStep</em></a>) – One step’s monitors, from <a class="reference internal" href="grid.html#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.get_convergence()</span></code></a>.
+The <code class="docutils literal notranslate"><span class="pre">mdot</span></code>, <code class="docutils literal notranslate"><span class="pre">ho</span></code> and <code class="docutils literal notranslate"><span class="pre">s</span></code> station vectors are unpacked into one
+scalar column per station; the history must have been constructed
+with a matching <code class="docutils literal notranslate"><span class="pre">n_row</span></code> to have enough station columns allocated.</p></li>
+<li><p><strong>time</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Elapsed time for this record, in seconds. Defaults to the wall-clock
+time since the history was created (the live-solver behaviour); a
+reader replaying a log passes the log’s own time instead.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'.'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.to_json"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.to_json" title="Link to this definition">¶</a></dt>
+<dd><p>Write convergence history to three JSON files in directory.</p>
+<p>Writes err_mdot.json, work.json, and convergence_loss.json, each
+containing a list of {“x”: i_step, “y”: value} objects.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>directory</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em> or </em><em>path-like</em><em>, </em><em>optional</em>) – Output directory (default current directory).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.trim">
+<span class="sig-name descname"><span class="pre">trim</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.trim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.trim" title="Link to this definition">¶</a></dt>
+<dd><p>Copy of the records actually written, dropping the unfilled ones.</p>
+<p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.from_grid" title="ember.convergence_history.ConvergenceHistory.from_grid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_grid()</span></code></a> allocates enough records for the requested step count
+and leaves them NaN until <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.record_convergence" title="ember.convergence_history.ConvergenceHistory.record_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">record_convergence()</span></code></a> fills them, so a
+march that broke early on divergence leaves a NaN tail past <code class="docutils literal notranslate"><span class="pre">i_log</span></code>.
+The result holds <code class="docutils literal notranslate"><span class="pre">i_log</span> <span class="pre">+</span> <span class="pre">1</span></code> records, the only length at which
+<code class="docutils literal notranslate"><span class="pre">i_log</span></code> stays consistent with the number of records, and it can be
+plotted or reduced without masking the tail out first.</p>
+<p>The copy is independent of the original, which is also what makes the
+result safe to keep once the full allocation is dropped. It has no
+spare records, so <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.record_convergence" title="ember.convergence_history.ConvergenceHistory.record_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">record_convergence()</span></code></a> cannot be called on it:
+trim once the march is over.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A new history containing only the logged steps.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory">ConvergenceHistory</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.write_cnv">
+<span class="sig-name descname"><span class="pre">write_cnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.write_cnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.write_cnv" title="Link to this definition">¶</a></dt>
+<dd><p>Write convergence history to CNV binary format file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Output filename</p></li>
+<li><p><strong>compress</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, compress using gzip (default False)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.diverged">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">diverged</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.diverged" title="Link to this definition">¶</a></dt>
+<dd><p>True if the run that produced this history blew up, scalar.</p>
+<p>Set by <a class="reference internal" href="solver.html#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.solver.Solver.run()</span></code></a> when <a class="reference internal" href="grid.html#ember.grid.Grid.check_nan" title="ember.grid.Grid.check_nan"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.check_nan()</span></code></a>
+raises <a class="reference internal" href="grid.html#ember.grid.DivergenceError" title="ember.grid.DivergenceError"><code class="xref py py-class docutils literal notranslate"><span class="pre">ember.grid.DivergenceError</span></code></a>, in which case the step loop
+broke early and only <code class="docutils literal notranslate"><span class="pre">i_log</span> <span class="pre">+</span> <span class="pre">1</span></code> records were written.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.dP_D">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dP_D</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.dP_D" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative term of the throttle correction [Pa], record array.</p>
+<p>The three terms <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_P" title="ember.convergence_history.ConvergenceHistory.dP_P"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dP_P</span></code></a>, <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_I" title="ember.convergence_history.ConvergenceHistory.dP_I"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dP_I</span></code></a> and <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_D" title="ember.convergence_history.ConvergenceHistory.dP_D"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dP_D</span></code></a> sum to the
+total correction <span class="math notranslate nohighlight">\(\Delta p_\mathrm{throttle}\)</span> the outlet adds to
+its prescribed static pressure. This one is always zero: the throttle is
+a PI controller, and the column survives so the on-disk layout reads in
+both directions. See <a class="reference internal" href="patch.html#ember.patch.OutletPatch.set_throttle" title="ember.patch.OutletPatch.set_throttle"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.patch.OutletPatch.set_throttle()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.dP_I">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dP_I</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.dP_I" title="Link to this definition">¶</a></dt>
+<dd><p>Integral term of the throttle correction [Pa], record array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.dP_P">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dP_P</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.dP_P" title="Link to this definition">¶</a></dt>
+<dd><p>Proportional term of the throttle correction [Pa], record array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.err_mdot">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">err_mdot</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.err_mdot" title="Link to this definition">¶</a></dt>
+<dd><p>Mass flow conservation error
+<span class="math notranslate nohighlight">\((\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}\)</span> [-],
+record array.</p>
+<p>Taken between the first and last station, so it spans the whole machine.
+Zero for a perfectly converged march; the sign says whether the outlet
+passes more or less than the inlet.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.err_mdot_row">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">err_mdot_row</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.err_mdot_row" title="Link to this definition">¶</a></dt>
+<dd><p>Mass flow conservation error per blade row [-], shape <code class="docutils literal notranslate"><span class="pre">(n_log,</span> <span class="pre">n_row)</span></code>.</p>
+<p>As <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.err_mdot" title="ember.convergence_history.ConvergenceHistory.err_mdot"><code class="xref py py-attr docutils literal notranslate"><span class="pre">err_mdot</span></code></a>, but taken across each blade row separately:
+<code class="docutils literal notranslate"><span class="pre">err[i,</span> <span class="pre">r]</span> <span class="pre">=</span> <span class="pre">(mdot_dn_r</span> <span class="pre">-</span> <span class="pre">mdot_up_r)</span> <span class="pre">/</span> <span class="pre">mdot_avg_r</span></code> for record <code class="docutils literal notranslate"><span class="pre">i</span></code>
+and row <code class="docutils literal notranslate"><span class="pre">r</span></code>.</p>
+<p>Returns an empty NaN array if the <code class="docutils literal notranslate"><span class="pre">n_row</span></code> metadata is absent, as it is
+for histories written before that key existed.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.ho_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ho_nd</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.ho_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Stagnation enthalpy <span class="math notranslate nohighlight">\(h_0/u_\mathrm{ref}\)</span> [-] at each station.</p>
+<p>Record array of shape <code class="docutils literal notranslate"><span class="pre">(n_log,</span> <span class="pre">2*n_row)</span></code>; station <code class="docutils literal notranslate"><span class="pre">0</span></code> is the inlet
+and <code class="docutils literal notranslate"><span class="pre">-1</span></code> the outlet. Carries an offset dependent
+on the arbitrary datum where <span class="math notranslate nohighlight">\(u = s = 0\)</span> at
+<span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only changes are physically
+meaningful, which is why <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.psi" title="ember.convergence_history.ConvergenceHistory.psi"><code class="xref py py-attr docutils literal notranslate"><span class="pre">psi</span></code></a> is a difference between stations.
+See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.i_log">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">i_log</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.i_log" title="Link to this definition">¶</a></dt>
+<dd><p>Index of the last written record; <code class="docutils literal notranslate"><span class="pre">-1</span></code> before any is written, scalar.</p>
+<p>A trimmed history has <code class="docutils literal notranslate"><span class="pre">i_log</span> <span class="pre">+</span> <span class="pre">1</span></code> records, so <code class="docutils literal notranslate"><span class="pre">i_log</span></code> is also its
+last valid index.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.i_step">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">i_step</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.i_step" title="Link to this definition">¶</a></dt>
+<dd><p>Solver step index <span class="math notranslate nohighlight">\(i_\mathrm{step}\)</span> [-], record array.</p>
+<p>The step the march had reached when each record was written, so entries
+advance by <code class="docutils literal notranslate"><span class="pre">n_step_log</span></code>, not by one.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.mdot_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mdot_nd</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.mdot_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Mass flow <span class="math notranslate nohighlight">\(\dot m\)</span> [-] at each station, non-dimensional.</p>
+<p>Record array of shape <code class="docutils literal notranslate"><span class="pre">(n_log,</span> <span class="pre">2*n_row)</span></code>; station <code class="docutils literal notranslate"><span class="pre">0</span></code> is the inlet
+and <code class="docutils literal notranslate"><span class="pre">-1</span></code> the outlet. Scaled by the fluid mass-flux scale, and summed
+over the whole annulus. Not to be confused with <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.mdot_target" title="ember.convergence_history.ConvergenceHistory.mdot_target"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mdot_target</span></code></a> and
+<a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.mdot_throttle" title="ember.convergence_history.ConvergenceHistory.mdot_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mdot_throttle</span></code></a>, which are dimensional [kg/s] and count one
+passage, so the two differ by the blade count as well as by the scaling.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.mdot_target">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mdot_target</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.mdot_target" title="Link to this definition">¶</a></dt>
+<dd><p>Throttle mass flow setpoint <span class="math notranslate nohighlight">\(\dot m_\mathrm{target}\)</span> [kg/s], record array.</p>
+<p>Zero when no outlet is running a throttle.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.mdot_throttle">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mdot_throttle</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.mdot_throttle" title="Link to this definition">¶</a></dt>
+<dd><p>Mass flow measured at the throttled outlet <span class="math notranslate nohighlight">\(\dot m\)</span> [kg/s], record array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.n_node">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">n_node</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.n_node" title="Link to this definition">¶</a></dt>
+<dd><p>Node count of the grid that produced this history [-], scalar.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.now">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">now</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.now" title="Link to this definition">¶</a></dt>
+<dd><p>View of the record at <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.i_log" title="ember.convergence_history.ConvergenceHistory.i_log"><code class="xref py py-attr docutils literal notranslate"><span class="pre">i_log</span></code></a>, a single-record history.</p>
+<p>During a march this is the record being written. Once
+<a class="reference internal" href="solver.html#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.solver.Solver.run()</span></code></a> has trimmed the history it is the last one.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.psi">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">psi</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.psi" title="Link to this definition">¶</a></dt>
+<dd><p>Stagnation enthalpy rise <span class="math notranslate nohighlight">\(\psi\)</span> [-] across the machine, record array.</p>
+<p>Outlet station minus inlet station. Both terms are already non-dimensional (scaled by <code class="docutils literal notranslate"><span class="pre">u_ref</span></code>), so this is
+the inlet-to-outlet stagnation enthalpy change on the fluid reference
+scale – no separate kinetic-energy normalisation.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.residual">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">residual</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.residual" title="Link to this definition">¶</a></dt>
+<dd><p>Residual of each conserved variable [-], shape <code class="docutils literal notranslate"><span class="pre">(n_log,</span> <span class="pre">5)</span></code>.</p>
+<p>Ordered <code class="docutils literal notranslate"><span class="pre">(drho,</span> <span class="pre">drhoVx,</span> <span class="pre">drhoVr,</span> <span class="pre">drhorVt,</span> <span class="pre">drhoe)</span></code>. Each entry is a block mean of <span class="math notranslate nohighlight">\(|\mathtt{residual\_nd}|\)</span> for one
+conserved variable (see <a class="reference internal" href="grid.html#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.get_convergence()</span></code></a>), so
+the values are non-negative by construction.</p>
+<p>In a real march they are also strictly positive, and callers may plot
+them on a log axis without masking. A mean of non-negative floats is
+zero only if every cell residual is exactly zero, since the sum is
+never smaller than its largest term and so cannot underflow. Float32
+round-off in the flux balance and boundary conditions keeps a converged
+residual at a floor many orders of magnitude above the smallest normal
+float, rather than descending to zero: a uniform inviscid duct marched
+to a standstill still reports <code class="docutils literal notranslate"><span class="pre">~2.6e-6</span></code>.</p>
+<p>The exception is a history rebuilt from an external solver log (e.g. by
+the ember-cfd-ts parser), which may recover only the density residual and
+leave the other four NaN.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.s_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">s_nd</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.s_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Specific entropy <span class="math notranslate nohighlight">\(s/R_\mathrm{ref}\)</span> [-] at each station.</p>
+<p>Record array of shape <code class="docutils literal notranslate"><span class="pre">(n_log,</span> <span class="pre">2*n_row)</span></code>; station <code class="docutils literal notranslate"><span class="pre">0</span></code> is the inlet
+and <code class="docutils literal notranslate"><span class="pre">-1</span></code> the outlet. Carries the same
+arbitrary datum offset as <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.ho_nd" title="ember.convergence_history.ConvergenceHistory.ho_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ho_nd</span></code></a>, so only changes between
+stations are meaningful. See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.throttle">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">throttle</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.throttle" title="Link to this definition">¶</a></dt>
+<dd><p>Throttle state <code class="docutils literal notranslate"><span class="pre">(mdot_target,</span> <span class="pre">mdot_throttle,</span> <span class="pre">dP_throttle)</span></code>, shape <code class="docutils literal notranslate"><span class="pre">(n_log,</span> <span class="pre">3)</span></code>.</p>
+<p>The first two are mass flows [kg/s], through one passage rather than the
+whole annulus; the third is the total pressure correction
+<span class="math notranslate nohighlight">\(\Delta p_\mathrm{throttle}\)</span> [Pa], the sum of <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_P" title="ember.convergence_history.ConvergenceHistory.dP_P"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dP_P</span></code></a>,
+<a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_I" title="ember.convergence_history.ConvergenceHistory.dP_I"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dP_I</span></code></a> and <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.dP_D" title="ember.convergence_history.ConvergenceHistory.dP_D"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dP_D</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.time">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">time</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.time" title="Link to this definition">¶</a></dt>
+<dd><p>Elapsed wall-clock time since the march began [ms], record array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.tpnps">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tpnps</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.tpnps" title="Link to this definition">¶</a></dt>
+<dd><p>Wall-clock time per node per step [<span class="math notranslate nohighlight">\(\mu\mathrm{s}\)</span>], scalar.</p>
+<p>Measured over the interval between the last two records, so it is NaN
+until a second record exists.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.zeta">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">zeta</span></span><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.zeta" title="Link to this definition">¶</a></dt>
+<dd><p>Entropy rise <span class="math notranslate nohighlight">\(\zeta\)</span> [-] across the machine, record array.</p>
+<p>Outlet station minus inlet station. Both terms are already non-dimensional (scaled by <code class="docutils literal notranslate"><span class="pre">Rgas_ref</span></code>), so this
+is the inlet-to-outlet entropy generation on the fluid reference scale.
+It remains positive for an irreversible process (Gouy-Stodola), but is
+no longer normalised by a reference kinetic energy.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/convergence_history.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

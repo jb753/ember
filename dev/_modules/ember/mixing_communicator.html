@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.mixing_communicator &#8212; ember 0.2.1.dev5+g520995120 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=bffc62d5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev5+g520995120</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "dev";
+    var page = "_modules/ember/mixing_communicator.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.mixing_communicator</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Mixing plane boundary condition communication.</span>
+
+<span class="sd">:class:`MixingCommunicator` pairs the two sides of the mixing plane of</span>
+<span class="sd">:class:`~ember.mixing.MixingPatch`, holds the relaxation factor and the per-pair diagnostics,</span>
+<span class="sd">and carries out the exchange itself: it takes the cross-plane *flux* mismatch,</span>
+<span class="sd">splits it by direction of propagation after :cite:t:`Saxer1993`, and writes the</span>
+<span class="sd">result in the mix variables :math:`[h_0, s, V_r, V_\\theta, p]` its patches</span>
+<span class="sd">take their pitchwise-mean residuals against.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">perturbation</span><span class="p">,</span> <span class="n">util</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.util</span><span class="w"> </span><span class="kn">import</span> <span class="n">profile</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+
+<div class="viewcode-block" id="MixingCommunicator">
+<a class="viewcode-back" href="../../api/communicators.html#ember.mixing_communicator.MixingCommunicator">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MixingCommunicator</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Cross-plane exchange for the mixing plane.</span>
+
+<span class="sd">    Follows :cite:t:`Saxer1993` (his Section 5.5): it flux-averages each side,</span>
+<span class="sd">    takes the jump in that state across the plane, converts the jump to</span>
+<span class="sd">    characteristic variables and splits it by direction of propagation -- the</span>
+<span class="sd">    side the mean flow reaches first at each span station owning the</span>
+<span class="sd">    upstream-running pressure characteristic and the other the remaining four</span>
+<span class="sd">    (:cite:t:`Holmes2008` Eq. 10-11, per station rather than fixed by</span>
+<span class="sd">    geometry) -- and integrates the result onto the target itself,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathrm{target}_n = \mathrm{target}_{n-1}</span>
+<span class="sd">            + \mathrm{rf\_exchange}\,\varepsilon_n,</span>
+
+<span class="sd">    following Holmes&#39; Eq. 15 rather than re-anchoring to the live interface</span>
+<span class="sd">    state every step: the fixed point of the integrating form is exact flux</span>
+<span class="sd">    balance, where the proportional form leaves a standing offset the size of</span>
+<span class="sd">    the residual mismatch. :attr:`leak` and a non-physical-state guard are the</span>
+<span class="sd">    anti-windup this needs in return.</span>
+
+<span class="sd">    The relaxation factor is read from the patches at every exchange, so it is</span>
+<span class="sd">    per plane rather than per grid, and a solver run can retune it on a</span>
+<span class="sd">    communicator that already exists. Both sides of a plane must agree on it.</span>
+<span class="sd">    It is the same on every multigrid level.</span>
+
+<span class="sd">    The target is written in the mix variables :math:`[h_0, s, V_r, V_\theta,</span>
+<span class="sd">    p]`, which are exactly the quantities the two patches take their</span>
+<span class="sd">    pitchwise-mean residuals against; they drive only the mean mode of each</span>
+<span class="sd">    side&#39;s boundary condition and leave the harmonics to the non-reflecting</span>
+<span class="sd">    relations of the patches themselves.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    ember.mixing : The patch class this pairs</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Jacobian mapping characteristic variables to the space the exchanged</span>
+    <span class="c1"># target is written in. Its last row must be the static pressure and its</span>
+    <span class="c1"># first four the quantities an inflow prescribes, because _write_targets</span>
+    <span class="c1"># expresses Saxer&#39;s split of the interface jump by direction of propagation</span>
+    <span class="c1"># as a pair of row masks on the target vector.</span>
+    <span class="n">_chic_to_target</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">perturbation</span><span class="o">.</span><span class="n">chic_to_mix</span><span class="p">)</span>
+
+    <span class="n">leak</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Anti-windup leak on the integrating relaxation, as a fraction of</span>
+<span class="sd">    :attr:`rf_exchange` per exchange.</span>
+
+<span class="sd">    The exchange accumulates its correction onto the previous target</span>
+<span class="sd">    rather than re-anchoring to the live interface baseline every step, so</span>
+<span class="sd">    that the fixed point is exact flux balance rather than the proportional</span>
+<span class="sd">    form&#39;s standing offset (:cite:t:`Holmes2008` Eq. 15, applied to the</span>
+<span class="sd">    auxiliary cells rather than re-derived each step). A pure integrator can</span>
+<span class="sd">    wind up while the mismatch has not yet resolved -- most a reversed station</span>
+<span class="sd">    whose own boundary condition has not caught up with a target that has</span>
+<span class="sd">    already moved past what the flow was ever in. A positive leak bleeds the</span>
+<span class="sd">    target back toward the live baseline each step, trading a</span>
+<span class="sd">    ``leak/rf_exchange``-scaled residual flux mismatch for a bound on how far</span>
+<span class="sd">    the target can wander. Zero is exact Holmes; engage only if a station is</span>
+<span class="sd">    seen to wind up.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Ma_clip</span> <span class="o">=</span> <span class="mf">0.05</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Floor on :math:`\lvert \mathit{Ma}_x \rvert` of the symmetrised mean</span>
+<span class="sd">    state the Jacobians are evaluated on.</span>
+
+<span class="sd">    :cite:t:`Holmes2008` Eq. 16: as the mean normal velocity tends to zero the</span>
+<span class="sd">    eigenvalues of the transformation matrices grow, so the interface</span>
+<span class="sd">    over-controls to make up for the slow advection the small velocity implies.</span>
+<span class="sd">    Bounding the magnitude -- not the direction, which a reversed station keeps</span>
+<span class="sd">    -- is his remedy and this is ember&#39;s form of it. It also keeps</span>
+<span class="sd">    :func:`~ember.perturbation.flux_to_primitive`, which divides by the axial</span>
+<span class="sd">    velocity, away from zero.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">grid</span><span class="p">,</span>
+        <span class="n">mixing_pairs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize with grid and mixing patch pairs.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        grid : Grid</span>
+<span class="sd">            The grid instance.</span>
+<span class="sd">        mixing_pairs : dict</span>
+<span class="sd">            Mapping of mixing patch pair information.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the two sides of a plane disagree on ``rf_exchange``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="o">=</span> <span class="n">grid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prune_pairs</span><span class="p">(</span><span class="n">mixing_pairs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_rf_exchange</span><span class="p">()</span>
+
+        <span class="c1"># Per-pair diagnostic snapshots, lazily allocated on first exchange.</span>
+        <span class="c1"># Keys: (bid, pid). Values: dict with &#39;du&#39; (the relaxation increment in</span>
+        <span class="c1"># the exchanged target&#39;s own variables, shape (nspan, 5)).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pair_state</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Scratch buffers, lazily allocated on first exchange</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_vec1</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_vec2</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_jac_buf</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Previous entering flag per (bid, pid, side), the hysteresis state for</span>
+        <span class="c1"># _calc_shared_entering. Keyed per side because the two patches of a</span>
+        <span class="c1"># pair have opposite _sign_interior and so, in general, opposite flags.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_entering_state</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_rf_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise if either side of a plane would relax the exchange differently.</span>
+
+<span class="sd">        The exchange writes one shared target, so a pair holds one relaxation</span>
+<span class="sd">        factor; the exchange reads it from the first side. Checked once here</span>
+<span class="sd">        rather than per exchange, so a value changed on one side alone</span>
+<span class="sd">        afterwards -- which the solver&#39;s push cannot do, since it writes the</span>
+<span class="sd">        same value to every patch -- goes unnoticed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">bid</span><span class="p">,</span> <span class="n">pid</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="p">:</span>
+            <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_pair</span><span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">rf_exchange</span> <span class="o">!=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">rf_exchange</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Mixing plane sides disagree on rf_exchange: &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">patch1</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2"> has </span><span class="si">{</span><span class="n">patch1</span><span class="o">.</span><span class="n">rf_exchange</span><span class="si">}</span><span class="s2">, &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">patch2</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2"> has </span><span class="si">{</span><span class="n">patch2</span><span class="o">.</span><span class="n">rf_exchange</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prune_pairs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mixing_pairs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prune bidirectional pairs to unidirectional mapping.&quot;&quot;&quot;</span>
+        <span class="n">seen_pairs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">),</span> <span class="n">transform</span><span class="p">)</span> <span class="ow">in</span> <span class="n">mixing_pairs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">pair_key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="p">(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">)]))</span>
+
+            <span class="k">if</span> <span class="n">pair_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen_pairs</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)</span> <span class="o">&lt;</span> <span class="p">(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="p">[(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)]</span> <span class="o">=</span> <span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">),</span> <span class="n">transform</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">reverse_transform</span> <span class="o">=</span> <span class="n">mixing_pairs</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">reverse_transform</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="p">[(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">)]</span> <span class="o">=</span> <span class="n">reverse_transform</span>
+
+                <span class="n">seen_pairs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">pair_key</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_ensure_pair_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">nspan</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Allocate or resize the per-pair diagnostic state for the given pair.&quot;&quot;&quot;</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pair_state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">state</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;du&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">nspan</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pair_state</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="c1"># Relaxation increment in target space, kept for get_stats.</span>
+                <span class="s2">&quot;du&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nspan</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+            <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pair_state</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the two patch objects either side of one mixing plane.&quot;&quot;&quot;</span>
+        <span class="n">patch1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">bid</span><span class="p">]</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="n">pid</span><span class="p">]</span>
+        <span class="p">(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">),</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="p">[(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)]</span>
+        <span class="n">patch2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">nxbid</span><span class="p">]</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="n">nxpid</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_ensure_buffers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nspan</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Allocate or resize scratch buffers for the given spanwise size.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vec1</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vec1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">nspan</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_vec1</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nspan</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_vec2</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nspan</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_jac_buf</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nspan</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+
+    <span class="nd">@profile</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_exchange_pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="n">flip</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute cross-plane targets and write absolute values into each patch.</span>
+
+<span class="sd">        Performs inter-patch communication only; does not apply the targets to</span>
+<span class="sd">        block_view.conserved.  Call the patches&#39; apply() on each side afterwards.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_pair</span><span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)</span>
+
+        <span class="n">b_avg</span><span class="p">,</span> <span class="n">nspan</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_pair</span><span class="p">(</span><span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_write_targets</span><span class="p">(</span><span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">,</span> <span class="n">flip</span><span class="p">,</span> <span class="n">b_avg</span><span class="p">,</span> <span class="n">nspan</span><span class="p">,</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prepare_pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">,</span> <span class="n">flip</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symmetrise the cross-plane average and reduce the flux mismatch to chic space.</span>
+
+<span class="sd">        Leaves the characteristic mismatch ``dchic`` in the shared scratch</span>
+<span class="sd">        buffer ``self._vec1[:nspan]``, which :meth:`_write_targets` consumes.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        b_avg : Block</span>
+<span class="sd">            The symmetrised pitch-averaged state both sides now share, with its</span>
+<span class="sd">            axial Mach number clipped away from zero. Every Jacobian downstream</span>
+<span class="sd">            is evaluated on it, so both sides see the same linearisation.</span>
+<span class="sd">        nspan : int</span>
+<span class="sd">            Number of span stations; the length the scratch buffers are sliced to.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># The patches have to agree on a common pitch-avg state</span>
+        <span class="c1"># before exchanging, before resolving to interface coordinates</span>
+
+        <span class="c1"># First area average the flow field into respective block_avg</span>
+        <span class="n">patch1</span><span class="o">.</span><span class="n">set_block_avg</span><span class="p">()</span>
+        <span class="n">patch2</span><span class="o">.</span><span class="n">set_block_avg</span><span class="p">()</span>
+
+        <span class="c1"># Extract conserved variables</span>
+        <span class="n">cons1</span> <span class="o">=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">conserved_nd</span>
+        <span class="n">cons2</span> <span class="o">=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">conserved_nd</span>
+
+        <span class="c1"># Compute pitch-averages</span>
+        <span class="n">patch1</span><span class="o">.</span><span class="n">set_flux_avg</span><span class="p">()</span>
+        <span class="n">patch2</span><span class="o">.</span><span class="n">set_flux_avg</span><span class="p">()</span>
+        <span class="n">flux1</span> <span class="o">=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">flux_avg_nd</span>
+        <span class="n">flux2</span> <span class="o">=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">flux_avg_nd</span>
+
+        <span class="k">if</span> <span class="n">flip</span><span class="p">:</span>
+            <span class="n">cons2</span> <span class="o">=</span> <span class="n">cons2</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">flux2</span> <span class="o">=</span> <span class="n">flux2</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Ensure scratch buffers are allocated</span>
+        <span class="c1"># One shared for all patches which may have different size</span>
+        <span class="c1"># so we have to slice to nspan</span>
+        <span class="n">nspan</span> <span class="o">=</span> <span class="n">cons1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_buffers</span><span class="p">(</span><span class="n">nspan</span><span class="p">)</span>
+        <span class="n">v1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vec1</span><span class="p">[:</span><span class="n">nspan</span><span class="p">]</span>
+        <span class="n">v2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vec2</span><span class="p">[:</span><span class="n">nspan</span><span class="p">]</span>
+        <span class="n">J</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jac_buf</span><span class="p">[:</span><span class="n">nspan</span><span class="p">]</span>
+
+        <span class="c1"># Take arithmetic average of conserved variables</span>
+        <span class="n">v2</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">cons1</span>
+        <span class="n">v2</span> <span class="o">+=</span> <span class="n">cons2</span>
+        <span class="n">v2</span> <span class="o">*=</span> <span class="mf">0.5</span>  <span class="c1"># v2 = cons_avg</span>
+
+        <span class="c1"># Put back into block_avg for use in perturbation Jacobians</span>
+        <span class="n">patch1</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">v2</span>
+        <span class="n">patch2</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">v2</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">flip</span> <span class="k">else</span> <span class="n">v2</span>
+
+        <span class="n">patch1</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span>
+        <span class="n">patch2</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span>
+
+        <span class="c1"># The symmetrised interface state in target space, which _write_targets</span>
+        <span class="c1"># relaxes the mismatch onto. Taken here because the clip below is about</span>
+        <span class="c1"># to move the axial momentum, and a baseline is wanted for the state the</span>
+        <span class="c1"># two sides actually share rather than for the one the Jacobians are</span>
+        <span class="c1"># evaluated on.</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">block_avg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_baseline</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">b</span><span class="o">.</span><span class="n">ho_nd</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">s_nd</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">Vr_nd</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">Vt_nd</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">P_nd</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">nspan</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+
+        <span class="c1"># Store the flux difference in v1</span>
+        <span class="n">v1</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">flux2</span>
+        <span class="n">v1</span> <span class="o">-=</span> <span class="n">flux1</span>
+
+        <span class="c1"># Clip b_avg axial Mach to Ma_clip before evaluating Jacobians.</span>
+        <span class="c1"># np.sign is not usable for the direction: it returns 0 at Max == 0, so</span>
+        <span class="c1"># a stalled station would be clipped to exactly zero axial momentum --</span>
+        <span class="c1"># the one value the clip exists to keep out of flux_to_primitive, which</span>
+        <span class="c1"># divides by it two lines below. A station with no direction of its own</span>
+        <span class="c1"># takes the downstream one.</span>
+        <span class="n">b_avg</span> <span class="o">=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">block_avg</span>
+        <span class="n">Max</span> <span class="o">=</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">Max</span>
+        <span class="n">too_low</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Max</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ma_clip</span>
+        <span class="k">if</span> <span class="n">too_low</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="n">sign</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">Max</span> <span class="o">&gt;=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">)</span>
+            <span class="n">rhoVx_clip</span> <span class="o">=</span> <span class="n">sign</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ma_clip</span> <span class="o">*</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">rho_nd</span> <span class="o">*</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">a_nd</span>
+            <span class="n">b_avg</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+                <span class="n">too_low</span><span class="p">,</span> <span class="n">rhoVx_clip</span><span class="p">,</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">b_avg</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span>
+
+        <span class="c1"># Convert flux difference to chic difference using sequential Jacobians</span>
+        <span class="n">perturbation</span><span class="o">.</span><span class="n">flux_to_primitive</span><span class="p">(</span><span class="n">b_avg</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">J</span><span class="p">)</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">matvec</span><span class="p">(</span><span class="n">J</span><span class="p">,</span> <span class="n">v1</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">v1</span><span class="p">)</span>  <span class="c1"># v1 = dprim</span>
+        <span class="n">perturbation</span><span class="o">.</span><span class="n">primitive_to_chic</span><span class="p">(</span><span class="n">b_avg</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">J</span><span class="p">)</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">matvec</span><span class="p">(</span><span class="n">J</span><span class="p">,</span> <span class="n">v1</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">v1</span><span class="p">)</span>  <span class="c1"># v1 = dchic</span>
+
+        <span class="c1"># Stamp one shared entering direction per span station on both</span>
+        <span class="c1"># patches, from the state they now both hold. Each patch&#39;s own</span>
+        <span class="c1"># _calc_entering would otherwise read its own local interior, and a</span>
+        <span class="c1"># mixed-sign station could then have the two sides disagree on which</span>
+        <span class="c1"># characteristic split they are on -- the split _write_targets is</span>
+        <span class="c1"># about to build assumes one direction shared by both.</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">patch1</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="n">patch2</span><span class="o">.</span><span class="n">label</span><span class="p">)</span>
+        <span class="n">patch1</span><span class="o">.</span><span class="n">_entering_shared</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_shared_entering</span><span class="p">(</span><span class="n">patch1</span><span class="p">,</span> <span class="p">(</span><span class="o">*</span><span class="n">key</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">patch2</span><span class="o">.</span><span class="n">_entering_shared</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_shared_entering</span><span class="p">(</span><span class="n">patch2</span><span class="p">,</span> <span class="p">(</span><span class="o">*</span><span class="n">key</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">b_avg</span><span class="p">,</span> <span class="n">nspan</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_calc_shared_entering</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">patch</span><span class="p">,</span> <span class="n">state_key</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;One patch&#39;s entering flag from the shared symmetrised interface state.</span>
+
+<span class="sd">        Mirrors :meth:`~ember.patch.NonReflectingPatch._calc_entering`,</span>
+<span class="sd">        but reads only the interface state both patches now hold in</span>
+<span class="sd">        ``patch.block_avg`` (already in this patch&#39;s own span order), not the</span>
+<span class="sd">        patch&#39;s own interior -- the interior can differ between the two sides</span>
+<span class="sd">        of a mixed-sign station, which is exactly what a shared direction is</span>
+<span class="sd">        for. Hysteresis of :attr:`~ember.patch.NonReflectingPatch._frac_rev_off`</span>
+<span class="sd">        is kept between exchanges, keyed by ``state_key``, so a station</span>
+<span class="sd">        hovering about zero still settles into one split instead of</span>
+<span class="sd">        alternating.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        patch : MixingPatch</span>
+<span class="sd">            The side to compute the flag for, read for its own</span>
+<span class="sd">            ``_sign_interior`` and its already-oriented ``block_avg``.</span>
+<span class="sd">        state_key : tuple</span>
+<span class="sd">            Key identifying this side&#39;s hysteresis state across exchanges.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        array</span>
+<span class="sd">            Boolean, shape ``(nspan,)``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">avg</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">block_avg</span>
+        <span class="n">sign</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">_sign_interior</span>
+        <span class="n">u_face</span> <span class="o">=</span> <span class="p">(</span><span class="n">sign</span> <span class="o">*</span> <span class="n">avg</span><span class="o">.</span><span class="n">Vx_nd</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">a_nd</span> <span class="o">=</span> <span class="n">avg</span><span class="o">.</span><span class="n">a_nd</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">on</span> <span class="o">=</span> <span class="n">u_face</span> <span class="o">&gt;=</span> <span class="mf">0.0</span>
+        <span class="n">off</span> <span class="o">=</span> <span class="n">u_face</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">patch</span><span class="o">.</span><span class="n">_frac_rev_off</span> <span class="o">*</span> <span class="n">a_nd</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entering_state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">state_key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">prev</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">prev</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">on</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">on</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">prev</span><span class="p">,</span> <span class="o">~</span><span class="n">off</span><span class="p">,</span> <span class="n">on</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_entering_state</span><span class="p">[</span><span class="n">state_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_write_targets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">,</span> <span class="n">flip</span><span class="p">,</span> <span class="n">b_avg</span><span class="p">,</span> <span class="n">nspan</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Project the characteristic mismatch into target space and write both sides.</span>
+
+<span class="sd">        Reads ``dchic`` from the scratch buffer :meth:`_prepare_pair` left it</span>
+<span class="sd">        in, splits it by direction of propagation -- the upstream-running</span>
+<span class="sd">        pressure characteristic against the four downstream-running ones, which</span>
+<span class="sd">        is :cite:t:`Saxer1993` Eq. 5.66 -- and relaxes the resulting mismatch</span>
+<span class="sd">        onto the symmetrised baseline of the two sides&#39; current targets.</span>
+
+<span class="sd">        The split is expressed as a pair of row masks on the target vector, so</span>
+<span class="sd">        :attr:`_chic_to_target` has to map characteristics into a space whose</span>
+<span class="sd">        last row is the static pressure and whose first four rows are the</span>
+<span class="sd">        quantities an inflow prescribes. Mix space satisfies that.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">v1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vec1</span><span class="p">[:</span><span class="n">nspan</span><span class="p">]</span>
+        <span class="n">v2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vec2</span><span class="p">[:</span><span class="n">nspan</span><span class="p">]</span>
+        <span class="n">J</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jac_buf</span><span class="p">[:</span><span class="n">nspan</span><span class="p">]</span>
+
+        <span class="c1"># Split into upstream/downstream contributions in chic space. Which</span>
+        <span class="c1"># acoustic is incoming to the pressure-reading side depends on the</span>
+        <span class="c1"># direction of the mean throughflow, exactly as each patch&#39;s own</span>
+        <span class="c1"># incoming-characteristic table does (see ember.nonreflecting): row 0</span>
+        <span class="c1"># (Vx - a) feeds the P target where the mean runs forward, row 1</span>
+        <span class="c1"># (Vx + a) where it has reversed. The three convective characteristics</span>
+        <span class="c1"># (rows 2-4) always feed the four inflow quantities. Splitting by fixed</span>
+        <span class="c1"># row index instead -- as if every station ran forward -- feeds a</span>
+        <span class="c1"># reversed station&#39;s inflow rows from the wrong acoustic, so the</span>
+        <span class="c1"># exchange and the boundary condition disagree on which characteristic</span>
+        <span class="c1"># is incoming and a standing pitch-mean flux mismatch is left across the</span>
+        <span class="c1"># plane.</span>
+        <span class="c1">#</span>
+        <span class="c1"># The direction is read from patch1&#39;s shared entering flag</span>
+        <span class="c1"># (_calc_shared_entering, computed above in _prepare_pair), not</span>
+        <span class="c1"># independently from the raw sign of b_avg.Max: that flag is exactly</span>
+        <span class="c1"># what each patch&#39;s own _calc_entering now returns (Change 2), so this</span>
+        <span class="c1"># is the same hysteresis-damped decision the patches split their own</span>
+        <span class="c1"># incoming/outgoing characteristics on. Reading the raw instantaneous</span>
+        <span class="c1"># sign here instead, with no hysteresis, could disagree with the</span>
+        <span class="c1"># patches&#39; own lagged decision for an exchange or two near a</span>
+        <span class="c1"># crossing -- fine for the old proportional relaxation, which</span>
+        <span class="c1"># re-derives its correction from scratch every step and forgets a bad</span>
+        <span class="c1"># one immediately, but not for the integrating form below, which</span>
+        <span class="c1"># accumulates whatever it is given and has no way to tell a</span>
+        <span class="c1"># wrong-direction contribution from a right one afterwards.</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nspan</span><span class="p">)</span>
+        <span class="n">p_row</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">patch1</span><span class="o">.</span><span class="n">_sign_interior</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="n">patch1</span><span class="o">.</span><span class="n">_entering_shared</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">v2</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">v1</span>  <span class="c1"># copy dchic into v2</span>
+        <span class="n">acoustic</span> <span class="o">=</span> <span class="n">v2</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="n">p_row</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>  <span class="c1"># the one acoustic bound for the P bucket</span>
+        <span class="n">v1</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">v1</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="n">p_row</span><span class="p">]</span> <span class="o">=</span> <span class="n">acoustic</span>  <span class="c1"># v1 = dchic_up (the pressure-side acoustic)</span>
+        <span class="n">v2</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="n">p_row</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>  <span class="c1"># v2 = dchic_dn (other acoustic and convective)</span>
+
+        <span class="c1"># Convert both to target space with the single fused Jacobian</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_chic_to_target</span><span class="p">(</span><span class="n">b_avg</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">J</span><span class="p">)</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">matvec</span><span class="p">(</span><span class="n">J</span><span class="p">,</span> <span class="n">v1</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">v1</span><span class="p">)</span>  <span class="c1"># v1 = dtarget_up</span>
+        <span class="n">v1</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>  <span class="c1"># zero non-P contribution</span>
+
+        <span class="n">util</span><span class="o">.</span><span class="n">matvec</span><span class="p">(</span><span class="n">J</span><span class="p">,</span> <span class="n">v2</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">v2</span><span class="p">)</span>  <span class="c1"># v2 = dtarget_dn</span>
+        <span class="n">v2</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>  <span class="c1"># zero P contribution</span>
+
+        <span class="c1"># Combine: v1 = dtarget = dtarget_up - dtarget_dn</span>
+        <span class="c1"># Change to the first four rows comes from downstream chics</span>
+        <span class="c1"># Change to P comes from upstream chics</span>
+        <span class="c1"># For some reason need a -ve sign on dtarget_dn here!</span>
+        <span class="n">v1</span> <span class="o">-=</span> <span class="n">v2</span>
+
+        <span class="c1"># v1 holds the error e_n = dtarget; the increment is du = rf_exchange *</span>
+        <span class="c1"># e_n, recorded for get_stats before it is added onto the target below.</span>
+        <span class="n">v1</span> <span class="o">*=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">rf_exchange</span>  <span class="c1"># v1 = du</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_pair_state</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">nspan</span><span class="p">)</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">&quot;du&quot;</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">v1</span>
+
+        <span class="c1"># Integrate the target-space mismatch onto the previous target, not the</span>
+        <span class="c1"># live interface baseline -- Holmes Eq. 15, applied to the auxiliary</span>
+        <span class="c1"># cells rather than re-derived each step. At the fixed point</span>
+        <span class="c1"># target_n = target_{n-1} forces rf_exchange*e_n = 0, i.e. exact flux</span>
+        <span class="c1"># balance; re-anchoring to the baseline every step (the proportional</span>
+        <span class="c1"># form this replaces) instead leaves a standing offset of size e_n</span>
+        <span class="c1"># itself. The previous target is symmetrised across the two sides,</span>
+        <span class="c1"># since before the first exchange each side has only seeded itself</span>
+        <span class="c1"># from its own interior.</span>
+        <span class="n">target1</span> <span class="o">=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">get_target</span><span class="p">()</span>
+        <span class="n">target2</span> <span class="o">=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">get_target</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">flip</span><span class="p">:</span>
+            <span class="n">target2</span> <span class="o">=</span> <span class="n">target2</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">v2</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">target1</span>
+        <span class="n">v2</span> <span class="o">+=</span> <span class="n">target2</span>
+        <span class="n">v2</span> <span class="o">*=</span> <span class="mf">0.5</span>  <span class="c1"># v2 = target_{n-1}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">leak</span><span class="p">:</span>
+            <span class="c1"># Bleed the accumulated target back toward the live baseline, so</span>
+            <span class="c1"># windup is bounded rather than merely under-relaxed. Zero by</span>
+            <span class="c1"># default: engage only where a station is seen to wind up.</span>
+            <span class="n">v2</span> <span class="o">-=</span> <span class="bp">self</span><span class="o">.</span><span class="n">leak</span> <span class="o">*</span> <span class="p">(</span><span class="n">v2</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_baseline</span><span class="p">)</span>
+
+        <span class="n">v2</span> <span class="o">+=</span> <span class="n">v1</span>  <span class="c1"># v2 = target_n, before the physical clamp</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_clamp_physical</span><span class="p">(</span><span class="n">v2</span><span class="p">,</span> <span class="n">patch1</span><span class="p">)</span>
+
+        <span class="c1"># 0th-order extrapolation of targets at hub/casing walls</span>
+        <span class="n">v2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">v2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">v2</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">v2</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="c1"># Assign targets back to patches with correct flip</span>
+        <span class="n">patch1</span><span class="o">.</span><span class="n">set_target</span><span class="p">(</span><span class="n">v2</span><span class="p">)</span>
+        <span class="n">patch2</span><span class="o">.</span><span class="n">set_target</span><span class="p">(</span><span class="n">v2</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">flip</span> <span class="k">else</span> <span class="n">v2</span><span class="p">)</span>
+
+    <span class="n">_clamp_Ma_max_sq</span> <span class="o">=</span> <span class="mf">4.0</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Square of the axial Mach number :meth:`_clamp_physical` rejects a</span>
+<span class="sd">    target above.</span>
+
+<span class="sd">    Not 1: the target is an aspiration the patches&#39; own sigma-relaxed mean-mode</span>
+<span class="sd">    solve chases gradually, not the physical face state itself (which the</span>
+<span class="sd">    patch&#39;s own hard guard in :meth:`~ember.patch.NonReflectingPatch._calc_reference`</span>
+<span class="sd">    already protects), so a target whose implied axial velocity briefly</span>
+<span class="sd">    overshoots the subsonic boundary by a little is an ordinary transient of a</span>
+<span class="sd">    converging integration, not a runaway. Rejecting it anyway -- tried at</span>
+<span class="sd">    :math:`\mathit{Ma}\geq 1` during development -- snaps a recovering</span>
+<span class="sd">    trajectory back to the baseline hard enough to leave it oscillating</span>
+<span class="sd">    indefinitely instead of settling, which is worse than leaving it alone.</span>
+<span class="sd">    Squared, and compared against the ratio of squares below, so no square root</span>
+<span class="sd">    is needed at every exchange.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_clamp_physical</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">patch</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reject a station&#39;s updated target if it implies a non-physical state.</span>
+
+<span class="sd">        The anti-windup safety net the integrating form of the relaxation</span>
+<span class="sd">        needs (see :attr:`leak`): a target that has wound up past what the</span>
+<span class="sd">        flow was ever in is not just wrong, it can be a state with no solution</span>
+<span class="sd">        at all -- negative density, non-positive pressure, or an implied axial</span>
+<span class="sd">        velocity so far past sonic that the mean-mode Newton solves of</span>
+<span class="sd">        :class:`~ember.patch.NonReflectingPatch` were never going to</span>
+<span class="sd">        recover it. Rejected stations fall back to :attr:`_baseline`, the live</span>
+<span class="sd">        symmetrised interface state :meth:`_prepare_pair` just measured --</span>
+<span class="sd">        physical by construction, unlike the wound-up target that failed the</span>
+<span class="sd">        check.</span>
+
+<span class="sd">        ``target`` is modified in place. Uses ``patch``&#39;s fluid model; both</span>
+<span class="sd">        sides of a plane share one, so either patch does.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fluid</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">block_view</span><span class="o">.</span><span class="n">fluid</span>
+        <span class="n">ho</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">Vr</span><span class="p">,</span> <span class="n">Vt</span><span class="p">,</span> <span class="n">P</span> <span class="o">=</span> <span class="p">(</span><span class="n">target</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>
+
+        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">):</span>
+            <span class="n">rho</span><span class="p">,</span> <span class="n">u</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_P_s</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_a</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+            <span class="n">h</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_h</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+            <span class="n">Vx_sq</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">ho</span> <span class="o">-</span> <span class="n">h</span><span class="p">)</span> <span class="o">-</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">Vt</span><span class="o">**</span><span class="mi">2</span>
+            <span class="n">Max_sq</span> <span class="o">=</span> <span class="n">Vx_sq</span> <span class="o">/</span> <span class="n">a</span><span class="o">**</span><span class="mi">2</span>
+
+        <span class="c1"># A negative Vx_sq (no real axial velocity solves the energy balance),</span>
+        <span class="c1"># of any magnitude, is not rejected on its own: right at a stalled or</span>
+        <span class="c1"># lightly reversed station this is an ordinary excursion of a</span>
+        <span class="c1"># converging integration -- the same territory the patches&#39; own</span>
+        <span class="c1"># Ma_clip exists to ride through -- and rejecting it as harshly as a</span>
+        <span class="c1"># genuine runaway snaps a recovering trajectory back to the baseline</span>
+        <span class="c1"># hard enough to leave it oscillating rather than settling, which was</span>
+        <span class="c1"># tried and made things worse. Only the upper Mach bound, which a</span>
+        <span class="c1"># negative Max_sq automatically satisfies, gates this check; a</span>
+        <span class="c1"># negative Vx_sq large enough to matter shows up as non-physical</span>
+        <span class="c1"># elsewhere first (rho or P failing the checks above).</span>
+        <span class="n">bad</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">rho</span><span class="p">)</span>
+            <span class="o">|</span> <span class="p">(</span><span class="n">rho</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">)</span>
+            <span class="o">|</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">P</span><span class="p">)</span>
+            <span class="o">|</span> <span class="p">(</span><span class="n">P</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">)</span>
+            <span class="o">|</span> <span class="o">~</span><span class="p">(</span><span class="n">Max_sq</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clamp_Ma_max_sq</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">bad</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="n">target</span><span class="p">[</span><span class="n">bad</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_baseline</span><span class="p">[</span><span class="n">bad</span><span class="p">]</span>
+
+<div class="viewcode-block" id="MixingCommunicator.get_stats">
+<a class="viewcode-back" href="../../api/communicators.html#ember.mixing_communicator.MixingCommunicator.get_stats">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return last-step relaxation increment for one pair.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict or None</span>
+<span class="sd">            Key ``du`` (last relaxation increment in the exchanged target&#39;s own</span>
+<span class="sd">            variables, shape ``(nspan, 5)``). Returns ``None`` if the pair has</span>
+<span class="sd">            not been exchanged yet.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pair_state</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">state</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;du&quot;</span><span class="p">:</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;du&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()}</span></div>
+
+
+<div class="viewcode-block" id="MixingCommunicator.exchange">
+<a class="viewcode-back" href="../../api/communicators.html#ember.mixing_communicator.MixingCommunicator.exchange">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute and write targets for all pairs (no apply step).&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">bid</span><span class="p">,</span> <span class="n">pid</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">flip</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="p">[(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exchange_pair</span><span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.collections &#8212; ember 0.2.1.dev5+g520995120 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=bffc62d5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev5+g520995120</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "dev";
+    var page = "_modules/ember/collections.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.collections</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Collection classes for managing groups of objects with labels and type-based access.</span>
+
+<span class="sd">This module provides specialized collection classes that extend Python&#39;s standard list</span>
+<span class="sd">functionality with support for label-based indexing and type-filtered access. The internal</span>
+<span class="sd">``_LabelledList`` abstract base class enables collections where items can be accessed both by numeric index and</span>
+<span class="sd">by unique string labels, with automatic validation of label uniqueness. The PatchList subclass</span>
+<span class="sd">adds type-based filtering allowing easy access to subsets of patches by their class (e.g., all</span>
+<span class="sd">InletPatch objects or all PeriodicPatch objects). These collections provide convenient,</span>
+<span class="sd">intuitive syntax for managing structured CFD data such as blocks, patches, and boundary</span>
+<span class="sd">conditions while maintaining strict validation to prevent configuration errors in multi-block</span>
+<span class="sd">grid setups.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_LabelledList</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Abstract base class for collections with label-based access.</span>
+
+<span class="sd">    Provides a standard interface for collections that support both numeric</span>
+<span class="sd">    indexing and string-based label access. Items in the collection can have</span>
+<span class="sd">    optional labels that must be unique within the collection.</span>
+
+<span class="sd">    Items must have a &#39;label&#39; attribute and a &#39;set_label(label)&#39; method.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">item_class</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize with optional list of items.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        items : list, optional</span>
+<span class="sd">            Initial list of items to add to the collection.</span>
+<span class="sd">        item_class : class, optional</span>
+<span class="sd">            Class type for items in the collection.</span>
+<span class="sd">            If not provided and items exist, will be inferred from first item.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="o">=</span> <span class="n">items</span> <span class="ow">or</span> <span class="p">[]</span>
+
+        <span class="c1"># Save the item class type</span>
+        <span class="k">if</span> <span class="n">item_class</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_item_class</span> <span class="o">=</span> <span class="n">item_class</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_item_class</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_item_class</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># If items were provided, validate labels for uniqueness</span>
+        <span class="k">if</span> <span class="n">items</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_initial_labels</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_initial_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate that all initial item labels are unique.&quot;&quot;&quot;</span>
+        <span class="n">labels_seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">:</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span>
+            <span class="k">if</span> <span class="n">label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">labels_seen</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Duplicate label &#39;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">&#39; found in initial items&quot;</span>
+                    <span class="p">)</span>
+                <span class="n">labels_seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_unique_label</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">exclude_index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate that label is unique in collection.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">label</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>  <span class="c1"># None labels are allowed and don&#39;t need to be unique</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">exclude_index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">==</span> <span class="n">exclude_index</span><span class="p">:</span>
+                <span class="k">continue</span>  <span class="c1"># Skip the item being replaced</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span> <span class="o">==</span> <span class="n">label</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Item with label &#39;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">&#39; already exists in collection&quot;</span>
+                <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return number of items in collection.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Iterate over items in collection.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get item by index, label, slice, or index tuple.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        key : int, str, slice, list, or tuple</span>
+<span class="sd">            Key to access items:</span>
+<span class="sd">            - int: single item by index</span>
+<span class="sd">            - str: single item by label</span>
+<span class="sd">            - slice: new collection with sliced items</span>
+<span class="sd">            - list/tuple of int: new collection with selected items</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Any or _LabelledList</span>
+<span class="sd">            Single item (for int/str key) or new collection instance (for slice/tuple).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="c1"># Return new instance with sliced items</span>
+            <span class="n">sliced_items</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">sliced_items</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">key</span><span class="p">):</span>
+            <span class="c1"># Handle index tuple: collection[[0, 2, 4]]</span>
+            <span class="n">selected_items</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">key</span><span class="p">]</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">selected_items</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="c1"># Single item by numeric index</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="c1"># Single item by label</span>
+            <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span> <span class="o">==</span> <span class="n">key</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">item</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No item found with label &#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid key type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="si">}</span><span class="s2">. Expected int, str, slice, or sequence of int.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set item at index or by label, or insert new item if label doesn&#39;t exist.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        index : int or str</span>
+<span class="sd">            Index or label to set. For string labels, if no existing item has this</span>
+<span class="sd">            label, the item will be appended to the collection.</span>
+<span class="sd">        item : Any</span>
+<span class="sd">            Item to set at the given index/label. For string indexing with new labels,</span>
+<span class="sd">            the item&#39;s label must be None, empty, or match the key.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        When using string indexing:</span>
+<span class="sd">        - If an item with the given label exists, it will be replaced</span>
+<span class="sd">        - If no item with the given label exists, the item will be appended</span>
+<span class="sd">        - The item&#39;s label will be updated to match the key if it&#39;s None or empty</span>
+<span class="sd">        - If the item has a different non-empty label, a ValueError is raised</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="c1"># String indexing by label - find the item and replace it, or append if not found</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">existing_item</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">existing_item</span><span class="o">.</span><span class="n">label</span> <span class="o">==</span> <span class="n">index</span><span class="p">:</span>
+                    <span class="c1"># Validate new item label compatibility</span>
+                    <span class="n">item_label</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span>
+                    <span class="k">if</span> <span class="n">item_label</span> <span class="ow">and</span> <span class="n">item_label</span> <span class="o">!=</span> <span class="n">index</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;Cannot assign item with label &#39;</span><span class="si">{</span><span class="n">item_label</span><span class="si">}</span><span class="s2">&#39; to key &#39;</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">&#39;. &quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot;Item label must be None, empty, or match the key &#39;</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+                        <span class="p">)</span>
+
+                    <span class="c1"># Set the item label to match the key if it was None or empty</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">item_label</span><span class="p">:</span>
+                        <span class="n">item</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_validate_unique_label</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="n">exclude_index</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">item</span>
+                    <span class="k">return</span>
+
+            <span class="c1"># No existing item found with this label - insert new item</span>
+            <span class="n">item_label</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span>
+            <span class="k">if</span> <span class="n">item_label</span> <span class="ow">and</span> <span class="n">item_label</span> <span class="o">!=</span> <span class="n">index</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Cannot assign item with label &#39;</span><span class="si">{</span><span class="n">item_label</span><span class="si">}</span><span class="s2">&#39; to key &#39;</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">&#39;. &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;Item label must be None, empty, or match the key &#39;</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+                <span class="p">)</span>
+
+            <span class="c1"># Set the item label to match the key if it was None or empty</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">item_label</span><span class="p">:</span>
+                <span class="n">item</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+
+            <span class="c1"># Use append to leverage existing validation and overlap checking</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Numeric indexing</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Index must be int or str&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">)):</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;Collection index out of range&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Validate label uniqueness if item has a label</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">item_label</span> <span class="o">:=</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_validate_unique_label</span><span class="p">(</span><span class="n">item_label</span><span class="p">,</span> <span class="n">exclude_index</span><span class="o">=</span><span class="n">index</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">item</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Delete item at index or by label.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        index : int or str</span>
+<span class="sd">            Index or label of item to delete.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="c1"># String indexing by label</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span> <span class="o">==</span> <span class="n">index</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                    <span class="k">return</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No item found with label &#39;</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Numeric indexing</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Index must be int or str&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">)):</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;Collection index out of range&quot;</span><span class="p">)</span>
+
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if item or label is in collection.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        item : Any or str</span>
+<span class="sd">            Item object or label string to check for.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            True if item is in the collection.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="c1"># String check by label</span>
+            <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">existing_item</span><span class="o">.</span><span class="n">label</span> <span class="o">==</span> <span class="n">item</span> <span class="k">for</span> <span class="n">existing_item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Object check</span>
+            <span class="k">return</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">append</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add item to collection.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        item : Any</span>
+<span class="sd">            Item to add to the collection. The item manages its own label.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If item&#39;s label already exists in the collection.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">item_label</span> <span class="o">:=</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_unique_label</span><span class="p">(</span><span class="n">item_label</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove all items from collection.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">extend</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add multiple items to collection.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        items : list</span>
+<span class="sd">            List of items to add. Each item manages its own label.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If any item&#39;s label already exists in the collection.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Validate all item labels first</span>
+        <span class="n">existing_labels</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">)</span>
+        <span class="n">new_labels</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+            <span class="n">item_label</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span>
+            <span class="k">if</span> <span class="n">item_label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">item_label</span> <span class="ow">in</span> <span class="n">existing_labels</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Item with label &#39;</span><span class="si">{</span><span class="n">item_label</span><span class="si">}</span><span class="s2">&#39; already exists in collection&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">if</span> <span class="n">item_label</span> <span class="ow">in</span> <span class="n">new_labels</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Duplicate label &#39;</span><span class="si">{</span><span class="n">item_label</span><span class="si">}</span><span class="s2">&#39; found in new items&quot;</span>
+                    <span class="p">)</span>
+                <span class="n">new_labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item_label</span><span class="p">)</span>
+
+        <span class="c1"># Add all items</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return index of first occurrence of item.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        item : Any</span>
+<span class="sd">            Item to find.</span>
+<span class="sd">        start : int, optional</span>
+<span class="sd">            Start index for search.</span>
+<span class="sd">        stop : int, optional</span>
+<span class="sd">            Stop index for search.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            Index of the item.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">stop</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">start</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Insert item at specific index.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        index : int</span>
+<span class="sd">            Index at which to insert the item.</span>
+<span class="sd">        item : Any</span>
+<span class="sd">            Item to insert. The item manages its own label.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">item_label</span> <span class="o">:=</span> <span class="n">item</span><span class="o">.</span><span class="n">label</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_unique_label</span><span class="p">(</span><span class="n">item_label</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">pop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="o">=-</span><span class="mi">1</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove and return item at index (default last).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        index : int, optional</span>
+<span class="sd">            Index of item to remove and return. Default is -1 (last item).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Any</span>
+<span class="sd">            The removed item.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;pop from empty collection&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove first occurrence of item.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        item : Any</span>
+<span class="sd">            Item to remove.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Item not in collection&quot;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">labels</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;List of item labels, in order, including ``None`` for unlabelled items.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list</span>
+<span class="sd">            The ``label`` of each item in the collection. Entries are ``None``</span>
+<span class="sd">            where an item has no label.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">label</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="BlockPatchCollection">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.BlockPatchCollection">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BlockPatchCollection</span><span class="p">(</span><span class="n">_LabelledList</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stores the boundary condition patches for a single :py:class:`~ember.block.Block`.</span>
+
+<span class="sd">    Holds a reference to the parent block and provides the standard collection</span>
+<span class="sd">    interface (``append``, ``extend``, ``insert``, ``del``, integer and string</span>
+<span class="sd">    indexing, iteration, ``len``) for managing :py:class:`~ember.patch.Patch`</span>
+<span class="sd">    objects. Adding a patch automatically attaches it to the block, validates</span>
+<span class="sd">    its limits against the block shape, and checks for spatial overlaps with</span>
+<span class="sd">    existing patches of the same type. Type-grouped properties (``inlet``,</span>
+<span class="sd">    ``outlet``, ``periodic``, etc.) return plain lists. Normally accessed via</span>
+<span class="sd">    :py:attr:`Block.patches &lt;ember.block.Block.patches&gt;` rather than</span>
+<span class="sd">    instantiated directly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialise with a reference to the parent block.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        block : :py:class:`~ember.block.Block`</span>
+<span class="sd">            The block whose boundary conditions this collection manages.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># patch.py imports this module back, so this import must stay lazy</span>
+        <span class="c1"># to avoid a circular import.</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">ember.patch</span><span class="w"> </span><span class="kn">import</span> <span class="n">Patch</span>  <span class="c1"># noqa: PLC0415</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">item_class</span><span class="o">=</span><span class="n">Patch</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_block</span> <span class="o">=</span> <span class="n">block</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get patch by index, label, or slice, preserving block reference on slices.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="nb">slice</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">)</span>
+                <span class="k">else</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">key</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">BlockPatchCollection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_block</span><span class="p">)</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">_items</span> <span class="o">=</span> <span class="n">items</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_patches_overlap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if two patches of the same type overlap in 3D space.&quot;&quot;&quot;</span>
+        <span class="c1"># Only check overlap for patches of the same type</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Checking overlap between </span><span class="si">{</span><span class="n">patch1</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">patch2</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">patch1</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">type</span><span class="p">(</span><span class="n">patch2</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Different patch types, no overlap.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Passive overlay patches (e.g. ProbePatch) may coincide with anything</span>
+        <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">_allow_overlap</span> <span class="ow">or</span> <span class="n">patch2</span><span class="o">.</span><span class="n">_allow_overlap</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Overlap-exempt patch, no overlap.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Both patches must be attached to blocks for meaningful comparison</span>
+        <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">_block_ref</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">patch2</span><span class="o">.</span><span class="n">_block_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">&quot;One or both patches are not attached to blocks, cannot check overlap.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Early return if either patch is a point (size == 1)</span>
+        <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">patch2</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;One or both patches are points, no overlap.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">const_dim</span> <span class="o">!=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">const_dim</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Different constant dimensions, no overlap.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Get resolved absolute limits for both patches</span>
+        <span class="n">limits1</span> <span class="o">=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">ijk_lim_abs</span>
+        <span class="n">limits2</span> <span class="o">=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">ijk_lim_abs</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Patch 1 limits (abs): </span><span class="si">{</span><span class="n">patch1</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Patch 2 limits (abs): </span><span class="si">{</span><span class="n">patch2</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Different const_dim means no overlap</span>
+        <span class="k">if</span> <span class="n">limits1</span><span class="p">[</span><span class="n">patch1</span><span class="o">.</span><span class="n">const_dim</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">limits2</span><span class="p">[</span><span class="n">patch2</span><span class="o">.</span><span class="n">const_dim</span><span class="p">,</span> <span class="mi">0</span><span class="p">]:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Constant dimension </span><span class="si">{</span><span class="n">patch2</span><span class="o">.</span><span class="n">const_dim</span><span class="si">}</span><span class="s2"> values differ: </span><span class="si">{</span><span class="n">limits1</span><span class="p">[</span><span class="n">patch1</span><span class="o">.</span><span class="n">const_dim</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> vs </span><span class="si">{</span><span class="n">limits2</span><span class="p">[</span><span class="n">patch2</span><span class="o">.</span><span class="n">const_dim</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">, no overlap.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Check overlap in each dimension using simple range overlap logic</span>
+        <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="n">patch1</span><span class="o">.</span><span class="n">const_dim</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">start1</span><span class="p">,</span> <span class="n">end1</span> <span class="o">=</span> <span class="n">limits1</span><span class="p">[</span><span class="n">dim</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">limits1</span><span class="p">[</span><span class="n">dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">start2</span><span class="p">,</span> <span class="n">end2</span> <span class="o">=</span> <span class="n">limits2</span><span class="p">[</span><span class="n">dim</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">limits2</span><span class="p">[</span><span class="n">dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># Two ranges overlap if: max(start1, start2) &lt; min(end1, end2)</span>
+            <span class="c1"># This excludes touching at boundaries (one-node contact)</span>
+            <span class="k">if</span> <span class="nb">max</span><span class="p">(</span><span class="n">start1</span><span class="p">,</span> <span class="n">start2</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="nb">min</span><span class="p">(</span><span class="n">end1</span><span class="p">,</span> <span class="n">end2</span><span class="p">):</span>
+                <span class="c1"># No overlap in this dimension, so patches don&#39;t overlap</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;No overlap in dimension </span><span class="si">{</span><span class="n">dim</span><span class="si">}</span><span class="s2">: ranges (</span><span class="si">{</span><span class="n">start1</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end1</span><span class="si">}</span><span class="s2">) and (</span><span class="si">{</span><span class="n">start2</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">end2</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Patches overlap.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+<div class="viewcode-block" id="BlockPatchCollection.append">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.BlockPatchCollection.append">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">append</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">patch</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach patch to the block, validate limits and overlaps, then add.&quot;&quot;&quot;</span>
+        <span class="n">patch</span><span class="o">.</span><span class="n">attach_to_block</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_block</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">existing_patch</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_patches_overlap</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">existing_patch</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Patch of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> overlaps with existing patch &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;(new: </span><span class="si">{</span><span class="n">patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">, existing: </span><span class="si">{</span><span class="n">existing_patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BlockPatchCollection.extend">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.BlockPatchCollection.extend">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">extend</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">patches</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach each patch to the block, validate limits and overlaps, then add all.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">patches</span><span class="p">:</span>
+            <span class="n">patch</span><span class="o">.</span><span class="n">attach_to_block</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_block</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">patch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">patches</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">existing_patch</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_patches_overlap</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">existing_patch</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Patch of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> overlaps with existing patch &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;(new: </span><span class="si">{</span><span class="n">patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">, existing: </span><span class="si">{</span><span class="n">existing_patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">)&quot;</span>
+                    <span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_patches_overlap</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">patches</span><span class="p">[</span><span class="n">j</span><span class="p">]):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Patch of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> overlaps with another patch in the same batch &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;(patch </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">, patch </span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">patches</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">)&quot;</span>
+                    <span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">patches</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BlockPatchCollection.insert">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.BlockPatchCollection.insert">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">patch</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach patch to the block, validate limits and overlaps, then insert at index.&quot;&quot;&quot;</span>
+        <span class="n">patch</span><span class="o">.</span><span class="n">attach_to_block</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_block</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">existing_patch</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_patches_overlap</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">existing_patch</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Patch of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> overlaps with existing patch &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;(new: </span><span class="si">{</span><span class="n">patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">, existing: </span><span class="si">{</span><span class="n">existing_patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">patch</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cooling</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;All :py:class:`~ember.patch.CoolingPatch` objects.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">ember.patch</span><span class="w"> </span><span class="kn">import</span> <span class="n">CoolingPatch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">CoolingPatch</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cusp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;All :py:class:`~ember.patch.CuspPatch` objects.&quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">ember.patch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">CuspPatch</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inlet</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;All :py:class:`~ember.patch.InletPatch` objects.</span>
+
+<span class="sd">        The inflow side of a mixing plane is not one of these: it shares the</span>
+<span class="sd">        characteristic base class but is driven by a cross-plane exchange</span>
+<span class="sd">        rather than a prescribed inflow state, and is a sibling type rather</span>
+<span class="sd">        than a subclass; see :py:attr:`mixing`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">ember.patch</span><span class="w"> </span><span class="kn">import</span> <span class="n">InletPatch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">InletPatch</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inviscid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;All :py:class:`~ember.patch.InviscidPatch` objects.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">ember.patch</span><span class="w"> </span><span class="kn">import</span> <span class="n">InviscidPatch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">InviscidPatch</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mixing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;All :py:class:`~ember.patch.MixingPatch` objects.</span>
+
+<span class="sd">        Both sides of a mixing plane, inflow and outflow.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">ember.patch</span><span class="w"> </span><span class="kn">import</span> <span class="n">MixingPatch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">MixingPatch</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">outlet</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;All :py:class:`~ember.patch.OutletPatch` objects.</span>
+
+<span class="sd">        The outflow side of a mixing plane is not one of these: it shares the</span>
+<span class="sd">        characteristic base class but is driven by a cross-plane exchange</span>
+<span class="sd">        rather than a prescribed exit pressure, and is a sibling type rather</span>
+<span class="sd">        than a subclass; see :py:attr:`mixing`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">ember.patch</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutletPatch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">OutletPatch</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">periodic</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;All :py:class:`~ember.patch.PeriodicPatch` objects.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">ember.patch</span><span class="w"> </span><span class="kn">import</span> <span class="n">PeriodicPatch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">PeriodicPatch</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">permeable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Patches through which flow passes (non-wall faces).</span>
+
+<span class="sd">        Includes :py:class:`~ember.patch.InletPatch`,</span>
+<span class="sd">        :py:class:`~ember.patch.OutletPatch`,</span>
+<span class="sd">        :py:class:`~ember.patch.PeriodicPatch`,</span>
+<span class="sd">        :py:class:`~ember.patch.MixingPatch`,</span>
+<span class="sd">        :py:class:`~ember.patch.NonMatchPatch`, and</span>
+<span class="sd">        :py:class:`~ember.patch.CuspPatch`.</span>
+<span class="sd">        Used to identify which boundary faces are not solid walls when</span>
+<span class="sd">        computing block boundary fluxes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">ember.patch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">PERMEABLE_TYPES</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">probe</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;All :py:class:`~ember.patch.ProbePatch` objects.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">ember.patch</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProbePatch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">ProbePatch</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rotating</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;All :py:class:`~ember.patch.RotatingPatch` objects.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">ember.patch</span><span class="w"> </span><span class="kn">import</span> <span class="n">RotatingPatch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">RotatingPatch</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">slip</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Patches that impose no friction (permeable faces and inviscid walls).</span>
+
+<span class="sd">        Union of :py:attr:`permeable` and</span>
+<span class="sd">        :py:class:`~ember.patch.InviscidPatch`.</span>
+<span class="sd">        Used when applying viscous wall functions: faces in this set are</span>
+<span class="sd">        treated as frictionless so no friction is applied at those boundaries.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">ember.patch</span>  <span class="c1"># noqa: PLC0415 - avoid circular import</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">SLIP_TYPES</span><span class="p">)]</span></div>
+
+
+    <span class="c1"># BlockPatchCollection-specific methods</span>
+
+
+<div class="viewcode-block" id="GridPatchCollection">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.GridPatchCollection">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GridPatchCollection</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read-only aggregate view of all patches across every block in a :py:class:`~ember.grid.Grid`.</span>
+
+<span class="sd">    Holds a reference to the parent grid and presents all per-block patches as</span>
+<span class="sd">    a single flat sequence. Supports integer indexing, slicing, iteration, and</span>
+<span class="sd">    ``len``, as well as the same type-grouped properties as</span>
+<span class="sd">    :py:class:`BlockPatchCollection` (``inlet``, ``outlet``, ``periodic``,</span>
+<span class="sd">    etc.). String-key access and mutation methods (``append``, ``extend``,</span>
+<span class="sd">    ``insert``, ``del``) are not available. Normally accessed via</span>
+<span class="sd">    :py:attr:`Grid.patches &lt;ember.grid.Grid.patches&gt;` rather than instantiated</span>
+<span class="sd">    directly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialise with a reference to the parent grid.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        grid : :py:class:`~ember.grid.Grid`</span>
+<span class="sd">            The grid whose block patch collections this view aggregates.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="o">=</span> <span class="n">grid</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_all_patches</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get flattened list of all patches from all blocks.&quot;&quot;&quot;</span>
+        <span class="n">all_patches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="n">all_patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">all_patches</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return total number of patches across all blocks.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">)</span> <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Iterate over all patches from all blocks.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">patch</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get patch by numeric index or slice (no string access).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="c1"># Handle slice access by getting all patches first</span>
+            <span class="n">all_patches</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_all_patches</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">all_patches</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="c1"># Handle negative indices by converting to positive</span>
+            <span class="n">total_patches</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">total_patches</span> <span class="o">+</span> <span class="n">index</span>
+
+            <span class="c1"># Check bounds after conversion</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">index</span> <span class="o">&gt;=</span> <span class="n">total_patches</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;patch index out of range&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Handle single index access efficiently</span>
+            <span class="n">current_index</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+                <span class="n">block_patch_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">current_index</span> <span class="o">&lt;=</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">current_index</span> <span class="o">+</span> <span class="n">block_patch_count</span><span class="p">:</span>
+                    <span class="c1"># Index is in this block</span>
+                    <span class="n">local_index</span> <span class="o">=</span> <span class="n">index</span> <span class="o">-</span> <span class="n">current_index</span>
+                    <span class="k">return</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="n">local_index</span><span class="p">]</span>
+                <span class="n">current_index</span> <span class="o">+=</span> <span class="n">block_patch_count</span>
+            <span class="c1"># Should not reach here after bounds check</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;patch index out of range&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Index must be int or slice (string access not supported)&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">patch</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if patch object is in any block.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;String representation of grid patch collection.&quot;&quot;&quot;</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">periodic_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">periodic</span><span class="p">)</span>
+        <span class="n">inlet_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inlet</span><span class="p">)</span>
+        <span class="n">outlet_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outlet</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;GridPatchCollection(total=</span><span class="si">{</span><span class="n">total</span><span class="si">}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;periodic=</span><span class="si">{</span><span class="n">periodic_count</span><span class="si">}</span><span class="s2">, inlet=</span><span class="si">{</span><span class="n">inlet_count</span><span class="si">}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;outlet=</span><span class="si">{</span><span class="n">outlet_count</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cooling</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return all cooling patches from all blocks.&quot;&quot;&quot;</span>
+        <span class="n">cooling_patches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="n">cooling_patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">cooling</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cooling_patches</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inlet</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return all inlet patches from all blocks.&quot;&quot;&quot;</span>
+        <span class="n">inlet_patches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="n">inlet_patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">inlet</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">inlet_patches</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mixing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return both sides of every mixing plane, from all blocks.&quot;&quot;&quot;</span>
+        <span class="n">mixing_patches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="n">mixing_patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">mixing</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mixing_patches</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">outlet</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return all outlet patches from all blocks.&quot;&quot;&quot;</span>
+        <span class="n">outlet_patches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="n">outlet_patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">outlet</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">outlet_patches</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">periodic</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return all periodic patches from all blocks.&quot;&quot;&quot;</span>
+        <span class="n">periodic_patches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="n">periodic_patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">periodic</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">periodic_patches</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">probe</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return all probe patches from all blocks.&quot;&quot;&quot;</span>
+        <span class="n">probe_patches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="n">probe_patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">probe</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">probe_patches</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rotating</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return all rotating patches from all blocks.&quot;&quot;&quot;</span>
+        <span class="n">rotating_patches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span>
+            <span class="n">rotating_patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">rotating</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rotating_patches</span></div>
+
+
+    <span class="c1"># Read-only collection interface</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

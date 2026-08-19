@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.set_iterative &#8212; ember 0.2.1.dev5+g520995120 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=bffc62d5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev5+g520995120</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "dev";
+    var page = "_modules/ember/set_iterative.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.set_iterative</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Iterative setter functions for Block objects.</span>
+
+<span class="sd">This module provides iterative solvers for initializing thermodynamically consistent flow fields</span>
+<span class="sd">that satisfy complex constraints such as specified stagnation enthalpy, entropy, and flow angles.</span>
+<span class="sd">These functions implement Newton-Raphson style iterations to solve implicit equations coupling</span>
+<span class="sd">thermodynamic state variables with kinematic constraints, enabling initialization of inlet</span>
+<span class="sd">boundary conditions with prescribed total pressure/temperature or the creation of exact test</span>
+<span class="sd">cases. All setters modify Block objects in-place and support both absolute and relative reference</span>
+<span class="sd">frames for turbomachinery applications. The module is essential for setting up physically</span>
+<span class="sd">realistic initial conditions that preserve thermodynamic relations while satisfying specified</span>
+<span class="sd">flow topology constraints.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.util</span><span class="w"> </span><span class="kn">import</span> <span class="n">angles_to_components</span>
+
+<span class="n">f32</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span>
+
+<span class="c1"># Default convergence parameters for iterative setters</span>
+<span class="n">_DEFAULT_MAX_ITER</span> <span class="o">=</span> <span class="mi">200</span>
+<span class="n">_DEFAULT_TOL</span> <span class="o">=</span> <span class="mf">1e-6</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_iterate_ho_s_rho</span><span class="p">(</span>
+    <span class="n">block</span><span class="p">,</span>
+    <span class="n">ho_nd</span><span class="p">,</span>
+    <span class="n">s_nd</span><span class="p">,</span>
+    <span class="n">Alpha</span><span class="p">,</span>
+    <span class="n">Beta</span><span class="p">,</span>
+    <span class="n">velocity_constraint_func</span><span class="p">,</span>
+    <span class="n">max_iter</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
+    <span class="n">tol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span>
+    <span class="n">relative_frame</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Iterator for stagnation enthalpy constraints (nondimensional internals).</span>
+
+<span class="sd">    Solves: ho = h_static + 0.5*V^2, s = constant</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        The block object to modify.</span>
+<span class="sd">    ho_nd : Array</span>
+<span class="sd">        Nondimensional stagnation enthalpy [--].</span>
+<span class="sd">    s_nd : Array</span>
+<span class="sd">        Nondimensional entropy [--].</span>
+<span class="sd">    Alpha : Array</span>
+<span class="sd">        Yaw angle [deg]. Absolute by default, relative if relative_frame=True.</span>
+<span class="sd">    Beta : Array</span>
+<span class="sd">        Pitch angle [deg].</span>
+<span class="sd">    velocity_constraint_func : Callable</span>
+<span class="sd">        Function that takes (rho_nd, u_nd) and returns nondimensional velocity magnitude.</span>
+<span class="sd">    max_iter : int, default=200</span>
+<span class="sd">        Maximum number of iterations.</span>
+<span class="sd">    tol : float, default=1e-6</span>
+<span class="sd">        Convergence tolerance.</span>
+<span class="sd">    relative_frame : bool, default=False</span>
+<span class="sd">        If True, Alpha is relative yaw angle and velocity constraint is relative.</span>
+<span class="sd">        Energy equation uses absolute velocity for stagnation enthalpy.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        The modified block object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Convert inputs to arrays</span>
+    <span class="n">ho_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ho_nd</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">s_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">s_nd</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">Alpha</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">Beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Beta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+
+    <span class="c1"># Initial guess: ho - 0.25*V^2 (conservative energy estimate)</span>
+    <span class="c1"># Note: Using full kinetic energy (ho - 0.5*V^2) underestimates h_static at high Mach</span>
+    <span class="c1"># due to compressibility effects, so we use 0.25 factor for better initial guess</span>
+    <span class="c1"># V represents relative velocity (equals absolute velocity when Omega=0)</span>
+    <span class="n">rho_stag</span><span class="p">,</span> <span class="n">u_stag</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">ho_nd</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">)</span>
+    <span class="n">V_est</span> <span class="o">=</span> <span class="n">velocity_constraint_func</span><span class="p">(</span><span class="n">rho_stag</span><span class="p">,</span> <span class="n">u_stag</span><span class="p">)</span>
+    <span class="n">h_static_est</span> <span class="o">=</span> <span class="n">ho_nd</span> <span class="o">-</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.25</span><span class="p">)</span> <span class="o">*</span> <span class="n">V_est</span><span class="o">**</span><span class="mi">2</span>
+
+    <span class="n">rho</span><span class="p">,</span> <span class="n">u</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">h_static_est</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">)</span>
+
+    <span class="c1"># Iterative solution with under-relaxation</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_iter</span><span class="p">):</span>
+        <span class="n">rho_old</span> <span class="o">=</span> <span class="n">rho</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Get velocity magnitude from constraint (relative velocity)</span>
+        <span class="n">V_rel</span> <span class="o">=</span> <span class="n">velocity_constraint_func</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+
+        <span class="c1"># Decompose relative velocity using flow angles</span>
+        <span class="c1"># (Alpha is relative angle when relative_frame=True, absolute when relative_frame=False)</span>
+        <span class="n">Vx</span><span class="p">,</span> <span class="n">Vr</span><span class="p">,</span> <span class="n">Vt_rel</span> <span class="o">=</span> <span class="n">angles_to_components</span><span class="p">(</span><span class="n">V_rel</span><span class="p">,</span> <span class="n">Alpha</span><span class="p">,</span> <span class="n">Beta</span><span class="p">)</span>
+
+        <span class="c1"># Energy balance calculation</span>
+        <span class="c1"># We always solve: ho = h_static + 0.5*V_absolute^2 (absolute frame stagnation enthalpy)</span>
+        <span class="c1"># where ho is the absolute stagnation enthalpy and V_absolute is the absolute velocity</span>
+
+        <span class="k">if</span> <span class="n">relative_frame</span><span class="p">:</span>
+            <span class="c1"># Rotating frame: Convert relative tangential velocity to absolute</span>
+            <span class="c1"># Velocity triangle: Vt_absolute = Vt_relative + U (blade speed)</span>
+            <span class="n">U_nd</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">r_nd</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">Omega_nd</span>  <span class="c1"># Nondimensional blade speed</span>
+            <span class="n">Vt_abs</span> <span class="o">=</span> <span class="n">Vt_rel</span> <span class="o">+</span> <span class="n">U_nd</span>
+
+            <span class="c1"># Absolute velocity magnitude squared</span>
+            <span class="c1"># V_absolute^2 = Vx^2 + Vr^2 + Vt_absolute^2</span>
+            <span class="n">V_abs_sq</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vt_abs</span><span class="o">**</span><span class="mi">2</span>
+
+            <span class="c1"># Solve for static enthalpy from absolute stagnation enthalpy</span>
+            <span class="c1"># ho = h_static + 0.5*V_absolute^2  =&gt;  h_static = ho - 0.5*V_absolute^2</span>
+            <span class="n">h_static</span> <span class="o">=</span> <span class="n">ho_nd</span> <span class="o">-</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">V_abs_sq</span>
+            <span class="n">Vt</span> <span class="o">=</span> <span class="n">Vt_abs</span>  <span class="c1"># Store absolute tangential velocity for final state</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Stationary frame (Omega=0): relative velocity equals absolute velocity</span>
+            <span class="c1"># V_absolute = V_relative since U = 0</span>
+            <span class="n">Vt</span> <span class="o">=</span> <span class="n">Vt_rel</span>
+            <span class="n">V_sq</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vt</span><span class="o">**</span><span class="mi">2</span>
+
+            <span class="c1"># Energy balance: ho = h_static + 0.5*V_absolute^2</span>
+            <span class="n">h_static</span> <span class="o">=</span> <span class="n">ho_nd</span> <span class="o">-</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">V_sq</span>
+
+        <span class="c1"># Update thermodynamic state</span>
+        <span class="n">rho_new</span><span class="p">,</span> <span class="n">u_new</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">h_static</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">)</span>
+
+        <span class="c1"># Under-relaxation for stability and convergence</span>
+        <span class="n">rho</span> <span class="o">=</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">rho_new</span> <span class="o">+</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">rho</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">u_new</span> <span class="o">+</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">u</span>
+
+        <span class="c1"># Check convergence</span>
+        <span class="n">residual_rho</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">rho_new</span> <span class="o">-</span> <span class="n">rho_old</span><span class="p">)</span>
+        <span class="n">relative_rho</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">residual_rho</span> <span class="o">/</span> <span class="n">rho_new</span><span class="p">,</span> <span class="n">residual_rho</span> <span class="o">/</span> <span class="n">rho_old</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">relative_rho</span> <span class="o">&lt;</span> <span class="n">tol</span><span class="p">):</span>
+            <span class="c1"># Use final non-relaxed values for output</span>
+            <span class="n">rho</span><span class="p">,</span> <span class="n">u</span> <span class="o">=</span> <span class="n">rho_new</span><span class="p">,</span> <span class="n">u_new</span>
+            <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;_iterate_ho_s_rho did not converge after </span><span class="si">{</span><span class="n">max_iter</span><span class="si">}</span><span class="s2"> iterations&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Set final state: store nondim rho/u directly, redimensionalise velocities</span>
+    <span class="n">V_ref</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">V_ref</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">_set_rho_u_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="n">Vx</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="n">Vt</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">block</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_iterate_I_s_rho</span><span class="p">(</span>
+    <span class="n">block</span><span class="p">,</span>
+    <span class="n">I_nd</span><span class="p">,</span>
+    <span class="n">s_nd</span><span class="p">,</span>
+    <span class="n">Alpha_rel</span><span class="p">,</span>
+    <span class="n">Beta</span><span class="p">,</span>
+    <span class="n">velocity_constraint_func</span><span class="p">,</span>
+    <span class="n">max_iter</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
+    <span class="n">tol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Iterator for rothalpy constraints (rotating frame, nondimensional internals).</span>
+
+<span class="sd">    Solves: I = h_static + 0.5*V_abs^2 - U*Vt_abs, s = constant</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        The block object to modify.</span>
+<span class="sd">    I_nd : Array</span>
+<span class="sd">        Nondimensional rothalpy [--].</span>
+<span class="sd">    s_nd : Array</span>
+<span class="sd">        Nondimensional entropy [--].</span>
+<span class="sd">    Alpha_rel : Array</span>
+<span class="sd">        Relative yaw angle [deg].</span>
+<span class="sd">    Beta : Array</span>
+<span class="sd">        Pitch angle [deg].</span>
+<span class="sd">    velocity_constraint_func : Callable</span>
+<span class="sd">        Function that takes (rho_nd, u_nd) and returns nondimensional relative velocity magnitude.</span>
+<span class="sd">    max_iter : int, default=200</span>
+<span class="sd">        Maximum number of iterations.</span>
+<span class="sd">    tol : float, default=1e-6</span>
+<span class="sd">        Convergence tolerance.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        The modified block object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Convert inputs to arrays</span>
+    <span class="n">I_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">I_nd</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>  <span class="c1"># noqa: E741</span>
+    <span class="n">s_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">s_nd</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">Alpha_rel</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Alpha_rel</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">Beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Beta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+
+    <span class="c1"># Get nondimensional circumferential velocity (blade speed U* = r* Omega*)</span>
+    <span class="n">U_nd</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">r_nd</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">Omega_nd</span>
+
+    <span class="c1"># Initial guess from rothalpy conditions</span>
+    <span class="n">rho</span><span class="p">,</span> <span class="n">u</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">I_nd</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">)</span>
+
+    <span class="c1"># Iterative solution</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_iter</span><span class="p">):</span>
+        <span class="n">rho_old</span> <span class="o">=</span> <span class="n">rho</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Get relative velocity magnitude from constraint</span>
+        <span class="n">V_rel</span> <span class="o">=</span> <span class="n">velocity_constraint_func</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+
+        <span class="c1"># Decompose relative velocity using relative flow angles</span>
+        <span class="n">Vx</span><span class="p">,</span> <span class="n">Vr</span><span class="p">,</span> <span class="n">Vt_rel</span> <span class="o">=</span> <span class="n">angles_to_components</span><span class="p">(</span><span class="n">V_rel</span><span class="p">,</span> <span class="n">Alpha_rel</span><span class="p">,</span> <span class="n">Beta</span><span class="p">)</span>
+
+        <span class="c1"># Convert to absolute tangential velocity</span>
+        <span class="n">Vt_abs</span> <span class="o">=</span> <span class="n">Vt_rel</span> <span class="o">+</span> <span class="n">U_nd</span>
+
+        <span class="c1"># Calculate static enthalpy using rothalpy relation</span>
+        <span class="c1"># I = h_static + 0.5*V_abs^2 - U*Vt_abs</span>
+        <span class="n">V_abs_sq</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vt_abs</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">h_static</span> <span class="o">=</span> <span class="n">I_nd</span> <span class="o">-</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">V_abs_sq</span> <span class="o">+</span> <span class="n">U_nd</span> <span class="o">*</span> <span class="n">Vt_abs</span>
+
+        <span class="c1"># Update thermodynamic state</span>
+        <span class="n">rho</span><span class="p">,</span> <span class="n">u</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">h_static</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">)</span>
+
+        <span class="c1"># Check convergence</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">rho_old</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="n">tol</span><span class="p">):</span>
+            <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;_iterate_I_s_rho did not converge after </span><span class="si">{</span><span class="n">max_iter</span><span class="si">}</span><span class="s2"> iterations&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Set final state: store nondim rho/u directly, redimensionalise velocities</span>
+    <span class="n">V_ref</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">V_ref</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">_set_rho_u_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="n">Vx</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="n">Vt_abs</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">block</span>
+
+
+<div class="viewcode-block" id="set_ho_s_Ma_Alpha_Beta">
+<a class="viewcode-back" href="../../api/set_iterative.html#ember.set_iterative.set_ho_s_Ma_Alpha_Beta">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_ho_s_Ma_Alpha_Beta</span><span class="p">(</span>
+    <span class="n">block</span><span class="p">,</span>
+    <span class="n">ho</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">,</span>
+    <span class="n">Ma</span><span class="p">,</span>
+    <span class="n">Alpha</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">Beta</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
+    <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set flow field using stagnation enthalpy, entropy, absolute Mach number, and absolute flow angles.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        The block object to modify.</span>
+<span class="sd">    ho : Array</span>
+<span class="sd">        Stagnation enthalpy [J/kg].</span>
+<span class="sd">    s : Array</span>
+<span class="sd">        Entropy [J/kg/K].</span>
+<span class="sd">    Ma : Array</span>
+<span class="sd">        Absolute Mach number [--].</span>
+<span class="sd">    Alpha : Array, default=0.0</span>
+<span class="sd">        Absolute yaw angle [deg].</span>
+<span class="sd">    Beta : Array, default=0.0</span>
+<span class="sd">        Pitch angle [deg].</span>
+<span class="sd">    max_iter : int, default=200</span>
+<span class="sd">        Maximum number of iterations for convergence.</span>
+<span class="sd">    tol : float, default=1e-6</span>
+<span class="sd">        Convergence tolerance.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        The modified block object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Nondimensionalise inputs</span>
+    <span class="n">fluid</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span>
+    <span class="n">ho_nd</span> <span class="o">=</span> <span class="n">ho</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">u_ref</span>
+    <span class="n">s_nd</span> <span class="o">=</span> <span class="n">s</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">Rgas_ref</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">velocity_constraint_func</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculate nondimensional absolute velocity magnitude from Mach constraint.&quot;&quot;&quot;</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">get_a</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Ma</span> <span class="o">*</span> <span class="n">a</span>
+
+    <span class="k">return</span> <span class="n">_iterate_ho_s_rho</span><span class="p">(</span>
+        <span class="n">block</span><span class="p">,</span>
+        <span class="n">ho_nd</span><span class="p">,</span>
+        <span class="n">s_nd</span><span class="p">,</span>
+        <span class="n">Alpha</span><span class="p">,</span>
+        <span class="n">Beta</span><span class="p">,</span>
+        <span class="n">velocity_constraint_func</span><span class="p">,</span>
+        <span class="n">max_iter</span><span class="p">,</span>
+        <span class="n">tol</span><span class="p">,</span>
+        <span class="n">relative_frame</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="set_ho_s_rhoVm_Alpha_Beta">
+<a class="viewcode-back" href="../../api/set_iterative.html#ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_ho_s_rhoVm_Alpha_Beta</span><span class="p">(</span>
+    <span class="n">block</span><span class="p">,</span>
+    <span class="n">ho</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">,</span>
+    <span class="n">rhoVm</span><span class="p">,</span>
+    <span class="n">Alpha</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">Beta</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
+    <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set flow field using stagnation enthalpy, entropy, momentum density, and absolute flow angles.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        The block object to modify.</span>
+<span class="sd">    ho : Array</span>
+<span class="sd">        Stagnation enthalpy [J/kg].</span>
+<span class="sd">    s : Array</span>
+<span class="sd">        Entropy [J/kg/K].</span>
+<span class="sd">    rhoV : Array</span>
+<span class="sd">        Momentum density magnitude [kg/m^2/s].</span>
+<span class="sd">    Alpha : Array, default=0.0</span>
+<span class="sd">        Absolute yaw angle [deg].</span>
+<span class="sd">    Beta : Array, default=0.0</span>
+<span class="sd">        Pitch angle [deg].</span>
+<span class="sd">    max_iter : int, default=200</span>
+<span class="sd">        Maximum number of iterations for convergence.</span>
+<span class="sd">    tol : float, default=1e-6</span>
+<span class="sd">        Convergence tolerance.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        The modified block object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Nondimensionalise inputs</span>
+    <span class="n">fluid</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span>
+    <span class="n">ho_nd</span> <span class="o">=</span> <span class="n">ho</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">u_ref</span>
+    <span class="n">s_nd</span> <span class="o">=</span> <span class="n">s</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">Rgas_ref</span>
+    <span class="n">rhoVm_nd</span> <span class="o">=</span> <span class="n">rhoVm</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">rhoV_ref</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">velocity_constraint_func</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculate nondimensional absolute velocity magnitude from momentum density constraint.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">rhoVm_nd</span> <span class="o">/</span> <span class="n">rho</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">Alpha</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">_iterate_ho_s_rho</span><span class="p">(</span>
+        <span class="n">block</span><span class="p">,</span>
+        <span class="n">ho_nd</span><span class="p">,</span>
+        <span class="n">s_nd</span><span class="p">,</span>
+        <span class="n">Alpha</span><span class="p">,</span>
+        <span class="n">Beta</span><span class="p">,</span>
+        <span class="n">velocity_constraint_func</span><span class="p">,</span>
+        <span class="n">max_iter</span><span class="p">,</span>
+        <span class="n">tol</span><span class="p">,</span>
+        <span class="n">relative_frame</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="set_ho_s_rhoVm_Vt_Beta">
+<a class="viewcode-back" href="../../api/set_iterative.html#ember.set_iterative.set_ho_s_rhoVm_Vt_Beta">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_ho_s_rhoVm_Vt_Beta</span><span class="p">(</span>
+    <span class="n">block</span><span class="p">,</span>
+    <span class="n">ho</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">,</span>
+    <span class="n">rhoVm</span><span class="p">,</span>
+    <span class="n">Vt</span><span class="p">,</span>
+    <span class="n">Beta</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
+    <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Set flow field using stagnation enthalpy, entropy, meridional mass flux, and fixed swirl.</span>
+
+<span class="sd">    Solves the state of a subsonic isentropic meridional contraction (or</span>
+<span class="sd">    expansion) carrying a fixed tangential velocity. The stagnation enthalpy,</span>
+<span class="sd">    entropy and tangential velocity are held fixed while the meridional velocity</span>
+<span class="sd">    and thermodynamic state adjust to carry the prescribed meridional mass flux</span>
+<span class="sd">    :math:`\rho V_m`. The pitch angle :math:`\beta` fixes the split of</span>
+<span class="sd">    :math:`V_m` into axial and radial components.</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        h_0 = h(\rho, s) + \tfrac{1}{2}(V_m^2 + V_\theta^2), \qquad</span>
+<span class="sd">        \rho V_m = \mathrm{const}</span>
+
+<span class="sd">    Holding :math:`V_\theta` fixed (rather than the yaw angle) conserves angular</span>
+<span class="sd">    momentum :math:`r V_\theta` at fixed radius, distinguishing this from</span>
+<span class="sd">    :func:`set_ho_s_rhoVm_Alpha_Beta`.</span>
+
+<span class="sd">    Only the **subsonic** meridional branch is supported (the density</span>
+<span class="sd">    fixed-point iteration converges there). The meridional mass flux</span>
+<span class="sd">    :math:`\rho V_m` rises with :math:`V_m` to a maximum at meridional Mach</span>
+<span class="sd">    number unity; a :class:`RuntimeError` is raised if the requested mass flux</span>
+<span class="sd">    exceeds this sonic maximum, since the meridional flow then chokes.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        The block object to modify.</span>
+<span class="sd">    ho : Array</span>
+<span class="sd">        Stagnation enthalpy [J/kg].</span>
+<span class="sd">    s : Array</span>
+<span class="sd">        Entropy [J/kg/K].</span>
+<span class="sd">    rhoVm : Array</span>
+<span class="sd">        Meridional momentum density (mass flux per unit area) [kg/m^2/s].</span>
+<span class="sd">    Vt : Array</span>
+<span class="sd">        Tangential (swirl) velocity, held fixed [m/s].</span>
+<span class="sd">    Beta : Array, default=0.0</span>
+<span class="sd">        Pitch angle [deg].</span>
+<span class="sd">    max_iter : int, default=200</span>
+<span class="sd">        Maximum number of iterations for convergence.</span>
+<span class="sd">    tol : float, default=1e-6</span>
+<span class="sd">        Convergence tolerance.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        The modified block object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Nondimensionalise inputs</span>
+    <span class="n">fluid</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span>
+    <span class="n">ho_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ho</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">u_ref</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">s_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">s</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">Rgas_ref</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">rhoVm_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">rhoVm</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">rhoV_ref</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">Vt_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Vt</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">V_ref</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">Beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Beta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+
+    <span class="c1"># Meridional stagnation enthalpy: kinetic energy of the fixed swirl is</span>
+    <span class="c1"># always present, so the meridional component sees a reduced stagnation</span>
+    <span class="c1"># enthalpy ho_m = ho - 0.5*Vt^2. Note ho is referenced to the fluid datum</span>
+    <span class="c1"># (u = s = 0 at the datum state), so ho_m may be negative without being</span>
+    <span class="c1"># unphysical; feasibility is governed by the sonic limit below, not by the</span>
+    <span class="c1"># sign of ho_m.</span>
+    <span class="n">ho_m_nd</span> <span class="o">=</span> <span class="n">ho_nd</span> <span class="o">-</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">Vt_nd</span><span class="o">**</span><span class="mi">2</span>
+
+    <span class="c1"># The meridional mass flux rho*Vm is maximised at meridional Mach number</span>
+    <span class="c1"># unity. Locate the sonic state (Vm = a) to check for choking. At the sonic</span>
+    <span class="c1"># point, h_static = ho_m - 0.5*a^2 with a^2 = a(h_static, s)^2, solved by</span>
+    <span class="c1"># simple fixed-point iteration.</span>
+    <span class="n">rho_sonic</span><span class="p">,</span> <span class="n">u_sonic</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">ho_m_nd</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_iter</span><span class="p">):</span>
+        <span class="n">a_sonic</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_a</span><span class="p">(</span><span class="n">rho_sonic</span><span class="p">,</span> <span class="n">u_sonic</span><span class="p">)</span>
+        <span class="n">h_sonic</span> <span class="o">=</span> <span class="n">ho_m_nd</span> <span class="o">-</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">a_sonic</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">rho_new</span><span class="p">,</span> <span class="n">u_new</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">h_sonic</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">rho_new</span> <span class="o">-</span> <span class="n">rho_sonic</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">tol</span> <span class="o">*</span> <span class="n">rho_new</span><span class="p">):</span>
+            <span class="n">rho_sonic</span><span class="p">,</span> <span class="n">u_sonic</span> <span class="o">=</span> <span class="n">rho_new</span><span class="p">,</span> <span class="n">u_new</span>
+            <span class="k">break</span>
+        <span class="n">rho_sonic</span> <span class="o">=</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">rho_new</span> <span class="o">+</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">rho_sonic</span>
+        <span class="n">u_sonic</span> <span class="o">=</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">u_new</span> <span class="o">+</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">u_sonic</span>
+    <span class="n">Vm_sonic</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_a</span><span class="p">(</span><span class="n">rho_sonic</span><span class="p">,</span> <span class="n">u_sonic</span><span class="p">)</span>
+    <span class="n">rhoVm_max</span> <span class="o">=</span> <span class="n">rho_sonic</span> <span class="o">*</span> <span class="n">Vm_sonic</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">rhoVm_nd</span> <span class="o">&gt;</span> <span class="n">rhoVm_max</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;Meridional flow chokes: requested mass flux exceeds the sonic &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;maximum (rhoVm=</span><span class="si">{</span><span class="n">rhoVm_nd</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">fluid</span><span class="o">.</span><span class="n">rhoV_ref</span><span class="si">}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;rhoVm_max=</span><span class="si">{</span><span class="n">rhoVm_max</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">fluid</span><span class="o">.</span><span class="n">rhoV_ref</span><span class="si">}</span><span class="s2"> [kg/m^2/s]).&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Seed the subsonic branch from the stagnation state (low velocity, high</span>
+    <span class="c1"># density). The density fixed-point iteration below is stable on, and</span>
+    <span class="c1"># converges to, the subsonic root.</span>
+    <span class="n">rho</span><span class="p">,</span> <span class="n">u</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">ho_m_nd</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">)</span>
+
+    <span class="c1"># Iterate density to satisfy mass flux and energy with fixed swirl.</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_iter</span><span class="p">):</span>
+        <span class="n">rho_old</span> <span class="o">=</span> <span class="n">rho</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Meridional velocity from the mass-flux constraint</span>
+        <span class="n">Vm</span> <span class="o">=</span> <span class="n">rhoVm_nd</span> <span class="o">/</span> <span class="n">rho</span>
+
+        <span class="c1"># Energy balance for the meridional component</span>
+        <span class="n">h_static</span> <span class="o">=</span> <span class="n">ho_m_nd</span> <span class="o">-</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">Vm</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">rho_new</span><span class="p">,</span> <span class="n">u_new</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">h_static</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">)</span>
+
+        <span class="c1"># Under-relaxation for stability</span>
+        <span class="n">rho</span> <span class="o">=</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">rho_new</span> <span class="o">+</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">rho</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">u_new</span> <span class="o">+</span> <span class="n">f32</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">u</span>
+
+        <span class="n">residual_rho</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">rho_new</span> <span class="o">-</span> <span class="n">rho_old</span><span class="p">)</span>
+        <span class="n">relative_rho</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">residual_rho</span> <span class="o">/</span> <span class="n">rho_new</span><span class="p">,</span> <span class="n">residual_rho</span> <span class="o">/</span> <span class="n">rho_old</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">relative_rho</span> <span class="o">&lt;</span> <span class="n">tol</span><span class="p">):</span>
+            <span class="n">rho</span><span class="p">,</span> <span class="n">u</span> <span class="o">=</span> <span class="n">rho_new</span><span class="p">,</span> <span class="n">u_new</span>
+            <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;set_ho_s_rhoVm_Vt_Beta did not converge after </span><span class="si">{</span><span class="n">max_iter</span><span class="si">}</span><span class="s2"> iterations&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Decompose the converged meridional velocity by the pitch angle and apply</span>
+    <span class="c1"># the fixed swirl. Vt is set in dimensional form below.</span>
+    <span class="n">Vm</span> <span class="o">=</span> <span class="n">rhoVm_nd</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">beta_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">Beta</span><span class="p">)</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">Vm</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">beta_rad</span><span class="p">)</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">Vm</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">beta_rad</span><span class="p">)</span>
+
+    <span class="n">V_ref</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">V_ref</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">_set_rho_u_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="n">Vx</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="n">Vt_nd</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">block</span></div>
+
+
+
+<div class="viewcode-block" id="set_I_s_Ma_rel_Alpha_rel_Beta">
+<a class="viewcode-back" href="../../api/set_iterative.html#ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_I_s_Ma_rel_Alpha_rel_Beta</span><span class="p">(</span>
+    <span class="n">block</span><span class="p">,</span>
+    <span class="n">I</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">,</span>
+    <span class="n">Ma_rel</span><span class="p">,</span>
+    <span class="n">Alpha_rel</span><span class="p">,</span>
+    <span class="n">Beta</span><span class="p">,</span>
+    <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
+    <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set flow field using rothalpy, entropy, relative Mach number, and relative flow angles.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        The block object to modify.</span>
+<span class="sd">    I : Array</span>
+<span class="sd">        Rothalpy (rotational stagnation enthalpy) [J/kg].</span>
+<span class="sd">    s : Array</span>
+<span class="sd">        Entropy [J/kg/K].</span>
+<span class="sd">    Ma_rel : Array</span>
+<span class="sd">        Mach number in relative frame [--].</span>
+<span class="sd">    Alpha_rel : Array</span>
+<span class="sd">        Relative yaw angle (tangential flow direction) [deg].</span>
+<span class="sd">    Beta : Array</span>
+<span class="sd">        Pitch angle (radial flow direction) [deg].</span>
+<span class="sd">    max_iter : int, default=200</span>
+<span class="sd">        Maximum number of iterations for convergence.</span>
+<span class="sd">    tol : float, default=1e-6</span>
+<span class="sd">        Convergence tolerance.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        The modified block object.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This method is particularly useful for turbomachinery applications where:</span>
+<span class="sd">    - Rothalpy I is conserved across blade rows</span>
+<span class="sd">    - Flow angles are specified in the relative frame</span>
+<span class="sd">    - Alpha_rel = 0 means no relative swirl (Vt_rel = 0)</span>
+<span class="sd">    - Beta = 90 means purely radial flow</span>
+
+<span class="sd">    The method solves the rothalpy constraint directly:</span>
+<span class="sd">    I = h_static + 0.5*V_abs^2 - U*Vt_abs</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Nondimensionalise inputs</span>
+    <span class="n">fluid</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span>
+    <span class="n">I_nd</span> <span class="o">=</span> <span class="n">I</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">u_ref</span>
+    <span class="n">s_nd</span> <span class="o">=</span> <span class="n">s</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">Rgas_ref</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">velocity_constraint_func</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculate nondimensional relative velocity magnitude from relative Mach constraint.&quot;&quot;&quot;</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">get_a</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Ma_rel</span> <span class="o">*</span> <span class="n">a</span>
+
+    <span class="k">return</span> <span class="n">_iterate_I_s_rho</span><span class="p">(</span>
+        <span class="n">block</span><span class="p">,</span> <span class="n">I_nd</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">,</span> <span class="n">Alpha_rel</span><span class="p">,</span> <span class="n">Beta</span><span class="p">,</span> <span class="n">velocity_constraint_func</span><span class="p">,</span> <span class="n">max_iter</span><span class="p">,</span> <span class="n">tol</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="set_Po_To_Ma_rel_Alpha_rel_Beta">
+<a class="viewcode-back" href="../../api/set_iterative.html#ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_Po_To_Ma_rel_Alpha_rel_Beta</span><span class="p">(</span>
+    <span class="n">block</span><span class="p">,</span>
+    <span class="n">Po</span><span class="p">,</span>
+    <span class="n">To</span><span class="p">,</span>
+    <span class="n">Ma_rel</span><span class="p">,</span>
+    <span class="n">Alpha_rel</span><span class="p">,</span>
+    <span class="n">Beta</span><span class="p">,</span>
+    <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
+    <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set flow field using total pressure, total temperature, relative Mach number, and relative flow angles.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        The block object to modify.</span>
+<span class="sd">    Po : Array</span>
+<span class="sd">        Total pressure [Pa].</span>
+<span class="sd">    To : Array</span>
+<span class="sd">        Total temperature [K].</span>
+<span class="sd">    Ma_rel : Array</span>
+<span class="sd">        Mach number in relative frame [--].</span>
+<span class="sd">    Alpha_rel : Array</span>
+<span class="sd">        Relative yaw angle [deg].</span>
+<span class="sd">    Beta : Array</span>
+<span class="sd">        Pitch angle [deg].</span>
+<span class="sd">    max_iter : int, default=200</span>
+<span class="sd">        Maximum number of iterations for convergence.</span>
+<span class="sd">    tol : float, default=1e-6</span>
+<span class="sd">        Convergence tolerance.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        The modified block object.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This method is useful for turbomachinery applications where:</span>
+<span class="sd">    - Total conditions (Po, To) are known at the inlet</span>
+<span class="sd">    - Flow angles are specified in the relative frame</span>
+<span class="sd">    - Alpha_rel = 0 means no relative swirl (Vt_rel = 0)</span>
+<span class="sd">    - Beta = 90 means purely radial flow</span>
+
+<span class="sd">    The method uses the stagnation enthalpy iterator in relative frame mode.</span>
+<span class="sd">    Note: This approach may have convergence issues at very high rotation rates</span>
+<span class="sd">    where absolute velocities become large compared to stagnation enthalpy.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If coordinates (r) are not initialized, which are required for relative frame calculations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Check if coordinates are initialized (required for relative frame)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">block</span><span class="o">.</span><span class="n">_versions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Radial coordinates (r) must be initialized before using relative frame quantities. &quot;</span>
+            <span class="s2">&quot;Use block.set_x() / block.set_r() to set coordinates first.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Nondimensionalise and compute stagnation properties</span>
+    <span class="n">fluid</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span>
+    <span class="n">Po_nd</span> <span class="o">=</span> <span class="n">Po</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">P_ref</span>
+    <span class="n">To_nd</span> <span class="o">=</span> <span class="n">To</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">T_ref</span>
+    <span class="n">rho_stag</span><span class="p">,</span> <span class="n">u_stag</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="n">Po_nd</span><span class="p">,</span> <span class="n">To_nd</span><span class="p">)</span>
+    <span class="n">ho_nd</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_h</span><span class="p">(</span><span class="n">rho_stag</span><span class="p">,</span> <span class="n">u_stag</span><span class="p">)</span>  <span class="c1"># Nondimensional stagnation enthalpy</span>
+    <span class="n">s_nd</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_s</span><span class="p">(</span><span class="n">rho_stag</span><span class="p">,</span> <span class="n">u_stag</span><span class="p">)</span>  <span class="c1"># Nondimensional stagnation entropy</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">velocity_constraint_func</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculate nondimensional relative velocity magnitude from relative Mach constraint.&quot;&quot;&quot;</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">get_a</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Ma_rel</span> <span class="o">*</span> <span class="n">a</span>
+
+    <span class="c1"># Use stagnation enthalpy iterator in relative frame mode</span>
+    <span class="k">return</span> <span class="n">_iterate_ho_s_rho</span><span class="p">(</span>
+        <span class="n">block</span><span class="p">,</span>
+        <span class="n">ho_nd</span><span class="p">,</span>
+        <span class="n">s_nd</span><span class="p">,</span>
+        <span class="n">Alpha_rel</span><span class="p">,</span>
+        <span class="n">Beta</span><span class="p">,</span>
+        <span class="n">velocity_constraint_func</span><span class="p">,</span>
+        <span class="n">max_iter</span><span class="p">,</span>
+        <span class="n">tol</span><span class="p">,</span>
+        <span class="n">relative_frame</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
