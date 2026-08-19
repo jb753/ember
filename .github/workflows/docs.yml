@@ -74,6 +74,12 @@ jobs:
           cat >> docs/conf.py <<'CONF'
 
           # Appended by .github/workflows/docs.yml when backfilling this tag.
+          # Block.flat points at the private base, which has no page, and the
+          # tag predates the entry that lets nitpicky ignore it -- without this
+          # the build fails under -W on a reference the code already shipped.
+          nitpick_ignore = nitpick_ignore + [
+              ("py:attr", "ember._struct.StructuredData.flat"),
+          ]
           html_context = {"ember_version_slug": os.environ.get("EMBER_DOCS_VERSION", release)}
           html_sidebars = {
               "**": [
