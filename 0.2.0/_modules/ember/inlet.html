@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.inlet &#8212; ember 0.2.1.dev0+g30aaa8e8c.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=4049e73d"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev0+g30aaa8e8c.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.2.0";
+    var page = "_modules/ember/inlet.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.inlet</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Subsonic inlet boundary condition for EMBER CFD.</span>
+
+<span class="sd">:class:`InletPatch` prescribes stagnation enthalpy, entropy and the two flow</span>
+<span class="sd">angles at an inflow face while letting outgoing acoustic waves leave the domain,</span>
+<span class="sd">after the steady non-reflecting theory of :cite:t:`Giles1988` (his Sections</span>
+<span class="sd">5.3-5.4) extended to three dimensions by :cite:t:`Saxer1993`.</span>
+
+<span class="sd">The characteristic treatment is entirely</span>
+<span class="sd">:class:`~ember.patch.NonReflectingPatch`&#39;s; what this class adds is an</span>
+<span class="sd">interior on the downstream side of the face and the variables a physical inlet</span>
+<span class="sd">knows. Of the five characteristics at a subsonic inflow face four are incoming</span>
+<span class="sd">(entropy, two vorticity waves, the downstream-running pressure wave) and one,</span>
+<span class="sd">the upstream-running pressure wave, is outgoing, so four quantities are</span>
+<span class="sd">prescribed: the pitchwise means of :math:`h_0`, :math:`s`, :math:`\tan\alpha`</span>
+<span class="sd">and :math:`\sin\beta`.</span>
+
+<span class="sd">The inflow state is prescribed in the &quot;natural&quot; variables of the characteristic</span>
+<span class="sd">residuals -- stagnation enthalpy and entropy rather than stagnation pressure and</span>
+<span class="sd">temperature -- so no thermodynamic inversion happens inside the boundary</span>
+<span class="sd">condition. :meth:`InletPatch.set_Po_To` converts a stagnation state on the way</span>
+<span class="sd">in for callers who would rather give one.</span>
+
+<span class="sd">This is the one condition in the family that works in the angle variables of</span>
+<span class="sd">:func:`~ember.perturbation.chic_to_bcond` rather than the mix variables the base</span>
+<span class="sd">class defaults to; see the class docstring for why the angles suit a physical</span>
+<span class="sd">inlet and nothing else.</span>
+
+<span class="sd">See Also</span>
+<span class="sd">--------</span>
+<span class="sd">ember.patch.NonReflectingPatch : The condition itself</span>
+<span class="sd">ember.patch.OutletPatch : The outflow counterpart</span>
+<span class="sd">ember.perturbation.chic_to_bcond : Jacobian this patch&#39;s mean-mode solve is built on</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">perturbation</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.nonreflecting</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonReflectingPatch</span><span class="p">,</span> <span class="n">replayable</span>
+
+
+<div class="viewcode-block" id="InletPatch">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.InletPatch">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">InletPatch</span><span class="p">(</span><span class="n">NonReflectingPatch</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Subsonic inflow boundary condition.</span>
+
+<span class="sd">    Prescribes stagnation enthalpy :math:`h_0`, entropy :math:`s`, yaw angle</span>
+<span class="sd">    :math:`\alpha` and pitch angle :math:`\beta` as pitchwise-mean quantities,</span>
+<span class="sd">    while absorbing outgoing acoustic waves rather than reflecting them. All</span>
+<span class="sd">    four must be set before :meth:`~ember.patch.NonReflectingPatch.apply`</span>
+<span class="sd">    is called, via :meth:`set_ho_s` or :meth:`set_Po_To` together with</span>
+<span class="sd">    :meth:`set_Alpha` and :meth:`set_Beta`. Each setter converts its target and</span>
+<span class="sd">    stores it nondimensionally in the corresponding row of the prescribed</span>
+<span class="sd">    target, published as :attr:`ho_nd`, :attr:`s_nd`, :attr:`tanAlpha` and</span>
+<span class="sd">    :attr:`sinBeta`, so the patch must already be attached to a block whose</span>
+<span class="sd">    fluid is set.</span>
+
+<span class="sd">    The angles are what makes this condition different from every other in the</span>
+<span class="sd">    family. A physical inlet knows its flow angles and not its</span>
+<span class="sd">    velocity magnitude, so :math:`(\tan\alpha, \sin\beta)` are the right</span>
+<span class="sd">    variables here, and the target space&#39;s Jacobian is</span>
+<span class="sd">    :func:`~ember.perturbation.chic_to_bcond` rather than the base class&#39;s</span>
+<span class="sd">    :func:`~ember.perturbation.chic_to_mix`. Only rows 2 and 3 of the two</span>
+<span class="sd">    Jacobians differ; rows 0, 1 and 4 are identical.</span>
+
+<span class="sd">    A span station whose mean flow has reversed becomes an outflow, and the base</span>
+<span class="sd">    class drives it to the static pressure of row 4 instead. Nothing need be</span>
+<span class="sd">    configured for that: :meth:`set_backflow_P` prescribes the pressure and,</span>
+<span class="sd">    left alone, it is seeded from the inflow plane at the first timestep. The</span>
+<span class="sd">    angle rows are not solved there -- row 4 is static pressure in both target</span>
+<span class="sd">    spaces -- so the factor of :math:`V_x` those rows carry never takes the</span>
+<span class="sd">    solve singular.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_desc</span> <span class="o">=</span> <span class="s2">&quot;inlet patch&quot;</span>
+
+    <span class="n">_sign_interior</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="c1"># Angles rather than the base class&#39;s transverse velocities; see the class</span>
+    <span class="c1"># docstring.</span>
+    <span class="n">_chic_to_target</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">perturbation</span><span class="o">.</span><span class="n">chic_to_bcond</span><span class="p">)</span>
+
+    <span class="n">_target_names</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;ho_nd&quot;</span><span class="p">,</span> <span class="s2">&quot;s_nd&quot;</span><span class="p">,</span> <span class="s2">&quot;tanAlpha&quot;</span><span class="p">,</span> <span class="s2">&quot;sinBeta&quot;</span><span class="p">,</span> <span class="s2">&quot;P_nd&quot;</span><span class="p">)</span>
+
+    <span class="n">_target_setters</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="mi">0</span><span class="p">:</span> <span class="s2">&quot;set_ho_s or set_Po_To&quot;</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">:</span> <span class="s2">&quot;set_ho_s or set_Po_To&quot;</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="s2">&quot;set_Alpha&quot;</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="s2">&quot;set_Beta&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="c1"># The static pressure imposed at a station whose inflow has reversed. Not</span>
+    <span class="c1"># required: seeded from the face if set_backflow_P is never called.</span>
+    <span class="n">_target_seeded</span> <span class="o">=</span> <span class="p">(</span><span class="mi">4</span><span class="p">,)</span>
+
+    <span class="c1"># The node-level limiter imposes rows 0-3 read as [ho, s, Vr, Vt], which</span>
+    <span class="c1"># this patch&#39;s angle rows cannot express. It is also the wrong shape of</span>
+    <span class="c1"># problem here: a node the flow enters at an inflow face is the normal</span>
+    <span class="c1"># case, not the pathology the limiter exists for.</span>
+    <span class="n">_nodal_backflow</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_target_from_prim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prim</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;The target-space quantities (ho, s, tanAlpha, sinBeta, P) of a primitive state.</span>
+
+<span class="sd">        The angles in place of the base class&#39;s transverse velocities, measured</span>
+<span class="sd">        against the meridional speed as</span>
+<span class="sd">        :func:`~ember.perturbation.chic_to_bcond` differentiates them.</span>
+
+<span class="sd">        Read in the interface frame, where rows 1 and 2 of ``prim`` are the</span>
+<span class="sd">        velocity along the frame axis and the one in the surface. The yaw angle</span>
+<span class="sd">        is unaffected -- :math:`V_m = \sqrt{V_n^2 + V_s^2} = \sqrt{V_x^2 +</span>
+<span class="sd">        V_r^2}` is invariant under the rotation -- while the pitch angle that</span>
+<span class="sd">        comes out is measured from the frame axis rather than from :math:`x`.</span>
+<span class="sd">        The two differ by exactly :attr:`~ember.patch.RevolutionPatch.chi_node`,</span>
+<span class="sd">        which is where :meth:`set_Beta` puts it back.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ho_nd</span><span class="p">,</span> <span class="n">s_nd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ho_s_from_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+        <span class="n">Vn</span><span class="p">,</span> <span class="n">Vs</span><span class="p">,</span> <span class="n">Vt</span> <span class="o">=</span> <span class="n">prim</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">prim</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">prim</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">Vm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">Vn</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vs</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ho_nd</span><span class="p">,</span> <span class="n">s_nd</span><span class="p">,</span> <span class="n">Vt</span> <span class="o">/</span> <span class="n">Vm</span><span class="p">,</span> <span class="n">Vs</span> <span class="o">/</span> <span class="n">Vm</span><span class="p">,</span> <span class="n">prim</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_stagnation_state</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Nondimensional stagnation density and internal energy of the prescribed inflow.</span>
+
+<span class="sd">        Shared by :attr:`Po` and :attr:`To` so the two do not each repeat the</span>
+<span class="sd">        equation-of-state solve :func:`~ember.fluid.PerfectFluid.set_h_s`</span>
+<span class="sd">        performs.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fluid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span>
+        <span class="k">return</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ho_nd</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">s_nd</span><span class="p">)</span>
+
+<div class="viewcode-block" id="InletPatch.set_Alpha">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.InletPatch.set_Alpha">[docs]</a>
+    <span class="nd">@replayable</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_Alpha</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Alpha</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prescribe the inflow yaw angle.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        Alpha : float or array</span>
+<span class="sd">            Prescribed inflow yaw angle :math:`\alpha` [deg], measured from the</span>
+<span class="sd">            meridional plane; must satisfy :math:`|\alpha| &lt; 90`. A scalar or an</span>
+<span class="sd">            array that broadcasts to :attr:`~ember.patch.Patch.shape`, of</span>
+<span class="sd">            which only the pitchwise mean at each span station is imposed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Alpha</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mf">90.0</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Alpha must be within +/-90 degrees exclusive&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_target_row</span><span class="p">(</span>
+            <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;Alpha&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)))</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="InletPatch.set_backflow_P">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.InletPatch.set_backflow_P">[docs]</a>
+    <span class="nd">@replayable</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_backflow_P</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prescribe the static pressure imposed where the inflow reverses.</span>
+
+<span class="sd">        A span station whose pitchwise-mean flow has turned round is an outflow:</span>
+<span class="sd">        four of its five characteristics leave the domain and only one enters,</span>
+<span class="sd">        so one quantity is prescribed and it is static pressure, not the inflow</span>
+<span class="sd">        state. This is that pressure. The other four rows are not imposed at</span>
+<span class="sd">        such a station -- they are what the outgoing waves carry there.</span>
+
+<span class="sd">        Calling this is optional. Left alone, the row is seeded once from the</span>
+<span class="sd">        pitchwise mean of the inflow plane at the first timestep and frozen</span>
+<span class="sd">        there; see ``NonReflectingPatch._seed_target``. If a large</span>
+<span class="sd">        part of the span ends up reversed the inflow is no longer under control</span>
+<span class="sd">        and the boundary wants moving upstream, rather than this value tuning.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        P : float or array</span>
+<span class="sd">            Static pressure :math:`p` [Pa]; must be positive and finite. A</span>
+<span class="sd">            scalar or an array that broadcasts to</span>
+<span class="sd">            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise</span>
+<span class="sd">            mean at each span station is imposed.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        --------</span>
+<span class="sd">        ember.patch.OutletPatch.set_backflow_ho_s : The mirror of this,</span>
+<span class="sd">            prescribing the inflow state an outflow face falls back on</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">P</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;P must be finite&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">arr</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;P must be positive&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_target_row</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;P&quot;</span><span class="p">,</span> <span class="n">arr</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">P_ref</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="InletPatch.set_Beta">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.InletPatch.set_Beta">[docs]</a>
+    <span class="nd">@replayable</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_Beta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Beta</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prescribe the inflow pitch angle.</span>
+
+<span class="sd">        The angle is measured from the machine axis, :math:`\tan\beta = V_r /</span>
+<span class="sd">        V_x`, whatever the orientation of the face it is prescribed on. The</span>
+<span class="sd">        condition itself works in the interface frame, where the same flow</span>
+<span class="sd">        makes the angle :math:`\beta - \chi` with the frame axis, so what is</span>
+<span class="sd">        stored is :math:`\sin(\beta - \chi)` for the face angle</span>
+<span class="sd">        :attr:`~ember.patch.RevolutionPatch.chi_node`. On a face of constant</span>
+<span class="sd">        :math:`x` the frame axis is :math:`x` and the two coincide.</span>
+
+<span class="sd">        What it must satisfy is that flow actually comes in through the face:</span>
+<span class="sd">        :math:`|\beta - \chi| \leq 90`. On a face of constant :math:`x` that is</span>
+<span class="sd">        the familiar :math:`|\beta| \leq 90`, and on a radial or reversed face</span>
+<span class="sd">        it is the same condition said properly -- a duct running along</span>
+<span class="sd">        :math:`-x` takes :math:`\beta = 180`, one flowing inward radially</span>
+<span class="sd">        :math:`\beta = -90`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        Beta : float or array</span>
+<span class="sd">            Prescribed inflow pitch angle :math:`\beta` [deg], measured from</span>
+<span class="sd">            the machine axis as :math:`\arctan(V_r/V_x)` over the full turn. A</span>
+<span class="sd">            scalar or an array that broadcasts to</span>
+<span class="sd">            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise mean</span>
+<span class="sd">            at each span station is imposed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">Beta_face</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Beta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">))</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">chi_node</span>
+        <span class="c1"># Onto (-180, 180] before testing, so an angle that reaches the face</span>
+        <span class="c1"># the long way round is judged on where it points and not on how it was</span>
+        <span class="c1"># spelled. The sine stored below is periodic and does not care.</span>
+        <span class="n">Beta_face</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">Beta_face</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">Beta_face</span><span class="p">))</span>
+        <span class="c1"># The stored sine cannot tell an inflow from an outflow, so a pitch</span>
+        <span class="c1"># angle that leaves no velocity along the frame axis to come in on is</span>
+        <span class="c1"># refused here rather than silently read back as its reflection.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Beta_face</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">+</span> <span class="mf">1e-5</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="n">worst</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="n">Beta_face</span><span class="p">)</span><span class="o">.</span><span class="n">flat</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Beta_face</span><span class="p">))])</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Beta must be within +/-90 degrees of the face normal, which &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;lies at </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chi_node</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2"> degrees &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;to the axis; the prescribed angle is </span><span class="si">{</span><span class="n">worst</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2"> degrees from &quot;</span>
+                <span class="s2">&quot;it, so no flow would enter through the face.&quot;</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_target_row</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;Beta&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">Beta_face</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="InletPatch.set_ho_s">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.InletPatch.set_ho_s">[docs]</a>
+    <span class="nd">@replayable</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_ho_s</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ho</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prescribe the inflow stagnation enthalpy and entropy.</span>
+
+<span class="sd">        Both are measured from the fluid datum state where :math:`u = s = 0` at</span>
+<span class="sd">        :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`, the same convention as</span>
+<span class="sd">        :py:attr:`~ember.block.Block.ho` and :py:attr:`~ember.block.Block.s`;</span>
+<span class="sd">        only differences are physically meaningful, so these are not</span>
+<span class="sd">        :math:`c_p T_0` and :math:`c_p \log(\ldots)`. Use :meth:`set_Po_To` to</span>
+<span class="sd">        prescribe a stagnation state instead.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        ho : float or array</span>
+<span class="sd">            Prescribed stagnation enthalpy :math:`h_0` [J/kg]. A scalar or an</span>
+<span class="sd">            array that broadcasts to :attr:`~ember.patch.Patch.shape`, of</span>
+<span class="sd">            which only the pitchwise mean at each span station is imposed.</span>
+<span class="sd">        s : float or array</span>
+<span class="sd">            Prescribed entropy :math:`s` [J/kg/K].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fluid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_target_row</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;ho&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ho</span><span class="p">)</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">u_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_target_row</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;s&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">Rgas_ref</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="InletPatch.set_Po_To">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.InletPatch.set_Po_To">[docs]</a>
+    <span class="nd">@replayable</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_Po_To</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Po</span><span class="p">,</span> <span class="n">To</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prescribe the inflow stagnation pressure and temperature.</span>
+
+<span class="sd">        Converted to the stagnation enthalpy and entropy of :meth:`set_ho_s`</span>
+<span class="sd">        using the fluid of the block this patch is attached to. The prescription</span>
+<span class="sd">        is what survives, not the conversion: the pressure and temperature given</span>
+<span class="sd">        here are kept, and a later change of fluid re-converts them against the</span>
+<span class="sd">        new one, so this stays the stagnation state asked for rather than</span>
+<span class="sd">        whatever number the old reference scales and datum made of it.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        Po : float or array</span>
+<span class="sd">            Prescribed stagnation pressure :math:`p_0` [Pa]; must be positive.</span>
+<span class="sd">            A scalar or an array that broadcasts to</span>
+<span class="sd">            :attr:`~ember.patch.Patch.shape`, of which only the pitchwise</span>
+<span class="sd">            mean at each span station is imposed.</span>
+<span class="sd">        To : float or array</span>
+<span class="sd">            Prescribed stagnation temperature :math:`T_0` [K]; must be positive.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fluid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span>
+
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">&quot;Po&quot;</span><span class="p">,</span> <span class="n">Po</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;To&quot;</span><span class="p">,</span> <span class="n">To</span><span class="p">)):</span>
+            <span class="n">arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be finite&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">arr</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be positive&quot;</span><span class="p">)</span>
+
+        <span class="c1"># get_h and get_s return nondimensional values already, so the targets</span>
+        <span class="c1"># are formed without a round trip through dimensional ho and s.</span>
+        <span class="n">rhoo_nd</span><span class="p">,</span> <span class="n">uo_nd</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Po</span><span class="p">)</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">P_ref</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">To</span><span class="p">)</span> <span class="o">/</span> <span class="n">fluid</span><span class="o">.</span><span class="n">T_ref</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_target_row</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;Po and To&quot;</span><span class="p">,</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_h</span><span class="p">(</span><span class="n">rhoo_nd</span><span class="p">,</span> <span class="n">uo_nd</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_target_row</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;Po and To&quot;</span><span class="p">,</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_s</span><span class="p">(</span><span class="n">rhoo_nd</span><span class="p">,</span> <span class="n">uo_nd</span><span class="p">))</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">Alpha</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prescribed inflow yaw angle :math:`\alpha` [deg]. Inverse of :meth:`set_Alpha`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tanAlpha</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">Beta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prescribed inflow pitch angle :math:`\beta` [deg], measured from the machine axis.</span>
+
+<span class="sd">        Inverse of :meth:`set_Beta`: the stored sine is that of the face-frame</span>
+<span class="sd">        angle :math:`\beta - \chi`, which :meth:`set_Beta` keeps within</span>
+<span class="sd">        :math:`\pm 90` degrees, exactly :obj:`numpy.arcsin`&#39;s range, so the</span>
+<span class="sd">        recovery is exact up to that wrap.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">Beta_face</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sinBeta</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="n">Beta_face</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chi_node</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">Po</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prescribed inflow stagnation pressure [Pa].</span>
+
+<span class="sd">        Recovered from the currently stored :attr:`ho_nd` and :attr:`s_nd`</span>
+<span class="sd">        through the block&#39;s fluid, so it reads back the prescribed state</span>
+<span class="sd">        however it was set -- by :meth:`set_Po_To` or by :meth:`set_ho_s` --</span>
+<span class="sd">        rather than undoing one setter in particular.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        --------</span>
+<span class="sd">        To : The stagnation temperature this state also implies</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rhoo_nd</span><span class="p">,</span> <span class="n">uo_nd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stagnation_state</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">get_P</span><span class="p">(</span><span class="n">rhoo_nd</span><span class="p">,</span> <span class="n">uo_nd</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">P_ref</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">To</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prescribed inflow stagnation temperature [K]. See :attr:`Po`.&quot;&quot;&quot;</span>
+        <span class="n">rhoo_nd</span><span class="p">,</span> <span class="n">uo_nd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stagnation_state</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">get_T</span><span class="p">(</span><span class="n">rhoo_nd</span><span class="p">,</span> <span class="n">uo_nd</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">T_ref</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

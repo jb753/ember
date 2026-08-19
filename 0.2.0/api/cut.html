@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Cutting &#8212; ember 0.2.1.dev0+g30aaa8e8c.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=4049e73d"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Solver" href="solver.html" />
+    <link rel="prev" title="Averaging" href="average.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev0+g30aaa8e8c.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.2.0";
+    var page = "api/cut.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Cutting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#cuts-along-grid-surfaces-by-index">Cuts along grid surfaces by index</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.cut.unstructured"><code class="docutils literal notranslate"><span class="pre">cut.unstructured()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.cut.structured_meridional"><code class="docutils literal notranslate"><span class="pre">cut.structured_meridional()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.cut.interpolate_to_structured"><code class="docutils literal notranslate"><span class="pre">cut.interpolate_to_structured()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.cut.triangulate_to_unstructured"><code class="docutils literal notranslate"><span class="pre">cut.triangulate_to_unstructured()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="average.html" title="previous chapter">Averaging</a></li>
+      <li>Next: <a href="solver.html" title="next chapter">Solver</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.cut">
+<span id="cutting"></span><h1>Cutting<a class="headerlink" href="#module-ember.cut" title="Link to this heading">¶</a></h1>
+<p>Marching cubes algorithm and 3D structured grid cutting utilities.</p>
+<p>This module implements the marching cubes algorithm for extracting isosurfaces from 3D
+structured grids, along with utilities for creating both structured meridional cuts and
+unstructured triangulated cuts. The marching cubes implementation uses precomputed lookup
+tables (EDGETABLE and TRITABLE) to efficiently determine which cell edges intersect an
+isosurface and how to triangulate those intersections. Key functionality includes extracting
+unstructured triangular cuts using signed distance fields, creating structured 2D meridional
+slices by interpolating along grid lines, and converting between structured quad meshes and
+unstructured triangle meshes. The module supports both direct marching cubes output and
+subsequent interpolation of unstructured data back onto structured grids for easier analysis.</p>
+<section id="cuts-along-grid-surfaces-by-index">
+<h2>Cuts along grid surfaces by index<a class="headerlink" href="#cuts-along-grid-surfaces-by-index" title="Link to this heading">¶</a></h2>
+<p>The functions here extract cuts along an arbitrary meridional curve. To take a
+cut along a grid surface of constant index, none of them are needed: a
+<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a> supports numpy-style indexing, so <code class="docutils literal notranslate"><span class="pre">block[i]</span></code> or
+<code class="docutils literal notranslate"><span class="pre">block[:,</span> <span class="pre">j]</span></code> returns a lower-dimensional structured cut that shares the
+parent’s data as a zero-copy view. See the indexing section of
+<a class="reference internal" href="block.html#module-ember.block" title="ember.block"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.block</span></code></a> for the full rules.</p>
+</section>
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.cut.unstructured">
+<span class="sig-prename descclassname"><span class="pre">cut.</span></span><span class="sig-name descname"><span class="pre">unstructured</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xr_cut</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/cut.html#unstructured"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.cut.unstructured" title="Link to this definition">¶</a></dt>
+<dd><p>Take an unstructured cut through a grid using marching cubes.</p>
+<p>Extracts a triangulated isosurface where the meridional cut curve
+intersects the grid, by running the marching cubes algorithm on the
+signed distance field of each block. Triangles from all intersected
+blocks are concatenated into a single unstructured block.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a><em> or </em><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – Grid containing blocks to cut, or a single block.</p></li>
+<li><p><strong>xr_cut</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_segments</em><em>, </em><em>2</em><em>)</em>) – Meridional <span class="math notranslate nohighlight">\((x, r)\)</span> curve segments defining the cut surface.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>cut</strong> – Unstructured triangulated cut, or None if the curve does not
+intersect any block.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a>, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (ntri, 3) or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.cut.structured_meridional">
+<span class="sig-prename descclassname"><span class="pre">cut.</span></span><span class="sig-name descname"><span class="pre">structured_meridional</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xr_cut</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/cut.html#structured_meridional"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.cut.structured_meridional" title="Link to this definition">¶</a></dt>
+<dd><p>Slice a grid along a meridional curve into structured 2D cuts.</p>
+<p>For each block, walks every <span class="math notranslate nohighlight">\((i, k)\)</span> grid line and linearly
+interpolates to the first <code class="docutils literal notranslate"><span class="pre">j</span></code> location where the signed distance to the
+cut curve changes sign, producing one structured <code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">nk)</span></code> cut per
+intersected block.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a><em> or </em><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – Grid containing blocks to cut, or a single block.</p></li>
+<li><p><strong>xr_cut</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_segments</em><em>, </em><em>2</em><em>)</em>) – Meridional <span class="math notranslate nohighlight">\((x, r)\)</span> curve segments defining the cut surface.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>cut</strong> – Grid of 2D structured blocks, each shape (ni, nk), holding the cut
+data. Blocks that the curve does not intersect are omitted, so the
+grid is empty when there is no intersection.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid">Grid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.cut.interpolate_to_structured">
+<span class="sig-prename descclassname"><span class="pre">cut.</span></span><span class="sig-name descname"><span class="pre">interpolate_to_structured</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unstructured_block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interp_shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Beta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">periodic</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rtol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/cut.html#interpolate_to_structured"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.cut.interpolate_to_structured" title="Link to this definition">¶</a></dt>
+<dd><p>Interpolate an unstructured triangular cut onto a structured grid.</p>
+<p>Builds a structured <code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">nj)</span></code> grid that <strong>conforms to the meridional
+line</strong> of the cut and <strong>resolves the circumferential direction</strong>, then
+interpolates the triangle-vertex point cloud onto it:</p>
+<ul class="simple">
+<li><p>index <code class="docutils literal notranslate"><span class="pre">i</span></code> runs along the meridional line. A constant-<code class="docutils literal notranslate"><span class="pre">i</span></code> gridline has
+<code class="docutils literal notranslate"><span class="pre">(x,</span> <span class="pre">r)</span> <span class="pre">=</span> <span class="pre">const</span></code> and varies only in theta. Nodes are
+cosine-clustered along the normalised arc length <span class="math notranslate nohighlight">\(\zeta \in [0, 1]\)</span>
+(double-sided cosine clustering), resolving both extremities of
+the line.</p></li>
+<li><p>index <code class="docutils literal notranslate"><span class="pre">j</span></code> runs in theta. A constant-<code class="docutils literal notranslate"><span class="pre">j</span></code> gridline has
+<code class="docutils literal notranslate"><span class="pre">theta</span> <span class="pre">=</span> <span class="pre">const</span></code> (straight lines), laid out uniformly over one full
+pitch.</p></li>
+</ul>
+<p>Straight constant-theta lines rely on the solution being periodic in theta
+with period <code class="docutils literal notranslate"><span class="pre">pitch</span> <span class="pre">=</span> <span class="pre">2*pi/Nb</span></code>: source points are wrapped modulo the pitch
+so a single uniform theta window is fully covered however the cut’s theta
+band skews along the line. Flow variables are interpolated in the unfolded
+<span class="math notranslate nohighlight">\((\zeta, \theta)\)</span> unit space using linear interpolation with a
+nearest-neighbour fallback at the arc-length ends.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>unstructured_block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – Unstructured triangulated cut, for example from <a class="reference internal" href="#ember.cut.unstructured" title="ember.cut.unstructured"><code class="xref py py-func docutils literal notranslate"><span class="pre">unstructured()</span></code></a>.</p></li>
+<li><p><strong>interp_shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Target structured grid shape <code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">nj)</span></code>.</p></li>
+<li><p><strong>Beta</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Pitch angle in degrees fixing the meridional travel direction: the
+arc-length-zero end is the one with the smallest projection onto
+<code class="docutils literal notranslate"><span class="pre">d</span> <span class="pre">=</span> <span class="pre">(-sin</span> <span class="pre">Beta,</span> <span class="pre">cos</span> <span class="pre">Beta)</span></code>. <code class="docutils literal notranslate"><span class="pre">Beta</span> <span class="pre">=</span> <span class="pre">0</span></code> puts arc length 0 at minimum
+r; <code class="docutils literal notranslate"><span class="pre">Beta</span> <span class="pre">=</span> <span class="pre">+/-90</span></code> at maximum / minimum x. Default 0.</p></li>
+<li><p><strong>periodic</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True (default), wrap theta modulo the pitch so the uniform theta
+window is fully populated. If False, span the raw cloud theta range and
+rely on the nearest-neighbour fallback outside the data hull.</p></li>
+<li><p><strong>rtol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Relative tolerance for the periodic coverage check. With
+<code class="docutils literal notranslate"><span class="pre">periodic=True</span></code> the cloud theta span must be at least
+<code class="docutils literal notranslate"><span class="pre">(1</span> <span class="pre">-</span> <span class="pre">rtol)</span> <span class="pre">*</span> <span class="pre">pitch</span></code> or a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> is raised. Default 0.05.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>cut</strong> – Structured block with data interpolated onto the line-conforming grid.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a>, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (<a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni">ni</a>, <a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj">nj</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.cut.triangulate_to_unstructured">
+<span class="sig-prename descclassname"><span class="pre">cut.</span></span><span class="sig-name descname"><span class="pre">triangulate_to_unstructured</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/cut.html#triangulate_to_unstructured"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.cut.triangulate_to_unstructured" title="Link to this definition">¶</a></dt>
+<dd><p>Convert a structured 2D cut into a triangulated unstructured cut.</p>
+<p>Splits every structured quad face into two triangles, producing an
+unstructured block with <code class="docutils literal notranslate"><span class="pre">ntri</span> <span class="pre">=</span> <span class="pre">2</span> <span class="pre">(ni</span> <span class="pre">-</span> <span class="pre">1)</span> <span class="pre">(nj</span> <span class="pre">-</span> <span class="pre">1)</span></code> triangles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>)</em>) – 2D structured block to triangulate.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>cut</strong> – Unstructured block with triangle-vertex data.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a>, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (ntri, 3)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/cut.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

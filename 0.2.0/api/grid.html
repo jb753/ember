@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Grid &#8212; ember 0.2.1.dev0+g30aaa8e8c.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=4049e73d"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Communicators" href="communicators.html" />
+    <link rel="prev" title="Iterative flow-field setters" href="set_iterative.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev0+g30aaa8e8c.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.2.0";
+    var page = "api/grid.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Grid</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#construction-and-file-formats">Construction and file formats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#connectivity">Connectivity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#global-flow-field-setting">Global flow field setting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#time-marching">Time marching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#metadata">Metadata</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.grid.Grid"><code class="docutils literal notranslate"><span class="pre">grid.Grid</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.read_emb"><code class="docutils literal notranslate"><span class="pre">grid.Grid.read_emb()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.read_plot3d"><code class="docutils literal notranslate"><span class="pre">grid.Grid.read_plot3d()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.set_conserved_cart_unstr"><code class="docutils literal notranslate"><span class="pre">grid.Grid.set_conserved_cart_unstr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.set_fluid"><code class="docutils literal notranslate"><span class="pre">grid.Grid.set_fluid()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.set_L_ref"><code class="docutils literal notranslate"><span class="pre">grid.Grid.set_L_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.set_primitive_cart_unstr"><code class="docutils literal notranslate"><span class="pre">grid.Grid.set_primitive_cart_unstr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.get_convergence"><code class="docutils literal notranslate"><span class="pre">grid.Grid.get_convergence()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.get_r_ref"><code class="docutils literal notranslate"><span class="pre">grid.Grid.get_r_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.accumulate_avg"><code class="docutils literal notranslate"><span class="pre">grid.Grid.accumulate_avg()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.align_cart_unstr"><code class="docutils literal notranslate"><span class="pre">grid.Grid.align_cart_unstr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.apply_bconds"><code class="docutils literal notranslate"><span class="pre">grid.Grid.apply_bconds()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.apply_guess_meridional"><code class="docutils literal notranslate"><span class="pre">grid.Grid.apply_guess_meridional()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.apply_guess_quasi3d"><code class="docutils literal notranslate"><span class="pre">grid.Grid.apply_guess_quasi3d()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.calculate_wdist"><code class="docutils literal notranslate"><span class="pre">grid.Grid.calculate_wdist()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.check_nan"><code class="docutils literal notranslate"><span class="pre">grid.Grid.check_nan()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.copy"><code class="docutils literal notranslate"><span class="pre">grid.Grid.copy()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.finalise_average"><code class="docutils literal notranslate"><span class="pre">grid.Grid.finalise_average()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.interp_from_arrays"><code class="docutils literal notranslate"><span class="pre">grid.Grid.interp_from_arrays()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.interp_from_grid"><code class="docutils literal notranslate"><span class="pre">grid.Grid.interp_from_grid()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.resample"><code class="docutils literal notranslate"><span class="pre">grid.Grid.resample()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.smooth"><code class="docutils literal notranslate"><span class="pre">grid.Grid.smooth()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_bconds"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_bconds()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_cached_conserved"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_cached_conserved()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_filter"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_filter()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_residual"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_residual()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_sources"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_sources()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_timestep"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_timestep()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.write_emb"><code class="docutils literal notranslate"><span class="pre">grid.Grid.write_emb()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.write_fvbnd"><code class="docutils literal notranslate"><span class="pre">grid.Grid.write_fvbnd()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.write_plot3d"><code class="docutils literal notranslate"><span class="pre">grid.Grid.write_plot3d()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.connectivity"><code class="docutils literal notranslate"><span class="pre">grid.Grid.connectivity</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.n_row"><code class="docutils literal notranslate"><span class="pre">grid.Grid.n_row</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.patches"><code class="docutils literal notranslate"><span class="pre">grid.Grid.patches</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.row_station_bid_pid"><code class="docutils literal notranslate"><span class="pre">grid.Grid.row_station_bid_pid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.rows"><code class="docutils literal notranslate"><span class="pre">grid.Grid.rows</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.size"><code class="docutils literal notranslate"><span class="pre">grid.Grid.size</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.append"><code class="docutils literal notranslate"><span class="pre">grid.Grid.append()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.clear"><code class="docutils literal notranslate"><span class="pre">grid.Grid.clear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.extend"><code class="docutils literal notranslate"><span class="pre">grid.Grid.extend()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.index"><code class="docutils literal notranslate"><span class="pre">grid.Grid.index()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.insert"><code class="docutils literal notranslate"><span class="pre">grid.Grid.insert()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.labels"><code class="docutils literal notranslate"><span class="pre">grid.Grid.labels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.pop"><code class="docutils literal notranslate"><span class="pre">grid.Grid.pop()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.remove"><code class="docutils literal notranslate"><span class="pre">grid.Grid.remove()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.grid.GridConnectivity"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivity.apply"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.apply()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivity.clear"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.clear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivity.exchange"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.exchange()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivity.exchange_halos"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.exchange_halos()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivity.pair"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.pair()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.grid.GridConnectivityManager"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivityManager.clear"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.clear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivityManager.pair"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.pair()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivityManager.cusp"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.cusp</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivityManager.mixing"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.mixing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivityManager.nonmatch"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.nonmatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.GridConnectivityManager.periodic"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.periodic</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.grid.ConvergenceStep"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.residual"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.residual</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.mdot"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.mdot</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.ho"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.ho</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.s"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.s</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.mdot_target"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.mdot_target</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.mdot_throttle"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.mdot_throttle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.P_throttle"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.P_throttle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.dP_P"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_P</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.dP_I"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_I</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.dP_D"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_D</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.grid.DivergenceError"><code class="docutils literal notranslate"><span class="pre">grid.DivergenceError</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.DivergenceError.add_note"><code class="docutils literal notranslate"><span class="pre">grid.DivergenceError.add_note()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.DivergenceError.args"><code class="docutils literal notranslate"><span class="pre">grid.DivergenceError.args</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.DivergenceError.with_traceback"><code class="docutils literal notranslate"><span class="pre">grid.DivergenceError.with_traceback()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="set_iterative.html" title="previous chapter">Iterative flow-field setters</a></li>
+      <li>Next: <a href="communicators.html" title="next chapter">Communicators</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.grid">
+<span id="grid"></span><h1>Grid<a class="headerlink" href="#module-ember.grid" title="Link to this heading">¶</a></h1>
+<p>Collection of connected blocks forming a complete flow domain.</p>
+<p>This module defines the <a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>, the top-level container for a
+multi-block structured simulation. A grid is an ordered collection of
+<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a> objects together with the topology that connects
+them. A <a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a> stores no flow field of its own: every coordinate and
+conserved quantity lives on the constituent blocks.
+Therefore the solution is read from one block at a time as for example <code class="docutils literal notranslate"><span class="pre">grid[0].P</span></code> to access pressure on the first block.</p>
+<section id="construction-and-file-formats">
+<h2>Construction and file formats<a class="headerlink" href="#construction-and-file-formats" title="Link to this heading">¶</a></h2>
+<p>Like a plain Python list, blocks can be added to a grid at construction or a later time:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">ember.block</span><span class="w"> </span><span class="kn">import</span> <span class="n">Block</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">Grid</span>
+
+<span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">([</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">10</span><span class="p">))])</span>
+<span class="n">rotor</span> <span class="o">=</span> <span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
+<span class="n">rotor</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="s2">&quot;rotor&quot;</span><span class="p">)</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rotor</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The grid then behaves as a standard Python collection: it supports iteration,
+<a class="reference external" href="https://docs.python.org/3/library/functions.html#len" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">len()</span></code></a>, membership testing with <code class="docutils literal notranslate"><span class="pre">in</span></code>, and the usual mutating operations
+(<a class="reference internal" href="#ember.grid.Grid.append" title="ember.grid.Grid.append"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.append()</span></code></a>, <a class="reference internal" href="#ember.grid.Grid.extend" title="ember.grid.Grid.extend"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.extend()</span></code></a>, <a class="reference internal" href="#ember.grid.Grid.insert" title="ember.grid.Grid.insert"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.insert()</span></code></a>,
+<a class="reference internal" href="#ember.grid.Grid.remove" title="ember.grid.Grid.remove"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.remove()</span></code></a>, <a class="reference internal" href="#ember.grid.Grid.pop" title="ember.grid.Grid.pop"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.pop()</span></code></a>, <a class="reference internal" href="#ember.grid.Grid.clear" title="ember.grid.Grid.clear"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.clear()</span></code></a>). Indexing accepts
+either an integer position or a label string, and membership testing accepts
+either a block or a label. <a class="reference internal" href="#ember.grid.Grid.labels" title="ember.grid.Grid.labels"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Grid.labels</span></code></a> lists the labels in order, with
+<code class="docutils literal notranslate"><span class="pre">None</span></code> for any unlabelled block:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span>                 <span class="c1"># 2</span>
+<span class="n">grid</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="n">grid</span><span class="p">[</span><span class="s2">&quot;rotor&quot;</span><span class="p">]</span>  <span class="c1"># True -- refers to same block</span>
+<span class="s2">&quot;rotor&quot;</span> <span class="ow">in</span> <span class="n">grid</span>           <span class="c1"># True -- membership by label</span>
+<span class="n">rotor</span> <span class="ow">in</span> <span class="n">grid</span>             <span class="c1"># True -- membership by block</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">labels</span>               <span class="c1"># [None, &#39;rotor&#39;] -- None if unlabelled</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="#ember.grid.Grid.copy" title="ember.grid.Grid.copy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.copy()</span></code></a> duplicates a grid, and <a class="reference internal" href="#ember.grid.Grid.resample" title="ember.grid.Grid.resample"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.resample()</span></code></a> returns a copy
+regridded onto a new node count.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.copy" title="ember.grid.Grid.copy"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.copy</span></code></a>([keep_patches])</p></td>
+<td><p>Create a deep copy of the grid with copied blocks.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.resample" title="ember.grid.Grid.resample"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.resample</span></code></a>(factors)</p></td>
+<td><p>Resample all blocks, returning a new Grid at the new resolution.</p></td>
+</tr>
+</tbody>
+</table>
+<p>A grid can also be read from and written to two file formats. The reading
+methods are constructors, returning a new <a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</p>
+<ul class="simple">
+<li><p>EMB – <a class="reference internal" href="#ember.grid.Grid.read_emb" title="ember.grid.Grid.read_emb"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.read_emb()</span></code></a>, <a class="reference internal" href="#ember.grid.Grid.write_emb" title="ember.grid.Grid.write_emb"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.write_emb()</span></code></a>. Our native format: a pickle of the grid with its blocks, patches, and  labels, optionally gzip-compressed. Being a pickle of the objects themselves, it is the format   that preserves a grid most completely.</p></li>
+<li><p>Plot3D – <a class="reference internal" href="#ember.grid.Grid.read_plot3d" title="ember.grid.Grid.read_plot3d"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.read_plot3d()</span></code></a>, <a class="reference internal" href="#ember.grid.Grid.write_plot3d" title="ember.grid.Grid.write_plot3d"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.write_plot3d()</span></code></a>. The standard multi-block structured interchange format, carrying coordinates only. Boundary patches are stored alongside it in a separate FieldView  boundary file, which may be read and written with the Plot3D file  or on its own via <a class="reference internal" href="#ember.grid.Grid.write_fvbnd" title="ember.grid.Grid.write_fvbnd"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.write_fvbnd()</span></code></a>.</p></li>
+</ul>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.read_emb" title="ember.grid.Grid.read_emb"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.read_emb</span></code></a>(filename)</p></td>
+<td><p>Read grid from EMB pickle file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.read_plot3d" title="ember.grid.Grid.read_plot3d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.read_plot3d</span></code></a>(p3d_file[, fvbnd_file, flip_k])</p></td>
+<td><p>Read grid from Plot3D format file with optional boundary patches.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.write_emb" title="ember.grid.Grid.write_emb"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.write_emb</span></code></a>(filename[, compress])</p></td>
+<td><p>Write grid to EMB binary format file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.write_fvbnd" title="ember.grid.Grid.write_fvbnd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.write_fvbnd</span></code></a>(filename[, region_id])</p></td>
+<td><p>Write boundary conditions in FieldView boundary (.fvbnd) format.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.write_plot3d" title="ember.grid.Grid.write_plot3d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.write_plot3d</span></code></a>(p3d_filename[, ...])</p></td>
+<td><p>Write grid to Plot3D format with optional FVBND boundary file.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="connectivity">
+<span id="grid-connectivity"></span><h2>Connectivity<a class="headerlink" href="#connectivity" title="Link to this heading">¶</a></h2>
+<p>What distinguishes a <a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a> from a plain list of blocks is the topology it
+derives from the blocks’ boundary patches, as found in <a class="reference internal" href="block.html#ember.block.Block.patches" title="ember.block.Block.patches"><code class="xref py py-attr docutils literal notranslate"><span class="pre">patches</span></code></a>. See also <a class="reference internal" href="patch.html#module-ember.patch" title="ember.patch"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.patch</span></code></a> for the patch types and their semantics.</p>
+<p><a class="reference internal" href="#ember.grid.Grid.patches" title="ember.grid.Grid.patches"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Grid.patches</span></code></a> presents every patch from every block as one flat, read-only
+sequence, filterable by patch type (<code class="docutils literal notranslate"><span class="pre">grid.patches.inlet</span></code>,
+<code class="docutils literal notranslate"><span class="pre">grid.patches.periodic</span></code>, and so on). It is a view: patches are still owned by
+the block they sit on, and are added and removed there.</p>
+<p><a class="reference internal" href="#ember.grid.Grid.connectivity" title="ember.grid.Grid.connectivity"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Grid.connectivity</span></code></a> manages communicators that exchange data across
+the seams between blocks, one per patch type, reached as
+<code class="docutils literal notranslate"><span class="pre">grid.connectivity.periodic</span></code> and likewise <code class="docutils literal notranslate"><span class="pre">mixing</span></code>, <code class="docutils literal notranslate"><span class="pre">nonmatch</span></code>, <code class="docutils literal notranslate"><span class="pre">cusp</span></code>.
+Pairing each patch to its partner on a neighbouring block, and the exchange
+itself, are described in <a class="reference internal" href="communicators.html"><span class="doc">Communicators</span></a>.</p>
+<p>Changing grid topology – adding or removing a block or a patch – may break the
+indexing describing pairing, and unfortunately the cache does not detect this.
+In these situations, the cache must be flushed by hand and the next communicator exchange will then pair the new topology from scratch.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">grid</span><span class="o">.</span><span class="n">apply_bconds</span><span class="p">()</span>  <span class="c1"># pairs the periodic patches</span>
+<span class="c1"># ...</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">another_block</span><span class="p">)</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>  <span class="c1"># drop stale pairs</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">apply_bconds</span><span class="p">()</span>  <span class="c1"># will pair the new topology</span>
+</pre></div>
+</div>
+<p>Blocks joined to one another by periodic patches make up a single blade row.
+Rows are separated from one another by mixing patches, and
+<a class="reference internal" href="#ember.grid.Grid.rows" title="ember.grid.Grid.rows"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Grid.rows</span></code></a> groups the blocks accordingly, ordering the rows from inlet to
+outlet; <a class="reference internal" href="#ember.grid.Grid.n_row" title="ember.grid.Grid.n_row"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Grid.n_row</span></code></a> is their count. The first row’s upstream face is the
+domain inlet and the last row’s downstream face is the domain outlet. Both
+properties will pair the periodic patches for themselves.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.connectivity" title="ember.grid.Grid.connectivity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.connectivity</span></code></a></p></td>
+<td><p>Get the cached connectivity manager for this grid.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.n_row" title="ember.grid.Grid.n_row"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.n_row</span></code></a></p></td>
+<td><p>Get the number of blade rows in the grid.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.patches" title="ember.grid.Grid.patches"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.patches</span></code></a></p></td>
+<td><p>Get read-only view of all patches across all blocks.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.row_station_bid_pid" title="ember.grid.Grid.row_station_bid_pid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.row_station_bid_pid</span></code></a></p></td>
+<td><p>Per-row upstream/downstream measurement-station patch identifiers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.rows" title="ember.grid.Grid.rows"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.rows</span></code></a></p></td>
+<td><p>Get blade rows by grouping blocks connected by periodic patches.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="global-flow-field-setting">
+<h2>Global flow field setting<a class="headerlink" href="#global-flow-field-setting" title="Link to this heading">¶</a></h2>
+<p>Rather than setting up each block’s flow field individually, a handful of
+<a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a> methods populate every block at once from a source outside the
+grid: an initial guess constructed from meridional or quasi-3D data, the
+solution on another grid, or an unstructured cloud of points, mapped
+onto the grid’s structured topology via <a class="reference internal" href="#ember.grid.Grid.align_cart_unstr" title="ember.grid.Grid.align_cart_unstr"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.align_cart_unstr()</span></code></a>.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.align_cart_unstr" title="ember.grid.Grid.align_cart_unstr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.align_cart_unstr</span></code></a>(xyz)</p></td>
+<td><p>Map an unstructured Cartesian point cloud onto this grid's nodes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.apply_guess_meridional" title="ember.grid.Grid.apply_guess_meridional"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.apply_guess_meridional</span></code></a>(block_guess[, ...])</p></td>
+<td><p>Apply a circumferentially uniform flow field guess.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.apply_guess_quasi3d" title="ember.grid.Grid.apply_guess_quasi3d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.apply_guess_quasi3d</span></code></a>(block_guess)</p></td>
+<td><p>Apply quasi-3D flow field guess by interpolating between two meridional planes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.interp_from_arrays" title="ember.grid.Grid.interp_from_arrays"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.interp_from_arrays</span></code></a>(arrays)</p></td>
+<td><p>Interpolate a flow field onto this grid from plain arrays.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.interp_from_grid" title="ember.grid.Grid.interp_from_grid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.interp_from_grid</span></code></a>(src)</p></td>
+<td><p>Interpolate the solution from another grid onto this one.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.set_conserved_cart_unstr" title="ember.grid.Grid.set_conserved_cart_unstr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.set_conserved_cart_unstr</span></code></a>(xyz, ...)</p></td>
+<td><p>Set conserved variables from Cartesian unstructured data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.set_primitive_cart_unstr" title="ember.grid.Grid.set_primitive_cart_unstr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.set_primitive_cart_unstr</span></code></a>(xyz, ...)</p></td>
+<td><p>Set primitive variables from Cartesian unstructured data.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="time-marching">
+<h2>Time marching<a class="headerlink" href="#time-marching" title="Link to this heading">¶</a></h2>
+<p>Many of the grid methods, such as <a class="reference internal" href="#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.update_residual()</span></code></a> and
+<a class="reference internal" href="#ember.grid.Grid.apply_bconds" title="ember.grid.Grid.apply_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.apply_bconds()</span></code></a>, form the inner loop of a time-marching solver. They
+are documented in <a class="reference internal" href="solver.html#module-ember.solver" title="ember.solver"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.solver</span></code></a>, and should be used with care.</p>
+<p>During time marching,
+<a class="reference internal" href="#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.get_convergence()</span></code></a> returns a <a class="reference internal" href="#ember.grid.ConvergenceStep" title="ember.grid.ConvergenceStep"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConvergenceStep</span></code></a> of
+residual and station monitors for the current step, which
+<a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConvergenceHistory</span></code></a> accumulates into a time
+series. <a class="reference internal" href="#ember.grid.Grid.check_nan" title="ember.grid.Grid.check_nan"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.check_nan()</span></code></a> raises <a class="reference internal" href="#ember.grid.DivergenceError" title="ember.grid.DivergenceError"><code class="xref py py-class docutils literal notranslate"><span class="pre">DivergenceError</span></code></a> if the flow field
+has blown up.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.accumulate_avg" title="ember.grid.Grid.accumulate_avg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.accumulate_avg</span></code></a>(n_step_avg)</p></td>
+<td><p>Add the current conserved field into the running time-average.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.apply_bconds" title="ember.grid.Grid.apply_bconds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.apply_bconds</span></code></a>()</p></td>
+<td><p>Apply all boundary conditions across the grid once.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.calculate_wdist" title="ember.grid.Grid.calculate_wdist"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.calculate_wdist</span></code></a>([limit_pitch])</p></td>
+<td><p>This method creates a pitchwise-repeated grid to include neighboring passages, extracts all wall nodes from the repeated blocks, builds a KDTree for efficient nearest neighbor search, and calculates the distance from each node to the nearest wall surface.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.check_nan" title="ember.grid.Grid.check_nan"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.check_nan</span></code></a>()</p></td>
+<td><p>Scan every block's density field for NaN; report the first bad block.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.finalise_average" title="ember.grid.Grid.finalise_average"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.finalise_average</span></code></a>()</p></td>
+<td><p>Commit the accumulated time-average as the solution.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.get_convergence</span></code></a>()</p></td>
+<td><p>Grid-representative convergence monitors at one step, non-dimensional.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.smooth" title="ember.grid.Grid.smooth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.smooth</span></code></a>(sf4, sf2)</p></td>
+<td><p>Apply constant-coefficient artificial dissipation to every block.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_bconds" title="ember.grid.Grid.update_bconds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_bconds</span></code></a>([freeze, cfl])</p></td>
+<td><p>Refresh boundary-condition targets across the grid once.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.update_cached_conserved" title="ember.grid.Grid.update_cached_conserved"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_cached_conserved</span></code></a>()</p></td>
+<td><p>Refresh conserved-dependent caches on every block.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_filter" title="ember.grid.Grid.update_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_filter</span></code></a>(cfl, delta_filt)</p></td>
+<td><p>Evolve the SFD low-pass filter one step on every block.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_residual</span></code></a>([dampin, sf])</p></td>
+<td><p>Rebuild the unintegrated net-flow residual on every block.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_sources</span></code></a>(inviscid, gain_filt)</p></td>
+<td><p>Zero and rebuild the body force on every block of this grid level.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_timestep</span></code></a>(rf[, fac_visc])</p></td>
+<td><p>Recompute the volumetric time step on every block.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="metadata">
+<h2>Metadata<a class="headerlink" href="#metadata" title="Link to this heading">¶</a></h2>
+<p>Scalar properties of the grid as a whole, rather than per-node data: the
+working fluid, reference length, mean radius, and total node count.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.get_r_ref" title="ember.grid.Grid.get_r_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.get_r_ref</span></code></a>()</p></td>
+<td><p>Calculate reference radial coordinates for each row of blocks.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.set_fluid" title="ember.grid.Grid.set_fluid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.set_fluid</span></code></a>(fluid_obj)</p></td>
+<td><p>Set equation of state on all blocks, preserving any existing flow field.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.set_L_ref" title="ember.grid.Grid.set_L_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.set_L_ref</span></code></a>(L_ref)</p></td>
+<td><p>Set reference length scale on all blocks, preserving dimensional geometry and flow field.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.size" title="ember.grid.Grid.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.size</span></code></a></p></td>
+<td><p>Total number of grid points across all blocks.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.grid.Grid">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">grid.</span></span><span class="sig-name descname"><span class="pre">Grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">blocks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">_LabelledList</span></code></p>
+<p>Initialize grid with optional list of blocks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>blocks</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><em>list</em></a><em>, </em><em>optional</em>) – Initial list of blocks to add to the grid.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.read_emb">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">read_emb</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.read_emb"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.read_emb" title="Link to this definition">¶</a></dt>
+<dd><p>Read grid from EMB pickle file.</p>
+<p>Automatically detects and handles both uncompressed and gzip-compressed EMB files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Input EMB file to read</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>New grid containing all blocks, patches, flow data, and metadata from EMB file</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid">Grid</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#FileNotFoundError" title="(in Python v3.14)"><strong>FileNotFoundError</strong></a> – If file does not exist</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.read_plot3d">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">read_plot3d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">p3d_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fvbnd_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flip_k</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.read_plot3d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.read_plot3d" title="Link to this definition">¶</a></dt>
+<dd><p>Read grid from Plot3D format file with optional boundary patches.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>p3d_file</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Input Plot3D grid file to read</p></li>
+<li><p><strong>fvbnd_file</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Input FVBND boundary file to read patches from</p></li>
+<li><p><strong>flip_k</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Whether to flip the k-axis to match write_plot3d behavior (default True)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>New grid containing blocks with coordinates and optional patches from files</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.set_conserved_cart_unstr">
+<span class="sig-name descname"><span class="pre">set_conserved_cart_unstr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conserved_cart</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.set_conserved_cart_unstr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.set_conserved_cart_unstr" title="Link to this definition">¶</a></dt>
+<dd><p>Set conserved variables from Cartesian unstructured data.</p>
+<p>Useful for importing flow solutions from unstructured CFD solvers that
+store data on arbitrary point clouds in Cartesian coordinates.</p>
+<p>Automatically detects the coordinate permutation and sign mapping that
+aligns the Cartesian data with the structured grid, converts coordinates
+to polar, and transforms the momentum vector accordingly.</p>
+<p>The input conserved state vector is:</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{U}_{\mathrm{cart}} =
+\begin{pmatrix} \rho,\ \rho V_x,\ \rho V_y,\ \rho V_z,\ \rho e \end{pmatrix}\]</div>
+<p>The Cartesian momentum components are first converted to velocities,
+rotated into the polar frame <span class="math notranslate nohighlight">\((x, r, \theta)\)</span>, then reassembled
+as polar conserved variables:</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{U} =
+\begin{pmatrix} \rho,\ \rho V_x,\ \rho V_r,\ \rho r V_\theta,\ \rho e \end{pmatrix}\]</div>
+<p>where the polar velocity components are:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}V_r &amp;= V_y \cos\theta - V_z \sin\theta \\
+V_\theta &amp;= -V_y \sin\theta - V_z \cos\theta\end{split}\]</div>
+<p>with <span class="math notranslate nohighlight">\(\theta = \mathrm{atan2}(-z,\, y)\)</span>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The total energy <span class="math notranslate nohighlight">\(\rho e\)</span> is assumed to be measured from
+<em>this grid’s</em> thermodynamic datum. External solvers generally use
+their own, in which case passing their conserved variables here
+stores the energy on the wrong datum and silently corrupts
+temperature. Convert the foreign internal energy to pressure first
+and use <a class="reference internal" href="#ember.grid.Grid.set_primitive_cart_unstr" title="ember.grid.Grid.set_primitive_cart_unstr"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_primitive_cart_unstr()</span></code></a>, whose variables are all
+datum-free. See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates [x, y, z] with components on last axis</p></li>
+<li><p><strong>conserved_cart</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>5</em><em>)</em>) – Cartesian conserved flow variables [rho, rhoVx, rhoVy, rhoVz, rhoe] with components on last axis</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.set_fluid">
+<span class="sig-name descname"><span class="pre">set_fluid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fluid_obj</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.set_fluid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.set_fluid" title="Link to this definition">¶</a></dt>
+<dd><p>Set equation of state on all blocks, preserving any existing flow field.</p>
+<p>The fluid object specifies the reference scales used to normalise stored
+thermodynamic quantities. This method rescales the stored nondimensional
+flow field so that the underlying dimensional state is unchanged. See
+<a class="reference internal" href="block.html#ember.block.Block.set_fluid" title="ember.block.Block.set_fluid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.block.Block.set_fluid()</span></code></a> for full details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fluid_obj</strong> (<em>Fluid</em>) – New fluid / equation of state object.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.set_L_ref">
+<span class="sig-name descname"><span class="pre">set_L_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">L_ref</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.set_L_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.set_L_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Set reference length scale on all blocks, preserving dimensional geometry and flow field.</p>
+<p>The reference length scale is used to normalise stored coordinates. This
+method rescales the stored nondimensional values so that the underlying
+dimensional geometry and flow field are unchanged. See
+<a class="reference internal" href="block.html#ember.block.Block.set_L_ref" title="ember.block.Block.set_L_ref"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.block.Block.set_L_ref()</span></code></a> for full details of the
+nondimensionalisation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>L_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Reference length scale [m].</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.set_primitive_cart_unstr">
+<span class="sig-name descname"><span class="pre">set_primitive_cart_unstr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">primitive_cart</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.set_primitive_cart_unstr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.set_primitive_cart_unstr" title="Link to this definition">¶</a></dt>
+<dd><p>Set primitive variables from Cartesian unstructured data.</p>
+<p>Useful for importing flow solutions from unstructured CFD solvers that
+store data on arbitrary point clouds in Cartesian coordinates.</p>
+<p>Automatically detects the coordinate permutation and sign mapping that
+aligns the Cartesian data with the structured grid, converts coordinates
+to polar, and rotates the velocity vector accordingly.</p>
+<p>The input primitive state vector is:</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{P}_{\mathrm{cart}} =
+\begin{pmatrix} \rho,\ V_x,\ V_y,\ V_z,\ p \end{pmatrix}\]</div>
+<p>The Cartesian velocity components are rotated into the polar frame
+<span class="math notranslate nohighlight">\((x, r, \theta)\)</span> to give the polar primitive state:</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{P} =
+\begin{pmatrix} \rho,\ V_x,\ V_r,\ V_\theta,\ p \end{pmatrix}\]</div>
+<p>where:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}V_r &amp;= V_y \cos\theta - V_z \sin\theta \\
+V_\theta &amp;= -V_y \sin\theta - V_z \cos\theta\end{split}\]</div>
+<p>with <span class="math notranslate nohighlight">\(\theta = \mathrm{atan2}(-z,\, y)\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates [x, y, z] with components on last axis</p></li>
+<li><p><strong>primitive_cart</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>5</em><em>)</em>) – Cartesian primitive flow variables [rho, Vx, Vy, Vz, P] with components on last axis</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.get_convergence">
+<span class="sig-name descname"><span class="pre">get_convergence</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.get_convergence"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.get_convergence" title="Link to this definition">¶</a></dt>
+<dd><p>Grid-representative convergence monitors at one step, non-dimensional.</p>
+<p>Stations are taken from <a class="reference internal" href="#ember.grid.Grid.row_station_bid_pid" title="ember.grid.Grid.row_station_bid_pid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">row_station_bid_pid</span></code></a>, derived from the
+grid’s own topology.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Residual and station monitors for this step. See
+<a class="reference internal" href="#ember.grid.ConvergenceStep" title="ember.grid.ConvergenceStep"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConvergenceStep</span></code></a> for the meaning of each field.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#ember.grid.ConvergenceStep" title="ember.grid.ConvergenceStep">ConvergenceStep</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.get_r_ref">
+<span class="sig-name descname"><span class="pre">get_r_ref</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.get_r_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.get_r_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Calculate reference radial coordinates for each row of blocks.</p>
+<p>For each element in Grid.rows, calculates the maximum and minimum r
+coordinates across all blocks, then stores the mean value in Grid.r_ref
+as a numpy array with the same length as rows.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.accumulate_avg">
+<span class="sig-name descname"><span class="pre">accumulate_avg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_step_avg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.accumulate_avg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.accumulate_avg" title="Link to this definition">¶</a></dt>
+<dd><p>Add the current conserved field into the running time-average.</p>
+<p>Accumulates each block’s <code class="docutils literal notranslate"><span class="pre">conserved_nd</span> <span class="pre">/</span> <span class="pre">n_step_avg</span></code> into its
+<a class="reference internal" href="block.html#ember.block.Block.conserved_avg_nd" title="ember.block.Block.conserved_avg_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved_avg_nd</span></code></a> buffer via the Fortran kernel. Called
+once per step over the final <code class="docutils literal notranslate"><span class="pre">n_step_avg</span></code> steps of a march, this
+builds the mean of the converged limit cycle. The buffer is a read-only
+cached array, so its <code class="docutils literal notranslate"><span class="pre">flags.writeable</span></code> is toggled around the in-place
+kernel write (mirrors <a class="reference internal" href="#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_sources()</span></code></a>).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.align_cart_unstr">
+<span class="sig-name descname"><span class="pre">align_cart_unstr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.align_cart_unstr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.align_cart_unstr" title="Link to this definition">¶</a></dt>
+<dd><p>Map an unstructured Cartesian point cloud onto this grid’s nodes.</p>
+<p>Detects the coordinate permutation and sign flips that bring <code class="docutils literal notranslate"><span class="pre">xyz</span></code>
+into the grid’s own Cartesian frame, then locates each grid node within
+the cloud, returning the index correspondence between the two.</p>
+<p>This is the same alignment performed internally by
+<a class="reference internal" href="#ember.grid.Grid.set_conserved_cart_unstr" title="ember.grid.Grid.set_conserved_cart_unstr"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_conserved_cart_unstr()</span></code></a> and <a class="reference internal" href="#ember.grid.Grid.set_primitive_cart_unstr" title="ember.grid.Grid.set_primitive_cart_unstr"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_primitive_cart_unstr()</span></code></a>.
+It is exposed separately so that data can also be sent <em>out</em> to an
+unstructured solver on the same correspondence – for example
+scattering <a class="reference internal" href="block.html#ember.block.Block.wdist" title="ember.block.Block.wdist"><code class="xref py py-attr docutils literal notranslate"><span class="pre">wdist</span></code></a> into an external solver’s
+node array.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates <span class="math notranslate nohighlight">\((x, y, z)\)</span>, where <code class="docutils literal notranslate"><span class="pre">N</span></code> must equal
+<a class="reference internal" href="#ember.grid.Grid.size" title="ember.grid.Grid.size"><code class="xref py py-attr docutils literal notranslate"><span class="pre">size</span></code></a>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>perm</strong> (<em>tuple of int</em>) – Permutation mapping the input’s axes onto the grid’s.</p></li>
+<li><p><strong>signs</strong> (<em>tuple of int</em>) – Sign applied to each permuted axis, each <code class="docutils literal notranslate"><span class="pre">+1</span></code> or <code class="docutils literal notranslate"><span class="pre">-1</span></code>.</p></li>
+<li><p><strong>block_indices</strong> (<em>list of ndarray</em>) – One index array per block, of that block’s shape, giving the row of
+<code class="docutils literal notranslate"><span class="pre">xyz</span></code> that each node of the block corresponds to.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If no transformation aligns the cloud with the grid to tolerance.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Transfer a nodal field out to the unstructured ordering:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">perm</span><span class="p">,</span> <span class="n">signs</span><span class="p">,</span> <span class="n">block_indices</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">align_cart_unstr</span><span class="p">(</span><span class="n">xyz</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">block</span><span class="p">,</span> <span class="n">ind</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">block_indices</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">out</span><span class="p">[</span><span class="n">ind</span><span class="o">.</span><span class="n">flatten</span><span class="p">()]</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">wdist</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.apply_bconds">
+<span class="sig-name descname"><span class="pre">apply_bconds</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.apply_bconds"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.apply_bconds" title="Link to this definition">¶</a></dt>
+<dd><p>Apply all boundary conditions across the grid once.</p>
+<p>Imposes the physical inlet, outlet, and mixing patch conditions on
+every block, then averages the flow field across periodic boundaries.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.apply_guess_meridional">
+<span class="sig-name descname"><span class="pre">apply_guess_meridional</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block_guess</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refine_factor</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.apply_guess_meridional"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.apply_guess_meridional" title="Link to this definition">¶</a></dt>
+<dd><p>Apply a circumferentially uniform flow field guess.</p>
+<p>Uses a 1D meridional block as initial guess, interpolating flow
+properties to all blocks in the grid using nearest-neighbor search in
+the (x, r) meridional plane. Optionally refines the guess using
+curvilinear arc-length coordinates for improved interpolation quality.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block_guess</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – Block containing the 1D guess flow field with shape (ni,).
+Use block_guess.squeeze() first if your block has singleton dimensions.</p></li>
+<li><p><strong>refine_factor</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Refinement factor for the guess block (default=1, no refinement).
+If &gt; 1, the guess is interpolated along curvilinear arc length,
+providing a denser point cloud and smoother results.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If block_guess does not have shape (ni,)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.apply_guess_quasi3d">
+<span class="sig-name descname"><span class="pre">apply_guess_quasi3d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block_guess</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.apply_guess_quasi3d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.apply_guess_quasi3d" title="Link to this definition">¶</a></dt>
+<dd><p>Apply quasi-3D flow field guess by interpolating between two meridional planes.</p>
+<p>Uses two 2D meridional faces as boundary conditions on the low- and
+high-theta k-faces of each block, then linearly interpolates conserved
+variables across k as a function of the circumferential coordinate theta.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>block_guess</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>, </em><em>2</em><em>)</em>) – A single block whose k=0 face is the low-theta meridional plane and
+k=1 face is the high-theta meridional plane. i is streamwise, j is
+radial.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If block_guess does not have shape (ni, nj, 2).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.calculate_wdist">
+<span class="sig-name descname"><span class="pre">calculate_wdist</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">limit_pitch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.calculate_wdist"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.calculate_wdist" title="Link to this definition">¶</a></dt>
+<dd><p>This method creates a pitchwise-repeated grid to include neighboring passages,
+extracts all wall nodes from the repeated blocks, builds a KDTree for efficient
+nearest neighbor search, and calculates the distance from each node to the
+nearest wall surface.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>limit_pitch</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Cap the wall distance at <code class="docutils literal notranslate"><span class="pre">limit_pitch</span></code> times each row’s reference
+blade pitch (<code class="docutils literal notranslate"><span class="pre">2*pi*r_ref/Nb</span></code>). This bakes the mixing-length limit
+directly into the stored wall distance, so downstream turbulence
+models need no separate cap. Defaults to <code class="docutils literal notranslate"><span class="pre">np.inf</span></code> (no limit).</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">([</span><span class="n">block1</span><span class="p">,</span> <span class="n">block2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Wall distances are now available as block.wdist for each block</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.check_nan">
+<span class="sig-name descname"><span class="pre">check_nan</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.check_nan"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.check_nan" title="Link to this definition">¶</a></dt>
+<dd><p>Scan every block’s density field for NaN; report the first bad block.</p>
+<p>Cheap enough to call each solver step: only the density component
+<code class="docutils literal notranslate"><span class="pre">conserved_nd[...,</span> <span class="pre">0]</span></code> is inspected, since a NaN in any conserved
+variable propagates into density within a step through the
+pressure/flux coupling. On the duct smoke test this costs ~0.5% of a
+single full-field residual evaluation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.grid.DivergenceError" title="ember.grid.DivergenceError"><strong>DivergenceError</strong></a> – If any block contains a NaN. The message names the first such block
+    (index and label), the <code class="docutils literal notranslate"><span class="pre">(i,</span> <span class="pre">j,</span> <span class="pre">k)</span></code> node bounding box of the NaN
+    region, and which of the six boundary faces it touches – enough to
+    tell a boundary-seeded blow-up from an interior one. The grid is left
+    untouched so the invalid field can be inspected.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.copy">
+<span class="sig-name descname"><span class="pre">copy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">keep_patches</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.copy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.copy" title="Link to this definition">¶</a></dt>
+<dd><p>Create a deep copy of the grid with copied blocks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>New Grid instance containing copies of all blocks.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid">Grid</a></p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">grid_copy</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid_copy</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">conserved</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Does not affect original grid</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.finalise_average">
+<span class="sig-name descname"><span class="pre">finalise_average</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.finalise_average"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.finalise_average" title="Link to this definition">¶</a></dt>
+<dd><p>Commit the accumulated time-average as the solution.</p>
+<p>Copies each block’s <a class="reference internal" href="block.html#ember.block.Block.conserved_avg_nd" title="ember.block.Block.conserved_avg_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved_avg_nd</span></code></a> into <a class="reference internal" href="block.html#ember.block.Block.conserved_nd" title="ember.block.Block.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved_nd</span></code></a>,
+refreshes the conserved-dependent caches, then re-zeros the accumulator
+so any subsequent averaging window starts clean.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.interp_from_arrays">
+<span class="sig-name descname"><span class="pre">interp_from_arrays</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">arrays</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.interp_from_arrays"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.interp_from_arrays" title="Link to this definition">¶</a></dt>
+<dd><p>Interpolate a flow field onto this grid from plain arrays.</p>
+<p>For a field that arrives without a mesh around it – read back from a
+file, say. Nothing is materialised on the source side, and with no
+patch layout to align to the mapping simply runs end to end in index
+space.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>arrays</strong> (<em>sequence</em>) – One entry per block, each a sequence of arrays matching
+<a class="reference internal" href="block_util.html#ember.block_util.STATE" title="ember.block_util.STATE"><code class="xref py py-data docutils literal notranslate"><span class="pre">ember.block_util.STATE</span></code></a>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.interp_from_grid">
+<span class="sig-name descname"><span class="pre">interp_from_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.interp_from_grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.interp_from_grid" title="Link to this definition">¶</a></dt>
+<dd><p>Interpolate the solution from another grid onto this one.</p>
+<p>Assumes the source grid has the same block topology as this one, but
+possibly a different resolution. Each block is interpolated in index
+space, which is exact for linear functions on a uniform grid only, and
+which holds patch boundaries where they started.</p>
+<p>The state is transferred as pressure, temperature and velocity, so the
+two grids may carry different fluids – different reference scales, and
+different entropy and energy datums – with no conversion needed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>src</strong> (<a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – Source Grid providing the solution.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.resample">
+<span class="sig-name descname"><span class="pre">resample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">factors</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.resample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.resample" title="Link to this definition">¶</a></dt>
+<dd><p>Resample all blocks, returning a new Grid at the new resolution.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.smooth">
+<span class="sig-name descname"><span class="pre">smooth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sf4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.smooth"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.smooth" title="Link to this definition">¶</a></dt>
+<dd><p>Apply constant-coefficient artificial dissipation to every block.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.update_bconds">
+<span class="sig-name descname"><span class="pre">update_bconds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">freeze</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_bconds"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_bconds" title="Link to this definition">¶</a></dt>
+<dd><p>Refresh boundary-condition targets across the grid once.</p>
+<p>Advances the slowly-varying BC state that the per-substep
+<a class="reference internal" href="#ember.grid.Grid.apply_bconds" title="ember.grid.Grid.apply_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply_bconds()</span></code></a> then imposes: exchanges mixing-plane data,
+snapshots the inlet pressure datum, and re-derives the outlet
+throttle/spanwise pressure target. Should be called once per outer
+timestep, before the Runge-Kutta stages.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">freeze</span></code> is True the targets are held stationary – the mixing
+exchange and the outlet target re-derivation are skipped – so an
+averaging window sees a fixed boundary. The <code class="docutils literal notranslate"><span class="pre">update_soln</span></code> snapshots
+still run so backflow density relaxation stays anchored to the current
+step.</p>
+<p><code class="docutils literal notranslate"><span class="pre">cfl</span></code> is handed straight to
+<a class="reference internal" href="patch.html#ember.patch.OutletPatch.update_target" title="ember.patch.OutletPatch.update_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.patch.OutletPatch.update_target()</span></code></a>, which weights a mass
+flow throttle’s integral by it so one gain holds across a CFL sweep. It
+is passed per call rather than held on the patch so that it is always
+the number the march is running at; the default of 1 integrates per
+call, for a grid stepped by hand.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.update_cached_conserved">
+<span class="sig-name descname"><span class="pre">update_cached_conserved</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_cached_conserved"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_cached_conserved" title="Link to this definition">¶</a></dt>
+<dd><p>Refresh conserved-dependent caches on every block.</p>
+<p>Fans <a class="reference internal" href="block.html#ember.block.Block.update_cached_conserved" title="ember.block.Block.update_cached_conserved"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_cached_conserved()</span></code></a> out across the grid, forcing
+each block’s cached properties keyed on the conserved variables to
+recompute on next access. Needed after writing <code class="docutils literal notranslate"><span class="pre">conserved_nd</span></code> directly
+(bypassing the setters), e.g. the explicit time march.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.update_filter">
+<span class="sig-name descname"><span class="pre">update_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfl</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta_filt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_filter" title="Link to this definition">¶</a></dt>
+<dd><p>Evolve the SFD low-pass filter one step on every block.</p>
+<p>First-order exponential moving average of each block’s cell-centred
+conserved state toward its current cell state, with per-cell timestep
+<code class="docutils literal notranslate"><span class="pre">dt</span> <span class="pre">=</span> <span class="pre">cfl</span> <span class="pre">*</span> <span class="pre">dt_vol</span> <span class="pre">*</span> <span class="pre">vol</span></code>. <code class="docutils literal notranslate"><span class="pre">cfl</span></code> may be a per-cell/per-equation
+array of shape <code class="docutils literal notranslate"><span class="pre">(ni-1,</span> <span class="pre">nj-1,</span> <span class="pre">nk-1,</span> <span class="pre">5)</span></code> or a single scalar; the rank
+selects the matching kernel. <code class="docutils literal notranslate"><span class="pre">delta_filt</span></code> is the filter time constant.</p>
+<p>Must run after the CFL and <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> for the step are current. This is
+the only writer of the read-only <code class="docutils literal notranslate"><span class="pre">conserved_filt_nd</span></code> buffer, so it
+owns the <code class="docutils literal notranslate"><span class="pre">flags.writeable</span></code> toggle (mirrors the timestep writers).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.update_residual">
+<span class="sig-name descname"><span class="pre">update_residual</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dampin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_residual"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_residual" title="Link to this definition">¶</a></dt>
+<dd><p>Rebuild the unintegrated net-flow residual on every block.</p>
+<p>Fans the fused <code class="docutils literal notranslate"><span class="pre">set_residual</span></code> kernel across the grid, writing each
+block’s <code class="docutils literal notranslate"><span class="pre">residual_nd</span></code> from its frozen P/T cache, face areas, and body
+force. Purely per-block (no inter-block exchange), so it simply loops.</p>
+<p>Optional post-processing runs in place on each block’s residual, in
+order: implicit residual smoothing (<code class="docutils literal notranslate"><span class="pre">sf</span></code>), then the change limiter
+(<code class="docutils literal notranslate"><span class="pre">dampin</span></code>).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Between commits 0384c83 and 495b415, this ran the limiter before
+the smoother instead (folded into <code class="docutils literal notranslate"><span class="pre">set_residual</span></code>/the IRS
+i-solve, for a fusion win). That reordering was a genuine
+numerics change – IRS is linear and the limiter is nonlinear in
+a global block mean, so the composed operator differs: at
+<code class="docutils literal notranslate"><span class="pre">sf=1.0,</span> <span class="pre">dampin=25</span></code> the two orderings differ by ~19% of the
+field scale, growing with <code class="docutils literal notranslate"><span class="pre">sf</span></code>. This restores the original
+smooth-then-damp order by calling the same kernels unfused
+(<code class="docutils literal notranslate"><span class="pre">set_residual</span></code>/<code class="docutils literal notranslate"><span class="pre">smooth_residual_scale_tri</span></code> with
+<code class="docutils literal notranslate"><span class="pre">dampin=0</span></code>, then <code class="docutils literal notranslate"><span class="pre">damp_residual</span></code> as a separate pass), which
+gives back the fusion’s performance win (-6% serial / -11% at
+100-rank saturation / -5% on set_residual + IRS) in exchange for
+the original ordering. See git history for the fused version if
+that trade is ever worth revisiting.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dampin</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Negative-feedback change limiter (multall’s <code class="docutils literal notranslate"><span class="pre">DAMP</span></code>). When given,
+each block’s residual is passed through <code class="docutils literal notranslate"><span class="pre">damp_residual</span></code>, which
+soft-clips cells whose per-step change <code class="docutils literal notranslate"><span class="pre">residual</span> <span class="pre">*</span> <span class="pre">dt_vol</span></code> is a
+large outlier relative to the per-variable block mean, shrinking
+them by <code class="docutils literal notranslate"><span class="pre">1/(1</span> <span class="pre">+</span> <span class="pre">fdamp/dampin)</span></code> with <code class="docutils literal notranslate"><span class="pre">fdamp</span> <span class="pre">=</span> <span class="pre">|change|/mean</span></code>.
+Large outliers saturate towards <code class="docutils literal notranslate"><span class="pre">dampin</span> <span class="pre">*</span> <span class="pre">mean</span></code>. <code class="docutils literal notranslate"><span class="pre">None</span></code> (the
+default) disables it. multall recommends <code class="docutils literal notranslate"><span class="pre">2..100</span></code>. Requires
+<code class="docutils literal notranslate"><span class="pre">dt_vol_nd</span></code> to have been populated by <a class="reference internal" href="#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_timestep()</span></code></a>.</p></li>
+<li><p><strong>sf</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Implicit residual-smoothing (IRS) coefficient (epsilon). <code class="docutils literal notranslate"><span class="pre">0</span></code> (the
+default) disables IRS; <code class="docutils literal notranslate"><span class="pre">&gt;</span> <span class="pre">0</span></code> applies the exact factored-tridiagonal
+smoother to each block via <code class="docutils literal notranslate"><span class="pre">smooth_residual_tri_tiled</span></code>. IRS damps
+high-frequency residual content so the explicit march tolerates a
+higher CFL; because it acts only on the residual (which vanishes at
+convergence) it does not change the steady-state solution. Per-block
+only: block/periodic interfaces are treated as zero-gradient. Borrows
+<code class="docutils literal notranslate"><span class="pre">block.scratch</span></code> as its work buffer – free at this point, since
+<code class="docutils literal notranslate"><span class="pre">set_residual</span></code> stages its face flows in <code class="docutils literal notranslate"><span class="pre">tau_q_halo</span></code> and the
+march reuses <code class="docutils literal notranslate"><span class="pre">scratch</span></code> only afterwards.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.update_sources">
+<span class="sig-name descname"><span class="pre">update_sources</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inviscid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gain_filt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_sources"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_sources" title="Link to this definition">¶</a></dt>
+<dd><p>Zero and rebuild the body force on every block of this grid level.</p>
+<p>Assembles, into each <code class="docutils literal notranslate"><span class="pre">block.F_body_nd</span></code>, the viscous shear stresses
+(unless <code class="docutils literal notranslate"><span class="pre">inviscid</span></code>), the polar source, and the optional SFD force
+(when <code class="docutils literal notranslate"><span class="pre">gain_filt</span></code> is nonzero) – in that order, so the viscous
+momentum/energy negation does not flip the polar source added
+afterwards.</p>
+<p>The viscous calculation is phased across the whole grid: every block’s
+tau/q is computed first, then a single periodic seam halo exchange runs,
+then the face fluxes are accumulated. This keeps the seam consistent for
+block-to-block periodic interfaces, where a per-block exchange would read
+a stale neighbour halo.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inviscid</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – Skip the viscous shear-stress/heat-flux terms when True.</p></li>
+<li><p><strong>gain_filt</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Selective-frequency-damping gain; the SFD force is added only when
+nonzero.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.update_timestep">
+<span class="sig-name descname"><span class="pre">update_timestep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_visc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_timestep"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_timestep" title="Link to this definition">¶</a></dt>
+<dd><p>Recompute the volumetric time step on every block.</p>
+<p>Uses a max-of-directional-radii variant of the JST/Blazek definition
+<code class="docutils literal notranslate"><span class="pre">dt_vol</span> <span class="pre">=</span> <span class="pre">1</span> <span class="pre">/</span> <span class="pre">max(lam_conv,</span> <span class="pre">lam_diff)</span></code>, where <code class="docutils literal notranslate"><span class="pre">lam_conv</span></code> is the
+largest of the convective spectral radii
+<code class="docutils literal notranslate"><span class="pre">Lambda_d</span> <span class="pre">=</span> <span class="pre">|V_rel</span> <span class="pre">.</span> <span class="pre">dA_d|</span> <span class="pre">+</span> <span class="pre">a*||dA_d||</span></code> over the three directions and
+<code class="docutils literal notranslate"><span class="pre">lam_diff</span> <span class="pre">=</span> <span class="pre">fac_visc</span> <span class="pre">*</span> <span class="pre">(mu_turb/rho)*max_d||dA_d||^2/vol</span></code> is the
+turbulent-diffusion radius over the same faces
+(<code class="xref py py-func docutils literal notranslate"><span class="pre">set_timestep_spectral()</span></code>). Taking the max of the directional radii
+(rather than Blazek’s sum) makes the CFL number the true 1D Courant limit
+(~``2*sqrt(2)`` for the 4-stage RK march) while staying
+aspect-ratio-independent for the viscous limit too.</p>
+<p><code class="docutils literal notranslate"><span class="pre">rf</span></code> is the relaxation factor blending the new <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> with the
+existing buffer as <code class="docutils literal notranslate"><span class="pre">rf*new</span> <span class="pre">+</span> <span class="pre">(1-rf)*old</span></code> (pass <code class="docutils literal notranslate"><span class="pre">rf=1.0</span></code> for a fresh
+recompute). This is the lone writer of each block’s read-only
+<code class="docutils literal notranslate"><span class="pre">dt_vol_nd</span></code> buffer, so it owns the <code class="docutils literal notranslate"><span class="pre">flags.writeable</span></code> toggle.</p>
+<p><code class="docutils literal notranslate"><span class="pre">fac_visc</span></code> (&gt;= 1) multiplies the diffusion radius so the viscous march
+tolerates the same cfl as the inviscid one; <code class="docutils literal notranslate"><span class="pre">1.0</span></code> leaves the bare
+directional radius untouched.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.write_emb">
+<span class="sig-name descname"><span class="pre">write_emb</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.write_emb"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.write_emb" title="Link to this definition">¶</a></dt>
+<dd><p>Write grid to EMB binary format file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Output filename for EMB file</p></li>
+<li><p><strong>compress</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, compress the file using gzip (default False)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If grid is empty (contains no blocks)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.write_fvbnd">
+<span class="sig-name descname"><span class="pre">write_fvbnd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">region_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.write_fvbnd"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.write_fvbnd" title="Link to this definition">¶</a></dt>
+<dd><p>Write boundary conditions in FieldView boundary (.fvbnd) format.</p>
+<p>The FVBND format is used by FieldView to specify boundary regions for
+visualization purposes. See FieldView Reference Manual page 520.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Output filename for FieldView boundary file</p></li>
+<li><p><strong>region_id</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Region identifier for labeling patches (default 0)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If grid is empty (contains no blocks)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.write_plot3d">
+<span class="sig-name descname"><span class="pre">write_plot3d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">p3d_filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fvbnd_filename</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flip_k</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iregion</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.write_plot3d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.write_plot3d" title="Link to this definition">¶</a></dt>
+<dd><p>Write grid to Plot3D format with optional FVBND boundary file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>p3d_filename</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Output filename for Plot3D grid file</p></li>
+<li><p><strong>fvbnd_filename</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Output filename for FVBND boundary file. If None, no boundary file is written</p></li>
+<li><p><strong>flip_k</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Whether to flip the k-axis for proper volume orientation in Pointwise (default True)</p></li>
+<li><p><strong>iregion</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Region number for labeling in FVBND file (default 0)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If grid is empty (contains no blocks)</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.Grid.connectivity">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">connectivity</span></span><a class="headerlink" href="#ember.grid.Grid.connectivity" title="Link to this definition">¶</a></dt>
+<dd><p>Get the cached connectivity manager for this grid.</p>
+<p>The manager is built once and cached on the grid, so the pairings and
+communicators it owns are computed lazily and reused. Call
+<code class="docutils literal notranslate"><span class="pre">grid.connectivity.clear()</span></code> to invalidate the cache after changing the
+grid topology (adding/removing blocks or patches).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Connectivity manager providing access to patch connections
+via patch-type-specific properties and methods.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#ember.grid.GridConnectivityManager" title="ember.grid.GridConnectivityManager">GridConnectivityManager</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.Grid.n_row">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">n_row</span></span><a class="headerlink" href="#ember.grid.Grid.n_row" title="Link to this definition">¶</a></dt>
+<dd><p>Get the number of blade rows in the grid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Number of blade rows (groups of blocks connected by periodic patches).</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">([</span><span class="n">block1</span><span class="p">,</span> <span class="n">block2</span><span class="p">])</span>  <span class="c1"># Single row</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span><span class="o">.</span><span class="n">n_row</span>  <span class="c1"># Returns 1</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid_multi</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">([</span><span class="n">stator_block</span><span class="p">,</span> <span class="n">rotor_block</span><span class="p">])</span>  <span class="c1"># Two rows</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid_multi</span><span class="o">.</span><span class="n">n_row</span>  <span class="c1"># Returns 2</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.Grid.patches">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">patches</span></span><a class="headerlink" href="#ember.grid.Grid.patches" title="Link to this definition">¶</a></dt>
+<dd><p>Get read-only view of all patches across all blocks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Read-only collection providing access to all patches from all blocks
+with patch type filtering (periodic, mixing, inlet, outlet, wall).</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="patch.html#ember.patch.GridPatchCollection" title="ember.patch.GridPatchCollection">GridPatchCollection</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.Grid.row_station_bid_pid">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">row_station_bid_pid</span></span><a class="headerlink" href="#ember.grid.Grid.row_station_bid_pid" title="Link to this definition">¶</a></dt>
+<dd><p>Per-row upstream/downstream measurement-station patch identifiers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">[(up_idx,</span> <span class="pre">dn_idx),</span> <span class="pre">...]</span></code>, one pair per blade row ordered inlet to
+outlet. Each entry is a list of <code class="docutils literal notranslate"><span class="pre">(bid,</span> <span class="pre">pid)</span></code> patch identifiers: the
+row’s upstream face (inlet for the first row, otherwise mixing) then
+its downstream face (outlet for the last row, otherwise mixing).
+Consumed by <a class="reference internal" href="#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_convergence()</span></code></a> and
+<a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory.from_grid" title="ember.convergence_history.ConvergenceHistory.from_grid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.convergence_history.ConvergenceHistory.from_grid()</span></code></a>.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a> of (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a> of (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a>), <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a> of (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a>))</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.Grid.rows">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rows</span></span><a class="headerlink" href="#ember.grid.Grid.rows" title="Link to this definition">¶</a></dt>
+<dd><p>Get blade rows by grouping blocks connected by periodic patches.</p>
+<p>Blocks connected by periodic patches are in the same blade row.
+Multiple rows are separated by mixing patches. Rows are ordered
+from inlet to outlet based on mixing patch connectivity.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List of blade rows, where each row is a list of Block objects.
+Blocks within a row are connected by periodic patches.
+Rows are ordered from inlet (upstream) to outlet (downstream).</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>List[List[<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a>]]</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Single-row grid</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">([</span><span class="n">block1</span><span class="p">,</span> <span class="n">block2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rows</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">rows</span>  <span class="c1"># Returns [[block1, block2]]</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Multi-row grid with mixing patches</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">([</span><span class="n">stator_blocks</span><span class="p">,</span> <span class="n">rotor_blocks</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rows</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">rows</span>  <span class="c1"># Returns [[stator_blocks...], [rotor_blocks...]]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.Grid.size">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">size</span></span><a class="headerlink" href="#ember.grid.Grid.size" title="Link to this definition">¶</a></dt>
+<dd><p>Total number of grid points across all blocks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Sum of all block sizes in the grid</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.append">
+<span class="sig-name descname"><span class="pre">append</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.grid.Grid.append" title="Link to this definition">¶</a></dt>
+<dd><p>Add item to collection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>item</strong> (<em>Any</em>) – Item to add to the collection. The item manages its own label.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If item’s label already exists in the collection.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.clear">
+<span class="sig-name descname"><span class="pre">clear</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ember.grid.Grid.clear" title="Link to this definition">¶</a></dt>
+<dd><p>Remove all items from collection.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.extend">
+<span class="sig-name descname"><span class="pre">extend</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">items</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.grid.Grid.extend" title="Link to this definition">¶</a></dt>
+<dd><p>Add multiple items to collection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>items</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><em>list</em></a>) – List of items to add. Each item manages its own label.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If any item’s label already exists in the collection.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.index">
+<span class="sig-name descname"><span class="pre">index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.grid.Grid.index" title="Link to this definition">¶</a></dt>
+<dd><p>Return index of first occurrence of item.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>item</strong> (<em>Any</em>) – Item to find.</p></li>
+<li><p><strong>start</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Start index for search.</p></li>
+<li><p><strong>stop</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Stop index for search.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Index of the item.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.insert">
+<span class="sig-name descname"><span class="pre">insert</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">item</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.grid.Grid.insert" title="Link to this definition">¶</a></dt>
+<dd><p>Insert item at specific index.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>index</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Index at which to insert the item.</p></li>
+<li><p><strong>item</strong> (<em>Any</em>) – Item to insert. The item manages its own label.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.Grid.labels">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">labels</span></span><a class="headerlink" href="#ember.grid.Grid.labels" title="Link to this definition">¶</a></dt>
+<dd><p>List of item labels, in order, including <code class="docutils literal notranslate"><span class="pre">None</span></code> for unlabelled items.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The <code class="docutils literal notranslate"><span class="pre">label</span></code> of each item in the collection. Entries are <code class="docutils literal notranslate"><span class="pre">None</span></code>
+where an item has no label.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.pop">
+<span class="sig-name descname"><span class="pre">pop</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.grid.Grid.pop" title="Link to this definition">¶</a></dt>
+<dd><p>Remove and return item at index (default last).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>index</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Index of item to remove and return. Default is -1 (last item).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The removed item.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Any</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.Grid.remove">
+<span class="sig-name descname"><span class="pre">remove</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.grid.Grid.remove" title="Link to this definition">¶</a></dt>
+<dd><p>Remove first occurrence of item.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>item</strong> (<em>Any</em>) – Item to remove.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivity">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">grid.</span></span><span class="sig-name descname"><span class="pre">GridConnectivity</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">patch_class</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#GridConnectivity"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.GridConnectivity" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Initialize connectivity manager for a specific patch type.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>grid</strong> (<a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – The grid containing blocks with patches to analyze for connectivity</p></li>
+<li><p><strong>patch_class</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.14)"><em>type</em></a>) – Subclass of Patch to filter and operate on</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivity.apply">
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#GridConnectivity.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.GridConnectivity.apply" title="Link to this definition">¶</a></dt>
+<dd><p>Apply the communicator’s averaging (periodic and non-matching patches).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivity.clear">
+<span class="sig-name descname"><span class="pre">clear</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#GridConnectivity.clear"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.GridConnectivity.clear" title="Link to this definition">¶</a></dt>
+<dd><p>Drop cached pairings and communicator so they rebuild on next use.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivity.exchange">
+<span class="sig-name descname"><span class="pre">exchange</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#GridConnectivity.exchange"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.GridConnectivity.exchange" title="Link to this definition">¶</a></dt>
+<dd><p>Exchange in/out flux state across mixing-plane patches.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivity.exchange_halos">
+<span class="sig-name descname"><span class="pre">exchange_halos</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#GridConnectivity.exchange_halos"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.GridConnectivity.exchange_halos" title="Link to this definition">¶</a></dt>
+<dd><p>Exchange halo data across periodic patches.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivity.pair">
+<span class="sig-name descname"><span class="pre">pair</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rtol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#GridConnectivity.pair"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.GridConnectivity.pair" title="Link to this definition">¶</a></dt>
+<dd><p>Pair patches of the specified type, caching the result.</p>
+<p>Filters patches to only include instances of self.patch_class, then uses
+spatial proximity (KDTree in x,r coordinates) to find potential matches
+and delegates to each patch’s check_match method for validation. The
+result is cached; call <a class="reference internal" href="#ember.grid.GridConnectivity.clear" title="ember.grid.GridConnectivity.clear"><code class="xref py py-meth docutils literal notranslate"><span class="pre">clear()</span></code></a> to recompute after topology changes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rtol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Relative tolerance for matching (passed to patch check_match methods)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dictionary where keys are (bid, pid) tuples and values are
+((matching_bid, matching_pid), transform) tuples. Both patches
+in each pair are included as separate keys.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If any patch does not have a matching pair</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivityManager">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">grid.</span></span><span class="sig-name descname"><span class="pre">GridConnectivityManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#GridConnectivityManager"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.GridConnectivityManager" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Initialize connectivity manager for a grid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>grid</strong> (<a class="reference internal" href="#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – The grid containing blocks with patches</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivityManager.clear">
+<span class="sig-name descname"><span class="pre">clear</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#GridConnectivityManager.clear"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.GridConnectivityManager.clear" title="Link to this definition">¶</a></dt>
+<dd><p>Drop all cached pairings and communicators across every patch type.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivityManager.pair">
+<span class="sig-name descname"><span class="pre">pair</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rtol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#GridConnectivityManager.pair"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.GridConnectivityManager.pair" title="Link to this definition">¶</a></dt>
+<dd><p>Pair all patch types and return combined connectivity dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rtol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Relative tolerance for matching (passed to patch check_match methods)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Combined dictionary where keys are (bid, pid) tuples and values are
+((matching_bid, matching_pid), transform) tuples for all patch types.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivityManager.cusp">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">cusp</span></span><a class="headerlink" href="#ember.grid.GridConnectivityManager.cusp" title="Link to this definition">¶</a></dt>
+<dd><p>Get connectivity manager for cusp patches.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivityManager.mixing">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mixing</span></span><a class="headerlink" href="#ember.grid.GridConnectivityManager.mixing" title="Link to this definition">¶</a></dt>
+<dd><p>Get connectivity manager for mixing patches.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivityManager.nonmatch">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">nonmatch</span></span><a class="headerlink" href="#ember.grid.GridConnectivityManager.nonmatch" title="Link to this definition">¶</a></dt>
+<dd><p>Get connectivity manager for non-matching patches.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.grid.GridConnectivityManager.periodic">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">periodic</span></span><a class="headerlink" href="#ember.grid.GridConnectivityManager.periodic" title="Link to this definition">¶</a></dt>
+<dd><p>Get connectivity manager for periodic patches.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">grid.</span></span><span class="sig-name descname"><span class="pre">ConvergenceStep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residual</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mdot</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mdot_target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mdot_throttle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">P_throttle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_P</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_I</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_D</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#ConvergenceStep"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.ConvergenceStep" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Grid-wide convergence monitors at a single time step, non-dimensional.</p>
+<p>Produced by <a class="reference internal" href="#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.get_convergence()</span></code></a> and consumed by
+<a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory.record_convergence" title="ember.convergence_history.ConvergenceHistory.record_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.convergence_history.ConvergenceHistory.record_convergence()</span></code></a>,
+which unpacks the station vectors into one scalar column per station.</p>
+<p>Station vectors are ordered inlet to outlet, each blade row contributing
+its upstream then downstream face
+(<code class="docutils literal notranslate"><span class="pre">[row0_up,</span> <span class="pre">row0_dn,</span> <span class="pre">row1_up,</span> <span class="pre">row1_dn,</span> <span class="pre">...]</span></code>), so they have length
+<code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">n_row</span></code>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.residual">
+<span class="sig-name descname"><span class="pre">residual</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">ndarray</span></a></span><a class="headerlink" href="#ember.grid.ConvergenceStep.residual" title="Link to this definition">¶</a></dt>
+<dd><p>Block-mean <code class="docutils literal notranslate"><span class="pre">|residual_nd|</span></code> per conserved variable, shape <code class="docutils literal notranslate"><span class="pre">(5,)</span></code>,
+ordered <code class="docutils literal notranslate"><span class="pre">(rho,</span> <span class="pre">rhoVx,</span> <span class="pre">rhoVr,</span> <span class="pre">rhorVt,</span> <span class="pre">rhoe)</span></code>. The <code class="docutils literal notranslate"><span class="pre">rhorVt</span></code> entry is
+divided per block by <code class="docutils literal notranslate"><span class="pre">block.r_mid_nd</span></code> so its magnitude is comparable to
+the <code class="docutils literal notranslate"><span class="pre">rhoVx</span></code>/<code class="docutils literal notranslate"><span class="pre">rhoVr</span></code> residuals; this rescaling is for monitoring only.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.mdot">
+<span class="sig-name descname"><span class="pre">mdot</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">ndarray</span></a></span><a class="headerlink" href="#ember.grid.ConvergenceStep.mdot" title="Link to this definition">¶</a></dt>
+<dd><p>Station mass flow rates, shape <code class="docutils literal notranslate"><span class="pre">(2</span> <span class="pre">*</span> <span class="pre">n_row,)</span></code>, non-dimensionalised by
+the fluid mass-flux scale.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.ho">
+<span class="sig-name descname"><span class="pre">ho</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">ndarray</span></a></span><a class="headerlink" href="#ember.grid.ConvergenceStep.ho" title="Link to this definition">¶</a></dt>
+<dd><p>Station stagnation enthalpies, shape <code class="docutils literal notranslate"><span class="pre">(2</span> <span class="pre">*</span> <span class="pre">n_row,)</span></code>,
+non-dimensionalised by <code class="docutils literal notranslate"><span class="pre">u_ref</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.s">
+<span class="sig-name descname"><span class="pre">s</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">ndarray</span></a></span><a class="headerlink" href="#ember.grid.ConvergenceStep.s" title="Link to this definition">¶</a></dt>
+<dd><p>Station specific entropies, shape <code class="docutils literal notranslate"><span class="pre">(2</span> <span class="pre">*</span> <span class="pre">n_row,)</span></code>,
+non-dimensionalised by <code class="docutils literal notranslate"><span class="pre">Rgas_ref</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.mdot_target">
+<span class="sig-name descname"><span class="pre">mdot_target</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.mdot_target" title="Link to this definition">¶</a></dt>
+<dd><p>Outlet throttle mass flow setpoint [kg/s]; zero when no outlet is
+throttled. Per passage, not per annulus, unlike <a class="reference internal" href="#ember.grid.ConvergenceStep.mdot" title="ember.grid.ConvergenceStep.mdot"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mdot</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.mdot_throttle">
+<span class="sig-name descname"><span class="pre">mdot_throttle</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.mdot_throttle" title="Link to this definition">¶</a></dt>
+<dd><p>Mass flow measured at the outlet patch on its last target update [kg/s].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.P_throttle">
+<span class="sig-name descname"><span class="pre">P_throttle</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.P_throttle" title="Link to this definition">¶</a></dt>
+<dd><p>Total throttle pressure correction applied at the outlet [Pa].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.dP_P">
+<span class="sig-name descname"><span class="pre">dP_P</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.dP_P" title="Link to this definition">¶</a></dt>
+<dd><p>Proportional contribution to <a class="reference internal" href="#ember.grid.ConvergenceStep.P_throttle" title="ember.grid.ConvergenceStep.P_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_throttle</span></code></a> [Pa].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.dP_I">
+<span class="sig-name descname"><span class="pre">dP_I</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.dP_I" title="Link to this definition">¶</a></dt>
+<dd><p>Integral contribution to <a class="reference internal" href="#ember.grid.ConvergenceStep.P_throttle" title="ember.grid.ConvergenceStep.P_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_throttle</span></code></a> [Pa].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.dP_D">
+<span class="sig-name descname"><span class="pre">dP_D</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.dP_D" title="Link to this definition">¶</a></dt>
+<dd><p>the
+throttle is a PI controller. The column is retained so the pickled
+ConvergenceHistory (.cnv) layout reads in both directions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Derivative contribution to <a class="reference internal" href="#ember.grid.ConvergenceStep.P_throttle" title="ember.grid.ConvergenceStep.P_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_throttle</span></code></a> [Pa]. Always zero</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="ember.grid.DivergenceError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">grid.</span></span><span class="sig-name descname"><span class="pre">DivergenceError</span></span><a class="reference internal" href="../_modules/ember/grid.html#DivergenceError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.DivergenceError" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code></a></p>
+<p>Raised when a block’s conserved field contains a NaN.</p>
+<p>A dedicated type lets a solver loop catch divergence precisely and exit
+cleanly (leaving the invalid field in place for debugging) while genuinely
+unexpected errors still propagate. See <a class="reference internal" href="#ember.grid.Grid.check_nan" title="ember.grid.Grid.check_nan"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.check_nan()</span></code></a>.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.DivergenceError.add_note">
+<span class="sig-name descname"><span class="pre">add_note</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">object</span></span></em>, <em class="sig-param"><span class="positional-only-separator o"><abbr title="Positional-only parameter separator (PEP 570)"><span class="pre">/</span></abbr></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.grid.DivergenceError.add_note" title="Link to this definition">¶</a></dt>
+<dd><p>Exception.add_note(note) –
+add a note to the exception</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.grid.DivergenceError.args">
+<span class="sig-name descname"><span class="pre">args</span></span><a class="headerlink" href="#ember.grid.DivergenceError.args" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.grid.DivergenceError.with_traceback">
+<span class="sig-name descname"><span class="pre">with_traceback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">object</span></span></em>, <em class="sig-param"><span class="positional-only-separator o"><abbr title="Positional-only parameter separator (PEP 570)"><span class="pre">/</span></abbr></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.grid.DivergenceError.with_traceback" title="Link to this definition">¶</a></dt>
+<dd><p>Exception.with_traceback(tb) –
+set self.__traceback__ to tb and return self.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/grid.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

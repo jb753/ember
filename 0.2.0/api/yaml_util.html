@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>YAML utilities &#8212; ember 0.2.1.dev0+g30aaa8e8c.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=4049e73d"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Cases" href="cases.html" />
+    <link rel="prev" title="Array utilities" href="util.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev0+g30aaa8e8c.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.2.0";
+    var page = "api/yaml_util.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">YAML utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#ember.yaml_util.read_yaml"><code class="docutils literal notranslate"><span class="pre">yaml_util.read_yaml()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.yaml_util.write_yaml"><code class="docutils literal notranslate"><span class="pre">yaml_util.write_yaml()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="util.html" title="previous chapter">Array utilities</a></li>
+      <li>Next: <a href="cases.html" title="next chapter">Cases</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.yaml_util">
+<span id="yaml-utilities"></span><h1>YAML utilities<a class="headerlink" href="#module-ember.yaml_util" title="Link to this heading">¶</a></h1>
+<p>Read and write YAML files with numpy and <a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Path</span></code></a> support.</p>
+<p>This module is a convenience for <strong>plugins</strong>, not core code – nothing
+in <code class="xref py py-mod docutils literal notranslate"><span class="pre">ember</span></code> itself depends on it. A plugin that wants to load or save
+its own configuration as YAML can use <a class="reference internal" href="#ember.yaml_util.read_yaml" title="ember.yaml_util.read_yaml"><code class="xref py py-func docutils literal notranslate"><span class="pre">read_yaml()</span></code></a> and
+<a class="reference internal" href="#ember.yaml_util.write_yaml" title="ember.yaml_util.write_yaml"><code class="xref py py-func docutils literal notranslate"><span class="pre">write_yaml()</span></code></a> in place of <code class="docutils literal notranslate"><span class="pre">yaml.safe_load</span></code> and <code class="docutils literal notranslate"><span class="pre">yaml.safe_dump</span></code> to
+avoid two footguns in plain <a class="reference external" href="https://pyyaml.org/">PyYAML</a>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">yaml.SafeDumper</span></code> raises <code class="docutils literal notranslate"><span class="pre">yaml.representer.RepresenterError</span></code> on
+<code class="docutils literal notranslate"><span class="pre">numpy.float64</span></code>, <code class="docutils literal notranslate"><span class="pre">numpy.int64</span></code>, <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></a> and
+<a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Path</span></code></a>, all of which turn up routinely in dicts built
+from computed quantities. This module registers representers so they dump
+as plain YAML scalars and lists instead.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">yaml.SafeLoader</span></code> fails to recognise scientific-notation floats
+that have no decimal point, such as <code class="docutils literal notranslate"><span class="pre">1e-5</span></code>, loading them back as
+strings instead of floats. This module patches the loader’s implicit
+float resolver to catch that case too.</p></li>
+</ul>
+<p>Uses PyYAML’s <code class="docutils literal notranslate"><span class="pre">CSafeLoader</span></code>/<code class="docutils literal notranslate"><span class="pre">CSafeDumper</span></code> (backed by libyaml’s C
+scanner/parser/emitter) when available, falling back to the pure-Python
+<code class="docutils literal notranslate"><span class="pre">SafeLoader</span></code>/<code class="docutils literal notranslate"><span class="pre">SafeDumper</span></code> otherwise.</p>
+<p>Ported from turbigen’s <code class="docutils literal notranslate"><span class="pre">yaml_utils</span></code> module.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.yaml_util.read_yaml">
+<span class="sig-prename descclassname"><span class="pre">yaml_util.</span></span><span class="sig-name descname"><span class="pre">read_yaml</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fname</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/yaml_util.html#read_yaml"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.yaml_util.read_yaml" title="Link to this definition">¶</a></dt>
+<dd><p>Read a dictionary from a YAML file.</p>
+<p>Uses a patched loader in place of the stock <code class="docutils literal notranslate"><span class="pre">yaml.SafeLoader</span></code>, so that
+scientific-notation floats without a decimal point parse correctly; see
+the module docstring.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fname</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em> or </em><em>Path</em>) – Path to the YAML file to read.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Parsed contents of the file.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.yaml_util.write_yaml">
+<span class="sig-prename descclassname"><span class="pre">yaml_util.</span></span><span class="sig-name descname"><span class="pre">write_yaml</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'w'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/yaml_util.html#write_yaml"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.yaml_util.write_yaml" title="Link to this definition">¶</a></dt>
+<dd><p>Write a dictionary to a YAML file.</p>
+<p>Uses <code class="xref py py-data docutils literal notranslate"><span class="pre">_Dumper</span></code> with the representers registered by this module
+for numpy scalars, numpy arrays and <a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Path</span></code></a> objects;
+see the module docstring. The output is bracketed with <code class="docutils literal notranslate"><span class="pre">---</span></code>/<code class="docutils literal notranslate"><span class="pre">...</span></code>
+document markers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>d</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Dictionary to write.</p></li>
+<li><p><strong>fname</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em> or </em><em>Path</em>) – Path to the YAML file to write.</p></li>
+<li><p><strong>mode</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – Mode to open <cite>fname</cite> with. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;w&quot;</span></code>; pass <code class="docutils literal notranslate"><span class="pre">&quot;a&quot;</span></code> to
+append a further document to an existing file.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/yaml_util.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

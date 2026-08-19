@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Changelog &#8212; ember 0.2.1.dev0+g30aaa8e8c.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="_static/documentation_options.js?v=4049e73d"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Bibliography" href="references.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev0+g30aaa8e8c.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "./" + "../";
+    var current = "0.2.0";
+    var page = "changelog.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Changelog</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id1">0.2.0 (2026-08-18)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id2">0.1.0 (2026-08-06)</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="references.html" title="previous chapter">Bibliography</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="changelog">
+<h1>Changelog<a class="headerlink" href="#changelog" title="Link to this heading">¶</a></h1>
+<p>ember follows <a class="reference external" href="https://semver.org/">semantic versioning</a> from 0.1.0 onwards.
+Until 1.0.0, minor releases may make breaking changes to the public API
+without a deprecation period.</p>
+<section id="id1">
+<h2>0.2.0 (2026-08-18)<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Renamed <code class="docutils literal notranslate"><span class="pre">ember.set_iter</span></code> to <code class="docutils literal notranslate"><span class="pre">ember.set_iterative</span></code>.</p></li>
+<li><p>Removed <code class="docutils literal notranslate"><span class="pre">BlockRestart</span></code> and its helpers.</p></li>
+<li><p>Removed <code class="docutils literal notranslate"><span class="pre">ember.geometry</span></code>; its functions are now private helpers of their
+callers.</p></li>
+<li><p>Made <code class="docutils literal notranslate"><span class="pre">ember.struct</span></code> and the Plot3D I/O module private.</p></li>
+<li><p>Removed <code class="docutils literal notranslate"><span class="pre">Grid.apply_rotation</span></code>. It assumed a mesh topology — that <code class="docutils literal notranslate"><span class="pre">j=-1</span></code>
+is the casing — of any grid handed to it, which is not ember’s to assume,
+and its <code class="docutils literal notranslate"><span class="pre">tip_gap</span></code> and <code class="docutils literal notranslate"><span class="pre">shroud</span></code> row types were in any case
+indistinguishable: every wall already takes its block’s <code class="docutils literal notranslate"><span class="pre">Omega</span></code>, so
+<code class="docutils literal notranslate"><span class="pre">tip_gap</span></code> overrode five faces with the value they already had and left the
+casing turning with the blade. Set <code class="docutils literal notranslate"><span class="pre">Block.Omega</span></code> for the frame, and add a
+<code class="docutils literal notranslate"><span class="pre">RotatingPatch</span></code> only for a wall that is <em>not</em> at that speed.</p></li>
+<li><p>Pruned dead code from <code class="docutils literal notranslate"><span class="pre">ember.util</span></code> and made its single-caller helpers
+private.</p></li>
+<li><p>Replaced the reflecting mixing plane with the non-reflecting one.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Solver</span></code> is now frozen. Nothing in the package assigned to a solver field
+— the working state of a march lives on the grid, and the configuration is
+only read — so this states that rather than changing it. Beyond
+immutability it makes a <code class="docutils literal notranslate"><span class="pre">Solver</span></code> a value: two with the same settings
+compare equal, it is hashable, and a frozen dataclass elsewhere may inherit
+from it. Derive a variant with <code class="docutils literal notranslate"><span class="pre">dataclasses.replace</span></code> instead of assigning.</p></li>
+<li><p>Changed <code class="docutils literal notranslate"><span class="pre">Solver</span></code> defaults: <code class="docutils literal notranslate"><span class="pre">cfl</span></code> 0.4 to 5.0, <code class="docutils literal notranslate"><span class="pre">dampin</span></code> <code class="docutils literal notranslate"><span class="pre">None</span></code> to 25,
+<code class="docutils literal notranslate"><span class="pre">sf_resid</span></code> 0.0 to 1.0, and <code class="docutils literal notranslate"><span class="pre">n_levels</span></code> 0 to 3. Multigrid and a higher CFL
+are now on by default, so a march that set none of these will converge
+differently — and faster. Note <code class="docutils literal notranslate"><span class="pre">n_levels=3</span></code> needs cell counts divisible
+by <code class="docutils literal notranslate"><span class="pre">2**n_levels</span></code>; set <code class="docutils literal notranslate"><span class="pre">n_levels=0</span></code> for a grid that is not.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Block.flat</span></code> is now a property, and flattens in Fortran order. It reshaped
+the column-major backing array in C order, which numpy silently satisfies
+with a copy for any block with more than one spatial axis, so the promised
+view semantics were quietly lost — writes through one object were not seen
+by the other. It now shares storage for any freshly allocated shape, and
+raises rather than copies where a non-contiguous slice has no contiguous
+flattening. Pair it with <code class="docutils literal notranslate"><span class="pre">reshape(...,</span> <span class="pre">order=&quot;F&quot;)</span></code>.</p></li>
+<li><p>Split <code class="docutils literal notranslate"><span class="pre">interp_from</span></code> into <code class="docutils literal notranslate"><span class="pre">Grid.interp_from_arrays</span></code> and
+<code class="docutils literal notranslate"><span class="pre">Grid.interp_from_grid</span></code>, and transfer primitives rather than conserved
+variables. <code class="docutils literal notranslate"><span class="pre">rhoe</span></code> is not a property of the flow alone — it depends on the
+gas through <code class="docutils literal notranslate"><span class="pre">cv</span></code> and on where its energy datum sits — so interpolating
+between blocks whose fluids differ changed the state it was meant to
+preserve, silently: a datum 600 K apart turned 400 K into 1000 K. Pressure,
+temperature and velocity cross unchanged. A field read back from a file is
+now a first-class input rather than something to wrap a block around, and a
+negative temperature is impossible rather than merely asserted against.</p></li>
+<li><p>Generalised non-reflecting patches to any surface of revolution.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">OutletPatch.Kp</span></code> and <code class="docutils literal notranslate"><span class="pre">OutletPatch.Ki</span></code>, exposing the throttle gains
+set by <code class="docutils literal notranslate"><span class="pre">set_throttle</span></code>.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">InletPatch.Po</span></code>, <code class="docutils literal notranslate"><span class="pre">InletPatch.To</span></code>, <code class="docutils literal notranslate"><span class="pre">InletPatch.Alpha</span></code>,
+<code class="docutils literal notranslate"><span class="pre">InletPatch.Beta</span></code> and <code class="docutils literal notranslate"><span class="pre">OutletPatch.P</span></code>, reading back the currently
+prescribed boundary state in physical units.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">wall_yplus</span></code> for y+ post-processing.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">Block.memory_usage</span></code>.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">Block.freeze()</span></code>, returning an immutable copy.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">block_util.repeat_pitchwise</span></code>, viewing a periodic passage as a
+cascade. A periodic solver computes one passage, which is rarely all anyone
+wants to look at: the passage-to-passage picture is what shows a wake meeting
+the next leading edge, or a shock crossing a pitch. Returns one copy per
+passage rather than a concatenated block, and drops patches, a rotated copy
+being a view of the flow rather than a member of a connected grid.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">util.unwrap_meridional</span></code>, giving the conformal coordinate
+<code class="docutils literal notranslate"><span class="pre">m'</span> <span class="pre">=</span> <span class="pre">int</span> <span class="pre">dm/r</span></code> that a blade-to-blade view is drawn on. It belongs to the
+curve rather than to any grid: one integration along the polyline sets the
+datum, so points from different blocks, or from different cuts of the same
+machine, come back on a common scale with nothing to reconcile.</p></li>
+<li><p>Fixed <code class="docutils literal notranslate"><span class="pre">mix_out</span></code> returning slightly different states for a cut and its
+k-reversed twin. The Newton loop now iterates to its fixed point instead of
+stopping at the first iterate inside <code class="docutils literal notranslate"><span class="pre">atol</span></code>, cutting that difference from
+~3e-4 to ~2e-6.</p></li>
+<li><p>Added precompiled wheels for macOS (arm64) and Windows (AMD64), alongside
+the existing Linux (x86_64) wheels.</p></li>
+<li><p>Fixed <code class="docutils literal notranslate"><span class="pre">mass_average</span></code> raising on a partial reduction. The averaging already
+honoured the <code class="docutils literal notranslate"><span class="pre">axes</span></code> argument, but the zero-flux guard beneath it assumed a
+scalar, so averaging over the pitch alone and keeping the span raised about
+an ambiguous truth value instead of returning a profile.</p></li>
+<li><p>Fixed <code class="docutils literal notranslate"><span class="pre">matvec</span></code> broadcast dispatch order for <code class="docutils literal notranslate"><span class="pre">(ni,1,1)</span></code> matrices.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">yaml_util</span></code> now uses libyaml’s <code class="docutils literal notranslate"><span class="pre">CSafeLoader</span></code>/<code class="docutils literal notranslate"><span class="pre">CSafeDumper</span></code> where
+available, falling back to the pure-Python classes otherwise. Same API,
+faster scanner and emitter.</p></li>
+<li><p>Fixed YAML being read and written in the locale’s encoding rather than
+UTF-8, so a file carrying a degree sign or a non-ASCII name round-tripped
+losslessly only by coincidence of environment.</p></li>
+<li><p>Fixed writing a <code class="docutils literal notranslate"><span class="pre">Path</span></code> raising <code class="docutils literal notranslate"><span class="pre">RepresenterError</span></code> on Windows. PyYAML
+dispatches a representer on the exact runtime type, and only <code class="docutils literal notranslate"><span class="pre">Path</span></code> and
+<code class="docutils literal notranslate"><span class="pre">PosixPath</span></code> were registered — <code class="docutils literal notranslate"><span class="pre">Path(&quot;...&quot;)</span></code> builds a <code class="docutils literal notranslate"><span class="pre">WindowsPath</span></code>
+there, which had no representer at all. Registered for <code class="docutils literal notranslate"><span class="pre">PurePath</span></code> along
+the mro instead, covering every concrete path class.</p></li>
+<li><p>Fixed the sign of the cusp seam correction.</p></li>
+<li><p>Restored the smooth-then-damp order in <code class="docutils literal notranslate"><span class="pre">update_residual</span></code>.</p></li>
+<li><p>Fixed the mixing-length viscosity returning <code class="docutils literal notranslate"><span class="pre">-inf</span></code> on flows with no
+resolved shear when built with gfortran 13, which diverged the march within
+one step.</p></li>
+<li><p>Added API documentation pages for <code class="docutils literal notranslate"><span class="pre">cases</span></code>, <code class="docutils literal notranslate"><span class="pre">communicators</span></code>,
+<code class="docutils literal notranslate"><span class="pre">block_util</span></code>, <code class="docutils literal notranslate"><span class="pre">patch</span></code>, <code class="docutils literal notranslate"><span class="pre">util</span></code>, and <code class="docutils literal notranslate"><span class="pre">yaml_util</span></code>.</p></li>
+</ul>
+</section>
+<section id="id2">
+<h2>0.1.0 (2026-08-06)<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>First public release on the Python Package Index.</p></li>
+</ul>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/changelog.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

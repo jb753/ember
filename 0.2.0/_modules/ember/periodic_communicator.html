@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.periodic_communicator &#8212; ember 0.2.1.dev0+g30aaa8e8c.d20260819 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=4049e73d"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.2.1.dev0+g30aaa8e8c.d20260819</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.2.0";
+    var page = "_modules/ember/periodic_communicator.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.periodic_communicator</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Periodic boundary condition communication and data averaging utilities.</span>
+
+<span class="sd">This module provides the PeriodicCommunicator class which manages data exchange and averaging</span>
+<span class="sd">between periodic patch pairs in multi-block grids. The communicator takes connectivity</span>
+<span class="sd">information from the grid and sets up efficient index mappings that account for arbitrary</span>
+<span class="sd">coordinate transformations (permutations and flips) between matching periodic patches. The</span>
+<span class="sd">class prunes bidirectional connectivity to create unidirectional pairs, precomputes transformed</span>
+<span class="sd">index arrays for fast access, and applies periodic boundary conditions by averaging conserved</span>
+<span class="sd">flow variables at corresponding spatial locations using Fortran-accelerated routines. This</span>
+<span class="sd">ensures consistency across periodic boundaries in turbomachinery simulations with blade row</span>
+<span class="sd">periodicity or other rotationally symmetric configurations.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.fortran</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.util</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_perm_flip</span>
+
+
+<div class="viewcode-block" id="PeriodicCommunicator">
+<a class="viewcode-back" href="../../api/communicators.html#ember.periodic_communicator.PeriodicCommunicator">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PeriodicCommunicator</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Manages data communication between periodic patches.</span>
+
+<span class="sd">    Takes the output of grid.connectivity.periodic.pair() and sets up matching</span>
+<span class="sd">    ijk indices for efficient periodic boundary condition communication.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    grid : Grid</span>
+<span class="sd">        The grid containing blocks with periodic patches</span>
+<span class="sd">    periodic_pairs : dict</span>
+<span class="sd">        Dictionary from grid.connectivity.periodic.pair() with format:</span>
+<span class="sd">        {(bid, pid): ((nxbid, nxpid), (perm, flip))}</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pairs : dict</span>
+<span class="sd">        Pruned unidirectional pairs: {(bid, pid): ((nxbid, nxpid), (perm, flip))}</span>
+<span class="sd">    ijk_node_flat : dict</span>
+<span class="sd">        Flattened ijk indices: {(bid, pid): indices.reshape(-1, 3)} for both</span>
+<span class="sd">        source patches (untransformed) and target patches (transformed)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">periodic_pairs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="o">=</span> <span class="n">grid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ijk_node_flat</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ijk_halo_flat</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ijk_ec_flat</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># owned edge-cell indices, Fortran 1-based (precomputed)</span>
+        <span class="c1"># ijk_halo_flat is overwritten to Fortran 1-based ints during setup</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prune_pairs</span><span class="p">(</span><span class="n">periodic_pairs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_setup_matching_indices</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prune_pairs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">periodic_pairs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prune bidirectional pairs to create unidirectional mapping.</span>
+
+<span class="sd">        Keeps only one direction for each patch pair by lexicographic ordering.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">seen_pairs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">),</span> <span class="n">transform</span><span class="p">)</span> <span class="ow">in</span> <span class="n">periodic_pairs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># Create canonical pair ordering</span>
+            <span class="n">pair_key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="p">(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">)]))</span>
+
+            <span class="k">if</span> <span class="n">pair_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen_pairs</span><span class="p">:</span>
+                <span class="c1"># Keep the lexicographically smaller key as the source</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)</span> <span class="o">&lt;</span> <span class="p">(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="p">[(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)]</span> <span class="o">=</span> <span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">),</span> <span class="n">transform</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Get the reverse transform from the other direction</span>
+                    <span class="n">reverse_transform</span> <span class="o">=</span> <span class="n">periodic_pairs</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">reverse_transform</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="p">[(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">)]</span> <span class="o">=</span> <span class="n">reverse_transform</span>
+
+                <span class="n">seen_pairs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">pair_key</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_face_to_cell_indices</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">block</span><span class="p">,</span> <span class="n">ijk_face_flat</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert face indices to cell indices along the constant dimension.</span>
+
+<span class="sd">        On the low face (const index == 0), the adjacent cell has the same</span>
+<span class="sd">        index. On the high face (const index == max node index), subtract 1.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">const_dim</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">const_dim</span>
+        <span class="n">const_idx</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="p">[</span><span class="n">const_dim</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">is_high_face</span> <span class="o">=</span> <span class="n">const_idx</span> <span class="o">==</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">const_dim</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">is_high_face</span><span class="p">:</span>
+            <span class="n">ijk_cell_flat</span> <span class="o">=</span> <span class="n">ijk_face_flat</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">ijk_cell_flat</span><span class="p">[:,</span> <span class="n">const_dim</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ijk_cell_flat</span> <span class="o">=</span> <span class="n">ijk_face_flat</span>
+        <span class="k">return</span> <span class="n">ijk_cell_flat</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_cell_to_halo_indices</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">block</span><span class="p">,</span> <span class="n">ijk_cell_flat</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert cell indices to tau_q_halo indices for the boundary halo slot.</span>
+
+<span class="sd">        tau_q_halo is (ni+1, nj+1, nk+1, 9) with owned cell c at halo index c+1.</span>
+<span class="sd">        The halo slot for a boundary face is one step outside the owned range:</span>
+<span class="sd">          low face:  halo index = cell index      (i.e. cell+1 - 1 = cell)</span>
+<span class="sd">          high face: halo index = cell index + 2  (i.e. cell+1 + 1 = cell+2)</span>
+<span class="sd">        Non-const dims are offset by +1 to account for the halo padding.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">const_dim</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">const_dim</span>
+        <span class="n">const_idx</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="p">[</span><span class="n">const_dim</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">is_high_face</span> <span class="o">=</span> <span class="n">const_idx</span> <span class="o">==</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">const_dim</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">ijk_halo</span> <span class="o">=</span> <span class="n">ijk_cell_flat</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">ijk_halo</span> <span class="o">+=</span> <span class="mi">1</span>  <span class="c1"># offset all dims for halo padding</span>
+        <span class="k">if</span> <span class="n">is_high_face</span><span class="p">:</span>
+            <span class="n">ijk_halo</span><span class="p">[:,</span> <span class="n">const_dim</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>  <span class="c1"># one further out on high side</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ijk_halo</span><span class="p">[:,</span> <span class="n">const_dim</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>  <span class="c1"># one further out on low side</span>
+        <span class="k">return</span> <span class="n">ijk_halo</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_setup_matching_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Setup matching ijk indices for each patch pair.</span>
+
+<span class="sd">        Stores node indices (for conserved variable averaging) and halo-slot</span>
+<span class="sd">        indices (for halo exchange) for both patches: source patch untransformed,</span>
+<span class="sd">        and target patch with transformation applied.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">),</span> <span class="p">(</span><span class="n">perm</span><span class="p">,</span> <span class="n">flip</span><span class="p">))</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># Store original source patch indices as int16 F-contiguous</span>
+            <span class="c1"># (Fortran average_by_ijk declares integer*2, so matching dtype</span>
+            <span class="c1"># avoids f2py copying and converting on every call)</span>
+            <span class="n">source_patch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">bid</span><span class="p">]</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="n">pid</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ijk_node_flat</span><span class="p">[(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">source_patch</span><span class="o">.</span><span class="n">get_ijk_node</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Store transformed target patch indices as int16 F-contiguous</span>
+            <span class="n">target_patch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">nxbid</span><span class="p">]</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="n">nxpid</span><span class="p">]</span>
+            <span class="n">target_ijk</span> <span class="o">=</span> <span class="n">apply_perm_flip</span><span class="p">(</span><span class="n">target_patch</span><span class="o">.</span><span class="n">get_ijk_node</span><span class="p">(),</span> <span class="n">perm</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ijk_node_flat</span><span class="p">[(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">target_ijk</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Cell indices (0-based) feeding the halo-slot index computation</span>
+            <span class="n">source_face</span> <span class="o">=</span> <span class="n">source_patch</span><span class="o">.</span><span class="n">get_ijk_face</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+            <span class="n">src_cells</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_face_to_cell_indices</span><span class="p">(</span>
+                <span class="n">source_patch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">bid</span><span class="p">],</span> <span class="n">source_face</span>
+            <span class="p">)</span>
+
+            <span class="n">target_face</span> <span class="o">=</span> <span class="n">apply_perm_flip</span><span class="p">(</span>
+                <span class="n">target_patch</span><span class="o">.</span><span class="n">get_ijk_face</span><span class="p">(),</span> <span class="n">perm</span><span class="p">,</span> <span class="n">flip</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+            <span class="n">tgt_cells</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_face_to_cell_indices</span><span class="p">(</span>
+                <span class="n">target_patch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">nxbid</span><span class="p">],</span> <span class="n">target_face</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Halo slot indices into tau_q_halo for exchange_halos()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ijk_halo_flat</span><span class="p">[(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cell_to_halo_indices</span><span class="p">(</span>
+                <span class="n">source_patch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">bid</span><span class="p">],</span> <span class="n">src_cells</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ijk_halo_flat</span><span class="p">[(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">)]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cell_to_halo_indices</span><span class="p">(</span>
+                <span class="n">target_patch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">nxbid</span><span class="p">],</span> <span class="n">tgt_cells</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Precompute Fortran (1-based) indices for exchange_halos.</span>
+            <span class="c1"># cells is 0-based; owned cell c sits at tau_q_halo[c+1] (0-based)</span>
+            <span class="c1"># = tau_q_halo[c+2] in Fortran 1-based indexing.</span>
+            <span class="c1"># ijk_halo_flat is already 0-based halo slot; add 1 for Fortran.</span>
+            <span class="c1"># Use int32 C-contiguous arrays so f2py passes them without copying.</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">cells</span> <span class="ow">in</span> <span class="p">(</span>
+                <span class="p">((</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="n">src_cells</span><span class="p">),</span>
+                <span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">),</span> <span class="n">tgt_cells</span><span class="p">),</span>
+            <span class="p">):</span>
+                <span class="c1"># cells is 0-based; owned cell c is at tau_q_halo[c+1] (0-based)</span>
+                <span class="c1"># = tau_q_halo[c+2] in Fortran 1-based indexing</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ijk_ec_flat</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">((</span><span class="n">cells</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">))</span>
+                <span class="c1"># ijk_halo_flat was computed 0-based; convert to Fortran 1-based</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ijk_halo_flat</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span>
+                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ijk_halo_flat</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span>
+                <span class="p">)</span>
+
+<div class="viewcode-block" id="PeriodicCommunicator.apply">
+<a class="viewcode-back" href="../../api/communicators.html#ember.periodic_communicator.PeriodicCommunicator.apply">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply periodic boundary conditions by averaging conserved variables.</span>
+
+<span class="sd">        Loops over all patch pairs and calls Fortran average_by_ijk to average</span>
+<span class="sd">        the conserved variables at corresponding ijk locations between patches.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">),</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1">#</span>
+            <span class="c1"># Get conserved variables (writeable views)</span>
+            <span class="n">cons1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">bid</span><span class="p">]</span><span class="o">.</span><span class="n">conserved_nd</span>
+            <span class="n">cons2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">nxbid</span><span class="p">]</span><span class="o">.</span><span class="n">conserved_nd</span>
+
+            <span class="c1"># Get precomputed ijk indices (already int16, F-contiguous, 1-based)</span>
+            <span class="n">ijk1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ijk_node_flat</span><span class="p">[(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)]</span>
+            <span class="n">ijk2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ijk_node_flat</span><span class="p">[(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">)]</span>
+
+            <span class="c1"># Call Fortran averaging function</span>
+            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">average_by_ijk</span><span class="p">(</span><span class="n">cons1</span><span class="p">,</span> <span class="n">cons2</span><span class="p">,</span> <span class="n">ijk1</span><span class="p">,</span> <span class="n">ijk2</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PeriodicCommunicator.exchange_halos">
+<a class="viewcode-back" href="../../api/communicators.html#ember.periodic_communicator.PeriodicCommunicator.exchange_halos">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">exchange_halos</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Copy periodic neighbour tau/q into the local halo slot of tau_q_halo.</span>
+
+<span class="sd">        Called between set_tau_q_soa and set_visc_force.  Each block&#39;s halo slot</span>
+<span class="sd">        at its periodic face is filled with the adjacent block&#39;s owned edge-cell</span>
+<span class="sd">        tau/q, so that set_visc_force averages two real cell values there instead</span>
+<span class="sd">        of the -edge ghost written by eval_tau_q.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="p">((</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">),</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">h1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">bid</span><span class="p">]</span><span class="o">.</span><span class="n">tau_q_halo</span>  <span class="c1"># (ni+1, nj+1, nk+1, 9)</span>
+            <span class="n">h2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">[</span><span class="n">nxbid</span><span class="p">]</span><span class="o">.</span><span class="n">tau_q_halo</span>
+            <span class="n">key1</span> <span class="o">=</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)</span>
+            <span class="n">key2</span> <span class="o">=</span> <span class="p">(</span><span class="n">nxbid</span><span class="p">,</span> <span class="n">nxpid</span><span class="p">)</span>
+            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">swap_by_ijk</span><span class="p">(</span>
+                <span class="n">h1</span><span class="p">,</span>
+                <span class="n">h2</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ijk_halo_flat</span><span class="p">[</span><span class="n">key1</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ijk_ec_flat</span><span class="p">[</span><span class="n">key1</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ijk_halo_flat</span><span class="p">[</span><span class="n">key2</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ijk_ec_flat</span><span class="p">[</span><span class="n">key2</span><span class="p">],</span>
+            <span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
