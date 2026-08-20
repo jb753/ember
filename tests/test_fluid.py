@@ -31,6 +31,7 @@ Test cases:
 - test_real_fluid_partials2_falls_back_off_float32: float64 keeps its precision
 - test_real_partials2_kernel_evaluates_every_term: kernel vs formula, all terms
 - test_real_fluid_returns_the_state_it_verified: answer matches what was checked
+- test_real_f_fu_kernel_evaluates_every_term: scalar-solve kernel vs formula
 """
 
 import dataclasses
@@ -1257,4 +1258,91 @@ def test_real_fluid_returns_the_state_it_verified(method):
         assert worst <= fluid._VERIFY_RTOL, (
             f"{method}: returned state misses {prop} by {worst:.3e}, "
             f"beyond the {fluid._VERIFY_RTOL:.0e} it was accepted at"
+        )
+
+
+@pytest.mark.parametrize(
+    "prop,which,sel",
+    [("s", 1, [1, 3]), ("T", 2, [3, 6]), ("P", 3, [2, 3, 5, 6])],
+)
+def test_real_f_fu_kernel_evaluates_every_term(prop, which, sel):
+    """The scalar-solve kernel against the formula, on all-significant terms.
+
+    It walks only the surfaces the matched property needs -- two of the six for
+    entropy and temperature, four for pressure -- so a wrong index in the
+    selection or a wrong line in the closing algebra gives a wrong derivative,
+    and a wrong derivative only shows up in a fitted fluid as a solve taking an
+    extra iteration or refusing to converge. The reference here is the formula.
+
+    As with the other kernels these coefficients describe no gas: the log terms
+    of a fitted one carry the compressibility factor at zero density, which is
+    one for every real gas, so its energy derivatives vanish and the terms
+    holding them cannot be checked through a fluid at all.
+    """
+    leg = np.polynomial.legendre
+    rng = np.random.default_rng(5)
+    nx, ny = 5, 4
+    decay = 0.5 ** np.arange(nx)[:, None, None]
+    sc2 = np.asfortranarray(
+        (rng.uniform(-1.0, 1.0, (nx, ny, 6)) * decay).astype(np.float32)
+    )
+    sc1 = np.asfortranarray(rng.uniform(-1.0, 1.0, (ny, 3)).astype(np.float32))
+    nz2 = np.asfortranarray(np.full((ny, 6), nx, dtype=np.int32))
+    sel = np.asfortranarray(np.array(sel, dtype=np.int32))
+    xa, xb, ya, yb = (np.float32(v) for v in (0.5, -1.5, 0.4, -0.2))
+
+    shape = (6, 5)
+    rho = rng.uniform(2.0, 5.0, shape).astype(np.float32)
+    u = rng.uniform(0.5, 3.0, shape).astype(np.float32)
+    x, y, lnr = rho * xa + xb, u * ya + yb, np.log(rho)
+
+    def surface(idx):
+        return leg.legval2d(x, y, sc2[:, :, idx - 1])
+
+    M, My, Myy = (leg.legval(y, sc1[:, m]) for m in range(3))
+    if prop == "s":
+        want = (surface(1) + M * lnr, (surface(3) + My * lnr) * ya)
+    elif prop == "T":
+        s_u = (surface(3) + My * lnr) * ya
+        s_uu = (surface(6) + Myy * lnr) * ya * ya
+        T = 1.0 / s_u
+        want = (T, -T * T * s_uu)
+    else:
+        s_r = surface(2) * xa + M / rho
+        s_u = (surface(3) + My * lnr) * ya
+        s_ru = (surface(5) * xa + My / rho) * ya
+        s_uu = (surface(6) + Myy * lnr) * ya * ya
+        T = 1.0 / s_u
+        T_u = -T * T * s_uu
+        want = (-(rho**2) * T * s_r, -(rho**2) * (T_u * s_r + T * s_ru))
+
+    # Pin that the log terms carry real weight here, or the test would pass
+    # with the one-dimensional contractions deleted.
+    for label, poly, log in (("M", surface(1), M * lnr), ("My", surface(3), My * lnr)):
+        ratio = float(np.abs(log).max() / np.abs(poly).max())
+        assert 0.1 < ratio < 10.0, f"{label}: log term is {ratio:.2e} of the polynomial"
+
+    f = np.zeros(rho.size, dtype=np.float32)
+    f_u = np.zeros(rho.size, dtype=np.float32)
+    ember.fortran.set_f_fu_real(
+        rho=np.ravel(rho, order="A"),
+        u=np.ravel(u, order="A"),
+        sc2=sc2,
+        nz2=nz2,
+        sel=sel,
+        sc1=sc1,
+        xa=xa,
+        xb=xb,
+        ya=ya,
+        yb=yb,
+        which=which,
+        f=f,
+        f_u=f_u,
+    )
+
+    for name, got, ref in zip(("f", "f_u"), (f, f_u), want):
+        scale = float(np.abs(ref).max())
+        err = float(np.abs(got.reshape(shape) - ref).max())
+        assert err <= 8.0 * np.spacing(np.float32(scale)), (
+            f"{prop} {name}: max error {err:.3e} against a scale of {scale:.3e}"
         )
