@@ -21,6 +21,7 @@ Test cases:
 - test_sample_coolprop_reports_states_on_the_model: sampler output matches source
 - test_sample_coolprop_drops_unusable_states: two-phase and failed states dropped
 - test_sample_coolprop_rejects_an_empty_box: a box with nothing usable raises
+- test_fit_rejects_an_isochor_outside_the_box: bad rho_isochor raises
 """
 
 import sys
@@ -533,3 +534,38 @@ def test_sample_coolprop_rejects_an_empty_box(stub_coolprop):
         rgf.sample_coolprop(
             "VanDerWaals", (2.0 * rho_dome, 3.0 * rho_dome), U_LIM_VDW, ni=5
         )
+
+
+def test_fit_rejects_an_isochor_outside_the_box():
+    """A reference isochor off the box is refused where the mistake was made.
+
+    The density integral is taken about this isochor, so a non-positive one
+    puts a negative number inside a logarithm and every entropy coefficient
+    comes back nan. RealFluid rejects such an isochor, but only once the
+    coefficients reach it -- by which point the residuals reported by the fit,
+    the thing a caller inspects to decide the fit is good, are nan too.
+    """
+    ni = 12
+    rho_g, u_g = np.meshgrid(
+        np.linspace(*RHO_LIM_VDW, ni), np.linspace(*U_LIM_VDW, ni), indexing="ij"
+    )
+    rho, u = rho_g.ravel(), u_g.ravel()
+    kwargs = dict(
+        rho=rho,
+        u=u,
+        P=VDW.get_P(rho, u),
+        T=VDW.get_T(rho, u),
+        s=VDW.get_s(rho, u),
+        Rgas=VDW.Rgas,
+        rho_lim=RHO_LIM_VDW,
+        u_lim=U_LIM_VDW,
+        order=6,
+    )
+
+    for rho_isochor in (-5.0, 0.0, 10.0 * RHO_LIM_VDW[1]):
+        with pytest.raises(ValueError, match="rho_isochor"):
+            rgf.fit(rho_isochor=rho_isochor, **kwargs)
+
+    # The bounds themselves are valid isochors, and still fit cleanly.
+    for rho_isochor in RHO_LIM_VDW:
+        assert np.isfinite(rgf.fit(rho_isochor=rho_isochor, **kwargs).rmse_s)
