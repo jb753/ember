@@ -1394,6 +1394,16 @@ class RealFluid(_Fluid):
     # genuinely unreachable state is reported rather than returned.
     _VERIFY_RTOL = 1e-4
 
+    # Ratio below which a Newton step counts as still making progress. These
+    # solves converge quadratically, so a step that is genuinely closing on the
+    # answer shrinks by orders of magnitude at a time and is nowhere near this;
+    # only a step that has hit the arithmetic's floor sits beside its
+    # predecessor. Needed because _NEWTON_RTOL alone cannot end the loop: the
+    # step is a maximum over every node, so the noisiest one decides, and past a
+    # few thousand nodes that sample never drops below a tolerance finer than
+    # float32 resolves. The solve is right long before then; it just kept going.
+    _NEWTON_STALL = 0.9
+
     def __init__(
         self,
         alpha,
@@ -1779,6 +1789,7 @@ class RealFluid(_Fluid):
         rho = np.array(np.broadcast_to(rho0, shape), dtype=dtype, copy=True)
         u = np.array(np.broadcast_to(u0, shape), dtype=dtype, copy=True)
 
+        step_prev = np.inf
         for _ in range(self._NEWTON_ITER):
             st = self._state(rho, u)
             f1, f1r, f1u = self._pick(kind1, st, rho, u)
@@ -1794,8 +1805,9 @@ class RealFluid(_Fluid):
                 np.abs(rho_new - rho) / np.abs(rho) + np.abs(u_new - u) / self._u_scale
             )
             rho, u = rho_new, u_new
-            if step < self._NEWTON_RTOL:
+            if step < self._NEWTON_RTOL or step > self._NEWTON_STALL * step_prev:
                 break
+            step_prev = step
 
         st = self._state(rho, u)
         self._verify(kind1, self._pick(kind1, st, rho, u)[0], val1, method)
@@ -1820,14 +1832,16 @@ class RealFluid(_Fluid):
         rho_b = np.broadcast_to(np.asarray(rho, dtype=dtype), shape)
         u = np.array(np.broadcast_to(u0, shape), dtype=dtype, copy=True)
 
+        step_prev = np.inf
         for _ in range(self._NEWTON_ITER):
             st = self._state(rho_b, u)
             f, _, f_u = self._pick(kind, st, rho_b, u)
             u_new = np.clip(u - (f - val) / f_u, *self._u_box_nd)
             step = np.max(np.abs(u_new - u)) / self._u_scale
             u = u_new
-            if step < self._NEWTON_RTOL:
+            if step < self._NEWTON_RTOL or step > self._NEWTON_STALL * step_prev:
                 break
+            step_prev = step
 
         st = self._state(rho_b, u)
         self._verify(kind, self._pick(kind, st, rho_b, u)[0], val, method)
