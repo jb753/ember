@@ -1528,8 +1528,11 @@ class RealFluid(_Fluid):
         Sc[0, 0] -= s_dtm / Rgas_ref
 
         self._Sc = Sc.astype(dtype)
-        self._Sc_x = _leg.legder(Sc, axis=0).astype(dtype)
-        self._Sc_y = _leg.legder(Sc, axis=1).astype(dtype)
+        # The two first-derivative surfaces go to the Fortran kernel in
+        # get_P_h_T, which wants them column-major; f2py would otherwise copy
+        # them on every call. The copy would be tiny, but so is this.
+        self._Sc_x = np.asfortranarray(_leg.legder(Sc, axis=0).astype(dtype))
+        self._Sc_y = np.asfortranarray(_leg.legder(Sc, axis=1).astype(dtype))
         self._Sc_xx = _leg.legder(Sc, 2, axis=0).astype(dtype)
         self._Sc_xy = _leg.legder(_leg.legder(Sc, axis=0), axis=1).astype(dtype)
         self._Sc_yy = _leg.legder(Sc, 2, axis=1).astype(dtype)
@@ -1599,22 +1602,27 @@ class RealFluid(_Fluid):
         return np.broadcast_arrays(x, y)
 
     def _partials1(self, rho, u):
-        """Entropy and its first partials with respect to (rho, u).
+        """First partials of entropy with respect to (rho, u).
 
         Split from :meth:`_partials2` because pressure, temperature and enthalpy
         need only these, and the solver asks for them once per Runge-Kutta
         stage. Second derivatives cost three more surface evaluations and are
         wanted only by the specific heats and the Newton solves.
+
+        Entropy itself is not among them. Every caller here wants a partial and
+        nothing else, and the level costs a whole surface evaluation over arrays
+        the size of a block -- a third of the work of this method, once per
+        stage, for a number that was thrown away. :meth:`_entropy` is the one
+        that returns it, and :meth:`_partials2` for the solves that need both.
         """
         x, y = self._hats(rho, u)
         lnr = np.log(rho)
         M = _leg.legval(y, self._Sl)
         My = _leg.legval(y, self._Sl_y)
 
-        s = _leg.legval2d(x, y, self._Sc) + M * lnr
         s_r = _leg.legval2d(x, y, self._Sc_x) * self._xa + M / rho
         s_u = (_leg.legval2d(x, y, self._Sc_y) + My * lnr) * self._ya
-        return s, s_r, s_u
+        return s_r, s_u
 
     def _partials2(self, rho, u):
         """Entropy and its first and second partials with respect to (rho, u)."""
@@ -2356,7 +2364,7 @@ class RealFluid(_Fluid):
         P : ndarray
             Pressure [Pa].
         """
-        _, s_r, s_u = self._partials1(rho, u)
+        s_r, s_u = self._partials1(rho, u)
         return self._write(-(rho**2) * s_r / s_u, out)
 
     def get_P_h_T(self, rho, u, out_P=None, out_h=None, out_T=None):
@@ -2366,6 +2374,12 @@ class RealFluid(_Fluid):
         together costs barely more than any one of them, where the base class
         would walk the polynomial surface three times. The solver calls this
         once per Runge-Kutta stage.
+
+        A float32 call with all three outputs supplied -- which is what the
+        solver makes -- goes to a Fortran kernel instead. Anything else falls
+        back to the numpy body below rather than to the base class: that body
+        is already fused, and three separate calls would be three times the
+        work.
 
         Parameters
         ----------
@@ -2381,7 +2395,36 @@ class RealFluid(_Fluid):
         tuple of ndarray
             ``(P, h, T)``.
         """
-        _, s_r, s_u = self._partials1(rho, u)
+        outs = (out_P, out_h, out_T)
+        arrs = (rho, u) + outs
+        usable = (
+            all(o is not None for o in outs)
+            and all(isinstance(a, np.ndarray) for a in arrs)
+            and all(a.dtype == np.float32 for a in arrs)
+            and all(a.shape == np.shape(rho) for a in arrs)
+            and all(a.flags["F_CONTIGUOUS"] or a.flags["C_CONTIGUOUS"] for a in arrs)
+        )
+        if usable:
+            # order="A" ravels without copying for either contiguity, so these
+            # stay views and the kernel's writes land in the caller's arrays.
+            ember.fortran.set_p_h_t_real(
+                rho=np.ravel(rho, order="A"),
+                u=np.ravel(u, order="A"),
+                scx=self._Sc_x,
+                scy=self._Sc_y,
+                sl=self._Sl,
+                sly=self._Sl_y,
+                xa=self._xa,
+                xb=self._xb,
+                ya=self._ya,
+                yb=self._yb,
+                p=np.ravel(out_P, order="A"),
+                h=np.ravel(out_h, order="A"),
+                t=np.ravel(out_T, order="A"),
+            )
+            return out_P, out_h, out_T
+
+        s_r, s_u = self._partials1(rho, u)
         T = 1.0 / s_u
         P = -(rho**2) * T * s_r
         return (
@@ -2483,7 +2526,7 @@ class RealFluid(_Fluid):
         T : ndarray
             Temperature [K].
         """
-        _, _, s_u = self._partials1(rho, u)
+        _, s_u = self._partials1(rho, u)
         return self._write(1.0 / s_u, out)
 
     def change_datum(self, P_dtm, T_dtm):
