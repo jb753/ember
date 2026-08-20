@@ -274,6 +274,16 @@ def fit(
         residuals that bound their accuracy.
 
     """
+    # The density integral is taken about this isochor, so an isochor off the
+    # box puts a non-positive number under a logarithm and every entropy
+    # coefficient comes back nan -- along with the residuals a caller would
+    # inspect to decide whether the fit is any good.
+    if not (rho_isochor > 0.0 and rho_lim[0] <= rho_isochor <= rho_lim[1]):
+        raise ValueError(
+            f"rho_isochor={rho_isochor} must be positive and lie within "
+            f"rho_lim={tuple(rho_lim)}."
+        )
+
     rho = np.asarray(rho, dtype=float)
     u = np.asarray(u, dtype=float)
     x = hat(rho, rho_lim)

@@ -1315,9 +1315,14 @@ class Block(ember._struct.StructuredData):
         # (the writes below pass store_init=False, so the data stays marked
         # uninitialised), but an equation of state that has to invert
         # numerically cannot be asked to do it and rightly refuses.
+        #
+        # Radius is deliberately absent from this list. It is read tolerantly
+        # below and takes no part in the thermodynamic state, so a block
+        # holding a flow field but no coordinates yet still has to be
+        # re-expressed -- leaving it alone would strand the field on the
+        # reference scales of a fluid that no longer applies.
         has_old = "fluid" in self._metadata and all(
-            self._versions[key]
-            for key in ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe", "r")
+            self._versions[key] for key in ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
         )
         if has_old:
             old = self.fluid

@@ -20,6 +20,10 @@ Test cases:
 - test_change_ref: change_ref returns consistent object
 - test_change_datum_nondim: change_datum with non-unity reference values
 - test_fluid_member_order: _Fluid and subclasses follow standard member ordering
+- test_real_fluid_reports_a_solve_that_produced_no_number: a nan solve raises
+- test_real_fluid_rejects_density_outside_the_fit_box: given rho is checked
+- test_real_fluid_accepts_density_on_the_box_bounds: the bounds are in domain
+- test_real_fluid_rejects_more_beta_than_alpha_can_carry: beta size validated
 """
 
 import dataclasses
@@ -855,3 +859,93 @@ def test_change_datum_nondim():
     assert np.allclose(u_datum, 0.0, atol=1e-10)
     s_datum = fluid_new.get_s(rho_dtm, u_datum)
     assert np.allclose(s_datum, 0.0, atol=1e-4)
+
+
+# ---------------------------------------------------------------------------
+# RealFluid refuses states its coefficients do not describe
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def real_fluid():
+    """A RealFluid fitted to the analytic van der Waals gas of the suite."""
+    from conftest import VanDerWaals, fit_real_fluid
+
+    return fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5))
+
+
+def test_real_fluid_reports_a_solve_that_produced_no_number(real_fluid):
+    """A solve that diverges to nan is reported rather than returned.
+
+    The perfect-gas guess for a wildly out-of-range enthalpy takes the log of a
+    negative temperature, and the nan that produces survives every Newton step.
+    Nothing downstream would notice: a nan compares false against a tolerance,
+    so the acceptance test has to ask whether the answer is a number at all
+    rather than only whether it is close enough.
+    """
+    with pytest.raises(RuntimeError, match="did not return a finite"):
+        real_fluid.set_h_s(np.array([-1e9]), np.array([0.0]))
+
+
+@pytest.mark.parametrize("frac", [-0.5, 1.5], ids=["below", "above"])
+@pytest.mark.parametrize("method", ["set_rho_s", "set_P_rho", "set_T_rho"])
+def test_real_fluid_rejects_density_outside_the_fit_box(real_fluid, method, frac):
+    """Density is an input to these solves, so it has to be checked on the way in.
+
+    Only internal energy is iterated here, and it is clipped to the box; the
+    density is whatever the caller passed. Outside the box the fitted surface
+    still returns a number, and the residual in the other property can still be
+    driven to zero against it, so the converged-solve check cannot see the
+    problem -- the state is self-consistent with an extrapolation of the fit.
+    """
+    rho_lo, rho_hi = real_fluid.rho_lim_nd
+    rho = np.array([rho_lo + frac * (rho_hi - rho_lo)])
+
+    # The second argument is a property the state must match; take it from a
+    # state well inside the box, so only the density is out of range.
+    u_mid = 0.5 * (real_fluid.u_lim_nd[0] + real_fluid.u_lim_nd[1])
+    rho_mid = 0.5 * (rho_lo + rho_hi)
+    val = {
+        "set_rho_s": real_fluid.get_s(rho_mid, u_mid),
+        "set_P_rho": real_fluid.get_P(rho_mid, u_mid),
+        "set_T_rho": real_fluid.get_T(rho_mid, u_mid),
+    }[method]
+    args = (rho, val) if method == "set_rho_s" else (val, rho)
+
+    with pytest.raises(RuntimeError, match="outside the fit box"):
+        getattr(real_fluid, method)(*args)
+
+
+def test_real_fluid_accepts_density_on_the_box_bounds(real_fluid):
+    """The bounds themselves are inside the fitted domain, not outside it."""
+    u_lo, u_hi = real_fluid.u_lim_nd
+    # Away from the midpoint, which sits at the datum where u passes through
+    # zero and a relative comparison would say nothing.
+    u_want = u_lo + 0.3 * (u_hi - u_lo)
+    for rho in real_fluid.rho_lim_nd:
+        s = real_fluid.get_s(rho, u_want)
+        _, u = real_fluid.set_rho_s(np.array([rho]), s)
+        assert np.allclose(u, u_want, atol=1e-5 * (u_hi - u_lo))
+
+
+def test_real_fluid_rejects_more_beta_than_alpha_can_carry():
+    """An isochor polynomial longer than the surface can hold is an error.
+
+    The entropy surface has one column per internal-energy order in ``alpha``,
+    so a longer ``beta`` has nowhere to go. Dropping the excess would leave a
+    fluid whose entropy is missing its energy dependence -- every temperature
+    and pressure it returns would be wrong, in a way no later call can detect.
+    """
+    with pytest.raises(ValueError, match="beta"):
+        ember.fluid.RealFluid(
+            # Z = 1 needs a single term, so alpha has one column while beta,
+            # fitted at a higher order, has nine.
+            alpha=[[1.0]],
+            beta=np.arange(9.0) + 1.0,
+            rho_lim=(0.5, 5.0),
+            u_lim=(1e5, 3e5),
+            rho_isochor=1.0,
+            Rgas=287.0,
+            mu=1.8e-5,
+            Pr=0.72,
+        )

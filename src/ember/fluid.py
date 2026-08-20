@@ -1293,8 +1293,14 @@ class RealFluid(_Fluid):
     ------------------
     The polynomials mean nothing outside the box they were fitted over, so
     ``rho_lim`` and ``u_lim`` are enforced: iterates are clamped to the box, and
-    a solve that cannot meet its tolerance raises rather than returning a state
-    the fit does not describe.
+    a solve that cannot meet its tolerance, or that returns no number at all,
+    raises rather than returning a state the fit does not describe.
+
+    A density passed in rather than solved for -- by :meth:`set_rho_s`,
+    :meth:`set_P_rho` and :meth:`set_T_rho` -- is checked against the box
+    before the iteration starts. Nothing later could catch it: the fitted
+    surface extrapolates smoothly, so the solve would converge on a state that
+    is self-consistent with a polynomial nobody fitted out there.
 
     Limitations
     -----------
@@ -1392,6 +1398,13 @@ class RealFluid(_Fluid):
         if not self._rho_lim[0] <= self._rho_isochor <= self._rho_lim[1]:
             raise ValueError(
                 f"rho_isochor={rho_isochor} must lie within rho_lim={rho_lim}"
+            )
+        if self._beta.size > self._alpha.shape[1]:
+            raise ValueError(
+                f"beta has {self._beta.size} coefficients but alpha carries "
+                f"{self._alpha.shape[1]}; the entropy surface has one column "
+                "per internal-energy order in alpha, so there is nowhere to "
+                "put the rest."
             )
         if Rgas <= 0.0:
             raise ValueError(f"Rgas={Rgas} must be positive.")
@@ -1506,8 +1519,11 @@ class RealFluid(_Fluid):
         k = float(self._Rgas) / Rgas_ref
         Sl = -k * Lam
         Sc = -k * D
+        # Sc has one column per internal-energy order in alpha, and the
+        # constructor has already refused a beta longer than that, so this
+        # pads a short isochor polynomial and never truncates a long one.
         beta = np.zeros(Sc.shape[1])
-        beta[: self._beta.size] = self._beta[: Sc.shape[1]]
+        beta[: self._beta.size] = self._beta
         Sc[0, :] += k * beta + Sl * np.log(rho_ref / rho_f)
         Sc[0, 0] -= s_dtm / Rgas_ref
 
@@ -1547,14 +1563,22 @@ class RealFluid(_Fluid):
             rho0 = 0.5 * (self._rho_box_nd[0] + self._rho_box_nd[1])
             u0 = 0.5 * (self._u_box_nd[0] + self._u_box_nd[1])
             return np.broadcast_to(rho0, np.broadcast(a, b).shape), u0
-        rho0, u0 = getattr(self._companion, method)(a, b)
+        # The companion is a perfect gas, so a target this fit cannot reach may
+        # be one the companion cannot reach either -- a negative temperature
+        # under a logarithm, say. A guess is only a starting point and an
+        # unreachable state is caught on acceptance, so the seed is allowed to
+        # come back as nan without complaining on the way.
+        with np.errstate(invalid="ignore", divide="ignore"):
+            rho0, u0 = getattr(self._companion, method)(a, b)
         return np.clip(rho0, *self._rho_box_nd), np.clip(u0, *self._u_box_nd)
 
     def _guess_u(self, method, *args):
         """Seed a scalar solve with an internal energy from the companion gas."""
         if self._companion is None:
             return 0.5 * (self._u_box_nd[0] + self._u_box_nd[1])
-        return np.clip(getattr(self._companion, method)(*args)[1], *self._u_box_nd)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            u0 = getattr(self._companion, method)(*args)[1]
+        return np.clip(u0, *self._u_box_nd)
 
     @staticmethod
     def _isentropic_exponent(st, rho):
@@ -1723,6 +1747,9 @@ class RealFluid(_Fluid):
         pressure because heating at constant volume raises it -- so the
         iteration cannot walk off in the wrong direction.
         """
+        # Before the guess, which would otherwise take the log of a density
+        # that should never have got this far.
+        self._check_rho_box(rho, method)
         val = np.asarray(val)
         u0 = self._guess_u(method, *guess_args)
         shape = np.broadcast(np.asarray(rho), val, u0).shape
@@ -1751,16 +1778,48 @@ class RealFluid(_Fluid):
         so it is reported rather than returned as a silently wrong state.
         """
         scale = np.abs(want) + self._floor(kind)
-        bad = np.abs(got - want) > self._VERIFY_RTOL * scale
+        resid = np.asarray(got) - np.asarray(want)
+        # A diverged solve returns nan, and every comparison against nan is
+        # false -- including the tolerance test below. Whether the answer is a
+        # number at all has to be asked separately, or the worst failure there
+        # is becomes the one failure that reports success.
+        adrift = ~np.isfinite(resid)
+        rel = np.abs(resid) / np.where(scale > 0, scale, 1.0)
+        bad = adrift | (rel > self._VERIFY_RTOL)
         if not np.any(bad):
             return
         nbad = int(np.count_nonzero(bad))
-        worst = float(np.max(np.abs(got - want) / np.where(scale > 0, scale, 1.0)))
+        n_adrift = int(np.count_nonzero(adrift))
+        if n_adrift:
+            detail = f"{n_adrift} did not return a finite value"
+        else:
+            detail = f"worst relative residual {float(np.max(rel)):.3e}"
         raise RuntimeError(
             f"{type(self).__name__}.{method} failed to converge at {nbad} of "
-            f"{np.size(bad)} states matching {kind}: worst relative residual "
-            f"{worst:.3e}. The requested state is most likely outside the fit "
-            f"box rho_lim={self._rho_lim}, u_lim={self._u_lim}."
+            f"{np.size(bad)} states matching {kind}: {detail}. The requested "
+            f"state is most likely outside the fit box "
+            f"rho_lim={self._rho_lim}, u_lim={self._u_lim}."
+        )
+
+    def _check_rho_box(self, rho, method):
+        """Raise unless every density lies inside the fitted box.
+
+        Where density is given rather than solved for, nothing downstream can
+        catch it being wrong. The fitted surface extrapolates smoothly, so the
+        solve converges and :meth:`_verify` passes on a state that is perfectly
+        self-consistent with a polynomial nobody fitted out there.
+        """
+        rho = np.asarray(rho)
+        lo, hi = self._rho_box_nd
+        bad = ~np.isfinite(rho) | (rho < lo) | (rho > hi)
+        if not np.any(bad):
+            return
+        nbad = int(np.count_nonzero(bad))
+        raise RuntimeError(
+            f"{type(self).__name__}.{method} was given {nbad} of "
+            f"{np.size(bad)} densities outside the fit box "
+            f"rho_lim={self._rho_lim}, which is "
+            f"[{float(lo):.6g}, {float(hi):.6g}] non-dimensional."
         )
 
     def set_h_s(self, h, s):

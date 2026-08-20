@@ -27,6 +27,7 @@ Test cases:
 - test_set_conserved_L_ref: set_conserved under L_ref scaling
 - test_Re_ref: Reference Reynolds number property
 - test_P_nd: Nondimensional pressure property
+- test_set_fluid_rescales_a_block_without_coordinates: fluid swap with no radius
 """
 
 import ember.block
@@ -480,3 +481,28 @@ def test_P_nd():
 
     P_ref = rho_ref * V_ref**2
     np.testing.assert_allclose(b.P_nd, P / P_ref, rtol=1e-5)
+
+
+def test_set_fluid_rescales_a_block_without_coordinates():
+    """Swapping the fluid re-expresses the flow field even with no radius set.
+
+    The stored field is non-dimensional, so a fluid carrying different
+    reference scales means the same numbers describe a different state; the
+    swap has to rewrite them. Radius takes no part in that for a block whose
+    swirl is zero, and it is read tolerantly elsewhere, so treating an unset
+    radius as an unset flow field would silently leave the field scaled against
+    the fluid that no longer applies.
+    """
+    fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
+    b = ember.block.Block(shape=(3, 3, 3))
+    b.set_fluid(fluid)
+    b.set_P_T(101325.0, 300.0)
+    b.set_Vxrt(np.zeros((3, 3, 3, 3), dtype=np.float32))
+
+    P_orig = b.P.copy()
+    T_orig = b.T.copy()
+
+    b.set_fluid(fluid.change_ref(rho_ref=1.2, V_ref=340.0, Rgas_ref=287.0))
+
+    np.testing.assert_allclose(b.P, P_orig, rtol=1e-5)
+    np.testing.assert_allclose(b.T, T_orig, rtol=1e-5)
