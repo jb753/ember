@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Index &#8212; ember 0.2.1.dev14+g52910ba65 documentation</title>
+    <title>Index &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="_static/documentation_options.js?v=83b1eafb"></script>
+    <script src="_static/documentation_options.js?v=fd19fe6e"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev14+g52910ba65</p>
+<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
 
 
 
@@ -105,6 +105,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/realgas_fit.html">Real gas fitting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/block_util.html">Block utilities</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/set_iterative.html">Iterative flow-field setters</a></li>
@@ -314,9 +315,17 @@
       <li><a href="api/solver.html#ember.solver.Solver.cfl">cfl (ember.solver.Solver attribute)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.change_datum">change_datum() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.change_datum">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.change_ref">change_ref() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.change_ref">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.check_convergence">check_convergence() (ember.convergence_history.ConvergenceHistory method)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.CuspPatch.check_match">check_match() (ember.patch.CuspPatch method)</a>
@@ -357,10 +366,10 @@
 </li>
       <li><a href="api/util.html#ember.util.cluster_symmetric">cluster_symmetric() (in module ember.util)</a>
 </li>
-      <li><a href="api/util.html#ember.util.components_to_angles">components_to_angles() (in module ember.util)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/util.html#ember.util.components_to_angles">components_to_angles() (in module ember.util)</a>
+</li>
       <li><a href="api/block_util.html#ember.block_util.concatenate">concatenate() (in module ember.block_util)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.Grid.connectivity">connectivity (ember.grid.Grid property)</a>
@@ -589,6 +598,13 @@
 </li>
       </ul></li>
       <li>
+    ember.realgas_fit
+
+      <ul>
+        <li><a href="api/realgas_fit.html#module-ember.realgas_fit">module</a>
+</li>
+      </ul></li>
+      <li>
     ember.set_iterative
 
       <ul>
@@ -622,6 +638,8 @@
         <li><a href="api/util.html#ember.util.empty">(in module ember.util)</a>
 </li>
       </ul></li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.entropy_integral">entropy_integral() (in module ember.realgas_fit)</a>
+</li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.err_mdot">err_mdot (ember.convergence_history.ConvergenceHistory property)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.err_mdot_row">err_mdot_row (ember.convergence_history.ConvergenceHistory property)</a>
@@ -664,6 +682,12 @@
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.find_settling_record">find_settling_record() (ember.convergence_history.ConvergenceHistory method)</a>
 </li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.fit">fit() (in module ember.realgas_fit)</a>
+</li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitInfo">FitInfo (class in ember.realgas_fit)</a>
+</li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult">FitResult (class in ember.realgas_fit)</a>
+</li>
       <li><a href="api/block.html#ember.block.Block.flat">flat (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.flip">flip() (ember.block.Block method)</a>
@@ -672,10 +696,10 @@
 </li>
       <li><a href="api/average.html#ember.average.flow_conserved_nd">flow_conserved_nd() (in module ember.average)</a>
 </li>
-      <li><a href="api/average.html#ember.average.flow_mass">flow_mass() (in module ember.average)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/average.html#ember.average.flow_mass">flow_mass() (in module ember.average)</a>
+</li>
       <li><a href="api/block.html#ember.block.Block.fluid">fluid (ember.block.Block property)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.MixingPatch.flux_avg_nd">flux_avg_nd (ember.patch.MixingPatch property)</a>
@@ -690,6 +714,12 @@
 </li>
       <li><a href="api/block.html#ember.block.Block.freeze">freeze() (ember.block.Block method)</a>
 </li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.from_dict">from_dict() (ember.fluid.PerfectFluid class method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.from_dict">(ember.fluid.RealFluid class method)</a>
+</li>
+      </ul></li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.from_grid">from_grid() (ember.convergence_history.ConvergenceHistory class method)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.frozen">frozen (ember.block.Block property)</a>
@@ -707,53 +737,125 @@
       <li><a href="api/block.html#ember.block.Block.gamma">gamma (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_a">get_a() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_a">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/grid.html#ember.grid.Grid.get_convergence">get_convergence() (ember.grid.Grid method)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_cp">get_cp() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_cp">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_cv">get_cv() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_cv">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dhdP_rho">get_dhdP_rho() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_dhdP_rho">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dhdrho_P">get_dhdrho_P() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_dhdrho_P">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dsdP_rho">get_dsdP_rho() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_dsdP_rho">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dsdrho_P">get_dsdrho_P() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_dsdrho_P">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dudP_rho">get_dudP_rho() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_dudP_rho">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_dudrho_P">get_dudrho_P() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_dudrho_P">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_gamma">get_gamma() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_gamma">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_h">get_h() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_h">(ember.fluid.RealFluid method)</a>
 </li>
-      <li><a href="api/patch.html#ember.patch.Patch.get_ijk_face">get_ijk_face() (ember.patch.Patch method)</a>
-</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.patch.Patch.get_ijk_face">get_ijk_face() (ember.patch.Patch method)</a>
+</li>
       <li><a href="api/patch.html#ember.patch.Patch.get_ijk_node">get_ijk_node() (ember.patch.Patch method)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_mu">get_mu() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_mu">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_P">get_P() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_P">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_P_h_T">get_P_h_T() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_P_h_T">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_Pr">get_Pr() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_Pr">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/grid.html#ember.grid.Grid.get_r_ref">get_r_ref() (ember.grid.Grid method)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_Rgas">get_Rgas() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_Rgas">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_s">get_s() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_s">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/communicators.html#ember.mixing_communicator.MixingCommunicator.get_stats">get_stats() (ember.mixing_communicator.MixingCommunicator method)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.get_T">get_T() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.get_T">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/patch.html#ember.patch.MixingPatch.get_target">get_target() (ember.patch.MixingPatch method)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.OutletPatch.get_throttle_stats">get_throttle_stats() (ember.patch.OutletPatch method)</a>
@@ -773,6 +875,8 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.h">h (ember.block.Block property)</a>
+</li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.hat">hat() (in module ember.realgas_fit)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.ho">ho (ember.block.Block property)</a>
 
@@ -824,14 +928,18 @@
         <li><a href="api/patch.html#ember.patch.BlockPatchCollection.index">(ember.patch.BlockPatchCollection method)</a>
 </li>
       </ul></li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult.info_s">info_s (ember.realgas_fit.FitResult attribute)</a>
+</li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult.info_Z">info_Z (ember.realgas_fit.FitResult attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/patch.html#ember.patch.BlockPatchCollection.inlet">inlet (ember.patch.BlockPatchCollection property)</a>
 
       <ul>
         <li><a href="api/patch.html#ember.patch.GridPatchCollection.inlet">(ember.patch.GridPatchCollection property)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/patch.html#ember.patch.InletPatch">InletPatch (class in ember.patch)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.Grid.insert">insert() (ember.grid.Grid method)</a>
@@ -892,6 +1000,8 @@
 </li>
       <li><a href="api/patch.html#ember.patch.Patch.kst">kst (ember.patch.Patch property)</a>
 </li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult.kwargs">kwargs (ember.realgas_fit.FitResult attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -906,15 +1016,19 @@
         <li><a href="api/patch.html#ember.patch.Patch.label">(ember.patch.Patch property)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/grid.html#ember.grid.Grid.labels">labels (ember.grid.Grid property)</a>
 
       <ul>
         <li><a href="api/patch.html#ember.patch.BlockPatchCollection.labels">(ember.patch.BlockPatchCollection property)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/communicators.html#ember.mixing_communicator.MixingCommunicator.leak">leak (ember.mixing_communicator.MixingCommunicator attribute)</a>
+</li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.legfit1d">legfit1d() (in module ember.realgas_fit)</a>
+</li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.legfit2d">legfit2d() (in module ember.realgas_fit)</a>
 </li>
       <li><a href="api/util.html#ember.util.linmesh3">linmesh3() (in module ember.util)</a>
 </li>
@@ -1016,6 +1130,8 @@
 </li>
         <li><a href="api/perturbation.html#module-ember.perturbation">ember.perturbation</a>
 </li>
+        <li><a href="api/realgas_fit.html#module-ember.realgas_fit">ember.realgas_fit</a>
+</li>
         <li><a href="api/set_iterative.html#module-ember.set_iterative">ember.set_iterative</a>
 </li>
         <li><a href="api/solver.html#module-ember.solver">ember.solver</a>
@@ -1091,9 +1207,11 @@
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.Omega_nd">Omega_nd (ember.block.Block property)</a>
 </li>
+      <li><a href="api/block.html#ember.block.Block.Omega_wall_nd">Omega_wall_nd (ember.block.Block property)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/block.html#ember.block.Block.Omega_wall_nd">Omega_wall_nd (ember.block.Block property)</a>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.order_matrix">order_matrix() (in module ember.realgas_fit)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.BlockPatchCollection.outlet">outlet (ember.patch.BlockPatchCollection property)</a>
 
@@ -1116,7 +1234,11 @@
 </li>
       </ul></li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.P_dtm">P_dtm (ember.fluid.PerfectFluid property)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.P_dtm">(ember.fluid.RealFluid property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.P_nd">P_nd (ember.block.Block property)</a>
 
       <ul>
@@ -1126,7 +1248,11 @@
       <li><a href="api/block.html#ember.block.Block.P_offset_nd">P_offset_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.P_ref">P_ref (ember.fluid.PerfectFluid property)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.P_ref">(ember.fluid.RealFluid property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.P_rot">P_rot (ember.block.Block property)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.ConvergenceStep.P_throttle">P_throttle (ember.grid.ConvergenceStep attribute)</a>
@@ -1161,10 +1287,10 @@
         <li><a href="api/patch.html#ember.patch.GridPatchCollection.periodic">(ember.patch.GridPatchCollection property)</a>
 </li>
       </ul></li>
-      <li><a href="api/communicators.html#ember.periodic_communicator.PeriodicCommunicator">PeriodicCommunicator (class in ember.periodic_communicator)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/communicators.html#ember.periodic_communicator.PeriodicCommunicator">PeriodicCommunicator (class in ember.periodic_communicator)</a>
+</li>
       <li><a href="api/patch.html#ember.patch.PeriodicPatch">PeriodicPatch (class in ember.patch)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.BlockPatchCollection.permeable">permeable (ember.patch.BlockPatchCollection property)</a>
@@ -1223,6 +1349,8 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.r">r (ember.block.Block property)</a>
 </li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitInfo.R2">R2 (ember.realgas_fit.FitInfo attribute)</a>
+</li>
       <li><a href="api/block.html#ember.block.Block.r_mid_nd">r_mid_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.r_nd">r_nd (ember.block.Block property)</a>
@@ -1234,6 +1362,8 @@
       <li><a href="api/grid.html#ember.grid.Grid.read_plot3d">read_plot3d() (ember.grid.Grid class method)</a>
 </li>
       <li><a href="api/yaml_util.html#ember.yaml_util.read_yaml">read_yaml() (in module ember.yaml_util)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.RealFluid">RealFluid (class in ember.fluid)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.record_convergence">record_convergence() (ember.convergence_history.ConvergenceHistory method)</a>
 </li>
@@ -1283,20 +1413,30 @@
 </li>
       <li><a href="api/solver.html#ember.solver.Solver.rf_mix">rf_mix (ember.solver.Solver attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/solver.html#ember.solver.Solver.rf_outlet">rf_outlet (ember.solver.Solver attribute)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.Rgas">Rgas (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.Rgas_ref">Rgas_ref (ember.fluid.PerfectFluid property)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.Rgas_ref">(ember.fluid.RealFluid property)</a>
 </li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.rho">rho (ember.block.Block property)</a>
+</li>
+      <li><a href="api/fluid.html#ember.fluid.RealFluid.rho_lim_nd">rho_lim_nd (ember.fluid.RealFluid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.rho_nd">rho_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.rho_ref">rho_ref (ember.fluid.PerfectFluid property)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.rho_ref">(ember.fluid.RealFluid property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.rhoe">rhoe (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.rhoo">rhoo (ember.block.Block property)</a>
@@ -1306,7 +1446,11 @@
       <li><a href="api/block.html#ember.block.Block.rhorVt">rhorVt (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.rhoV_ref">rhoV_ref (ember.fluid.PerfectFluid property)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.rhoV_ref">(ember.fluid.RealFluid property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.rhoVm">rhoVm (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.rhoVr">rhoVr (ember.block.Block property)</a>
@@ -1314,6 +1458,12 @@
       <li><a href="api/block.html#ember.block.Block.rhoVx">rhoVx (ember.block.Block property)</a>
 </li>
       <li><a href="api/solver.html#ember.solver.rk_step">rk_step() (in module ember.solver)</a>
+</li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitInfo.rmse">rmse (ember.realgas_fit.FitInfo attribute)</a>
+</li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult.rmse_s">rmse_s (ember.realgas_fit.FitResult property)</a>
+</li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult.rmse_Z">rmse_Z (ember.realgas_fit.FitResult property)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.BlockPatchCollection.rotating">rotating (ember.patch.BlockPatchCollection property)</a>
 
@@ -1365,6 +1515,8 @@
         <li><a href="api/patch.html#ember.patch.NonReflectingPatch.s_nd">(ember.patch.NonReflectingPatch attribute)</a>
 </li>
       </ul></li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.sample_coolprop">sample_coolprop() (in module ember.realgas_fit)</a>
+</li>
       <li><a href="api/block.html#ember.block.Block.scratch">scratch (ember.block.Block property)</a>
 </li>
       <li><a href="api/solver.html#ember.solver.scree_step">scree_step() (in module ember.solver)</a>
@@ -1407,6 +1559,8 @@
 
       <ul>
         <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_h_s">(ember.fluid.PerfectFluid method)</a>
+</li>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.set_h_s">(ember.fluid.RealFluid method)</a>
 </li>
       </ul></li>
       <li><a href="api/patch.html#ember.patch.InletPatch.set_ho_s">set_ho_s() (ember.patch.InletPatch method)</a>
@@ -1454,11 +1608,15 @@
       <ul>
         <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_P_h">(ember.fluid.PerfectFluid method)</a>
 </li>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.set_P_h">(ember.fluid.RealFluid method)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_P_rho">set_P_rho() (ember.block.Block method)</a>
 
       <ul>
         <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_P_rho">(ember.fluid.PerfectFluid method)</a>
+</li>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.set_P_rho">(ember.fluid.RealFluid method)</a>
 </li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_P_rho_nd">set_P_rho_nd() (ember.block.Block method)</a>
@@ -1468,17 +1626,21 @@
       <ul>
         <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_P_s">(ember.fluid.PerfectFluid method)</a>
 </li>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.set_P_s">(ember.fluid.RealFluid method)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_P_T">set_P_T() (ember.block.Block method)</a>
 
       <ul>
         <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_P_T">(ember.fluid.PerfectFluid method)</a>
 </li>
-      </ul></li>
-      <li><a href="api/patch.html#ember.patch.InletPatch.set_Po_To">set_Po_To() (ember.patch.InletPatch method)</a>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.set_P_T">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.patch.InletPatch.set_Po_To">set_Po_To() (ember.patch.InletPatch method)</a>
+</li>
       <li><a href="api/set_iterative.html#ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta">set_Po_To_Ma_rel_Alpha_rel_Beta() (in module ember.set_iterative)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.Grid.set_primitive_cart_unstr">set_primitive_cart_unstr() (ember.grid.Grid method)</a>
@@ -1489,6 +1651,8 @@
 
       <ul>
         <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_rho_s">(ember.fluid.PerfectFluid method)</a>
+</li>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.set_rho_s">(ember.fluid.RealFluid method)</a>
 </li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_rho_u">set_rho_u() (ember.block.Block method)</a>
@@ -1504,11 +1668,17 @@
       <li><a href="api/block.html#ember.block.Block.set_t">set_t() (ember.block.Block method)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_T_rho">set_T_rho() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.set_T_rho">(ember.fluid.RealFluid method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_T_s">set_T_s() (ember.block.Block method)</a>
 
       <ul>
         <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_T_s">(ember.fluid.PerfectFluid method)</a>
+</li>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.set_T_s">(ember.fluid.RealFluid method)</a>
 </li>
       </ul></li>
       <li><a href="api/patch.html#ember.patch.MixingPatch.set_target">set_target() (ember.patch.MixingPatch method)</a>
@@ -1604,11 +1774,19 @@
       <li><a href="api/block.html#ember.block.Block.t">t (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.T_dtm">T_dtm (ember.fluid.PerfectFluid property)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.T_dtm">(ember.fluid.RealFluid property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.T_nd">T_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.T_ref">T_ref (ember.fluid.PerfectFluid property)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.T_ref">(ember.fluid.RealFluid property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.tanAlpha">tanAlpha (ember.block.Block property)</a>
 
       <ul>
@@ -1631,6 +1809,12 @@
 
       <ul>
         <li><a href="api/patch.html#ember.patch.InletPatch.To">(ember.patch.InletPatch property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/fluid.html#ember.fluid.PerfectFluid.to_dict">to_dict() (ember.fluid.PerfectFluid method)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.to_dict">(ember.fluid.RealFluid method)</a>
 </li>
       </ul></li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.to_json">to_json() (ember.convergence_history.ConvergenceHistory method)</a>
@@ -1663,9 +1847,17 @@
 </li>
       <li><a href="api/block.html#ember.block.Block.u">u (ember.block.Block property)</a>
 </li>
+      <li><a href="api/fluid.html#ember.fluid.RealFluid.u_lim_nd">u_lim_nd (ember.fluid.RealFluid property)</a>
+</li>
       <li><a href="api/block.html#ember.block.Block.u_nd">u_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.u_ref">u_ref (ember.fluid.PerfectFluid property)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.u_ref">(ember.fluid.RealFluid property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.unhat">unhat() (in module ember.realgas_fit)</a>
 </li>
       <li><a href="api/cut.html#ember.cut.unstructured">unstructured() (in module ember.cut)</a>
 </li>
@@ -1722,7 +1914,11 @@
       <li><a href="api/block.html#ember.block.Block.V_nd">V_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.PerfectFluid.V_ref">V_ref (ember.fluid.PerfectFluid property)</a>
+
+      <ul>
+        <li><a href="api/fluid.html#ember.fluid.RealFluid.V_ref">(ember.fluid.RealFluid property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.V_rel">V_rel (ember.block.Block property)</a>
 </li>
       <li><a href="api/util.html#ember.util.vecnorm">vecnorm() (in module ember.util)</a>

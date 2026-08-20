@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>ember &#8212; ember 0.2.1.dev14+g52910ba65 documentation</title>
+    <title>ember &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="_static/documentation_options.js?v=83b1eafb"></script>
+    <script src="_static/documentation_options.js?v=fd19fe6e"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/sg-tags.js?v=d80f6fa4"></script>
@@ -36,7 +36,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev14+g52910ba65</p>
+<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
 
 
 
@@ -107,6 +107,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/realgas_fit.html">Real gas fitting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/block_util.html">Block utilities</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/set_iterative.html">Iterative flow-field setters</a></li>
@@ -220,11 +221,83 @@ interface, while the heavy computations run through compiled Fortran for speed.<
 <li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.T_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.T_dtm</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.T_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.T_ref</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.V_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.V_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.from_dict"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.from_dict()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.rhoV_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.rhoV_ref</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.rho_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.rho_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.to_dict"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.to_dict()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.u_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.u_ref</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_h_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_h_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_P_h"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_P_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_P_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_P_T"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_rho_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_rho_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_T_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_T_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_T_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_T_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_a"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_a()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_cp"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_cp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_cv"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_cv()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dhdP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dhdP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dhdrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dhdrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dsdP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dsdP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dsdrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dsdrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dudP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dudP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dudrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dudrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_gamma"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_gamma()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_h"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_mu"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_mu()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_P_h_T"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_P_h_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_Pr"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_Pr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_Rgas"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_Rgas()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_T"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.change_datum"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.change_datum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.change_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.change_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.rho_lim_nd"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.rho_lim_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.u_lim_nd"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.u_lim_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.P_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.P_dtm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.P_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.P_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.Rgas_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.Rgas_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.T_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.T_dtm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.T_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.T_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.V_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.V_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.from_dict"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.from_dict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.rhoV_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.rhoV_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.rho_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.rho_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.to_dict"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.to_dict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.u_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.u_ref</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/realgas_fit.html">Real gas fitting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#the-method">The method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#normalised-coordinates">Normalised coordinates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitInfo"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitInfo</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitInfo.rmse"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitInfo.rmse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitInfo.R2"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitInfo.R2</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult.kwargs"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.kwargs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult.info_Z"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.info_Z</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult.info_s"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.info_s</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult.rmse_Z"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.rmse_Z</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult.rmse_s"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.rmse_s</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.entropy_integral"><code class="docutils literal notranslate"><span class="pre">realgas_fit.entropy_integral()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.fit"><code class="docutils literal notranslate"><span class="pre">realgas_fit.fit()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.hat"><code class="docutils literal notranslate"><span class="pre">realgas_fit.hat()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.legfit1d"><code class="docutils literal notranslate"><span class="pre">realgas_fit.legfit1d()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.legfit2d"><code class="docutils literal notranslate"><span class="pre">realgas_fit.legfit2d()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.order_matrix"><code class="docutils literal notranslate"><span class="pre">realgas_fit.order_matrix()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.sample_coolprop"><code class="docutils literal notranslate"><span class="pre">realgas_fit.sample_coolprop()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.unhat"><code class="docutils literal notranslate"><span class="pre">realgas_fit.unhat()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a><ul>
@@ -769,6 +842,7 @@ interface, while the heavy computations run through compiled Fortran for speed.<
 </li>
 <li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Version history</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#unreleased">0.3.0 (unreleased)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="changelog.html#v0-2-0">0.2.0 (2026-08-18)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="changelog.html#v0-1-0">0.1.0 (2026-08-06)</a></li>
 </ul>

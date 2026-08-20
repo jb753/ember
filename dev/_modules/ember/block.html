@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.block &#8212; ember 0.2.1.dev14+g52910ba65 documentation</title>
+    <title>ember.block &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=83b1eafb"></script>
+    <script src="../../_static/documentation_options.js?v=fd19fe6e"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev14+g52910ba65</p>
+<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
 
 
 
@@ -105,6 +105,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Real gas fitting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
@@ -1465,7 +1466,23 @@
 <span class="sd">            over blocks and calling this method individually.</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">has_old</span> <span class="o">=</span> <span class="s2">&quot;fluid&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span>
+        <span class="c1"># Re-expressing the stored field is only meaningful when there is a</span>
+        <span class="c1"># field to re-express. A block whose storage was allocated but never</span>
+        <span class="c1"># written -- a boundary patch&#39;s average block, say -- holds arbitrary</span>
+        <span class="c1"># values, and pushing those through an equation of state produces</span>
+        <span class="c1"># nonsense such as negative pressure. The result was discarded anyway</span>
+        <span class="c1"># (the writes below pass store_init=False, so the data stays marked</span>
+        <span class="c1"># uninitialised), but an equation of state that has to invert</span>
+        <span class="c1"># numerically cannot be asked to do it and rightly refuses.</span>
+        <span class="c1">#</span>
+        <span class="c1"># Radius is deliberately absent from this list. It is read tolerantly</span>
+        <span class="c1"># below and takes no part in the thermodynamic state, so a block</span>
+        <span class="c1"># holding a flow field but no coordinates yet still has to be</span>
+        <span class="c1"># re-expressed -- leaving it alone would strand the field on the</span>
+        <span class="c1"># reference scales of a fluid that no longer applies.</span>
+        <span class="n">has_old</span> <span class="o">=</span> <span class="s2">&quot;fluid&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;rho&quot;</span><span class="p">,</span> <span class="s2">&quot;rhoVx&quot;</span><span class="p">,</span> <span class="s2">&quot;rhoVr&quot;</span><span class="p">,</span> <span class="s2">&quot;rhorVt&quot;</span><span class="p">,</span> <span class="s2">&quot;rhoe&quot;</span><span class="p">)</span>
+        <span class="p">)</span>
         <span class="k">if</span> <span class="n">has_old</span><span class="p">:</span>
             <span class="n">old</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fluid</span>
             <span class="c1"># Read dimensional thermodynamic state</span>
@@ -2680,10 +2697,11 @@
             <span class="n">raise_uninit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="p">)</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">cp_nd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="nd">@cached_array</span><span class="p">(</span><span class="s2">&quot;rho&quot;</span><span class="p">,</span> <span class="s2">&quot;rhoVx&quot;</span><span class="p">,</span> <span class="s2">&quot;rhoVr&quot;</span><span class="p">,</span> <span class="s2">&quot;rhorVt&quot;</span><span class="p">,</span> <span class="s2">&quot;rhoe&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cp_nd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Non-dimensional specific heat at constant pressure :math:`c_p / R_\mathrm{ref}` [-], nodal array.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">_cp_nd</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">allocate_or_reuse</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">get_cp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rho_nd_uninit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u_nd</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
 
     <span class="nd">@derived_array</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">dA_quad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

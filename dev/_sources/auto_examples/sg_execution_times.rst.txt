@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**00:00.657** total execution time for 6 files **from auto_examples**:
+**00:00.860** total execution time for 6 files **from auto_examples**:
 
 .. container::
 
@@ -33,20 +33,20 @@ Computation times
      - Time
      - Mem (MB)
    * - :ref:`sphx_glr_auto_examples_plot_cut_average.py` (``plot_cut_average.py``)
-     - 00:00.143
+     - 00:00.189
      - 0.0
    * - :ref:`sphx_glr_auto_examples_plot_block_basics.py` (``plot_block_basics.py``)
-     - 00:00.129
+     - 00:00.165
      - 0.0
    * - :ref:`sphx_glr_auto_examples_plot_isentropic_nozzle.py` (``plot_isentropic_nozzle.py``)
-     - 00:00.117
+     - 00:00.155
      - 0.0
    * - :ref:`sphx_glr_auto_examples_plot_patches.py` (``plot_patches.py``)
-     - 00:00.111
+     - 00:00.145
      - 0.0
    * - :ref:`sphx_glr_auto_examples_plot_shocked_nozzle.py` (``plot_shocked_nozzle.py``)
-     - 00:00.092
+     - 00:00.121
      - 0.0
    * - :ref:`sphx_glr_auto_examples_plot_joule_cycle.py` (``plot_joule_cycle.py``)
-     - 00:00.065
+     - 00:00.085
      - 0.0

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Fluid &#8212; ember 0.2.1.dev14+g52910ba65 documentation</title>
+    <title>Fluid &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,14 +13,14 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=83b1eafb"></script>
+    <script src="../_static/documentation_options.js?v=fd19fe6e"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
     <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Block" href="block.html" />
+    <link rel="next" title="Real gas fitting" href="realgas_fit.html" />
     <link rel="prev" title="Geometry and indexing" href="../coordinate_system.html" />
    
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev14+g52910ba65</p>
+<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
 
 
 
@@ -147,13 +147,60 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.fluid.PerfectFluid.T_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.T_dtm</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.fluid.PerfectFluid.T_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.T_ref</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.fluid.PerfectFluid.V_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.V_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.PerfectFluid.from_dict"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.from_dict()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.fluid.PerfectFluid.rhoV_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.rhoV_ref</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.fluid.PerfectFluid.rho_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.rho_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.PerfectFluid.to_dict"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.to_dict()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.fluid.PerfectFluid.u_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.u_ref</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.fluid.RealFluid"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.set_h_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_h_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.set_P_h"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.set_P_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.set_P_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.set_P_T"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.set_rho_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_rho_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.set_T_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_T_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.set_T_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_T_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_a"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_a()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_cp"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_cp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_cv"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_cv()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_dhdP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dhdP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_dhdrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dhdrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_dsdP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dsdP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_dsdrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dsdrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_dudP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dudP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_dudrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dudrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_gamma"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_gamma()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_h"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_mu"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_mu()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_P_h_T"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_P_h_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_Pr"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_Pr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_Rgas"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_Rgas()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.get_T"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.change_datum"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.change_datum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.change_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.change_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.rho_lim_nd"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.rho_lim_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.u_lim_nd"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.u_lim_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.P_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.P_dtm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.P_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.P_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.Rgas_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.Rgas_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.T_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.T_dtm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.T_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.T_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.V_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.V_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.from_dict"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.from_dict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.rhoV_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.rhoV_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.rho_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.rho_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.to_dict"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.to_dict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.fluid.RealFluid.u_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.u_ref</span></code></a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Real gas fitting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
 <li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
 <li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
@@ -177,7 +224,7 @@
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
       <li>Previous: <a href="../coordinate_system.html" title="previous chapter">Geometry and indexing</a></li>
-      <li>Next: <a href="block.html" title="next chapter">Block</a></li>
+      <li>Next: <a href="realgas_fit.html" title="next chapter">Real gas fitting</a></li>
   </ul></li>
 </ul>
 </div>
@@ -205,8 +252,10 @@ working fluids enabling manipulations of flow fields independent of the
 underlying equations of state. The abstraction cleanly separates thermodynamic
 relations from the flow solver, allowing easy extension to real gas models or
 tabulated properties.</p>
-<p>Currently, the only implementation of the interface is <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a> for ideal gases with
-constant specific heats.</p>
+<p>Two implementations are provided: <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a>, for ideal gases with
+constant specific heats, and <a class="reference internal" href="#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">RealFluid</span></code></a>, a thermodynamically consistent
+real gas built from a fitted entropy surface. Coefficients for the latter are
+produced offline by <a class="reference internal" href="realgas_fit.html#module-ember.realgas_fit" title="ember.realgas_fit"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.realgas_fit</span></code></a>.</p>
 <p>A fluid instance is immutable and only stores intrinsic fluid properties that never change, such
 as specific heats for a perfect gas, or the fluid species for a real
 fluid. These must passed into the constructor on initialisation. Storage of the actual flow solution is the responsibility of a <a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a>.</p>
@@ -228,9 +277,9 @@ to subtracting two large floats. We define a thermodynamic datum
 <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span> where <span class="math notranslate nohighlight">\(u = s = 0\)</span>
 simultaneously. Enthalpy at the datum is not zero because of the pressure term
 in <span class="math notranslate nohighlight">\(h = u + p/\rho\)</span>.</p>
-<p>It is possible to shift the datum state of a <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a> instance
-using <a class="reference internal" href="#ember.fluid.PerfectFluid.change_datum" title="ember.fluid.PerfectFluid.change_datum"><code class="xref py py-meth docutils literal notranslate"><span class="pre">PerfectFluid.change_datum()</span></code></a>, which returns a new instance with the
-same properties but shifted datum. The current datum is accessible via
+<p>It is possible to shift the datum state of a fluid instance using
+<code class="docutils literal notranslate"><span class="pre">change_datum</span></code>, which returns a new instance with the same properties but
+shifted datum. The current datum is accessible via
 <a class="reference internal" href="#ember.fluid.PerfectFluid.P_dtm" title="ember.fluid.PerfectFluid.P_dtm"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_dtm</span></code></a> and <a class="reference internal" href="#ember.fluid.PerfectFluid.T_dtm" title="ember.fluid.PerfectFluid.T_dtm"><code class="xref py py-attr docutils literal notranslate"><span class="pre">T_dtm</span></code></a> attributes.</p>
 </section>
 <section id="reference-scales">
@@ -361,6 +410,12 @@ same properties but shifted datum. The current datum is accessible via
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.PerfectFluid.change_ref" title="ember.fluid.PerfectFluid.change_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">change_ref</span></code></a>([rho_ref, V_ref, Rgas_ref])</p></td>
 <td><p>Make a new <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a> with different reference scales.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.PerfectFluid.from_dict" title="ember.fluid.PerfectFluid.from_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_dict</span></code></a>(data)</p></td>
+<td><p>Build a fluid from a dict written by <a class="reference internal" href="#ember.fluid.PerfectFluid.to_dict" title="ember.fluid.PerfectFluid.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.PerfectFluid.to_dict" title="ember.fluid.PerfectFluid.to_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_dict</span></code></a>()</p></td>
+<td><p>Return a portable record of this fluid, ready for <a class="reference internal" href="#ember.fluid.PerfectFluid.from_dict" title="ember.fluid.PerfectFluid.from_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_dict()</span></code></a>.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1130,6 +1185,28 @@ changes in <span class="math notranslate nohighlight">\(s\)</span> are physicall
 <p>User-specified; see <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>.</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.from_dict">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.fluid.PerfectFluid.from_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Build a fluid from a dict written by <a class="reference internal" href="#ember.fluid.PerfectFluid.to_dict" title="ember.fluid.PerfectFluid.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>.</p>
+<p>Called on <code class="xref py py-class docutils literal notranslate"><span class="pre">_Fluid</span></code> it dispatches on the <code class="docutils literal notranslate"><span class="pre">type</span></code> key, so a saved
+fluid can be read back without the caller knowing which equation of
+state wrote it. Called on a concrete class it checks that <code class="docutils literal notranslate"><span class="pre">type</span></code>
+names that class, so loading the wrong file is an error rather than a
+constructor failure several arguments deep.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – As returned by <a class="reference internal" href="#ember.fluid.PerfectFluid.to_dict" title="ember.fluid.PerfectFluid.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>. Not modified.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>fluid</strong> – A new instance of the class named by <code class="docutils literal notranslate"><span class="pre">data[&quot;type&quot;]</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>_Fluid</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py property">
 <dt class="sig sig-object py" id="ember.fluid.PerfectFluid.rhoV_ref">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhoV_ref</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.rhoV_ref" title="Link to this definition">¶</a></dt>
@@ -1146,6 +1223,29 @@ changes in <span class="math notranslate nohighlight">\(s\)</span> are physicall
 <p>User-specified; see <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>.</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.PerfectFluid.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ember.fluid.PerfectFluid.to_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Return a portable record of this fluid, ready for <a class="reference internal" href="#ember.fluid.PerfectFluid.from_dict" title="ember.fluid.PerfectFluid.from_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_dict()</span></code></a>.</p>
+<p>The dict holds plain floats, strings and nested lists only, so it can be
+written with <a class="reference external" href="https://docs.python.org/3/library/json.html#module-json" title="(in Python v3.14)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">json</span></code></a> or a plain YAML dumper and read by anything.
+That is the point of it: a <a class="reference internal" href="#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">RealFluid</span></code></a> surface costs a CoolProp
+table and an offline fit to produce, and until now the only way to keep
+one was to pickle the grid it happened to be attached to.</p>
+<p>Everything the constructor takes is included, the reference scales and
+the datum among them, so the round trip is exact. A fluid reloaded into
+another run therefore arrives with the scales of the run that wrote it;
+<a class="reference internal" href="#ember.fluid.PerfectFluid.change_ref" title="ember.fluid.PerfectFluid.change_ref"><code class="xref py py-meth docutils literal notranslate"><span class="pre">change_ref()</span></code></a> is how to move it onto new ones.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> – Constructor arguments plus a <code class="docutils literal notranslate"><span class="pre">type</span></code> key naming the class.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py property">
 <dt class="sig sig-object py" id="ember.fluid.PerfectFluid.u_ref">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">u_ref</span></span><a class="headerlink" href="#ember.fluid.PerfectFluid.u_ref" title="Link to this definition">¶</a></dt>
@@ -1155,6 +1255,1160 @@ changes in <span class="math notranslate nohighlight">\(s\)</span> are physicall
 \[u_\mathrm{ref} = V_\mathrm{ref}^2\]</div>
 </dd></dl>
 
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">fluid.</span></span><span class="sig-name descname"><span class="pre">RealFluid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_lim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u_lim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_isochor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Rgas</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Pr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">P_dtm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_dtm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Rgas_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">_Fluid</span></code></p>
+<p>Real gas defined by a fitted entropy surface.</p>
+<p>Implements the thermodynamically consistent equation of state of Wheeler
+(2024), <em>Computers and Fluids</em> 268:106088. A polynomial surface is fitted
+offline to the compressibility factor and integrated analytically to give
+entropy; temperature and pressure are then <em>derived</em> from that one surface
+rather than fitted separately, so the thermodynamic relations between them
+hold exactly. Use <a class="reference internal" href="realgas_fit.html#module-ember.realgas_fit" title="ember.realgas_fit"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.realgas_fit</span></code></a> to produce the coefficients.</p>
+<p>The consistency is the point. An interpolated lookup table satisfies its own
+tabulated values but not the relations between them, and the resulting
+mismatch acts like a non-equilibrium process, creating spurious entropy
+wherever gradients are steep. Wheeler shows a 62k-point table was needed to
+bring turbine entropy rise within 1.4 percent of this method.</p>
+<section id="evaluation">
+<h2>Evaluation<a class="headerlink" href="#evaluation" title="Link to this heading">¶</a></h2>
+<p>Everything descends from the entropy surface and its partials, via the
+combined first and second law <span class="math notranslate nohighlight">\(\mathrm{d}u = T\,\mathrm{d}s +
+(p/\rho^2)\,\mathrm{d}\rho\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[T = \left[\left(\frac{\partial s}{\partial u}\right)_\rho\right]^{-1},
+\qquad
+p = -\rho^2 T \left(\frac{\partial s}{\partial \rho}\right)_u\]</div>
+<p>The inverse <code class="docutils literal notranslate"><span class="pre">set_*</span></code> methods have no closed form and are solved by Newton
+iteration; see <a class="reference internal" href="#ember.fluid.RealFluid.set_P_rho" title="ember.fluid.RealFluid.set_P_rho"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_rho()</span></code></a> and <a class="reference internal" href="#ember.fluid.RealFluid.set_P_T" title="ember.fluid.RealFluid.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a>.</p>
+</section>
+<section id="domain-of-validity">
+<h2>Domain of validity<a class="headerlink" href="#domain-of-validity" title="Link to this heading">¶</a></h2>
+<p>The polynomials mean nothing outside the box they were fitted over, so
+<code class="docutils literal notranslate"><span class="pre">rho_lim</span></code> and <code class="docutils literal notranslate"><span class="pre">u_lim</span></code> are enforced: iterates are clamped to the box, and
+a solve that cannot meet its tolerance, or that returns no number at all,
+raises rather than returning a state the fit does not describe.</p>
+<p>A density passed in rather than solved for – by <a class="reference internal" href="#ember.fluid.RealFluid.set_rho_s" title="ember.fluid.RealFluid.set_rho_s"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_rho_s()</span></code></a>,
+<a class="reference internal" href="#ember.fluid.RealFluid.set_P_rho" title="ember.fluid.RealFluid.set_P_rho"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_rho()</span></code></a> and <a class="reference internal" href="#ember.fluid.RealFluid.set_T_rho" title="ember.fluid.RealFluid.set_T_rho"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_T_rho()</span></code></a> – is checked against the box
+before the iteration starts. Nothing later could catch it: the fitted
+surface extrapolates smoothly, so the solve would converge on a state that
+is self-consistent with a polynomial nobody fitted out there.</p>
+</section>
+<section id="limitations">
+<h2>Limitations<a class="headerlink" href="#limitations" title="Link to this heading">¶</a></h2>
+<p>Transport properties are constant, as for <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a>. Wheeler’s
+fitted viscosity and conductivity surfaces are not implemented, so <code class="docutils literal notranslate"><span class="pre">mu</span></code>
+and <code class="docutils literal notranslate"><span class="pre">Pr</span></code> are supplied directly. The specific heat carried into the
+conductivity is not among them: <a class="reference internal" href="block.html#ember.block.Block.cp_nd" title="ember.block.Block.cp_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">cp_nd</span></code></a> reads
+<a class="reference internal" href="#ember.fluid.RealFluid.get_cp" title="ember.fluid.RealFluid.get_cp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_cp()</span></code></a> at every node, so the heat flux sees the same state
+dependence as the rest of the surface.</p>
+<dl class="field-list simple">
+<dt class="field-odd">type alpha<span class="colon">:</span></dt>
+<dd class="field-odd"><p>array_like</p>
+</dd>
+<dt class="field-even">param alpha<span class="colon">:</span></dt>
+<dd class="field-even"><p>Two-dimensional Legendre coefficients of the compressibility factor
+<span class="math notranslate nohighlight">\(Z(\hat\rho, \hat u)\)</span> [–], in the normalised coordinates of
+<a class="reference internal" href="realgas_fit.html#normalised-coordinates"><span class="std std-ref">Normalised coordinates</span></a>.</p>
+</dd>
+<dt class="field-odd">type alpha<span class="colon">:</span></dt>
+<dd class="field-odd"><p>array_like</p>
+</dd>
+<dt class="field-even">type beta<span class="colon">:</span></dt>
+<dd class="field-even"><p>array_like</p>
+</dd>
+<dt class="field-odd">param beta<span class="colon">:</span></dt>
+<dd class="field-odd"><p>One-dimensional Legendre coefficients of <span class="math notranslate nohighlight">\(s/R\)</span> along the reference
+isochor [–].</p>
+</dd>
+<dt class="field-even">type beta<span class="colon">:</span></dt>
+<dd class="field-even"><p>array_like</p>
+</dd>
+<dt class="field-odd">type rho_lim<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+<dt class="field-even">param rho_lim<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> density bounds of the fit box [kg/m³].</p>
+</dd>
+<dt class="field-odd">type rho_lim<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+<dt class="field-even">type u_lim<span class="colon">:</span></dt>
+<dd class="field-even"><p>tuple</p>
+</dd>
+<dt class="field-odd">param u_lim<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> internal energy bounds of the fit box [J/kg], on the same
+datum as the data <code class="docutils literal notranslate"><span class="pre">beta</span></code> was fitted to.</p>
+</dd>
+<dt class="field-even">type u_lim<span class="colon">:</span></dt>
+<dd class="field-even"><p>tuple</p>
+</dd>
+<dt class="field-odd">type rho_isochor<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+<dt class="field-even">param rho_isochor<span class="colon">:</span></dt>
+<dd class="field-even"><p>Density of the isochor the entropy integral starts from [kg/m³]. This is
+Wheeler’s <span class="math notranslate nohighlight">\(\rho_\mathrm{ref}\)</span>, and is unrelated to
+<a class="reference internal" href="#ember.fluid.RealFluid.rho_ref" title="ember.fluid.RealFluid.rho_ref"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rho_ref</span></code></a>, the non-dimensionalisation scale.</p>
+</dd>
+<dt class="field-odd">type rho_isochor<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+<dt class="field-even">type Rgas<span class="colon">:</span></dt>
+<dd class="field-even"><p>float</p>
+</dd>
+<dt class="field-odd">param Rgas<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Specific gas constant [J/kg/K]. Converts the two dimensionless
+coefficient arrays into entropy, and is what <a class="reference internal" href="#ember.fluid.RealFluid.get_Rgas" title="ember.fluid.RealFluid.get_Rgas"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_Rgas()</span></code></a> reports.</p>
+</dd>
+<dt class="field-even">type Rgas<span class="colon">:</span></dt>
+<dd class="field-even"><p>float</p>
+</dd>
+<dt class="field-odd">type mu<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+<dt class="field-even">param mu<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dynamic viscosity [kg/m/s].</p>
+</dd>
+<dt class="field-odd">type mu<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+<dt class="field-even">type Pr<span class="colon">:</span></dt>
+<dd class="field-even"><p>float</p>
+</dd>
+<dt class="field-odd">param Pr<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Prandtl number [–].</p>
+</dd>
+<dt class="field-even">type Pr<span class="colon">:</span></dt>
+<dd class="field-even"><p>float</p>
+</dd>
+<dt class="field-odd">type P_dtm<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, optional</p>
+</dd>
+<dt class="field-even">param P_dtm<span class="colon">:</span></dt>
+<dd class="field-even"><p>Datum pressure where u = 0 and s = 0 [Pa]. Must lie in the fit box.
+Defaults to this fluid’s own pressure at the centre of that box, which
+is inside it by construction; see <a class="reference internal" href="#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd>
+<dt class="field-odd">type P_dtm<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, optional</p>
+</dd>
+<dt class="field-even">type T_dtm<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param T_dtm<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Datum temperature where u = 0 and s = 0 [K]. Must lie in the fit box.
+Defaults to the temperature at the same point. Either may be given on
+its own, the other still defaulting.</p>
+</dd>
+<dt class="field-even">type T_dtm<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">type rho_ref<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, optional</p>
+</dd>
+<dt class="field-even">param rho_ref<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reference density for non-dimensionalisation.</p>
+</dd>
+<dt class="field-odd">type rho_ref<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, optional</p>
+</dd>
+<dt class="field-even">type V_ref<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param V_ref<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Reference velocity for non-dimensionalisation.</p>
+</dd>
+<dt class="field-even">type V_ref<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">type Rgas_ref<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, optional</p>
+</dd>
+<dt class="field-even">param Rgas_ref<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reference gas constant for non-dimensionalisation.</p>
+</dd>
+<dt class="field-odd">type Rgas_ref<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, optional</p>
+</dd>
+</dl>
+<p><strong>Methods:</strong></p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.set_h_s" title="ember.fluid.RealFluid.set_h_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_h_s</span></code></a>(h, s)</p></td>
+<td><p>Density and internal energy from specific enthalpy and entropy.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.set_P_h" title="ember.fluid.RealFluid.set_P_h"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_P_h</span></code></a>(P, h)</p></td>
+<td><p>Density and internal energy from pressure and specific enthalpy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.set_P_rho" title="ember.fluid.RealFluid.set_P_rho"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_P_rho</span></code></a>(P, rho)</p></td>
+<td><p>Density and internal energy from pressure and density.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.set_P_s" title="ember.fluid.RealFluid.set_P_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_P_s</span></code></a>(P, s)</p></td>
+<td><p>Density and internal energy from pressure and specific entropy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.set_P_T" title="ember.fluid.RealFluid.set_P_T"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_P_T</span></code></a>(P, T)</p></td>
+<td><p>Density and internal energy from pressure and temperature.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.set_rho_s" title="ember.fluid.RealFluid.set_rho_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_rho_s</span></code></a>(rho, s)</p></td>
+<td><p>Density and internal energy from density and specific entropy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.set_T_rho" title="ember.fluid.RealFluid.set_T_rho"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_T_rho</span></code></a>(T, rho)</p></td>
+<td><p>Density and internal energy from temperature and density.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.set_T_s" title="ember.fluid.RealFluid.set_T_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_T_s</span></code></a>(T, s)</p></td>
+<td><p>Density and internal energy from temperature and specific entropy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_a" title="ember.fluid.RealFluid.get_a"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_a</span></code></a>(rho, u[, out])</p></td>
+<td><p>Speed of sound from density and internal energy.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_cp" title="ember.fluid.RealFluid.get_cp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cp</span></code></a>(rho, u[, out])</p></td>
+<td><p>Specific heat at constant pressure from density and internal energy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_cv" title="ember.fluid.RealFluid.get_cv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cv</span></code></a>(rho, u[, out])</p></td>
+<td><p>Specific heat at constant volume from density and internal energy.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_dhdP_rho" title="ember.fluid.RealFluid.get_dhdP_rho"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dhdP_rho</span></code></a>(rho, u[, out])</p></td>
+<td><p>Derivative of specific enthalpy with respect to pressure at constant density.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_dhdrho_P" title="ember.fluid.RealFluid.get_dhdrho_P"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dhdrho_P</span></code></a>(rho, u[, out])</p></td>
+<td><p>Derivative of specific enthalpy with respect to density at constant pressure.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_dsdP_rho" title="ember.fluid.RealFluid.get_dsdP_rho"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dsdP_rho</span></code></a>(rho, u[, out])</p></td>
+<td><p>Derivative of specific entropy with respect to pressure at constant density.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_dsdrho_P" title="ember.fluid.RealFluid.get_dsdrho_P"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dsdrho_P</span></code></a>(rho, u[, out])</p></td>
+<td><p>Derivative of specific entropy with respect to density at constant pressure.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_dudP_rho" title="ember.fluid.RealFluid.get_dudP_rho"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dudP_rho</span></code></a>(rho, u[, out])</p></td>
+<td><p>Derivative of specific internal energy with respect to pressure at constant density.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_dudrho_P" title="ember.fluid.RealFluid.get_dudrho_P"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dudrho_P</span></code></a>(rho, u[, out])</p></td>
+<td><p>Derivative of specific internal energy with respect to density at constant pressure.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_gamma" title="ember.fluid.RealFluid.get_gamma"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_gamma</span></code></a>(rho, u[, out])</p></td>
+<td><p>Isentropic exponent from density and internal energy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_h" title="ember.fluid.RealFluid.get_h"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_h</span></code></a>(rho, u[, out])</p></td>
+<td><p>Specific enthalpy from density and internal energy.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_mu" title="ember.fluid.RealFluid.get_mu"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_mu</span></code></a>(rho, u[, out])</p></td>
+<td><p>Dynamic viscosity (constant; the transport surfaces are not fitted).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_P" title="ember.fluid.RealFluid.get_P"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_P</span></code></a>(rho, u[, out])</p></td>
+<td><p>Pressure from density and internal energy.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_P_h_T" title="ember.fluid.RealFluid.get_P_h_T"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_P_h_T</span></code></a>(rho, u[, out_P, out_h, out_T])</p></td>
+<td><p>Batched evaluation of pressure, enthalpy and temperature.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_Pr" title="ember.fluid.RealFluid.get_Pr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_Pr</span></code></a>(rho, u[, out])</p></td>
+<td><p>Prandtl number (constant; the transport surfaces are not fitted).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_Rgas" title="ember.fluid.RealFluid.get_Rgas"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_Rgas</span></code></a>(rho, u[, out])</p></td>
+<td><p>Specific gas constant (a constant property of the species).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_s" title="ember.fluid.RealFluid.get_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_s</span></code></a>(rho, u[, out])</p></td>
+<td><p>Specific entropy from density and internal energy.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.get_T" title="ember.fluid.RealFluid.get_T"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_T</span></code></a>(rho, u[, out])</p></td>
+<td><p>Temperature from density and internal energy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.change_datum" title="ember.fluid.RealFluid.change_datum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">change_datum</span></code></a>(P_dtm, T_dtm)</p></td>
+<td><p>Get a new <a class="reference internal" href="#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">RealFluid</span></code></a> with shifted datum.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.change_ref" title="ember.fluid.RealFluid.change_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">change_ref</span></code></a>([rho_ref, V_ref, Rgas_ref])</p></td>
+<td><p>Make a new <a class="reference internal" href="#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">RealFluid</span></code></a> with different reference scales.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.from_dict" title="ember.fluid.RealFluid.from_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_dict</span></code></a>(data)</p></td>
+<td><p>Build a fluid from a dict written by <a class="reference internal" href="#ember.fluid.RealFluid.to_dict" title="ember.fluid.RealFluid.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.to_dict" title="ember.fluid.RealFluid.to_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_dict</span></code></a>()</p></td>
+<td><p>Return a portable record of this fluid, ready for <a class="reference internal" href="#ember.fluid.RealFluid.from_dict" title="ember.fluid.RealFluid.from_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_dict()</span></code></a>.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Attributes:</strong></p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.rho_lim_nd" title="ember.fluid.RealFluid.rho_lim_nd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rho_lim_nd</span></code></a></p></td>
+<td><p>Density bounds of the fit box <span class="math notranslate nohighlight">\(\rho/\rho_\mathrm{ref}\)</span> [--].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.u_lim_nd" title="ember.fluid.RealFluid.u_lim_nd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">u_lim_nd</span></code></a></p></td>
+<td><p>Internal energy bounds of the fit box <span class="math notranslate nohighlight">\(u/u_\mathrm{ref}\)</span> [--].</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.P_dtm" title="ember.fluid.RealFluid.P_dtm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">P_dtm</span></code></a></p></td>
+<td><p>Datum pressure <span class="math notranslate nohighlight">\(p_\mathrm{dtm}\)</span> where <span class="math notranslate nohighlight">\(u = s = 0\)</span> [Pa].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.P_ref" title="ember.fluid.RealFluid.P_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">P_ref</span></code></a></p></td>
+<td><p>Reference pressure for nondimensionalisation, <span class="math notranslate nohighlight">\(p_\mathrm{ref}\)</span> [Pa].</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.Rgas_ref" title="ember.fluid.RealFluid.Rgas_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Rgas_ref</span></code></a></p></td>
+<td><p>Reference gas constant for nondimensionalisation, <span class="math notranslate nohighlight">\(R_\mathrm{ref}\)</span> [J/kg/K].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.T_dtm" title="ember.fluid.RealFluid.T_dtm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">T_dtm</span></code></a></p></td>
+<td><p>Datum temperature <span class="math notranslate nohighlight">\(T_\mathrm{dtm}\)</span> where <span class="math notranslate nohighlight">\(u = s = 0\)</span> [K].</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.T_ref" title="ember.fluid.RealFluid.T_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">T_ref</span></code></a></p></td>
+<td><p>Reference temperature for nondimensionalisation, <span class="math notranslate nohighlight">\(T_\mathrm{ref}\)</span> [K].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.V_ref" title="ember.fluid.RealFluid.V_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">V_ref</span></code></a></p></td>
+<td><p>Reference velocity for nondimensionalisation, <span class="math notranslate nohighlight">\(V_\mathrm{ref}\)</span> [m/s].</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.rhoV_ref" title="ember.fluid.RealFluid.rhoV_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rhoV_ref</span></code></a></p></td>
+<td><p>Reference mass flux for nondimensionalisation, <span class="math notranslate nohighlight">\((\rho V)_\mathrm{ref}\)</span> [kg/m²/s].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.rho_ref" title="ember.fluid.RealFluid.rho_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rho_ref</span></code></a></p></td>
+<td><p>Reference density for nondimensionalisation, <span class="math notranslate nohighlight">\(\rho_\mathrm{ref}\)</span> [kg/m³].</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.fluid.RealFluid.u_ref" title="ember.fluid.RealFluid.u_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">u_ref</span></code></a></p></td>
+<td><p>Reference specific energy for nondimensionalisation, <span class="math notranslate nohighlight">\(u_\mathrm{ref}\)</span> [J/kg].</p></td>
+</tr>
+</tbody>
+</table>
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.set_h_s">
+<span class="sig-name descname"><span class="pre">set_h_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.set_h_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.set_h_s" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from specific enthalpy and entropy.</p>
+<p>Solved by two-dimensional Newton iteration; see <a class="reference internal" href="#ember.fluid.RealFluid.set_P_T" title="ember.fluid.RealFluid.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>h</strong> (<em>array_like</em>) – Specific enthalpy [J/kg].</p></li>
+<li><p><strong>s</strong> (<em>array_like</em>) – Specific entropy [J/kg/K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.set_P_h">
+<span class="sig-name descname"><span class="pre">set_P_h</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.set_P_h"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.set_P_h" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from pressure and specific enthalpy.</p>
+<p>Solved by two-dimensional Newton iteration; see <a class="reference internal" href="#ember.fluid.RealFluid.set_P_T" title="ember.fluid.RealFluid.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array_like</em>) – Pressure [Pa].</p></li>
+<li><p><strong>h</strong> (<em>array_like</em>) – Specific enthalpy [J/kg].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.set_P_rho">
+<span class="sig-name descname"><span class="pre">set_P_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.set_P_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.set_P_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from pressure and density.</p>
+<p>Density is already known, so this is a scalar Newton solve for the
+internal energy satisfying <span class="math notranslate nohighlight">\(p(\rho, u) = p\)</span>, seeded from the
+companion perfect gas. The residual is monotone in <span class="math notranslate nohighlight">\(u\)</span>, since
+heating at constant volume raises pressure.</p>
+<p>This is on the per-step nonreflecting boundary path, so it is solved for
+the whole array at once rather than node by node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array_like</em>) – Pressure [Pa].</p></li>
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³] (returned unchanged).</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.set_P_s">
+<span class="sig-name descname"><span class="pre">set_P_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.set_P_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.set_P_s" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from pressure and specific entropy.</p>
+<p>Solved by two-dimensional Newton iteration; see <a class="reference internal" href="#ember.fluid.RealFluid.set_P_T" title="ember.fluid.RealFluid.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array_like</em>) – Pressure [Pa].</p></li>
+<li><p><strong>s</strong> (<em>array_like</em>) – Specific entropy [J/kg/K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.set_P_T">
+<span class="sig-name descname"><span class="pre">set_P_T</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.set_P_T"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.set_P_T" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from pressure and temperature.</p>
+<p>Neither variable is known directly, so both are found together by
+Newton iteration on the 2x2 system <span class="math notranslate nohighlight">\(p(\rho, u) = p\)</span>,
+<span class="math notranslate nohighlight">\(T(\rho, u) = T\)</span>, with the Jacobian assembled analytically from
+the entropy surface and inverted in closed form.</p>
+<p>Conditioning degrades near the critical point, where
+<span class="math notranslate nohighlight">\((\partial p/\partial\rho)_T \rightarrow 0\)</span> and the Jacobian
+determinant vanishes. That is physical rather than numerical – pressure
+and temperature stop being independent coordinates on the saturation
+line – and lies outside any sensible fit box, but it will surface as a
+convergence failure rather than a wrong answer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array_like</em>) – Pressure [Pa].</p></li>
+<li><p><strong>T</strong> (<em>array_like</em>) – Temperature [K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.set_rho_s">
+<span class="sig-name descname"><span class="pre">set_rho_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.set_rho_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.set_rho_s" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from density and specific entropy.</p>
+<p>A scalar Newton solve for the internal energy satisfying
+<span class="math notranslate nohighlight">\(s(\rho, u) = s\)</span>. The residual is monotone in <span class="math notranslate nohighlight">\(u\)</span> because
+<span class="math notranslate nohighlight">\((\partial s/\partial u)_\rho = 1/T &gt; 0\)</span>, so convergence is
+assured from any starting point in the box.</p>
+<p>This is on the per-step nonreflecting boundary path, so it is solved for
+the whole array at once rather than node by node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>s</strong> (<em>array_like</em>) – Specific entropy [J/kg/K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³] (returned unchanged).</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.set_T_rho">
+<span class="sig-name descname"><span class="pre">set_T_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">T</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.set_T_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.set_T_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from temperature and density.</p>
+<p>A scalar Newton solve for the internal energy satisfying
+<span class="math notranslate nohighlight">\(T(\rho, u) = T\)</span>. The residual is monotone in <span class="math notranslate nohighlight">\(u\)</span> because
+the specific heat at constant volume is positive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>T</strong> (<em>array_like</em>) – Temperature [K].</p></li>
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³] (returned unchanged).</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.set_T_s">
+<span class="sig-name descname"><span class="pre">set_T_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">T</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.set_T_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.set_T_s" title="Link to this definition">¶</a></dt>
+<dd><p>Density and internal energy from temperature and specific entropy.</p>
+<p>Solved by two-dimensional Newton iteration; see <a class="reference internal" href="#ember.fluid.RealFluid.set_P_T" title="ember.fluid.RealFluid.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>T</strong> (<em>array_like</em>) – Temperature [K].</p></li>
+<li><p><strong>s</strong> (<em>array_like</em>) – Specific entropy [J/kg/K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>rho</strong> (<em>ndarray</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>ndarray</em>) – Specific internal energy [J/kg].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_a">
+<span class="sig-name descname"><span class="pre">get_a</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_a"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_a" title="Link to this definition">¶</a></dt>
+<dd><p>Speed of sound from density and internal energy.</p>
+<div class="math notranslate nohighlight">
+\[a = \sqrt{k\, p / \rho}\]</div>
+<p>where <span class="math notranslate nohighlight">\(k\)</span> is the isentropic exponent of <a class="reference internal" href="#ember.fluid.RealFluid.get_gamma" title="ember.fluid.RealFluid.get_gamma"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_gamma()</span></code></a>. Note
+this is the isentropic exponent and not the ratio of specific heats,
+which for a real gas is a different number.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>a</strong> – Speed of sound [m/s].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_cp">
+<span class="sig-name descname"><span class="pre">get_cp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_cp"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_cp" title="Link to this definition">¶</a></dt>
+<dd><p>Specific heat at constant pressure from density and internal energy.</p>
+<p>Obtained from the specific heat at constant volume and the ratio of the
+isentropic and isothermal density derivatives of pressure,</p>
+<div class="math notranslate nohighlight">
+\[\frac{c_p}{c_v}
+    = \frac{(\partial p/\partial\rho)_s}{(\partial p/\partial\rho)_T}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>cp</strong> – Specific heat at constant pressure [J/kg/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_cv">
+<span class="sig-name descname"><span class="pre">get_cv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_cv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_cv" title="Link to this definition">¶</a></dt>
+<dd><p>Specific heat at constant volume from density and internal energy.</p>
+<div class="math notranslate nohighlight">
+\[c_v = \left(\frac{\partial u}{\partial T}\right)_\rho\]</div>
+<p>evaluated by inverting the temperature derivative, which comes from the
+second derivative of the entropy surface.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>cv</strong> – Specific heat at constant volume [J/kg/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_dhdP_rho">
+<span class="sig-name descname"><span class="pre">get_dhdP_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_dhdP_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_dhdP_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific enthalpy with respect to pressure at constant density.</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial h}{\partial p}\right|_\rho
+    = \left.\frac{\partial u}{\partial p}\right|_\rho + \frac{1}{\rho}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dhdP_rho</strong> – Derivative <span class="math notranslate nohighlight">\((\partial h/\partial p)_\rho\)</span> [m³/kg].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_dhdrho_P">
+<span class="sig-name descname"><span class="pre">get_dhdrho_P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_dhdrho_P"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_dhdrho_P" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific enthalpy with respect to density at constant pressure.</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial h}{\partial \rho}\right|_p
+    = \left.\frac{\partial u}{\partial \rho}\right|_p
+    - \frac{p}{\rho^2}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dhdrho_P</strong> – Derivative <span class="math notranslate nohighlight">\((\partial h/\partial \rho)_p\)</span> [J·m³/kg²].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_dsdP_rho">
+<span class="sig-name descname"><span class="pre">get_dsdP_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_dsdP_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_dsdP_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific entropy with respect to pressure at constant density.</p>
+<p>Obtained by chain rule through internal energy at fixed density,</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial s}{\partial p}\right|_\rho
+    = \frac{(\partial s/\partial u)_\rho}{(\partial p/\partial u)_\rho}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dsdP_rho</strong> – Derivative <span class="math notranslate nohighlight">\((\partial s/\partial p)_\rho\)</span> [J/kg/K/Pa].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_dsdrho_P">
+<span class="sig-name descname"><span class="pre">get_dsdrho_P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_dsdrho_P"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_dsdrho_P" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific entropy with respect to density at constant pressure.</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial s}{\partial \rho}\right|_p
+    = \left.\frac{\partial s}{\partial \rho}\right|_u
+    + \left.\frac{\partial s}{\partial u}\right|_\rho
+      \left.\frac{\partial u}{\partial \rho}\right|_p\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dsdrho_P</strong> – Derivative <span class="math notranslate nohighlight">\((\partial s/\partial \rho)_p\)</span> [J·m³/kg²/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_dudP_rho">
+<span class="sig-name descname"><span class="pre">get_dudP_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_dudP_rho"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_dudP_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific internal energy with respect to pressure at constant density.</p>
+<p>The reciprocal of the pressure derivative taken directly from the
+surface,</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial u}{\partial p}\right|_\rho
+    = \left[\left.\frac{\partial p}{\partial u}\right|_\rho\right]^{-1}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dudP_rho</strong> – Derivative <span class="math notranslate nohighlight">\((\partial u/\partial p)_\rho\)</span> [m³/kg].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_dudrho_P">
+<span class="sig-name descname"><span class="pre">get_dudrho_P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_dudrho_P"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_dudrho_P" title="Link to this definition">¶</a></dt>
+<dd><p>Derivative of specific internal energy with respect to density at constant pressure.</p>
+<div class="math notranslate nohighlight">
+\[\left.\frac{\partial u}{\partial \rho}\right|_p
+    = -\frac{(\partial p/\partial \rho)_u}{(\partial p/\partial u)_\rho}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dudrho_P</strong> – Derivative <span class="math notranslate nohighlight">\((\partial u/\partial \rho)_p\)</span> [J·m³/kg²].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_gamma">
+<span class="sig-name descname"><span class="pre">get_gamma</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_gamma"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_gamma" title="Link to this definition">¶</a></dt>
+<dd><p>Isentropic exponent from density and internal energy.</p>
+<div class="math notranslate nohighlight">
+\[k = \frac{\rho}{p}\left.\frac{\partial p}{\partial \rho}\right|_s\]</div>
+<p>This is the exponent that governs acoustics and the characteristic
+decomposition, and it is what <a class="reference internal" href="#ember.fluid.RealFluid.get_a" title="ember.fluid.RealFluid.get_a"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_a()</span></code></a> uses. For a real gas it is
+<strong>not</strong> the ratio of specific heats <span class="math notranslate nohighlight">\(c_p/c_v\)</span>, which is available
+separately from <a class="reference internal" href="#ember.fluid.RealFluid.get_cp" title="ember.fluid.RealFluid.get_cp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_cp()</span></code></a> and <a class="reference internal" href="#ember.fluid.RealFluid.get_cv" title="ember.fluid.RealFluid.get_cv"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_cv()</span></code></a>; the two coincide only
+when the specific heats are constant.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>gamma</strong> – Isentropic exponent [–].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_h">
+<span class="sig-name descname"><span class="pre">get_h</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_h"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_h" title="Link to this definition">¶</a></dt>
+<dd><p>Specific enthalpy from density and internal energy.</p>
+<div class="math notranslate nohighlight">
+\[h = u + p/\rho\]</div>
+<p>Enthalpy carries an offset dependent on the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span>; only changes in <span class="math notranslate nohighlight">\(h\)</span> are physically meaningful.
+See <a class="reference internal" href="#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>h</strong> – Specific enthalpy [J/kg].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_mu">
+<span class="sig-name descname"><span class="pre">get_mu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_mu"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_mu" title="Link to this definition">¶</a></dt>
+<dd><p>Dynamic viscosity (constant; the transport surfaces are not fitted).</p>
+<p>If reference scales are set, then this method returns a
+quasi-dimensional viscosity in units of [m] — see
+<a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a> for details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>mu</strong> – Dynamic viscosity [kg/m/s].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_P">
+<span class="sig-name descname"><span class="pre">get_P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_P"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_P" title="Link to this definition">¶</a></dt>
+<dd><p>Pressure from density and internal energy.</p>
+<p>From the combined first and second law, at constant internal energy,</p>
+<div class="math notranslate nohighlight">
+\[p = -\rho^2 T \left(\frac{\partial s}{\partial \rho}\right)_u\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>P</strong> – Pressure [Pa].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_P_h_T">
+<span class="sig-name descname"><span class="pre">get_P_h_T</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_P</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_h</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_T</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_P_h_T"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_P_h_T" title="Link to this definition">¶</a></dt>
+<dd><p>Batched evaluation of pressure, enthalpy and temperature.</p>
+<p>All three come from the same entropy partials, so evaluating them
+together costs barely more than any one of them, where the base class
+would walk the polynomial surface three times. The solver calls this
+once per Runge-Kutta stage.</p>
+<p>A float32 call with all three outputs supplied – which is what the
+solver makes – goes to a Fortran kernel instead. Anything else falls
+back to the numpy body below rather than to the base class: that body
+is already fused, and three separate calls would be three times the
+work.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out_P</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output arrays.</p></li>
+<li><p><strong>out_h</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output arrays.</p></li>
+<li><p><strong>out_T</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output arrays.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(P,</span> <span class="pre">h,</span> <span class="pre">T)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_Pr">
+<span class="sig-name descname"><span class="pre">get_Pr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_Pr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_Pr" title="Link to this definition">¶</a></dt>
+<dd><p>Prandtl number (constant; the transport surfaces are not fitted).</p>
+<div class="math notranslate nohighlight">
+\[\mathit{Pr} = \frac{\mu c_p}{\kappa}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>Pr</strong> – Prandtl number [–].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_Rgas">
+<span class="sig-name descname"><span class="pre">get_Rgas</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_Rgas"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_Rgas" title="Link to this definition">¶</a></dt>
+<dd><p>Specific gas constant (a constant property of the species).</p>
+<p>Note that for a real gas this is <em>not</em> <span class="math notranslate nohighlight">\(p/(\rho T)\)</span>, which is
+larger by the compressibility factor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>R</strong> – Specific gas constant [J/kg/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_s">
+<span class="sig-name descname"><span class="pre">get_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_s" title="Link to this definition">¶</a></dt>
+<dd><p>Specific entropy from density and internal energy.</p>
+<p>Evaluated directly from the fitted surface: an isochor polynomial in
+internal energy, less the analytic density integral of the
+compressibility factor.</p>
+<p>Entropy is defined relative to the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span>; only changes in <span class="math notranslate nohighlight">\(s\)</span> are physically meaningful.
+See <a class="reference internal" href="#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>s</strong> – Specific entropy [J/kg/K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.get_T">
+<span class="sig-name descname"><span class="pre">get_T</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.get_T"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.get_T" title="Link to this definition">¶</a></dt>
+<dd><p>Temperature from density and internal energy.</p>
+<p>From the combined first and second law, at constant density,</p>
+<div class="math notranslate nohighlight">
+\[T = \left[\left(\frac{\partial s}{\partial u}\right)_\rho\right]^{-1}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Density [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Specific internal energy [J/kg].</p></li>
+<li><p><strong>out</strong> (<em>ndarray</em><em>, </em><em>optional</em>) – Pre-allocated output array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>T</strong> – Temperature [K].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.change_datum">
+<span class="sig-name descname"><span class="pre">change_datum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P_dtm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_dtm</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.change_datum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.change_datum" title="Link to this definition">¶</a></dt>
+<dd><p>Get a new <a class="reference internal" href="#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">RealFluid</span></code></a> with shifted datum.</p>
+<p>The coefficient arrays are untouched: they describe a dimensionless
+surface in normalised coordinates, and the datum only enters through the
+affine constants composed at construction. See <a class="reference internal" href="#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – New datum pressure [Pa].</p></li>
+<li><p><strong>T_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – New datum temperature [K].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>fluid_new</strong> – New fluid instance with shifted energy and entropy datum.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.fluid.RealFluid" title="ember.fluid.RealFluid">RealFluid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.change_ref">
+<span class="sig-name descname"><span class="pre">change_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Rgas_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/fluid.html#RealFluid.change_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.fluid.RealFluid.change_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Make a new <a class="reference internal" href="#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">RealFluid</span></code></a> with different reference scales.</p>
+<p>Omitted reference scales default to the current instance’s, so only the
+scales that need to be changed must be specified. As with
+<a class="reference internal" href="#ember.fluid.RealFluid.change_datum" title="ember.fluid.RealFluid.change_datum"><code class="xref py py-meth docutils literal notranslate"><span class="pre">change_datum()</span></code></a>, no refit is involved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density for non-dimensionalisation.</p></li>
+<li><p><strong>V_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference velocity for non-dimensionalisation.</p></li>
+<li><p><strong>Rgas_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference gas constant for non-dimensionalisation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>fluid_new</strong> – New fluid instance with the same properties but different reference
+scales.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.fluid.RealFluid" title="ember.fluid.RealFluid">RealFluid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.rho_lim_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rho_lim_nd</span></span><a class="headerlink" href="#ember.fluid.RealFluid.rho_lim_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Density bounds of the fit box <span class="math notranslate nohighlight">\(\rho/\rho_\mathrm{ref}\)</span> [–].</p>
+<p>The constructor takes the box in SI, but <code class="docutils literal notranslate"><span class="pre">get_*</span></code> and <code class="docutils literal notranslate"><span class="pre">set_*</span></code> work in
+non-dimensional units, so this is the form a caller needs to check that
+a state is in range. Outside these bounds the fitted polynomials are
+meaningless and the <code class="docutils literal notranslate"><span class="pre">set_*</span></code> solves will refuse to converge.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.u_lim_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">u_lim_nd</span></span><a class="headerlink" href="#ember.fluid.RealFluid.u_lim_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Internal energy bounds of the fit box <span class="math notranslate nohighlight">\(u/u_\mathrm{ref}\)</span> [–].</p>
+<p>As <a class="reference internal" href="#ember.fluid.RealFluid.rho_lim_nd" title="ember.fluid.RealFluid.rho_lim_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rho_lim_nd</span></code></a>, and additionally shifted onto this fluid’s datum:
+the constructor’s <code class="docutils literal notranslate"><span class="pre">u_lim</span></code> is on whatever datum the coefficients were
+fitted against, whereas <code class="docutils literal notranslate"><span class="pre">get_*</span></code> and <code class="docutils literal notranslate"><span class="pre">set_*</span></code> take internal energy
+measured from <a class="reference internal" href="#ember.fluid.RealFluid.P_dtm" title="ember.fluid.RealFluid.P_dtm"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_dtm</span></code></a>, <a class="reference internal" href="#ember.fluid.RealFluid.T_dtm" title="ember.fluid.RealFluid.T_dtm"><code class="xref py py-attr docutils literal notranslate"><span class="pre">T_dtm</span></code></a>. Changing the datum moves
+these bounds even though the underlying box is unchanged.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.P_dtm">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">P_dtm</span></span><a class="headerlink" href="#ember.fluid.RealFluid.P_dtm" title="Link to this definition">¶</a></dt>
+<dd><p>Datum pressure <span class="math notranslate nohighlight">\(p_\mathrm{dtm}\)</span> where <span class="math notranslate nohighlight">\(u = s = 0\)</span> [Pa].</p>
+<p>User-selectable as discussed in  <a class="reference internal" href="#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.P_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">P_ref</span></span><a class="headerlink" href="#ember.fluid.RealFluid.P_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference pressure for nondimensionalisation, <span class="math notranslate nohighlight">\(p_\mathrm{ref}\)</span> [Pa].</p>
+<p>See <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>; derived from</p>
+<div class="math notranslate nohighlight">
+\[p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.Rgas_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Rgas_ref</span></span><a class="headerlink" href="#ember.fluid.RealFluid.Rgas_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference gas constant for nondimensionalisation, <span class="math notranslate nohighlight">\(R_\mathrm{ref}\)</span> [J/kg/K].</p>
+<p>User-specified; see <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.T_dtm">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">T_dtm</span></span><a class="headerlink" href="#ember.fluid.RealFluid.T_dtm" title="Link to this definition">¶</a></dt>
+<dd><p>Datum temperature <span class="math notranslate nohighlight">\(T_\mathrm{dtm}\)</span> where <span class="math notranslate nohighlight">\(u = s = 0\)</span> [K].</p>
+<p>User-selectable as discussed in  <a class="reference internal" href="#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.T_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">T_ref</span></span><a class="headerlink" href="#ember.fluid.RealFluid.T_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference temperature for nondimensionalisation, <span class="math notranslate nohighlight">\(T_\mathrm{ref}\)</span> [K].</p>
+<p>See <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>; derived from</p>
+<div class="math notranslate nohighlight">
+\[T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.V_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">V_ref</span></span><a class="headerlink" href="#ember.fluid.RealFluid.V_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference velocity for nondimensionalisation, <span class="math notranslate nohighlight">\(V_\mathrm{ref}\)</span> [m/s].</p>
+<p>User-specified; see <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.from_dict">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.fluid.RealFluid.from_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Build a fluid from a dict written by <a class="reference internal" href="#ember.fluid.RealFluid.to_dict" title="ember.fluid.RealFluid.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>.</p>
+<p>Called on <code class="xref py py-class docutils literal notranslate"><span class="pre">_Fluid</span></code> it dispatches on the <code class="docutils literal notranslate"><span class="pre">type</span></code> key, so a saved
+fluid can be read back without the caller knowing which equation of
+state wrote it. Called on a concrete class it checks that <code class="docutils literal notranslate"><span class="pre">type</span></code>
+names that class, so loading the wrong file is an error rather than a
+constructor failure several arguments deep.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – As returned by <a class="reference internal" href="#ember.fluid.RealFluid.to_dict" title="ember.fluid.RealFluid.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>. Not modified.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>fluid</strong> – A new instance of the class named by <code class="docutils literal notranslate"><span class="pre">data[&quot;type&quot;]</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>_Fluid</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.rhoV_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhoV_ref</span></span><a class="headerlink" href="#ember.fluid.RealFluid.rhoV_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference mass flux for nondimensionalisation, <span class="math notranslate nohighlight">\((\rho V)_\mathrm{ref}\)</span> [kg/m²/s].</p>
+<p>See <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>; derived from</p>
+<div class="math notranslate nohighlight">
+\[(\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.rho_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rho_ref</span></span><a class="headerlink" href="#ember.fluid.RealFluid.rho_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference density for nondimensionalisation, <span class="math notranslate nohighlight">\(\rho_\mathrm{ref}\)</span> [kg/m³].</p>
+<p>User-specified; see <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ember.fluid.RealFluid.to_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Return a portable record of this fluid, ready for <a class="reference internal" href="#ember.fluid.RealFluid.from_dict" title="ember.fluid.RealFluid.from_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_dict()</span></code></a>.</p>
+<p>The dict holds plain floats, strings and nested lists only, so it can be
+written with <a class="reference external" href="https://docs.python.org/3/library/json.html#module-json" title="(in Python v3.14)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">json</span></code></a> or a plain YAML dumper and read by anything.
+That is the point of it: a <a class="reference internal" href="#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">RealFluid</span></code></a> surface costs a CoolProp
+table and an offline fit to produce, and until now the only way to keep
+one was to pickle the grid it happened to be attached to.</p>
+<p>Everything the constructor takes is included, the reference scales and
+the datum among them, so the round trip is exact. A fluid reloaded into
+another run therefore arrives with the scales of the run that wrote it;
+<a class="reference internal" href="#ember.fluid.RealFluid.change_ref" title="ember.fluid.RealFluid.change_ref"><code class="xref py py-meth docutils literal notranslate"><span class="pre">change_ref()</span></code></a> is how to move it onto new ones.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> – Constructor arguments plus a <code class="docutils literal notranslate"><span class="pre">type</span></code> key naming the class.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.fluid.RealFluid.u_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">u_ref</span></span><a class="headerlink" href="#ember.fluid.RealFluid.u_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference specific energy for nondimensionalisation, <span class="math notranslate nohighlight">\(u_\mathrm{ref}\)</span> [J/kg].</p>
+<p>See <a class="reference internal" href="#reference-scales"><span class="std std-ref">Reference scales</span></a>; derived from</p>
+<div class="math notranslate nohighlight">
+\[u_\mathrm{ref} = V_\mathrm{ref}^2\]</div>
+</dd></dl>
+
+</section>
 </dd></dl>
 
 </section>

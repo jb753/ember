@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Version history &#8212; ember 0.2.1.dev14+g52910ba65 documentation</title>
+    <title>Version history &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="_static/documentation_options.js?v=83b1eafb"></script>
+    <script src="_static/documentation_options.js?v=fd19fe6e"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/sg-tags.js?v=d80f6fa4"></script>
@@ -36,7 +36,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev14+g52910ba65</p>
+<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
 
 
 
@@ -107,6 +107,7 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/realgas_fit.html">Real gas fitting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/block_util.html">Block utilities</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/set_iterative.html">Iterative flow-field setters</a></li>
@@ -123,6 +124,7 @@
 <li class="toctree-l1"><a class="reference internal" href="api/cases.html">Cases</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Version history</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#unreleased">0.3.0 (unreleased)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#v0-2-0">0.2.0 (2026-08-18)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#v0-1-0">0.1.0 (2026-08-06)</a></li>
 </ul>
@@ -158,6 +160,73 @@
 <p>ember follows <a class="reference external" href="https://semver.org/">semantic versioning</a> from 0.1.0 onwards.
 Until 1.0.0, minor releases may make breaking changes to the public API
 without a deprecation period.</p>
+<section id="unreleased">
+<span id="v0-3-0"></span><h2>0.3.0 (unreleased)<a class="headerlink" href="#unreleased" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code>, a real-gas equation of state, and <code class="docutils literal notranslate"><span class="pre">ember.realgas_fit</span></code>,
+the offline tool that produces the coefficients it evaluates. Both follow
+Wheeler (2024): a polynomial surface is fitted to the compressibility factor
+over a box in density and internal energy, and integrated analytically to give
+entropy, with temperature and pressure derived from that one surface rather
+than fitted alongside it. That is what separates it from a lookup table, which
+reproduces its own tabulated values but not the relations between them, and so
+creates spurious entropy wherever gradients are steep. The fitting module
+needs CoolProp only to sample a table — <code class="docutils literal notranslate"><span class="pre">sample_coolprop</span></code>, which imports it
+lazily — so a fluid built from coefficients someone else fitted carries no
+such dependency. <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> implements the whole <code class="docutils literal notranslate"><span class="pre">_Fluid</span></code> interface, so it
+drops in wherever <code class="docutils literal notranslate"><span class="pre">PerfectFluid</span></code> went; the surface evaluation and the Newton
+inversions behind <code class="docutils literal notranslate"><span class="pre">set_P_T</span></code> and friends are in Fortran.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">RealFluid</span></code>’s Newton solves now work in Fortran order and allocate nothing
+per iteration. The scalar solve forced its inputs C contiguous to reach the
+surface kernel, so every call from the solver — whose block fields are
+Fortran contiguous — copied both arrays on the way in, and both solves
+rebuilt their whole update as fresh temporaries at every step. They now write
+each step through buffers allocated once, which is also what settles the
+memory order: the kernel pairs density against energy element by element, and
+numpy takes an expression’s layout from all of its inputs, so a C-ordered
+target alone was enough to hand back an iterate that walks against the
+density the wrong way. Measured at 512x512, about 15% off a scalar solve and
+5-10% off a two-dimensional one, with the peak memory of the latter down by
+about a tenth. Two consequences for callers: a single-precision scalar solve
+hands back a Fortran-ordered energy whatever it was given, and the derivative
+getters return zero-dimensional arrays rather than numpy scalars where they
+are handed scalars.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Block.cp_nd</span></code> is now a nodal array rather than a single number — which is
+what it had always documented itself as. The distinction is invisible for a
+perfect gas, whose specific heat is constant, and the viscous kernel behind
+it took cp as a scalar, so a real gas’s conductivity was built from a
+specific heat frozen at the datum. That made it a function of where the datum
+sat rather than of the flow: shifting the datum with <code class="docutils literal notranslate"><span class="pre">change_datum</span></code>, which
+re-labels <code class="docutils literal notranslate"><span class="pre">u</span></code> and <code class="docutils literal notranslate"><span class="pre">s</span></code> and is meant to change nothing physical, moved it
+by as much as cp varies over the whole fit box. The kernel now takes the
+field and averages it to the cell, for about 7% of that kernel’s time.</p></li>
+<li><p>Added <code class="docutils literal notranslate"><span class="pre">to_dict</span></code> and <code class="docutils literal notranslate"><span class="pre">from_dict</span></code> on the fluid classes, giving a fitted
+equation of state a portable form. A <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> surface costs a property
+table and an offline fit to produce, and until now the only thing that
+persisted one was a pickle of the grid it happened to be attached to —
+which also carried every derived surface alongside the thirteen numbers that
+actually define the fluid. The dict holds plain floats and nested lists, so
+<code class="docutils literal notranslate"><span class="pre">json</span></code> or a plain YAML dumper can write it, and it names its own class in a
+<code class="docutils literal notranslate"><span class="pre">type</span></code> key, so <code class="docutils literal notranslate"><span class="pre">_Fluid.from_dict</span></code> reads one back without the caller
+knowing which equation of state wrote it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> now defaults its datum to its own state at the centre of the
+fit box, rather than to 1 bar and 300 K. A fitted surface exists only inside
+its box and the datum has to lie in there, so a fixed pair of numbers can
+only ever belong to some other fluid’s box: ambient falls inside an air-like
+fit and hundreds of bar outside a dense one, which is the case a real gas is
+for. The datum is read off the fitted surface, so it sits exactly on the
+surface it is the origin of. Passing <code class="docutils literal notranslate"><span class="pre">P_dtm</span></code> or <code class="docutils literal notranslate"><span class="pre">T_dtm</span></code> still overrides,
+either one on its own.</p></li>
+<li><p>Fixed <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code>’s inversions returning an array of one where they were
+given a single state. <code class="docutils literal notranslate"><span class="pre">asfortranarray</span></code> forces <code class="docutils literal notranslate"><span class="pre">ndmin=1</span></code>, so laying the
+iterate out for the kernel promoted a 0-d solve to shape <code class="docutils literal notranslate"><span class="pre">(1,)</span></code> – and the
+result then refused to be printed, <code class="docutils literal notranslate"><span class="pre">ndarray.__format__</span></code> rejecting a format
+spec at any rank. The convergence history reports the inlet and outlet state
+on every log line, so a real-gas run raised a TypeError there rather than
+logging. The solves now keep 0-d at 0-d and hand back a numpy scalar, which
+is what <code class="docutils literal notranslate"><span class="pre">PerfectFluid</span></code> always did.</p></li>
+</ul>
+</section>
 <section id="v0-2-0">
 <span id="id1"></span><h2>0.2.0 (2026-08-18)<a class="headerlink" href="#v0-2-0" title="Link to this heading">¶</a></h2>
 <ul class="simple">
