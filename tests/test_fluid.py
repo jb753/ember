@@ -30,6 +30,7 @@ Test cases:
 - test_real_fluid_partials2_kernel_matches_numpy: stacked kernel vs numpy
 - test_real_fluid_partials2_falls_back_off_float32: float64 keeps its precision
 - test_real_partials2_kernel_evaluates_every_term: kernel vs formula, all terms
+- test_real_fluid_returns_the_state_it_verified: answer matches what was checked
 """
 
 import dataclasses
@@ -149,7 +150,13 @@ def _real_case(name, rho_lim, u_lim):
             u_box[0] + frac * (u_box[1] - u_box[0]),
         )
 
-    rho_mid, u_mid = _inside(0.5)
+    # Not 0.5. fit_real_fluid centres the datum in the box, so the exact
+    # middle is the state where u is zero by construction -- and a test that
+    # sweeps a fraction either side of its sample state then sweeps a fraction
+    # of nothing, leaving np.gradient to divide by a spacing of zero. It only
+    # ever worked because the datum landed an ulp off centre; anything that
+    # moves it by an ulp, in the solve or in the fit, lands on it exactly.
+    rho_mid, u_mid = _inside(0.55)
     rho_lo, u_lo = _inside(0.3)
     rho_hi, u_hi = _inside(0.7)
 
@@ -1199,4 +1206,55 @@ def test_real_partials2_kernel_evaluates_every_term():
         err = float(np.abs(got.reshape(shape) - ref).max())
         assert err <= 8.0 * np.spacing(np.float32(scale)), (
             f"{name}: max error {err:.3e} against a scale of {scale:.3e}"
+        )
+
+
+@pytest.mark.parametrize("method", ["set_P_rho", "set_rho_s", "set_h_s", "set_P_T"])
+def test_real_fluid_returns_the_state_it_verified(method):
+    """The state handed back is the one the acceptance test looked at.
+
+    The loop stops before applying its last correction rather than after, so
+    the residual it checked belongs to the answer it returns. Measuring one
+    state and returning another would be almost right -- the discarded step is
+    at the arithmetic's floor -- but "almost" is what the acceptance test
+    exists to rule out, and it would cost a full walk of every surface to
+    re-measure. Recomputing the property here from the returned pair is the
+    only way to see which state was actually checked.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5), order=8)
+    rng = np.random.default_rng(0)
+
+    def _span(lim):
+        lo = lim[0] + 0.3 * (lim[1] - lim[0])
+        hi = lim[0] + 0.7 * (lim[1] - lim[0])
+        return rng.uniform(lo, hi, (48, 48)).astype(np.float32)
+
+    rho, u = _span(fluid.rho_lim_nd), _span(fluid.u_lim_nd)
+    targets = {
+        "set_P_rho": (("P",), (fluid.get_P(rho, u), rho)),
+        "set_rho_s": (("s",), (rho, fluid.get_s(rho, u))),
+        "set_h_s": (("h", "s"), (fluid.get_h(rho, u), fluid.get_s(rho, u))),
+        "set_P_T": (("P", "T"), (fluid.get_P(rho, u), fluid.get_T(rho, u))),
+    }
+    props, args = targets[method]
+
+    rho_got, u_got = getattr(fluid, method)(*args)
+
+    # The values asked for, in the order the setter takes them.
+    wanted = {
+        "set_P_rho": (args[0],),
+        "set_rho_s": (args[1],),
+        "set_h_s": args,
+        "set_P_T": args,
+    }[method]
+
+    for prop, want in zip(props, wanted):
+        got = getattr(fluid, f"get_{prop}")(rho_got, u_got)
+        scale = np.abs(want) + fluid._floor(prop)
+        worst = float(np.max(np.abs(got - want) / scale))
+        assert worst <= fluid._VERIFY_RTOL, (
+            f"{method}: returned state misses {prop} by {worst:.3e}, "
+            f"beyond the {fluid._VERIFY_RTOL:.0e} it was accepted at"
         )

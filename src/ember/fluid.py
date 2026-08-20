@@ -1627,7 +1627,7 @@ class RealFluid(_Fluid):
         x, y = self._hats(rho, u)
         return _leg.legval2d(x, y, self._Sc) + _leg.legval(y, self._Sl) * np.log(rho)
 
-    def _floor(self, kind):
+    def _floor(self, prop):
         """Magnitude below which a target counts as zero for convergence tests.
 
         Pressure and temperature are strictly positive, so their own value is a
@@ -1635,9 +1635,9 @@ class RealFluid(_Fluid):
         and pass through zero there, so they need a characteristic scale of
         their own or the relative test becomes meaningless.
         """
-        if kind == "s":
+        if prop == "s":
             return self._s_scale
-        if kind == "h":
+        if prop == "h":
             return self._u_scale
         return 0.0
 
@@ -1825,12 +1825,17 @@ class RealFluid(_Fluid):
         return s, s_r, s_u, s_rr, s_ru, s_uu
 
     @staticmethod
-    def _pick(kind, st, rho, u):
-        """Value and (rho, u) partials of one property, from a state dict."""
-        if kind == "h":
+    def _pick(prop, st, rho, u):
+        """Value and (rho, u) partials of one property, from a state dict.
+
+        ``prop`` is one of ``"P"``, ``"T"``, ``"s"`` or ``"h"``: which property
+        a solve is being asked to match. Not ``kind``, which is what half this
+        codebase is written in and where the word already means precision.
+        """
+        if prop == "h":
             P, P_r, P_u = st["P"], st["P_r"], st["P_u"]
             return u + P / rho, P_r / rho - P / rho**2, 1.0 + P_u / rho
-        return st[kind], st[f"{kind}_r"], st[f"{kind}_u"]
+        return st[prop], st[f"{prop}_r"], st[f"{prop}_u"]
 
     def _state(self, rho, u):
         """Pressure, temperature, entropy and their first partials, in one pass.
@@ -1888,7 +1893,7 @@ class RealFluid(_Fluid):
         out[...] = val
         return out
 
-    def _solve_2d(self, kind1, val1, kind2, val2, method):
+    def _solve_2d(self, prop1, val1, prop2, val2, method):
         """Newton solve for (rho, u) matching two properties.
 
         The 2x2 Jacobian is inverted in closed form. The alternative -- fixing
@@ -1896,6 +1901,14 @@ class RealFluid(_Fluid):
         costs the product of the two iteration counts and needs the inner solve
         converged tightly for the outer derivative to mean anything, while
         arriving at the same Jacobian algebra regardless.
+
+        The state handed back is the one the acceptance test looked at. The
+        loop breaks before applying its last correction rather than after, so
+        no evaluation is spent re-measuring a state that has just moved: a step
+        small enough to end the loop is a step at the arithmetic's floor, and
+        taking it would change the answer by an ulp while costing a full walk
+        of every surface -- one iteration in five, on top of the four that did
+        the work.
         """
         val1 = np.asarray(val1)
         val2 = np.asarray(val2)
@@ -1911,8 +1924,8 @@ class RealFluid(_Fluid):
         step_prev = np.inf
         for _ in range(self._NEWTON_ITER):
             st = self._state(rho, u)
-            f1, f1r, f1u = self._pick(kind1, st, rho, u)
-            f2, f2r, f2u = self._pick(kind2, st, rho, u)
+            f1, f1r, f1u = self._pick(prop1, st, rho, u)
+            f2, f2r, f2u = self._pick(prop2, st, rho, u)
             r1 = f1 - val1
             r2 = f2 - val2
             det = f1r * f2u - f1u * f2r
@@ -1923,23 +1936,30 @@ class RealFluid(_Fluid):
             step = np.max(
                 np.abs(rho_new - rho) / np.abs(rho) + np.abs(u_new - u) / self._u_scale
             )
-            rho, u = rho_new, u_new
             if step < self._NEWTON_RTOL or step > self._NEWTON_STALL * step_prev:
                 break
+            rho, u = rho_new, u_new
             step_prev = step
 
-        st = self._state(rho, u)
-        self._verify(kind1, self._pick(kind1, st, rho, u)[0], val1, method)
-        self._verify(kind2, self._pick(kind2, st, rho, u)[0], val2, method)
+        self._verify(prop1, f1, val1, method)
+        self._verify(prop2, f2, val2, method)
         return rho, u
 
-    def _solve_u(self, rho, val, kind, method, *guess_args):
+    def _solve_u(self, rho, val, prop, method, *guess_args):
         """Newton solve for u at fixed density, matching one property.
 
         Monotone in ``u`` for every property this is used with -- entropy
         because ``(ds/du)_rho = 1/T > 0``, temperature because ``cv > 0``, and
         pressure because heating at constant volume raises it -- so the
         iteration cannot walk off in the wrong direction.
+
+        The state handed back is the one the acceptance test looked at. The
+        loop breaks before applying its last correction rather than after, so
+        no evaluation is spent re-measuring a state that has just moved: a step
+        small enough to end the loop is a step at the arithmetic's floor, and
+        taking it would change the answer by an ulp while costing a full walk
+        of every surface -- one iteration in five, on top of the four that did
+        the work.
         """
         # Before the guess, which would otherwise take the log of a density
         # that should never have got this far.
@@ -1954,26 +1974,25 @@ class RealFluid(_Fluid):
         step_prev = np.inf
         for _ in range(self._NEWTON_ITER):
             st = self._state(rho_b, u)
-            f, _, f_u = self._pick(kind, st, rho_b, u)
+            f, _, f_u = self._pick(prop, st, rho_b, u)
             u_new = np.clip(u - (f - val) / f_u, *self._u_box_nd)
             step = np.max(np.abs(u_new - u)) / self._u_scale
-            u = u_new
             if step < self._NEWTON_RTOL or step > self._NEWTON_STALL * step_prev:
                 break
+            u = u_new
             step_prev = step
 
-        st = self._state(rho_b, u)
-        self._verify(kind, self._pick(kind, st, rho_b, u)[0], val, method)
+        self._verify(prop, f, val, method)
         return rho, u
 
-    def _verify(self, kind, got, want, method):
+    def _verify(self, prop, got, want, method):
         """Raise unless a Newton solve met its tolerance everywhere.
 
         A state the fit cannot reach is a physical error -- most often a
         requested condition outside the box the coefficients were fitted over --
         so it is reported rather than returned as a silently wrong state.
         """
-        scale = np.abs(want) + self._floor(kind)
+        scale = np.abs(want) + self._floor(prop)
         resid = np.asarray(got) - np.asarray(want)
         # A diverged solve returns nan, and every comparison against nan is
         # false -- including the tolerance test below. Whether the answer is a
@@ -1992,7 +2011,7 @@ class RealFluid(_Fluid):
             detail = f"worst relative residual {float(np.max(rel)):.3e}"
         raise RuntimeError(
             f"{type(self).__name__}.{method} failed to converge at {nbad} of "
-            f"{np.size(bad)} states matching {kind}: {detail}. The requested "
+            f"{np.size(bad)} states matching {prop}: {detail}. The requested "
             f"state is most likely outside the fit box "
             f"rho_lim={self._rho_lim}, u_lim={self._u_lim}."
         )
