@@ -1665,12 +1665,14 @@ class RealFluid(_Fluid):
             u0 = getattr(self._companion, method)(*args)[1]
         return np.clip(u0, *self._u_box_nd)
 
-    def _kernel_P_h_T(self, rho, u, outs=None):
+    def _kernel_P_h_T(self, rho, u, outs=(None, None, None)):
         """Pressure, enthalpy and temperature from the Fortran kernel.
 
         Returns ``None`` when the kernel cannot take the call, leaving the
-        caller on the numpy path. Pass ``outs`` to write into those arrays;
-        pass nothing and it allocates.
+        caller on the numpy path. Each of ``outs`` is written into if it was
+        given and allocated if it was not, so a caller wanting one property
+        supplies its buffer and lets the other two be found -- the answer lands
+        in the caller's own array either way, with nothing copied afterwards.
 
         Shared by :meth:`get_P_h_T` and by :meth:`get_P` and :meth:`get_T`,
         which ask for one property and are handed three. That is not the waste
@@ -1679,7 +1681,7 @@ class RealFluid(_Fluid):
         division apiece. Three from the kernel is still two orders cheaper than
         one from numpy.
         """
-        arrs = (rho, u) if outs is None else (rho, u) + tuple(outs)
+        arrs = (rho, u) + tuple(o for o in outs if o is not None)
         usable = (
             self._kernel_fits()
             and all(isinstance(a, np.ndarray) for a in arrs)
@@ -1695,10 +1697,9 @@ class RealFluid(_Fluid):
         )
         if not usable:
             return None
-        if outs is None:
-            # empty_like, so the buffers inherit the input's memory order and
-            # the check above holds for them too.
-            outs = [np.empty_like(rho) for _ in range(3)]
+        # empty_like, so anything allocated here inherits the input's dtype and
+        # memory order and satisfies the check above by construction.
+        outs = [np.empty_like(rho) if o is None else o for o in outs]
         # order="A" ravels without copying for either contiguity, so these stay
         # views and the kernel's writes land in the caller's arrays.
         ember.fortran.set_p_h_t_real(
@@ -2551,9 +2552,9 @@ class RealFluid(_Fluid):
         P : ndarray
             Pressure [Pa].
         """
-        got = self._kernel_P_h_T(rho, u)
+        got = self._kernel_P_h_T(rho, u, (out, None, None))
         if got is not None:
-            return self._write(got[0], out) if out is not None else got[0]
+            return got[0]
 
         s_r, s_u = self._partials1(rho, u)
         return self._write(-(rho**2) * s_r / s_u, out)
@@ -2586,11 +2587,9 @@ class RealFluid(_Fluid):
         tuple of ndarray
             ``(P, h, T)``.
         """
-        outs = (out_P, out_h, out_T)
-        if all(o is not None for o in outs):
-            got = self._kernel_P_h_T(rho, u, outs)
-            if got is not None:
-                return got
+        got = self._kernel_P_h_T(rho, u, (out_P, out_h, out_T))
+        if got is not None:
+            return got
 
         s_r, s_u = self._partials1(rho, u)
         T = 1.0 / s_u
@@ -2694,9 +2693,9 @@ class RealFluid(_Fluid):
         T : ndarray
             Temperature [K].
         """
-        got = self._kernel_P_h_T(rho, u)
+        got = self._kernel_P_h_T(rho, u, (None, None, out))
         if got is not None:
-            return self._write(got[2], out) if out is not None else got[2]
+            return got[2]
 
         _, s_u = self._partials1(rho, u)
         return self._write(1.0 / s_u, out)
