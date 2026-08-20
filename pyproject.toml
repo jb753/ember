@@ -23,6 +23,12 @@ dependencies = [
     "pyyaml~=6.0.3",
 ]
 
+[project.optional-dependencies]
+# Fitting real-gas coefficients needs a source of reference property data.
+# Evaluating the fitted coefficients does not, so the solver never pulls this
+# in and ember.realgas_fit imports it lazily, inside the sampler alone.
+fit = ["CoolProp"]
+
 [project.urls]
 Homepage = "https://ember-cfd.org"
 Documentation = "https://ember-cfd.org"

@@ -1307,7 +1307,18 @@ class Block(ember._struct.StructuredData):
             over blocks and calling this method individually.
 
         """
-        has_old = "fluid" in self._metadata
+        # Re-expressing the stored field is only meaningful when there is a
+        # field to re-express. A block whose storage was allocated but never
+        # written -- a boundary patch's average block, say -- holds arbitrary
+        # values, and pushing those through an equation of state produces
+        # nonsense such as negative pressure. The result was discarded anyway
+        # (the writes below pass store_init=False, so the data stays marked
+        # uninitialised), but an equation of state that has to invert
+        # numerically cannot be asked to do it and rightly refuses.
+        has_old = "fluid" in self._metadata and all(
+            self._versions[key]
+            for key in ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe", "r")
+        )
         if has_old:
             old = self.fluid
             # Read dimensional thermodynamic state

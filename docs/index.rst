@@ -24,6 +24,7 @@ interface, while the heavy computations run through compiled Fortran for speed.
 
    coordinate_system
    api/fluid
+   api/realgas_fit
    api/block
    api/block_util
    api/set_iterative

@@ -305,6 +305,24 @@ wheels = [
 ]
 
 [[package]]
+name = "coolprop"
+version = "8.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/be/6a/ca9362a1b25deac369b596b07a828b5a416d6c92ffa1e37048b40b0d0b05/coolprop-8.0.0.tar.gz", hash = "sha256:fb77fff0acf1623a25eb84963020b4f9d0b36d9431a8d8ae4221271effc30457", size = 14486089, upload-time = "2026-06-27T15:54:56.087Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/d1/5eef80c184dc2ed99b01776ba0755f45248cddfd2e0d45e8accc025d6fd9/coolprop-8.0.0-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:46de36f51330ce8c7f8384a7360e1058739d20604736158aac6bd2abf6ae26bd", size = 10571251, upload-time = "2026-06-27T15:54:23.358Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/43/3f0d8d28be14ad53b4f54c7d771a89d76b49c8adc17c03c2ccbfe4d06917/coolprop-8.0.0-cp312-abi3-macosx_11_0_x86_64.whl", hash = "sha256:939803aa9d849961e76512d4c3d60b15c25802c75cbecc801892edb3b023f200", size = 10672568, upload-time = "2026-06-27T15:54:26.155Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/d6/17ebfd0cab09f3db95afac1946301d50a57fd7ae1c8581b27701c0679d35/coolprop-8.0.0-cp312-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:113fc0e97f2b64617141d453ddc0439987b32aa3f6f4a45b928b2030c68292fa", size = 10734858, upload-time = "2026-06-27T15:54:28.485Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/c3/c2d3630212d31677ac17b917a12014fb0efdfd3e4494a62f38fc40c530e2/coolprop-8.0.0-cp312-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:8ca1aefd1873b14f3e7e9122a08a32fe8c62ac03a1fc4496512a31a3bba8f611", size = 10814565, upload-time = "2026-06-27T15:54:30.912Z" },
+    { url = "https://files.pythonhosted.org/packages/66/5e/2723556e2bbd6b09eac1d59ca5876af138ca958796155eabadc615d0a6cc/coolprop-8.0.0-cp312-abi3-win32.whl", hash = "sha256:d65e4eae9958740d2039dea7246c3d9ca50fb290de597c2f8ac1f7ea50c89b47", size = 10668404, upload-time = "2026-06-27T15:54:33.134Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/8b/e3741cc791868ade376a7c3b46965ce2b4b5cd1fa73550632be74f801e1d/coolprop-8.0.0-cp312-abi3-win_amd64.whl", hash = "sha256:f1f78a2ee9ce703c496a42a68cde9bd6f22b2b964375c2abba39d6dc879918d3", size = 10863969, upload-time = "2026-06-27T15:54:35.412Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/c7/28ac311372c37becffe1ab24b1c0d9d66938d4a8effcd904ccfbf984b133/coolprop-8.0.0-cp312-abi3-win_arm64.whl", hash = "sha256:166657921047d094f5ebed6d4a135268df817cd42c79cd67a0d594f37aaa5085", size = 10983912, upload-time = "2026-06-27T15:54:37.501Z" },
+]
+
+[[package]]
 name = "cryptography"
 version = "50.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -384,6 +402,11 @@ dependencies = [
     { name = "pyyaml" },
 ]
 
+[package.optional-dependencies]
+fit = [
+    { name = "coolprop" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "autodocsumm" },
@@ -415,10 +438,12 @@ docs = [
 
 [package.metadata]
 requires-dist = [
+    { name = "coolprop", marker = "extra == 'fit'" },
     { name = "numpy", specifier = "~=2.5.0" },
     { name = "pykdtree", specifier = "~=1.4.3" },
     { name = "pyyaml", specifier = "~=6.0.3" },
 ]
+provides-extras = ["fit"]
 
 [package.metadata.requires-dev]
 dev = [
