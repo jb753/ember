@@ -26,11 +26,16 @@ Test cases:
 - test_real_fluid_rejects_more_beta_than_alpha_can_carry: beta size validated
 - test_last_nonzero_rows: column trip counts for the sparse contraction
 - test_real_fluid_column_counts_cover_every_nonzero: counts miss no coefficient
+- test_real_fluid_solves_stop_when_they_stop_improving: solves stop at the floor
+- test_real_fluid_partials2_kernel_matches_numpy: stacked kernel vs numpy
+- test_real_fluid_partials2_falls_back_off_float32: float64 keeps its precision
+- test_real_partials2_kernel_evaluates_every_term: kernel vs formula, all terms
 """
 
 import dataclasses
 
 import ember.fluid
+import ember.fortran
 import numpy as np
 import pytest
 
@@ -1055,3 +1060,143 @@ def test_real_fluid_solves_stop_when_they_stop_improving(method):
     # And it still lands on the state it was asked for.
     assert np.allclose(rho_got, rho, rtol=1e-4)
     assert np.allclose(u_got, u, atol=1e-4 * (fluid.u_lim_nd[1] - fluid.u_lim_nd[0]))
+
+
+def test_real_fluid_partials2_kernel_matches_numpy():
+    """The six-surface kernel agrees with the numpy evaluation it replaces.
+
+    Both read the same coefficients, but the kernel reads them stacked and
+    padded, with a per-column count deciding where each surface ends. A
+    mistake in that bookkeeping -- a surface written to the wrong slice, a
+    count taken from the wrong column -- would show up here and almost nowhere
+    else, since the six partials only ever surface through derived quantities.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5), order=8)
+    rng = np.random.default_rng(0)
+
+    def _span(lim):
+        lo = lim[0] + 0.25 * (lim[1] - lim[0])
+        hi = lim[0] + 0.75 * (lim[1] - lim[0])
+        return rng.uniform(lo, hi, (13, 11)).astype(np.float32)
+
+    rho, u = _span(fluid.rho_lim_nd), _span(fluid.u_lim_nd)
+
+    got = fluid._partials2(rho, u)
+    # float64 inputs take the numpy path, which is the reference.
+    want = fluid._partials2(rho.astype(np.float64), u.astype(np.float64))
+
+    names = ("s", "s_r", "s_u", "s_rr", "s_ru", "s_uu")
+    for name, g, w in zip(names, got, want):
+        scale = float(np.abs(w).max())
+        assert np.allclose(g, w, rtol=1e-4, atol=1e-6 * scale), (
+            f"{name}: max |kernel - numpy| = {float(np.abs(g - w).max()):.3e} "
+            f"against a scale of {scale:.3e}"
+        )
+
+
+def test_real_fluid_partials2_falls_back_off_float32():
+    """Anything not float32 takes the numpy path rather than being cast.
+
+    The kernel is single precision throughout, so quietly narrowing a float64
+    caller's state to reach it would hand back an answer worse than the one
+    numpy would have given, with nothing to show for it.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5), order=8)
+    rho = np.full((4, 4), 0.5 * sum(fluid.rho_lim_nd), dtype=np.float64)
+    u = np.full((4, 4), 0.3 * sum(fluid.u_lim_nd), dtype=np.float64)
+
+    def _must_not_run(**kwargs):
+        raise AssertionError("kernel called with float64 state")
+
+    original = ember.fortran.set_partials2_real
+    ember.fortran.set_partials2_real = _must_not_run
+    try:
+        out = fluid._partials2(rho, u)
+    finally:
+        ember.fortran.set_partials2_real = original
+
+    assert all(np.isfinite(a).all() for a in out)
+    assert all(a.dtype == np.float64 for a in out)
+
+
+def test_real_partials2_kernel_evaluates_every_term():
+    """The six-surface kernel against the formula, on all-significant terms.
+
+    A fitted gas cannot do this job, for the same reason it could not for the
+    getter kernel and more so: the multiplier on log(rho) is the
+    compressibility factor at zero density, which is one for every real gas, so
+    its first derivative in energy is ~1e-8 of it and its second smaller
+    still. Perturbing the ``Sl_yy`` term of ``s_uu`` by 2% leaves every
+    fluid-level assertion in this file passing -- it was tried.
+
+    So these coefficients describe no gas. They are chosen only to put each
+    surface and its log partner at the same order, which the ratios below pin,
+    and the reference is the formula rather than RealFluid's numpy path. The
+    counts are dense, which exercises the unpadded case the fitted fluids do
+    not reach.
+    """
+    leg = np.polynomial.legendre
+    rng = np.random.default_rng(3)
+    nx, ny = 5, 4
+    decay = 0.5 ** np.arange(nx)[:, None, None]
+    sc2 = np.asfortranarray(
+        (rng.uniform(-1.0, 1.0, (nx, ny, 6)) * decay).astype(np.float32)
+    )
+    sc1 = np.asfortranarray(rng.uniform(-1.0, 1.0, (ny, 3)).astype(np.float32))
+    nz2 = np.asfortranarray(np.full((ny, 6), nx, dtype=np.int32))
+    xa, xb, ya, yb = (np.float32(v) for v in (0.5, -1.5, 0.4, -0.2))
+
+    shape = (6, 5)
+    rho = rng.uniform(2.0, 5.0, shape).astype(np.float32)
+    u = rng.uniform(0.5, 3.0, shape).astype(np.float32)
+    x, y, lnr = rho * xa + xb, u * ya + yb, np.log(rho)
+
+    c = [leg.legval2d(x, y, sc2[:, :, m]) for m in range(6)]
+    M, My, Myy = (leg.legval(y, sc1[:, m]) for m in range(3))
+    want = (
+        c[0] + M * lnr,
+        c[1] * xa + M / rho,
+        (c[2] + My * lnr) * ya,
+        c[3] * xa * xa - M / rho**2,
+        (c[4] * xa + My / rho) * ya,
+        (c[5] + Myy * lnr) * ya * ya,
+    )
+
+    names = ("s", "s_r", "s_u", "s_rr", "s_ru", "s_uu")
+    for name, poly, log in zip(
+        names,
+        (c[0], c[1] * xa, c[2], c[3] * xa * xa, c[4] * xa, c[5]),
+        (M * lnr, M / rho, My * lnr, M / rho**2, My / rho, Myy * lnr),
+    ):
+        ratio = float(np.abs(log).max() / np.abs(poly).max())
+        assert 0.1 < ratio < 10.0, f"{name}: log term is {ratio:.2e} of the polynomial"
+
+    outs = [np.zeros(rho.size, dtype=np.float32) for _ in range(6)]
+    ember.fortran.set_partials2_real(
+        rho=np.ravel(rho, order="A"),
+        u=np.ravel(u, order="A"),
+        sc2=sc2,
+        nz2=nz2,
+        sc1=sc1,
+        xa=xa,
+        xb=xb,
+        ya=ya,
+        yb=yb,
+        s=outs[0],
+        s_r=outs[1],
+        s_u=outs[2],
+        s_rr=outs[3],
+        s_ru=outs[4],
+        s_uu=outs[5],
+    )
+
+    for name, got, ref in zip(names, outs, want):
+        scale = float(np.abs(ref).max())
+        err = float(np.abs(got.reshape(shape) - ref).max())
+        assert err <= 8.0 * np.spacing(np.float32(scale)), (
+            f"{name}: max error {err:.3e} against a scale of {scale:.3e}"
+        )
