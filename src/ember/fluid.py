@@ -1622,6 +1622,18 @@ class RealFluid(_Fluid):
             stack1[: coef.size, m] = coef
         self._Sl_stack = np.asfortranarray(stack1)
 
+        # Which of those six surfaces a scalar solve needs when matching each
+        # property, as indices into the stack, with the code that names the
+        # combination to close with. A solve wants the value and its energy
+        # derivative and nothing else, which is two of the six for entropy and
+        # temperature and four for pressure and enthalpy; the rest would be
+        # evaluated and discarded. Order matches set_f_fu_real's expectations.
+        self._solve_plan = {
+            "s": (np.asfortranarray(np.array([1, 3], np.int32)), 1),
+            "T": (np.asfortranarray(np.array([3, 6], np.int32)), 2),
+            "P": (np.asfortranarray(np.array([2, 3, 5, 6], np.int32)), 3),
+        }
+
     def _entropy(self, rho, u):
         """Non-dimensional entropy alone, without the partials."""
         x, y = self._hats(rho, u)
@@ -1971,10 +1983,36 @@ class RealFluid(_Fluid):
         rho_b = np.broadcast_to(np.asarray(rho, dtype=dtype), shape)
         u = np.array(np.broadcast_to(u0, shape), dtype=dtype, copy=True)
 
+        # Decided once: nothing it depends on changes as the loop runs.
+        plan = self._solve_plan.get(prop)
+        rho_c = f_buf = fu_buf = None
+        if plan is not None and self._kernel_fits() and dtype == np.float32:
+            rho_c = np.ascontiguousarray(rho_b, dtype=np.float32)
+            u = np.ascontiguousarray(u)
+            f_buf, fu_buf = np.empty_like(u), np.empty_like(u)
+
         step_prev = np.inf
         for _ in range(self._NEWTON_ITER):
-            st = self._state(rho_b, u)
-            f, _, f_u = self._pick(prop, st, rho_b, u)
+            if f_buf is None:
+                st = self._state(rho_b, u)
+                f, _, f_u = self._pick(prop, st, rho_b, u)
+            else:
+                ember.fortran.set_f_fu_real(
+                    rho=np.ravel(rho_c, order="A"),
+                    u=np.ravel(u, order="A"),
+                    sc2=self._Sc_stack,
+                    nz2=self._Sc_stack_nz,
+                    sel=plan[0],
+                    sc1=self._Sl_stack,
+                    xa=self._xa,
+                    xb=self._xb,
+                    ya=self._ya,
+                    yb=self._yb,
+                    which=plan[1],
+                    f=np.ravel(f_buf, order="A"),
+                    f_u=np.ravel(fu_buf, order="A"),
+                )
+                f, f_u = f_buf, fu_buf
             u_new = np.clip(u - (f - val) / f_u, *self._u_box_nd)
             step = np.max(np.abs(u_new - u)) / self._u_scale
             if step < self._NEWTON_RTOL or step > self._NEWTON_STALL * step_prev:

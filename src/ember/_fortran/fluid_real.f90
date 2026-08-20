@@ -372,3 +372,187 @@ subroutine set_partials2_real( &
     end do
 
 end subroutine set_partials2_real
+
+! One property and its energy derivative, batched.
+!
+! ALSO OWNED BY `RealFluid` (fluid.py), same standing as the two above.
+!
+! This is what the scalar Newton solves -- set_P_rho, set_rho_s, set_T_rho --
+! ask for on every iteration. They match one property at fixed density and use
+! only its value and its derivative in energy, where set_partials2_real hands
+! back six partials off six surfaces. Most of that is thrown away:
+!
+!     matching  needs                          of the six
+!     s         Sc, Sc_y                            2
+!     T         Sc_y, Sc_yy                         2
+!     P         Sc_x, Sc_y, Sc_xy, Sc_yy            4
+!
+! So the caller passes the same stack set_partials2_real takes and a list of
+! which slices to walk, rather than a stack of its own for each -- the surfaces
+! are already padded to a common extent, and selecting is cheaper than
+! duplicating. `which` then names the combination to close with, the only part
+! that differs between them.
+!
+! The three one-dimensional surfaces are passed whole and in canonical order
+! (Sl, Sl_y, Sl_yy) rather than selected. Two of the four cases want two of
+! them, and a contraction over a single column costs less than the bookkeeping
+! to skip it.
+!
+!   which = 1  s      2  T      3  P
+!
+! Enthalpy is absent because nothing matches on it at fixed density: the
+! two-dimensional solves are the ones that want h, and they need a Jacobian
+! rather than a single derivative.
+!
+! Each closes in its own loop over the tile. A select case inside one shared
+! loop would read better and would not vectorise.
+
+subroutine set_f_fu_real( &
+    rho, u, &
+    sc2, nz2, sel, sc1, &
+    xa, xb, ya, yb, &
+    which, f, f_u, &
+    nx, ny, nm, ns, n &
+    )
+
+    implicit none
+
+    integer, intent (in) :: nx, ny, nm, ns, n
+    real, intent (in)    :: rho(n), u(n)
+    real, intent (in)    :: sc2(nx, ny, nm), sc1(ny, 3)
+    integer, intent (in) :: nz2(ny, nm)
+    integer, intent (in) :: sel(ns)
+    real, intent (in)    :: xa, xb, ya, yb
+    integer, intent (in) :: which
+    real, intent (inout) :: f(n), f_u(n)
+
+    integer, parameter :: MAXORD = 31
+    integer, parameter :: NTILE = 256
+
+    integer :: i, i0, j, nj, a, b, m, msrc
+
+    integer :: k
+    real, parameter :: w1(1:MAXORD) = [(real(2 * k + 1) / real(k + 1), k = 1, MAXORD)]
+    real, parameter :: w2(1:MAXORD) = [(real(k) / real(k + 1), k = 1, MAXORD)]
+
+    real :: sc, rinv, lnri, s_r, s_u, s_ru, s_uu, Ti, Tui
+    real :: rhov(NTILE), uv(NTILE), xv(NTILE), yv(NTILE), lnrv(NTILE), colv(NTILE)
+    real :: cv(NTILE, 4), mv(NTILE, 3)
+    real :: Px(NTILE, 0:MAXORD), Qy(NTILE, 0:MAXORD)
+
+    do i0 = 1, n, NTILE
+
+        nj = min(NTILE, n - i0 + 1)
+
+        do j = 1, nj
+            rhov(j) = rho(i0 + j - 1)
+            uv(j) = u(i0 + j - 1)
+            xv(j) = rhov(j) * xa + xb
+            yv(j) = uv(j) * ya + yb
+            lnrv(j) = log(rhov(j))
+        end do
+
+        do j = 1, nj
+            Px(j, 0) = 1.0
+            Qy(j, 0) = 1.0
+        end do
+
+        if (nx > 1) then
+            do j = 1, nj
+                Px(j, 1) = xv(j)
+            end do
+        end if
+
+        do a = 1, nx - 2
+            do j = 1, nj
+                Px(j, a + 1) = w1(a) * xv(j) * Px(j, a) - w2(a) * Px(j, a - 1)
+            end do
+        end do
+
+        if (ny > 1) then
+            do j = 1, nj
+                Qy(j, 1) = yv(j)
+            end do
+        end if
+
+        do b = 1, ny - 2
+            do j = 1, nj
+                Qy(j, b + 1) = w1(b) * yv(j) * Qy(j, b) - w2(b) * Qy(j, b - 1)
+            end do
+        end do
+
+        do m = 1, ns
+            msrc = sel(m)
+            do j = 1, nj
+                cv(j, m) = 0.0
+            end do
+            do b = 1, ny
+                if (nz2(b, msrc) == 0) cycle
+                do j = 1, nj
+                    colv(j) = 0.0
+                end do
+                do a = 1, nz2(b, msrc)
+                    sc = sc2(a, b, msrc)
+                    do j = 1, nj
+                        colv(j) = colv(j) + sc * Px(j, a - 1)
+                    end do
+                end do
+                do j = 1, nj
+                    cv(j, m) = cv(j, m) + colv(j) * Qy(j, b - 1)
+                end do
+            end do
+        end do
+
+        do m = 1, 3
+            do j = 1, nj
+                mv(j, m) = 0.0
+            end do
+            do b = 1, ny
+                sc = sc1(b, m)
+                do j = 1, nj
+                    mv(j, m) = mv(j, m) + sc * Qy(j, b - 1)
+                end do
+            end do
+        end do
+
+        ! Operation order follows RealFluid._partials2 and _state.
+        select case (which)
+
+        case (1)  ! entropy: s and (ds/du)_rho
+            do j = 1, nj
+                i = i0 + j - 1
+                f(i) = cv(j, 1) + mv(j, 1) * lnrv(j)
+                f_u(i) = (cv(j, 2) + mv(j, 2) * lnrv(j)) * ya
+            end do
+
+        case (2)  ! temperature: T and (dT/du)_rho
+            do j = 1, nj
+                i = i0 + j - 1
+                lnri = lnrv(j)
+                s_u = (cv(j, 1) + mv(j, 2) * lnri) * ya
+                s_uu = (cv(j, 2) + mv(j, 3) * lnri) * ya * ya
+                Ti = 1.0 / s_u
+                f(i) = Ti
+                f_u(i) = -Ti * Ti * s_uu
+            end do
+
+        case (3)  ! pressure: P and (dP/du)_rho
+            do j = 1, nj
+                i = i0 + j - 1
+                rinv = 1.0 / rhov(j)
+                lnri = lnrv(j)
+                s_r = cv(j, 1) * xa + mv(j, 1) * rinv
+                s_u = (cv(j, 2) + mv(j, 2) * lnri) * ya
+                s_ru = (cv(j, 3) * xa + mv(j, 2) * rinv) * ya
+                s_uu = (cv(j, 4) + mv(j, 3) * lnri) * ya * ya
+                Ti = 1.0 / s_u
+                Tui = -Ti * Ti * s_uu
+                f(i) = -(rhov(j) * rhov(j)) * Ti * s_r
+                f_u(i) = -(rhov(j) * rhov(j)) * (Tui * s_r + Ti * s_ru)
+            end do
+
+        end select
+
+    end do
+
+end subroutine set_f_fu_real
