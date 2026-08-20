@@ -45,10 +45,17 @@
 ! nodes the chains are independent and the trip count is the tile, so all
 ! eleven loops vectorise at 32 bytes and log() goes through libmvec eight at a
 ! time. Worth 126 -> 20 ns/node on a 97^3 grid.
+!
+! The coefficient surfaces are mostly zeros. A total-order fit keeps only the
+! terms with i + j <= order, which after differentiating leaves a triangle:
+! 55 of Sc_x's 121 coefficients at order 10, and 55 of Sc_y's 120. The caller
+! passes the number of rows worth visiting in each column, so those terms are
+! skipped rather than multiplied. The answer is unchanged to the bit, since
+! the skipped coefficients are exactly zero. Worth 20 -> 15 ns/node.
 
 subroutine set_P_h_T_real( &
     rho, u, &
-    scx, scy, sl, sly, &
+    scx, nzx, scy, nzy, sl, sly, &
     xa, xb, ya, yb, &
     P, h, T, &
     nax, nbx, nay, nby, nsl, nsly, n &
@@ -59,6 +66,10 @@ subroutine set_P_h_T_real( &
     integer, intent (in) :: nax, nbx, nay, nby, nsl, nsly, n
     real, intent (in)    :: rho(n), u(n)
     real, intent (in)    :: scx(nax, nbx), scy(nay, nby), sl(nsl), sly(nsly)
+
+    ! Rows to visit in each column: everything past the last nonzero
+    ! coefficient. A dense fit passes the full extents and nothing is skipped.
+    integer, intent (in) :: nzx(nbx), nzy(nby)
     real, intent (in)    :: xa, xb, ya, yb
     real, intent (inout) :: P(n), h(n), T(n)
 
@@ -146,10 +157,11 @@ subroutine set_P_h_T_real( &
         end do
 
         do b = 1, nbx
+            if (nzx(b) == 0) cycle
             do j = 1, nj
                 colv(j) = 0.0
             end do
-            do a = 1, nax
+            do a = 1, nzx(b)
                 sc = scx(a, b)
                 do j = 1, nj
                     colv(j) = colv(j) + sc * Px(j, a - 1)
@@ -161,10 +173,11 @@ subroutine set_P_h_T_real( &
         end do
 
         do b = 1, nby
+            if (nzy(b) == 0) cycle
             do j = 1, nj
                 colv(j) = 0.0
             end do
-            do a = 1, nay
+            do a = 1, nzy(b)
                 sc = scy(a, b)
                 do j = 1, nj
                     colv(j) = colv(j) + sc * Px(j, a - 1)

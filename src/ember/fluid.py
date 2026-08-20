@@ -90,6 +90,33 @@ _leg = np.polynomial.legendre
 _REAL_KERNEL_MAXORD = 31
 
 
+def _last_nonzero_rows(coef):
+    """Rows worth visiting in each column of a coefficient surface.
+
+    A total-order fit keeps only the terms with i + j <= order, so most of the
+    surface is exactly zero and the kernel would otherwise multiply by it.
+    Returned per column rather than as a mask because the zeros sit in a
+    trailing block: shortening the loop skips them without a branch, and an
+    interior zero is left alone, so this makes no assumption about the basis
+    beyond what is actually there. A dense surface gives back its full extent.
+
+    Parameters
+    ----------
+    coef : ndarray
+        Two-dimensional coefficient array.
+
+    Returns
+    -------
+    ndarray of int32
+        One count per column, zero where the column is entirely zero.
+
+    """
+    nz = coef != 0.0
+    nrow = nz.shape[0]
+    counts = np.where(nz.any(axis=0), nrow - np.argmax(nz[::-1], axis=0), 0)
+    return np.asfortranarray(counts.astype(np.int32))
+
+
 class _Fluid(ABC):
     """Interface for converting density and internal energy to and from other thermodynamic properties.
 
@@ -1540,6 +1567,8 @@ class RealFluid(_Fluid):
         # them on every call. The copy would be tiny, but so is this.
         self._Sc_x = np.asfortranarray(_leg.legder(Sc, axis=0).astype(dtype))
         self._Sc_y = np.asfortranarray(_leg.legder(Sc, axis=1).astype(dtype))
+        self._nzx = _last_nonzero_rows(self._Sc_x)
+        self._nzy = _last_nonzero_rows(self._Sc_y)
         self._Sc_xx = _leg.legder(Sc, 2, axis=0).astype(dtype)
         self._Sc_xy = _leg.legder(_leg.legder(Sc, axis=0), axis=1).astype(dtype)
         self._Sc_yy = _leg.legder(Sc, 2, axis=1).astype(dtype)
@@ -2438,7 +2467,9 @@ class RealFluid(_Fluid):
                 rho=np.ravel(rho, order="A"),
                 u=np.ravel(u, order="A"),
                 scx=self._Sc_x,
+                nzx=self._nzx,
                 scy=self._Sc_y,
+                nzy=self._nzy,
                 sl=self._Sl,
                 sly=self._Sl_y,
                 xa=self._xa,

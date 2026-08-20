@@ -24,6 +24,8 @@ Test cases:
 - test_real_fluid_rejects_density_outside_the_fit_box: given rho is checked
 - test_real_fluid_accepts_density_on_the_box_bounds: the bounds are in domain
 - test_real_fluid_rejects_more_beta_than_alpha_can_carry: beta size validated
+- test_last_nonzero_rows: column trip counts for the sparse contraction
+- test_real_fluid_column_counts_cover_every_nonzero: counts miss no coefficient
 """
 
 import dataclasses
@@ -949,3 +951,53 @@ def test_real_fluid_rejects_more_beta_than_alpha_can_carry():
             mu=1.8e-5,
             Pr=0.72,
         )
+
+
+def test_last_nonzero_rows():
+    """Column trip counts for the kernel's sparse contraction.
+
+    The kernel shortens each column's loop to this, so a count that is too
+    small silently drops real coefficients. Trailing zeros are what a
+    total-order fit leaves and are meant to be skipped; an interior zero is
+    not, because everything below it still has to be visited.
+    """
+    coef = np.array(
+        [
+            [1.0, 2.0, 3.0, 0.0],
+            [4.0, 5.0, 0.0, 0.0],
+            [6.0, 0.0, 0.0, 0.0],
+            [7.0, 0.0, 0.0, 0.0],
+        ]
+    )
+    got = ember.fluid._last_nonzero_rows(coef)
+    np.testing.assert_array_equal(got, [4, 2, 1, 0])
+    assert got.dtype == np.int32
+
+    # An interior zero must not truncate the column above it.
+    interior = np.array([[1.0], [0.0], [3.0], [0.0]])
+    np.testing.assert_array_equal(ember.fluid._last_nonzero_rows(interior), [3])
+
+    # A dense surface gives back its full extent, so nothing is skipped.
+    dense = np.ones((5, 3))
+    np.testing.assert_array_equal(ember.fluid._last_nonzero_rows(dense), [5, 5, 5])
+
+
+def test_real_fluid_column_counts_cover_every_nonzero():
+    """A fitted fluid's counts reach every nonzero coefficient it holds.
+
+    The saving is only sound if the terms below each count are the only ones
+    that matter, so this checks the fit's own surfaces rather than a
+    constructed example: nothing at or below the count may be missed, and the
+    count must actually be shorter than the dense extent or there is no saving
+    to have.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5))
+    for coef, counts in (
+        (fluid._Sc_x, fluid._nzx),
+        (fluid._Sc_y, fluid._nzy),
+    ):
+        for b, count in enumerate(counts):
+            assert not coef[count:, b].any(), f"column {b} has a nonzero past {count}"
+        assert counts.sum() < coef.size, "a total-order fit should leave zeros"
