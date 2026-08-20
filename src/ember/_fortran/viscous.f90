@@ -452,7 +452,11 @@ subroutine set_tau_q_soa( &
     integer, intent(in) :: ni, nj, nk
     real, intent(in) :: cons(ni, nj, nk, 5)
     real, intent(in) :: T(ni, nj, nk)
-    real, intent(in) :: mu, cp, Pr_lam, Pr_turb
+    real, intent(in) :: mu, Pr_lam, Pr_turb
+    ! Nodal, unlike mu: a real gas's specific heat varies over the field,
+    ! and freezing it at one state was worth as much as the whole spread of
+    ! cp over a fit box. Averaged to the cell below, like rho.
+    real, intent(in) :: cp(ni, nj, nk)
     real, intent(in) :: xlength(ni-1, nj-1, nk-1)
     real, intent(in) :: vol(ni-1, nj-1, nk-1)
     real, intent(in) :: dAi(3, ni, nj-1, nk-1)
@@ -474,7 +478,7 @@ subroutine set_tau_q_soa( &
     real :: visc_lim
     ! Row temps -- i is the contiguous (dim-1) axis, the SIMD lane index.
     real :: gVx(ni-1, 3), gVr(ni-1, 3), gVt(ni-1, 3)
-    real :: vct(ni-1), rcr(ni-1), ivr(ni-1), rhoc(ni-1)
+    real :: vct(ni-1), rcr(ni-1), ivr(ni-1), rhoc(ni-1), cpc(ni-1)
     real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
     real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac, lambda
 
@@ -489,6 +493,8 @@ subroutine set_tau_q_soa( &
                               + r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))
             rhoc(i) = 0.125e0 * (cons(i,j,k,1)   + cons(i+1,j,k,1)   + cons(i,j+1,k,1)   + cons(i+1,j+1,k,1) &
                                + cons(i,j,k+1,1) + cons(i+1,j,k+1,1) + cons(i,j+1,k+1,1) + cons(i+1,j+1,k+1,1))
+            cpc(i) = 0.125e0 * (cp(i,j,k)   + cp(i+1,j,k)   + cp(i,j+1,k)   + cp(i+1,j+1,k) &
+                              + cp(i,j,k+1) + cp(i+1,j,k+1) + cp(i,j+1,k+1) + cp(i+1,j+1,k+1))
             ! --- Vx ---
             f1 = Vx(i,j,k)+Vx(i,j+1,k)+Vx(i,j,k+1)+Vx(i,j+1,k+1)
             f2 = Vx(i+1,j,k)+Vx(i+1,j+1,k)+Vx(i+1,j,k+1)+Vx(i+1,j+1,k+1)
@@ -568,7 +574,7 @@ subroutine set_tau_q_soa( &
             tau_cell(i+1,j+1,k+1,4) = t4*fac
             tau_cell(i+1,j+1,k+1,5) = t5*fac
             tau_cell(i+1,j+1,k+1,6) = t6*fac
-            lambda = mu*cp/Pr_lam + mut*cp/Pr_turb
+            lambda = (mu/Pr_lam + mut/Pr_turb) * cpc(i)
             f1 = T(i,j,k)+T(i,j+1,k)+T(i,j,k+1)+T(i,j+1,k+1)
             f2 = T(i+1,j,k)+T(i+1,j+1,k)+T(i+1,j,k+1)+T(i+1,j+1,k+1)
             f3 = T(i,j,k)+T(i+1,j,k)+T(i,j,k+1)+T(i+1,j,k+1)

@@ -27,6 +27,7 @@ Test cases:
 - test_last_nonzero_rows: column trip counts for the sparse contraction
 - test_real_fluid_column_counts_cover_every_nonzero: counts miss no coefficient
 - test_real_fluid_solves_stop_when_they_stop_improving: solves stop at the floor
+- test_real_fluid_datum_anywhere_in_the_box: a cold-seeded solve is not a stall
 - test_real_fluid_partials2_kernel_matches_numpy: stacked kernel vs numpy
 - test_real_fluid_partials2_falls_back_off_float32: float64 keeps its precision
 - test_real_partials2_kernel_evaluates_every_term: kernel vs formula, all terms
@@ -1068,6 +1069,45 @@ def test_real_fluid_solves_stop_when_they_stop_improving(method):
     # And it still lands on the state it was asked for.
     assert np.allclose(rho_got, rho, rtol=1e-4)
     assert np.allclose(u_got, u, atol=1e-4 * (fluid.u_lim_nd[1] - fluid.u_lim_nd[0]))
+
+
+def test_real_fluid_datum_anywhere_in_the_box():
+    """Any state inside the fit box can be asked for as a datum.
+
+    Locating the datum is the one solve that runs without a companion gas to
+    seed it -- the companion cannot exist until the datum does -- so it starts
+    from the centre of the box and may have to walk the whole way out. That
+    walk is what the stall test has to survive: the step is relative in
+    density, so two strides of a solve heading for the low-density edge come
+    out much the same size, and one cut short by the box clamp can even grow.
+    Read as a stall, either stops the solve two iterations in, and the datum
+    comes back reported as outside the box it is comfortably inside.
+
+    The sweep runs over the box rather than at one point because the failure
+    was confined to a corner of it: the same fluid, once built, inverts every
+    one of these states without complaint.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    model = VanDerWaals()
+    rho_lim, u_lim = (1.0, 150.0), (3.0e5, 5.0e5)
+    fluid = fit_real_fluid(model, rho_lim, u_lim)
+
+    for rho in np.linspace(*rho_lim, 9):
+        for u in np.linspace(*u_lim, 9):
+            P = float(model.get_P(rho, u))
+            T = float(model.get_T(rho, u))
+            shifted = fluid.change_datum(P, T)
+
+            # The datum is where it was asked for: u and s both vanish there.
+            rho_dtm, u_dtm = shifted.set_P_T(P, T)
+            assert np.isclose(rho_dtm, rho, rtol=1e-3)
+            assert np.isclose(u_dtm, 0.0, atol=1e-6 * (u_lim[1] - u_lim[0]))
+            # The datum is located in float64 but folded into a float32
+            # surface whose absolute entropy runs to a few hundred times Rgas,
+            # so s vanishes there only to the resolution of numbers that size:
+            # the worst point in this sweep sits at a couple of ulp of 1e3.
+            assert np.isclose(shifted.get_s(rho_dtm, u_dtm), 0.0, atol=1e-3)
 
 
 def test_real_fluid_partials2_kernel_matches_numpy():

@@ -2438,10 +2438,11 @@ class Block(ember._struct.StructuredData):
             raise_uninit=False,
         )
 
-    @property
-    def cp_nd(self):
+    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
+    def cp_nd(self, out):
         r"""Non-dimensional specific heat at constant pressure :math:`c_p / R_\mathrm{ref}` [-], nodal array."""
-        return self.fluid._cp_nd
+        out = util.allocate_or_reuse(out, self.shape)
+        return self.fluid.get_cp(self._rho_nd_uninit, self.u_nd, out=out)
 
     @derived_array
     def dA_quad(self):

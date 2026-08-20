@@ -290,8 +290,8 @@ class _Fluid(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def change_datum(self, P_dtm_new, T_dtm_new):
-        """Return a new instance with datum shifted to (P_dtm_new, T_dtm_new).
+    def change_datum(self, P_dtm, T_dtm):
+        """Return a new instance with datum shifted to (P_dtm, T_dtm).
 
         A pure factory: the returned fluid carries the same properties on the
         new datum, and no field values are transformed. To move a *stored* flow
@@ -299,7 +299,7 @@ class _Fluid(ABC):
         :meth:`ember.block.Block.set_fluid`, which reads the state out through
         the old fluid and re-expresses it through the new one.
 
-        Note that ``T_dtm_new = 0`` is not representable: the datum sets
+        Note that ``T_dtm = 0`` is not representable: the datum sets
         ``u = s = 0`` simultaneously, and entropy carries a
         :math:`\\ln(T/T_\\mathrm{dtm})` term that is singular there.
         """
@@ -1346,10 +1346,10 @@ class RealFluid(_Fluid):
     -----------
     Transport properties are constant, as for :class:`PerfectFluid`. Wheeler's
     fitted viscosity and conductivity surfaces are not implemented, so ``mu``
-    and ``Pr`` are supplied directly. The viscous terms additionally use a
-    specific heat frozen at the datum, because the kernel behind
-    :attr:`~ember.block.Block.cp_nd` takes a scalar; the inviscid path and
-    :meth:`get_cp` are unaffected.
+    and ``Pr`` are supplied directly. The specific heat carried into the
+    conductivity is not among them: :attr:`~ember.block.Block.cp_nd` reads
+    :meth:`get_cp` at every node, so the heat flux sees the same state
+    dependence as the rest of the surface.
 
     Parameters
     ----------
@@ -1409,6 +1409,18 @@ class RealFluid(_Fluid):
     # few thousand nodes that sample never drops below a tolerance finer than
     # float32 resolves. The solve is right long before then; it just kept going.
     _NEWTON_STALL = 0.9
+
+    # Step below which the stall test is allowed to end the loop. That test
+    # reads a step which failed to shrink as a step at the arithmetic's floor,
+    # which is only true once Newton is in its quadratic regime. On the
+    # approach from a cold seed it is not: the step is relative in density, so
+    # a solve walking from the box centre out to the low-density edge takes two
+    # large steps of much the same size, and a step cut short by the box clamp
+    # can be larger than the one before it. Either reads as a stall and stops a
+    # solve that was closing on the answer -- which is how a datum inside the
+    # box came back reported as outside it. A solve at the floor is orders
+    # below this, so the gate costs the early exit nothing.
+    _NEWTON_SETTLED = 1e-2
 
     def __init__(
         self,
@@ -1479,12 +1491,6 @@ class RealFluid(_Fluid):
         self._configure(
             float(u_dtm), float(s_dtm), rho_ref, V_ref, Rgas_ref, dtype=np.float32
         )
-
-        # A single scalar specific heat, frozen at the datum, for the viscous
-        # kernel alone: it takes cp as a scalar (see Block.cp_nd) and cannot yet
-        # accept a field. :meth:`get_cp` remains fully state-dependent, so only
-        # the viscous terms see the frozen value.
-        self._cp_nd = np.float32(self.get_cp(float(rho_dtm) / rho_ref, 0.0))
 
         self._companion = self._build_companion(P_dtm, T_dtm)
 
@@ -1800,9 +1806,23 @@ class RealFluid(_Fluid):
             self._kernel_fits()
             and rho_b.dtype == np.float32
             and u_b.dtype == np.float32
+            # All eight arrays have to flatten in the same order. The kernel
+            # pairs rho against u element by element and the six results are
+            # laid back out the same way, so a pair walked in Fortran order
+            # against results written in C order takes every answer to the
+            # wrong node -- quietly, and only in two dimensions or more, where
+            # the two traversals differ. A block's fields are Fortran
+            # contiguous and hit exactly that. :meth:`_kernel_P_h_T` makes the
+            # same check for the same reason; the results are allocated here
+            # rather than passed in, so matching them to the input settles it.
+            and np.isfortran(rho_b) == np.isfortran(u_b)
+            and all(
+                a.flags["C_CONTIGUOUS"] or a.flags["F_CONTIGUOUS"] for a in (rho_b, u_b)
+            )
         ):
-            flat = (int(np.prod(rho_b.shape)),)
-            outs = [np.zeros(flat, dtype=np.float32) for _ in range(6)]
+            # empty_like, so each result inherits the input's memory order and
+            # ravels below to a view the kernel can write straight through.
+            outs = [np.empty_like(rho_b) for _ in range(6)]
             ember.fortran.set_partials2_real(
                 rho=np.ravel(rho_b, order="A"),
                 u=np.ravel(u_b, order="A"),
@@ -1813,14 +1833,14 @@ class RealFluid(_Fluid):
                 xb=self._xb,
                 ya=self._ya,
                 yb=self._yb,
-                s=outs[0],
-                s_r=outs[1],
-                s_u=outs[2],
-                s_rr=outs[3],
-                s_ru=outs[4],
-                s_uu=outs[5],
+                s=np.ravel(outs[0], order="A"),
+                s_r=np.ravel(outs[1], order="A"),
+                s_u=np.ravel(outs[2], order="A"),
+                s_rr=np.ravel(outs[3], order="A"),
+                s_ru=np.ravel(outs[4], order="A"),
+                s_uu=np.ravel(outs[5], order="A"),
             )
-            return tuple(o.reshape(rho_b.shape) for o in outs)
+            return tuple(outs)
 
         x, y = self._hats(rho, u)
         lnr = np.log(rho)
@@ -1948,7 +1968,9 @@ class RealFluid(_Fluid):
             step = np.max(
                 np.abs(rho_new - rho) / np.abs(rho) + np.abs(u_new - u) / self._u_scale
             )
-            if step < self._NEWTON_RTOL or step > self._NEWTON_STALL * step_prev:
+            if step < self._NEWTON_RTOL or (
+                step < self._NEWTON_SETTLED and step > self._NEWTON_STALL * step_prev
+            ):
                 break
             rho, u = rho_new, u_new
             step_prev = step
@@ -2015,7 +2037,9 @@ class RealFluid(_Fluid):
                 f, f_u = f_buf, fu_buf
             u_new = np.clip(u - (f - val) / f_u, *self._u_box_nd)
             step = np.max(np.abs(u_new - u)) / self._u_scale
-            if step < self._NEWTON_RTOL or step > self._NEWTON_STALL * step_prev:
+            if step < self._NEWTON_RTOL or (
+                step < self._NEWTON_SETTLED and step > self._NEWTON_STALL * step_prev
+            ):
                 break
             u = u_new
             step_prev = step
