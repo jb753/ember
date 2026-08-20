@@ -482,3 +482,41 @@ def test_real_kernel_handles_any_node_count(n):
         ("T", T, fluid.get_T(rho, u)),
     ):
         assert _ulps(got, ref) <= 8.0, f"n={n}, {name}: {_ulps(got, ref):.1f} ulp"
+
+
+@pytest.mark.parametrize("fluid_kind", ["perfect", "real"])
+def test_batched_getter_rejects_mismatched_memory_order(fluid_kind):
+    """Inputs and outputs that flatten differently take the numpy path.
+
+    Both kernels are pointwise and flat: the caller ravels every array and the
+    kernel pairs them up element by element. Two contiguous arrays of the same
+    shape can still disagree about what element one is -- a C-ordered buffer
+    against an F-ordered input walks the same memory in a different order --
+    and pairing them then takes every answer to the wrong node. The guard used
+    to ask only that each array flatten without copying, which both of these
+    do, so the call went through and 32 of 35 nodes came back with another
+    node's pressure.
+    """
+    if fluid_kind == "perfect":
+        fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
+        rng = np.random.default_rng(0)
+        rho = np.asfortranarray(rng.uniform(1.0, 3.0, SHAPE)).astype(np.float32)
+        u = np.asfortranarray(rng.uniform(1e4, 2e5, SHAPE)).astype(np.float32)
+        rho, u = np.asfortranarray(rho), np.asfortranarray(u)
+    else:
+        fluid, rho, u = _real_fluid_and_state()
+
+    assert np.isfortran(rho), "the input has to be F-ordered for this to bite"
+    outs = [np.zeros(SHAPE, np.float32, order="C") for _ in range(3)]
+    P, h, T = fluid.get_P_h_T(rho, u, *outs)
+
+    # Compared against the field scale, not pointwise: enthalpy is measured
+    # from the datum and passes through zero there, so one node in a few
+    # hundred has no meaningful relative error. Scrambling is not a subtle
+    # signal -- it shows up as millions of ulp -- so this costs no sensitivity.
+    for name, got, ref in (
+        ("P", P, fluid.get_P(rho, u)),
+        ("h", h, fluid.get_h(rho, u)),
+        ("T", T, fluid.get_T(rho, u)),
+    ):
+        assert _ulps(got, ref) <= 8.0, f"{name}: {_ulps(got, ref):.1f} ulp of scale"

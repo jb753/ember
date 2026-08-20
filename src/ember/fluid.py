@@ -1085,6 +1085,12 @@ class PerfectFluid(_Fluid):
             and all(a.dtype == np.float32 for a in arrs)
             and all(a.shape == np.shape(rho) for a in arrs)
             and all(a.flags["F_CONTIGUOUS"] or a.flags["C_CONTIGUOUS"] for a in arrs)
+            # Flattening without copying is not enough: they must flatten in
+            # the same order. This kernel pairs the arrays element by element,
+            # so a C-ordered output against an F-ordered input would take each
+            # answer to the wrong node -- silently, and only in two dimensions
+            # or more, where the two traversals differ.
+            and all(np.isfortran(a) == np.isfortran(rho) for a in arrs)
         )
         if not usable:
             return super().get_P_h_T(rho, u, out_P, out_h, out_T)
@@ -1658,6 +1664,61 @@ class RealFluid(_Fluid):
         with np.errstate(invalid="ignore", divide="ignore"):
             u0 = getattr(self._companion, method)(*args)[1]
         return np.clip(u0, *self._u_box_nd)
+
+    def _kernel_P_h_T(self, rho, u, outs=None):
+        """Pressure, enthalpy and temperature from the Fortran kernel.
+
+        Returns ``None`` when the kernel cannot take the call, leaving the
+        caller on the numpy path. Pass ``outs`` to write into those arrays;
+        pass nothing and it allocates.
+
+        Shared by :meth:`get_P_h_T` and by :meth:`get_P` and :meth:`get_T`,
+        which ask for one property and are handed three. That is not the waste
+        it looks: all three come off the same two polynomial surfaces, walking
+        those is the entire cost, and forming the other two afterwards is a
+        division apiece. Three from the kernel is still two orders cheaper than
+        one from numpy.
+        """
+        arrs = (rho, u) if outs is None else (rho, u) + tuple(outs)
+        usable = (
+            self._kernel_fits()
+            and all(isinstance(a, np.ndarray) for a in arrs)
+            and all(a.dtype == np.float32 for a in arrs)
+            and all(a.shape == np.shape(rho) for a in arrs)
+            and all(a.flags["F_CONTIGUOUS"] or a.flags["C_CONTIGUOUS"] for a in arrs)
+            # Every array must flatten in the same order, not merely flatten
+            # without copying. The kernel pairs them up element by element, so
+            # a C-ordered output against an F-ordered input would take each
+            # answer to the wrong node -- quietly, and only in two dimensions
+            # or more, where the two traversals differ.
+            and all(np.isfortran(a) == np.isfortran(rho) for a in arrs)
+        )
+        if not usable:
+            return None
+        if outs is None:
+            # empty_like, so the buffers inherit the input's memory order and
+            # the check above holds for them too.
+            outs = [np.empty_like(rho) for _ in range(3)]
+        # order="A" ravels without copying for either contiguity, so these stay
+        # views and the kernel's writes land in the caller's arrays.
+        ember.fortran.set_p_h_t_real(
+            rho=np.ravel(rho, order="A"),
+            u=np.ravel(u, order="A"),
+            scx=self._Sc_x,
+            nzx=self._nzx,
+            scy=self._Sc_y,
+            nzy=self._nzy,
+            sl=self._Sl,
+            sly=self._Sl_y,
+            xa=self._xa,
+            xb=self._xb,
+            ya=self._ya,
+            yb=self._yb,
+            p=np.ravel(outs[0], order="A"),
+            h=np.ravel(outs[1], order="A"),
+            t=np.ravel(outs[2], order="A"),
+        )
+        return tuple(outs)
 
     def _kernel_fits(self):
         """Whether this surface's order fits the Fortran kernel's basis buffers.
@@ -2490,6 +2551,10 @@ class RealFluid(_Fluid):
         P : ndarray
             Pressure [Pa].
         """
+        got = self._kernel_P_h_T(rho, u)
+        if got is not None:
+            return self._write(got[0], out) if out is not None else got[0]
+
         s_r, s_u = self._partials1(rho, u)
         return self._write(-(rho**2) * s_r / s_u, out)
 
@@ -2522,36 +2587,10 @@ class RealFluid(_Fluid):
             ``(P, h, T)``.
         """
         outs = (out_P, out_h, out_T)
-        arrs = (rho, u) + outs
-        usable = (
-            all(o is not None for o in outs)
-            and all(isinstance(a, np.ndarray) for a in arrs)
-            and all(a.dtype == np.float32 for a in arrs)
-            and all(a.shape == np.shape(rho) for a in arrs)
-            and all(a.flags["F_CONTIGUOUS"] or a.flags["C_CONTIGUOUS"] for a in arrs)
-            and self._kernel_fits()
-        )
-        if usable:
-            # order="A" ravels without copying for either contiguity, so these
-            # stay views and the kernel's writes land in the caller's arrays.
-            ember.fortran.set_p_h_t_real(
-                rho=np.ravel(rho, order="A"),
-                u=np.ravel(u, order="A"),
-                scx=self._Sc_x,
-                nzx=self._nzx,
-                scy=self._Sc_y,
-                nzy=self._nzy,
-                sl=self._Sl,
-                sly=self._Sl_y,
-                xa=self._xa,
-                xb=self._xb,
-                ya=self._ya,
-                yb=self._yb,
-                p=np.ravel(out_P, order="A"),
-                h=np.ravel(out_h, order="A"),
-                t=np.ravel(out_T, order="A"),
-            )
-            return out_P, out_h, out_T
+        if all(o is not None for o in outs):
+            got = self._kernel_P_h_T(rho, u, outs)
+            if got is not None:
+                return got
 
         s_r, s_u = self._partials1(rho, u)
         T = 1.0 / s_u
@@ -2655,6 +2694,10 @@ class RealFluid(_Fluid):
         T : ndarray
             Temperature [K].
         """
+        got = self._kernel_P_h_T(rho, u)
+        if got is not None:
+            return self._write(got[2], out) if out is not None else got[2]
+
         _, s_u = self._partials1(rho, u)
         return self._write(1.0 / s_u, out)
 
