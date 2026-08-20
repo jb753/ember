@@ -1586,6 +1586,36 @@ class RealFluid(_Fluid):
         self._Sl_y = _leg.legder(Sl).astype(dtype)
         self._Sl_yy = _leg.legder(Sl, 2).astype(dtype)
 
+        # The same six surfaces again, padded to a common extent and stacked,
+        # for the kernel behind _partials2. Differentiating shortens a
+        # different axis each time, so passing them separately would mean six
+        # pairs of bounds saying nothing the counts do not already say. The
+        # padding is free: those zeros fall past the per-column counts, exactly
+        # like the ones a total-order fit leaves.
+        surfaces = (
+            self._Sc,
+            self._Sc_x,
+            self._Sc_y,
+            self._Sc_xx,
+            self._Sc_xy,
+            self._Sc_yy,
+        )
+        nrow = max(c.shape[0] for c in surfaces)
+        ncol = max(c.shape[1] for c in surfaces)
+        stack = np.zeros((nrow, ncol, len(surfaces)), dtype=dtype)
+        counts = np.zeros((ncol, len(surfaces)), dtype=np.int32)
+        for m, coef in enumerate(surfaces):
+            stack[: coef.shape[0], : coef.shape[1], m] = coef
+            counts[: coef.shape[1], m] = _last_nonzero_rows(coef)
+        self._Sc_stack = np.asfortranarray(stack)
+        self._Sc_stack_nz = np.asfortranarray(counts)
+
+        lines = (self._Sl, self._Sl_y, self._Sl_yy)
+        stack1 = np.zeros((ncol, len(lines)), dtype=dtype)
+        for m, coef in enumerate(lines):
+            stack1[: coef.size, m] = coef
+        self._Sl_stack = np.asfortranarray(stack1)
+
     def _entropy(self, rho, u):
         """Non-dimensional entropy alone, without the partials."""
         x, y = self._hats(rho, u)
@@ -1691,6 +1721,33 @@ class RealFluid(_Fluid):
 
     def _partials2(self, rho, u):
         """Entropy and its first and second partials with respect to (rho, u)."""
+        rho_b, u_b = np.broadcast_arrays(rho, u)
+        if (
+            self._kernel_fits()
+            and rho_b.dtype == np.float32
+            and u_b.dtype == np.float32
+        ):
+            flat = (int(np.prod(rho_b.shape)),)
+            outs = [np.zeros(flat, dtype=np.float32) for _ in range(6)]
+            ember.fortran.set_partials2_real(
+                rho=np.ravel(rho_b, order="A"),
+                u=np.ravel(u_b, order="A"),
+                sc2=self._Sc_stack,
+                nz2=self._Sc_stack_nz,
+                sc1=self._Sl_stack,
+                xa=self._xa,
+                xb=self._xb,
+                ya=self._ya,
+                yb=self._yb,
+                s=outs[0],
+                s_r=outs[1],
+                s_u=outs[2],
+                s_rr=outs[3],
+                s_ru=outs[4],
+                s_uu=outs[5],
+            )
+            return tuple(o.reshape(rho_b.shape) for o in outs)
+
         x, y = self._hats(rho, u)
         lnr = np.log(rho)
         M = _leg.legval(y, self._Sl)

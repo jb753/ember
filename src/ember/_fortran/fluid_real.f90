@@ -224,3 +224,151 @@ subroutine set_P_h_T_real( &
     end do
 
 end subroutine set_P_h_T_real
+
+! Entropy and its first and second partials, batched.
+!
+! ALSO OWNED BY `RealFluid` (fluid.py). Same standing as set_P_h_T_real above:
+! not a solver kernel, coefficients passed in, numpy keeps any fluid correct
+! without it.
+!
+! This is the inner evaluation of the Newton solves behind set_P_T, set_h_s,
+! set_P_rho and the rest, which run on every boundary patch on every step, and
+! which is where a real gas costs what it costs -- the state is not invertible
+! in closed form, so each iteration walks all six surfaces again. Six of them
+! rather than the two set_P_h_T_real needs, because the solves need a Jacobian
+! and the Jacobian needs second derivatives.
+!
+! The six arrive stacked, padded to a common extent, because differentiating
+! shortens a different axis each time and six separate arguments with six
+! separate pairs of bounds would say nothing extra. The trailing zeros the
+! padding adds cost nothing: they are past the per-column counts, exactly like
+! the ones a total-order fit leaves.
+!
+! Ordering is fixed by the caller and assumed here:
+!   sc2(:,:,1..6) = Sc, Sc_x, Sc_y, Sc_xx, Sc_xy, Sc_yy
+!   sc1(:,1..3)   = Sl, Sl_y, Sl_yy
+
+subroutine set_partials2_real( &
+    rho, u, &
+    sc2, nz2, sc1, &
+    xa, xb, ya, yb, &
+    s, s_r, s_u, s_rr, s_ru, s_uu, &
+    nx, ny, n &
+    )
+
+    implicit none
+
+    integer, intent (in) :: nx, ny, n
+    real, intent (in)    :: rho(n), u(n)
+    real, intent (in)    :: sc2(nx, ny, 6), sc1(ny, 3)
+    integer, intent (in) :: nz2(ny, 6)
+    real, intent (in)    :: xa, xb, ya, yb
+    real, intent (inout) :: s(n), s_r(n), s_u(n)
+    real, intent (inout) :: s_rr(n), s_ru(n), s_uu(n)
+
+    integer, parameter :: MAXORD = 31
+    integer, parameter :: NTILE = 256
+
+    integer :: i, i0, j, nj, a, b, m
+
+    integer :: k
+    real, parameter :: w1(1:MAXORD) = [(real(2 * k + 1) / real(k + 1), k = 1, MAXORD)]
+    real, parameter :: w2(1:MAXORD) = [(real(k) / real(k + 1), k = 1, MAXORD)]
+
+    real :: sc, rinv, lnri
+    real :: rhov(NTILE), uv(NTILE), xv(NTILE), yv(NTILE), lnrv(NTILE), colv(NTILE)
+    real :: cv(NTILE, 6), mv(NTILE, 3)
+    real :: Px(NTILE, 0:MAXORD), Qy(NTILE, 0:MAXORD)
+
+    do i0 = 1, n, NTILE
+
+        nj = min(NTILE, n - i0 + 1)
+
+        do j = 1, nj
+            rhov(j) = rho(i0 + j - 1)
+            uv(j) = u(i0 + j - 1)
+            xv(j) = rhov(j) * xa + xb
+            yv(j) = uv(j) * ya + yb
+            lnrv(j) = log(rhov(j))
+        end do
+
+        do j = 1, nj
+            Px(j, 0) = 1.0
+            Qy(j, 0) = 1.0
+        end do
+
+        if (nx > 1) then
+            do j = 1, nj
+                Px(j, 1) = xv(j)
+            end do
+        end if
+
+        do a = 1, nx - 2
+            do j = 1, nj
+                Px(j, a + 1) = w1(a) * xv(j) * Px(j, a) - w2(a) * Px(j, a - 1)
+            end do
+        end do
+
+        if (ny > 1) then
+            do j = 1, nj
+                Qy(j, 1) = yv(j)
+            end do
+        end if
+
+        do b = 1, ny - 2
+            do j = 1, nj
+                Qy(j, b + 1) = w1(b) * yv(j) * Qy(j, b) - w2(b) * Qy(j, b - 1)
+            end do
+        end do
+
+        ! One basis, six surfaces. This is the whole reason they are evaluated
+        ! together rather than one call at a time.
+        do m = 1, 6
+            do j = 1, nj
+                cv(j, m) = 0.0
+            end do
+            do b = 1, ny
+                if (nz2(b, m) == 0) cycle
+                do j = 1, nj
+                    colv(j) = 0.0
+                end do
+                do a = 1, nz2(b, m)
+                    sc = sc2(a, b, m)
+                    do j = 1, nj
+                        colv(j) = colv(j) + sc * Px(j, a - 1)
+                    end do
+                end do
+                do j = 1, nj
+                    cv(j, m) = cv(j, m) + colv(j) * Qy(j, b - 1)
+                end do
+            end do
+        end do
+
+        do m = 1, 3
+            do j = 1, nj
+                mv(j, m) = 0.0
+            end do
+            do b = 1, ny
+                sc = sc1(b, m)
+                do j = 1, nj
+                    mv(j, m) = mv(j, m) + sc * Qy(j, b - 1)
+                end do
+            end do
+        end do
+
+        ! Operation order follows RealFluid._partials2.
+        do j = 1, nj
+            i = i0 + j - 1
+            rinv = 1.0 / rhov(j)
+            lnri = lnrv(j)
+            s(i) = cv(j, 1) + mv(j, 1) * lnri
+            s_r(i) = cv(j, 2) * xa + mv(j, 1) * rinv
+            s_u(i) = (cv(j, 3) + mv(j, 2) * lnri) * ya
+            s_rr(i) = cv(j, 4) * xa * xa - mv(j, 1) * rinv * rinv
+            s_ru(i) = (cv(j, 5) * xa + mv(j, 2) * rinv) * ya
+            s_uu(i) = (cv(j, 6) + mv(j, 3) * lnri) * ya * ya
+        end do
+
+    end do
+
+end subroutine set_partials2_real
