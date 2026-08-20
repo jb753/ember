@@ -5,6 +5,21 @@ ember follows `semantic versioning <https://semver.org/>`_ from 0.1.0 onwards.
 Until 1.0.0, minor releases may make breaking changes to the public API
 without a deprecation period.
 
+.. _v0.3.0:
+
+0.3.0 (unreleased)
+------------------
+
+* ``Block.cp_nd`` is now a nodal array rather than a single number --- which is
+  what it had always documented itself as. The distinction is invisible for a
+  perfect gas, whose specific heat is constant, and the viscous kernel behind
+  it took cp as a scalar, so a real gas's conductivity was built from a
+  specific heat frozen at the datum. That made it a function of where the datum
+  sat rather than of the flow: shifting the datum with ``change_datum``, which
+  re-labels ``u`` and ``s`` and is meant to change nothing physical, moved it
+  by as much as cp varies over the whole fit box. The kernel now takes the
+  field and averages it to the cell, for about 7% of that kernel's time.
+
 .. _v0.2.0:
 
 0.2.0 (2026-08-18)

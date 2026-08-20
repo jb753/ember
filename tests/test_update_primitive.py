@@ -522,6 +522,32 @@ def test_batched_getter_rejects_mismatched_memory_order(fluid_kind):
         assert _ulps(got, ref) <= 8.0, f"{name}: {_ulps(got, ref):.1f} ulp of scale"
 
 
+def test_second_partial_getters_survive_fortran_ordered_input():
+    """The six-surface kernel pairs an F-ordered state with itself.
+
+    Same hazard as the batched getter above, one kernel along. The six
+    partials come back flat and used to be reshaped in C order regardless of
+    how the inputs were walked, so an F-contiguous rho and u -- which is what
+    every field on a Block is -- were read down one axis and written back down
+    another. Nothing raised: the acoustic speed came back as a mixture of other
+    nodes' numbers, negative under the square root at a quarter of them.
+
+    Every getter here reaches _partials2 and nothing else does, which is why
+    get_P and get_T stayed right through all of it and hid the whole thing.
+    """
+    fluid, rho_f, u_f = _real_fluid_and_state(order="F")
+    rho_c, u_c = np.ascontiguousarray(rho_f), np.ascontiguousarray(u_f)
+    assert np.isfortran(rho_f), "the input has to be F-ordered for this to bite"
+
+    for name in ("a", "cp", "gamma", "dhdP_rho", "dsdrho_P", "dudP_rho"):
+        getter = getattr(fluid, f"get_{name}")
+        got, ref = getter(rho_f, u_f), getter(rho_c, u_c)
+        assert np.all(np.isfinite(got)), f"get_{name}: not every node is a number"
+        assert _ulps(got, ref) <= 8.0, (
+            f"get_{name}: {_ulps(got, ref):.1f} ulp of scale against the C-ordered call"
+        )
+
+
 def test_real_fluid_batched_getter_allocates_nothing_when_given_buffers():
     """The solver's call writes into the caller's arrays and allocates none.
 

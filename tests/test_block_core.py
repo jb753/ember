@@ -28,6 +28,7 @@ Test cases:
 - test_Re_ref: Reference Reynolds number property
 - test_P_nd: Nondimensional pressure property
 - test_set_fluid_rescales_a_block_without_coordinates: fluid swap with no radius
+- test_cp_nd_is_a_field_for_a_real_gas: cp follows the state, not the datum
 """
 
 import ember.block
@@ -506,3 +507,50 @@ def test_set_fluid_rescales_a_block_without_coordinates():
 
     np.testing.assert_allclose(b.P, P_orig, rtol=1e-5)
     np.testing.assert_allclose(b.T, T_orig, rtol=1e-5)
+
+
+def test_cp_nd_is_a_field_for_a_real_gas():
+    """cp_nd reads the equation of state at every node.
+
+    It used to be one number frozen at the datum, because the viscous kernel
+    took cp as a scalar. That made the conductivity a function of where the
+    datum happened to sit rather than of the flow: change_datum, which is meant
+    to re-label u and s and change nothing physical, moved it by as much as cp
+    varies over the whole fit box. Now the kernel takes the field, so a real
+    gas gets its local cp and the datum drops out.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    model = VanDerWaals()
+    fluid = fit_real_fluid(model, (1.0, 150.0), (3.0e5, 5.0e5))
+
+    shape = (5, 5, 3)
+    b = ember.block.Block(shape=shape)
+    xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], shape)
+    b.set_x(xrt[..., 0])
+    b.set_r(xrt[..., 1])
+    b.set_t(xrt[..., 2])
+    b.set_fluid(fluid)
+    b.set_Vxrt(np.zeros(shape + (3,), dtype=np.float32))
+
+    # A state spread over the box, so a frozen cp and a nodal one differ.
+    rho = np.linspace(5.0, 140.0, shape[0]).reshape(-1, 1, 1) * np.ones(shape)
+    u = np.linspace(3.6e5, 4.6e5, shape[1]).reshape(1, -1, 1) * np.ones(shape)
+    b.set_P_T(model.get_P(rho, u), model.get_T(rho, u))
+
+    cp = b.cp_nd
+    assert cp.shape == shape, "cp_nd is a nodal field, not a scalar"
+    assert np.ptp(cp) > 0.0, "the test state has to vary for this to mean anything"
+    np.testing.assert_allclose(cp, fluid.get_cp(b._rho_nd_uninit, b.u_nd), rtol=1e-6)
+
+    # And the datum no longer leaks into it.
+    b_shift = ember.block.Block(shape=shape)
+    b_shift.set_x(xrt[..., 0])
+    b_shift.set_r(xrt[..., 1])
+    b_shift.set_t(xrt[..., 2])
+    b_shift.set_fluid(fluid)
+    b_shift.set_Vxrt(np.zeros(shape + (3,), dtype=np.float32))
+    b_shift.set_P_T(model.get_P(rho, u), model.get_T(rho, u))
+    b_shift.set_fluid(fluid.change_datum(2.0e5, 320.0))
+
+    np.testing.assert_allclose(b_shift.cp_nd, cp, rtol=1e-5)
