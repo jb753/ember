@@ -53,31 +53,26 @@ subroutine set_P_h_T_real( &
     real, intent (in)    :: xa, xb, ya, yb
     real, intent (inout) :: P(n), h(n), T(n)
 
-    integer :: i, a, b, na, nb, nr
+    integer, parameter :: MAXORD = 31
+    integer :: i, a, b, na, nb
+
+    ! (a + 1)*P_{a+1}(x) = (2a + 1)*x*P_a(x) - a*P_{a-1}(x), folded at compile
+    ! time. Written as the recurrence rather than as a wall of literals so the
+    ! derivation stays readable.
+    integer :: k
+    real, parameter :: w1(1:MAXORD) = [(real(2 * k + 1) / real(k + 1), k = 1, MAXORD)]
+    real, parameter :: w2(1:MAXORD) = [(real(k) / real(k + 1), k = 1, MAXORD)]
+
     real :: x, y, lnr, rhoi, srho, su, Ti, Pi, cx, cy, col, M, My
 
-    ! One basis per node, shared by all four contractions. Sized to the largest
-    ! extent on each axis: differentiating in x shortens scy's first dimension
-    ! rather than scx's, and likewise for y, so neither array alone bounds it.
-    real :: Px(0:max(nax, nay) - 1)
-    real :: Qy(0:max(max(nbx, nby), max(nsl, nsly)) - 1)
-
-    ! Recurrence weights, which depend on the term index alone. Hoisted out of
-    ! the node loop because the divisions they come from cost more than every
-    ! multiply-add in the contractions put together: two per basis term, ~46
-    ! per node, at ten-odd cycles each.
-    real :: w1(0:max(max(nax, nay), max(max(nbx, nby), max(nsl, nsly))) - 1)
-    real :: w2(0:max(max(nax, nay), max(max(nbx, nby), max(nsl, nsly))) - 1)
+    ! Fixed size, not automatic: an automatic array is an alloca per call that
+    ! the optimiser treats as clobbering memory. The caller guarantees the
+    ! order fits (see RealFluid.get_P_h_T).
+    real :: Px(0:MAXORD)
+    real :: Qy(0:MAXORD)
 
     na = max(nax, nay)
     nb = max(max(nbx, nby), max(nsl, nsly))
-    nr = max(na, nb)
-
-    ! (a + 1)*P_{a+1}(x) = (2a + 1)*x*P_a(x) - a*P_{a-1}(x)
-    do a = 1, nr - 2
-        w1(a) = real(2 * a + 1) / real(a + 1)
-        w2(a) = real(a) / real(a + 1)
-    end do
 
     do i = 1, n
 

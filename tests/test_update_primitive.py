@@ -19,6 +19,7 @@ Two properties matter and are pinned here:
 import numpy as np
 
 import ember.block
+import ember.fluid
 import ember.fortran
 import ember.grid
 from ember import util
@@ -402,3 +403,58 @@ def test_real_fluid_batched_getter_falls_back():
     outs = [np.zeros_like(rv) for _ in range(3)]
     P, _, _ = fluid.get_P_h_T(rv, uv, *outs)
     np.testing.assert_allclose(P, fluid.get_P(rv, uv), rtol=1e-6)
+
+
+def test_real_kernel_order_cap_matches_the_fortran():
+    """The Python cap and the kernel's compile-time buffer size are one number.
+
+    They live in two files and cannot be derived from each other, so nothing
+    but this test stops them drifting. Drift in the dangerous direction does
+    not fail loudly: the kernel would keep writing past the end of a fixed
+    stack array, and the first symptom would be corruption somewhere else.
+    """
+    import re
+    from pathlib import Path
+
+    src = Path(ember.fluid.__file__).parent / "_fortran" / "fluid_real.f90"
+    found = re.search(
+        r"integer,\s*parameter\s*::\s*MAXORD\s*=\s*(\d+)", src.read_text()
+    )
+    assert found, "MAXORD not found in fluid_real.f90"
+    assert int(found.group(1)) == ember.fluid._REAL_KERNEL_MAXORD
+
+
+def test_real_kernel_declines_an_order_it_cannot_hold():
+    """A surface past the cap takes the numpy path instead of overrunning.
+
+    Reaching the cap by fitting would need an order no least-squares fit stays
+    conditioned at, so the coefficient array is lengthened directly. What the
+    fluid then describes is not a gas, which does not matter: the question is
+    only which path runs, and the numpy one answers bit-for-bit identically to
+    get_P, where the kernel would differ in the last few ulp.
+    """
+    fluid, rho, u = _real_fluid_and_state()
+    assert fluid._kernel_fits(), "the fitted fluid should reach the kernel"
+
+    over = ember.fluid._REAL_KERNEL_MAXORD + 2
+    fluid._Sl = np.zeros(over, dtype=np.float32)
+    fluid._Sl_y = np.zeros(over - 1, dtype=np.float32)
+    assert not fluid._kernel_fits()
+
+    # Proved by making the kernel impossible to call rather than by comparing
+    # numbers: the two paths agree to within a few ulp, which is too fine a
+    # margin to tell them apart by their output.
+    def _must_not_run(**kwargs):
+        raise AssertionError("kernel called with a surface it cannot hold")
+
+    original = ember.fortran.set_p_h_t_real
+    ember.fortran.set_p_h_t_real = _must_not_run
+    try:
+        outs = [np.zeros(SHAPE, np.float32, order="F") for _ in range(3)]
+        P, h, T = fluid.get_P_h_T(rho, u, *outs)
+    finally:
+        ember.fortran.set_p_h_t_real = original
+
+    # And the numpy path still answered, rather than quietly returning zeros.
+    for got in (P, h, T):
+        assert np.isfinite(got).all() and np.any(got != 0.0)
