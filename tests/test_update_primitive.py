@@ -520,3 +520,33 @@ def test_batched_getter_rejects_mismatched_memory_order(fluid_kind):
         ("T", T, fluid.get_T(rho, u)),
     ):
         assert _ulps(got, ref) <= 8.0, f"{name}: {_ulps(got, ref):.1f} ulp of scale"
+
+
+def test_real_fluid_batched_getter_allocates_nothing_when_given_buffers():
+    """The solver's call writes into the caller's arrays and allocates none.
+
+    update_primitive supplies all three buffers precisely so a Runge-Kutta
+    stage costs no allocation, and a getter that quietly allocated would be
+    correct and would show up only as pressure on the allocator. Worth pinning:
+    it went the other way once, when the no-buffer call was taking the numpy
+    path and turning 11 MB of output into 180 MB of temporaries.
+    """
+    import tracemalloc
+
+    shape = (40, 40, 40)
+    fluid, rho, u = _real_fluid_and_state(shape=shape)
+    outs = [np.zeros(shape, np.float32, order="F") for _ in range(3)]
+    one_array = rho.nbytes
+
+    fluid.get_P_h_T(rho, u, *outs)  # warm up any lazy import
+    tracemalloc.start()
+    before = tracemalloc.get_traced_memory()[0]
+    P, h, T = fluid.get_P_h_T(rho, u, *outs)
+    peak = tracemalloc.get_traced_memory()[1] - before
+    tracemalloc.stop()
+
+    assert (P, h, T) == tuple(outs), "did not write into the supplied buffers"
+    assert peak < one_array // 2, (
+        f"allocated {peak / 1e6:.2f} MB for a call whose output is "
+        f"{3 * one_array / 1e6:.2f} MB of buffers it was handed"
+    )
