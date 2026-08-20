@@ -10,6 +10,20 @@ without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* Added ``RealFluid``, a real-gas equation of state, and ``ember.realgas_fit``,
+  the offline tool that produces the coefficients it evaluates. Both follow
+  Wheeler (2024): a polynomial surface is fitted to the compressibility factor
+  over a box in density and internal energy, and integrated analytically to give
+  entropy, with temperature and pressure derived from that one surface rather
+  than fitted alongside it. That is what separates it from a lookup table, which
+  reproduces its own tabulated values but not the relations between them, and so
+  creates spurious entropy wherever gradients are steep. The fitting module
+  needs CoolProp only to sample a table --- ``sample_coolprop``, which imports it
+  lazily --- so a fluid built from coefficients someone else fitted carries no
+  such dependency. ``RealFluid`` implements the whole ``_Fluid`` interface, so it
+  drops in wherever ``PerfectFluid`` went; the surface evaluation and the Newton
+  inversions behind ``set_P_T`` and friends are in Fortran.
+
 * ``RealFluid``'s Newton solves now work in Fortran order and allocate nothing
   per iteration. The scalar solve forced its inputs C contiguous to reach the
   surface kernel, so every call from the solver --- whose block fields are
