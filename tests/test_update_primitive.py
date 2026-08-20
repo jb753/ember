@@ -415,16 +415,24 @@ def test_real_kernel_order_cap_matches_the_fortran():
     but this test stops them drifting. Drift in the dangerous direction does
     not fail loudly: the kernel would keep writing past the end of a fixed
     stack array, and the first symptom would be corruption somewhere else.
+
+    The source is read from the repository rather than from beside the
+    installed package: a wheel ships the compiled extension and not the
+    Fortran it was built from, so resolving it through ``ember.fluid.__file__``
+    only finds anything under an editable install.
     """
     import re
     from pathlib import Path
 
-    src = Path(ember.fluid.__file__).parent / "_fortran" / "fluid_real.f90"
-    found = re.search(
+    root = Path(__file__).parent.parent
+    src = root / "src" / "ember" / "_fortran" / "fluid_real.f90"
+    found = re.findall(
         r"integer,\s*parameter\s*::\s*MAXORD\s*=\s*(\d+)", src.read_text()
     )
     assert found, "MAXORD not found in fluid_real.f90"
-    assert int(found.group(1)) == ember.fluid._REAL_KERNEL_MAXORD
+    # Each kernel declares its own copy, so check every one: two agreeing with
+    # Python says nothing about a third that does not.
+    assert [int(n) for n in found] == [ember.fluid._REAL_KERNEL_MAXORD] * len(found)
 
 
 def test_real_kernel_declines_an_order_it_cannot_hold():
