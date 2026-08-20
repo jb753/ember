@@ -82,6 +82,13 @@ import ember.realgas_fit
 
 _leg = np.polynomial.legendre
 
+# Highest Legendre order the real-gas kernel can hold. It sizes its basis
+# buffers at compile time rather than allocating them per call, so a surface
+# fitted beyond this has to take the numpy path -- and MUST, since the kernel
+# would otherwise write past the end of them. Mirrors MAXORD in
+# _fortran/fluid_real.f90; the two are pinned together by a test.
+_REAL_KERNEL_MAXORD = 31
+
 
 class _Fluid(ABC):
     """Interface for converting density and internal energy to and from other thermodynamic properties.
@@ -1583,6 +1590,25 @@ class RealFluid(_Fluid):
             u0 = getattr(self._companion, method)(*args)[1]
         return np.clip(u0, *self._u_box_nd)
 
+    def _kernel_fits(self):
+        """Whether this surface's order fits the Fortran kernel's basis buffers.
+
+        The kernel sizes them at compile time, so this is a bound it cannot
+        check for itself and cannot be allowed to exceed: overrunning them
+        would corrupt the stack rather than raise. Practical fits sit an order
+        of magnitude below the limit -- a least-squares Legendre fit loses
+        conditioning long before it -- so this is a guard, not a real
+        restriction, and a surface past it simply takes the numpy path.
+        """
+        na = max(self._Sc_x.shape[0], self._Sc_y.shape[0])
+        nb = max(
+            self._Sc_x.shape[1],
+            self._Sc_y.shape[1],
+            self._Sl.size,
+            self._Sl_y.size,
+        )
+        return max(na, nb) <= _REAL_KERNEL_MAXORD + 1
+
     @staticmethod
     def _isentropic_exponent(st, rho):
         """Isentropic exponent from a state dict, k = (dP/drho)_s * rho/P."""
@@ -2403,6 +2429,7 @@ class RealFluid(_Fluid):
             and all(a.dtype == np.float32 for a in arrs)
             and all(a.shape == np.shape(rho) for a in arrs)
             and all(a.flags["F_CONTIGUOUS"] or a.flags["C_CONTIGUOUS"] for a in arrs)
+            and self._kernel_fits()
         )
         if usable:
             # order="A" ravels without copying for either contiguity, so these
