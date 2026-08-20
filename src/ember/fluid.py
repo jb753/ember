@@ -1489,8 +1489,12 @@ class RealFluid(_Fluid):
         Prandtl number [--].
     P_dtm : float, optional
         Datum pressure where u = 0 and s = 0 [Pa]. Must lie in the fit box.
+        Defaults to this fluid's own pressure at the centre of that box, which
+        is inside it by construction; see :ref:`datum-state`.
     T_dtm : float, optional
         Datum temperature where u = 0 and s = 0 [K]. Must lie in the fit box.
+        Defaults to the temperature at the same point. Either may be given on
+        its own, the other still defaulting.
     rho_ref : float, optional
         Reference density for non-dimensionalisation.
     V_ref : float, optional
@@ -1533,6 +1537,12 @@ class RealFluid(_Fluid):
     # below this, so the gate costs the early exit nothing.
     _NEWTON_SETTLED = 1e-2
 
+    # What _state returns, and what _state_buffers makes room for beyond it:
+    # the three second partials the state consumes on the way through, and two
+    # arrays of scratch.
+    _STATE_KEYS = ("s", "s_r", "s_u", "T", "T_r", "T_u", "P", "P_r", "P_u")
+    _STATE_SCRATCH = ("s_rr", "s_ru", "s_uu", "w1", "w2")
+
     def __init__(
         self,
         alpha,
@@ -1543,8 +1553,8 @@ class RealFluid(_Fluid):
         Rgas,
         mu,
         Pr,
-        P_dtm=1e5,
-        T_dtm=300.0,
+        P_dtm=None,
+        T_dtm=None,
         rho_ref=1.0,
         V_ref=1.0,
         Rgas_ref=1.0,
@@ -1561,8 +1571,6 @@ class RealFluid(_Fluid):
         self._mu_nd = np.float32(mu / (rho_ref * V_ref))
         self._Rgas_nd = np.float32(Rgas / Rgas_ref)
         self._Pr = np.float32(Pr)
-        self._P_dtm = np.float32(P_dtm)
-        self._T_dtm = np.float32(T_dtm)
 
         if not self._rho_lim[1] > self._rho_lim[0] > 0.0:
             raise ValueError(f"rho_lim must be increasing and positive, got {rho_lim}")
@@ -1585,10 +1593,6 @@ class RealFluid(_Fluid):
             raise ValueError(f"mu={mu} must be positive.")
         if Pr <= 0.0:
             raise ValueError(f"Pr={Pr} must be positive.")
-        if T_dtm <= 0.0:
-            raise ValueError(f"T_dtm={T_dtm} must be positive.")
-        if P_dtm <= 0.0:
-            raise ValueError(f"P_dtm={P_dtm} must be positive.")
 
         # Two-pass construction. The datum is the internal energy and entropy at
         # (P_dtm, T_dtm), which can only be found by inverting the surface --
@@ -1597,6 +1601,36 @@ class RealFluid(_Fluid):
         # with the datum and reference scales folded in.
         self._companion = None
         self._configure(0.0, 0.0, 1.0, 1.0, 1.0, dtype=np.float64)
+
+        # A datum nobody asked for is placed at the centre of the fit box. The
+        # box is the only region where this fluid exists, so its middle is the
+        # one state always available to default to, whereas any fixed pressure
+        # and temperature belongs to some other fluid's box. Ambient is the
+        # tempting choice and is the wrong one: it falls inside the box of an
+        # air-like fit and hundreds of bar outside that of a dense working
+        # fluid, which is the case a real gas is here for.
+        #
+        # Read off the fitted surface rather than the table behind it, which
+        # this no longer has, and which would in any case put the datum a
+        # residual away from the surface it is supposed to be the origin of.
+        # The first pass above is what makes that possible: it configures the
+        # surface on a zero datum, after which get_P and get_T are evaluable --
+        # as _build_companion below already relies on.
+        if P_dtm is None or T_dtm is None:
+            rho_mid = 0.5 * (self._rho_lim[0] + self._rho_lim[1])
+            u_mid = 0.5 * (self._u_lim[0] + self._u_lim[1])
+            if P_dtm is None:
+                P_dtm = float(self.get_P(rho_mid, u_mid))
+            if T_dtm is None:
+                T_dtm = float(self.get_T(rho_mid, u_mid))
+
+        if T_dtm <= 0.0:
+            raise ValueError(f"T_dtm={T_dtm} must be positive.")
+        if P_dtm <= 0.0:
+            raise ValueError(f"P_dtm={P_dtm} must be positive.")
+        self._P_dtm = np.float32(P_dtm)
+        self._T_dtm = np.float32(T_dtm)
+
         rho_dtm, u_dtm = self.set_P_T(float(P_dtm), float(T_dtm))
         s_dtm = self._entropy(rho_dtm, u_dtm)
         self._configure(
@@ -1910,13 +1944,20 @@ class RealFluid(_Fluid):
         s_u = (_leg.legval2d(x, y, self._Sc_y) + My * lnr) * self._ya
         return s_r, s_u
 
-    def _partials2(self, rho, u):
-        """Entropy and its first and second partials with respect to (rho, u)."""
+    def _partials2(self, rho, u, outs=None):
+        """Entropy and its first and second partials with respect to (rho, u).
+
+        ``outs``, when given, is six arrays for the results to be written into
+        rather than allocated, so a Newton loop can walk the surface without
+        allocating. They face the same checks below as the inputs do.
+        """
         rho_b, u_b = np.broadcast_arrays(rho, u)
+        arrs = (rho_b, u_b) + (() if outs is None else tuple(outs))
         if (
             self._kernel_fits()
-            and rho_b.dtype == np.float32
-            and u_b.dtype == np.float32
+            and all(isinstance(a, np.ndarray) for a in arrs)
+            and all(a.dtype == np.float32 for a in arrs)
+            and all(a.shape == rho_b.shape for a in arrs)
             # All eight arrays have to flatten in the same order. The kernel
             # pairs rho against u element by element and the six results are
             # laid back out the same way, so a pair walked in Fortran order
@@ -1924,16 +1965,14 @@ class RealFluid(_Fluid):
             # wrong node -- quietly, and only in two dimensions or more, where
             # the two traversals differ. A block's fields are Fortran
             # contiguous and hit exactly that. :meth:`_kernel_P_h_T` makes the
-            # same check for the same reason; the results are allocated here
-            # rather than passed in, so matching them to the input settles it.
-            and np.isfortran(rho_b) == np.isfortran(u_b)
-            and all(
-                a.flags["C_CONTIGUOUS"] or a.flags["F_CONTIGUOUS"] for a in (rho_b, u_b)
-            )
+            # same check for the same reason.
+            and all(np.isfortran(a) == np.isfortran(rho_b) for a in arrs)
+            and all(a.flags["C_CONTIGUOUS"] or a.flags["F_CONTIGUOUS"] for a in arrs)
         ):
             # empty_like, so each result inherits the input's memory order and
             # ravels below to a view the kernel can write straight through.
-            outs = [np.empty_like(rho_b) for _ in range(6)]
+            if outs is None:
+                outs = [np.empty_like(rho_b) for _ in range(6)]
             ember.fortran.set_partials2_real(
                 rho=np.ravel(rho_b, order="A"),
                 u=np.ravel(u_b, order="A"),
@@ -1965,48 +2004,120 @@ class RealFluid(_Fluid):
         s_rr = _leg.legval2d(x, y, self._Sc_xx) * self._xa**2 - M / rho**2
         s_ru = (_leg.legval2d(x, y, self._Sc_xy) * self._xa + My / rho) * self._ya
         s_uu = (_leg.legval2d(x, y, self._Sc_yy) + Myy * lnr) * self._ya**2
-        return s, s_r, s_u, s_rr, s_ru, s_uu
+        vals = (s, s_r, s_u, s_rr, s_ru, s_uu)
+        if outs is None:
+            return vals
+        # legval has no destination of its own, so the fallback allocates what
+        # it needs and copies. Only the kernel path is free of that.
+        for buf, val in zip(outs, vals):
+            buf[...] = val
+        return tuple(outs)
 
     @staticmethod
-    def _pick(prop, st, rho, u):
+    def _pick(prop, st, rho, u, out=None):
         """Value and (rho, u) partials of one property, from a state dict.
 
         ``prop`` is one of ``"P"``, ``"T"``, ``"s"`` or ``"h"``: which property
         a solve is being asked to match. Not ``kind``, which is what half this
         codebase is written in and where the word already means precision.
-        """
-        if prop == "h":
-            P, P_r, P_u = st["P"], st["P_r"], st["P_u"]
-            return u + P / rho, P_r / rho - P / rho**2, 1.0 + P_u / rho
-        return st[prop], st[f"{prop}_r"], st[f"{prop}_u"]
 
-    def _state(self, rho, u):
+        Only enthalpy is formed here rather than looked up, so only enthalpy
+        can be asked to write into ``out`` -- three arrays, for the value and
+        its two partials. The others are already in ``st`` and are handed back
+        as they stand.
+        """
+        if prop != "h":
+            return st[prop], st[f"{prop}_r"], st[f"{prop}_u"]
+        P, P_r, P_u = st["P"], st["P_r"], st["P_u"]
+        if out is None:
+            return u + P / rho, P_r / rho - P / rho**2, 1.0 + P_u / rho
+        h, h_r, h_u = out
+        # h = u + P / rho, h_r = P_r / rho - P / rho**2, h_u = 1 + P_u / rho.
+        # h_u holds rho**2 and then P / rho**2 on the way to h_r, which is
+        # finished with before h_u itself is written.
+        np.divide(P, rho, out=h)
+        np.add(u, h, out=h)
+        np.multiply(rho, rho, out=h_u)
+        np.divide(P, h_u, out=h_u)
+        np.divide(P_r, rho, out=h_r)
+        np.subtract(h_r, h_u, out=h_r)
+        np.divide(P_u, rho, out=h_u)
+        np.add(h_u, 1.0, out=h_u)
+        return h, h_r, h_u
+
+    @classmethod
+    def _state_buffers(cls, like):
+        """Somewhere for :meth:`_state` to put every array it forms.
+
+        Made once and handed back to every call, so a Newton loop pays for
+        these arrays once rather than allocating the same set per step.
+        """
+        return {k: np.empty_like(like) for k in cls._STATE_KEYS + cls._STATE_SCRATCH}
+
+    def _state(self, rho, u, buf=None):
         """Pressure, temperature, entropy and their first partials, in one pass.
 
         Temperature and pressure follow from the entropy partials by the
         combined first and second law; their own partials then follow by
         differentiating those expressions, which is where the second
         derivatives of the surface are needed.
+
+        Every line names its destination rather than building an expression, so
+        a caller holding a :meth:`_state_buffers` dict gets the whole state
+        without allocating. One that does not gets a set made here, which is no
+        more than the expressions would have cost in temporaries.
         """
-        s, s_r, s_u, s_rr, s_ru, s_uu = self._partials2(rho, u)
-        T = 1.0 / s_u
-        Tsq = T * T
-        T_r = -Tsq * s_ru
-        T_u = -Tsq * s_uu
-        P = -(rho**2) * T * s_r
-        P_r = -2.0 * rho * T * s_r - rho**2 * (T_r * s_r + T * s_rr)
-        P_u = -(rho**2) * (T_u * s_r + T * s_ru)
-        return {
-            "s": s,
-            "s_r": s_r,
-            "s_u": s_u,
-            "T": T,
-            "T_r": T_r,
-            "T_u": T_u,
-            "P": P,
-            "P_r": P_r,
-            "P_u": P_u,
-        }
+        if buf is None:
+            rho_b, u_b = np.broadcast_arrays(rho, u)
+            dtype = np.result_type(np.float32, rho_b, u_b, self._Sc.dtype)
+            # In the inputs' own order, or :meth:`_partials2` would refuse the
+            # kernel every call and fall back to numpy over arrays that suit
+            # it perfectly well.
+            buf = self._state_buffers(
+                np.empty(rho_b.shape, dtype, "F" if np.isfortran(rho_b) else "C")
+            )
+        s, s_r, s_u, s_rr, s_ru, s_uu = (
+            buf[k] for k in ("s", "s_r", "s_u", "s_rr", "s_ru", "s_uu")
+        )
+        self._partials2(rho, u, outs=(s, s_r, s_u, s_rr, s_ru, s_uu))
+        T, T_r, T_u = (buf[k] for k in ("T", "T_r", "T_u"))
+        P, P_r, P_u = (buf[k] for k in ("P", "P_r", "P_u"))
+        w1, w2 = buf["w1"], buf["w2"]
+
+        # T = 1 / s_u, T_r = -T**2 * s_ru, T_u = -T**2 * s_uu, with w1 the
+        # square that the two partials share.
+        np.divide(1.0, s_u, out=T)
+        np.multiply(T, T, out=w1)
+        np.multiply(w1, s_ru, out=T_r)
+        np.negative(T_r, out=T_r)
+        np.multiply(w1, s_uu, out=T_u)
+        np.negative(T_u, out=T_u)
+
+        # P = -rho**2 * T * s_r, and its two partials by differentiating that.
+        # w1 carries rho**2 through all three; w2 is short-lived.
+        np.multiply(rho, rho, out=w1)
+        np.multiply(w1, T, out=P)
+        np.multiply(P, s_r, out=P)
+        np.negative(P, out=P)
+
+        # P_r = -2 * rho * T * s_r - rho**2 * (T_r * s_r + T * s_rr)
+        np.multiply(T_r, s_r, out=P_r)
+        np.multiply(T, s_rr, out=w2)
+        np.add(P_r, w2, out=P_r)
+        np.multiply(P_r, w1, out=P_r)
+        np.multiply(T, s_r, out=w2)
+        np.multiply(w2, rho, out=w2)
+        np.multiply(w2, 2.0, out=w2)
+        np.add(P_r, w2, out=P_r)
+        np.negative(P_r, out=P_r)
+
+        # P_u = -rho**2 * (T_u * s_r + T * s_ru)
+        np.multiply(T_u, s_r, out=P_u)
+        np.multiply(T, s_ru, out=w2)
+        np.add(P_u, w2, out=P_u)
+        np.multiply(P_u, w1, out=P_u)
+        np.negative(P_u, out=P_u)
+        return buf
 
     def _kwargs(self):
         """Constructor arguments reproducing this fluid; see :meth:`_Fluid._kwargs`."""
@@ -2065,27 +2176,72 @@ class RealFluid(_Fluid):
         dtype = np.result_type(np.float32, val1, val2)
         rho = np.array(np.broadcast_to(rho0, shape), dtype=dtype, copy=True)
         u = np.array(np.broadcast_to(u0, shape), dtype=dtype, copy=True)
+        # Fortran order, for the reason :meth:`_solve_u` gives: the surface
+        # kernel walks rho and u together and writes its six results back in
+        # the same walk, and a block's fields arrive laid out this way.
+        if self._kernel_fits() and dtype == np.float32:
+            rho, u = np.asfortranarray(rho), np.asfortranarray(u)
+
+        # Everything the loop writes to, allocated once. Enthalpy is the one
+        # property formed rather than looked up, so it is the one that needs
+        # somewhere to be formed.
+        st = self._state_buffers(rho)
+        rho_new, u_new, r1, r2, det, w = (np.empty_like(rho) for _ in range(6))
+        h_buf = (
+            tuple(np.empty_like(rho) for _ in range(3))
+            if "h" in (prop1, prop2)
+            else None
+        )
 
         step_prev = np.inf
         for _ in range(self._NEWTON_ITER):
-            st = self._state(rho, u)
-            f1, f1r, f1u = self._pick(prop1, st, rho, u)
-            f2, f2r, f2u = self._pick(prop2, st, rho, u)
-            r1 = f1 - val1
-            r2 = f2 - val2
-            det = f1r * f2u - f1u * f2r
-            drho = (r1 * f2u - r2 * f1u) / det
-            du = (r2 * f1r - r1 * f2r) / det
-            rho_new = np.clip(rho - drho, *self._rho_box_nd)
-            u_new = np.clip(u - du, *self._u_box_nd)
-            step = np.max(
-                np.abs(rho_new - rho) / np.abs(rho) + np.abs(u_new - u) / self._u_scale
-            )
+            self._state(rho, u, buf=st)
+            f1, f1r, f1u = self._pick(prop1, st, rho, u, out=h_buf)
+            f2, f2r, f2u = self._pick(prop2, st, rho, u, out=h_buf)
+            # The 2x2 inversion, in place. Every operation names its
+            # destination, so a solve of any size allocates nothing per step;
+            # rho_new and u_new carry the corrections before they carry the
+            # states, and det is finished with in time to size the step.
+            np.subtract(f1, val1, out=r1)
+            np.subtract(f2, val2, out=r2)
+            np.multiply(f1r, f2u, out=det)
+            np.multiply(f1u, f2r, out=w)
+            np.subtract(det, w, out=det)
+
+            # drho = (r1 * f2u - r2 * f1u) / det
+            np.multiply(r1, f2u, out=rho_new)
+            np.multiply(r2, f1u, out=w)
+            np.subtract(rho_new, w, out=rho_new)
+            np.divide(rho_new, det, out=rho_new)
+
+            # du = (r2 * f1r - r1 * f2r) / det
+            np.multiply(r2, f1r, out=u_new)
+            np.multiply(r1, f2r, out=w)
+            np.subtract(u_new, w, out=u_new)
+            np.divide(u_new, det, out=u_new)
+
+            np.subtract(rho, rho_new, out=rho_new)
+            np.clip(rho_new, *self._rho_box_nd, out=rho_new)
+            np.subtract(u, u_new, out=u_new)
+            np.clip(u_new, *self._u_box_nd, out=u_new)
+
+            # max(|drho| / |rho| + |du| / u_scale), through the spares the
+            # inversion has finished with.
+            np.subtract(rho_new, rho, out=det)
+            np.abs(det, out=det)
+            np.abs(rho, out=w)
+            np.divide(det, w, out=det)
+            np.subtract(u_new, u, out=w)
+            np.abs(w, out=w)
+            np.divide(w, self._u_scale, out=w)
+            np.add(det, w, out=det)
+            step = np.max(det)
             if step < self._NEWTON_RTOL or (
                 step < self._NEWTON_SETTLED and step > self._NEWTON_STALL * step_prev
             ):
                 break
-            rho, u = rho_new, u_new
+            rho, rho_new = rho_new, rho
+            u, u_new = u_new, u
             step_prev = step
 
         self._verify(prop1, f1, val1, method)
@@ -2120,11 +2276,24 @@ class RealFluid(_Fluid):
 
         # Decided once: nothing it depends on changes as the loop runs.
         plan = self._solve_plan.get(prop)
-        rho_c = f_buf = fu_buf = None
+        rho_f = f_buf = fu_buf = None
         if plan is not None and self._kernel_fits() and dtype == np.float32:
-            rho_c = np.ascontiguousarray(rho_b, dtype=np.float32)
-            u = np.ascontiguousarray(u)
+            # Fortran order throughout. The kernel pairs rho against u element
+            # by element and writes f and f_u back in the same walk, so all
+            # four have to flatten the same way, and the order they agree on is
+            # the caller's: a block's fields are Fortran contiguous, and
+            # broadcasting one to the shape of the solve leaves it that way, so
+            # assuming that order here costs nothing where the solver actually
+            # calls from. A C-ordered caller pays one copy on the way in, which
+            # is what every caller paid before.
+            rho_f = np.asfortranarray(rho_b, dtype=np.float32)
+            u = np.asfortranarray(u)
             f_buf, fu_buf = np.empty_like(u), np.empty_like(u)
+        # After the branch above, which may have re-laid u out; empty_like, so
+        # the spares inherit whichever order u ended up with. Two of them: the
+        # step is formed in one and the new energy written to the other, and
+        # between them the loop below runs without allocating.
+        u_buf, work = np.empty_like(u), np.empty_like(u)
 
         step_prev = np.inf
         for _ in range(self._NEWTON_ITER):
@@ -2133,7 +2302,7 @@ class RealFluid(_Fluid):
                 f, _, f_u = self._pick(prop, st, rho_b, u)
             else:
                 ember.fortran.set_f_fu_real(
-                    rho=np.ravel(rho_c, order="A"),
+                    rho=np.ravel(rho_f, order="A"),
                     u=np.ravel(u, order="A"),
                     sc2=self._Sc_stack,
                     nz2=self._Sc_stack_nz,
@@ -2148,13 +2317,28 @@ class RealFluid(_Fluid):
                     f_u=np.ravel(fu_buf, order="A"),
                 )
                 f, f_u = f_buf, fu_buf
-            u_new = np.clip(u - (f - val) / f_u, *self._u_box_nd)
-            step = np.max(np.abs(u_new - u)) / self._u_scale
+            # u - (f - val) / f_u, clipped to the box, written through the
+            # spares rather than built as an expression. Every operation names
+            # its destination, so a solve of any size allocates nothing per
+            # step -- and u keeps the memory order the kernel was handed, which
+            # an expression would not guarantee: numpy takes its order from all
+            # of its inputs, so a C-ordered val alone would hand back a
+            # C-ordered u for the next call to walk against rho the other way.
+            np.subtract(f, val, out=work)
+            np.divide(work, f_u, out=work)
+            np.subtract(u, work, out=work)
+            np.clip(work, *self._u_box_nd, out=u_buf)
+            u_new = u_buf
+            # The scratch is free again once the new energy is out of it, so
+            # the size of the step reuses it. np.max reduces to a scalar.
+            np.subtract(u_new, u, out=work)
+            np.abs(work, out=work)
+            step = np.max(work) / self._u_scale
             if step < self._NEWTON_RTOL or (
                 step < self._NEWTON_SETTLED and step > self._NEWTON_STALL * step_prev
             ):
                 break
-            u = u_new
+            u, u_buf = u_new, u
             step_prev = step
 
         self._verify(prop, f, val, method)

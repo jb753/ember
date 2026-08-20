@@ -189,8 +189,8 @@ def _real_case(name, rho_lim, u_lim):
     return FluidCase(
         name=name,
         fluid=fluid,
-        rho=(rho_mid, rho_lo, np.array([rho_hi]), np.full((2, 2), rho_mid)),
-        u=(u_mid, u_lo, np.array([u_hi]), np.full((2, 2), u_mid)),
+        rho=(rho_mid, rho_lo, np.array([rho_hi]), np.full((2, 2), rho_mid, order="F")),
+        u=(u_mid, u_lo, np.array([u_hi]), np.full((2, 2), u_mid, order="F")),
         rho_pt=rho_mid,
         u_pt=u_mid,
         P_pt=float(fluid.P_dtm),
@@ -1049,7 +1049,7 @@ def test_real_fluid_solves_stop_when_they_stop_improving(method):
     def _span(lim):
         lo = lim[0] + 0.3 * (lim[1] - lim[0])
         hi = lim[0] + 0.7 * (lim[1] - lim[0])
-        return rng.uniform(lo, hi, (97, 97)).astype(np.float32)
+        return np.asfortranarray(rng.uniform(lo, hi, (97, 97)).astype(np.float32))
 
     rho, u = _span(fluid.rho_lim_nd), _span(fluid.u_lim_nd)
     args = {
@@ -1061,9 +1061,9 @@ def test_real_fluid_solves_stop_when_they_stop_improving(method):
 
     calls = []
     original = ember.fluid.RealFluid._partials2
-    ember.fluid.RealFluid._partials2 = lambda self, r, e: (
+    ember.fluid.RealFluid._partials2 = lambda self, r, e, **kw: (
         calls.append(1),
-        original(self, r, e),
+        original(self, r, e, **kw),
     )[1]
     try:
         rho_got, u_got = getattr(fluid, method)(*args)
@@ -1135,7 +1135,7 @@ def test_real_fluid_partials2_kernel_matches_numpy():
     def _span(lim):
         lo = lim[0] + 0.25 * (lim[1] - lim[0])
         hi = lim[0] + 0.75 * (lim[1] - lim[0])
-        return rng.uniform(lo, hi, (13, 11)).astype(np.float32)
+        return np.asfortranarray(rng.uniform(lo, hi, (13, 11)).astype(np.float32))
 
     rho, u = _span(fluid.rho_lim_nd), _span(fluid.u_lim_nd)
 
@@ -1162,8 +1162,8 @@ def test_real_fluid_partials2_falls_back_off_float32():
     from conftest import VanDerWaals, fit_real_fluid
 
     fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5), order=8)
-    rho = np.full((4, 4), 0.5 * sum(fluid.rho_lim_nd), dtype=np.float64)
-    u = np.full((4, 4), 0.3 * sum(fluid.u_lim_nd), dtype=np.float64)
+    rho = np.full((4, 4), 0.5 * sum(fluid.rho_lim_nd), dtype=np.float64, order="F")
+    u = np.full((4, 4), 0.3 * sum(fluid.u_lim_nd), dtype=np.float64, order="F")
 
     def _must_not_run(**kwargs):
         raise AssertionError("kernel called with float64 state")
@@ -1177,6 +1177,45 @@ def test_real_fluid_partials2_falls_back_off_float32():
 
     assert all(np.isfinite(a).all() for a in out)
     assert all(a.dtype == np.float64 for a in out)
+
+
+@pytest.mark.parametrize("buf_order", ["F", "C"], ids=["matched", "mismatched"])
+def test_real_fluid_partials2_writes_into_buffers(buf_order):
+    """Handing _partials2 somewhere to write gives the same six surfaces.
+
+    The buffers join the kernel's flatten-order check on the same terms as the
+    inputs, because the kernel writes its results in the walk it reads the
+    state in: C-ordered buffers against a Fortran-ordered state would take
+    every answer to the wrong node. The mismatched case is the one that
+    matters -- it has to come back right, by falling to numpy, rather than
+    come back transposed.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5), order=8)
+    rng = np.random.default_rng(0)
+
+    def _span(lim):
+        lo = lim[0] + 0.25 * (lim[1] - lim[0])
+        hi = lim[0] + 0.75 * (lim[1] - lim[0])
+        return np.asfortranarray(rng.uniform(lo, hi, (13, 11)).astype(np.float32))
+
+    rho, u = _span(fluid.rho_lim_nd), _span(fluid.u_lim_nd)
+    want = fluid._partials2(rho, u)
+
+    outs = tuple(
+        np.empty((13, 11), dtype=np.float32, order=buf_order) for _ in range(6)
+    )
+    got = fluid._partials2(rho, u, outs=outs)
+
+    assert got == outs, "the buffers passed in are the ones handed back"
+    names = ("s", "s_r", "s_u", "s_rr", "s_ru", "s_uu")
+    for name, g, w in zip(names, got, want):
+        scale = float(np.abs(w).max())
+        assert np.allclose(g, w, rtol=1e-4, atol=1e-6 * scale), (
+            f"{name}: buffered result differs by "
+            f"{float(np.abs(g - w).max()):.3e} against a scale of {scale:.3e}"
+        )
 
 
 def test_real_partials2_kernel_evaluates_every_term():
@@ -1207,8 +1246,8 @@ def test_real_partials2_kernel_evaluates_every_term():
     xa, xb, ya, yb = (np.float32(v) for v in (0.5, -1.5, 0.4, -0.2))
 
     shape = (6, 5)
-    rho = rng.uniform(2.0, 5.0, shape).astype(np.float32)
-    u = rng.uniform(0.5, 3.0, shape).astype(np.float32)
+    rho = np.asfortranarray(rng.uniform(2.0, 5.0, shape).astype(np.float32))
+    u = np.asfortranarray(rng.uniform(0.5, 3.0, shape).astype(np.float32))
     x, y, lnr = rho * xa + xb, u * ya + yb, np.log(rho)
 
     c = [leg.legval2d(x, y, sc2[:, :, m]) for m in range(6)]
@@ -1252,7 +1291,7 @@ def test_real_partials2_kernel_evaluates_every_term():
 
     for name, got, ref in zip(names, outs, want):
         scale = float(np.abs(ref).max())
-        err = float(np.abs(got.reshape(shape) - ref).max())
+        err = float(np.abs(got.reshape(shape, order="F") - ref).max())
         assert err <= 8.0 * np.spacing(np.float32(scale)), (
             f"{name}: max error {err:.3e} against a scale of {scale:.3e}"
         )
@@ -1278,7 +1317,7 @@ def test_real_fluid_returns_the_state_it_verified(method):
     def _span(lim):
         lo = lim[0] + 0.3 * (lim[1] - lim[0])
         hi = lim[0] + 0.7 * (lim[1] - lim[0])
-        return rng.uniform(lo, hi, (48, 48)).astype(np.float32)
+        return np.asfortranarray(rng.uniform(lo, hi, (48, 48)).astype(np.float32))
 
     rho, u = _span(fluid.rho_lim_nd), _span(fluid.u_lim_nd)
     targets = {
@@ -1307,6 +1346,46 @@ def test_real_fluid_returns_the_state_it_verified(method):
             f"{method}: returned state misses {prop} by {worst:.3e}, "
             f"beyond the {fluid._VERIFY_RTOL:.0e} it was accepted at"
         )
+
+
+@pytest.mark.parametrize("method", ["set_P_rho", "set_rho_s", "set_T_rho"])
+def test_real_fluid_scalar_solve_holds_its_memory_order(method):
+    """A Fortran-ordered solve stays Fortran-ordered the whole way through.
+
+    The kernel walks rho and u in whatever order they flatten and writes its
+    two results back in the same walk, so the Newton update has to hand back a
+    u laid out the way the one it replaced was. That does not come for free:
+    the update reads the target value as well, and numpy takes its order from
+    all of its inputs, so a C-ordered target is enough to turn a
+    Fortran-ordered u into a C-ordered one -- after which every node is paired
+    with the wrong density, quietly, and only in two dimensions or more where
+    the two traversals differ.
+
+    The array is deliberately not square, so a transposed walk cannot even be
+    read back into the right shape, and the target is passed C-ordered while
+    the density is Fortran-ordered, which is the mixture that breaks it.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5), order=8)
+    rng = np.random.default_rng(0)
+
+    def _span(lim):
+        lo = lim[0] + 0.3 * (lim[1] - lim[0])
+        hi = lim[0] + 0.7 * (lim[1] - lim[0])
+        return np.asfortranarray(rng.uniform(lo, hi, (7, 5)).astype(np.float32))
+
+    rho, u = _span(fluid.rho_lim_nd), _span(fluid.u_lim_nd)
+    prop = {"set_P_rho": "P", "set_rho_s": "s", "set_T_rho": "T"}[method]
+    val = np.ascontiguousarray(getattr(fluid, f"get_{prop}")(rho, u))
+    assert not np.isfortran(val), "the target has to be C-ordered to bite"
+
+    args = (rho, val) if method == "set_rho_s" else (val, rho)
+    rho_got, u_got = getattr(fluid, method)(*args)
+
+    assert np.allclose(u_got, u, atol=1e-4 * (fluid.u_lim_nd[1] - fluid.u_lim_nd[0]))
+    assert np.allclose(rho_got, rho, rtol=1e-4)
+    assert np.isfortran(u_got), "the solve handed back a C-ordered state"
 
 
 @pytest.mark.parametrize(
@@ -1340,8 +1419,8 @@ def test_real_f_fu_kernel_evaluates_every_term(prop, which, sel):
     xa, xb, ya, yb = (np.float32(v) for v in (0.5, -1.5, 0.4, -0.2))
 
     shape = (6, 5)
-    rho = rng.uniform(2.0, 5.0, shape).astype(np.float32)
-    u = rng.uniform(0.5, 3.0, shape).astype(np.float32)
+    rho = np.asfortranarray(rng.uniform(2.0, 5.0, shape).astype(np.float32))
+    u = np.asfortranarray(rng.uniform(0.5, 3.0, shape).astype(np.float32))
     x, y, lnr = rho * xa + xb, u * ya + yb, np.log(rho)
 
     def surface(idx):
@@ -1390,7 +1469,7 @@ def test_real_f_fu_kernel_evaluates_every_term(prop, which, sel):
 
     for name, got, ref in zip(("f", "f_u"), (f, f_u), want):
         scale = float(np.abs(ref).max())
-        err = float(np.abs(got.reshape(shape) - ref).max())
+        err = float(np.abs(got.reshape(shape, order="F") - ref).max())
         assert err <= 8.0 * np.spacing(np.float32(scale)), (
             f"{prop} {name}: max error {err:.3e} against a scale of {scale:.3e}"
         )
@@ -1511,3 +1590,133 @@ def test_from_dict_on_subclass():
         rebuilt = type(case.fluid).from_dict(case.fluid.to_dict())
         assert type(rebuilt) is type(case.fluid)
         assert rebuilt.to_dict() == case.fluid.to_dict()
+
+
+def _fit_kwargs(model, rho_lim, u_lim, order=6, ni=40):
+    """Coefficients for a box, without the fluid that fit_real_fluid builds."""
+    import ember.realgas_fit as rgf
+    from conftest import VanDerWaals  # noqa: F401  (models are passed in)
+
+    rho_g, u_g = np.meshgrid(
+        np.linspace(*rho_lim, ni), np.linspace(*u_lim, ni), indexing="ij"
+    )
+    rho, u = rho_g.ravel(), u_g.ravel()
+    return rgf.fit(
+        rho=rho,
+        u=u,
+        P=model.get_P(rho, u),
+        T=model.get_T(rho, u),
+        s=model.get_s(rho, u),
+        Rgas=model.Rgas,
+        rho_lim=rho_lim,
+        u_lim=u_lim,
+        rho_isochor=float(np.mean(rho_lim)),
+        order=order,
+    ).kwargs
+
+
+# Three boxes spanning what a fit is actually used for. The first straddles
+# ambient, so the old fixed default of 1 bar and 300 K happened to land inside
+# it; the other two are the dense working fluids a real gas exists for, and it
+# does not.
+_DATUM_BOXES = [
+    (
+        "air-like",
+        dict(Rgas=287.0, cv=717.5, a=5.0, b=1.0e-4),
+        (0.4, 2.5),
+        (1.3e5, 3.1e5),
+    ),
+    ("heavy-vapour", dict(), (1.0, 50.0), (3.0e5, 4.0e5)),
+    (
+        "dense",
+        dict(Rgas=188.9, cv=900.0, a=180.0, b=1.0e-3),
+        (200.0, 700.0),
+        (2.0e5, 4.5e5),
+    ),
+]
+_DATUM_IDS = [case[0] for case in _DATUM_BOXES]
+
+
+@pytest.mark.parametrize(
+    "name,model_kwargs,rho_lim,u_lim", _DATUM_BOXES, ids=_DATUM_IDS
+)
+def test_default_datum_lands_in_the_fit_box(name, model_kwargs, rho_lim, u_lim):
+    """A fluid built without a datum puts one at the centre of its own box.
+
+    The box is where the surface exists, so the centre of it is the one point
+    that is always available. Any fixed pressure and temperature belongs to
+    some other fluid's box: 1 bar and 300 K is a dilute gas hundreds of bar
+    outside a dense one, which is the case a real gas is for.
+    """
+    from conftest import VanDerWaals
+
+    kwargs = _fit_kwargs(VanDerWaals(**model_kwargs), rho_lim, u_lim)
+    fluid = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72)
+
+    rho_box, u_box = fluid.rho_lim_nd, fluid.u_lim_nd
+    assert rho_box[0] < 0.5 * (rho_box[0] + rho_box[1]) < rho_box[1]
+
+    # u = 0 at the datum, so the datum is where the box straddles zero energy
+    # -- which is the statement that it sits inside, in the coordinate the
+    # solves actually work in.
+    assert u_box[0] < 0.0 < u_box[1]
+
+
+@pytest.mark.parametrize(
+    "name,model_kwargs,rho_lim,u_lim", _DATUM_BOXES, ids=_DATUM_IDS
+)
+def test_default_datum_is_the_state_at_the_box_centre(
+    name, model_kwargs, rho_lim, u_lim
+):
+    """The defaulted datum is the fluid's own state at the middle of the box.
+
+    Read off the fitted surface rather than the data behind it, so the datum is
+    exactly on the surface it will be used with.
+    """
+    from conftest import VanDerWaals
+
+    model = VanDerWaals(**model_kwargs)
+    kwargs = _fit_kwargs(model, rho_lim, u_lim)
+    fluid = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72)
+
+    # The analytic model at the same point, which the fit approximates.
+    rho_m, u_m = float(np.mean(rho_lim)), float(np.mean(u_lim))
+    assert float(fluid.P_dtm) == pytest.approx(float(model.get_P(rho_m, u_m)), rel=1e-2)
+    assert float(fluid.T_dtm) == pytest.approx(float(model.get_T(rho_m, u_m)), rel=1e-2)
+
+
+def test_a_given_datum_still_wins():
+    """Defaulting is what happens when nothing was said, not a policy."""
+    from conftest import VanDerWaals
+
+    kwargs = _fit_kwargs(VanDerWaals(), (1.0, 50.0), (3.0e5, 4.0e5), order=2)
+    given = ember.fluid.RealFluid(
+        **kwargs, mu=1.8e-5, Pr=0.72, P_dtm=334563.125, T_dtm=250.27320861816406
+    )
+
+    assert float(given.P_dtm) == pytest.approx(334563.125)
+    assert float(given.T_dtm) == pytest.approx(250.27320861816406)
+
+
+def test_one_half_of_the_datum_may_be_given():
+    """Either of the pair defaults on its own, as any optional argument does."""
+    from conftest import VanDerWaals
+
+    kwargs = _fit_kwargs(VanDerWaals(), (1.0, 50.0), (3.0e5, 4.0e5), order=2)
+    both = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72)
+    half = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72, T_dtm=260.0)
+
+    assert float(half.T_dtm) == pytest.approx(260.0)
+    assert float(half.P_dtm) == pytest.approx(float(both.P_dtm))
+
+
+def test_a_defaulted_datum_round_trips_through_a_dict():
+    """to_dict records the datum that was chosen, not the absence of one."""
+    from conftest import VanDerWaals
+
+    kwargs = _fit_kwargs(VanDerWaals(), (1.0, 50.0), (3.0e5, 4.0e5), order=2)
+    fluid = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72)
+
+    data = fluid.to_dict()
+    assert data["P_dtm"] == pytest.approx(float(fluid.P_dtm))
+    assert ember.fluid._Fluid.from_dict(data).to_dict() == data

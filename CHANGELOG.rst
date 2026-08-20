@@ -10,6 +10,22 @@ without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* ``RealFluid``'s Newton solves now work in Fortran order and allocate nothing
+  per iteration. The scalar solve forced its inputs C contiguous to reach the
+  surface kernel, so every call from the solver --- whose block fields are
+  Fortran contiguous --- copied both arrays on the way in, and both solves
+  rebuilt their whole update as fresh temporaries at every step. They now write
+  each step through buffers allocated once, which is also what settles the
+  memory order: the kernel pairs density against energy element by element, and
+  numpy takes an expression's layout from all of its inputs, so a C-ordered
+  target alone was enough to hand back an iterate that walks against the
+  density the wrong way. Measured at 512x512, about 15% off a scalar solve and
+  5-10% off a two-dimensional one, with the peak memory of the latter down by
+  about a tenth. Two consequences for callers: a single-precision scalar solve
+  hands back a Fortran-ordered energy whatever it was given, and the derivative
+  getters return zero-dimensional arrays rather than numpy scalars where they
+  are handed scalars.
+
 * ``Block.cp_nd`` is now a nodal array rather than a single number --- which is
   what it had always documented itself as. The distinction is invisible for a
   perfect gas, whose specific heat is constant, and the viscous kernel behind
@@ -29,6 +45,15 @@ without a deprecation period.
   ``json`` or a plain YAML dumper can write it, and it names its own class in a
   ``type`` key, so ``_Fluid.from_dict`` reads one back without the caller
   knowing which equation of state wrote it.
+
+* ``RealFluid`` now defaults its datum to its own state at the centre of the
+  fit box, rather than to 1 bar and 300 K. A fitted surface exists only inside
+  its box and the datum has to lie in there, so a fixed pair of numbers can
+  only ever belong to some other fluid's box: ambient falls inside an air-like
+  fit and hundreds of bar outside a dense one, which is the case a real gas is
+  for. The datum is read off the fitted surface, so it sits exactly on the
+  surface it is the origin of. Passing ``P_dtm`` or ``T_dtm`` still overrides,
+  either one on its own.
 
 .. _v0.2.0:
 
