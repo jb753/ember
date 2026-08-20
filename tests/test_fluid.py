@@ -1001,3 +1001,57 @@ def test_real_fluid_column_counts_cover_every_nonzero():
         for b, count in enumerate(counts):
             assert not coef[count:, b].any(), f"column {b} has a nonzero past {count}"
         assert counts.sum() < coef.size, "a total-order fit should leave zeros"
+
+
+@pytest.mark.parametrize("method", ["set_P_rho", "set_h_s", "set_P_T", "set_rho_s"])
+def test_real_fluid_solves_stop_when_they_stop_improving(method):
+    """A converged solve stops iterating instead of running to the cap.
+
+    Newton reaches the float32 floor here in two or three steps, and then the
+    step cannot get any smaller: asking for one finer than float32 resolves
+    means the size test never fires and the solve pays the full iteration
+    limit. The answer was always right, just forty iterations late, so nothing
+    but a count of the surface evaluations can see it.
+
+    The array has to be patch-sized to show it. The step is a maximum over
+    every node, so it is the noisiest one that decides when the loop ends, and
+    the more nodes there are the worse that sample gets: the same solve takes
+    4 evaluations over 64 nodes, 7 over 2304, and the full 41 over 9409. A
+    small test array hides the whole thing.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5), order=8)
+    rng = np.random.default_rng(0)
+
+    def _span(lim):
+        lo = lim[0] + 0.3 * (lim[1] - lim[0])
+        hi = lim[0] + 0.7 * (lim[1] - lim[0])
+        return rng.uniform(lo, hi, (97, 97)).astype(np.float32)
+
+    rho, u = _span(fluid.rho_lim_nd), _span(fluid.u_lim_nd)
+    args = {
+        "set_P_rho": (fluid.get_P(rho, u), rho),
+        "set_rho_s": (rho, fluid.get_s(rho, u)),
+        "set_h_s": (fluid.get_h(rho, u), fluid.get_s(rho, u)),
+        "set_P_T": (fluid.get_P(rho, u), fluid.get_T(rho, u)),
+    }[method]
+
+    calls = []
+    original = ember.fluid.RealFluid._partials2
+    ember.fluid.RealFluid._partials2 = lambda self, r, e: (
+        calls.append(1),
+        original(self, r, e),
+    )[1]
+    try:
+        rho_got, u_got = getattr(fluid, method)(*args)
+    finally:
+        ember.fluid.RealFluid._partials2 = original
+
+    # Generous: the point is that it stops, not exactly when. A solve running
+    # to the limit spends _NEWTON_ITER + 1 here.
+    assert len(calls) <= 12, f"{method} took {len(calls)} surface evaluations"
+
+    # And it still lands on the state it was asked for.
+    assert np.allclose(rho_got, rho, rtol=1e-4)
+    assert np.allclose(u_got, u, atol=1e-4 * (fluid.u_lim_nd[1] - fluid.u_lim_nd[0]))
