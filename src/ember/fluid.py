@@ -2142,6 +2142,21 @@ class RealFluid(_Fluid):
         return self.__class__(**{**self._kwargs(), **over})
 
     @staticmethod
+    def _as_scalar(val):
+        """Give back a numpy scalar where a 0-d array would otherwise escape.
+
+        The getters yield one already, because numpy hands back a scalar from
+        arithmetic on 0-d arrays. A solve does not: it works in buffers it
+        allocated, and those stay arrays however small they are. The difference
+        shows up at the point of printing, ``ndarray.__format__`` refusing a
+        format spec at any rank -- so the convergence history, which reports
+        the inlet and outlet state every log line, met a TypeError rather than
+        a number. Guarded on 0-d alone, so nothing an actual field passes
+        through is touched.
+        """
+        return val[()] if isinstance(val, np.ndarray) and val.ndim == 0 else val
+
+    @staticmethod
     def _write(val, out):
         """Return a value, filling a pre-allocated array if one was given."""
         if out is None:
@@ -2179,7 +2194,11 @@ class RealFluid(_Fluid):
         # Fortran order, for the reason :meth:`_solve_u` gives: the surface
         # kernel walks rho and u together and writes its six results back in
         # the same walk, and a block's fields arrive laid out this way.
-        if self._kernel_fits() and dtype == np.float32:
+        # Skipped at 0-d, where asfortranarray would not reorder anything --
+        # a 0-d array is contiguous both ways -- but would promote to shape
+        # (1,) on its way past, since it forces ndmin=1. That is how a solve
+        # asked for one state came back with an array of one.
+        if self._kernel_fits() and dtype == np.float32 and rho.ndim > 0:
             rho, u = np.asfortranarray(rho), np.asfortranarray(u)
 
         # Everything the loop writes to, allocated once. Enthalpy is the one
@@ -2246,7 +2265,7 @@ class RealFluid(_Fluid):
 
         self._verify(prop1, f1, val1, method)
         self._verify(prop2, f2, val2, method)
-        return rho, u
+        return self._as_scalar(rho), self._as_scalar(u)
 
     def _solve_u(self, rho, val, prop, method, *guess_args):
         """Newton solve for u at fixed density, matching one property.
@@ -2342,7 +2361,7 @@ class RealFluid(_Fluid):
             step_prev = step
 
         self._verify(prop, f, val, method)
-        return rho, u
+        return self._as_scalar(rho), self._as_scalar(u)
 
     def _verify(self, prop, got, want, method):
         """Raise unless a Newton solve met its tolerance everywhere.

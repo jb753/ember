@@ -41,6 +41,15 @@ Test cases:
 - test_from_dict_rejects_wrong_type: a subclass refuses another fluid's dict
 - test_from_dict_rejects_unknown_key: an unrecognised key is not a silent default
 - test_from_dict_on_subclass: a concrete class can be asked directly
+- test_default_datum_lands_in_the_fit_box: no datum given puts one in the box
+- test_default_datum_is_the_state_at_the_box_centre: and it is the box centre
+- test_a_given_datum_still_wins: an explicit datum is not overridden
+- test_one_half_of_the_datum_may_be_given: P and T default independently
+- test_a_defaulted_datum_round_trips_through_a_dict: to_dict records the choice
+- test_zero_dimensional_input_gives_a_formattable_scalar: 0-d in, scalar out
+- test_zero_dimensional_solves_give_formattable_scalars: and through a solve
+- test_array_results_keep_their_array: the 0-d guard leaves real arrays alone
+- test_a_zero_dimensional_out_array_is_returned_as_itself: a buffer comes back
 """
 
 import dataclasses
@@ -1720,3 +1729,78 @@ def test_a_defaulted_datum_round_trips_through_a_dict():
     data = fluid.to_dict()
     assert data["P_dtm"] == pytest.approx(float(fluid.P_dtm))
     assert ember.fluid._Fluid.from_dict(data).to_dict() == data
+
+
+def _zero_d(value):
+    """A 0-d float32 array, as indexing the last axis of a field produces."""
+    return np.asarray(np.float32(value))
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_zero_dimensional_input_gives_a_formattable_scalar(case):
+    """A getter handed 0-d arrays gives back something a format string takes.
+
+    Indexing one end of a field -- `ho[..., 0]` -- yields a 0-d array rather
+    than a scalar, and the answer has to be printable: it is what the
+    convergence history reports each log line. A 0-d ndarray is not, because
+    ndarray.__format__ refuses a format spec, so this is the difference
+    between a log line and a TypeError mid-solve.
+    """
+    fluid = case.fluid
+    rho, u = _zero_d(case.rho_pt), _zero_d(case.u_pt)
+
+    for prop in ("get_P", "get_T", "get_h", "get_s", "get_a", "get_cp"):
+        got = getattr(fluid, prop)(rho, u)
+        assert np.ndim(got) == 0, f"{prop} changed shape"
+        assert f"{got:.3f}"  # the assertion is that this does not raise
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_zero_dimensional_solves_give_formattable_scalars(case):
+    """As above, through the set_* inversions, which is how the history gets there.
+
+    format_message goes set_h_s first and then get_T, so the scalar has to
+    survive the solve as well as the getter.
+    """
+    fluid = case.fluid
+    rho, u = _zero_d(case.rho_pt), _zero_d(case.u_pt)
+    h, s = fluid.get_h(rho, u), fluid.get_s(rho, u)
+
+    rho_out, u_out = fluid.set_h_s(_zero_d(h), _zero_d(s))
+
+    for name, got in (("rho", rho_out), ("u", u_out)):
+        assert np.ndim(got) == 0, f"set_h_s {name} changed shape"
+        assert f"{got:.3f}"
+
+    assert f"{fluid.get_T(rho_out, u_out):.3f}"
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_array_results_keep_their_array(case):
+    """The scalar guard is for 0-d alone and leaves every real array as it was."""
+    fluid = case.fluid
+
+    for rho, u in zip(case.rho, case.u):
+        if np.ndim(rho) == 0 and np.ndim(u) == 0:
+            continue
+        got = fluid.get_P(rho, u)
+        assert isinstance(got, np.ndarray)
+        assert got.shape == np.broadcast(rho, u).shape
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_a_zero_dimensional_out_array_is_returned_as_itself(case):
+    """A caller who brought a buffer gets the buffer, 0-d or not.
+
+    The guard converts what would otherwise be allocated and returned, never
+    what the caller asked to be written into -- that would hand back a copy of
+    the answer while the caller reads the array it supplied.
+    """
+    fluid = case.fluid
+    rho, u = _zero_d(case.rho_pt), _zero_d(case.u_pt)
+    out = np.zeros((), dtype=np.float32)
+
+    got = fluid.get_P(rho, u, out=out)
+
+    assert got is out
+    assert float(out) == pytest.approx(float(fluid.get_P(rho, u)), rel=1e-5)

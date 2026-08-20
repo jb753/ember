@@ -55,6 +55,15 @@ without a deprecation period.
   surface it is the origin of. Passing ``P_dtm`` or ``T_dtm`` still overrides,
   either one on its own.
 
+* Fixed ``RealFluid``'s inversions returning an array of one where they were
+  given a single state. ``asfortranarray`` forces ``ndmin=1``, so laying the
+  iterate out for the kernel promoted a 0-d solve to shape ``(1,)`` -- and the
+  result then refused to be printed, ``ndarray.__format__`` rejecting a format
+  spec at any rank. The convergence history reports the inlet and outlet state
+  on every log line, so a real-gas run raised a TypeError there rather than
+  logging. The solves now keep 0-d at 0-d and hand back a numpy scalar, which
+  is what ``PerfectFluid`` always did.
+
 .. _v0.2.0:
 
 0.2.0 (2026-08-18)
