@@ -33,6 +33,14 @@ Test cases:
 - test_real_partials2_kernel_evaluates_every_term: kernel vs formula, all terms
 - test_real_fluid_returns_the_state_it_verified: answer matches what was checked
 - test_real_f_fu_kernel_evaluates_every_term: scalar-solve kernel vs formula
+- test_to_dict_round_trip: a fluid rebuilt from its own dict is the same fluid
+- test_to_dict_round_trip_states: a rebuilt fluid evaluates the same states
+- test_to_dict_is_json_safe: the dict holds only plain floats, lists and strings
+- test_from_dict_rejects_unknown_type: an unknown type names the alternatives
+- test_from_dict_rejects_missing_type: a dict with no type key is refused
+- test_from_dict_rejects_wrong_type: a subclass refuses another fluid's dict
+- test_from_dict_rejects_unknown_key: an unrecognised key is not a silent default
+- test_from_dict_on_subclass: a concrete class can be asked directly
 """
 
 import dataclasses
@@ -1386,3 +1394,120 @@ def test_real_f_fu_kernel_evaluates_every_term(prop, which, sel):
         assert err <= 8.0 * np.spacing(np.float32(scale)), (
             f"{prop} {name}: max error {err:.3e} against a scale of {scale:.3e}"
         )
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_to_dict_round_trip(case):
+    """A fluid rebuilt from its own dict is the same fluid."""
+
+    data = case.fluid.to_dict()
+    rebuilt = ember.fluid._Fluid.from_dict(data)
+
+    assert type(rebuilt) is type(case.fluid)
+
+    # Compared through to_dict on both sides rather than field by field. The
+    # coefficient arrays would make an element-wise comparison return an array
+    # instead of a bool, and the dicts hold plain floats and lists, so this is
+    # exact.
+    assert rebuilt.to_dict() == data
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_to_dict_round_trip_states(case):
+    """A rebuilt fluid evaluates to the states the original did.
+
+    Separate from the dict comparison because the dict can be right while the
+    fluid is not: a RealFluid inverts for its datum by Newton iteration at
+    construction, so an equal dict still has to be shown to land in the same
+    place.
+    """
+
+    rebuilt = ember.fluid._Fluid.from_dict(case.fluid.to_dict())
+
+    for rho, u in zip(case.rho, case.u):
+        for prop in ("get_P", "get_T", "get_s", "get_h", "get_a", "get_cp"):
+            want = getattr(case.fluid, prop)(rho, u)
+            got = getattr(rebuilt, prop)(rho, u)
+            assert np.array_equal(got, want), f"{prop} differs after a round trip"
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_to_dict_is_json_safe(case):
+    """The dict holds only what a plain JSON or YAML dumper can write.
+
+    The point of the dict over a pickle is that it can be written to a file
+    anything can read, which numpy scalars and tuples both quietly break --
+    json refuses the first, and PyYAML tags the second !!python/tuple.
+    """
+    import json
+
+    data = case.fluid.to_dict()
+
+    def walk(value, where):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                assert isinstance(key, str), f"{where}: key {key!r} is not a string"
+                walk(item, f"{where}.{key}")
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                walk(item, f"{where}[{i}]")
+        else:
+            assert type(value) in (float, int, str, bool), (
+                f"{where}: {value!r} is a {type(value).__name__}, "
+                f"which no plain dumper handles"
+            )
+
+    walk(data, "to_dict()")
+    assert json.loads(json.dumps(data)) == data
+
+
+def test_from_dict_rejects_unknown_type():
+    """An unrecognised type names itself, and the alternatives."""
+
+    data = CASES[0].fluid.to_dict()
+    data["type"] = "StiffenedGas"
+
+    with pytest.raises(ValueError, match="StiffenedGas"):
+        ember.fluid._Fluid.from_dict(data)
+
+
+def test_from_dict_rejects_missing_type():
+    """A dict with no type key is refused rather than guessed at."""
+
+    data = CASES[0].fluid.to_dict()
+    del data["type"]
+
+    with pytest.raises(ValueError, match="type"):
+        ember.fluid._Fluid.from_dict(data)
+
+
+def test_from_dict_rejects_wrong_type():
+    """A subclass refuses a dict written by a different fluid."""
+
+    real = next(c.fluid for c in CASES if isinstance(c.fluid, ember.fluid.RealFluid))
+
+    with pytest.raises(ValueError, match="RealFluid"):
+        ember.fluid.PerfectFluid.from_dict(real.to_dict())
+
+
+def test_from_dict_rejects_unknown_key():
+    """A key the constructor does not take is an error, not a silent default.
+
+    Otherwise a misspelled `Pr` reads as a fluid with the default Prandtl
+    number, which is a plausible answer and so never gets noticed.
+    """
+
+    data = CASES[0].fluid.to_dict()
+    data["Prr"] = 0.9
+
+    with pytest.raises(ValueError, match="Prr"):
+        ember.fluid._Fluid.from_dict(data)
+
+
+def test_from_dict_on_subclass():
+    """A concrete class can be asked directly, without going through _Fluid."""
+
+    for case in CASES:
+        rebuilt = type(case.fluid).from_dict(case.fluid.to_dict())
+        assert type(rebuilt) is type(case.fluid)
+        assert rebuilt.to_dict() == case.fluid.to_dict()

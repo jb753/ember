@@ -74,6 +74,8 @@ We can get a new instance with different reference scales using the :meth:`Perfe
 
 """
 
+import inspect
+
 import numpy as np
 from abc import ABC, abstractmethod
 from ember import util
@@ -117,6 +119,25 @@ def _last_nonzero_rows(coef):
     return np.asfortranarray(counts.astype(np.int32))
 
 
+def _plain(value):
+    """Strip a value down to what a plain JSON or YAML dumper can write.
+
+    Arrays become nested lists and every scalar becomes a Python float, because
+    the two things that quietly break a dumped fluid are numpy scalars, which
+    :mod:`json` refuses outright, and tuples, which PyYAML tags
+    ``!!python/tuple`` and so writes a file only Python can read back.
+    """
+    if isinstance(value, dict):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, np.ndarray):
+        return _plain(value.tolist())
+    if isinstance(value, (tuple, list)):
+        return [_plain(item) for item in value]
+    if isinstance(value, str):
+        return value
+    return float(value)
+
+
 class _Fluid(ABC):
     """Interface for converting density and internal energy to and from other thermodynamic properties.
 
@@ -138,6 +159,22 @@ class _Fluid(ABC):
         self._T_ref = np.float32(V_ref**2 / Rgas_ref)
         self._rhoV_ref = np.float32(rho_ref * V_ref)
 
+    @abstractmethod
+    def _kwargs(self):
+        """Return the constructor arguments that define this fluid.
+
+        Every value is a plain Python float, tuple or array --- never a
+        ``numpy`` scalar --- so that a caller can splat the result straight back
+        into the constructor and get an identical fluid. Derived quantities are
+        absent: they are all functions of these.
+
+        Returns
+        -------
+        kwargs : dict
+            Keyword arguments reproducing this instance.
+        """
+        raise NotImplementedError()
+
     @staticmethod
     def _const_nd(rho_nd, u_nd, value, out):
         """Return a constant broadcast to the shape of (rho_nd, u_nd)."""
@@ -145,6 +182,58 @@ class _Fluid(ABC):
             return util.full(np.broadcast(rho_nd, u_nd).shape, value)
         out[...] = value
         return out
+
+    @classmethod
+    def from_dict(cls, data):
+        """Build a fluid from a dict written by :meth:`to_dict`.
+
+        Called on :class:`_Fluid` it dispatches on the ``type`` key, so a saved
+        fluid can be read back without the caller knowing which equation of
+        state wrote it. Called on a concrete class it checks that ``type``
+        names that class, so loading the wrong file is an error rather than a
+        constructor failure several arguments deep.
+
+        Parameters
+        ----------
+        data : dict
+            As returned by :meth:`to_dict`. Not modified.
+
+        Returns
+        -------
+        fluid : _Fluid
+            A new instance of the class named by ``data["type"]``.
+        """
+        data = dict(data)
+
+        name = data.pop("type", None)
+        if name is None:
+            raise ValueError(
+                f"A fluid dict needs a 'type' key, one of {sorted(_FLUID_TYPES)}."
+            )
+
+        if cls is _Fluid:
+            if name not in _FLUID_TYPES:
+                raise ValueError(
+                    f"Unknown fluid type {name!r}. "
+                    f"Available types: {sorted(_FLUID_TYPES)}."
+                )
+            return _FLUID_TYPES[name].from_dict({"type": name, **data})
+
+        if name != cls.__name__:
+            raise ValueError(f"{cls.__name__}.from_dict was given a {name!r} dict.")
+
+        # Rejected by name rather than ignored. A misspelled key is otherwise
+        # silently the constructor default, which for `Pr` is a perfectly
+        # plausible fluid and so never gets noticed.
+        allowed = set(inspect.signature(cls).parameters)
+        unknown = set(data) - allowed
+        if unknown:
+            raise ValueError(
+                f"Unknown key(s) for {cls.__name__}: {sorted(unknown)}. "
+                f"Valid keys: {sorted(allowed)}."
+            )
+
+        return cls(**data)
 
     @abstractmethod
     def set_h_s(self, h, s):
@@ -309,6 +398,27 @@ class _Fluid(ABC):
         """Return a new instance with different reference scales."""
         raise NotImplementedError("Subclasses must implement change_ref")
 
+    def to_dict(self):
+        """Return a portable record of this fluid, ready for :meth:`from_dict`.
+
+        The dict holds plain floats, strings and nested lists only, so it can be
+        written with :mod:`json` or a plain YAML dumper and read by anything.
+        That is the point of it: a :class:`RealFluid` surface costs a CoolProp
+        table and an offline fit to produce, and until now the only way to keep
+        one was to pickle the grid it happened to be attached to.
+
+        Everything the constructor takes is included, the reference scales and
+        the datum among them, so the round trip is exact. A fluid reloaded into
+        another run therefore arrives with the scales of the run that wrote it;
+        :meth:`change_ref` is how to move it onto new ones.
+
+        Returns
+        -------
+        data : dict
+            Constructor arguments plus a ``type`` key naming the class.
+        """
+        return {"type": type(self).__name__, **_plain(self._kwargs())}
+
     @property
     def P_dtm(self):
         r"""Datum pressure :math:`p_\mathrm{dtm}` where :math:`u = s = 0` [Pa].
@@ -466,6 +576,24 @@ class PerfectFluid(_Fluid):
 
         self._gamma_m1 = self._gamma - np.float32(1.0)
         self._ga_gam1 = self._gamma / self._gamma_m1
+
+    def _kwargs(self):
+        """Constructor arguments reproducing this fluid; see :meth:`_Fluid._kwargs`."""
+        return {
+            "cp": float(self._cp),
+            "gamma": float(self._gamma),
+            "mu": float(self._mu),
+            "Pr": float(self._Pr),
+            "P_dtm": float(self._P_dtm),
+            "T_dtm": float(self._T_dtm),
+            "rho_ref": float(self.rho_ref),
+            "V_ref": float(self.V_ref),
+            "Rgas_ref": float(self.Rgas_ref),
+        }
+
+    def _rebuild(self, **over):
+        """New instance with the same properties and selected overrides."""
+        return self.__class__(**{**self._kwargs(), **over})
 
     def set_h_s(self, h, s):
         r"""Density and internal energy from specific enthalpy and entropy.
@@ -1252,18 +1380,7 @@ class PerfectFluid(_Fluid):
             New fluid instance with shifted and entropy datum.
 
         """
-        fluid_new = self.__class__(
-            cp=self._cp,
-            gamma=self._gamma,
-            mu=self._mu,
-            Pr=self._Pr,
-            P_dtm=P_dtm,
-            T_dtm=T_dtm,
-            rho_ref=self.rho_ref,
-            V_ref=self.V_ref,
-            Rgas_ref=self.Rgas_ref,
-        )
-        return fluid_new
+        return self._rebuild(P_dtm=P_dtm, T_dtm=T_dtm)
 
     def change_ref(self, rho_ref=None, V_ref=None, Rgas_ref=None):
         """Make a new :class:`PerfectFluid` with different reference scales.
@@ -1285,13 +1402,7 @@ class PerfectFluid(_Fluid):
             New fluid instance with the same properties but different reference scales.
 
         """
-        return self.__class__(
-            cp=self._cp,
-            gamma=self._gamma,
-            mu=self._mu,
-            Pr=self._Pr,
-            P_dtm=self._P_dtm,
-            T_dtm=self._T_dtm,
+        return self._rebuild(
             rho_ref=rho_ref if rho_ref is not None else self.rho_ref,
             V_ref=V_ref if V_ref is not None else self.V_ref,
             Rgas_ref=Rgas_ref if Rgas_ref is not None else self.Rgas_ref,
@@ -1897,9 +2008,9 @@ class RealFluid(_Fluid):
             "P_u": P_u,
         }
 
-    def _rebuild(self, **over):
-        """New instance with the same fitted surface and selected overrides."""
-        kwargs = {
+    def _kwargs(self):
+        """Constructor arguments reproducing this fluid; see :meth:`_Fluid._kwargs`."""
+        return {
             "alpha": self._alpha,
             "beta": self._beta,
             "rho_lim": self._rho_lim,
@@ -1914,8 +2025,10 @@ class RealFluid(_Fluid):
             "V_ref": float(self.V_ref),
             "Rgas_ref": float(self.Rgas_ref),
         }
-        kwargs.update(over)
-        return self.__class__(**kwargs)
+
+    def _rebuild(self, **over):
+        """New instance with the same fitted surface and selected overrides."""
+        return self.__class__(**{**self._kwargs(), **over})
 
     @staticmethod
     def _write(val, out):
@@ -2854,3 +2967,11 @@ class RealFluid(_Fluid):
         these bounds even though the underlying box is unchanged.
         """
         return (float(self._u_box_nd[0]), float(self._u_box_nd[1]))
+
+
+_FLUID_TYPES = {cls.__name__: cls for cls in (PerfectFluid, RealFluid)}
+"""Equations of state :meth:`_Fluid.from_dict` will build, by class name.
+
+An explicit table rather than a lookup on the module, so that a ``type`` out of
+a file can only ever name one of these two classes.
+"""
