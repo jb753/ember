@@ -20,6 +20,16 @@ without a deprecation period.
   by as much as cp varies over the whole fit box. The kernel now takes the
   field and averages it to the cell, for about 7% of that kernel's time.
 
+* Added ``to_dict`` and ``from_dict`` on the fluid classes, giving a fitted
+  equation of state a portable form. A ``RealFluid`` surface costs a property
+  table and an offline fit to produce, and until now the only thing that
+  persisted one was a pickle of the grid it happened to be attached to ---
+  which also carried every derived surface alongside the thirteen numbers that
+  actually define the fluid. The dict holds plain floats and nested lists, so
+  ``json`` or a plain YAML dumper can write it, and it names its own class in a
+  ``type`` key, so ``_Fluid.from_dict`` reads one back without the caller
+  knowing which equation of state wrote it.
+
 .. _v0.2.0:
 
 0.2.0 (2026-08-18)
