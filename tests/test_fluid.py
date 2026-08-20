@@ -977,7 +977,6 @@ def test_real_fluid_rejects_more_beta_than_alpha_can_carry():
             beta=np.arange(9.0) + 1.0,
             rho_lim=(0.5, 5.0),
             u_lim=(1e5, 3e5),
-            rho_isochor=1.0,
             Rgas=287.0,
             mu=1.8e-5,
             Pr=0.72,
@@ -1619,7 +1618,6 @@ def _fit_kwargs(model, rho_lim, u_lim, order=6, ni=40):
         Rgas=model.Rgas,
         rho_lim=rho_lim,
         u_lim=u_lim,
-        rho_isochor=float(np.mean(rho_lim)),
         order=order,
     ).kwargs
 

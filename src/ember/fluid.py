@@ -1470,16 +1470,13 @@ class RealFluid(_Fluid):
         :ref:`normalised-coordinates`.
     beta : array_like
         One-dimensional Legendre coefficients of :math:`s/R` along the reference
-        isochor [--].
+        isochor, the one at the centre of the density box; see
+        :ref:`reference-isochor`.
     rho_lim : tuple
         ``(min, max)`` density bounds of the fit box [kg/m³].
     u_lim : tuple
         ``(min, max)`` internal energy bounds of the fit box [J/kg], on the same
         datum as the data ``beta`` was fitted to.
-    rho_isochor : float
-        Density of the isochor the entropy integral starts from [kg/m³]. This is
-        Wheeler's :math:`\rho_\mathrm{ref}`, and is unrelated to
-        :attr:`rho_ref`, the non-dimensionalisation scale.
     Rgas : float
         Specific gas constant [J/kg/K]. Converts the two dimensionless
         coefficient arrays into entropy, and is what :meth:`get_Rgas` reports.
@@ -1549,7 +1546,6 @@ class RealFluid(_Fluid):
         beta,
         rho_lim,
         u_lim,
-        rho_isochor,
         Rgas,
         mu,
         Pr,
@@ -1565,7 +1561,6 @@ class RealFluid(_Fluid):
         self._beta = np.atleast_1d(np.asarray(beta, dtype=np.float64))
         self._rho_lim = (float(rho_lim[0]), float(rho_lim[1]))
         self._u_lim = (float(u_lim[0]), float(u_lim[1]))
-        self._rho_isochor = float(rho_isochor)
         self._Rgas = np.float32(Rgas)
         self._mu = np.float32(mu)
         self._mu_nd = np.float32(mu / (rho_ref * V_ref))
@@ -1576,10 +1571,6 @@ class RealFluid(_Fluid):
             raise ValueError(f"rho_lim must be increasing and positive, got {rho_lim}")
         if not self._u_lim[1] > self._u_lim[0]:
             raise ValueError(f"u_lim must be increasing, got {u_lim}")
-        if not self._rho_lim[0] <= self._rho_isochor <= self._rho_lim[1]:
-            raise ValueError(
-                f"rho_isochor={rho_isochor} must lie within rho_lim={rho_lim}"
-            )
         if self._beta.size > self._alpha.shape[1]:
             raise ValueError(
                 f"beta has {self._beta.size} coefficients but alpha carries "
@@ -1706,10 +1697,9 @@ class RealFluid(_Fluid):
         self._u_scale = dtype(0.5 * (self._u_lim[1] - self._u_lim[0]) / u_ref)
         self._s_scale = dtype(float(self._Rgas) / Rgas_ref)
 
-        # Density integral of the compressibility surface, in closed form.
-        c = rho_m / rho_f
-        x0 = (self._rho_isochor - rho_m) / rho_f
-        D, Lam = ember.realgas_fit.entropy_integral(self._alpha, c, x0)
+        # Density integral of the compressibility surface, in closed form, from
+        # the reference isochor at the centre of the density box.
+        D, Lam = ember.realgas_fit.entropy_integral(self._alpha, rho_m / rho_f)
 
         # Assemble the non-dimensional entropy surface,
         #     s = legval2d(x, y, Sc) + legval(y, Sl)*log(rho)
@@ -2126,7 +2116,6 @@ class RealFluid(_Fluid):
             "beta": self._beta,
             "rho_lim": self._rho_lim,
             "u_lim": self._u_lim,
-            "rho_isochor": self._rho_isochor,
             "Rgas": float(self._Rgas),
             "mu": float(self._mu),
             "Pr": float(self._Pr),

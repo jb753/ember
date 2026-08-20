@@ -19,9 +19,10 @@ Test cases:
 - test_ideal_gas_equivalence: RealFluid reproduces the PerfectFluid it was fit to
 - test_van_der_waals_equivalence: RealFluid reproduces an analytic real gas
 - test_sample_coolprop_reports_states_on_the_model: sampler output matches source
+- test_sample_coolprop_output_is_a_whole_fit_call: the sampler splats into fit
 - test_sample_coolprop_drops_unusable_states: two-phase and failed states dropped
 - test_sample_coolprop_rejects_an_empty_box: a box with nothing usable raises
-- test_fit_rejects_an_isochor_outside_the_box: bad rho_isochor raises
+- test_beta_is_the_entropy_on_the_box_centre_isochor: the isochor convention
 """
 
 import sys
@@ -92,7 +93,6 @@ def _fit_perfect(order=ORDER):
         Rgas=float(PERFECT.get_Rgas(1.0, 1.0)),
         rho_lim=RHO_LIM_PERFECT,
         u_lim=U_LIM_PERFECT,
-        rho_isochor=float(np.mean(RHO_LIM_PERFECT)),
         order=order,
     )
 
@@ -109,7 +109,6 @@ def _fit_vdw(order=ORDER):
         Rgas=VDW.Rgas,
         rho_lim=RHO_LIM_VDW,
         u_lim=U_LIM_VDW,
-        rho_isochor=float(np.mean(RHO_LIM_VDW)),
         order=order,
     )
 
@@ -127,9 +126,9 @@ def test_hat_maps_box_to_unit_interval():
     assert np.isclose(rgf.hat(lim[1], lim), 1.0)
     assert np.isclose(rgf.hat(np.mean(lim), lim), 0.0)
 
-    # Round-trip through the inverse
+    # Affine, so the interior maps proportionally too.
     x = np.linspace(*lim, 17)
-    assert np.allclose(rgf.unhat(rgf.hat(x, lim), lim), x)
+    assert np.allclose(rgf.hat(x, lim) * 0.5 * (lim[1] - lim[0]) + np.mean(lim), x)
 
 
 def test_hat_is_affine_invariant():
@@ -201,8 +200,8 @@ def test_legfit2d_recovers_known_polynomial():
 # ---------------------------------------------------------------------------
 
 
-def _quad_entropy_integral(alpha, c, x0, x, y, n=400):
-    """Reference integral(Z dln rho) from x0 to x, by Gauss-Legendre quadrature.
+def _quad_entropy_integral(alpha, c, x, y, n=400):
+    """Reference integral(Z dln rho) from the box centre to x, by quadrature.
 
     Integrating in ``t = ln(x + c)`` rather than in ``x`` removes the
     ``1/(x + c)`` factor, leaving a smooth integrand that Gauss-Legendre
@@ -211,7 +210,7 @@ def _quad_entropy_integral(alpha, c, x0, x, y, n=400):
     just outside the interval, where a fixed-step rule converges far too slowly
     to be a credible reference.
     """
-    t0, t1 = np.log(x0 + c), np.log(x + c)
+    t0, t1 = np.log(c), np.log(x + c)
     nodes, weights = np.polynomial.legendre.leggauss(n)
     t = 0.5 * (t1 - t0) * nodes + 0.5 * (t1 + t0)
     xs = np.exp(t) - c
@@ -228,32 +227,31 @@ def test_entropy_integral_matches_quadrature(c):
     mask = rgf.order_matrix(3, basis="total-order")
     alpha[mask] = rng.standard_normal(mask.sum())
 
-    x0 = 0.0  # isochor at the box centre
-    D, Lam = rgf.entropy_integral(alpha, c, x0)
+    D, Lam = rgf.entropy_integral(alpha, c)
 
     for y in (-0.9, -0.2, 0.5, 1.0):
         for x in (-0.95, -0.5, 0.0, 0.37, 1.0):
             got = np.polynomial.legendre.legval2d(
                 x, y, D
             ) + np.polynomial.legendre.legval(y, Lam) * np.log(x + c)
-            expect = _quad_entropy_integral(alpha, c, x0, x, y)
+            expect = _quad_entropy_integral(alpha, c, x, y)
             assert np.isclose(got, expect, rtol=1e-8, atol=1e-10), (
                 f"c={c} x={x} y={y}: {got} != {expect}"
             )
 
 
 def test_entropy_integral_vanishes_at_isochor():
-    """The definite integral is zero at the reference isochor, for every energy."""
+    """The definite integral is zero at the box centre, for every energy."""
 
     rng = np.random.default_rng(5)
     alpha = rng.standard_normal((4, 4))
-    c, x0 = 1.2, -0.3
-    D, Lam = rgf.entropy_integral(alpha, c, x0)
+    c = 1.2
+    D, Lam = rgf.entropy_integral(alpha, c)
 
     y = np.linspace(-1.0, 1.0, 11)
     val = np.polynomial.legendre.legval2d(
-        np.full_like(y, x0), y, D
-    ) + np.polynomial.legendre.legval(y, Lam) * np.log(x0 + c)
+        np.zeros_like(y), y, D
+    ) + np.polynomial.legendre.legval(y, Lam) * np.log(c)
     assert np.allclose(val, 0.0, atol=1e-12)
 
 
@@ -273,14 +271,14 @@ def test_entropy_integral_near_low_density():
     alpha = np.zeros((3, 3))
     alpha[rgf.order_matrix(2, basis="total-order")] = rng.standard_normal(6)
 
-    D, Lam = rgf.entropy_integral(alpha, c, 0.0)
+    D, Lam = rgf.entropy_integral(alpha, c)
 
     x = rgf.hat(0.02, rho_lim)  # just above the low-density bound
     for y in (-1.0, 0.0, 1.0):
         got = np.polynomial.legendre.legval2d(x, y, D) + np.polynomial.legendre.legval(
             y, Lam
         ) * np.log(x + c)
-        expect = _quad_entropy_integral(alpha, c, 0.0, x, y, n=800)
+        expect = _quad_entropy_integral(alpha, c, x, y, n=800)
         assert np.isclose(got, expect, rtol=1e-11)
 
 
@@ -303,7 +301,7 @@ def test_ideal_gas_alpha_is_unit():
     rest = alpha.copy()
     rest[0, 0] = 0.0
     assert np.allclose(rest, 0.0, atol=1e-10)
-    assert result.rmse_Z < 1e-12
+    assert result.info_Z.rmse < 1e-12
 
 
 def test_ideal_gas_equivalence():
@@ -319,7 +317,7 @@ def test_ideal_gas_equivalence():
     # The entropy fit approximates a logarithm and so is never exact. Assert the
     # residual separately, so a fitting regression is caught rather than hidden
     # inside a loose comparison tolerance.
-    assert result.rmse_s < 1e-7, f"entropy fit residual {result.rmse_s}"
+    assert result.info_s.rmse < 1e-7, f"entropy fit residual {result.info_s.rmse}"
 
     # Two tolerances, because error grows every time the surface is
     # differentiated. Measured at this order: P, T, s and h land within 4e-7,
@@ -369,8 +367,8 @@ def test_van_der_waals_equivalence():
     # residual is a real measurement rather than a formality. Assert both
     # residuals separately from the property comparison, so a fitting regression
     # cannot hide inside a loose tolerance.
-    assert result.rmse_Z < 1e-6, f"compressibility fit residual {result.rmse_Z}"
-    assert result.rmse_s < 1e-6, f"entropy fit residual {result.rmse_s}"
+    assert result.info_Z.rmse < 1e-6, f"compressibility residual {result.info_Z.rmse}"
+    assert result.info_s.rmse < 1e-6, f"entropy fit residual {result.info_s.rmse}"
     rtol = 1e-4
 
     fluid = ember.fluid.RealFluid(
@@ -507,6 +505,23 @@ def test_sample_coolprop_reports_states_on_the_model(stub_coolprop):
     assert stub_coolprop.AbstractState is _StubState
 
 
+def test_sample_coolprop_output_is_a_whole_fit_call(stub_coolprop):
+    """What the sampler returns is exactly what fit takes, box included.
+
+    The box travels with the samples so that a script cannot fit over one box
+    having sampled another -- which would push the normalised coordinates
+    outside [-1, 1] and quietly cost the fit its conditioning.
+    """
+    out = rgf.sample_coolprop("VanDerWaals", RHO_LIM_VDW, U_LIM_VDW, ni=12)
+    assert out["rho_lim"] == RHO_LIM_VDW
+    assert out["u_lim"] == U_LIM_VDW
+
+    # No argument left for the caller to supply, and none the fit rejects.
+    result = rgf.fit(**out, order=6)
+    assert np.isfinite(result.info_s.rmse)
+    assert result.kwargs["rho_lim"] == RHO_LIM_VDW
+
+
 def test_sample_coolprop_drops_unusable_states(stub_coolprop):
     """Two-phase and non-converging states are dropped, and nothing else is.
 
@@ -536,36 +551,19 @@ def test_sample_coolprop_rejects_an_empty_box(stub_coolprop):
         )
 
 
-def test_fit_rejects_an_isochor_outside_the_box():
-    """A reference isochor off the box is refused where the mistake was made.
+def test_beta_is_the_entropy_on_the_box_centre_isochor():
+    """The isochor convention is the box centre, and beta is entropy along it.
 
-    The density integral is taken about this isochor, so a non-positive one
-    puts a negative number inside a logarithm and every entropy coefficient
-    comes back nan. RealFluid rejects such an isochor, but only once the
-    coefficients reach it -- by which point the residuals reported by the fit,
-    the thing a caller inspects to decide the fit is good, are nan too.
+    The density integral vanishes there by construction, so entropy on that one
+    isochor is the beta polynomial alone. Checking it against the analytic gas
+    pins down which isochor the fit chose -- a fit taken about any other density
+    reproduces the same surface, but with a different beta.
     """
-    ni = 12
-    rho_g, u_g = np.meshgrid(
-        np.linspace(*RHO_LIM_VDW, ni), np.linspace(*U_LIM_VDW, ni), indexing="ij"
-    )
-    rho, u = rho_g.ravel(), u_g.ravel()
-    kwargs = dict(
-        rho=rho,
-        u=u,
-        P=VDW.get_P(rho, u),
-        T=VDW.get_T(rho, u),
-        s=VDW.get_s(rho, u),
-        Rgas=VDW.Rgas,
-        rho_lim=RHO_LIM_VDW,
-        u_lim=U_LIM_VDW,
-        order=6,
-    )
+    fit = _fit_vdw()
+    beta = fit.kwargs["beta"]
+    rho_0 = float(np.mean(RHO_LIM_VDW))
 
-    for rho_isochor in (-5.0, 0.0, 10.0 * RHO_LIM_VDW[1]):
-        with pytest.raises(ValueError, match="rho_isochor"):
-            rgf.fit(rho_isochor=rho_isochor, **kwargs)
-
-    # The bounds themselves are valid isochors, and still fit cleanly.
-    for rho_isochor in RHO_LIM_VDW:
-        assert np.isfinite(rgf.fit(rho_isochor=rho_isochor, **kwargs).rmse_s)
+    u = np.linspace(*U_LIM_VDW, 21)
+    got = np.polynomial.legendre.legval(rgf.hat(u, U_LIM_VDW), beta)
+    expect = VDW.get_s(np.full_like(u, rho_0), u) / VDW.Rgas
+    assert np.allclose(got, expect, rtol=1e-8, atol=1e-8)

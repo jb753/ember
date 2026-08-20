@@ -30,6 +30,25 @@ surface rather than fitted independently, the resulting equation of state is
 thermodynamically consistent by construction. See :class:`ember.fluid.RealFluid`
 for the evaluation side.
 
+.. _reference-isochor:
+
+The reference isochor
+=====================
+
+The density integral starts from a reference isochor :math:`\rho_0`, and
+:math:`\beta` is the entropy along it. Which density that is makes no
+difference to the equation of state: moving it changes the integral by a
+function of internal energy alone, and :math:`\beta` -- fitted in that same
+basis, to the same order -- absorbs the change exactly, leaving the same
+entropy surface and the same residual. So there is nothing here for a caller to
+choose, and no way to choose it well or badly; the isochor is fixed at the
+centre of the density box, :math:`\hat\rho = 0`.
+
+The centre is also where the arithmetic is happiest. The logarithm in the
+integral is singular at zero density, just below the box, and the constants
+folded into :math:`\beta` grow as the isochor approaches it -- so an isochor at
+the low-density edge is the worst available choice, and the middle the best.
+
 .. _normalised-coordinates:
 
 Normalised coordinates
@@ -88,7 +107,7 @@ class FitResult:
     kwargs : dict
         Keyword arguments defining the equation of state, ready to splat into
         :class:`ember.fluid.RealFluid`. Contains ``alpha``, ``beta``,
-        ``rho_lim``, ``u_lim``, ``rho_isochor`` and ``Rgas``.
+        ``rho_lim``, ``u_lim`` and ``Rgas``.
     info_Z : FitInfo
         Residual of the compressibility surface [--].
     info_s : FitInfo
@@ -100,16 +119,6 @@ class FitResult:
     info_Z: FitInfo
     info_s: FitInfo
 
-    @property
-    def rmse_Z(self):
-        """Root-mean-square residual of the compressibility fit [--]."""
-        return self.info_Z.rmse
-
-    @property
-    def rmse_s(self):
-        """Root-mean-square residual of the entropy fit, in units of R [--]."""
-        return self.info_s.rmse
-
 
 def _fit_info(y, y_fit):
     """Residual statistics of a fit."""
@@ -120,7 +129,7 @@ def _fit_info(y, y_fit):
     return FitInfo(rmse=rmse, R2=R2)
 
 
-def entropy_integral(alpha, c, x0):
+def entropy_integral(alpha, c):
     r"""Closed-form coefficients of the density integral of a fitted surface.
 
     Evaluates the definite integral of the compressibility surface along a
@@ -131,8 +140,9 @@ def entropy_integral(alpha, c, x0):
         I(\hat\rho, \hat u)
             = \int_{\rho_0}^{\rho} Z \, \frac{\mathrm{d}\rho}{\rho}
 
-    which supplies the density dependence of entropy. Since
-    :math:`\rho \propto \hat\rho + c`, the measure is
+    which supplies the density dependence of entropy, from the reference isochor
+    at the centre of the fit box (see :ref:`reference-isochor`) up to the density
+    of interest. Since :math:`\rho \propto \hat\rho + c`, the measure is
     :math:`\mathrm{d}\ln\rho = \mathrm{d}\hat\rho / (\hat\rho + c)`, and each
     basis term integrates in closed form. Polynomial division by
     :math:`\hat\rho + c` leaves a constant remainder,
@@ -162,8 +172,6 @@ def entropy_integral(alpha, c, x0):
         :math:`\rho \propto \hat\rho + c`. The logarithmic singularity sits at
         :math:`\hat\rho = -c`, just outside the box when the lower density bound
         approaches zero.
-    x0 : float
-        Normalised density of the reference isochor, where the integral is zero.
 
     Returns
     -------
@@ -181,7 +189,7 @@ def entropy_integral(alpha, c, x0):
 
         I = legval2d(x, y, D) + legval(y, Lam)*log(x + c)
 
-    which is zero at ``x = x0`` for every ``y``.
+    which is zero at ``x = 0`` for every ``y``.
 
     """
     alpha = np.atleast_2d(np.asarray(alpha, dtype=float))
@@ -205,12 +213,13 @@ def entropy_integral(alpha, c, x0):
     D = G.T @ alpha
     Lam = alpha.T @ r
 
-    # Shift so the definite integral vanishes on the reference isochor. Both
-    # corrections are functions of internal energy alone, so they fold into the
-    # constant-density row of D, where the density basis polynomial is one.
-    Px0 = _leg.legvander(np.asarray(float(x0)), D.shape[0] - 1).ravel()
+    # Shift so the definite integral vanishes on the reference isochor, the
+    # centre of the box at x = 0. Both corrections are functions of internal
+    # energy alone, so they fold into the constant-density row of D, where the
+    # density basis polynomial is one.
+    P0 = _leg.legvander(np.asarray(0.0), D.shape[0] - 1).ravel()
     D = D.copy()
-    D[0, :] -= Px0 @ D + Lam * np.log(x0 + c)
+    D[0, :] -= P0 @ D + Lam * np.log(c)
 
     return D, Lam
 
@@ -224,7 +233,6 @@ def fit(
     Rgas,
     rho_lim,
     u_lim,
-    rho_isochor,
     order=8,
     basis="total-order",
 ):
@@ -238,8 +246,10 @@ def fit(
 
     The sample points need not lie on a grid, but they must all be inside the
     box given by ``rho_lim`` and ``u_lim``, and must avoid the two-phase region,
-    where the properties are not smooth and the fit would be poisoned. See
-    :func:`sample_coolprop`, which masks it.
+    where the properties are not smooth and the fit would be poisoned.
+    :func:`sample_coolprop` masks it, and returns every argument below but the
+    two that select the basis, so ``fit(**sample_coolprop(...))`` is the whole
+    pipeline.
 
     Parameters
     ----------
@@ -260,8 +270,6 @@ def fit(
     u_lim : tuple
         ``(min, max)`` internal energy bounds of the fit box [J/kg], on the same
         datum as ``u``.
-    rho_isochor : float
-        Density of the isochor the entropy integral starts from [kg/m³].
     order : int, optional
         Maximum polynomial order in each variable.
     basis : {'total-order', 'tensor-grid'}, optional
@@ -274,16 +282,6 @@ def fit(
         residuals that bound their accuracy.
 
     """
-    # The density integral is taken about this isochor, so an isochor off the
-    # box puts a non-positive number under a logarithm and every entropy
-    # coefficient comes back nan -- along with the residuals a caller would
-    # inspect to decide whether the fit is any good.
-    if not (rho_isochor > 0.0 and rho_lim[0] <= rho_isochor <= rho_lim[1]):
-        raise ValueError(
-            f"rho_isochor={rho_isochor} must be positive and lie within "
-            f"rho_lim={tuple(rho_lim)}."
-        )
-
     rho = np.asarray(rho, dtype=float)
     u = np.asarray(u, dtype=float)
     x = hat(rho, rho_lim)
@@ -299,19 +297,21 @@ def fit(
     # equation of state of this form -- so a one-dimensional fit closes it. Any
     # error in alpha leaks in here as a weak density dependence, which the fit
     # averages out rather than amplifies.
-    c, x0 = _log_shift(rho_lim, rho_isochor)
-    D, Lam = entropy_integral(alpha, c, x0)
+    #
+    # Zero density maps to x = -c, where the log in the integral is singular.
+    c = -float(hat(0.0, rho_lim))
+    D, Lam = entropy_integral(alpha, c)
     integral = _leg.legval2d(x, y, D) + _leg.legval(y, Lam) * np.log(x + c)
     beta_target = np.asarray(s, dtype=float) / Rgas + integral
 
-    beta, info_s = legfit1d(y, beta_target, order)
+    beta = _leg.legfit(y, beta_target, order)
+    info_s = _fit_info(beta_target, _leg.legval(y, beta))
 
     kwargs = {
         "alpha": alpha,
         "beta": beta,
         "rho_lim": tuple(float(v) for v in rho_lim),
         "u_lim": tuple(float(v) for v in u_lim),
-        "rho_isochor": float(rho_isochor),
         "Rgas": float(Rgas),
     }
     return FitResult(kwargs=kwargs, info_Z=info_Z, info_s=info_s)
@@ -341,30 +341,6 @@ def hat(x, lim):
     mid = 0.5 * (hi + lo)
     half = 0.5 * (hi - lo)
     return (np.asarray(x, dtype=float) - mid) / half
-
-
-def legfit1d(x, z, order):
-    """Least-squares Legendre fit of a function of one normalised variable.
-
-    Parameters
-    ----------
-    x : array_like
-        Normalised sample coordinates, in ``[-1, 1]``.
-    z : array_like
-        Values to fit.
-    order : int
-        Maximum polynomial order.
-
-    Returns
-    -------
-    coef : ndarray
-        Legendre coefficients, shape ``(order + 1,)``.
-    info : FitInfo
-        Residual statistics.
-
-    """
-    coef = _leg.legfit(np.asarray(x, dtype=float), np.asarray(z, dtype=float), order)
-    return coef, _fit_info(z, _leg.legval(x, coef))
 
 
 def legfit2d(x, y, z, order, basis="total-order"):
@@ -403,14 +379,6 @@ def legfit2d(x, y, z, order, basis="total-order"):
     coef = np.zeros((order + 1, order + 1))
     coef[mask] = coef_flat
     return coef, _fit_info(z, _leg.legval2d(x, y, coef))
-
-
-def _log_shift(rho_lim, rho_isochor):
-    """Return ``(c, x0)`` for the entropy integral over a given density box."""
-    lo, hi = float(rho_lim[0]), float(rho_lim[1])
-    mid = 0.5 * (hi + lo)
-    half = 0.5 * (hi - lo)
-    return mid / half, (float(rho_isochor) - mid) / half
 
 
 def order_matrix(order, basis="total-order"):
@@ -469,9 +437,17 @@ def sample_coolprop(fluid_name, rho_lim, u_lim, ni=100):
     Returns
     -------
     dict
-        Arrays ``rho``, ``u``, ``P``, ``T``, ``s`` at the surviving states, and
-        ``Rgas``, the specific gas constant [J/kg/K], ready to pass to
-        :func:`fit`.
+        Arrays ``rho``, ``u``, ``P``, ``T``, ``s`` at the surviving states,
+        ``Rgas``, the specific gas constant [J/kg/K], and the ``rho_lim`` and
+        ``u_lim`` that were sampled. That is every argument :func:`fit` needs,
+        so the whole pipeline is ``fit(**sample_coolprop(...))``.
+
+        The box is passed on rather than left to the caller to repeat because
+        nothing downstream could catch it being repeated wrongly: a fit taken
+        over a box other than the sampled one puts the normalised coordinates
+        outside ``[-1, 1]``, where the Legendre basis loses its orthogonality
+        and the fit its conditioning -- and returns coefficients that are
+        wrong without being nan.
 
     """
     try:
@@ -523,28 +499,6 @@ def sample_coolprop(fluid_name, rho_lim, u_lim, ni=100):
         "T": T[keep],
         "s": s[keep],
         "Rgas": Rgas,
+        "rho_lim": (float(rho_lim[0]), float(rho_lim[1])),
+        "u_lim": (float(u_lim[0]), float(u_lim[1])),
     }
-
-
-def unhat(x_hat, lim):
-    """Map a normalised coordinate back onto its box bounds.
-
-    Inverse of :func:`hat`.
-
-    Parameters
-    ----------
-    x_hat : array_like
-        Normalised coordinate, in ``[-1, 1]``.
-    lim : tuple
-        ``(min, max)`` bounds of the fit box.
-
-    Returns
-    -------
-    x : ndarray
-        Values in the original units.
-
-    """
-    lo, hi = float(lim[0]), float(lim[1])
-    mid = 0.5 * (hi + lo)
-    half = 0.5 * (hi - lo)
-    return np.asarray(x_hat, dtype=float) * half + mid

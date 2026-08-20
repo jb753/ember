@@ -54,7 +54,7 @@ without a deprecation period.
   equation of state a portable form. A ``RealFluid`` surface costs a property
   table and an offline fit to produce, and until now the only thing that
   persisted one was a pickle of the grid it happened to be attached to ---
-  which also carried every derived surface alongside the thirteen numbers that
+  which also carried every derived surface alongside the twelve numbers that
   actually define the fluid. The dict holds plain floats and nested lists, so
   ``json`` or a plain YAML dumper can write it, and it names its own class in a
   ``type`` key, so ``_Fluid.from_dict`` reads one back without the caller
