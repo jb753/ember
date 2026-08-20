@@ -36,6 +36,15 @@
 ! third of the flops. The two agree to a few ulp, not to the bit; the tests in
 ! test_update_primitive.py hold this path to the accuracy of the numpy one
 ! against an analytic gas, which is the property that matters.
+!
+! Nodes are processed in tiles, and every loop below runs over the tile rather
+! than over the polynomial order. Taken a node at a time the recurrence is a
+! dependency chain -- each term needs the previous two -- and GCC could
+! vectorise nothing but a two-wide crumb of it; the contractions did vectorise,
+! but over a trip count of eleven, which wastes most of a register. Across
+! nodes the chains are independent and the trip count is the tile, so all
+! eleven loops vectorise at 32 bytes and log() goes through libmvec eight at a
+! time. Worth 126 -> 20 ns/node on a 97^3 grid.
 
 subroutine set_P_h_T_real( &
     rho, u, &
@@ -54,7 +63,18 @@ subroutine set_P_h_T_real( &
     real, intent (inout) :: P(n), h(n), T(n)
 
     integer, parameter :: MAXORD = 31
-    integer :: i, a, b, na, nb
+
+    ! Nodes per tile. Every inner loop below runs over the tile, so this sets
+    ! the vector length the whole routine is built around, and it wants to be
+    ! large: each inner loop costs a setup and a runtime alias check, and only
+    ! the tile amortises them. Measured on a 97^3 grid, ns/node --
+    !   8: 64.1   16: 53.6   32: 33.4   64: 23.7   128: 20.9   256: 20.0   512: 24.9
+    ! The rise at 512 is the working set leaving L1. Only the first na rows of
+    ! the basis are ever touched, about twelve of the thirty-two, so the live
+    ! footprint at 256 is ~24 KB rather than the 64 KB the arrays reserve.
+    integer, parameter :: NTILE = 256
+
+    integer :: i, i0, j, nj, a, b, na, nb
 
     ! (a + 1)*P_{a+1}(x) = (2a + 1)*x*P_a(x) - a*P_{a-1}(x), folded at compile
     ! time. Written as the recurrence rather than as a wall of literals so the
@@ -63,79 +83,130 @@ subroutine set_P_h_T_real( &
     real, parameter :: w1(1:MAXORD) = [(real(2 * k + 1) / real(k + 1), k = 1, MAXORD)]
     real, parameter :: w2(1:MAXORD) = [(real(k) / real(k + 1), k = 1, MAXORD)]
 
-    real :: x, y, lnr, rhoi, srho, su, Ti, Pi, cx, cy, col, M, My
+    real :: sc, srho, su, Ti, Pi
+    real :: rhov(NTILE), uv(NTILE), xv(NTILE), yv(NTILE), lnrv(NTILE)
+    real :: cxv(NTILE), cyv(NTILE), colv(NTILE), Mv(NTILE), Myv(NTILE)
 
-    ! Fixed size, not automatic: an automatic array is an alloca per call that
-    ! the optimiser treats as clobbering memory. The caller guarantees the
-    ! order fits (see RealFluid.get_P_h_T).
-    real :: Px(0:MAXORD)
-    real :: Qy(0:MAXORD)
+    ! Node index first, so a basis term is contiguous across the tile and the
+    ! loops that build and consume it vectorise along j. Per node the
+    ! recurrence is a dependency chain and nothing can be done about it; across
+    ! nodes the chains are independent, which is the whole reason for tiling.
+    real :: Px(NTILE, 0:MAXORD), Qy(NTILE, 0:MAXORD)
 
     na = max(nax, nay)
     nb = max(max(nbx, nby), max(nsl, nsly))
 
-    do i = 1, n
+    do i0 = 1, n, NTILE
 
-        rhoi = rho(i)
-        x = rhoi * xa + xb
-        y = u(i) * ya + yb
-        lnr = log(rhoi)
+        nj = min(NTILE, n - i0 + 1)
 
-        Px(0) = 1.0
-        if (na > 1) Px(1) = x
+        do j = 1, nj
+            rhov(j) = rho(i0 + j - 1)
+            uv(j) = u(i0 + j - 1)
+            xv(j) = rhov(j) * xa + xb
+            yv(j) = uv(j) * ya + yb
+            lnrv(j) = log(rhov(j))
+        end do
+
+        do j = 1, nj
+            Px(j, 0) = 1.0
+            Qy(j, 0) = 1.0
+        end do
+
+        if (na > 1) then
+            do j = 1, nj
+                Px(j, 1) = xv(j)
+            end do
+        end if
+
         do a = 1, na - 2
-            Px(a + 1) = w1(a) * x * Px(a) - w2(a) * Px(a - 1)
+            do j = 1, nj
+                Px(j, a + 1) = w1(a) * xv(j) * Px(j, a) - w2(a) * Px(j, a - 1)
+            end do
         end do
 
-        Qy(0) = 1.0
-        if (nb > 1) Qy(1) = y
+        if (nb > 1) then
+            do j = 1, nj
+                Qy(j, 1) = yv(j)
+            end do
+        end if
+
         do b = 1, nb - 2
-            Qy(b + 1) = w1(b) * y * Qy(b) - w2(b) * Qy(b - 1)
+            do j = 1, nj
+                Qy(j, b + 1) = w1(b) * yv(j) * Qy(j, b) - w2(b) * Qy(j, b - 1)
+            end do
         end do
 
-        ! Column by column: the coefficients are column-major, so the inner
-        ! loop is a contiguous dot product, and each Qy is touched once per
-        ! column instead of once per term.
-        cx = 0.0
+        ! Each coefficient is a scalar broadcast across the tile, and the basis
+        ! term it multiplies is a contiguous run of nj floats. The column sum
+        ! is held back so the inner loop is a single fused multiply-add.
+        do j = 1, nj
+            cxv(j) = 0.0
+            cyv(j) = 0.0
+        end do
+
         do b = 1, nbx
-            col = 0.0
-            do a = 1, nax
-                col = col + scx(a, b) * Px(a - 1)
+            do j = 1, nj
+                colv(j) = 0.0
             end do
-            cx = cx + col * Qy(b - 1)
+            do a = 1, nax
+                sc = scx(a, b)
+                do j = 1, nj
+                    colv(j) = colv(j) + sc * Px(j, a - 1)
+                end do
+            end do
+            do j = 1, nj
+                cxv(j) = cxv(j) + colv(j) * Qy(j, b - 1)
+            end do
         end do
 
-        cy = 0.0
         do b = 1, nby
-            col = 0.0
-            do a = 1, nay
-                col = col + scy(a, b) * Px(a - 1)
+            do j = 1, nj
+                colv(j) = 0.0
             end do
-            cy = cy + col * Qy(b - 1)
+            do a = 1, nay
+                sc = scy(a, b)
+                do j = 1, nj
+                    colv(j) = colv(j) + sc * Px(j, a - 1)
+                end do
+            end do
+            do j = 1, nj
+                cyv(j) = cyv(j) + colv(j) * Qy(j, b - 1)
+            end do
         end do
 
         ! The log multiplier and its derivative, both functions of y alone.
-        M = 0.0
-        do b = 1, nsl
-            M = M + sl(b) * Qy(b - 1)
+        do j = 1, nj
+            Mv(j) = 0.0
+            Myv(j) = 0.0
         end do
 
-        My = 0.0
+        do b = 1, nsl
+            sc = sl(b)
+            do j = 1, nj
+                Mv(j) = Mv(j) + sc * Qy(j, b - 1)
+            end do
+        end do
+
         do b = 1, nsly
-            My = My + sly(b) * Qy(b - 1)
+            sc = sly(b)
+            do j = 1, nj
+                Myv(j) = Myv(j) + sc * Qy(j, b - 1)
+            end do
         end do
 
         ! Entropy partials, then the state. Operation order follows RealFluid's
         ! _partials1 and get_P_h_T.
-        srho = cx * xa + M / rhoi
-        su = (cy + My * lnr) * ya
-
-        Ti = 1.0 / su
-        Pi = -(rhoi * rhoi) * Ti * srho
-
-        T(i) = Ti
-        P(i) = Pi
-        h(i) = u(i) + Pi / rhoi
+        do j = 1, nj
+            srho = cxv(j) * xa + Mv(j) / rhov(j)
+            su = (cyv(j) + Myv(j) * lnrv(j)) * ya
+            Ti = 1.0 / su
+            Pi = -(rhov(j) * rhov(j)) * Ti * srho
+            i = i0 + j - 1
+            T(i) = Ti
+            P(i) = Pi
+            h(i) = uv(j) + Pi / rhov(j)
+        end do
 
     end do
 

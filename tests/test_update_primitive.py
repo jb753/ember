@@ -17,6 +17,7 @@ Two properties matter and are pinned here:
 """
 
 import numpy as np
+import pytest
 
 import ember.block
 import ember.fluid
@@ -458,3 +459,24 @@ def test_real_kernel_declines_an_order_it_cannot_hold():
     # And the numpy path still answered, rather than quietly returning zeros.
     for got in (P, h, T):
         assert np.isfinite(got).all() and np.any(got != 0.0)
+
+
+@pytest.mark.parametrize("n", [1, 7, 255, 256, 257, 512, 513, 1000])
+def test_real_kernel_handles_any_node_count(n):
+    """Node counts either side of the tile boundary all come out right.
+
+    The kernel walks nodes in tiles and the last one is short, so the tile
+    arithmetic is the obvious place for an off-by-one: a count that is an exact
+    multiple, one either side of it, and a single node are the cases that would
+    hide one. The reference is get_P / get_h / get_T, which iterate nothing.
+    """
+    fluid, rho, u = _real_fluid_and_state(shape=(n,))
+    outs = [np.zeros(n, np.float32, order="F") for _ in range(3)]
+    P, h, T = fluid.get_P_h_T(rho, u, *outs)
+
+    for name, got, ref in (
+        ("P", P, fluid.get_P(rho, u)),
+        ("h", h, fluid.get_h(rho, u)),
+        ("T", T, fluid.get_T(rho, u)),
+    ):
+        assert _ulps(got, ref) <= 8.0, f"n={n}, {name}: {_ulps(got, ref):.1f} ulp"
