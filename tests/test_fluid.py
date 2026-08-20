@@ -22,18 +22,183 @@ Test cases:
 - test_fluid_member_order: _Fluid and subclasses follow standard member ordering
 """
 
+import dataclasses
+
 import ember.fluid
 import numpy as np
 import pytest
 
 
-FLUIDS = [
-    ember.fluid.PerfectFluid(cp=1105.0, gamma=1.3, mu=1.8e-5, Pr=0.7),
-    ember.fluid.PerfectFluid(
-        cp=1051.0, gamma=1.4, mu=3.8e-5, Pr=1.0, P_dtm=5e4, T_dtm=200.0
+@dataclasses.dataclass(frozen=True)
+class FluidCase:
+    """A fluid bundled with sample points that lie inside its valid domain.
+
+    The generic tests below run against every equation of state, but they cannot
+    share one set of sample states: a :class:`~ember.fluid.RealFluid` is only
+    defined inside the box its coefficients were fitted over, whereas a perfect
+    gas is defined everywhere. So the states travel with the fluid instead of
+    sitting in module globals.
+
+    Attributes
+    ----------
+    name : str
+        Identifier used as the pytest parameter id.
+    fluid : ember.fluid._Fluid
+        The equation of state under test.
+    rho, u : tuple
+        Paired sample densities [kg/m^3] and internal energies [J/kg], covering
+        scalars and arrays of assorted shape to exercise broadcasting.
+    rho_pt, u_pt : float
+        A single in-domain state, filled into pre-allocated arrays by the
+        ``out=`` tests.
+    P_pt : float
+        In-domain pressure used with the datum temperature.
+    T_off : float
+        Temperature offset from ``T_dtm`` that stays in domain.
+    datum_new : tuple
+        ``(P, T)`` for :meth:`~ember.fluid._Fluid.change_datum`, in domain.
+    P_acc, rho_acc : tuple
+        Pressure and density sweeps for the ``set_P_rho`` accuracy test.
+    u_atol : float
+        Absolute tolerance on internal energy [J/kg]. Internal energy is
+        measured from the datum and so passes through zero there, where a
+        relative comparison says nothing. A perfect gas inverts analytically and
+        hits the datum exactly; a real gas gets there by Newton iteration and
+        stalls at the precision of the arithmetic, so it needs real headroom.
+    """
+
+    name: str
+    fluid: object
+    rho: tuple
+    u: tuple
+    rho_pt: float
+    u_pt: float
+    P_pt: float
+    T_off: float
+    datum_new: tuple
+    P_acc: tuple
+    rho_acc: tuple
+    u_atol: float
+
+
+# Sample states shared by the perfect-gas cases, which are valid everywhere.
+_RHO_PERFECT = (
+    1.0,
+    5.0,
+    2.2,
+    np.array([1.6]),
+    np.array([1.0, 2.0]),
+    np.array([[1.0, 2.0], [3.0, 4.0]]),
+)
+_U_PERFECT = (
+    30000.0,
+    1000.0,
+    2200.0,
+    np.array([1600.0]),
+    np.array([1000.0, 2100.0]),
+    np.array([[1000.0, 2000.0], [3000.0, 4000.0]]),
+)
+
+
+def _perfect_case(name, **kwargs):
+    """Build a FluidCase for a perfect gas, which is valid over all states."""
+    return FluidCase(
+        name=name,
+        fluid=ember.fluid.PerfectFluid(**kwargs),
+        rho=_RHO_PERFECT,
+        u=_U_PERFECT,
+        rho_pt=2.5,
+        u_pt=8e4,
+        P_pt=1e5,
+        T_off=100.0,
+        datum_new=(2e5, 400.0),
+        P_acc=(1e3, 1e5, 1e6, 5e6),
+        rho_acc=(0.1, 1.0, 5.0, 10.0),
+        u_atol=1e-10,
+    )
+
+
+def _real_case(name, rho_lim, u_lim):
+    """Build a FluidCase for a RealFluid fitted to an analytic van der Waals gas.
+
+    Every sample point is derived from the fluid's own valid domain rather than
+    written out as literals. The fit box is meaningless outside its bounds, and
+    the bounds move when the datum does, so hard-coded states would silently
+    drift out of range.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    fluid = fit_real_fluid(VanDerWaals(), rho_lim, u_lim)
+    rho_box, u_box = fluid.rho_lim_nd, fluid.u_lim_nd
+
+    def _inside(frac):
+        """A state at a given fraction across the box, 0 being the low corner."""
+        return (
+            rho_box[0] + frac * (rho_box[1] - rho_box[0]),
+            u_box[0] + frac * (u_box[1] - u_box[0]),
+        )
+
+    rho_mid, u_mid = _inside(0.5)
+    rho_lo, u_lo = _inside(0.3)
+    rho_hi, u_hi = _inside(0.7)
+
+    # set_P_rho is exercised over the cross product of these two sweeps, so
+    # every pressure must be reachable at every density in it. That reachable
+    # interval is the intersection of the per-density pressure ranges, not a
+    # pair of box corners, and it is only non-empty when the density band is
+    # narrow relative to the energy span: pressure climbs about as fast with one
+    # as with the other, so breadth in density has to be paid for in energy.
+    rho_acc = np.linspace(_inside(0.45)[0], _inside(0.55)[0], 3)
+    u_min, u_max = _inside(0.05)[1], _inside(0.95)[1]
+    P_lo = max(float(fluid.get_P(r, u_min)) for r in rho_acc)
+    P_hi = min(float(fluid.get_P(r, u_max)) for r in rho_acc)
+    assert P_hi > P_lo, (
+        f"{name}: no pressure is reachable at every density in the sweep "
+        f"({P_lo:.4g} > {P_hi:.4g}); narrow the density band."
+    )
+    P_acc = np.linspace(P_lo, P_hi, 3)
+
+    return FluidCase(
+        name=name,
+        fluid=fluid,
+        rho=(rho_mid, rho_lo, np.array([rho_hi]), np.full((2, 2), rho_mid)),
+        u=(u_mid, u_lo, np.array([u_hi]), np.full((2, 2), u_mid)),
+        rho_pt=rho_mid,
+        u_pt=u_mid,
+        P_pt=float(fluid.P_dtm),
+        # A temperature step small enough that the resulting energy stays well
+        # inside the box: cv is order 1e3, so 20 K moves u by a fifth of it.
+        T_off=20.0,
+        datum_new=(
+            float(fluid.get_P(rho_hi, u_hi)),
+            float(fluid.get_T(rho_hi, u_hi)),
+        ),
+        P_acc=tuple(P_acc),
+        rho_acc=tuple(rho_acc),
+        # Newton stalls around 1e-7 relative in single precision; this is
+        # about four times the worst observed miss over the box.
+        u_atol=1e-6 * 0.5 * (u_box[1] - u_box[0]),
+    )
+
+
+CASES = [
+    _perfect_case("perfect-ga1.3", cp=1105.0, gamma=1.3, mu=1.8e-5, Pr=0.7),
+    _perfect_case(
+        "perfect-lowdtm",
+        cp=1051.0,
+        gamma=1.4,
+        mu=3.8e-5,
+        Pr=1.0,
+        P_dtm=5e4,
+        T_dtm=200.0,
     ),
-    ember.fluid.PerfectFluid(cp=1001.0, gamma=1.36, mu=2.8e-5, Pr=0.6, T_dtm=600.0),
+    _perfect_case(
+        "perfect-hidtm", cp=1001.0, gamma=1.36, mu=2.8e-5, Pr=0.6, T_dtm=600.0
+    ),
+    _real_case("real-vdw", rho_lim=(1.0, 150.0), u_lim=(3.0e5, 5.0e5)),
 ]
+
+CASE_IDS = [case.name for case in CASES]
 
 rho_test = [
     1.0,
@@ -79,65 +244,151 @@ def test_perfect_properites():
         assert np.allclose(fluid.get_h(rho, u), u + fluid.get_T(rho, u) * Rgas)
 
 
-@pytest.mark.parametrize("fluid", FLUIDS)
-def test_universal_relations(fluid):
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_universal_relations(case):
     """Test thermodynamic relations valid for any fluid."""
 
-    for rho, u in zip(rho_test, u_test):
+    fluid = case.fluid
+    rtol = 1e-5  # exact algebraic identities, loosened only for float32
+
+    for rho, u in zip(case.rho, case.u):
+        P = fluid.get_P(rho, u)
+        T = fluid.get_T(rho, u)
+
         # Definition of enthalpy
         h = fluid.get_h(rho, u)
-        assert np.allclose(h, u + fluid.get_P(rho, u) / rho)
+        assert np.allclose(h, u + P / rho)
 
-        # Definition of gamma
+        # Definition of the isentropic exponent, a^2 = gamma p / rho. For a
+        # perfect gas gamma is also cp/cv, but for a real gas the two differ and
+        # it is this one that governs acoustics -- see get_gamma's docstring.
+        a = fluid.get_a(rho, u)
+        assert np.allclose(a**2, fluid.get_gamma(rho, u) * P / rho, rtol=rtol)
+
+        # Thermodynamic consistency, dh = T ds + dp/rho, evaluated at constant
+        # density and then at constant pressure. These cross-check the entropy
+        # path against the enthalpy path, so they catch an equation of state
+        # whose s and h have drifted out of step with each other.
+        #
+        # Note the trap: dhdP_rho = dudP_rho + 1/rho follows straight from
+        # h = u + p/rho and is how these derivatives are usually implemented,
+        # so asserting *that* would be a tautology. The T ds form below is
+        # independent of the route taken.
+        assert np.allclose(
+            fluid.get_dhdP_rho(rho, u),
+            T * fluid.get_dsdP_rho(rho, u) + 1.0 / rho,
+            rtol=rtol,
+        )
+        assert np.allclose(
+            fluid.get_dhdrho_P(rho, u),
+            T * fluid.get_dsdrho_P(rho, u),
+            rtol=rtol,
+        )
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_universal_relations_numerical(case):
+    """Thermodynamic identities that need a numerical derivative to check."""
+
+    fluid = case.fluid
+    rtol = 1e-3  # numerical derivatives, as in test_derivatives
+
+    for rho, u in zip(case.rho, case.u):
+        rho0 = np.mean(rho)
+        u0 = np.mean(u)
+
+        # (ds/du)_rho = 1/T, the definition of temperature.
+        u_vec = np.linspace(0.9, 1.1) * u0
+        dsdu = np.gradient(fluid.get_s(rho0, u_vec), u_vec)
+        T_vec = fluid.get_T(rho0, u_vec)
+        assert np.allclose(dsdu[1:-1], 1.0 / T_vec[1:-1], rtol=rtol)
+
+        # a^2 = (dP/drho)_s, marching along an isentrope through the state.
+        s0 = fluid.get_s(rho0, u0)
+        rho_vec = np.linspace(0.9, 1.1) * rho0
+        u_isen = fluid.set_rho_s(rho_vec, s0)[1]
+        dPdrho = np.gradient(fluid.get_P(rho_vec, u_isen), rho_vec)
+        a_vec = fluid.get_a(rho_vec, u_isen)
+        assert np.allclose(dPdrho[1:-1], a_vec[1:-1] ** 2, rtol=rtol)
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_perfect_gamma_is_cp_over_cv(case):
+    """For a perfect gas only, the isentropic exponent equals cp/cv.
+
+    Not a universal relation: :meth:`~ember.fluid._Fluid.get_gamma` returns the
+    isentropic exponent, which for a real gas differs from the ratio of specific
+    heats. The two coincide when cp and cv are constant.
+    """
+
+    fluid = case.fluid
+    if not isinstance(fluid, ember.fluid.PerfectFluid):
+        pytest.skip("cp/cv equals the isentropic exponent only for a perfect gas")
+
+    for rho, u in zip(case.rho, case.u):
         gamma = fluid.get_gamma(rho, u)
         cv = fluid.get_cv(rho, u)
         cp = fluid.get_cp(rho, u)
         assert np.allclose(gamma, cp / cv)
 
 
-@pytest.mark.parametrize("fluid", FLUIDS)
-def test_get_set_pairs(fluid):
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_get_set_pairs(case):
     """Test the get and set pairs for the fluid properties."""
 
-    for rho, u in zip(rho_test, u_test):
+    fluid = case.fluid
+    for rho, u in zip(case.rho, case.u):
         h = fluid.get_h(rho, u)
         s = fluid.get_s(rho, u)
         P = fluid.get_P(rho, u)
         T = fluid.get_T(rho, u)
 
         rtol = 1e-4  # Original tolerance maintained for round-trip tests
-        assert np.allclose(fluid.set_h_s(h, s), (rho, u), rtol=rtol)
-        assert np.allclose(fluid.set_P_T(P, T), (rho, u), rtol=rtol)
-        assert np.allclose(fluid.set_P_s(P, s), (rho, u), rtol=rtol)
-        assert np.allclose(fluid.set_P_h(P, h), (rho, u), rtol=rtol)
-        assert np.allclose(fluid.set_P_rho(P, rho), (rho, u), rtol=rtol)
-        assert np.allclose(fluid.set_T_rho(T, rho), (rho, u), rtol=rtol)
-        assert np.allclose(fluid.set_T_s(T, s), (rho, u), rtol=rtol)
-        assert np.allclose(fluid.set_rho_s(rho, s), (rho, u), rtol=rtol)
+
+        def _check(name, got):
+            # Density and energy are checked separately: density is strictly
+            # positive so a relative test is sound, while energy is measured
+            # from the datum and vanishes there, needing an absolute floor.
+            rho_got, u_got = got
+            assert np.allclose(rho_got, rho, rtol=rtol), f"set_{name}: density"
+            assert np.allclose(u_got, u, rtol=rtol, atol=case.u_atol), (
+                f"set_{name}: internal energy"
+            )
+
+        _check("h_s", fluid.set_h_s(h, s))
+        _check("P_T", fluid.set_P_T(P, T))
+        _check("P_s", fluid.set_P_s(P, s))
+        _check("P_h", fluid.set_P_h(P, h))
+        _check("P_rho", fluid.set_P_rho(P, rho))
+        _check("T_rho", fluid.set_T_rho(T, rho))
+        _check("T_s", fluid.set_T_s(T, s))
+        _check("rho_s", fluid.set_rho_s(rho, s))
 
 
-@pytest.mark.parametrize("fluid", FLUIDS)
-def test_internal_energy_datum(fluid):
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_internal_energy_datum(case):
     """Test the internal energy datum for the fluid properties."""
 
+    fluid = case.fluid
     T_dtm = fluid.T_dtm
     # Use a temperature above T_dtm to have a non-zero u
-    T_test = T_dtm + 100.0
-    rho, u = fluid.set_P_T(1e5, T_test)
+    T_test = T_dtm + case.T_off
+    rho, u = fluid.set_P_T(case.P_pt, T_test)
     assert np.isclose(fluid.get_T(rho, u), T_test)
 
     # Test that internal energy is zero at the datum temperature
-    _, u_datum = fluid.set_P_T(1e5, T_dtm)
-    assert np.isclose(u_datum, 0.0, atol=1e-10)
+    _, u_datum = fluid.set_P_T(case.P_pt, T_dtm)
+    assert np.isclose(u_datum, 0.0, atol=case.u_atol)
 
 
-@pytest.mark.parametrize("fluid", FLUIDS)
-def test_derivatives(fluid):
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_derivatives(case):
     """Test the derivatives of the fluid properties."""
 
+    fluid = case.fluid
     rtol = 1e-3  # Tolerance for numerical derivatives (relaxed for float32)
 
-    for rho, u in zip(rho_test, u_test):
+    for rho, u in zip(case.rho, case.u):
         # Evaulate rho and P vectors for perturbations
         rho0 = np.mean(rho)
         P0 = fluid.get_P(rho, u).mean()
@@ -166,17 +417,23 @@ def test_derivatives(fluid):
         dhdp = np.gradient(fluid.get_h(rho0, u_vec), P_vec)
         dudp = np.gradient(u_vec, P_vec)
 
-        assert np.allclose(dsdp[1:-1], fluid.get_dsdP_rho(rho0, u_vec)[1:-1], rtol=rtol)
-        assert np.allclose(dhdp[1:-1], fluid.get_dhdP_rho(rho0, u_vec), rtol=rtol)
-        assert np.allclose(dudp[1:-1], fluid.get_dudP_rho(rho0, u_vec), rtol=rtol)
+        # Evaluate the analytic derivatives at the same trimmed states as the
+        # numerical ones, rather than slicing their result. A perfect gas
+        # returns a scalar here -- these derivatives do not depend on u at all,
+        # so with a scalar density there is nothing to index.
+        u_mid = u_vec[1:-1]
+        assert np.allclose(dsdp[1:-1], fluid.get_dsdP_rho(rho0, u_mid), rtol=rtol)
+        assert np.allclose(dhdp[1:-1], fluid.get_dhdP_rho(rho0, u_mid), rtol=rtol)
+        assert np.allclose(dudp[1:-1], fluid.get_dudP_rho(rho0, u_mid), rtol=rtol)
 
 
-@pytest.mark.parametrize("fluid", FLUIDS)
-def test_get_functions_out_parameter(fluid):
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_get_functions_out_parameter(case):
     """Test that out= parameter writes correct results into pre-allocated array."""
 
-    rho = np.ones((3, 4), order="F", dtype=np.float32) * 2.5
-    u = np.full((3, 4), 8e4, order="F", dtype=np.float32)
+    fluid = case.fluid
+    rho = np.full((3, 4), case.rho_pt, order="F", dtype=np.float32)
+    u = np.full((3, 4), case.u_pt, order="F", dtype=np.float32)
 
     get_funcs = [
         fluid.get_cp,
@@ -212,12 +469,13 @@ def test_get_functions_out_parameter(fluid):
         )
 
 
-@pytest.mark.parametrize("fluid", FLUIDS)
-def test_get_functions_out_3d(fluid):
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_get_functions_out_3d(case):
     """Test out= parameter with 3D F-contiguous arrays."""
 
-    rho = np.ones((3, 4, 2), order="F", dtype=np.float32) * 2.5
-    u = np.full((3, 4, 2), 8e4, order="F", dtype=np.float32)
+    fluid = case.fluid
+    rho = np.full((3, 4, 2), case.rho_pt, order="F", dtype=np.float32)
+    u = np.full((3, 4, 2), case.u_pt, order="F", dtype=np.float32)
 
     get_funcs = [
         fluid.get_P,
@@ -240,11 +498,12 @@ def test_get_functions_out_3d(fluid):
         )
 
 
-@pytest.mark.parametrize("fluid", FLUIDS)
-def test_change_datum(fluid):
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_change_datum(case):
     """Test change_datum method returns fluid with correct datum."""
 
-    P_dtm_new, T_dtm_new = 2e5, 400.0
+    fluid = case.fluid
+    P_dtm_new, T_dtm_new = case.datum_new
 
     fluid_new = fluid.change_datum(P_dtm_new, T_dtm_new)
 
@@ -254,16 +513,22 @@ def test_change_datum(fluid):
         np.float32(T_dtm_new),
     )
 
-    # Check that fluid properties are preserved
+    # Check that fluid properties are preserved. They must be compared at the
+    # same *physical* state, reached through each fluid's own datum: shifting
+    # the datum re-labels internal energy, so feeding both fluids the same u
+    # would ask them about different conditions. That distinction is invisible
+    # for a perfect gas, whose properties are constant, and decisive for a real
+    # one, whose are not.
     rho, u = fluid_new.set_P_T(P_dtm_new, T_dtm_new)
-    assert np.allclose(fluid_new.get_cp(rho, u), fluid.get_cp(rho, u))
-    assert np.allclose(fluid_new.get_gamma(rho, u), fluid.get_gamma(rho, u))
-    assert np.allclose(fluid_new.get_Rgas(rho, u), fluid.get_Rgas(rho, u))
-    assert np.allclose(fluid_new.get_mu(rho, u), fluid.get_mu(rho, u))
-    assert np.allclose(fluid_new.get_Pr(rho, u), fluid.get_Pr(rho, u))
+    rho_old, u_old = fluid.set_P_T(P_dtm_new, T_dtm_new)
+    rtol = 1e-4
+    for name in ("cp", "gamma", "Rgas", "mu", "Pr"):
+        new_val = getattr(fluid_new, f"get_{name}")(rho, u)
+        old_val = getattr(fluid, f"get_{name}")(rho_old, u_old)
+        assert np.allclose(new_val, old_val, rtol=rtol), f"get_{name} not preserved"
 
     # At the new datum, u=0 and s=0
-    assert np.allclose(u, 0.0, atol=1e-10)
+    assert np.allclose(u, 0.0, atol=case.u_atol)
     assert np.allclose(fluid_new.get_s(rho, u), 0.0, atol=1e-4)
 
 
@@ -339,15 +604,20 @@ def test_set_P_rho_accuracy_comparison():
         )
 
 
-@pytest.mark.parametrize("fluid", FLUIDS)
-def test_set_P_rho_accuracy(fluid):
-    """Test numerical accuracy of set_P_rho implementation."""
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_set_P_rho_accuracy(case):
+    """Test numerical accuracy of set_P_rho implementation.
 
-    # Test conditions spanning typical CFD ranges
-    P_test = np.array([1e3, 1e5, 1e6, 5e6])  # Pa
-    rho_test = np.array([0.1, 1.0, 5.0, 10.0])  # kg/m^3
+    Density preservation and the pressure round-trip hold for any equation of
+    state. The ideal gas law check that used to live here moved to
+    :func:`test_perfect_set_P_rho_ideal_gas_law`, since it is only true when
+    the compressibility factor is one.
+    """
 
-    max_temp_error = 0.0
+    fluid = case.fluid
+    P_test = np.array(case.P_acc)  # Pa
+    rho_test = np.array(case.rho_acc)  # kg/m^3
+
     max_pressure_error = 0.0
 
     for P in P_test:
@@ -358,16 +628,6 @@ def test_set_P_rho_accuracy(fluid):
             # Verify density is preserved exactly
             assert np.allclose(rho_out, rho, rtol=1e-15)
 
-            # Compute temperature from internal energy
-            T_computed = fluid.get_T(rho_out, u_out)
-
-            # Expected temperature from ideal gas law
-            T_expected = P / (fluid.get_Rgas(rho, u_out) * rho)
-
-            # Track maximum temperature error
-            temp_rel_error = abs(T_computed - T_expected) / T_expected
-            max_temp_error = max(max_temp_error, temp_rel_error)
-
             # Verify round-trip accuracy: P_rho -> get_P
             P_roundtrip = fluid.get_P(rho_out, u_out)
             pressure_rel_error = abs(P_roundtrip - P) / P
@@ -375,8 +635,33 @@ def test_set_P_rho_accuracy(fluid):
 
     # Assert tight accuracy bounds to prevent regression
     # Note: tolerances relaxed for float32 Fortran implementation
-    assert max_temp_error < 1e-4, f"Temperature error too large: {max_temp_error}"
     assert max_pressure_error < 1e-4, f"Pressure error too large: {max_pressure_error}"
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_perfect_set_P_rho_ideal_gas_law(case):
+    """For a perfect gas only, set_P_rho lands on the ideal gas temperature.
+
+    Split out of :func:`test_set_P_rho_accuracy`: a real gas satisfies
+    ``p = Z rho R T`` with ``Z != 1``, so recovering T from ``p/(rho R)`` is a
+    perfect-gas assertion, not a universal one.
+    """
+
+    fluid = case.fluid
+    if not isinstance(fluid, ember.fluid.PerfectFluid):
+        pytest.skip("p = rho R T holds only for a perfect gas")
+
+    max_temp_error = 0.0
+    for P in np.array(case.P_acc):
+        for rho in np.array(case.rho_acc):
+            _, u_out = fluid.set_P_rho(P, rho)
+            T_computed = fluid.get_T(rho, u_out)
+            T_expected = P / (fluid.get_Rgas(rho, u_out) * rho)
+            max_temp_error = max(
+                max_temp_error, abs(T_computed - T_expected) / T_expected
+            )
+
+    assert max_temp_error < 1e-4, f"Temperature error too large: {max_temp_error}"
 
 
 def test_perfect_fluid_validation():

@@ -6,8 +6,10 @@ underlying equations of state. The abstraction cleanly separates thermodynamic
 relations from the flow solver, allowing easy extension to real gas models or
 tabulated properties.
 
-Currently, the only implementation of the interface is :class:`PerfectFluid` for ideal gases with
-constant specific heats.
+Two implementations are provided: :class:`PerfectFluid`, for ideal gases with
+constant specific heats, and :class:`RealFluid`, a thermodynamically consistent
+real gas built from a fitted entropy surface. Coefficients for the latter are
+produced offline by :mod:`ember.realgas_fit`.
 
 A fluid instance is immutable and only stores intrinsic fluid properties that never change, such
 as specific heats for a perfect gas, or the fluid species for a real
@@ -36,9 +38,9 @@ to subtracting two large floats. We define a thermodynamic datum
 simultaneously. Enthalpy at the datum is not zero because of the pressure term
 in :math:`h = u + p/\rho`.
 
-It is possible to shift the datum state of a :class:`PerfectFluid` instance
-using :meth:`PerfectFluid.change_datum`, which returns a new instance with the
-same properties but shifted datum. The current datum is accessible via
+It is possible to shift the datum state of a fluid instance using
+``change_datum``, which returns a new instance with the same properties but
+shifted datum. The current datum is accessible via
 :attr:`~PerfectFluid.P_dtm` and :attr:`~PerfectFluid.T_dtm` attributes.
 
 
@@ -76,6 +78,9 @@ import numpy as np
 from abc import ABC, abstractmethod
 from ember import util
 import ember.fortran
+import ember.realgas_fit
+
+_leg = np.polynomial.legendre
 
 
 class _Fluid(ABC):
@@ -98,6 +103,14 @@ class _Fluid(ABC):
         self._u_ref = np.float32(V_ref**2)
         self._T_ref = np.float32(V_ref**2 / Rgas_ref)
         self._rhoV_ref = np.float32(rho_ref * V_ref)
+
+    @staticmethod
+    def _const_nd(rho_nd, u_nd, value, out):
+        """Return a constant broadcast to the shape of (rho_nd, u_nd)."""
+        if out is None:
+            return util.full(np.broadcast(rho_nd, u_nd).shape, value)
+        out[...] = value
+        return out
 
     @abstractmethod
     def set_h_s(self, h, s):
@@ -419,14 +432,6 @@ class PerfectFluid(_Fluid):
 
         self._gamma_m1 = self._gamma - np.float32(1.0)
         self._ga_gam1 = self._gamma / self._gamma_m1
-
-    @staticmethod
-    def _const_nd(rho_nd, u_nd, value, out):
-        """Return a constant broadcast to the shape of (rho_nd, u_nd)."""
-        if out is None:
-            return util.full(np.broadcast(rho_nd, u_nd).shape, value)
-        out[...] = value
-        return out
 
     def set_h_s(self, h, s):
         r"""Density and internal energy from specific enthalpy and entropy.
@@ -825,6 +830,10 @@ class PerfectFluid(_Fluid):
             Derivative :math:`(\partial s/\partial p)_\rho` [J/kg/K/Pa].
         """
         out = self.get_P(rho, u, out=out)
+        if not isinstance(out, np.ndarray):
+            # Scalar/0-d setup path (cold): in-place ufuncs with out= reject
+            # numpy scalars, so fall back to the plain expression.
+            return self._cv_nd / out
         np.divide(self._cv_nd, out, out=out)
         return out
 
@@ -906,6 +915,10 @@ class PerfectFluid(_Fluid):
             Derivative :math:`(\partial u/\partial \rho)_p` [J·m³/kg²].
         """
         out = self.get_P(rho, u, out=out)
+        if not isinstance(out, np.ndarray):
+            # Scalar/0-d setup path (cold): in-place ufuncs with out= reject
+            # numpy scalars, so fall back to the plain expression.
+            return -out / (rho**2 * (self._gamma - 1.0))
         out /= rho**2 * (self._gamma - 1.0)
         np.negative(out, out=out)
         return out
@@ -1243,3 +1256,1247 @@ class PerfectFluid(_Fluid):
             V_ref=V_ref if V_ref is not None else self.V_ref,
             Rgas_ref=Rgas_ref if Rgas_ref is not None else self.Rgas_ref,
         )
+
+
+class RealFluid(_Fluid):
+    r"""Real gas defined by a fitted entropy surface.
+
+    Implements the thermodynamically consistent equation of state of Wheeler
+    (2024), *Computers and Fluids* 268:106088. A polynomial surface is fitted
+    offline to the compressibility factor and integrated analytically to give
+    entropy; temperature and pressure are then *derived* from that one surface
+    rather than fitted separately, so the thermodynamic relations between them
+    hold exactly. Use :mod:`ember.realgas_fit` to produce the coefficients.
+
+    The consistency is the point. An interpolated lookup table satisfies its own
+    tabulated values but not the relations between them, and the resulting
+    mismatch acts like a non-equilibrium process, creating spurious entropy
+    wherever gradients are steep. Wheeler shows a 62k-point table was needed to
+    bring turbine entropy rise within 1.4 percent of this method.
+
+    Evaluation
+    ----------
+    Everything descends from the entropy surface and its partials, via the
+    combined first and second law :math:`\mathrm{d}u = T\,\mathrm{d}s +
+    (p/\rho^2)\,\mathrm{d}\rho`:
+
+    .. math::
+
+        T = \left[\left(\frac{\partial s}{\partial u}\right)_\rho\right]^{-1},
+        \qquad
+        p = -\rho^2 T \left(\frac{\partial s}{\partial \rho}\right)_u
+
+    The inverse ``set_*`` methods have no closed form and are solved by Newton
+    iteration; see :meth:`set_P_rho` and :meth:`set_P_T`.
+
+    Domain of validity
+    ------------------
+    The polynomials mean nothing outside the box they were fitted over, so
+    ``rho_lim`` and ``u_lim`` are enforced: iterates are clamped to the box, and
+    a solve that cannot meet its tolerance raises rather than returning a state
+    the fit does not describe.
+
+    Limitations
+    -----------
+    Transport properties are constant, as for :class:`PerfectFluid`. Wheeler's
+    fitted viscosity and conductivity surfaces are not implemented, so ``mu``
+    and ``Pr`` are supplied directly. The viscous terms additionally use a
+    specific heat frozen at the datum, because the kernel behind
+    :attr:`~ember.block.Block.cp_nd` takes a scalar; the inviscid path and
+    :meth:`get_cp` are unaffected.
+
+    Parameters
+    ----------
+    alpha : array_like
+        Two-dimensional Legendre coefficients of the compressibility factor
+        :math:`Z(\hat\rho, \hat u)` [--], in the normalised coordinates of
+        :ref:`normalised-coordinates`.
+    beta : array_like
+        One-dimensional Legendre coefficients of :math:`s/R` along the reference
+        isochor [--].
+    rho_lim : tuple
+        ``(min, max)`` density bounds of the fit box [kg/m³].
+    u_lim : tuple
+        ``(min, max)`` internal energy bounds of the fit box [J/kg], on the same
+        datum as the data ``beta`` was fitted to.
+    rho_isochor : float
+        Density of the isochor the entropy integral starts from [kg/m³]. This is
+        Wheeler's :math:`\rho_\mathrm{ref}`, and is unrelated to
+        :attr:`rho_ref`, the non-dimensionalisation scale.
+    Rgas : float
+        Specific gas constant [J/kg/K]. Converts the two dimensionless
+        coefficient arrays into entropy, and is what :meth:`get_Rgas` reports.
+    mu : float
+        Dynamic viscosity [kg/m/s].
+    Pr : float
+        Prandtl number [--].
+    P_dtm : float, optional
+        Datum pressure where u = 0 and s = 0 [Pa]. Must lie in the fit box.
+    T_dtm : float, optional
+        Datum temperature where u = 0 and s = 0 [K]. Must lie in the fit box.
+    rho_ref : float, optional
+        Reference density for non-dimensionalisation.
+    V_ref : float, optional
+        Reference velocity for non-dimensionalisation.
+    Rgas_ref : float, optional
+        Reference gas constant for non-dimensionalisation.
+
+    """
+
+    # Newton iteration limit and relative tolerance for the set_* inversions.
+    # Newton converges quadratically from the perfect-gas guess, so the limit is
+    # a backstop rather than a working iteration count; the tolerance sits just
+    # above where float32 arithmetic stalls.
+    _NEWTON_ITER = 40
+    _NEWTON_RTOL = 1e-6
+    # Acceptance tolerance for the converged solve, loose enough that a
+    # float32 surface evaluation cannot trip it but tight enough that a
+    # genuinely unreachable state is reported rather than returned.
+    _VERIFY_RTOL = 1e-4
+
+    def __init__(
+        self,
+        alpha,
+        beta,
+        rho_lim,
+        u_lim,
+        rho_isochor,
+        Rgas,
+        mu,
+        Pr,
+        P_dtm=1e5,
+        T_dtm=300.0,
+        rho_ref=1.0,
+        V_ref=1.0,
+        Rgas_ref=1.0,
+    ):
+        super().__init__(rho_ref, V_ref, Rgas_ref)
+
+        self._alpha = np.atleast_2d(np.asarray(alpha, dtype=np.float64))
+        self._beta = np.atleast_1d(np.asarray(beta, dtype=np.float64))
+        self._rho_lim = (float(rho_lim[0]), float(rho_lim[1]))
+        self._u_lim = (float(u_lim[0]), float(u_lim[1]))
+        self._rho_isochor = float(rho_isochor)
+        self._Rgas = np.float32(Rgas)
+        self._mu = np.float32(mu)
+        self._mu_nd = np.float32(mu / (rho_ref * V_ref))
+        self._Rgas_nd = np.float32(Rgas / Rgas_ref)
+        self._Pr = np.float32(Pr)
+        self._P_dtm = np.float32(P_dtm)
+        self._T_dtm = np.float32(T_dtm)
+
+        if not self._rho_lim[1] > self._rho_lim[0] > 0.0:
+            raise ValueError(f"rho_lim must be increasing and positive, got {rho_lim}")
+        if not self._u_lim[1] > self._u_lim[0]:
+            raise ValueError(f"u_lim must be increasing, got {u_lim}")
+        if not self._rho_lim[0] <= self._rho_isochor <= self._rho_lim[1]:
+            raise ValueError(
+                f"rho_isochor={rho_isochor} must lie within rho_lim={rho_lim}"
+            )
+        if Rgas <= 0.0:
+            raise ValueError(f"Rgas={Rgas} must be positive.")
+        if mu <= 0.0:
+            raise ValueError(f"mu={mu} must be positive.")
+        if Pr <= 0.0:
+            raise ValueError(f"Pr={Pr} must be positive.")
+        if T_dtm <= 0.0:
+            raise ValueError(f"T_dtm={T_dtm} must be positive.")
+        if P_dtm <= 0.0:
+            raise ValueError(f"P_dtm={P_dtm} must be positive.")
+
+        # Two-pass construction. The datum is the internal energy and entropy at
+        # (P_dtm, T_dtm), which can only be found by inverting the surface --
+        # but the surface needs the datum to be built. So build it once in raw
+        # units with no datum shift, invert to locate the datum, then rebuild
+        # with the datum and reference scales folded in.
+        self._companion = None
+        self._configure(0.0, 0.0, 1.0, 1.0, 1.0, dtype=np.float64)
+        rho_dtm, u_dtm = self.set_P_T(float(P_dtm), float(T_dtm))
+        s_dtm = self._entropy(rho_dtm, u_dtm)
+        self._configure(
+            float(u_dtm), float(s_dtm), rho_ref, V_ref, Rgas_ref, dtype=np.float32
+        )
+
+        # A single scalar specific heat, frozen at the datum, for the viscous
+        # kernel alone: it takes cp as a scalar (see Block.cp_nd) and cannot yet
+        # accept a field. :meth:`get_cp` remains fully state-dependent, so only
+        # the viscous terms see the frozen value.
+        self._cp_nd = np.float32(self.get_cp(float(rho_dtm) / rho_ref, 0.0))
+
+        self._companion = self._build_companion(P_dtm, T_dtm)
+
+    def _build_companion(self, P_dtm, T_dtm):
+        """Perfect gas approximating this fluid, used to seed the Newton solves.
+
+        The ``set_*`` interface is stateless -- the nonreflecting boundary calls
+        :meth:`set_P_rho` with no previous internal energy to warm-start from --
+        so the initial guess has to come from somewhere. A perfect gas matched
+        to this fluid at the centre of its box has analytic inverses and lands
+        within a few tens of percent even at a compressibility factor well away
+        from one, which Newton clears in a handful of iterations.
+        """
+        rho_c = 0.5 * (self._rho_box_nd[0] + self._rho_box_nd[1])
+        u_c = 0.5 * (self._u_box_nd[0] + self._u_box_nd[1])
+        gamma = float(self.get_gamma(rho_c, u_c))
+        cp = float(self.get_cp(rho_c, u_c)) * float(self.Rgas_ref)
+        return PerfectFluid(
+            cp=cp,
+            gamma=gamma,
+            mu=float(self._mu),
+            Pr=float(self._Pr),
+            P_dtm=float(P_dtm),
+            T_dtm=float(T_dtm),
+            rho_ref=float(self.rho_ref),
+            V_ref=float(self.V_ref),
+            Rgas_ref=float(self.Rgas_ref),
+        )
+
+    def _configure(self, u_dtm_abs, s_dtm, rho_ref, V_ref, Rgas_ref, dtype):
+        """Compose the fit box, datum and reference scales into one surface.
+
+        The normalised coordinates are affine in density and internal energy, so
+        the datum shift and the reference scaling are just further affine maps
+        and collapse into the same two constants per variable. The hot path
+        therefore never applies them separately: one multiply-add takes a stored
+        non-dimensional state straight to the normalised coordinate.
+
+        Folding the datum in here, rather than subtracting it from the result,
+        is what keeps single precision usable. Entropy over a typical table
+        varies by a few percent of its absolute level, so forming
+        ``s = (large) - (large)`` once per node per Runge-Kutta stage would lose
+        most of the significant digits.
+        """
+        u_ref = V_ref**2
+        rho_m = 0.5 * (self._rho_lim[1] + self._rho_lim[0])
+        rho_f = 0.5 * (self._rho_lim[1] - self._rho_lim[0])
+        u_m = 0.5 * (self._u_lim[1] + self._u_lim[0])
+        u_f = 0.5 * (self._u_lim[1] - self._u_lim[0])
+
+        # rho_hat = rho_nd*_xa + _xb, u_hat = u_nd*_ya + _yb
+        self._xa = dtype(rho_ref / rho_f)
+        self._xb = dtype(-rho_m / rho_f)
+        self._ya = dtype(u_ref / u_f)
+        self._yb = dtype((u_dtm_abs - u_m) / u_f)
+
+        self._rho_box_nd = (
+            dtype(self._rho_lim[0] / rho_ref),
+            dtype(self._rho_lim[1] / rho_ref),
+        )
+        self._u_box_nd = (
+            dtype((self._u_lim[0] - u_dtm_abs) / u_ref),
+            dtype((self._u_lim[1] - u_dtm_abs) / u_ref),
+        )
+
+        # Characteristic magnitudes, used to scale convergence tests where a
+        # target may legitimately pass through zero at the datum.
+        self._u_scale = dtype(0.5 * (self._u_lim[1] - self._u_lim[0]) / u_ref)
+        self._s_scale = dtype(float(self._Rgas) / Rgas_ref)
+
+        # Density integral of the compressibility surface, in closed form.
+        c = rho_m / rho_f
+        x0 = (self._rho_isochor - rho_m) / rho_f
+        D, Lam = ember.realgas_fit.entropy_integral(self._alpha, c, x0)
+
+        # Assemble the non-dimensional entropy surface,
+        #     s = legval2d(x, y, Sc) + legval(y, Sl)*log(rho)
+        # The log argument is rho_hat + c = rho/rho_f, which differs from the
+        # stored rho by a constant factor; that constant, the isochor entropy
+        # polynomial and the datum offset are all functions of internal energy
+        # alone, so they fold into the constant-density row of Sc.
+        k = float(self._Rgas) / Rgas_ref
+        Sl = -k * Lam
+        Sc = -k * D
+        beta = np.zeros(Sc.shape[1])
+        beta[: self._beta.size] = self._beta[: Sc.shape[1]]
+        Sc[0, :] += k * beta + Sl * np.log(rho_ref / rho_f)
+        Sc[0, 0] -= s_dtm / Rgas_ref
+
+        self._Sc = Sc.astype(dtype)
+        self._Sc_x = _leg.legder(Sc, axis=0).astype(dtype)
+        self._Sc_y = _leg.legder(Sc, axis=1).astype(dtype)
+        self._Sc_xx = _leg.legder(Sc, 2, axis=0).astype(dtype)
+        self._Sc_xy = _leg.legder(_leg.legder(Sc, axis=0), axis=1).astype(dtype)
+        self._Sc_yy = _leg.legder(Sc, 2, axis=1).astype(dtype)
+        self._Sl = Sl.astype(dtype)
+        self._Sl_y = _leg.legder(Sl).astype(dtype)
+        self._Sl_yy = _leg.legder(Sl, 2).astype(dtype)
+
+    def _entropy(self, rho, u):
+        """Non-dimensional entropy alone, without the partials."""
+        x, y = self._hats(rho, u)
+        return _leg.legval2d(x, y, self._Sc) + _leg.legval(y, self._Sl) * np.log(rho)
+
+    def _floor(self, kind):
+        """Magnitude below which a target counts as zero for convergence tests.
+
+        Pressure and temperature are strictly positive, so their own value is a
+        sound scale. Entropy and enthalpy are measured from an arbitrary datum
+        and pass through zero there, so they need a characteristic scale of
+        their own or the relative test becomes meaningless.
+        """
+        if kind == "s":
+            return self._s_scale
+        if kind == "h":
+            return self._u_scale
+        return 0.0
+
+    def _guess_2d(self, method, a, b):
+        """Seed a two-dimensional solve with (rho, u) from the companion gas."""
+        if self._companion is None:
+            # Only during construction, before the companion can be built.
+            rho0 = 0.5 * (self._rho_box_nd[0] + self._rho_box_nd[1])
+            u0 = 0.5 * (self._u_box_nd[0] + self._u_box_nd[1])
+            return np.broadcast_to(rho0, np.broadcast(a, b).shape), u0
+        rho0, u0 = getattr(self._companion, method)(a, b)
+        return np.clip(rho0, *self._rho_box_nd), np.clip(u0, *self._u_box_nd)
+
+    def _guess_u(self, method, *args):
+        """Seed a scalar solve with an internal energy from the companion gas."""
+        if self._companion is None:
+            return 0.5 * (self._u_box_nd[0] + self._u_box_nd[1])
+        return np.clip(getattr(self._companion, method)(*args)[1], *self._u_box_nd)
+
+    @staticmethod
+    def _isentropic_exponent(st, rho):
+        """Isentropic exponent from a state dict, k = (dP/drho)_s * rho/P."""
+        dPdrho_s = st["P_r"] - st["P_u"] * st["s_r"] / st["s_u"]
+        return dPdrho_s * rho / st["P"]
+
+    def _hats(self, rho, u):
+        """Normalised coordinates from a non-dimensional state.
+
+        The two are broadcast against each other before returning:
+        ``legval2d`` requires its coordinate arrays to have identical shapes and
+        will not broadcast them itself, whereas this interface promises that any
+        broadcastable pair of inputs works.
+        """
+        x = rho * self._xa + self._xb
+        y = u * self._ya + self._yb
+        return np.broadcast_arrays(x, y)
+
+    def _partials1(self, rho, u):
+        """Entropy and its first partials with respect to (rho, u).
+
+        Split from :meth:`_partials2` because pressure, temperature and enthalpy
+        need only these, and the solver asks for them once per Runge-Kutta
+        stage. Second derivatives cost three more surface evaluations and are
+        wanted only by the specific heats and the Newton solves.
+        """
+        x, y = self._hats(rho, u)
+        lnr = np.log(rho)
+        M = _leg.legval(y, self._Sl)
+        My = _leg.legval(y, self._Sl_y)
+
+        s = _leg.legval2d(x, y, self._Sc) + M * lnr
+        s_r = _leg.legval2d(x, y, self._Sc_x) * self._xa + M / rho
+        s_u = (_leg.legval2d(x, y, self._Sc_y) + My * lnr) * self._ya
+        return s, s_r, s_u
+
+    def _partials2(self, rho, u):
+        """Entropy and its first and second partials with respect to (rho, u)."""
+        x, y = self._hats(rho, u)
+        lnr = np.log(rho)
+        M = _leg.legval(y, self._Sl)
+        My = _leg.legval(y, self._Sl_y)
+        Myy = _leg.legval(y, self._Sl_yy)
+
+        s = _leg.legval2d(x, y, self._Sc) + M * lnr
+        s_r = _leg.legval2d(x, y, self._Sc_x) * self._xa + M / rho
+        s_u = (_leg.legval2d(x, y, self._Sc_y) + My * lnr) * self._ya
+        s_rr = _leg.legval2d(x, y, self._Sc_xx) * self._xa**2 - M / rho**2
+        s_ru = (_leg.legval2d(x, y, self._Sc_xy) * self._xa + My / rho) * self._ya
+        s_uu = (_leg.legval2d(x, y, self._Sc_yy) + Myy * lnr) * self._ya**2
+        return s, s_r, s_u, s_rr, s_ru, s_uu
+
+    @staticmethod
+    def _pick(kind, st, rho, u):
+        """Value and (rho, u) partials of one property, from a state dict."""
+        if kind == "h":
+            P, P_r, P_u = st["P"], st["P_r"], st["P_u"]
+            return u + P / rho, P_r / rho - P / rho**2, 1.0 + P_u / rho
+        return st[kind], st[f"{kind}_r"], st[f"{kind}_u"]
+
+    def _state(self, rho, u):
+        """Pressure, temperature, entropy and their first partials, in one pass.
+
+        Temperature and pressure follow from the entropy partials by the
+        combined first and second law; their own partials then follow by
+        differentiating those expressions, which is where the second
+        derivatives of the surface are needed.
+        """
+        s, s_r, s_u, s_rr, s_ru, s_uu = self._partials2(rho, u)
+        T = 1.0 / s_u
+        Tsq = T * T
+        T_r = -Tsq * s_ru
+        T_u = -Tsq * s_uu
+        P = -(rho**2) * T * s_r
+        P_r = -2.0 * rho * T * s_r - rho**2 * (T_r * s_r + T * s_rr)
+        P_u = -(rho**2) * (T_u * s_r + T * s_ru)
+        return {
+            "s": s,
+            "s_r": s_r,
+            "s_u": s_u,
+            "T": T,
+            "T_r": T_r,
+            "T_u": T_u,
+            "P": P,
+            "P_r": P_r,
+            "P_u": P_u,
+        }
+
+    def _rebuild(self, **over):
+        """New instance with the same fitted surface and selected overrides."""
+        kwargs = {
+            "alpha": self._alpha,
+            "beta": self._beta,
+            "rho_lim": self._rho_lim,
+            "u_lim": self._u_lim,
+            "rho_isochor": self._rho_isochor,
+            "Rgas": float(self._Rgas),
+            "mu": float(self._mu),
+            "Pr": float(self._Pr),
+            "P_dtm": float(self._P_dtm),
+            "T_dtm": float(self._T_dtm),
+            "rho_ref": float(self.rho_ref),
+            "V_ref": float(self.V_ref),
+            "Rgas_ref": float(self.Rgas_ref),
+        }
+        kwargs.update(over)
+        return self.__class__(**kwargs)
+
+    @staticmethod
+    def _write(val, out):
+        """Return a value, filling a pre-allocated array if one was given."""
+        if out is None:
+            return val
+        out[...] = val
+        return out
+
+    def _solve_2d(self, kind1, val1, kind2, val2, method):
+        """Newton solve for (rho, u) matching two properties.
+
+        The 2x2 Jacobian is inverted in closed form. The alternative -- fixing
+        one variable and calling a scalar solve inside an outer iteration --
+        costs the product of the two iteration counts and needs the inner solve
+        converged tightly for the outer derivative to mean anything, while
+        arriving at the same Jacobian algebra regardless.
+        """
+        val1 = np.asarray(val1)
+        val2 = np.asarray(val2)
+        rho0, u0 = self._guess_2d(method, val1, val2)
+        shape = np.broadcast(val1, val2, rho0, u0).shape
+        # Iterate in the callers' own precision, so single-precision inputs give
+        # single-precision results as the rest of this interface promises. The
+        # float32 floor is what _NEWTON_RTOL is sized against.
+        dtype = np.result_type(np.float32, val1, val2)
+        rho = np.array(np.broadcast_to(rho0, shape), dtype=dtype, copy=True)
+        u = np.array(np.broadcast_to(u0, shape), dtype=dtype, copy=True)
+
+        for _ in range(self._NEWTON_ITER):
+            st = self._state(rho, u)
+            f1, f1r, f1u = self._pick(kind1, st, rho, u)
+            f2, f2r, f2u = self._pick(kind2, st, rho, u)
+            r1 = f1 - val1
+            r2 = f2 - val2
+            det = f1r * f2u - f1u * f2r
+            drho = (r1 * f2u - r2 * f1u) / det
+            du = (r2 * f1r - r1 * f2r) / det
+            rho_new = np.clip(rho - drho, *self._rho_box_nd)
+            u_new = np.clip(u - du, *self._u_box_nd)
+            step = np.max(
+                np.abs(rho_new - rho) / np.abs(rho) + np.abs(u_new - u) / self._u_scale
+            )
+            rho, u = rho_new, u_new
+            if step < self._NEWTON_RTOL:
+                break
+
+        st = self._state(rho, u)
+        self._verify(kind1, self._pick(kind1, st, rho, u)[0], val1, method)
+        self._verify(kind2, self._pick(kind2, st, rho, u)[0], val2, method)
+        return rho, u
+
+    def _solve_u(self, rho, val, kind, method, *guess_args):
+        """Newton solve for u at fixed density, matching one property.
+
+        Monotone in ``u`` for every property this is used with -- entropy
+        because ``(ds/du)_rho = 1/T > 0``, temperature because ``cv > 0``, and
+        pressure because heating at constant volume raises it -- so the
+        iteration cannot walk off in the wrong direction.
+        """
+        val = np.asarray(val)
+        u0 = self._guess_u(method, *guess_args)
+        shape = np.broadcast(np.asarray(rho), val, u0).shape
+        dtype = np.result_type(np.float32, np.asarray(rho), val)
+        rho_b = np.broadcast_to(np.asarray(rho, dtype=dtype), shape)
+        u = np.array(np.broadcast_to(u0, shape), dtype=dtype, copy=True)
+
+        for _ in range(self._NEWTON_ITER):
+            st = self._state(rho_b, u)
+            f, _, f_u = self._pick(kind, st, rho_b, u)
+            u_new = np.clip(u - (f - val) / f_u, *self._u_box_nd)
+            step = np.max(np.abs(u_new - u)) / self._u_scale
+            u = u_new
+            if step < self._NEWTON_RTOL:
+                break
+
+        st = self._state(rho_b, u)
+        self._verify(kind, self._pick(kind, st, rho_b, u)[0], val, method)
+        return rho, u
+
+    def _verify(self, kind, got, want, method):
+        """Raise unless a Newton solve met its tolerance everywhere.
+
+        A state the fit cannot reach is a physical error -- most often a
+        requested condition outside the box the coefficients were fitted over --
+        so it is reported rather than returned as a silently wrong state.
+        """
+        scale = np.abs(want) + self._floor(kind)
+        bad = np.abs(got - want) > self._VERIFY_RTOL * scale
+        if not np.any(bad):
+            return
+        nbad = int(np.count_nonzero(bad))
+        worst = float(np.max(np.abs(got - want) / np.where(scale > 0, scale, 1.0)))
+        raise RuntimeError(
+            f"{type(self).__name__}.{method} failed to converge at {nbad} of "
+            f"{np.size(bad)} states matching {kind}: worst relative residual "
+            f"{worst:.3e}. The requested state is most likely outside the fit "
+            f"box rho_lim={self._rho_lim}, u_lim={self._u_lim}."
+        )
+
+    def set_h_s(self, h, s):
+        """Density and internal energy from specific enthalpy and entropy.
+
+        Solved by two-dimensional Newton iteration; see :meth:`set_P_T`.
+
+        Parameters
+        ----------
+        h : array_like
+            Specific enthalpy [J/kg].
+        s : array_like
+            Specific entropy [J/kg/K].
+
+        Returns
+        -------
+        rho : ndarray
+            Density [kg/m³].
+        u : ndarray
+            Specific internal energy [J/kg].
+        """
+        return self._solve_2d("h", h, "s", s, "set_h_s")
+
+    def set_P_h(self, P, h):
+        """Density and internal energy from pressure and specific enthalpy.
+
+        Solved by two-dimensional Newton iteration; see :meth:`set_P_T`.
+
+        Parameters
+        ----------
+        P : array_like
+            Pressure [Pa].
+        h : array_like
+            Specific enthalpy [J/kg].
+
+        Returns
+        -------
+        rho : ndarray
+            Density [kg/m³].
+        u : ndarray
+            Specific internal energy [J/kg].
+        """
+        return self._solve_2d("P", P, "h", h, "set_P_h")
+
+    def set_P_rho(self, P, rho):
+        r"""Density and internal energy from pressure and density.
+
+        Density is already known, so this is a scalar Newton solve for the
+        internal energy satisfying :math:`p(\rho, u) = p`, seeded from the
+        companion perfect gas. The residual is monotone in :math:`u`, since
+        heating at constant volume raises pressure.
+
+        This is on the per-step nonreflecting boundary path, so it is solved for
+        the whole array at once rather than node by node.
+
+        Parameters
+        ----------
+        P : array_like
+            Pressure [Pa].
+        rho : array_like
+            Density [kg/m³].
+
+        Returns
+        -------
+        rho : ndarray
+            Density [kg/m³] (returned unchanged).
+        u : ndarray
+            Specific internal energy [J/kg].
+        """
+        return self._solve_u(rho, P, "P", "set_P_rho", P, rho)
+
+    def set_P_s(self, P, s):
+        """Density and internal energy from pressure and specific entropy.
+
+        Solved by two-dimensional Newton iteration; see :meth:`set_P_T`.
+
+        Parameters
+        ----------
+        P : array_like
+            Pressure [Pa].
+        s : array_like
+            Specific entropy [J/kg/K].
+
+        Returns
+        -------
+        rho : ndarray
+            Density [kg/m³].
+        u : ndarray
+            Specific internal energy [J/kg].
+        """
+        return self._solve_2d("P", P, "s", s, "set_P_s")
+
+    def set_P_T(self, P, T):
+        r"""Density and internal energy from pressure and temperature.
+
+        Neither variable is known directly, so both are found together by
+        Newton iteration on the 2x2 system :math:`p(\rho, u) = p`,
+        :math:`T(\rho, u) = T`, with the Jacobian assembled analytically from
+        the entropy surface and inverted in closed form.
+
+        Conditioning degrades near the critical point, where
+        :math:`(\partial p/\partial\rho)_T \rightarrow 0` and the Jacobian
+        determinant vanishes. That is physical rather than numerical -- pressure
+        and temperature stop being independent coordinates on the saturation
+        line -- and lies outside any sensible fit box, but it will surface as a
+        convergence failure rather than a wrong answer.
+
+        Parameters
+        ----------
+        P : array_like
+            Pressure [Pa].
+        T : array_like
+            Temperature [K].
+
+        Returns
+        -------
+        rho : ndarray
+            Density [kg/m³].
+        u : ndarray
+            Specific internal energy [J/kg].
+        """
+        return self._solve_2d("P", P, "T", T, "set_P_T")
+
+    def set_rho_s(self, rho, s):
+        r"""Density and internal energy from density and specific entropy.
+
+        A scalar Newton solve for the internal energy satisfying
+        :math:`s(\rho, u) = s`. The residual is monotone in :math:`u` because
+        :math:`(\partial s/\partial u)_\rho = 1/T > 0`, so convergence is
+        assured from any starting point in the box.
+
+        This is on the per-step nonreflecting boundary path, so it is solved for
+        the whole array at once rather than node by node.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        s : array_like
+            Specific entropy [J/kg/K].
+
+        Returns
+        -------
+        rho : ndarray
+            Density [kg/m³] (returned unchanged).
+        u : ndarray
+            Specific internal energy [J/kg].
+        """
+        return self._solve_u(rho, s, "s", "set_rho_s", rho, s)
+
+    def set_T_rho(self, T, rho):
+        r"""Density and internal energy from temperature and density.
+
+        A scalar Newton solve for the internal energy satisfying
+        :math:`T(\rho, u) = T`. The residual is monotone in :math:`u` because
+        the specific heat at constant volume is positive.
+
+        Parameters
+        ----------
+        T : array_like
+            Temperature [K].
+        rho : array_like
+            Density [kg/m³].
+
+        Returns
+        -------
+        rho : ndarray
+            Density [kg/m³] (returned unchanged).
+        u : ndarray
+            Specific internal energy [J/kg].
+        """
+        return self._solve_u(rho, T, "T", "set_T_rho", T, rho)
+
+    def set_T_s(self, T, s):
+        """Density and internal energy from temperature and specific entropy.
+
+        Solved by two-dimensional Newton iteration; see :meth:`set_P_T`.
+
+        Parameters
+        ----------
+        T : array_like
+            Temperature [K].
+        s : array_like
+            Specific entropy [J/kg/K].
+
+        Returns
+        -------
+        rho : ndarray
+            Density [kg/m³].
+        u : ndarray
+            Specific internal energy [J/kg].
+        """
+        return self._solve_2d("T", T, "s", s, "set_T_s")
+
+    def get_a(self, rho, u, out=None):
+        r"""Speed of sound from density and internal energy.
+
+        .. math:: a = \sqrt{k\, p / \rho}
+
+        where :math:`k` is the isentropic exponent of :meth:`get_gamma`. Note
+        this is the isentropic exponent and not the ratio of specific heats,
+        which for a real gas is a different number.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        a : ndarray
+            Speed of sound [m/s].
+        """
+        st = self._state(rho, u)
+        gamma = self._isentropic_exponent(st, rho)
+        return self._write(np.sqrt(gamma * st["P"] / rho), out)
+
+    def get_cp(self, rho, u, out=None):
+        r"""Specific heat at constant pressure from density and internal energy.
+
+        Obtained from the specific heat at constant volume and the ratio of the
+        isentropic and isothermal density derivatives of pressure,
+
+        .. math::
+
+            \frac{c_p}{c_v}
+                = \frac{(\partial p/\partial\rho)_s}{(\partial p/\partial\rho)_T}
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        cp : ndarray
+            Specific heat at constant pressure [J/kg/K].
+        """
+        st = self._state(rho, u)
+        cv = 1.0 / st["T_u"]
+        dPdrho_s = st["P_r"] - st["P_u"] * st["s_r"] / st["s_u"]
+        dPdrho_T = st["P_r"] - st["P_u"] * st["T_r"] / st["T_u"]
+        return self._write(cv * dPdrho_s / dPdrho_T, out)
+
+    def get_cv(self, rho, u, out=None):
+        r"""Specific heat at constant volume from density and internal energy.
+
+        .. math:: c_v = \left(\frac{\partial u}{\partial T}\right)_\rho
+
+        evaluated by inverting the temperature derivative, which comes from the
+        second derivative of the entropy surface.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        cv : ndarray
+            Specific heat at constant volume [J/kg/K].
+        """
+        st = self._state(rho, u)
+        return self._write(1.0 / st["T_u"], out)
+
+    def get_dhdP_rho(self, rho, u, out=None):
+        r"""Derivative of specific enthalpy with respect to pressure at constant density.
+
+        .. math::
+
+            \left.\frac{\partial h}{\partial p}\right|_\rho
+                = \left.\frac{\partial u}{\partial p}\right|_\rho + \frac{1}{\rho}
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        dhdP_rho : ndarray
+            Derivative :math:`(\partial h/\partial p)_\rho` [m³/kg].
+        """
+        st = self._state(rho, u)
+        return self._write(1.0 / st["P_u"] + 1.0 / rho, out)
+
+    def get_dhdrho_P(self, rho, u, out=None):
+        r"""Derivative of specific enthalpy with respect to density at constant pressure.
+
+        .. math::
+
+            \left.\frac{\partial h}{\partial \rho}\right|_p
+                = \left.\frac{\partial u}{\partial \rho}\right|_p
+                - \frac{p}{\rho^2}
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        dhdrho_P : ndarray
+            Derivative :math:`(\partial h/\partial \rho)_p` [J·m³/kg²].
+        """
+        st = self._state(rho, u)
+        dudrho_P = -st["P_r"] / st["P_u"]
+        return self._write(dudrho_P - st["P"] / rho**2, out)
+
+    def get_dsdP_rho(self, rho, u, out=None):
+        r"""Derivative of specific entropy with respect to pressure at constant density.
+
+        Obtained by chain rule through internal energy at fixed density,
+
+        .. math::
+
+            \left.\frac{\partial s}{\partial p}\right|_\rho
+                = \frac{(\partial s/\partial u)_\rho}{(\partial p/\partial u)_\rho}
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        dsdP_rho : ndarray
+            Derivative :math:`(\partial s/\partial p)_\rho` [J/kg/K/Pa].
+        """
+        st = self._state(rho, u)
+        return self._write(st["s_u"] / st["P_u"], out)
+
+    def get_dsdrho_P(self, rho, u, out=None):
+        r"""Derivative of specific entropy with respect to density at constant pressure.
+
+        .. math::
+
+            \left.\frac{\partial s}{\partial \rho}\right|_p
+                = \left.\frac{\partial s}{\partial \rho}\right|_u
+                + \left.\frac{\partial s}{\partial u}\right|_\rho
+                  \left.\frac{\partial u}{\partial \rho}\right|_p
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        dsdrho_P : ndarray
+            Derivative :math:`(\partial s/\partial \rho)_p` [J·m³/kg²/K].
+        """
+        st = self._state(rho, u)
+        dudrho_P = -st["P_r"] / st["P_u"]
+        return self._write(st["s_r"] + st["s_u"] * dudrho_P, out)
+
+    def get_dudP_rho(self, rho, u, out=None):
+        r"""Derivative of specific internal energy with respect to pressure at constant density.
+
+        The reciprocal of the pressure derivative taken directly from the
+        surface,
+
+        .. math::
+
+            \left.\frac{\partial u}{\partial p}\right|_\rho
+                = \left[\left.\frac{\partial p}{\partial u}\right|_\rho\right]^{-1}
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        dudP_rho : ndarray
+            Derivative :math:`(\partial u/\partial p)_\rho` [m³/kg].
+        """
+        st = self._state(rho, u)
+        return self._write(1.0 / st["P_u"], out)
+
+    def get_dudrho_P(self, rho, u, out=None):
+        r"""Derivative of specific internal energy with respect to density at constant pressure.
+
+        .. math::
+
+            \left.\frac{\partial u}{\partial \rho}\right|_p
+                = -\frac{(\partial p/\partial \rho)_u}{(\partial p/\partial u)_\rho}
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        dudrho_P : ndarray
+            Derivative :math:`(\partial u/\partial \rho)_p` [J·m³/kg²].
+        """
+        st = self._state(rho, u)
+        return self._write(-st["P_r"] / st["P_u"], out)
+
+    def get_gamma(self, rho, u, out=None):
+        r"""Isentropic exponent from density and internal energy.
+
+        .. math::
+
+            k = \frac{\rho}{p}\left.\frac{\partial p}{\partial \rho}\right|_s
+
+        This is the exponent that governs acoustics and the characteristic
+        decomposition, and it is what :meth:`get_a` uses. For a real gas it is
+        **not** the ratio of specific heats :math:`c_p/c_v`, which is available
+        separately from :meth:`get_cp` and :meth:`get_cv`; the two coincide only
+        when the specific heats are constant.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        gamma : ndarray
+            Isentropic exponent [--].
+        """
+        st = self._state(rho, u)
+        return self._write(self._isentropic_exponent(st, rho), out)
+
+    def get_h(self, rho, u, out=None):
+        r"""Specific enthalpy from density and internal energy.
+
+        .. math:: h = u + p/\rho
+
+        Enthalpy carries an offset dependent on the arbitrary datum state where
+        :math:`u = s = 0`; only changes in :math:`h` are physically meaningful.
+        See :ref:`datum-state`.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        h : ndarray
+            Specific enthalpy [J/kg].
+        """
+        return self._write(u + self.get_P(rho, u) / rho, out)
+
+    def get_mu(self, rho, u, out=None):
+        r"""Dynamic viscosity (constant; the transport surfaces are not fitted).
+
+        If reference scales are set, then this method returns a
+        quasi-dimensional viscosity in units of [m] --- see
+        :ref:`reference-scales` for details.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        mu : ndarray
+            Dynamic viscosity [kg/m/s].
+        """
+        return self._const_nd(rho, u, self._mu_nd, out)
+
+    def get_P(self, rho, u, out=None):
+        r"""Pressure from density and internal energy.
+
+        From the combined first and second law, at constant internal energy,
+
+        .. math:: p = -\rho^2 T \left(\frac{\partial s}{\partial \rho}\right)_u
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        P : ndarray
+            Pressure [Pa].
+        """
+        _, s_r, s_u = self._partials1(rho, u)
+        return self._write(-(rho**2) * s_r / s_u, out)
+
+    def get_P_h_T(self, rho, u, out_P=None, out_h=None, out_T=None):
+        """Batched evaluation of pressure, enthalpy and temperature.
+
+        All three come from the same entropy partials, so evaluating them
+        together costs barely more than any one of them, where the base class
+        would walk the polynomial surface three times. The solver calls this
+        once per Runge-Kutta stage.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out_P, out_h, out_T : ndarray, optional
+            Pre-allocated output arrays.
+
+        Returns
+        -------
+        tuple of ndarray
+            ``(P, h, T)``.
+        """
+        _, s_r, s_u = self._partials1(rho, u)
+        T = 1.0 / s_u
+        P = -(rho**2) * T * s_r
+        return (
+            self._write(P, out_P),
+            self._write(u + P / rho, out_h),
+            self._write(T, out_T),
+        )
+
+    def get_Pr(self, rho, u, out=None):
+        r"""Prandtl number (constant; the transport surfaces are not fitted).
+
+        .. math:: \mathit{Pr} = \frac{\mu c_p}{\kappa}
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        Pr : ndarray
+            Prandtl number [--].
+        """
+        return self._const_nd(rho, u, self._Pr, out)
+
+    def get_Rgas(self, rho, u, out=None):
+        r"""Specific gas constant (a constant property of the species).
+
+        Note that for a real gas this is *not* :math:`p/(\rho T)`, which is
+        larger by the compressibility factor.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        R : ndarray
+            Specific gas constant [J/kg/K].
+        """
+        return self._const_nd(rho, u, self._Rgas_nd, out)
+
+    def get_s(self, rho, u, out=None):
+        r"""Specific entropy from density and internal energy.
+
+        Evaluated directly from the fitted surface: an isochor polynomial in
+        internal energy, less the analytic density integral of the
+        compressibility factor.
+
+        Entropy is defined relative to the arbitrary datum state where
+        :math:`u = s = 0`; only changes in :math:`s` are physically meaningful.
+        See :ref:`datum-state`.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        s : ndarray
+            Specific entropy [J/kg/K].
+        """
+        return self._write(self._entropy(rho, u), out)
+
+    def get_T(self, rho, u, out=None):
+        r"""Temperature from density and internal energy.
+
+        From the combined first and second law, at constant density,
+
+        .. math::
+
+            T = \left[\left(\frac{\partial s}{\partial u}\right)_\rho\right]^{-1}
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        T : ndarray
+            Temperature [K].
+        """
+        _, _, s_u = self._partials1(rho, u)
+        return self._write(1.0 / s_u, out)
+
+    def change_datum(self, P_dtm, T_dtm):
+        """Get a new :class:`RealFluid` with shifted datum.
+
+        The coefficient arrays are untouched: they describe a dimensionless
+        surface in normalised coordinates, and the datum only enters through the
+        affine constants composed at construction. See :ref:`datum-state`.
+
+        Parameters
+        ----------
+        P_dtm : float
+            New datum pressure [Pa].
+        T_dtm : float
+            New datum temperature [K].
+
+        Returns
+        -------
+        fluid_new : RealFluid
+            New fluid instance with shifted energy and entropy datum.
+
+        """
+        return self._rebuild(P_dtm=P_dtm, T_dtm=T_dtm)
+
+    def change_ref(self, rho_ref=None, V_ref=None, Rgas_ref=None):
+        """Make a new :class:`RealFluid` with different reference scales.
+
+        Omitted reference scales default to the current instance's, so only the
+        scales that need to be changed must be specified. As with
+        :meth:`change_datum`, no refit is involved.
+
+        Parameters
+        ----------
+        rho_ref : float, optional
+            New reference density for non-dimensionalisation.
+        V_ref : float, optional
+            New reference velocity for non-dimensionalisation.
+        Rgas_ref : float, optional
+            New reference gas constant for non-dimensionalisation.
+
+        Returns
+        -------
+        fluid_new : RealFluid
+            New fluid instance with the same properties but different reference
+            scales.
+
+        """
+        return self._rebuild(
+            rho_ref=rho_ref if rho_ref is not None else self.rho_ref,
+            V_ref=V_ref if V_ref is not None else self.V_ref,
+            Rgas_ref=Rgas_ref if Rgas_ref is not None else self.Rgas_ref,
+        )
+
+    @property
+    def rho_lim_nd(self):
+        r"""Density bounds of the fit box :math:`\rho/\rho_\mathrm{ref}` [--].
+
+        The constructor takes the box in SI, but ``get_*`` and ``set_*`` work in
+        non-dimensional units, so this is the form a caller needs to check that
+        a state is in range. Outside these bounds the fitted polynomials are
+        meaningless and the ``set_*`` solves will refuse to converge.
+        """
+        return (float(self._rho_box_nd[0]), float(self._rho_box_nd[1]))
+
+    @property
+    def u_lim_nd(self):
+        r"""Internal energy bounds of the fit box :math:`u/u_\mathrm{ref}` [--].
+
+        As :attr:`rho_lim_nd`, and additionally shifted onto this fluid's datum:
+        the constructor's ``u_lim`` is on whatever datum the coefficients were
+        fitted against, whereas ``get_*`` and ``set_*`` take internal energy
+        measured from :attr:`P_dtm`, :attr:`T_dtm`. Changing the datum moves
+        these bounds even though the underlying box is unchanged.
+        """
+        return (float(self._u_box_nd[0]), float(self._u_box_nd[1]))
