@@ -54,11 +54,21 @@ def make_state(fluid, lo_frac=0.25, hi_frac=0.75):
 
 def main():
     perfect = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
-    real = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5))
+    # Order 8 is realgas_fit.fit's own default, and its residual already
+    # sits well below what float32 can carry; order 10 is included to show
+    # what the extra terms cost, since the kernel is linear in them.
+    real = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5), order=8)
+    real10 = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5), order=10)
     print(f"grid {NI}^3 = {N:,} nodes, best of {REPEAT}")
-    print(f"real fit: alpha {real._alpha.shape}, Sc {real._Sc.shape}")
+    for tag, f in (("o8", real), ("o10", real10)):
+        terms = int((f._Sc_x != 0).sum() + (f._Sc_y != 0).sum())
+        print(f"  {tag}: alpha {f._alpha.shape}, {terms} nonzero surface terms")
 
-    for name, fluid in (("PerfectFluid", perfect), ("RealFluid", real)):
+    for name, fluid in (
+        ("PerfectFluid", perfect),
+        ("RealFluid o8", real),
+        ("RealFluid o10", real10),
+    ):
         rho, u = make_state(fluid)
         outs = [np.zeros(SHAPE, np.float32, order="F") for _ in range(3)]
 
@@ -71,7 +81,7 @@ def main():
             )
         )
         print(
-            f"{name:13s} get_P_h_T {fused:8.2f} ms "
+            f"{name:14s} get_P_h_T {fused:8.2f} ms "
             f"({fused * 1e6 / N:6.2f} ns/node)   "
             f"P+h+T separately {singles:8.2f} ms  "
             f"(fused is {singles / fused:.2f}x)"
