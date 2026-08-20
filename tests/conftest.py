@@ -214,7 +214,6 @@ def fit_real_fluid(model, rho_lim, u_lim, order=10, ni=40, **kwargs):
         Rgas=model.Rgas,
         rho_lim=rho_lim,
         u_lim=u_lim,
-        rho_isochor=float(np.mean(rho_lim)),
         order=order,
     )
 
