@@ -31,6 +31,7 @@ def build_duct_grid(
     length_ratio=3.0,
     nj=65,
     nk=57,
+    periodic_k=None,
     Ma_bulk=0.3,
     Po=1e5,
     To=300.0,
@@ -74,6 +75,13 @@ def build_duct_grid(
         Cross-section side, mean-radius ratio, and length ratio of the duct.
     nj, nk : int
         Cross-stream node counts. Must be odd for symmetric clustering.
+    periodic_k : {None, "full", "hmesh"}, optional
+        Make the k (pitchwise) faces periodic to each other instead of walls.
+        ``None`` leaves the duct closed, as before. ``"full"`` makes the whole
+        of both k faces periodic. ``"hmesh"`` makes two streamwise intervals
+        periodic with a wall between them, the topology
+        :attr:`~ember.block.Block.i_perk` describes, so that a single seam
+        carries both a periodic and a wall region.
     Ma_bulk, Po, To : float
         Bulk Mach number and inlet stagnation pressure and temperature.
 
@@ -151,6 +159,33 @@ def build_duct_grid(
     block.patches["outlet"].set_P(P_out)
     block.patches["outlet"].set_backflow_ho_s(ho, so)
     block.patches["outlet"].set_backflow_Vt(0.0)
+
+    # Optional pitchwise periodicity. The duct's k faces are walls by default;
+    # making them periodic gives a block that is periodic to ITSELF in k, the
+    # topology the fused viscous seam study needs.
+    #
+    # Appended HERE, before grid.calculate_wdist() below and before anything
+    # reads a wall array, because block.ijk_wall_visc, block.i_perk and
+    # block._face_wall_arrays_slip are all cached_object and their docstrings
+    # forbid modifying patches after first access. Appending after the grid is
+    # built would leave wallk1 at 0.0 across the whole seam AND i_perk at
+    # (0, 0), silently -- the wall distance would be wrong too.
+    if periodic_k is not None:
+        if periodic_k == "full":
+            i_lims = [(0, -1)]
+        elif periodic_k == "hmesh":
+            # Periodic over the upstream and downstream thirds with a "blade"
+            # (wall) between: i_perk reads back (i_LE, i_TE) rather than the
+            # degenerate (ni, 1) of the full-span case.
+            i_le = (ni - 1) // 3
+            i_lims = [(0, i_le), (ni - 1 - i_le, -1)]
+        else:
+            raise ValueError(
+                f"periodic_k must be None, 'full' or 'hmesh', got {periodic_k!r}"
+            )
+        for i_lim in i_lims:
+            block.patches.append(ember.patch.PeriodicPatch(k=0, i=i_lim))
+            block.patches.append(ember.patch.PeriodicPatch(k=-1, i=i_lim))
 
     # Velocity ripple, applied before the non-dimensional reference is set (as in
     # the original example/script ordering).

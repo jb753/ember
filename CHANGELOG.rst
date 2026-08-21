@@ -129,6 +129,16 @@ without a deprecation period.
   logging. The solves now keep 0-d at 0-d and hand back a numpy scalar, which
   is what ``PerfectFluid`` always did.
 
+* Added a ``periodic_k`` argument to ``ember.cases.build_duct_grid``, which
+  makes the duct's pitchwise faces periodic to each other instead of walls:
+  ``"full"`` for the whole face, ``"hmesh"`` for two streamwise intervals with
+  a wall between, the topology ``Block.i_perk`` describes. The patches have to
+  be appended during construction rather than afterwards, because
+  ``ijk_wall_visc`` and ``i_perk`` are cached on first access and the wall
+  distance is computed from the patches -- appending later leaves the seam
+  reading as a wall, silently. Written for the viscous seam study, where a
+  block periodic to itself in k is the case under test.
+
 .. _v0.2.0:
 
 0.2.0 (2026-08-18)
