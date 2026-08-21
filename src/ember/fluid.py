@@ -68,7 +68,7 @@ Equations of state are unchanged when all quantities are scaled consistently. Fo
 
 .. math:: \frac{p}{\rho_\mathrm{ref} V_\mathrm{ref}^2} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{V_\mathrm{ref}^2 / R_\mathrm{ref}} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{T_\mathrm{ref}}
 
-Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters.
+Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters. Scaling the transport properties on their own, to sweep Reynolds number at a fixed flow field, is what :meth:`PerfectFluid.change_visc` is for.
 
 We can get a new instance with different reference scales using the :meth:`PerfectFluid.change_ref` method.
 
@@ -397,6 +397,34 @@ class _Fluid(ABC):
     def change_ref(self, rho_ref=None, V_ref=None, Rgas_ref=None):
         """Return a new instance with different reference scales."""
         raise NotImplementedError("Subclasses must implement change_ref")
+
+    @abstractmethod
+    def change_visc(self, scale_visc):
+        r"""Return a new instance with the viscosity scaled by a factor.
+
+        A pure factory in the manner of :meth:`change_datum`: nothing else about
+        the fluid moves, and no field values are transformed. Sweeping Reynolds
+        number is what this is for --- the geometry, the boundary conditions and
+        the thermodynamics all stay put, and only the transport scale changes.
+
+        The Prandtl number is untouched, so the thermal conductivity
+        :math:`\kappa = \mu c_p / \mathit{Pr}` scales with the viscosity and the
+        Peclet number follows the Reynolds number.
+
+        The scaling is relative to *this* fluid, so the factors of a chain of
+        calls multiply together.
+
+        Parameters
+        ----------
+        scale_visc : float
+            Factor to multiply this fluid's viscosity by. Must be positive.
+
+        Returns
+        -------
+        fluid_new : _Fluid
+            New fluid instance with scaled viscosity.
+        """
+        raise NotImplementedError()
 
     def to_dict(self):
         """Return a portable record of this fluid, ready for :meth:`from_dict`.
@@ -1408,6 +1436,27 @@ class PerfectFluid(_Fluid):
             Rgas_ref=Rgas_ref if Rgas_ref is not None else self.Rgas_ref,
         )
 
+    def change_visc(self, scale_visc):
+        """Get a new :class:`PerfectFluid` with scaled viscosity.
+
+        The viscosity is a constant here, so scaling it is a change of the
+        stored ``mu`` and nothing else. See :meth:`_Fluid.change_visc`.
+
+        Parameters
+        ----------
+        scale_visc : float
+            Factor to multiply this fluid's viscosity by. Must be positive.
+
+        Returns
+        -------
+        fluid_new : PerfectFluid
+            New fluid instance with scaled viscosity.
+
+        """
+        if scale_visc <= 0.0:
+            raise ValueError(f"scale_visc={scale_visc} must be positive.")
+        return self._rebuild(mu=float(self._mu) * float(scale_visc))
+
 
 class RealFluid(_Fluid):
     r"""Real gas defined by a fitted entropy surface.
@@ -1484,6 +1533,9 @@ class RealFluid(_Fluid):
         Dynamic viscosity [kg/m/s].
     Pr : float
         Prandtl number [--].
+    scale_visc : float, optional
+        Factor multiplying the viscosity, for sweeping Reynolds number without
+        touching the fit; see :meth:`change_visc`.
     P_dtm : float, optional
         Datum pressure where u = 0 and s = 0 [Pa]. Must lie in the fit box.
         Defaults to this fluid's own pressure at the centre of that box, which
@@ -1549,6 +1601,7 @@ class RealFluid(_Fluid):
         Rgas,
         mu,
         Pr,
+        scale_visc=1.0,
         P_dtm=None,
         T_dtm=None,
         rho_ref=1.0,
@@ -1563,7 +1616,8 @@ class RealFluid(_Fluid):
         self._u_lim = (float(u_lim[0]), float(u_lim[1]))
         self._Rgas = np.float32(Rgas)
         self._mu = np.float32(mu)
-        self._mu_nd = np.float32(mu / (rho_ref * V_ref))
+        self._scale_visc = np.float32(scale_visc)
+        self._mu_nd = np.float32(mu * scale_visc / (rho_ref * V_ref))
         self._Rgas_nd = np.float32(Rgas / Rgas_ref)
         self._Pr = np.float32(Pr)
 
@@ -1582,6 +1636,8 @@ class RealFluid(_Fluid):
             raise ValueError(f"Rgas={Rgas} must be positive.")
         if mu <= 0.0:
             raise ValueError(f"mu={mu} must be positive.")
+        if scale_visc <= 0.0:
+            raise ValueError(f"scale_visc={scale_visc} must be positive.")
         if Pr <= 0.0:
             raise ValueError(f"Pr={Pr} must be positive.")
 
@@ -1647,7 +1703,7 @@ class RealFluid(_Fluid):
         return PerfectFluid(
             cp=cp,
             gamma=gamma,
-            mu=float(self._mu),
+            mu=float(self._mu) * float(self._scale_visc),
             Pr=float(self._Pr),
             P_dtm=float(P_dtm),
             T_dtm=float(T_dtm),
@@ -2119,6 +2175,7 @@ class RealFluid(_Fluid):
             "Rgas": float(self._Rgas),
             "mu": float(self._mu),
             "Pr": float(self._Pr),
+            "scale_visc": float(self._scale_visc),
             "P_dtm": float(self._P_dtm),
             "T_dtm": float(self._T_dtm),
             "rho_ref": float(self.rho_ref),
@@ -2897,6 +2954,8 @@ class RealFluid(_Fluid):
     def get_mu(self, rho, u, out=None):
         r"""Dynamic viscosity (constant; the transport surfaces are not fitted).
 
+        The constructor's ``mu``, multiplied by ``scale_visc``.
+
         If reference scales are set, then this method returns a
         quasi-dimensional viscosity in units of [m] --- see
         :ref:`reference-scales` for details.
@@ -3136,6 +3195,30 @@ class RealFluid(_Fluid):
             V_ref=V_ref if V_ref is not None else self.V_ref,
             Rgas_ref=Rgas_ref if Rgas_ref is not None else self.Rgas_ref,
         )
+
+    def change_visc(self, scale_visc):
+        r"""Get a new :class:`RealFluid` with scaled viscosity.
+
+        Carried as a multiplier on the viscosity rather than folded into the
+        stored ``mu``, so that it still means the same thing once the transport
+        properties become surfaces of :math:`(\rho, u)` in their own right: the
+        factor multiplies whatever the fluid says its viscosity is, wherever
+        that came from. See :meth:`_Fluid.change_visc`.
+
+        Parameters
+        ----------
+        scale_visc : float
+            Factor to multiply this fluid's viscosity by. Must be positive.
+
+        Returns
+        -------
+        fluid_new : RealFluid
+            New fluid instance with scaled viscosity.
+
+        """
+        if scale_visc <= 0.0:
+            raise ValueError(f"scale_visc={scale_visc} must be positive.")
+        return self._rebuild(scale_visc=float(self._scale_visc) * float(scale_visc))
 
     @property
     def rho_lim_nd(self):

@@ -10,6 +10,8 @@ Test cases:
 - test_derivatives: Derivatives of fluid properties
 - test_change_datum: change_datum method preserves thermodynamic state
 - test_change_datum_effect: change_datum correctly affects u and s datum
+- test_change_visc: change_visc scales viscosity and nothing else
+- test_change_visc_nondim: change_visc with non-unity reference values
 - test_datum_zero: u = 0 and s = 0 simultaneously at (P_dtm, T_dtm)
 - test_set_P_rho_accuracy_comparison: Numerical accuracy of set_P_rho with different datum values
 - test_set_P_rho_accuracy: Numerical accuracy of set_P_rho implementation
@@ -582,6 +584,63 @@ def test_change_datum_effect():
     assert np.allclose(u_datum, 0.0, atol=1e-10)
     s_datum = fluid_new.get_s(rho_dtm, u_datum)
     assert np.allclose(s_datum, 0.0, atol=1e-4)
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_change_visc(case):
+    """Test change_visc scales viscosity and leaves everything else alone."""
+
+    fluid = case.fluid
+    scale = 4.0
+    fluid_new = fluid.change_visc(scale)
+
+    rho, u = case.rho_pt, case.u_pt
+
+    # Viscosity scaled, and nothing else moved with it
+    assert np.allclose(
+        fluid_new.get_mu(rho, u), scale * fluid.get_mu(rho, u), rtol=1e-6
+    )
+    assert (fluid_new.P_dtm, fluid_new.T_dtm) == (fluid.P_dtm, fluid.T_dtm)
+    for name in ("cp", "gamma", "Rgas", "Pr", "P", "T", "s"):
+        new_val = getattr(fluid_new, f"get_{name}")(rho, u)
+        old_val = getattr(fluid, f"get_{name}")(rho, u)
+        assert np.allclose(new_val, old_val, rtol=1e-6), f"get_{name} not preserved"
+
+    # Scaling is relative to the fluid it is called on, so a chain multiplies
+    # out and an inverse factor comes back to where it started
+    assert np.allclose(
+        fluid_new.change_visc(0.25).get_mu(rho, u), fluid.get_mu(rho, u), rtol=1e-6
+    )
+
+    # A round trip through to_dict carries the scaling with it
+    rebuilt = ember.fluid._Fluid.from_dict(fluid_new.to_dict())
+    assert np.allclose(rebuilt.get_mu(rho, u), fluid_new.get_mu(rho, u), rtol=1e-6)
+
+    for bad in (0.0, -1.0):
+        with pytest.raises(ValueError, match="must be positive"):
+            fluid.change_visc(bad)
+
+
+def test_change_visc_nondim():
+    """Test change_visc with non-unity reference values."""
+
+    fluid = ember.fluid.PerfectFluid(
+        cp=1005.0,
+        gamma=1.4,
+        mu=1.8e-5,
+        Pr=0.7,
+        rho_ref=1.2,
+        V_ref=300.0,
+        Rgas_ref=287.0,
+    )
+    fluid_new = fluid.change_visc(10.0)
+
+    # The reference scales are untouched, so the quasi-dimensional viscosity
+    # scales by the same factor as the physical one
+    assert (fluid_new.rho_ref, fluid_new.V_ref) == (fluid.rho_ref, fluid.V_ref)
+    assert np.isclose(
+        float(fluid_new.get_mu(1.0, 1.0)), 10.0 * 1.8e-5 / (1.2 * 300.0), rtol=1e-6
+    )
 
 
 def test_datum_zero():

@@ -69,6 +69,17 @@ without a deprecation period.
   surface it is the origin of. Passing ``P_dtm`` or ``T_dtm`` still overrides,
   either one on its own.
 
+* Added ``change_visc`` on the fluid classes, a factory in the manner of
+  ``change_datum`` returning the same fluid with its viscosity scaled by a
+  factor. Sweeping Reynolds number needs nothing else to move --- the geometry,
+  the boundary conditions and the thermodynamics all stay put --- and the
+  Prandtl number is untouched, so the conductivity scales with the viscosity
+  and the Peclet number follows the Reynolds number. ``PerfectFluid`` changes
+  its stored ``mu``; ``RealFluid`` carries the factor as a new ``scale_visc``
+  constructor argument multiplying the viscosity, so that it will still mean
+  the same thing once the transport properties are fitted surfaces of density
+  and internal energy rather than the constants they are today.
+
 * Fixed ``RealFluid``'s inversions returning an array of one where they were
   given a single state. ``asfortranarray`` forces ``ndmin=1``, so laying the
   iterate out for the kernel promoted a 0-d solve to shape ``(1,)`` -- and the
