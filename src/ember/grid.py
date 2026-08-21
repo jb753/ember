@@ -1523,8 +1523,12 @@ class Grid(_LabelledList):
             # set_residual; the pad measurably hurts blocks it cannot help).
             kb = min(_KB_SLAB, nk - 1)
             njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
+            # From the arena directly. This is a different phase from the
+            # viscous pass, so it reuses the same span the tau/q volume had --
+            # which is the point of the arena, and is safe only because the
+            # two are never live together.
             planes, rows = util.carve_view(
-                block.tau_q_halo, (ni, njp, 5, 2), (ni, 5, 3)
+                block.scratch, (ni, njp, 5, 2), (ni, 5, 3)
             )
             block.residual_nd.flags.writeable = True
             # dampin=0 here disables set_residual's fused limiter entirely:
@@ -1696,9 +1700,11 @@ class Grid(_LabelledList):
                 # nk == 2 with nj >= 6; carve_view raises otherwise).
                 ni, nj, nk = block.shape
                 kb = min(_KB_SLAB, nk - 1)
-                planes, rows = util.carve_view(
-                    block.scratch, (ni, nj, 4, 2), (ni, 4, 3)
-                )
+                # The tau/q volume above and these rolling buffers reach the
+                # same kernel call and now come from the same arena, so they
+                # are carved together (ember.block._carve_viscous) rather than
+                # separately -- carving them apart would overlap them.
+                _, _, planes, rows = ember.block._carve_viscous(block)
                 ember.fortran.set_visc_force(
                     cons=block.conserved_nd,
                     cons_cell=block.conserved_cell_nd,

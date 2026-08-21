@@ -423,7 +423,17 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
         # increment buffer -- a zero-copy view. block.store is likewise sized to
         # the nodal shape (shared with the RK path) but the Denton residual
         # history is cell-shaped, so carve a leading cell-shaped view of it too.
-        tmp = util.carve_view(block.scratch, cell_shape)
+        # ONE carve for everything this kernel gets from the arena. tmp and
+        # the multigrid scratch are live in the same call, so carving them
+        # together is what makes them disjoint -- util.carve_view packs the
+        # shapes end to end and guarantees it. block.store is a separate,
+        # persistent buffer and is carved on its own.
+        tmp, *mg_bufs = util.carve_view(
+            block.scratch,
+            cell_shape,
+            *mg_coarse_shapes(ni, nj, nk, max(n_levels_eff, 0)),
+        )
+        mg_scratch = dict(zip(MG_COARSE_NAMES, mg_bufs))
         store_cell = util.carve_view(block.store, cell_shape)
         # residual_nd is read here (a cache hit from the loop's get_convergence, or
         # a fresh evaluation) BEFORE the kernel runs. Evaluating residual_nd
@@ -466,7 +476,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 tmp=tmp,
-                **_mg_coarse_carve(block, ni, nj, nk, n_levels_eff),
+                **mg_scratch,
             )
         else:
             # Multigrid off: fine term only, no coarse scratch. Forms
@@ -505,43 +515,40 @@ def _mg_coarse_scratch_sizes(ni, nj, nk, n_levels, np=5):
     return n_corr, n_res, n_tri
 
 
-def _mg_coarse_carve(block, ni, nj, nk, n_levels_eff):
-    """Carve the hier2 kernels' scratch from ``block.tau_q_halo`` (dead outside
-    the viscous pass, which has completed and been consumed before this call, so
-    it is free private memory here). Returns the argument dict shared by both the
-    RK and scree fused kernels.
+# The hier2 kernels' scratch arguments, in the order _mg_coarse_shapes returns
+# their shapes. Kept together so the two cannot drift apart.
+MG_COARSE_NAMES = (
+    "aplane", "bb", "dtblk", "rawbuf", "sdt", "sv",
+    "corr_all", "acc0", "acc1", "cres", "triw",
+)
+
+
+def mg_coarse_shapes(ni, nj, nk, n_levels):
+    """Shapes of the hier2 kernels' eleven scratch buffers, in MG_COARSE_NAMES order.
+
+    Separated from the carve so a CALLER can fold these into the single
+    ``util.carve_view`` that also carves its own buffers. That matters because
+    the multigrid scratch and the caller's increment buffer are live at the same
+    time and now come from the same arena (``Block.scratch``): carving them
+    together is what makes them provably disjoint rather than disjoint by
+    convention. It is also what :func:`ember.block._scratch_len` sizes the arena
+    from, so the sizing and the carve cannot disagree.
     """
     nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
-    n_corr, n_res, n_tri = _mg_coarse_scratch_sizes(ni, nj, nk, n_levels_eff)
+    n_corr, n_res, n_tri = _mg_coarse_scratch_sizes(ni, nj, nk, n_levels)
     acc_sz = nc1i * nc1j * nc1k * 5
-    aplane, bb, dtblk, rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw = (
-        util.carve_view(
-            block.tau_q_halo,
-            (ni - 1, nc1j),
-            (ni - 1, nj - 1, nc1k, 5),
-            (nc1i, nc1j, nc1k),
-            (nc1i, nc1j, nc1k, 5),
-            (nc1i, nc1j, nc1k),
-            (nc1i, nc1j, nc1k),
-            (n_corr,),
-            (acc_sz,),
-            (acc_sz,),
-            (n_res,),
-            (n_tri,),
-        )
-    )
-    return dict(
-        dtblk=dtblk,
-        aplane=aplane,
-        bb=bb,
-        rawbuf=rawbuf,
-        sdt=sdt,
-        sv=sv,
-        corr_all=corr_all,
-        acc0=acc0,
-        acc1=acc1,
-        cres=cres,
-        triw=triw,
+    return (
+        (ni - 1, nc1j),
+        (ni - 1, nj - 1, nc1k, 5),
+        (nc1i, nc1j, nc1k),
+        (nc1i, nc1j, nc1k, 5),
+        (nc1i, nc1j, nc1k),
+        (nc1i, nc1j, nc1k),
+        (n_corr,),
+        (acc_sz,),
+        (acc_sz,),
+        (n_res,),
+        (n_tri,),
     )
 
 
@@ -658,7 +665,14 @@ def advance_rk_stage_mg(
             # coarse correction in acc0; the wrapper's final factor-2 hop is
             # fused with the cell->node scatter, so instead of a full-volume
             # increment it takes a rolling two-plane buffer carved from scratch.
-            rbuf = util.carve_view(block.scratch, (ni - 1, nj - 1, 5, 2))
+            # One carve, same reason as scree_step above: rbuf and the
+            # multigrid scratch reach the same kernel call.
+            rbuf, *mg_bufs = util.carve_view(
+                block.scratch,
+                (ni - 1, nj - 1, 5, 2),
+                *mg_coarse_shapes(ni, nj, nk, max(n_levels_eff, 0)),
+            )
+            mg_scratch = dict(zip(MG_COARSE_NAMES, mg_bufs))
             kernel = (
                 ember.fortran.rk_mg_irs if sf_irs > 0.0 else ember.fortran.rk_mg_noirs
             )
@@ -675,7 +689,7 @@ def advance_rk_stage_mg(
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 rbuf=rbuf,
-                **_mg_coarse_carve(block, ni, nj, nk, n_levels_eff),
+                **mg_scratch,
             )
         else:
             # Multigrid off: plain Jameson RK fine-term stage, no coarse scratch.
@@ -770,9 +784,23 @@ def _validate_mg(grid, n_levels):
     multiple of the coarsest block size. Since the sizes are powers of two,
     divisibility by the coarsest implies it for every finer level, so one check
     per dimension suffices. No-op when ``n_levels <= 0``.
+
+    Also caps ``n_levels`` at :data:`ember.block.MAX_MG_LEVELS`, because the
+    shared scratch arena is sized for that depth and a deeper hierarchy would
+    carve past its end. Checked here rather than at allocation so a bad
+    configuration is refused before marching, alongside the divisibility rule
+    it belongs with.
     """
     if n_levels <= 0:
         return
+    if n_levels > ember.block.MAX_MG_LEVELS:
+        raise ValueError(
+            f"multigrid n_levels={n_levels} exceeds the maximum "
+            f"{ember.block.MAX_MG_LEVELS}. Block.scratch is one arena sized for "
+            "that many levels (ember.block._scratch_len), so a deeper hierarchy "
+            "would carve past the end of it. Raise MAX_MG_LEVELS if you need "
+            "one, and the arena grows to match."
+        )
     b_coarse = 2**n_levels
     for i_block, block in enumerate(grid):
         ni, nj, nk = block.shape

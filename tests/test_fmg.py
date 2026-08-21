@@ -17,6 +17,8 @@ import logging
 import numpy as np
 import pytest
 
+import ember.block
+
 from ember.cases import build_duct_grid
 import ember.solver
 
@@ -67,9 +69,23 @@ def test_n_levels_zero_matches_run():
 
 def test_non_divisible_finest_raises():
     """Finest (n-1) not divisible by 2**n_levels is rejected before marching."""
-    grid = build_duct_grid(NCELL)  # nk-1 == 56, not a multiple of 16
+    grid = build_duct_grid(NCELL, nk=53)  # nk-1 == 52, not a multiple of 8
     with pytest.raises(ValueError, match="multiple"):
-        _conf(4).run_fmg(grid)
+        _conf(3).run_fmg(grid)
+
+
+def test_n_levels_above_the_arena_maximum_raises():
+    """n_levels beyond what Block.scratch is sized for is refused up front.
+
+    The scratch arena is one allocation sized for MAX_MG_LEVELS coarse levels
+    (ember.block._scratch_len), so a deeper hierarchy would carve past its end
+    -- silently, since carve_view only sees the buffer it is handed. Refused
+    alongside the divisibility rule, and before it, because "4 is never
+    allowed" is more useful than "resize your grid".
+    """
+    grid = build_duct_grid(NCELL)
+    with pytest.raises(ValueError, match="exceeds the maximum"):
+        _conf(ember.block.MAX_MG_LEVELS + 1).run_fmg(grid)
 
 
 def test_hierarchy_shapes_and_history_length():

@@ -182,7 +182,9 @@ def _run_visc_force(block, i_cusp):
 
     ni, nj, nk = block.shape
     kb = min(8, nk - 1)
-    planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
+    # One carve for the whole viscous phase, so these cannot land on
+    # top of the tau/q volume at the arena's head.
+    _, _, planes, rows = ember.block._carve_viscous(block)
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
         cons_cell=block.conserved_cell_nd,
