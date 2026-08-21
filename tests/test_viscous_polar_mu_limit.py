@@ -160,7 +160,7 @@ def _run_fused_viscous_and_polar(block):
         t=block.T_nd,
         mu=block.mu_nd,
         cp=block.cp_nd,
-        pr_lam=block.fluid._Pr,
+        kappa=block.kappa_nd,
         pr_turb=PR_TURB,
         xlength=block.xlen_sq_nd,
         vol=block.vol_nd,

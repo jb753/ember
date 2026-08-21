@@ -26,6 +26,7 @@ Test cases:
 - test_rhorVt_property_L_ref: rhorVt property under L_ref scaling
 - test_set_conserved_L_ref: set_conserved under L_ref scaling
 - test_Re_ref: Reference Reynolds number property
+- test_transport_fields_follow_a_real_gas_state: mu/kappa fields track the state
 - test_P_nd: Nondimensional pressure property
 - test_set_fluid_rescales_a_block_without_coordinates: fluid swap with no radius
 - test_cp_nd_is_a_field_for_a_real_gas: cp follows the state, not the datum
@@ -458,9 +459,53 @@ def test_Re_ref():
     b = ember.block.Block(shape=(2,))
     b.set_fluid(fluid)
     b.set_L_ref(L_ref)
+    # mu_nd is a nodal field read off the equation of state, so it needs a
+    # state to read it at -- constant though this fluid's viscosity is.
+    b.set_P_T(101325.0, 300.0)
 
     expected = mu / (rho_ref * V_ref * L_ref)
     np.testing.assert_allclose(b.mu_nd, expected, rtol=1e-5)
+
+
+def test_transport_fields_follow_a_real_gas_state():
+    """mu_nd and kappa_nd are the equation of state read at every node.
+
+    For a perfect gas they are one number repeated, which says nothing about
+    where they came from. A fitted real gas varies them across the field, so
+    this is where the fields are checked against the fluid that produced them
+    -- and against the reference length, which the viscous kernel needs them
+    divided by.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    L_ref = 0.05
+    fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5))
+    b = ember.block.Block(shape=(4, 4, 4))
+    b.set_fluid(fluid)
+    b.set_L_ref(L_ref)
+
+    # States spanning the middle of the fit box, so both surfaces are read
+    # well inside the region they were fitted over.
+    rho_lo, rho_hi = fluid.rho_lim_nd
+    u_lo, u_hi = fluid.u_lim_nd
+    rho, u, _ = np.meshgrid(
+        np.linspace(
+            rho_lo + 0.2 * (rho_hi - rho_lo), rho_hi - 0.2 * (rho_hi - rho_lo), 4
+        ),
+        np.linspace(u_lo + 0.2 * (u_hi - u_lo), u_hi - 0.2 * (u_hi - u_lo), 4),
+        np.zeros(4),
+        indexing="ij",
+    )
+    b.set_P_T(np.float32(fluid.get_P(rho, u)), np.float32(fluid.get_T(rho, u)))
+
+    for name in ("mu", "kappa"):
+        field = getattr(b, f"{name}_nd")
+        expect = getattr(fluid, f"get_{name}")(b.rho_nd, b.u_nd) / L_ref
+        np.testing.assert_allclose(field, expect, rtol=1e-5)
+        # Not a constant dressed up as a field.
+        assert float(field.max()) / float(field.min()) > 1.05, (
+            f"{name}_nd barely varies over this box; the test proves nothing"
+        )
 
 
 def test_P_nd():

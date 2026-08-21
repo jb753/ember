@@ -320,6 +320,64 @@ def _build_uniform_block():
     return block
 
 
+def _wall_yplus_with(block, mu):
+    """``ember.block_util.wall_yplus`` with a viscosity field of our choosing.
+
+    The public helper reads ``block.mu_nd``, which a perfect gas fills with one
+    repeated constant; this is the same call with a field that varies.
+    """
+    keys = ("yplus_i1", "yplus_j1", "yplus_k1", "yplus_ni", "yplus_nj", "yplus_nk")
+    result = ember.fortran.wall_yplus_field(
+        cons=block.conserved_nd,
+        vol=block.vol_nd,
+        dai=block.dAi_nd,
+        daj=block.dAj_nd,
+        dak=block.dAk_nd,
+        omega_block=block.Omega_nd,
+        r=block.r_nd,
+        mu=mu,
+        vx=block.Vx_nd,
+        vr=block.Vr_nd,
+        vt=block.Vt_rel_nd,
+        **block.ijk_wall_visc,
+        **block.Omega_wall_nd,
+    )
+    return dict(zip(keys, result))
+
+
+def test_wall_yplus_reads_the_local_viscosity():
+    """y+ follows the viscosity at its own wall face, not a block constant.
+
+    The wall functions reach ``mu`` through the ``*_?face`` wrappers, which
+    face-average it at the same node plane they take rho from. In the laminar
+    branch y+ = sqrt(Re) = sqrt(rho*V*d/mu), so quadrupling the viscosity over
+    part of the wall halves y+ exactly there and leaves the rest untouched --
+    which a block-wide constant could not reproduce, and which a wrapper
+    faceing mu at the wall plane instead of the interior one would shift by a
+    cell.
+    """
+    block = _build_uniform_block()
+    half = SHAPE[1] // 2
+    mu = np.array(block.mu_nd)
+    mu[:, half:, :] *= 4.0
+
+    base = np.asarray(_wall_yplus_with(block, block.mu_nd)["yplus_k1"])
+    got = np.asarray(_wall_yplus_with(block, np.asfortranarray(mu))["yplus_k1"])
+
+    # The helper called with the block's own field must reproduce the public
+    # one exactly -- otherwise the comparison below means nothing.
+    np.testing.assert_array_equal(
+        base, np.asarray(ember.block_util.wall_yplus(block)["yplus_k1"])
+    )
+
+    # Cell j spans nodes j and j+1, so cells from `half` on see the scaling
+    # whole and cells below `half - 1` do not see it at all. The cell between
+    # straddles the step and is left out.
+    assert base.max() > 0.0, "fixture has no k1 wall to measure"
+    np.testing.assert_allclose(got[:, half:], base[:, half:] / 2.0, rtol=RTOL)
+    np.testing.assert_array_equal(got[:, : half - 1], base[:, : half - 1])
+
+
 def test_block_yplus_matches_first_cell_reynolds():
     r"""On a real block, ``y+`` on the k1 wall is ``sqrt(Re)`` built from
     *that* cell's volume over *that* face's area.
@@ -345,7 +403,7 @@ def test_block_yplus_matches_first_cell_reynolds():
     Vt = np.asarray(block.Vt_rel_nd, dtype=np.float64)
     vol = np.asarray(block.vol_nd, dtype=np.float64)
     dAk = np.asarray(block.dAk_nd, dtype=np.float64)
-    mu = float(block.mu_nd)
+    mu = np.asarray(block.mu_nd, dtype=np.float64)
 
     def mean4(a, node):
         """kface corner average at a node plane: (i,j)/(i+1,j)/(i,j+1)/(i+1,j+1)."""
@@ -356,7 +414,9 @@ def test_block_yplus_matches_first_cell_reynolds():
     # k1 wall: face plane 0, wall-adjacent cell 0, velocity at node plane 1.
     V = np.sqrt(mean4(Vx, 1) ** 2 + mean4(Vr, 1) ** 2 + mean4(Vt, 1) ** 2 + 1e-9)
     d = vol[:, :, 0] / np.sqrt((dAk[:, :, :, 0] ** 2).sum(axis=0))
-    Re = mean4(rho, 1) * V * d / mu
+    # mu is faced at the same node plane as rho -- it is a property of the
+    # same state -- which is what the kernel's wrappers do.
+    Re = mean4(rho, 1) * V * d / mean4(mu, 1)
 
     assert Re.max() < RE_SWITCH, (
         f"Re reaches {Re.max():.1f}, above the switch at {RE_SWITCH}: this "

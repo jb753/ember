@@ -283,6 +283,7 @@ Pure equation-of-state outputs and transport properties, evaluated from
    Block.cv
    Block.gamma
    Block.h
+   Block.kappa
    Block.mu
    Block.P
    Block.Pr
@@ -399,6 +400,7 @@ directly and are not usually needed by end users.
    Block.dudrho_P_nd
    Block.F_body_nd
    Block.ho_nd
+   Block.kappa_nd
    Block.mu_nd
    Block.Omega_nd
    Block.Omega_wall_nd
@@ -963,9 +965,11 @@ class Block(ember._struct.StructuredData):
             Suffix for the fluid method, e.g. ``"cp"`` -> ``fluid.get_cp``.
         doc : str
             Property docstring.
-        ref : {None, "Rgas", "P", "V", "u", "T", "rhoV"}
+        ref : {None, "Rgas", "P", "V", "u", "T", "rhoV", "kappa"}
             Reference scale to multiply the nondim output by.
-            ``None`` for dimensionless quantities.
+            ``None`` for dimensionless quantities. ``"kappa"`` is the
+            conductivity scale, the mass flux times the gas constant --- see
+            :ref:`reference-scales`.
         """
 
         def getter(self):
@@ -984,6 +988,8 @@ class Block(ember._struct.StructuredData):
                 val *= self.fluid.T_ref
             elif ref == "rhoV":
                 val *= self.fluid.rhoV_ref
+            elif ref == "kappa":
+                val *= self.fluid.rhoV_ref * self.fluid.Rgas_ref
             return val
 
         getter.__doc__ = doc
@@ -2796,6 +2802,24 @@ class Block(ember._struct.StructuredData):
             "wallnk": _f(~(kwall[:, :, -1] == 0))[:, :, np.newaxis],
         }
 
+    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
+    def kappa_nd(self, out):
+        r"""Non-dimensional thermal conductivity :math:`\kappa^*` [--], nodal array.
+
+        .. math ::
+            \kappa^* = \frac{\kappa}
+                {\rho_\mathrm{ref} V_\mathrm{ref} R_\mathrm{ref} L_\mathrm{ref}}
+
+        The scaling that leaves :math:`\mathit{Pr} = \mu^* c_p^* / \kappa^*`
+        dimensionless, so this is what the viscous kernel's heat flux takes in
+        place of the viscosity and Prandtl number it used to be handed.
+
+        """
+        out = util.allocate_or_reuse(out, self.shape)
+        self.fluid.get_kappa(self._rho_nd_uninit, self.u_nd, out=out)
+        out /= self.L_ref
+        return out
+
     @property
     def L_ref(self):
         r"""Reference length for non-dimensionalisation :math:`L_\mathrm{ref}` [m]."""
@@ -2826,8 +2850,8 @@ class Block(ember._struct.StructuredData):
         r"""Axial Mach number :math:`\mathit{M\kern-0.1ema}_x` [-], nodal array."""
         return self.Vx / self.a
 
-    @property
-    def mu_nd(self):
+    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
+    def mu_nd(self, out):
         r"""Non-dimensional dynamic viscosity :math:`\mu^*` [--], nodal array.
 
         .. math ::
@@ -2835,9 +2859,16 @@ class Block(ember._struct.StructuredData):
 
         May be thought of as a reciprocal Reynolds number based on the reference scales.
 
-        """
+        Nodal rather than one number for the block, because a real gas's
+        viscosity is a surface over the field. A perfect gas fills the same
+        array with one repeated constant, as it already does for
+        :attr:`cp_nd`.
 
-        return self.fluid._mu_nd / self.L_ref
+        """
+        out = util.allocate_or_reuse(out, self.shape)
+        self.fluid.get_mu(self._rho_nd_uninit, self.u_nd, out=out)
+        out /= self.L_ref
+        return out
 
     @property
     def mu_turb(self):
@@ -3640,6 +3671,12 @@ class Block(ember._struct.StructuredData):
         See :ref:`datum-state`.
         """,
         "u",
+    )
+
+    kappa = _make_fluid_property(
+        "kappa",
+        "Thermal conductivity :math:`\\kappa` [W/m/K], nodal array.",
+        "kappa",
     )
 
     mu = _make_fluid_property(

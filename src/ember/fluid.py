@@ -1557,12 +1557,9 @@ class RealFluid(_Fluid):
     unity. The Prandtl number is not stored; :meth:`get_Pr` derives it from the
     two surfaces and the specific heat.
 
-    Limitations
-    -----------
-    The solver does not yet see any of that. Its viscous kernel takes a single
-    viscosity and a single Prandtl number for a whole block, and until it takes
-    fields instead, what it gets are these surfaces evaluated at the centre of
-    the fit box.
+    The solver reads both surfaces at every node: :attr:`~ember.block.Block.mu_nd`
+    and :attr:`~ember.block.Block.kappa_nd` are nodal fields, and the viscous
+    kernel takes them as such.
 
     Parameters
     ----------
@@ -1748,14 +1745,6 @@ class RealFluid(_Fluid):
             float(u_dtm), float(s_dtm), rho_ref, V_ref, Rgas_ref, dtype=np.float32
         )
 
-        # Prandtl number at the centre of the box, for the same reason as
-        # _mu_nd above: the kernel takes one per block. Read through get_Pr so
-        # that it is the ratio the surfaces actually give there, specific heat
-        # included, rather than a second definition of the same thing.
-        rho_c = 0.5 * (self._rho_box_nd[0] + self._rho_box_nd[1])
-        u_c = 0.5 * (self._u_box_nd[0] + self._u_box_nd[1])
-        self._Pr = np.float32(self.get_Pr(rho_c, u_c))
-
         self._companion = self._build_companion(P_dtm, T_dtm)
 
     def _build_companion(self, P_dtm, T_dtm):
@@ -1776,7 +1765,7 @@ class RealFluid(_Fluid):
             cp=cp,
             gamma=gamma,
             mu=float(self._mu_c) * float(self._scale_visc),
-            Pr=float(self._Pr),
+            Pr=float(self.get_Pr(rho_c, u_c)),
             P_dtm=float(P_dtm),
             T_dtm=float(T_dtm),
             rho_ref=float(self.rho_ref),
@@ -1834,12 +1823,6 @@ class RealFluid(_Fluid):
         )
         self._mu_surf = (self._delta * mu_c_nd).astype(dtype)
         self._kappa_surf = (self._gamma * kappa_c_nd).astype(dtype)
-
-        # The normalised surfaces are exactly one at the centre of the box, so
-        # these are the viscosity and conductivity there. The viscous kernel
-        # still takes one number for a whole block rather than a field, and
-        # this is the number it gets until it does.
-        self._mu_nd = dtype(mu_c_nd)
 
         # Characteristic magnitudes, used to scale convergence tests where a
         # target may legitimately pass through zero at the datum.
