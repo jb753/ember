@@ -125,6 +125,19 @@ meson backend) does real dependency-graph resolution regardless of file
 order, so nothing in `bench/subroutines/` needs a naming convention either --
 name new files however reads best.
 
+**Arms are snapshots, and a breaking change in production does not oblige you
+to update them.** An arm exists to answer one question at one moment; once that
+question is answered its value is as a record of what was measured, not as
+running code. So when a production kernel changes shape -- an argument promoted
+from a scalar to a field, a parameter dropped, a formula moved -- the arms under
+`bench/subroutines/` that share its helpers may stop compiling, and that is an
+acceptable state for them to be in. Nothing in the default build, the tests or
+CI touches them, so the breakage costs nothing until someone asks for that arm
+by name with `EMBER_BENCH_KERNELS`. Fix an arm when you next want to *run* it,
+against whatever production looks like then, and skip it otherwise: porting a
+change into an arm nobody is about to time is work spent on a comparison that
+may never be made, and it quietly rewrites what the arm measured.
+
 ## Dos and don'ts
 
 Rules earned from two studies that reached the wrong conclusion before this
