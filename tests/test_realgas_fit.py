@@ -90,6 +90,8 @@ def _fit_perfect(order=ORDER):
         P=PERFECT.get_P(rho, u),
         T=PERFECT.get_T(rho, u),
         s=PERFECT.get_s(rho, u),
+        mu=PERFECT.get_mu(rho, u),
+        kappa=PERFECT.get_kappa(rho, u),
         Rgas=float(PERFECT.get_Rgas(1.0, 1.0)),
         rho_lim=RHO_LIM_PERFECT,
         u_lim=U_LIM_PERFECT,
@@ -106,6 +108,8 @@ def _fit_vdw(order=ORDER):
         P=VDW.get_P(rho, u),
         T=VDW.get_T(rho, u),
         s=VDW.get_s(rho, u),
+        mu=VDW.get_mu(rho, u),
+        kappa=VDW.get_kappa(rho, u),
         Rgas=VDW.Rgas,
         rho_lim=RHO_LIM_VDW,
         u_lim=U_LIM_VDW,
@@ -324,24 +328,20 @@ def test_ideal_gas_equivalence():
     # the speed of sound and isentropic exponent within 3e-6, and the specific
     # heats -- which need second derivatives -- within 1.1e-5. Each bound below
     # carries roughly twenty times that margin.
-    rtol = {name: 1e-5 for name in ("P", "T", "s", "h")}
-    rtol.update({name: 1e-4 for name in ("a", "gamma", "cp", "cv")})
+    rtol = {name: 1e-5 for name in ("P", "T", "s", "h", "mu", "kappa")}
+    rtol.update({name: 1e-4 for name in ("a", "gamma", "cp", "cv", "Pr")})
 
     # The datum must lie inside the fit box, since it is located by inverting
     # the surface. T = 400 K puts u near the middle of U_LIM_PERFECT.
-    fluid = ember.fluid.RealFluid(
-        mu=1.8e-5,
-        Pr=0.72,
-        P_dtm=1e5,
-        T_dtm=400.0,
-        **result.kwargs,
-    )
+    fluid = ember.fluid.RealFluid(P_dtm=1e5, T_dtm=400.0, **result.kwargs)
     ref = PERFECT.change_datum(1e5, 400.0)
     # Both fluids now share a datum, so states line up and every property can
     # be compared without an offset.
     rho, u = _sample_fluid(fluid)
 
-    for name in ("P", "T", "s", "h", "a", "cp", "cv", "gamma"):
+    # The transport surfaces are fitted to constants here, so they carry no
+    # more than the fit's own noise; Pr additionally carries the specific heat.
+    for name in ("P", "T", "s", "h", "a", "cp", "cv", "gamma", "mu", "kappa", "Pr"):
         got = getattr(fluid, f"get_{name}")(rho, u)
         expect = getattr(ref, f"get_{name}")(rho, u)
         tol = rtol[name]
@@ -371,13 +371,7 @@ def test_van_der_waals_equivalence():
     assert result.info_s.rmse < 1e-6, f"entropy fit residual {result.info_s.rmse}"
     rtol = 1e-4
 
-    fluid = ember.fluid.RealFluid(
-        mu=1.0e-5,
-        Pr=1.0,
-        P_dtm=1e6,
-        T_dtm=300.0,
-        **result.kwargs,
-    )
+    fluid = ember.fluid.RealFluid(P_dtm=1e6, T_dtm=300.0, **result.kwargs)
 
     rho, u = _sample_fluid(fluid)
     # The analytic model works in absolute internal energy; the fluid measures
@@ -393,6 +387,11 @@ def test_van_der_waals_equivalence():
     s_got = fluid.get_s(rho, u) - fluid.get_s(rho[0], u[0])
     s_exp = VDW.get_s(rho, u_abs) - VDW.get_s(rho[0], u_abs[0])
     assert np.allclose(s_got, s_exp, atol=rtol * np.abs(s_exp).max())
+
+    # Transport is fitted over the same box but stands apart from all of that:
+    # two independent surfaces, neither derived from the entropy one.
+    assert np.allclose(fluid.get_mu(rho, u), VDW.get_mu(rho, u_abs), rtol=rtol)
+    assert np.allclose(fluid.get_kappa(rho, u), VDW.get_kappa(rho, u_abs), rtol=rtol)
 
 
 def _vdw_u_datum(fluid):
@@ -459,6 +458,12 @@ class _StubState:
     def smass(self):
         return VDW.get_s(self._rho, self._u)
 
+    def viscosity(self):
+        return VDW.get_mu(self._rho, self._u)
+
+    def conductivity(self):
+        return VDW.get_kappa(self._rho, self._u)
+
 
 @pytest.fixture
 def stub_coolprop(monkeypatch):
@@ -498,6 +503,8 @@ def test_sample_coolprop_reports_states_on_the_model(stub_coolprop):
     assert np.allclose(out["P"], VDW.get_P(rho, u))
     assert np.allclose(out["T"], VDW.get_T(rho, u))
     assert np.allclose(out["s"], VDW.get_s(rho, u))
+    assert np.allclose(out["mu"], VDW.get_mu(rho, u))
+    assert np.allclose(out["kappa"], VDW.get_kappa(rho, u))
 
     # Every array describes the same states, and there are some.
     assert rho.size == u.size == out["P"].size == out["T"].size == out["s"].size

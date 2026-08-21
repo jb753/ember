@@ -148,6 +148,11 @@ class VanDerWaals:
     form. Internal energy carries the attraction term, ``u = cv*T - a*rho``,
     which is what makes the compressibility factor vary across the box and so
     exercises the entropy integral rather than leaving it trivially constant.
+
+    Transport properties are a power law in temperature with a linear density
+    term, which is not the model any real fluid obeys but is what the fitted
+    surfaces are for: a constant would be reproduced by the leading coefficient
+    alone and would say nothing about the fit.
     """
 
     def __init__(self, Rgas=51.2, cv=1400.0, a=15.0, b=2.0e-3):
@@ -170,6 +175,14 @@ class VanDerWaals:
     def get_h(self, rho, u):
         return u + self.get_P(rho, u) / rho
 
+    def get_mu(self, rho, u):
+        T = self.get_T(rho, u)
+        return 1.0e-5 * (T / 300.0) ** 0.7 * (1.0 + 1.0e-3 * rho)
+
+    def get_kappa(self, rho, u):
+        T = self.get_T(rho, u)
+        return 2.0e-2 * (T / 300.0) ** 0.8 * (1.0 + 2.0e-3 * rho)
+
 
 def fit_real_fluid(model, rho_lim, u_lim, order=10, ni=40, **kwargs):
     """Fit a RealFluid to an analytic model over a box, with the datum centred.
@@ -182,8 +195,8 @@ def fit_real_fluid(model, rho_lim, u_lim, order=10, ni=40, **kwargs):
     Parameters
     ----------
     model : object
-        Anything with ``get_P``, ``get_T`` and ``get_s`` taking ``(rho, u)``,
-        and a ``Rgas`` attribute.
+        Anything with ``get_P``, ``get_T``, ``get_s``, ``get_mu`` and
+        ``get_kappa`` taking ``(rho, u)``, and a ``Rgas`` attribute.
     rho_lim, u_lim : tuple
         ``(min, max)`` bounds of the fit box, in SI on the model's own datum.
     order : int, optional
@@ -211,6 +224,8 @@ def fit_real_fluid(model, rho_lim, u_lim, order=10, ni=40, **kwargs):
         P=model.get_P(rho, u),
         T=model.get_T(rho, u),
         s=model.get_s(rho, u),
+        mu=model.get_mu(rho, u),
+        kappa=model.get_kappa(rho, u),
         Rgas=model.Rgas,
         rho_lim=rho_lim,
         u_lim=u_lim,
@@ -221,6 +236,4 @@ def fit_real_fluid(model, rho_lim, u_lim, order=10, ni=40, **kwargs):
     u_mid = float(np.mean(u_lim))
     kwargs.setdefault("P_dtm", float(model.get_P(rho_mid, u_mid)))
     kwargs.setdefault("T_dtm", float(model.get_T(rho_mid, u_mid)))
-    kwargs.setdefault("mu", 1.0e-5)
-    kwargs.setdefault("Pr", 1.0)
     return RealFluid(**result.kwargs, **kwargs)
