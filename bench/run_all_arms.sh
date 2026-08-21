@@ -33,6 +33,13 @@ RESULTS="${RESULTS:-bench/results/bench_all_arms.jsonl}"
 # (bench/irs_arms.py) or `visc`/`tauq` (bench/visc_arms.py). Also picks the
 # symbol fingerprinted below.
 KERNEL="${KERNEL:-residual}"
+# viscpair only: make the duct's k faces periodic ("full" or "hmesh"). The
+# seam-free arm needs a real seam to be eligible at all; without one
+# callers_pair skips it and the fused arms never exercise the halo path they
+# model.
+PERIODIC_K="${PERIODIC_K:-}"
+PERIODIC_ARGS=()
+[ -n "$PERIODIC_K" ] && PERIODIC_ARGS=(--periodic-k "$PERIODIC_K")
 case "$KERNEL" in
     irs | update) GAUGE_SYM="${GAUGE_SYM:-smooth_residual_tri_tiled_}" ;;
     visc | viscpair) GAUGE_SYM="${GAUGE_SYM:-set_visc_force_}" ;;
@@ -77,7 +84,7 @@ export UV_NO_SYNC=1
 rm -f "$RESULTS"
 
 echo "=== $(hostname): $LAUNCHES launches x $NRANKS ranks, ncell=$NCELL, $REPS reps"
-echo "=== kernel: $KERNEL   arms: $ARMS"
+echo "=== kernel: $KERNEL   arms: $ARMS   periodic_k: ${PERIODIC_K:-none}"
 echo "=== cpus:   ${CPU_LIST[*]:0:$NRANKS}"
 uv run python bench/codegen_gauge.py "$GAUGE_SYM" | sed 's/^/    /'
 
@@ -89,7 +96,8 @@ for ((L = 0; L < LAUNCHES; L++)); do
             EMBER_BENCH_RANK=$rk EMBER_BARRIER="$BARRIER" \
                 taskset -c "${CPU_LIST[$rk]}" uv run python bench/bench_prod_baseline.py \
                 --nranks "$NRANKS" --ncell "$NCELL" --reps "$REPS" --arm "$ARM" \
-                --kernel "$KERNEL" --launch "$L" --json "$RESULTS" >/dev/null &
+                --kernel "$KERNEL" "${PERIODIC_ARGS[@]}" \
+                --launch "$L" --json "$RESULTS" >/dev/null &
             pids+=($!)
         done
         for p in "${pids[@]}"; do wait "$p"; done

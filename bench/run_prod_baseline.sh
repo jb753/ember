@@ -32,8 +32,14 @@ NRANKS="${2:-16}"
 NCELL="${3:-1000000}"
 REPS="${4:-30}"
 ARM="${5:-prod}"
-# Which kernel's arm set: residual (default), irs, update, visc, tauq.
+# Which kernel's arm set: residual (default), irs, update, visc, tauq, viscpair.
 KERNEL="${KERNEL:-residual}"
+# viscpair only: make the duct's k faces periodic ("full" or "hmesh"). The
+# seam-free arm needs a real seam; without one the fused arms never exercise
+# the halo path they model, and callers_pair skips the seam-free arm entirely.
+PERIODIC_K="${PERIODIC_K:-}"
+PERIODIC_ARGS=()
+[ -n "$PERIODIC_K" ] && PERIODIC_ARGS=(--periodic-k "$PERIODIC_K")
 RESULTS="${RESULTS:-bench/results/bench_prod_baseline.jsonl}"
 
 export OMP_NUM_THREADS=1
@@ -61,7 +67,7 @@ if [ "${#CPU_LIST[@]}" -lt "$NRANKS" ]; then
 fi
 
 echo "=== $(hostname): $LAUNCHES launches x $NRANKS ranks, ncell=$NCELL, $REPS reps ==="
-echo "=== $REGIME, SMT siblings idle, no flush, arm=$ARM kernel=$KERNEL ==="
+echo "=== $REGIME, SMT siblings idle, no flush, arm=$ARM kernel=$KERNEL periodic_k=${PERIODIC_K:-none} ==="
 
 for ((L = 0; L < LAUNCHES; L++)); do
     # Unique segment per launch so a crashed run cannot poison the next one.
@@ -71,7 +77,7 @@ for ((L = 0; L < LAUNCHES; L++)); do
         EMBER_BENCH_RANK=$rk EMBER_BARRIER="$BARRIER" \
             taskset -c "${CPU_LIST[$rk]}" uv run python bench/bench_prod_baseline.py \
             --nranks "$NRANKS" --ncell "$NCELL" --reps "$REPS" --arm "$ARM" \
-            --kernel "$KERNEL" \
+            --kernel "$KERNEL" "${PERIODIC_ARGS[@]}" \
             --launch "$L" --json "$RESULTS" &
         pids+=($!)
     done

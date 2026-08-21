@@ -101,9 +101,16 @@ def flush_llc():
     _FLUSH += 1.0
 
 
-def build_case(ncell):
-    """Build the duct grid and drive it to the state set_residual consumes."""
-    grid = build_duct_grid(ncell)
+def build_case(ncell, periodic_k=None):
+    """Build the duct grid and drive it to the state set_residual consumes.
+
+    ``periodic_k`` is passed straight to :func:`ember.cases.build_duct_grid`
+    (None, "full" or "hmesh"). It must be set HERE rather than by appending
+    patches to the returned block: update_sources below splats
+    ``block.ijk_wall_visc``, which is a cached_object whose docstring forbids
+    modifying patches after first access.
+    """
+    grid = build_duct_grid(ncell, periodic_k=periodic_k)
     grid.update_cached_conserved()
     grid.apply_bconds()
     grid.update_sources(False, 0.0)  # seeds F_body, tau_q_halo, mu_turb

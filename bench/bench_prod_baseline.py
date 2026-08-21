@@ -140,6 +140,14 @@ def main():
         "tau/q+fvisc fused vs unfused (viscpair, visc_arms.py)",
     )
     ap.add_argument("--ncell", type=int, default=1_000_000)
+    ap.add_argument(
+        "--periodic-k",
+        default=None,
+        choices=("full", "hmesh"),
+        help="make the duct k faces periodic (viscpair only): the seam-free "
+        "arm needs a real seam, and without one the fused arms never exercise "
+        "the halo path they model",
+    )
     ap.add_argument("--reps", type=int, default=30)
     ap.add_argument("--warmup", type=int, default=5)
     ap.add_argument("--nranks", type=int, default=16)
@@ -153,7 +161,7 @@ def main():
     from residual_arms import DAMPIN, build_case, callers
 
     t0 = time.perf_counter()
-    grid, b = build_case(args.ncell)
+    grid, b = build_case(args.ncell, periodic_k=args.periodic_k)
     du = b.residual_nd
     du.flags.writeable = True
     # Per-call input restore, run OUTSIDE the timed window and before the
@@ -171,7 +179,7 @@ def main():
         elif args.kernel == "viscpair":
             # Both pair arms are idempotent (visc_arms.callers_pair), so no
             # restore hook -- asserted by check_pair, not assumed.
-            built = visc_arms.callers_pair(b)
+            built = visc_arms.callers_pair(grid, b)
         else:
             built = visc_arms.callers_tauq(b)
     elif args.kernel == "update":
