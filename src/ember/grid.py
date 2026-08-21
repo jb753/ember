@@ -2209,6 +2209,10 @@ class GridConnectivity:
         """Exchange in/out flux state across mixing-plane patches."""
         return self._get_communicator().exchange()
 
+    def exchange_faces(self):
+        """Exchange boundary tau/q across periodic patches, face-buffer form."""
+        return self._get_communicator().exchange_faces()
+
     def exchange_halos(self):
         """Exchange halo data across periodic patches."""
         return self._get_communicator().exchange_halos()

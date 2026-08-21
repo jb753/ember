@@ -139,6 +139,16 @@ without a deprecation period.
   reading as a wall, silently. Written for the viscous seam study, where a
   block periodic to itself in k is the case under test.
 
+* Added ``Block.tau_q_faces``, six two-layer surface buffers holding the
+  boundary tau/q that the viscous face-flux phase reads, with
+  ``set_tau_q_faces`` to produce them in an O(surface) pass and
+  ``Grid.connectivity.periodic.exchange_faces`` to exchange them across
+  periodic patches. Together these give a fused viscous kernel a halo source
+  that is not a full-volume array, which is what lets one serve arbitrary
+  block connectivity rather than only a block periodic to itself in k.
+  Production's ``set_tau_q_soa``/``set_visc_force`` path is untouched and
+  still uses ``tau_q_halo``.
+
 .. _v0.2.0:
 
 0.2.0 (2026-08-18)

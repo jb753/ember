@@ -84,3 +84,42 @@ subroutine swap_by_ijk(h1, h2, hs1, ec1, hs2, ec2, &
     end do
 
 end subroutine
+
+
+! Copy tau/q from one block face buffer's OWNED layer into another's HALO
+! layer, at matched index lists. The face-buffer counterpart of swap_by_ijk.
+!
+! Two differences from swap_by_ijk, both consequences of the face buffers
+! carrying their owned and halo values in separate layers:
+!
+!   * It is a copy, not a swap. src is read only at layer 1 and dst written
+!     only at layer 2, so the two never collide and no temporary is needed --
+!     not even when a face is somehow paired to itself.
+!   * It moves one direction only. PeriodicCommunicator prunes its pairs to
+!     one key per pair, so the caller makes this call twice per pair, once
+!     each way. swap_by_ijk got both directions from one call because it had
+!     both index lists and could swap in place; keeping that here would mean
+!     reintroducing the aliasing this layout exists to remove.
+!
+! Indices are Fortran 1-based cell coordinates within the face: (j,k) on an
+! i face, (i,k) on a j face, (i,j) on a k face. Which face each buffer is, and
+! therefore how its two spatial extents are named, is settled by the caller.
+subroutine copy_faces_by_ij(dst, src, idx_dst, idx_src, &
+        na_d, nb_d, na_s, nb_s, npt, nv)
+
+    integer, intent(in) :: na_d, nb_d, na_s, nb_s, npt, nv
+    real, intent(inout) :: dst(na_d, nv, nb_d, 2)
+    real, intent(in) :: src(na_s, nv, nb_s, 2)
+    integer*2, intent(in) :: idx_dst(npt, 2)   ! (a, b) into dst, 1-based
+    integer*2, intent(in) :: idx_src(npt, 2)   ! (a, b) into src, 1-based
+
+    integer :: ipt, c
+
+    do ipt = 1, npt
+        do c = 1, nv
+            dst(idx_dst(ipt,1), c, idx_dst(ipt,2), 2) = &
+                src(idx_src(ipt,1), c, idx_src(ipt,2), 1)
+        end do
+    end do
+
+end subroutine

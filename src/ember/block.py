@@ -369,6 +369,7 @@ Miscellaneous:
    Block.ijk_wall_visc
    Block.scratch
    Block.store
+   Block.tau_q_faces
    Block.tau_q_halo
 
 Nondimensional:
@@ -3228,6 +3229,58 @@ class Block(ember._struct.StructuredData):
 
         """
         return self.Vr / self.Vx
+
+    @scratch_array
+    def tau_q_faces(self, out):
+        """Boundary tau/q as six surface buffers: ``(i1, ini, j1, jnj, k1, knk)``.
+
+        WARNING -- PURE TRANSIENT SCRATCH, exactly as :attr:`tau_q_halo` is.
+        Valid only within a single viscous pass and only in the slots that pass
+        refreshes.
+
+        The viscous face-flux phase reads tau/q at the boundary in a halo slot
+        one step outside the owned range, and today that slot lives in
+        :attr:`tau_q_halo`, a full-volume array. Nothing about the *values*
+        needs a volume -- they are O(surface) -- so holding them here lets the
+        producer be an O(surface) boundary kernel rather than a pass over every
+        cell, and lets the fused face-flux kernels take a halo source that does
+        not depend on the block's topology.
+
+        Each face carries TWO layers on its trailing axis:
+
+        * layer 0, the block's own edge-cell tau/q, written by the boundary
+          producer;
+        * layer 1, the halo value the face-flux kernel reads. The producer
+          seeds it to ``(2*wall - 1) * layer0`` -- ``+edge`` for a permeable or
+          slip face, ``-edge`` for a viscous wall, which is what
+          ``set_tau_q_soa``'s halo fill and ``scale_visc_halos`` compose to --
+          and the periodic exchange then overwrites it wherever a patch
+          connects.
+
+        Keeping the two layers apart is what makes that exchange a
+        one-directional copy: it reads layer 0 and writes layer 1, which never
+        coincide, so unlike :func:`swap_by_ijk` it needs no temporary and
+        tolerates a face pairing to itself.
+
+        The component axis sits second so that, at a fixed index on the
+        trailing spatial axis, the ``(edge, component)`` block is contiguous --
+        the order the face-flux kernels walk it in.
+
+        Returns
+        -------
+        tuple of Array
+            ``(i1, ini, j1, jnj, k1, knk)``, shapes ``(nj-1, 9, nk-1, 2)``,
+            ``(ni-1, 9, nk-1, 2)`` and ``(ni-1, 9, nj-1, 2)`` respectively,
+            all carved from one allocation and therefore mutually disjoint.
+        """
+        ni, nj, nk = self.shape
+        shp_i = (nj - 1, 9, nk - 1, 2)
+        shp_j = (ni - 1, 9, nk - 1, 2)
+        shp_k = (ni - 1, 9, nj - 1, 2)
+        shapes = (shp_i, shp_i, shp_j, shp_j, shp_k, shp_k)
+        n = sum(int(np.prod(s)) for s in shapes)
+        buf = util.allocate_or_reuse(out, (n,))
+        return util.carve_view(buf, *shapes)
 
     @scratch_array
     def tau_q_halo(self, out):

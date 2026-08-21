@@ -39,7 +39,15 @@ from ember.periodic import PeriodicPatch
 from ember.periodic_communicator import PeriodicCommunicator
 
 
-def _build_periodic_block():
+def _build_periodic_block(i_lims=None):
+    """The k-periodic test block. ``i_lims`` splits the seam into subsets.
+
+    Default is one PeriodicPatch spanning each whole k face. Passing a list of
+    inclusive ``(start, end)`` i-ranges instead puts one patch per range, so
+    the seam mixes periodic and wall along a single face -- the H-mesh shape,
+    and the case that catches an exchange which assumes a patch covers its
+    whole face.
+    """
     Nb = 36
     pitch = 2.0 * np.pi / Nb
     shape = (5, 5, 9)  # 8 theta cells -> 2 wavelengths => twins 4 cells apart
@@ -64,9 +72,68 @@ def _build_periodic_block():
     block.set_Vr(np.zeros_like(Vx, dtype=np.float32))
     block.set_Vt(np.zeros_like(Vx, dtype=np.float32))
 
-    block.patches.append(PeriodicPatch(k=0))
-    block.patches.append(PeriodicPatch(k=-1))
+    for i_lim in (i_lims or [(0, -1)]):
+        block.patches.append(PeriodicPatch(k=0, i=i_lim))
+        block.patches.append(PeriodicPatch(k=-1, i=i_lim))
     return block
+
+
+def _build_two_block_periodic():
+    """Two blocks each spanning half a pitch, periodic to EACH OTHER in k.
+
+    Both k seams cross blocks: the inner faces coincide at theta = 0 and the
+    outer faces sit one pitch apart. A single self-periodic block cannot test
+    a one-directional exchange -- both ends are the same block, so filling
+    only one side still leaves every value right. This can.
+    """
+    Nb = 36
+    pitch = 2.0 * np.pi / Nb
+    shape = (5, 5, 5)
+
+    def half(t0, t1):
+        blk = ember.block.Block(shape=shape)
+        blk.set_Nb(Nb)
+        xrt = util.linmesh3((0.0, 0.1), (0.5, 1.0), (t0, t1), shape)
+        blk.set_x(xrt[..., 0])
+        blk.set_r(xrt[..., 1])
+        blk.set_t(xrt[..., 2])
+        blk.set_fluid(PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72))
+        blk.set_P_T(101325.0, 300.0)
+        blk.set_wdist(np.zeros_like(blk.r))
+        Vx = 100.0 + 20.0 * np.sin(2.0 * np.pi * blk.t / pitch + np.pi / 4.0)
+        blk.set_Vx(Vx.astype(np.float32))
+        blk.set_Vr(np.zeros_like(Vx, dtype=np.float32))
+        blk.set_Vt(np.zeros_like(Vx, dtype=np.float32))
+        blk.patches.append(PeriodicPatch(k=0))
+        blk.patches.append(PeriodicPatch(k=-1))
+        return blk
+
+    return half(-pitch / 2, 0.0), half(0.0, pitch / 2)
+
+
+def _fill_faces(block):
+    """Run the O(surface) boundary producer into ``block.tau_q_faces``."""
+    f = block.tau_q_faces
+    ember.fortran.set_tau_q_faces(
+        cons=block.conserved_nd,
+        t=block.T_nd,
+        mu=block.mu_nd,
+        cp=block.cp_nd,
+        kappa=block.kappa_nd,
+        pr_turb=0.9,
+        xlength=block.xlen_sq_nd,
+        vol=block.vol_nd,
+        dai=block.dAi_nd,
+        daj=block.dAj_nd,
+        dak=block.dAk_nd,
+        r=block.r_nd,
+        vx=block.Vx_nd,
+        vr=block.Vr_nd,
+        vt=block.Vt_rel_nd,
+        f_i1=f[0], f_ini=f[1], f_j1=f[2], f_jnj=f[3], f_k1=f[4], f_knk=f[5],
+        **block.ijk_wall_visc,
+    )
+    return f
 
 
 def _fvisc_x(block, comm):
@@ -385,3 +452,201 @@ def test_viscous_selfk_never_reads_the_k_halo():
             "poison is not reaching the slots this test is about"
         )
     halo[...] = clean
+
+
+def test_exchange_faces_fills_both_blocks():
+    """Both sides of a cross-block periodic pair get their halo layer filled.
+
+    ``PeriodicCommunicator._prune_pairs`` reduces each pair to one key, and
+    ``swap_by_ijk`` could exploit that because it swapped in place -- one call
+    filled both sides. ``copy_faces_by_ij`` copies, so ``exchange_faces`` must
+    issue both directions itself, and forgetting one is invisible on a
+    self-periodic block: there both ends live in the same block, so the values
+    still come out right. This case is two blocks, so it is not invisible.
+    """
+    up, dn = _build_two_block_periodic()
+    grid = ember.grid.Grid([up, dn])
+    comm = PeriodicCommunicator(grid, grid.connectivity.periodic.pair())
+
+    for block in (up, dn):
+        _fill_faces(block)
+
+    # k1 is index 4 in the tau_q_faces tuple, knk index 5.
+    before = [np.array(b.tau_q_faces[i][:, :, :, 1], copy=True)
+              for b in (up, dn) for i in (4, 5)]
+    comm.exchange_faces()
+    after = [b.tau_q_faces[i][:, :, :, 1] for b in (up, dn) for i in (4, 5)]
+
+    labels = ["up.k1", "up.knk", "dn.k1", "dn.knk"]
+    unfilled = [n for n, b, a in zip(labels, before, after)
+                if np.array_equal(b, a)]
+    assert not unfilled, f"exchange_faces left {unfilled} untouched"
+
+    # Each halo layer must be exactly its partner's owned layer -- a copy, so
+    # bitwise, unlike anything that goes through the producer twice.
+    np.testing.assert_array_equal(
+        up.tau_q_faces[4][:, :, :, 1], dn.tau_q_faces[5][:, :, :, 0])
+    np.testing.assert_array_equal(
+        up.tau_q_faces[5][:, :, :, 1], dn.tau_q_faces[4][:, :, :, 0])
+    np.testing.assert_array_equal(
+        dn.tau_q_faces[4][:, :, :, 1], up.tau_q_faces[5][:, :, :, 0])
+    np.testing.assert_array_equal(
+        dn.tau_q_faces[5][:, :, :, 1], up.tau_q_faces[4][:, :, :, 0])
+
+
+def test_exchange_faces_respects_subset_patches():
+    """A patch covering part of a face exchanges exactly that part.
+
+    Patches are not required to span their face -- an H-mesh puts two of them
+    on each k face with the blade between. An exchange that assumed whole-face
+    coverage, or that merged the patches on a face into one index list, would
+    pass the full-span case and fail here.
+    """
+    # i nodes 0..4, so cells 0..3: periodic over the first and last cell only,
+    # wall over the two in between.
+    block = _build_periodic_block(i_lims=[(0, 1), (3, 4)])
+    grid = ember.grid.Grid([block])
+    comm = PeriodicCommunicator(grid, grid.connectivity.periodic.pair())
+    _fill_faces(block)
+
+    k1 = block.tau_q_faces[4]
+    before = np.array(k1[:, :, :, 1], copy=True)
+    comm.exchange_faces()
+
+    # Which face cells the exchange touched, against which the wall mask calls
+    # non-wall. They must be the same set: everything periodic and nothing else.
+    changed = np.any(k1[:, :, :, 1] != before, axis=1)
+    periodic = np.asarray(block.ijk_wall_visc["wallk1"])[:, :, 0] > 0
+    assert periodic.any() and not periodic.all(), (
+        "this case must mix periodic and wall on one face or it proves nothing"
+    )
+    np.testing.assert_array_equal(changed, periodic)
+
+    # And the wall part must still hold the producer's -edge ghost. The mask
+    # is per face cell, so it broadcasts across the component axis in between.
+    wall = ~periodic[:, None, :]
+    np.testing.assert_array_equal(
+        np.where(wall, k1[:, :, :, 1], 0.0),
+        np.where(wall, -k1[:, :, :, 0], 0.0),
+    )
+
+
+def _fvisc_x_faces(block, comm):
+    """x-momentum viscous force through the surface-buffer path, end to end.
+
+    Produces the halo with the O(surface) boundary kernel, exchanges it, and
+    consumes it -- never touching the full-volume tau/q buffer, which is
+    poisoned here to prove exactly that.
+    """
+    block.F_body_nd.flags.writeable = True
+    block.F_body_nd.fill(0.0)
+
+    _fill_faces(block)
+    if comm is not None:
+        comm.exchange_faces()
+
+    # The claim is that this path needs nothing from the volume buffer, so
+    # leave it holding nothing usable.
+    block.tau_q_halo[...] = np.nan
+
+    ni, nj, nk = block.shape
+    planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
+    tq = np.zeros((ni + 1, nj + 1, 9, 2), dtype=np.float32, order="F")
+    f = block.tau_q_faces
+    i_cusp_start, i_cusp_end = block.i_cusp
+    ember.fortran.set_visc_force_tqf_faces(
+        cons=block.conserved_nd,
+        cons_cell=block.conserved_cell_nd,
+        vol=block.vol_nd,
+        dai=block.dAi_nd,
+        daj=block.dAj_nd,
+        dak=block.dAk_nd,
+        omega_block=block.Omega_nd,
+        r=block.r_nd,
+        mu=block.mu_nd,
+        p=block.P_nd,
+        p_offset=block.P_offset_nd,
+        fvisc=block.F_body_nd[..., 1:],
+        vx=block.Vx_nd,
+        vr=block.Vr_nd,
+        vt=block.Vt_rel_nd,
+        t=block.T_nd,
+        cp=block.cp_nd,
+        kappa=block.kappa_nd,
+        pr_turb=0.9,
+        xlength=block.xlen_sq_nd,
+        mu_turb=block._get_data_by_keys(
+            ("mu_turb",), raise_uninit=False, writeable=True
+        ),
+        f_i1=f[0], f_ini=f[1], f_j1=f[2], f_jnj=f[3], f_k1=f[4], f_knk=f[5],
+        tq=tq,
+        planes=planes,
+        rows=rows,
+        kb=min(8, nk - 1),
+        **block.ijk_wall_visc,
+        **block.Omega_wall_nd,
+        i_cusp_start=i_cusp_start,
+        i_cusp_end=i_cusp_end,
+    )
+    block.F_body_nd.flags.writeable = False
+    return block.F_body_nd[..., 1].copy()
+
+
+@pytest.mark.skipif(
+    not hasattr(ember.fortran, "set_visc_force_tqf_faces"),
+    reason="bench arm viscous_tauq_faces not in this build",
+)
+@pytest.mark.parametrize("i_lims", [None, [(0, 1), (3, 4)]])
+def test_viscous_faces_path_matches_production(i_lims):
+    """The surface-buffer path reproduces production without the volume buffer.
+
+    Run with the seam spanning the whole face and with it split into two
+    subsets, because the subset case is what catches an exchange that assumed
+    whole-face coverage.
+
+    The tolerance is looser than the fused arms' own gates (~0.05 ulp) for a
+    reason worth stating: ``set_tau_q_faces`` evaluates the producer per cell
+    where ``set_tau_q_soa`` evaluates it a row at a time, and the two round
+    differently. The gap concentrates in ``q(3)``, whose six-term sum collapses
+    on an orthogonal mesh to a difference of two nearly-equal temperature sums,
+    so its relative error is amplified by the cancellation. Every other
+    component agrees to ~4e-7 of the field scale.
+    """
+    block = _build_periodic_block(i_lims=i_lims)
+    grid = ember.grid.Grid([block])
+    comm = PeriodicCommunicator(grid, grid.connectivity.periodic.pair())
+
+    reference = _fvisc_x(block, comm)
+    scale = np.max(np.abs(reference))
+    got = _fvisc_x_faces(block, comm)
+
+    assert not np.isnan(got).any(), (
+        "the faces path produced NaN, so it read the poisoned volume buffer"
+    )
+    np.testing.assert_allclose(got, reference, rtol=0, atol=1e-5 * scale)
+
+
+@pytest.mark.skipif(
+    not hasattr(ember.fortran, "set_visc_force_tqf_faces"),
+    reason="bench arm viscous_tauq_faces not in this build",
+)
+def test_viscous_faces_path_serves_a_sealed_block():
+    """No periodic patches at all, and the faces path still works.
+
+    This is the point of the surface buffers over the seam-free arm they
+    replace: ``set_visc_force_tqf_selfk`` needs a block periodic to itself in
+    k and refuses anything else, while this path is indifferent. A block whose
+    every face is a wall exercises the ``(2*wall - 1)`` seeding with no
+    exchange involved at all.
+    """
+    block = _build_periodic_block()
+    for patch in list(block.patches.periodic):
+        block.patches.remove(patch)
+    block.clear_cache()
+
+    assert not block.patches.periodic
+    reference = _fvisc_x(block, None)
+    got = _fvisc_x_faces(block, None)
+    scale = np.max(np.abs(reference))
+    assert not np.isnan(got).any()
+    np.testing.assert_allclose(got, reference, rtol=0, atol=1e-5 * scale)

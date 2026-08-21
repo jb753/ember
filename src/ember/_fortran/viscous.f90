@@ -12,7 +12,7 @@ module viscous_helpers
     public :: wall_core, wall_func, wall_yplus
     public :: wall_func_iface, wall_func_jface, wall_func_kface
     public :: wall_yplus_iface, wall_yplus_jface, wall_yplus_kface
-    public :: kface_flow
+    public :: kface_flow, tau_q_at_cell
     public :: polar_src, scale_visc_halos, zero_wall_fvisc_border
 
 contains
@@ -390,6 +390,127 @@ contains
         end do
     end subroutine zero_wall_fvisc_border
 
+
+    ! tau/q for ONE cell: the expressions of set_tau_q_soa's row body written
+    ! for a single (i,j,k), with the same associations, so the two agree to the
+    ! bit where the compiler treats them alike.
+    !
+    ! set_tau_q_soa vectorises over i, which the O(surface) boundary producer
+    ! cannot do on two of its six faces -- the i faces pin exactly that axis.
+    ! Rather than carry two shapes of the same arithmetic, the producer walks
+    ! cells and calls this. It is O(surface) work, so the per-cell call costs
+    ! little; the volume pass keeps its row form untouched.
+    pure subroutine tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, &
+        vol, dAi, dAj, dAk, r, Vx, Vr, Vt, i, j, k, ni, nj, nk, tq)
+        implicit none
+        integer, intent(in) :: i, j, k, ni, nj, nk
+        real, intent(in) :: cons(ni, nj, nk, 5)
+        real, intent(in) :: T(ni, nj, nk), mu(ni, nj, nk)
+        real, intent(in) :: cp(ni, nj, nk), kappa(ni, nj, nk)
+        real, intent(in) :: Pr_turb
+        real, intent(in) :: xlength(ni-1, nj-1, nk-1), vol(ni-1, nj-1, nk-1)
+        real, intent(in) :: dAi(3, ni, nj-1, nk-1)
+        real, intent(in) :: dAj(3, ni-1, nj, nk-1)
+        real, intent(in) :: dAk(3, ni-1, nj-1, nk)
+        real, intent(in) :: r(ni, nj, nk)
+        real, intent(in) :: Vx(ni, nj, nk), Vr(ni, nj, nk), Vt(ni, nj, nk)
+        real, intent(out) :: tq(9)
+
+        real :: ivr, rcr, rhoc, cpc, muc, kac, vct
+        real :: gVx1, gVx2, gVx3, gVr1, gVr2, gVr3, gVt1, gVt2, gVt3
+        real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
+        real :: t1, t2, t3, t4, t5, t6, w1, w2, w3
+        real :: vm, mut, fac, lambda, visc_lim
+
+        ivr = 0.25e0 / vol(i,j,k)
+        rcr = 0.125e0 * (r(i,j,k)   + r(i+1,j,k)   + r(i,j+1,k)   + r(i+1,j+1,k) &
+                       + r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))
+        rhoc = 0.125e0 * (cons(i,j,k,1)   + cons(i+1,j,k,1)   + cons(i,j+1,k,1)   + cons(i+1,j+1,k,1) &
+                        + cons(i,j,k+1,1) + cons(i+1,j,k+1,1) + cons(i,j+1,k+1,1) + cons(i+1,j+1,k+1,1))
+        cpc = 0.125e0 * (cp(i,j,k)   + cp(i+1,j,k)   + cp(i,j+1,k)   + cp(i+1,j+1,k) &
+                       + cp(i,j,k+1) + cp(i+1,j,k+1) + cp(i,j+1,k+1) + cp(i+1,j+1,k+1))
+        muc = 0.125e0 * (mu(i,j,k)   + mu(i+1,j,k)   + mu(i,j+1,k)   + mu(i+1,j+1,k) &
+                       + mu(i,j,k+1) + mu(i+1,j,k+1) + mu(i,j+1,k+1) + mu(i+1,j+1,k+1))
+        kac = 0.125e0 * (kappa(i,j,k)   + kappa(i+1,j,k)   + kappa(i,j+1,k)   + kappa(i+1,j+1,k) &
+                       + kappa(i,j,k+1) + kappa(i+1,j,k+1) + kappa(i,j+1,k+1) + kappa(i+1,j+1,k+1))
+        ! --- Vx ---
+        f1 = Vx(i,j,k)+Vx(i,j+1,k)+Vx(i,j,k+1)+Vx(i,j+1,k+1)
+        f2 = Vx(i+1,j,k)+Vx(i+1,j+1,k)+Vx(i+1,j,k+1)+Vx(i+1,j+1,k+1)
+        f3 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j,k+1)+Vx(i+1,j,k+1)
+        f4 = Vx(i,j+1,k)+Vx(i+1,j+1,k)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
+        f5 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j+1,k)+Vx(i+1,j+1,k)
+        f6 = Vx(i,j,k+1)+Vx(i+1,j,k+1)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
+        g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
+        g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
+        g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
+        gVx1 = g1*ivr
+        gVx3 = g3*ivr
+        gVx2 = g2*ivr - 0.125e0*(f1+f2)/rcr
+        ! --- Vr ---
+        f1 = Vr(i,j,k)+Vr(i,j+1,k)+Vr(i,j,k+1)+Vr(i,j+1,k+1)
+        f2 = Vr(i+1,j,k)+Vr(i+1,j+1,k)+Vr(i+1,j,k+1)+Vr(i+1,j+1,k+1)
+        f3 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j,k+1)+Vr(i+1,j,k+1)
+        f4 = Vr(i,j+1,k)+Vr(i+1,j+1,k)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
+        f5 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j+1,k)+Vr(i+1,j+1,k)
+        f6 = Vr(i,j,k+1)+Vr(i+1,j,k+1)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
+        g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
+        g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
+        g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
+        gVr1 = g1*ivr
+        gVr3 = g3*ivr
+        gVr2 = g2*ivr - 0.125e0*(f1+f2)/rcr
+        ! --- Vt ---
+        f1 = Vt(i,j,k)+Vt(i,j+1,k)+Vt(i,j,k+1)+Vt(i,j+1,k+1)
+        f2 = Vt(i+1,j,k)+Vt(i+1,j+1,k)+Vt(i+1,j,k+1)+Vt(i+1,j+1,k+1)
+        f3 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j,k+1)+Vt(i+1,j,k+1)
+        f4 = Vt(i,j+1,k)+Vt(i+1,j+1,k)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
+        f5 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j+1,k)+Vt(i+1,j+1,k)
+        f6 = Vt(i,j,k+1)+Vt(i+1,j,k+1)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
+        vct = (f1+f2)*0.125e0
+        g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
+        g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
+        g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
+        gVt1 = g1*ivr
+        gVt3 = g3*ivr
+        gVt2 = g2*ivr - 0.125e0*(f1+f2)/rcr
+
+        t1 = gVx1
+        t2 = gVr2
+        t3 = gVt3
+        t4 = gVx2 + gVr1
+        t5 = gVx3 + gVt1
+        t6 = gVr3 + gVt2 - vct/rcr
+        w1 = gVt2 - gVr3 + vct/rcr
+        w2 = gVx3 - gVt1
+        w3 = gVr1 - gVx2
+        vm = sqrt(w1*w1 + w2*w2 + w3*w3)
+        ! The max(0) contains the same gfortran 13 codegen fault set_tau_q_soa
+        ! documents at its own copy of this line -- keep them identical.
+        visc_lim = 3000e0 * muc
+        mut = max(0.0e0, min(rhoc * xlength(i,j,k) * vm, visc_lim))
+        fac = (muc + mut) * 0.5e0
+        tq(1) = t1*fac
+        tq(2) = t2*fac
+        tq(3) = t3*fac
+        tq(4) = t4*fac
+        tq(5) = t5*fac
+        tq(6) = t6*fac
+        lambda = kac + mut * cpc / Pr_turb
+        f1 = T(i,j,k)+T(i,j+1,k)+T(i,j,k+1)+T(i,j+1,k+1)
+        f2 = T(i+1,j,k)+T(i+1,j+1,k)+T(i+1,j,k+1)+T(i+1,j+1,k+1)
+        f3 = T(i,j,k)+T(i+1,j,k)+T(i,j,k+1)+T(i+1,j,k+1)
+        f4 = T(i,j+1,k)+T(i+1,j+1,k)+T(i,j+1,k+1)+T(i+1,j+1,k+1)
+        f5 = T(i,j,k)+T(i+1,j,k)+T(i,j+1,k)+T(i+1,j+1,k)
+        f6 = T(i,j,k+1)+T(i+1,j,k+1)+T(i,j+1,k+1)+T(i+1,j+1,k+1)
+        tq(7) = (f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k) &
+              -f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1)) * (ivr*lambda*0.5e0)
+        tq(9) = (f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k) &
+              -f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1)) * (ivr*lambda*0.5e0)
+        tq(8) = ((f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k) &
+              -f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))*ivr &
+              + 0.125e0*(f1+f2)/rcr) * (lambda*0.5e0)
+    end subroutine tau_q_at_cell
+
 end module viscous_helpers
 
 ! The viscous calculation, in two kernels
@@ -634,6 +755,123 @@ subroutine set_tau_q_soa( &
     end do
 
 end subroutine set_tau_q_soa
+
+
+! O(surface) boundary producer for the viscous face buffers.
+!
+! set_tau_q_soa writes tau/q for every owned cell plus a halo shell, because
+! the face-flux phase reads the shell out of that same full-volume array. The
+! FUSED face-flux kernels do not: they produce interior tau/q inside their own
+! walk and read only the shell. This kernel is the shell, on its own -- six
+! surface buffers instead of a volume, so the producer is O(surface) and the
+! consumer's halo source no longer depends on the block's topology.
+!
+! Layer 1 of each face is the block's own edge-cell tau/q. Layer 2 is the halo
+! value, seeded here as (2*wall - 1) * layer1: that single expression is what
+! set_tau_q_soa's "+edge" halo fill and set_visc_force's entry scale_visc_halos
+! compose to, so a viscous wall gets -edge and a permeable or slip face gets
+! +edge, which is right for every face nothing exchanges. The periodic exchange
+! then overwrites layer 2 wherever a patch connects.
+!
+! mu_turb is deliberately NOT written. The fused consumers write it for every
+! cell from their own producer pass, so writing the shell here as well would
+! be duplicated traffic for a value that is about to be overwritten with the
+! identical number.
+!
+! The shell's edges and corners belong to more than one face and are computed
+! once per face they lie on. That duplication is O(edge), and removing it would
+! mean carrying a "which faces own this cell" test into every loop.
+subroutine set_tau_q_faces( &
+    cons, T, mu, cp, kappa, Pr_turb, xlength, vol, dAi, dAj, dAk, &
+    r, Vx, Vr, Vt, &
+    f_i1, f_ini, f_j1, f_jnj, f_k1, f_knk, &
+    walli1, wallni, wallj1, wallnj, wallk1, wallnk, &
+    ni, nj, nk)
+
+    use viscous_helpers
+    implicit none
+
+    integer, intent(in) :: ni, nj, nk
+    real, intent(in) :: cons(ni, nj, nk, 5)
+    real, intent(in) :: T(ni, nj, nk)
+    real, intent(in) :: mu(ni, nj, nk)
+    real, intent(in) :: cp(ni, nj, nk)
+    real, intent(in) :: kappa(ni, nj, nk)
+    real, intent(in) :: Pr_turb
+    real, intent(in) :: xlength(ni-1, nj-1, nk-1)
+    real, intent(in) :: vol(ni-1, nj-1, nk-1)
+    real, intent(in) :: dAi(3, ni, nj-1, nk-1)
+    real, intent(in) :: dAj(3, ni-1, nj, nk-1)
+    real, intent(in) :: dAk(3, ni-1, nj-1, nk)
+    real, intent(in) :: r(ni, nj, nk)
+    real, intent(in) :: Vx(ni, nj, nk), Vr(ni, nj, nk), Vt(ni, nj, nk)
+    ! Component axis second so that, at a fixed trailing spatial index, the
+    ! (edge, component) block is contiguous -- the order the consumers walk it.
+    real, intent(inout) :: f_i1(nj-1, 9, nk-1, 2), f_ini(nj-1, 9, nk-1, 2)
+    real, intent(inout) :: f_j1(ni-1, 9, nk-1, 2), f_jnj(ni-1, 9, nk-1, 2)
+    real, intent(inout) :: f_k1(ni-1, 9, nj-1, 2), f_knk(ni-1, 9, nj-1, 2)
+    real, intent(in) :: walli1(nj-1, nk-1), wallni(nj-1, nk-1)
+    real, intent(in) :: wallj1(ni-1, nk-1), wallnj(ni-1, nk-1)
+    real, intent(in) :: wallk1(ni-1, nj-1), wallnk(ni-1, nj-1)
+
+    integer :: i, j, k, c
+    real :: tq(9)
+
+    ! --- i faces: the two that pin the axis set_tau_q_soa vectorises over ---
+    do k = 1, nk-1
+    do j = 1, nj-1
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+            dAi, dAj, dAk, r, Vx, Vr, Vt, 1, j, k, ni, nj, nk, tq)
+        do c = 1, 9
+            f_i1(j,c,k,1) = tq(c)
+            f_i1(j,c,k,2) = tq(c) * (2.0e0*walli1(j,k) - 1.0e0)
+        end do
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+            dAi, dAj, dAk, r, Vx, Vr, Vt, ni-1, j, k, ni, nj, nk, tq)
+        do c = 1, 9
+            f_ini(j,c,k,1) = tq(c)
+            f_ini(j,c,k,2) = tq(c) * (2.0e0*wallni(j,k) - 1.0e0)
+        end do
+    end do
+    end do
+
+    ! --- j faces ---
+    do k = 1, nk-1
+    do i = 1, ni-1
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+            dAi, dAj, dAk, r, Vx, Vr, Vt, i, 1, k, ni, nj, nk, tq)
+        do c = 1, 9
+            f_j1(i,c,k,1) = tq(c)
+            f_j1(i,c,k,2) = tq(c) * (2.0e0*wallj1(i,k) - 1.0e0)
+        end do
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+            dAi, dAj, dAk, r, Vx, Vr, Vt, i, nj-1, k, ni, nj, nk, tq)
+        do c = 1, 9
+            f_jnj(i,c,k,1) = tq(c)
+            f_jnj(i,c,k,2) = tq(c) * (2.0e0*wallnj(i,k) - 1.0e0)
+        end do
+    end do
+    end do
+
+    ! --- k faces ---
+    do j = 1, nj-1
+    do i = 1, ni-1
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+            dAi, dAj, dAk, r, Vx, Vr, Vt, i, j, 1, ni, nj, nk, tq)
+        do c = 1, 9
+            f_k1(i,c,j,1) = tq(c)
+            f_k1(i,c,j,2) = tq(c) * (2.0e0*wallk1(i,j) - 1.0e0)
+        end do
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+            dAi, dAj, dAk, r, Vx, Vr, Vt, i, j, nk-1, ni, nj, nk, tq)
+        do c = 1, 9
+            f_knk(i,c,j,1) = tq(c)
+            f_knk(i,c,j,2) = tq(c) * (2.0e0*wallnk(i,j) - 1.0e0)
+        end do
+    end do
+    end do
+
+end subroutine set_tau_q_faces
 
 
 ! Pass 2 of a split viscous calculation: given tau_cell and q_cell (which may

@@ -47,6 +47,8 @@ class PeriodicCommunicator:
         self.ijk_node_flat = {}
         self.ijk_halo_flat = {}
         self.ijk_ec_flat = {}  # owned edge-cell indices, Fortran 1-based (precomputed)
+        self.ij_face_flat = {}  # (npt, 2) face-buffer indices, Fortran 1-based
+        self.face_of = {}  # which Block.tau_q_faces entry each patch sits on
         # ijk_halo_flat is overwritten to Fortran 1-based ints during setup
 
         self._prune_pairs(periodic_pairs)
@@ -113,6 +115,32 @@ class PeriodicCommunicator:
             ijk_halo[:, const_dim] -= 1  # one further out on low side
         return ijk_halo
 
+    @staticmethod
+    def _cell_to_face_indices(patch, block, ijk_cell_flat):
+        """Convert cell indices to ``(face, (a, b))`` for ``Block.tau_q_faces``.
+
+        The face buffers index a boundary face by its two free cell
+        coordinates -- ``(j, k)`` on an i face, ``(i, k)`` on a j face,
+        ``(i, j)`` on a k face -- so a patch's points need only two indices,
+        not three. Which face is settled once here rather than carried per
+        point: a patch has exactly one constant dimension and sits at one end
+        of it, so every point of a given patch lands on the same face.
+
+        Returns
+        -------
+        tuple[int, Array]
+            The face's position in the ``Block.tau_q_faces`` tuple
+            (0=i1, 1=ini, 2=j1, 3=jnj, 4=k1, 5=knk), and an ``(npt, 2)``
+            array of Fortran 1-based ``(a, b)`` indices into it.
+        """
+        const_dim = patch.const_dim
+        const_idx = patch.ijk_lim_abs[const_dim, 0]
+        is_high_face = const_idx == block.shape[const_dim] - 1
+        face = 2 * const_dim + (1 if is_high_face else 0)
+        free_dims = [d for d in range(3) if d != const_dim]
+        ab = ijk_cell_flat[:, free_dims] + 1  # 0-based cell -> Fortran 1-based
+        return face, ab
+
     def _setup_matching_indices(self):
         """Setup matching ijk indices for each patch pair.
 
@@ -157,6 +185,18 @@ class PeriodicCommunicator:
                 target_patch, self._grid[nxbid], tgt_cells
             )
 
+            # Face-buffer coordinates for exchange_faces(). Same points, same
+            # order and the same already-applied transform as the volume lists
+            # below -- only the index space differs, so the two exchanges stay
+            # point-for-point equivalent.
+            for key, patch, blk, cells in (
+                ((bid, pid), source_patch, self._grid[bid], src_cells),
+                ((nxbid, nxpid), target_patch, self._grid[nxbid], tgt_cells),
+            ):
+                face, ab = self._cell_to_face_indices(patch, blk, cells)
+                self.face_of[key] = face
+                self.ij_face_flat[key] = np.asfortranarray(ab.astype(np.int16))
+
             # Precompute Fortran (1-based) indices for exchange_halos.
             # cells is 0-based; owned cell c sits at tau_q_halo[c+1] (0-based)
             # = tau_q_halo[c+2] in Fortran 1-based indexing.
@@ -192,6 +232,32 @@ class PeriodicCommunicator:
 
             # Call Fortran averaging function
             ember.fortran.average_by_ijk(cons1, cons2, ijk1, ijk2, 1.0)
+
+    def exchange_faces(self):
+        """Fill each block's face-buffer halo layer from its periodic partner.
+
+        The :attr:`~ember.block.Block.tau_q_faces` counterpart of
+        :meth:`exchange_halos`. Reads layer 0 (the partner's own edge cells)
+        and writes layer 1 (this side's halo), so unlike the volume exchange it
+        never reads and writes the same storage and needs no temporary.
+
+        TWO CALLS PER PAIR, one each way. ``self.pairs`` is pruned to a single
+        key per pair by :meth:`_prune_pairs`, and ``swap_by_ijk`` got away with
+        one call because it swapped in place. A copy cannot, so both directions
+        are issued explicitly. A block periodic to itself cannot catch a
+        regression here -- both ends are the same block -- which is why the
+        gate for this is a two-block case.
+        """
+        for (bid, pid), ((nxbid, nxpid), _) in self.pairs.items():
+            key1, key2 = (bid, pid), (nxbid, nxpid)
+            faces1 = self._grid[bid].tau_q_faces
+            faces2 = self._grid[nxbid].tau_q_faces
+            f1 = faces1[self.face_of[key1]]
+            f2 = faces2[self.face_of[key2]]
+            idx1 = self.ij_face_flat[key1]
+            idx2 = self.ij_face_flat[key2]
+            ember.fortran.copy_faces_by_ij(f1, f2, idx1, idx2)
+            ember.fortran.copy_faces_by_ij(f2, f1, idx2, idx1)
 
     def exchange_halos(self):
         """Copy periodic neighbour tau/q into the local halo slot of tau_q_halo.
