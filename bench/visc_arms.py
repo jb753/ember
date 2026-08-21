@@ -49,6 +49,7 @@ anything reads it, so each call re-initialises its own output.
 
 import numpy as np
 
+import ember.block
 from ember import util
 from ember.grid import _KB_SLAB
 
@@ -155,7 +156,214 @@ def callers_visc(b, active_arms=VISC_ARMS):
     # Rolling face-flow buffers carved from block.scratch exactly as grid.py
     # does -- NOT from tau_q_halo, which is this kernel's tau/q input and
     # whose docstring forbids aliasing a second array into the same call.
-    planes, rows = util.carve_view(b.scratch, (ni, nj, 4, 2), (ni, 4, 3))
+    # One carve for the whole viscous phase, so these cannot land on
+    # top of the tau/q volume at the arena's head.
+    _, _, planes, rows = ember.block._carve_viscous(b)
+    kw = dict(
+        cons=b.conserved_nd,
+        cons_cell=b.conserved_cell_nd,
+        vol=b.vol_nd,
+        dai=b.dAi_nd,
+        daj=b.dAj_nd,
+        dak=b.dAk_nd,
+        omega_block=b.Omega_nd,
+        r=b.r_nd,
+        mu=b.mu_nd,
+        p=b.P_nd,
+        p_offset=b.P_offset_nd,
+        vx=b.Vx_nd,
+        vr=b.Vr_nd,
+        vt=b.Vt_rel_nd,
+        tau_cell=halo[..., 0:6],
+        q_cell=halo[..., 6:9],
+        planes=planes,
+        rows=rows,
+        kb=min(_KB_SLAB, nk - 1),
+        **b.ijk_wall_visc,
+        **b.Omega_wall_nd,
+        i_cusp_start=i_cusp_start,
+        i_cusp_end=i_cusp_end,
+    )
+    # F_body_nd is served read-only; the kernel's fvisc dummy is its
+    # components 2-5 (mass excluded), a contiguous trailing slice.
+    b.F_body_nd.flags.writeable = True
+    fvisc = b.F_body_nd[..., 1:]
+
+    out = {}
+    for name in active_arms:
+        fn = getattr(F, ENTRY[name], None)
+        if fn is None:
+            continue
+        out[name] = lambda fn=fn: fn(fvisc=fvisc, **kw)
+    return out
+
+
+def callers_tauq(b, active_arms=TAUQ_ARMS):
+    """One zero-argument callable per active set_tau_q_soa arm.
+
+    Phase 1 is idempotent (every owned cell and every halo slot it reads is
+    assigned before it is read), so it needs no restore hook.
+    """
+    import ember.fortran as F
+
+    halo = b.tau_q_halo
+    mu_turb = b._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
+    kw = dict(
+        cons=b.conserved_nd,
+        t=b.T_nd,
+        mu=b.mu_nd,
+        cp=b.cp_nd,
+        kappa=b.kappa_nd,
+        pr_turb=1.0,
+        xlength=b.xlen_sq_nd,
+        vol=b.vol_nd,
+        dai=b.dAi_nd,
+        daj=b.dAj_nd,
+        dak=b.dAk_nd,
+        r=b.r_nd,
+        vx=b.Vx_nd,
+        vr=b.Vr_nd,
+        vt=b.Vt_rel_nd,
+        tau_cell=halo[..., 0:6],
+        q_cell=halo[..., 6:9],
+        mu_turb=mu_turb,
+    )
+    out = {}
+    for name in active_arms:
+        fn = getattr(F, ENTRY[name], None)
+        if fn is None:
+            continue
+        out[name] = lambda fn=fn: fn(**kw)
+    return out
+
+
+def selfk_ineligible(grid, b):
+    """Why this block cannot take the seam-free k path, or None if it can.
+
+    The seam-free arm replaces the exchanged k halo with a read of the block's
+    own far cell plane, selected per (i,j) against wallk1/wallnk. That is only
+    equivalent to the exchange under three conditions, checked here once at
+    setup (all O(surface), none of them in the timed window).
+
+    THE SENTINEL is block.i_perk: it is (0, 0) exactly when the block has no
+    k-face PeriodicPatch, so it is the switch between the general (exchange)
+    path and this one. It reads (ni, 1) for a full-span seam and (i_LE, i_TE)
+    for the H-mesh shape.
+
+    THE MASK IS NOT THE PREDICATE. block.ijk_wall_visc means "not a viscous
+    wall", not "periodic": it is 1.0 for every PERMEABLE_TYPES patch and, via
+    SLIP_TYPES (patch.py:200), for InviscidPatch too. Two ways that bites on
+    real geometry -- a slip endwall on a k face, and CuspPatch, which is in
+    PERMEABLE_TYPES and must sit on a constant-k face (cusp.py:25), so an
+    H-mesh trailing edge reads non-wall while being neither wall nor periodic.
+    Nothing exchanges those halos, so a kernel trusting the mask alone would
+    read the far plane there and be silently wrong. Hence the coverage check:
+    the non-wall part of each k face must be EXACTLY the periodic part.
+
+    Self-pairing is checked because a pitch split into two blocks would pair
+    A's k=0 to B's k=nk -- periodic.check_match accepts that -- and the far
+    plane the kernel reads would then belong to the wrong block.
+    """
+    if b.i_perk == (0, 0):
+        return "i_perk == (0, 0): no k-face PeriodicPatch, use the general path"
+
+    for (bid, pid), ((nxbid, _), _) in grid.connectivity.periodic.pair().items():
+        if grid[bid].patches[pid].const_dim != 2:
+            continue  # i/j periodicity is unrelated to the k seam
+        if bid != nxbid:
+            return (
+                f"k-face periodic patch {(bid, pid)} pairs to block {nxbid}, "
+                "not to itself: the far k plane is another block's"
+            )
+
+    # Rebuild the k-face indicator from k-face PeriodicPatches alone, exactly
+    # as Block._get_face_wall_arrays builds the real one (block.py:912), and
+    # require the non-wall part of the mask to be precisely that.
+    kperi = np.zeros(b.shape_kface, dtype=np.uint8)
+    for patch in b.patches.periodic:
+        if patch.const_dim == 2:
+            kperi[*patch.get_ijk_face().T] += 1
+    for name, kslot in (("wallk1", 0), ("wallnk", -1)):
+        nonwall = np.asarray(b.ijk_wall_visc[name])[:, :, 0] > 0
+        covered = kperi[:, :, kslot] > 0
+        if not np.array_equal(nonwall, covered):
+            n = int(np.count_nonzero(nonwall & ~covered))
+            return (
+                f"{name} is non-wall at {n} face cells that no k-face "
+                "PeriodicPatch covers (slip patch, cusp, or another permeable "
+                "type): their halo is never exchanged"
+            )
+    return None
+
+
+def callers_pair(grid, b):
+    """Time the viscous PAIR: tau/q then face fluxes, unfused vs fused.
+
+    The saving spans both kernels -- tau/q stops round-tripping through memory
+    entirely -- so neither can be timed alone, exactly as the IRS fused-limiter
+    study had to time set_residual+IRS together (irs_arms.callers_update).
+
+      unfused      set_tau_q_soa, exchange_halos, set_visc_force -- production
+      fused        exchange_halos, set_visc_force_tqf -- tau/q produced inside
+                   the k walk, halo still exchanged between the phases
+      fused_selfk  set_visc_force_tqf_selfk -- no exchange at all: the k seam
+                   is read from the block's own far plane
+
+    THE EXCHANGE IS IN THE TIMED WINDOW, and it did not use to be. grid.py's
+    update_sources runs it between the two phases every step, so by Rule 3 it
+    is part of the pair's per-step cost -- but the arms as originally written
+    timed `tauq(); visc()` with no exchange, and quoted the resulting -20.9%
+    as if the exchange had been in the loop. It had not: seed_tau_q runs the
+    only exchange in the bench once, untimed, before the reps.
+
+    Splitting the fused arm in two is what makes the two savings separable:
+    `unfused` vs `fused` prices the tau/q DRAM round trip with the exchange
+    held constant, and `fused` vs `fused_selfk` prices the exchange alone. The
+    exchange is a Python loop over pairs.items() around one swap_by_ijk call,
+    so it is O(surface) work behind a fixed Python overhead that does not
+    scale with ncell -- keeping it in its own column stops it flattering the
+    small end of the size ladder.
+
+    All three are idempotent, for different reasons: `unfused` because phase 1
+    rewrites every tau/q slot including the halos that phase 2 then scales in
+    place, and the two fused arms because they never write tau_cell/q_cell at
+    all (exchange_halos on a self-pair is idempotent too -- it reads only
+    interior cells). Asserted in check_pair rather than assumed.
+    """
+    import ember.fortran as F
+
+    ni, nj, nk = b.shape
+    if b.i_cusp[0] > 0:
+        # The fused arm does not apply the cusp seam correction (see the header
+        # of bench/subroutines/viscous_tauq_fused.f90). Refuse rather than
+        # silently compare a kernel that is missing a term.
+        raise SystemExit(
+            "callers_pair: this case is cusped (i_cusp=%r) and set_visc_force_tqf "
+            "does not implement the cusp seam correction." % (b.i_cusp,)
+        )
+
+    unfused = dict(callers_tauq(b), **callers_visc(b, ("visc",)))
+    tauq, visc = unfused["tauq"], unfused["visc"]
+    # Hoisted so the timed lambda does no attribute lookup the other arms are
+    # not also paying; the communicator itself is cached on the connectivity.
+    exchange = grid.connectivity.periodic.exchange_halos
+
+    out = {"unfused": lambda: (tauq(), exchange(), visc())}
+
+    fn = getattr(F, "set_visc_force_tqf", None)
+    fn_selfk = getattr(F, "set_visc_force_tqf_selfk", None)
+    if fn is None and fn_selfk is None:
+        return out
+
+    # The rolling tau/q plane pair and the tau/q row temps, carved from
+    # block.scratch alongside the face-flow buffers -- NOT from tau_q_halo,
+    # which is this kernel's halo input.
+    # The seam-free arm needs FOUR tq slots, not two: the rolling pair plus a
+    # saved cell plane nk-1 and a stashed cell plane 1.
+    n_tq = 4 if fn_selfk is not None else 2
+    # One carve for the whole viscous phase, so these cannot land on
+    # top of the tau/q volume at the arena's head.
+    _, _, planes, rows = ember.block._carve_viscous(b)
     kw = dict(
         cons=b.conserved_nd,
         cons_cell=b.conserved_cell_nd,
@@ -367,9 +575,13 @@ def callers_pair(grid, b):
             f"callers_pair: block.scratch holds {b.scratch.size} floats, the "
             f"fused arms need {need}. A real integration wants its own buffer."
         )
-    planes, rows, tq = util.carve_view(
-        b.scratch, (ni, nj, 4, 2), (ni, 4, 3), (ni + 1, nj + 1, 9, n_tq)
-    )
+    # One carve for the whole viscous phase, so these cannot land on
+    # top of the tau/q volume at the arena's head.
+    _, _, planes, rows = ember.block._carve_viscous(b)
+    # tq is this arm's own rolling tau/q pair. Allocated rather than carved
+    # from block.scratch: the arena's head is the tau/q volume during the
+    # viscous phase and a second carve would land on top of it.
+    tq = np.zeros((ni + 1, nj + 1, 9, n_tq), dtype=np.float32, order="F")
     halo = b.tau_q_halo
     b.F_body_nd.flags.writeable = True
     kw = dict(

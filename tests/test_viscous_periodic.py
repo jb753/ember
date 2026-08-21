@@ -176,7 +176,9 @@ def _fvisc_x(block, comm):
     i_cusp_start, i_cusp_end = block.i_cusp
     ni, nj, nk = block.shape
     kb = min(8, nk - 1)  # mirrors the ember.grid._KB_SLAB production clamp
-    planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
+    # One carve for the whole viscous phase, so these cannot land on
+    # top of the tau/q volume at the arena's head.
+    _, _, planes, rows = ember.block._carve_viscous(block)
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
         cons_cell=block.conserved_cell_nd,
@@ -291,7 +293,9 @@ def _fvisc_x_fused(block, entry="set_visc_force_tqf_selfk", n_tq=4,
         between_phases()
 
     ni, nj, nk = block.shape
-    planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
+    # One carve for the whole viscous phase, so these cannot land on
+    # top of the tau/q volume at the arena's head.
+    _, _, planes, rows = ember.block._carve_viscous(block)
     # Four rolling/saved tau/q planes. Allocated rather than carved from
     # block.scratch: at this block size scratch holds 1125 floats and the arm
     # needs 1556. A real integration wants its own buffer anyway.
@@ -550,7 +554,9 @@ def _fvisc_x_faces(block, comm):
     block.tau_q_halo[...] = np.nan
 
     ni, nj, nk = block.shape
-    planes, rows = util.carve_view(block.scratch, (ni, nj, 4, 2), (ni, 4, 3))
+    # One carve for the whole viscous phase, so these cannot land on
+    # top of the tau/q volume at the arena's head.
+    _, _, planes, rows = ember.block._carve_viscous(block)
     tq = np.zeros((ni + 1, nj + 1, 9, 2), dtype=np.float32, order="F")
     f = block.tau_q_faces
     i_cusp_start, i_cusp_end = block.i_cusp

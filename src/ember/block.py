@@ -833,6 +833,88 @@ class _MaskedBlock:
         return wrapper
 
 
+
+# The scratch arena is sized for at most this many multigrid levels. Solver
+# configuration is validated against it (ember.solver._validate_mg), so a run
+# cannot ask for a coarser hierarchy than the arena was built to hold.
+MAX_MG_LEVELS = 3
+
+
+def _viscous_face_shapes(ni, nj, nk):
+    """Shapes of the six boundary tau/q face buffers, in tau_q_faces order."""
+    shp_i = (nj - 1, 9, nk - 1, 2)
+    shp_j = (ni - 1, 9, nk - 1, 2)
+    shp_k = (ni - 1, 9, nj - 1, 2)
+    return (shp_i, shp_i, shp_j, shp_j, shp_k, shp_k)
+
+
+def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
+    """Elements the shared scratch arena needs, sized by its worst phase.
+
+    :attr:`Block.scratch` backs every throwaway buffer in the step. Its
+    consumers fall into phases that never overlap, so the arena holds the SUM
+    of what is live within a phase and the MAX across phases:
+
+      update_sources   tau/q volume + the six face buffers + set_visc_force's
+                       rolling planes and rows
+      update_residual  set_residual's rolling planes and rows + the IRS work
+                       vector
+      scree / RK+MG    the eleven multigrid coarse buffers + the caller's
+                       cell-shaped increment
+
+    The multigrid phase binds at every shape tried. Sizes are computed, never
+    written as literals, so a buffer added to a phase shows up here rather than
+    silently overrunning its neighbour -- which is what tests/test_scratch_arena
+    exists to enforce.
+    """
+    from ember.solver import mg_coarse_shapes  # noqa: PLC0415 - circular import
+
+    ni, nj, nk = shape
+    # grid.py pads the j extent when the component stride would be a whole page
+    # multiple, so the k-accumulate's streams never 4K-alias. Size for the pad.
+    njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
+    visc_pr = ni * nj * 4 * 2 + ni * 4 * 3
+    faces = sum(int(np.prod(sh)) for sh in _viscous_face_shapes(ni, nj, nk))
+    mg = sum(int(np.prod(sh)) for sh in mg_coarse_shapes(ni, nj, nk, n_levels))
+    return max(
+        (ni + 1) * (nj + 1) * (nk + 1) * 9 + faces + visc_pr,  # update_sources
+        ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,      # update_residual
+        mg + (ni - 1) * (nj - 1) * (nk - 1) * 5,               # scree
+        mg + (ni - 1) * (nj - 1) * 5 * 2,                      # RK + multigrid
+    )
+
+
+def _carve_viscous(block):
+    """Everything ``update_sources`` needs from the arena, from one carve.
+
+    Returns ``(volume, faces, planes, rows)``. This is the only place the
+    viscous phase's arena layout is written down, and every caller that needs
+    any part of it comes through here -- ``grid.update_sources``, the
+    :attr:`Block.tau_q_halo` and :attr:`Block.tau_q_faces` accessors, and the
+    tests and bench arms that drive ``set_visc_force`` directly. Being
+    deterministic, separate calls agree, so a caller wanting only the rolling
+    buffers gets ones that provably miss the volume without any accessor
+    existing to hand them out.
+
+    All four are live at once --
+    ``set_visc_force`` takes the tau/q volume and its rolling planes and rows
+    in the same call, and the face path's independence from the volume is
+    asserted by poisoning the volume while the faces hold real data -- so they
+    must not overlap. One carve is what guarantees that, and it is why the
+    accessors and ``grid.update_sources`` both come through here rather than
+    each carving what it happens to want.
+    """
+    ni, nj, nk = block.shape
+    vol, *rest = util.carve_view(
+        block.scratch,
+        (ni + 1, nj + 1, nk + 1, 9),
+        *_viscous_face_shapes(ni, nj, nk),
+        (ni, nj, 4, 2),
+        (ni, 4, 3),
+    )
+    return vol, tuple(rest[:6]), rest[6], rest[7]
+
+
 class Block(ember._struct.StructuredData):
     def __init__(self, shape=()):
         """Allocate a structured grid block.
@@ -1740,6 +1822,8 @@ class Block(ember._struct.StructuredData):
         # path where the caller already passed exactly self.shape -- true of
         # every current caller.
         shape = self.shape
+        # The arena is flat, so carve the nodal view this kernel writes.
+        nodal = util.carve_view(self.scratch, shape + (5,))
         ember.fortran.set_rho_u_vxrt_write(
             util.bcast_if_needed(rho_nd, shape),
             util.bcast_if_needed(u_nd, shape),
@@ -1747,9 +1831,9 @@ class Block(ember._struct.StructuredData):
             util.bcast_if_needed(Vr_nd, shape),
             util.bcast_if_needed(Vt_nd, shape),
             util.bcast_if_needed(r_nd, shape),
-            self.scratch,
+            nodal,
         )
-        self._data[..., i0 : i0 + 5] = self.scratch
+        self._data[..., i0 : i0 + 5] = nodal
 
         for k in keys:
             self._versions[k] += 1
@@ -3136,7 +3220,7 @@ class Block(ember._struct.StructuredData):
 
     @scratch_array
     def scratch(self, out):
-        """Nodal scratch buffer, shape ``(ni, nj, nk, 5)``.
+        """Shared scratch arena, flat, sized by :func:`_scratch_len`.
 
         Pure transient scratch. This is shared, throwaway kernel
         workspace, NOT a cached value. Its contents are meaningless between
@@ -3149,18 +3233,29 @@ class Block(ember._struct.StructuredData):
         so callers can pass it straight to an ``intent(inout)`` kernel without
         toggling ``flags.writeable``.
 
-        Each consumer owns the whole buffer for the duration of its own call
-        and may treat it as freshly-allocated private memory. The five slots do
-        not have specific meanings, their use is up to the caller. Two
-        consumers never overlap in time, so the same slots are reused freely.
-        Do not, however, pass this buffer twice as two arguments to the same
-        kernel since the kernel will alias them and overwrite its own data.
+        THE ONE ARENA. Every throwaway buffer in the step comes from here,
+        including the viscous tau/q volume (:attr:`tau_q_halo`), the six
+        boundary face buffers (:attr:`tau_q_faces`), ``set_residual``'s and
+        ``set_visc_force``'s rolling planes and rows, the IRS work vector, and
+        the multigrid coarse scratch. :func:`_scratch_len` sizes it from the
+        worst phase; the phases are listed there.
+
+        THE RULE, and it is the whole safety argument. Buffers that reach the
+        same kernel call must come from ONE ``util.carve_view``, which packs
+        them end to end and guarantees they alias distinct storage. Buffers in
+        different phases may reuse the same span freely, because no two phases
+        are live at once -- that invariant is what makes the arena small, and
+        it is a contract, not something the code can check. Never carve a
+        second view during a phase that is already using the arena.
+
+        This buffer is flat: consumers reshape it through ``carve_view``, so
+        needing a particular rank is not a reason to allocate separately.
 
         If you need storage that must survive *alongside* this one within a
         single kernel call or between calls, see :attr:`store` the persistent
         buffer.
         """
-        return util.allocate_or_reuse(out, self.shape + (5,))
+        return util.allocate_or_reuse(out, (_scratch_len(self.shape),))
 
     @derived_array
     def sinBeta(self):
@@ -3230,13 +3325,16 @@ class Block(ember._struct.StructuredData):
         """
         return self.Vr / self.Vx
 
-    @scratch_array
-    def tau_q_faces(self, out):
+    @property
+    def tau_q_faces(self):
         """Boundary tau/q as six surface buffers: ``(i1, ini, j1, jnj, k1, knk)``.
 
-        WARNING -- PURE TRANSIENT SCRATCH, exactly as :attr:`tau_q_halo` is.
-        Valid only within a single viscous pass and only in the slots that pass
-        refreshes.
+        WARNING -- PURE TRANSIENT SCRATCH, and a VIEW into :attr:`scratch`,
+        not its own allocation. Valid only within a single viscous pass and
+        only in the slots that pass refreshes. Carved together with
+        :attr:`tau_q_halo` so the two are provably disjoint: the face path's
+        independence from the volume is asserted by poisoning the volume
+        while these hold real data.
 
         The viscous face-flux phase reads tau/q at the boundary in a halo slot
         one step outside the owned range, and today that slot lives in
@@ -3273,18 +3371,17 @@ class Block(ember._struct.StructuredData):
             ``(ni-1, 9, nk-1, 2)`` and ``(ni-1, 9, nj-1, 2)`` respectively,
             all carved from one allocation and therefore mutually disjoint.
         """
-        ni, nj, nk = self.shape
-        shp_i = (nj - 1, 9, nk - 1, 2)
-        shp_j = (ni - 1, 9, nk - 1, 2)
-        shp_k = (ni - 1, 9, nj - 1, 2)
-        shapes = (shp_i, shp_i, shp_j, shp_j, shp_k, shp_k)
-        n = sum(int(np.prod(s)) for s in shapes)
-        buf = util.allocate_or_reuse(out, (n,))
-        return util.carve_view(buf, *shapes)
+        return _carve_viscous(self)[1]
 
-    @scratch_array
-    def tau_q_halo(self, out):
-        """Halo-padded viscous stress / heat-flux scratch, shape (ni+1, nj+1, nk+1, 9).
+    @property
+    def tau_q_halo(self):
+        """Halo-padded viscous tau/q, shape (ni+1, nj+1, nk+1, 9).
+
+        A VIEW into :attr:`scratch`, not its own allocation. Production's
+        ``set_tau_q_soa``/``set_visc_force`` take the full volume and read
+        its interior, so it stays until that pair migrates to the face
+        buffers; when it does, this property goes and the arena does not
+        change size, because the multigrid phase binds either way.
 
         WARNING -- PURE TRANSIENT SCRATCH. This is throwaway kernel workspace,
         NOT a cached value. Its contents are
@@ -3332,14 +3429,7 @@ class Block(ember._struct.StructuredData):
             Halo slots at index 0 and ni (etc.) are reserved for periodic
             neighbour exchange.
         """
-        ni, nj, nk = self.shape
-        # 10 slots, not 9: the viscous pass uses slots 0-8 (tau/q); the spare
-        # capacity is kept for the transient borrowers, carved from this
-        # storage while it is dead outside the viscous pass -- the fused
-        # inviscid residual's rolling flow buffers (set_residual, a small
-        # leading span) and the multigrid coarse-correction scratch
-        # (solver._mg_coarse_carve).
-        return util.allocate_or_reuse(out, (ni + 1, nj + 1, nk + 1, 10))
+        return _carve_viscous(self)[0]
 
     @derived_array
     def To(self):

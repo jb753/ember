@@ -149,6 +149,24 @@ without a deprecation period.
   Production's ``set_tau_q_soa``/``set_visc_force`` path is untouched and
   still uses ``tau_q_halo``.
 
+* ``Block.scratch`` is now the single scratch arena and is flat rather than
+  ``(ni, nj, nk, 5)``. ``Block.tau_q_halo`` and ``Block.tau_q_faces`` are
+  views into it rather than allocations of their own, and ``tau_q_halo`` drops
+  its spare tenth slot. Three allocations become one, sized by whichever step
+  phase needs the most: 67.4 MB to 43.6 MB at a 1M-cell block, with peak RSS
+  over a short run falling 351 MB to 341 MB. Timing is unchanged
+  (``set_residual`` 24.479 to 24.476 ns/cell, the viscous pair 56.4 to 56.6,
+  both inside their error bars).
+
+  Consumers that carve from the arena must take every buffer a single kernel
+  call needs from ONE ``util.carve_view``, which packs them end to end and so
+  cannot overlap; buffers in different phases may share a span because no two
+  phases are live at once. ``ember.solver`` gains ``mg_coarse_shapes`` so its
+  callers can fold the multigrid scratch into their own carve, replacing
+  ``_mg_coarse_carve``. Multigrid ``n_levels`` is now capped at
+  ``ember.block.MAX_MG_LEVELS`` (3), validated in ``_validate_mg`` alongside
+  the divisibility rule, because the arena is sized for that depth.
+
 .. _v0.2.0:
 
 0.2.0 (2026-08-18)
