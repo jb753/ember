@@ -499,3 +499,132 @@ SO THE LEVER IS THE CONSUMER, NOT THE HALO SOURCE. `kb` is already in the
 fused kernel's signature and inert. Slab-blocking the k walk so the nodal
 fields stream through in panels is the change that would let the 15.4 MB the
 surface buffers save actually reach the bottom line.
+
+## And splitting the producer into tau and q passes is worse
+
+The streams are in stage 1 -- the corner averages and velocity gradients --
+not stage 2, so separating only the tau and q stores changes nothing. A real
+split partitions stage 1 by consumer, and `viscous_tauq_split.f90` does that
+(timing controls, wrong by construction):
+
+```
+  tau pass  vol r cons1 mu Vx Vr Vt xlength dAi dAj dAk   11 streams
+  q pass    vol r T cp kappa dAi dAj dAk (+ mut)           9 streams
+  fused                                                   14 streams
+```
+
+Serial, 1M cells, 10 launches, paired:
+
+```
+  tauq       fused producer   25.570 ns/cell
+  tauq_tau   tau half         18.247   -28.49% +/- 0.22   10/10
+  tauq_q     q half           10.467   -58.86% +/- 0.16   10/10
+  sum                         28.714   +12.3% against the fused producer
+```
+
+Each half is far cheaper on its own, as the stream count predicts, and they
+still lose by 3.14 ns/cell together. The shared inputs are why: vol, r and the
+three dA arrays are read by both, and dAi/dAj/dAk alone are 3 arrays of 3
+components -- 36 B/cell, the producer's largest input. A second read of the
+geometry costs ~5.6 ns/cell at 6.4 GB/s and swamps what the shorter stream
+lists buy.
+
+SO THE TENSION IS GEOMETRY TRAFFIC AGAINST STREAM COUNT, not tau against q:
+
+  * fusing reads dA once and pays in streams -- saves 18 ns/cell of tau/q
+    round trip, gives back ~11 to stream count, nets 7;
+  * splitting shortens the stream lists and pays in dA re-reads -- +3.14.
+
+Production sits between the two, reading dA twice across its two phases, and
+that is close to optimal here. Consistent with the rest of this file: three
+fusions rejected for stream count (j-panel tiling, the IRS k-solve merge, this
+study), and now a split rejected for geometry traffic.
+
+## Tracked down: the 13.8% is inlining, not the pre-pass
+
+viscous_tauq_ctl differs from viscous_tauq_fused in two ways at once -- the
+pre-pass and a four-slot tq -- so viscous_tauq_pad.f90 separates them. It is
+set_visc_force_tqf with one character changed, its tq dummy declared with four
+slots instead of two: same body, same two slots used, no pre-pass.
+
+```
+  fused       2-slot, no pre-pass    49.306 ns/cell
+  fused_pad   4-slot, no pre-pass    48.208   -2.45% +/- 0.19   10/10
+  fused_ctl   4-slot + pre-pass      42.301  -14.50% +/- 0.35   10/10
+```
+
+So 2.45% is where the buffer sits and ~12% is the pre-pass -- except the
+pre-pass is not doing the work. codegen_gauge reports fused and fused_pad as
+BYTE-IDENTICAL (20,615 insns, same mix), which is what makes the first 2.45%
+cleanly attributable to data layout alone. Disassembling the bodies explains
+the rest:
+
+```
+  set_visc_force_tqf_        18,235 insns, 8 calls to wall_func_{i,j,k}face,
+                                            zero_wall_fvisc_border
+  set_visc_force_tqf_pad_    18,235 insns, the same 8 calls
+  set_visc_force_tqf_ctl_    32,191 insns, ZERO such calls -- inlined, with
+                                            logf surfacing from the log law
+```
+
+Every arm with a pre-pass (ctl, selfk) gets the wall functions inlined; every
+arm without (fused, pad, faces) does not. The pre-pass's only contribution is
+to make the function big enough to flip GCC's decision.
+
+THIS FILE ALREADY DOCUMENTS THE SAME FAILURE, for a different callee:
+viscous_tauq_fused.f90's header records that "GCC inlines polar_src into
+production's set_visc_force but not into this larger fused body, and a call in
+the loop blocks vectorization outright". polar_src was hand-inlined in
+response. Nobody checked wall_func_*, which has it too.
+
+AND SO DOES PRODUCTION. set_visc_force_ carries un-inlined calls to all three
+wall_func_*face, zero_wall_fvisc_border and kface_flow. That is a candidate
+production win independent of fusion, surface buffers and topology.
+
+The build already lifts GCC's inline budgets hard (-finline-limit=10000,
+inline-unit-growth and large-function-growth at 1000000), which setup.py
+records as worth -53% for set_residual's face helpers, so the budgets are not
+the binding constraint here. Passing the same params through LDFLAGS, on the
+theory that -flto decides inlining at link with default budgets, changed
+nothing -- but whether LDFLAGS actually reaches the link step was not
+verified, so that theory is untested rather than refuted.
+
+The fix that follows the codebase's own precedent is to hand-inline the wall
+functions as polar_src already is.
+
+## Interleaving does not work, and the proxy that said it would was wrong
+
+viscous_tauq_packed.f90 takes vel(3,i,j,k) and trans(3,i,j,k) -- the same
+values in the layout dAi(3,i,j-1,k-1) already uses -- so six streams become
+two in the hot loops with identical arithmetic. It gates BITWISE against
+production. Serial, 1M cells, 10 launches, paired:
+
+```
+  fused                                  48.601 ns/cell
+  packed        velocities + transport   54.616  +11.06% +/- 0.54   slower 0/10
+  packed_trans  transport only           48.784   -0.85% +/- 0.45   faster 7/10
+```
+
+Both halves fail. The velocity packing is an outright loss and the transport
+packing is noise -- note the 7/10, where every real effect in this file has
+been 10/10.
+
+WHY THE PROXY LIED. streams_hi/streams_lo collapsed three arrays into one by
+ALIASING, so all three reads landed in the same contiguous array and kept unit
+stride. It measured the benefit of fewer streams while paying none of the cost
+of packing. Real interleaving pays it: i is the vectorised axis, so Vx(i,j,k)
+loads at unit stride and vel(1,i,j,k) at stride 3. dAi gets away with the
+layout because all three of its components are read at the same (i,j,k); the
+velocities are read in three separate blocks and the transport properties,
+though corner-averaged over the same eight nodes on consecutive lines, still
+lose more to the stride than they gain from the locality.
+
+SO THE STREAM COUNT AND THE VECTORISATION ARE THE SAME PROPERTY. Many arrays
+each walked at unit stride is what makes the SIMD cheap and what makes the
+stream count expensive. The 82%-not-bytes measurement was right that streams
+cost; it is not reachable, because every layout that reduces the count breaks
+the stride that pays for it.
+
+An aliasing proxy is an upper bound on a layout change, never an estimate of
+one. That is the second time in this study a measurement shortcut inverted a
+conclusion -- see the method warning above.
