@@ -55,7 +55,7 @@ from ember.grid import _KB_SLAB
 from residual_arms import build_case, swirl  # noqa: F401  (re-export)
 
 VISC_ARMS = ("visc", "viscij", "viscijk", "viscpol", "viscpol2")
-TAUQ_ARMS = ("tauq",)
+TAUQ_ARMS = ("tauq", "tauq_tau", "tauq_q")
 
 ENTRY = {
     "visc": "set_visc_force",
@@ -69,6 +69,10 @@ ENTRY = {
     # pass and into the fused store, where it is unit-stride.
     "viscpol2": "set_visc_force_pol2",
     "tauq": "set_tau_q_soa",
+    # Timing controls, wrong by construction: set_tau_q_soa split by
+    # consumer, to price a tau/q split. See viscous_tauq_split.f90.
+    "tauq_tau": "set_tau_q_tau_only",
+    "tauq_q": "set_tau_q_q_only",
 }
 
 
@@ -427,6 +431,37 @@ def callers_pair(grid, b):
     # before the reps -- so their numbers omit the cost of producing the halo
     # they read, while `unfused` pays set_tau_q_soa in full. This arm is the
     # first that can be compared with `unfused` without that asymmetry.
+    # set_visc_force_tqf with a four-slot tq dummy and nothing else changed:
+    # the bisection between viscous_tauq_ctl's pre-pass and its bigger buffer.
+    # Component-first packings of the velocity and transport streams: six
+    # arrays become two in the hot loops, same values and same bytes. Packed
+    # here at setup, outside the timed window -- a real integration would
+    # change Block's axis order instead, which is why this is a bench arm.
+    fn_packed = getattr(F, "set_visc_force_tqf_packed", None)
+    if fn_packed is not None:
+        vel = np.asfortranarray(
+            np.stack([np.asarray(b.Vx_nd), np.asarray(b.Vr_nd),
+                      np.asarray(b.Vt_rel_nd)], axis=0).astype(np.float32))
+        trans = np.asfortranarray(
+            np.stack([np.asarray(b.mu_nd), np.asarray(b.cp_nd),
+                      np.asarray(b.kappa_nd)], axis=0).astype(np.float32))
+        kw_packed = dict(kw, tq=tq[..., :2], vel=vel, trans=trans)
+        # Same shape as `fused`: it reads the exchanged k halo, so it needs
+        # the exchange in front of it.
+        out["packed"] = lambda: (exchange(), fn_packed(**kw_packed))
+
+    fn_ptrans = getattr(F, "set_visc_force_tqf_ptrans", None)
+    if fn_ptrans is not None:
+        trans_p = np.asfortranarray(
+            np.stack([np.asarray(b.mu_nd), np.asarray(b.cp_nd),
+                      np.asarray(b.kappa_nd)], axis=0).astype(np.float32))
+        kw_pt = dict(kw, tq=tq[..., :2], trans=trans_p)
+        out["packed_trans"] = lambda: (exchange(), fn_ptrans(**kw_pt))
+
+    fn_pad = getattr(F, "set_visc_force_tqf_pad", None)
+    if fn_pad is not None:
+        out["fused_pad"] = lambda: fn_pad(**kw)
+
     fn_faces = getattr(F, "set_visc_force_tqf_faces", None)
     if fn_faces is not None:
         faces = b.tau_q_faces
@@ -468,6 +503,20 @@ def callers_pair(grid, b):
         kw_lo = dict(kw_faces, mu=same, cp=same, kappa=same)
         out["streams_hi"] = lambda: fn_faces(**kw_hi)
         out["streams_lo"] = lambda: fn_faces(**kw_lo)
+
+        # The same controlled A/B on the VELOCITY streams, which is the
+        # interesting case: Vx, Vr and Vt_rel are all recoverable from cons, r
+        # and Omega, every one of which the kernel already takes. If collapsing
+        # them is worth much, deriving them on the fly (into a rolling node
+        # plane, as tq does for tau/q) trades three volume streams for three
+        # divisions per node. If it is worth little, it cannot pay for them.
+        vsame = np.array(b.Vx_nd, copy=True, order="F")
+        kw_vhi = dict(kw_faces, vx=np.array(vsame, copy=True, order="F"),
+                      vr=np.array(vsame, copy=True, order="F"),
+                      vt=np.array(vsame, copy=True, order="F"))
+        kw_vlo = dict(kw_faces, vx=vsame, vr=vsame, vt=vsame)
+        out["vel_hi"] = lambda: fn_faces(**kw_vhi)
+        out["vel_lo"] = lambda: fn_faces(**kw_vlo)
         # The consumer alone, for comparison with `fused` on equal footing
         # (both then exclude their halo production).
         out["faces_nop1"] = lambda: fn_faces(**kw_faces)
@@ -511,7 +560,7 @@ def check_pair(grid, b):
     where it passes through zero.
     """
     fns = callers_pair(grid, b)
-    arms = [n for n in ("fused", "fused_selfk", "faces") if n in fns]
+    arms = [n for n in ("fused", "fused_selfk", "faces", "packed") if n in fns]
     if not arms:
         return {}
     fvisc, mu_turb = b.F_body_nd, b.mu_turb
@@ -529,7 +578,14 @@ def check_pair(grid, b):
     # reset. The reset is here because the hazard is real, not because it
     # fixed anything.
     callers_tauq(b)["tauq"]()
-    restore = halo_restorer(b)
+    # Snapshot the WHOLE buffer, not just the six faces halo_restorer covers.
+    # The faces arm poisons all of it to prove it reads none of it, and an arm
+    # running afterwards would otherwise exchange poisoned owned-edge cells
+    # into its own seam -- a NaN that looks like a seam bug and is not.
+    halo_snapshot = np.array(b.tau_q_halo, copy=True)
+
+    def restore():
+        b.tau_q_halo[...] = halo_snapshot
 
     def run(name):
         if name != "unfused":
