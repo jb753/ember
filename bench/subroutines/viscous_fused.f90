@@ -292,7 +292,8 @@ subroutine set_visc_force_ij( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Omega_block, mu
+    real, intent(in) :: Omega_block
+    real, intent(in) :: mu(ni, nj, nk)
     real, intent(in) :: P(ni, nj, nk)
     real, intent(in) :: P_offset
     real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
@@ -598,7 +599,8 @@ subroutine set_visc_force_ijk( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Omega_block, mu
+    real, intent(in) :: Omega_block
+    real, intent(in) :: mu(ni, nj, nk)
     real, intent(in) :: P(ni, nj, nk)
     real, intent(in) :: P_offset
     real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
@@ -900,7 +902,8 @@ subroutine set_visc_force_pol( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Omega_block, mu
+    real, intent(in) :: Omega_block
+    real, intent(in) :: mu(ni, nj, nk)
     real, intent(in) :: P(ni, nj, nk)
     real, intent(in) :: P_offset
     real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
@@ -1246,7 +1249,8 @@ subroutine set_visc_force_pol2( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Omega_block, mu
+    real, intent(in) :: Omega_block
+    real, intent(in) :: mu(ni, nj, nk)
     real, intent(in) :: P(ni, nj, nk)
     real, intent(in) :: P_offset
     real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
