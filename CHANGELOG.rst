@@ -69,6 +69,27 @@ without a deprecation period.
   surface it is the origin of. Passing ``P_dtm`` or ``T_dtm`` still overrides,
   either one on its own.
 
+* The viscous kernels now take viscosity and conductivity as nodal fields, so
+  a real gas's fitted transport surfaces reach the flow instead of stopping at
+  the fluid. ``Block.mu_nd`` becomes a field like ``Block.cp_nd`` --- which it
+  had always documented itself as --- and is joined by ``Block.kappa_nd`` and a
+  dimensional ``Block.kappa``. The kernel takes that conductivity directly and
+  no longer takes a laminar Prandtl number: deriving conductivity back from a
+  ratio the fluid does not store is a round trip, and the ratio is only defined
+  by the two surfaces in the first place. The mixing-length clamp
+  ``3000*mu`` and the wall functions' ``Re = rho*V*d/mu`` follow the local
+  value too, the latter face-averaged at the same node plane as the density it
+  divides. Measured at about 13% of ``set_tau_q_soa`` for the two fields
+  together, in line with the 7% one field cost when ``cp`` went nodal;
+  ``set_visc_force`` is unchanged within noise, since it reads viscosity only
+  at wall faces. Perfect-gas results move by float32 round-off rather than not
+  at all --- averaging eight copies of one float32 to a cell is not exact --
+  and a perfect gas now fills a whole nodal array with one repeated constant,
+  as it already did for ``cp``. Two consequences for callers: ``Block.mu_nd``
+  needs an initialised flow field, where before it was a property of the fluid
+  and the reference length alone, and ``RealFluid`` no longer carries the
+  block-wide ``_mu_nd`` and ``_Pr`` it used to hand the solver.
+
 * ``RealFluid`` now fits viscosity and thermal conductivity as surfaces of
   density and internal energy, after Appendix B of the same paper, rather than
   taking two constants. They are ordinary least-squares fits over the same box

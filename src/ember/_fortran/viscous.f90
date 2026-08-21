@@ -110,105 +110,111 @@ contains
 
     pure subroutine wall_func_iface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, di, flow)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
-        real, intent(in) :: Omega_block, Omega_wall, mu
+        real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, di
-        real :: Vxf, Vrf, Vtf, rf, rhof
+        real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: flow(4)
         Vxf  = iface(Vx,  i+di, j, k) * 0.25e0
         Vrf  = iface(Vr,  i+di, j, k) * 0.25e0
         Vtf  = iface(Vt,  i+di, j, k) * 0.25e0
         rhof = iface(rho, i+di, j, k) * 0.25e0
+        muf  = iface(mu,  i+di, j, k) * 0.25e0
         rf   = iface(r, i, j, k) * 0.25e0
-        call wall_func(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, flow)
+        call wall_func(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * di
     end subroutine wall_func_iface
 
     pure subroutine wall_func_jface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dj, flow)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
-        real, intent(in) :: Omega_block, Omega_wall, mu
+        real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, dj
-        real :: Vxf, Vrf, Vtf, rf, rhof
+        real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: flow(4)
         Vxf  = jface(Vx,  i, j+dj, k) * 0.25e0
         Vrf  = jface(Vr,  i, j+dj, k) * 0.25e0
         Vtf  = jface(Vt,  i, j+dj, k) * 0.25e0
         rhof = jface(rho, i, j+dj, k) * 0.25e0
+        muf  = jface(mu,  i, j+dj, k) * 0.25e0
         rf   = jface(r, i, j, k) * 0.25e0
-        call  wall_func(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, flow)
+        call  wall_func(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * dj
     end subroutine wall_func_jface
 
     pure subroutine wall_func_kface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dk, flow)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
-        real, intent(in) :: Omega_block, Omega_wall, mu
+        real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, dk
-        real :: Vxf, Vrf, Vtf, rf, rhof
+        real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: flow(4)
         Vxf  = kface(Vx,  i, j, k+dk) * 0.25e0
         Vrf  = kface(Vr,  i, j, k+dk) * 0.25e0
         Vtf  = kface(Vt,  i, j, k+dk) * 0.25e0
         rhof = kface(rho, i, j, k+dk) * 0.25e0
+        muf  = kface(mu,  i, j, k+dk) * 0.25e0
         rf   = kface(r, i, j, k) * 0.25e0
-        call wall_func(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, flow)
+        call wall_func(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * dk
     end subroutine wall_func_kface
 
     ! Diagnostic y+ counterparts of wall_func_iface/jface/kface above -- same
-    ! face-averaging, calling wall_yplus instead of wall_func. No `* di/dj/dk`
-    ! sign multiply: y+ has no direction, unlike a flux vector. Used only by
+    ! face-averaging, mu included, calling wall_yplus instead of wall_func.
+    ! No `* di/dj/dk` sign multiply: y+ has no direction, unlike a flux vector. Used only by
     ! wall_yplus_field (post-processing), never set_visc_force.
     pure subroutine wall_yplus_iface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, di, yplus)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
-        real, intent(in) :: Omega_block, Omega_wall, mu
+        real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, di
-        real :: Vxf, Vrf, Vtf, rf, rhof
+        real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: yplus
         Vxf  = iface(Vx,  i+di, j, k) * 0.25e0
         Vrf  = iface(Vr,  i+di, j, k) * 0.25e0
         Vtf  = iface(Vt,  i+di, j, k) * 0.25e0
         rhof = iface(rho, i+di, j, k) * 0.25e0
+        muf  = iface(mu,  i+di, j, k) * 0.25e0
         rf   = iface(r, i, j, k) * 0.25e0
-        call wall_yplus(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, yplus)
+        call wall_yplus(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_iface
 
     pure subroutine wall_yplus_jface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dj, yplus)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
-        real, intent(in) :: Omega_block, Omega_wall, mu
+        real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, dj
-        real :: Vxf, Vrf, Vtf, rf, rhof
+        real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: yplus
         Vxf  = jface(Vx,  i, j+dj, k) * 0.25e0
         Vrf  = jface(Vr,  i, j+dj, k) * 0.25e0
         Vtf  = jface(Vt,  i, j+dj, k) * 0.25e0
         rhof = jface(rho, i, j+dj, k) * 0.25e0
+        muf  = jface(mu,  i, j+dj, k) * 0.25e0
         rf   = jface(r, i, j, k) * 0.25e0
-        call wall_yplus(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, yplus)
+        call wall_yplus(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_jface
 
     pure subroutine wall_yplus_kface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dk, yplus)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
-        real, intent(in) :: Omega_block, Omega_wall, mu
+        real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, dk
-        real :: Vxf, Vrf, Vtf, rf, rhof
+        real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: yplus
         Vxf  = kface(Vx,  i, j, k+dk) * 0.25e0
         Vrf  = kface(Vr,  i, j, k+dk) * 0.25e0
         Vtf  = kface(Vt,  i, j, k+dk) * 0.25e0
         rhof = kface(rho, i, j, k+dk) * 0.25e0
+        muf  = kface(mu,  i, j, k+dk) * 0.25e0
         rf   = kface(r, i, j, k) * 0.25e0
-        call wall_yplus(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, mu, rhof, Vxf, Vrf, Vtf, yplus)
+        call wall_yplus(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_kface
 
     ! One k-face viscous flux at face plane k: identical arithmetic to the
@@ -438,7 +444,7 @@ end module viscous_helpers
 !   frame-invariant regardless, since the rigid rotation Omega*r contributes
 !   only an antisymmetric part.
 subroutine set_tau_q_soa( &
-    cons, T, mu, cp, Pr_lam, Pr_turb, xlength, vol, dAi, dAj, dAk, &
+    cons, T, mu, cp, kappa, Pr_turb, xlength, vol, dAi, dAj, dAk, &
     r, &
     Vx, Vr, Vt, &
     tau_cell, &
@@ -452,11 +458,16 @@ subroutine set_tau_q_soa( &
     integer, intent(in) :: ni, nj, nk
     real, intent(in) :: cons(ni, nj, nk, 5)
     real, intent(in) :: T(ni, nj, nk)
-    real, intent(in) :: mu, Pr_lam, Pr_turb
-    ! Nodal, unlike mu: a real gas's specific heat varies over the field,
-    ! and freezing it at one state was worth as much as the whole spread of
-    ! cp over a fit box. Averaged to the cell below, like rho.
+    real, intent(in) :: Pr_turb
+    ! All three nodal: a real gas's viscosity, conductivity and specific heat
+    ! are surfaces over the field, and freezing any of them at one state was
+    ! worth as much as its whole spread over a fit box. Averaged to the cell
+    ! below, like rho. The laminar Prandtl number is not among them -- it is
+    ! the ratio of two of these, so passing it as well would be a second
+    ! definition of the same thing.
+    real, intent(in) :: mu(ni, nj, nk)
     real, intent(in) :: cp(ni, nj, nk)
+    real, intent(in) :: kappa(ni, nj, nk)
     real, intent(in) :: xlength(ni-1, nj-1, nk-1)
     real, intent(in) :: vol(ni-1, nj-1, nk-1)
     real, intent(in) :: dAi(3, ni, nj-1, nk-1)
@@ -479,10 +490,9 @@ subroutine set_tau_q_soa( &
     ! Row temps -- i is the contiguous (dim-1) axis, the SIMD lane index.
     real :: gVx(ni-1, 3), gVr(ni-1, 3), gVt(ni-1, 3)
     real :: vct(ni-1), rcr(ni-1), ivr(ni-1), rhoc(ni-1), cpc(ni-1)
+    real :: muc(ni-1), kac(ni-1)
     real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
     real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac, lambda
-
-    visc_lim = 3000e0 * mu
 
     do k = 1, nk-1
     do j = 1, nj-1
@@ -495,6 +505,10 @@ subroutine set_tau_q_soa( &
                                + cons(i,j,k+1,1) + cons(i+1,j,k+1,1) + cons(i,j+1,k+1,1) + cons(i+1,j+1,k+1,1))
             cpc(i) = 0.125e0 * (cp(i,j,k)   + cp(i+1,j,k)   + cp(i,j+1,k)   + cp(i+1,j+1,k) &
                               + cp(i,j,k+1) + cp(i+1,j,k+1) + cp(i,j+1,k+1) + cp(i+1,j+1,k+1))
+            muc(i) = 0.125e0 * (mu(i,j,k)   + mu(i+1,j,k)   + mu(i,j+1,k)   + mu(i+1,j+1,k) &
+                              + mu(i,j,k+1) + mu(i+1,j,k+1) + mu(i,j+1,k+1) + mu(i+1,j+1,k+1))
+            kac(i) = 0.125e0 * (kappa(i,j,k)   + kappa(i+1,j,k)   + kappa(i,j+1,k)   + kappa(i+1,j+1,k) &
+                              + kappa(i,j,k+1) + kappa(i+1,j,k+1) + kappa(i,j+1,k+1) + kappa(i+1,j+1,k+1))
             ! --- Vx ---
             f1 = Vx(i,j,k)+Vx(i,j+1,k)+Vx(i,j,k+1)+Vx(i,j+1,k+1)
             f2 = Vx(i+1,j,k)+Vx(i+1,j+1,k)+Vx(i+1,j,k+1)+Vx(i+1,j+1,k+1)
@@ -565,16 +579,17 @@ subroutine set_tau_q_soa( &
             ! Ubuntu 24.04 (the CI runner) ships gfortran 13.3, so this is a
             ! live target, not a historical one. The clamp costs one vmaxps
             ! and leaves the loop vectorized.
+            visc_lim = 3000e0 * muc(i)
             mut = max(0.0e0, min(rhoc(i) * xlength(i,j,k) * vm, visc_lim))
             mu_turb(i,j,k) = mut
-            fac = (mu + mut) * 0.5e0
+            fac = (muc(i) + mut) * 0.5e0
             tau_cell(i+1,j+1,k+1,1) = t1*fac
             tau_cell(i+1,j+1,k+1,2) = t2*fac
             tau_cell(i+1,j+1,k+1,3) = t3*fac
             tau_cell(i+1,j+1,k+1,4) = t4*fac
             tau_cell(i+1,j+1,k+1,5) = t5*fac
             tau_cell(i+1,j+1,k+1,6) = t6*fac
-            lambda = (mu/Pr_lam + mut/Pr_turb) * cpc(i)
+            lambda = kac(i) + mut * cpc(i) / Pr_turb
             f1 = T(i,j,k)+T(i,j+1,k)+T(i,j,k+1)+T(i,j+1,k+1)
             f2 = T(i+1,j,k)+T(i+1,j+1,k)+T(i+1,j,k+1)+T(i+1,j+1,k+1)
             f3 = T(i,j,k)+T(i+1,j,k)+T(i,j,k+1)+T(i+1,j,k+1)
@@ -681,7 +696,8 @@ subroutine set_visc_force( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Omega_block, mu
+    real, intent(in) :: Omega_block
+    real, intent(in) :: mu(ni, nj, nk)
     real, intent(in) :: P(ni, nj, nk)
     real, intent(in) :: P_offset
     real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
@@ -1065,7 +1081,8 @@ subroutine wall_yplus_field( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Omega_block, mu
+    real, intent(in) :: Omega_block
+    real, intent(in) :: mu(ni, nj, nk)
     real, intent(in) :: Vx(ni, nj, nk), Vr(ni, nj, nk), Vt(ni, nj, nk)
     real, intent(in) :: walli1(nj-1, nk-1), wallni(nj-1, nk-1)
     real, intent(in) :: wallj1(ni-1, nk-1), wallnj(ni-1, nk-1)

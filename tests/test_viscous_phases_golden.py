@@ -117,8 +117,12 @@ def _build_block():
     return block
 
 
-def _run_phase1():
+def _run_phase1(mu=None, kappa=None):
     """Call ``set_tau_q_soa`` directly; return its tau/q/mu_turb output.
+
+    ``mu`` and ``kappa`` default to the block's own nodal fields; pass arrays
+    to drive the kernel with transport that varies where this fixture's
+    perfect gas leaves it constant.
 
     The tau/q scratch buffer is zeroed first so the corner/edge halo slots the
     subroutine leaves untouched are a deterministic zero rather than stale
@@ -136,9 +140,9 @@ def _run_phase1():
     ember.fortran.set_tau_q_soa(
         cons=block.conserved_nd,
         t=block.T_nd,
-        mu=block.mu_nd,
+        mu=block.mu_nd if mu is None else mu,
         cp=block.cp_nd,
-        pr_lam=block.fluid._Pr,
+        kappa=block.kappa_nd if kappa is None else kappa,
         pr_turb=PR_TURB,
         xlength=block.xlen_sq_nd,
         vol=block.vol_nd,
@@ -315,6 +319,68 @@ def test_set_visc_force_kb_consistent(kb):
     ref = _run_phase2(kb=SHAPE[2] - 1)
     out = _run_phase2(kb=kb)
     np.testing.assert_array_equal(out, ref)
+
+
+def _corner(a):
+    """Nodal array averaged to cells, as the kernel's stage-1 row temps do."""
+    a = np.asarray(a, dtype=np.float64)
+    return 0.125 * (
+        a[:-1, :-1, :-1]
+        + a[1:, :-1, :-1]
+        + a[:-1, 1:, :-1]
+        + a[1:, 1:, :-1]
+        + a[:-1, :-1, 1:]
+        + a[1:, :-1, 1:]
+        + a[:-1, 1:, 1:]
+        + a[1:, 1:, 1:]
+    )
+
+
+def test_phase1_reads_the_transport_fields_cell_by_cell():
+    """tau follows the local viscosity and q the local conductivity.
+
+    Every other test in this file hands the kernel a perfect gas, whose
+    transport is one number repeated over the whole field -- which a kernel
+    that ignored the fields entirely would reproduce exactly. This one hands
+    it fields that vary, and checks the consequence in closed form: the
+    stress is linear in the cell's own corner-averaged viscosity and the heat
+    flux in its conductivity, so each cell's ratio to the constant-transport
+    run is known without re-deriving the kernel's arithmetic.
+
+    The two fields vary along different axes, so a kernel that crossed them
+    would not pass either.
+    """
+    block = _build_block()
+    ni, nj, nk = SHAPE
+    mu0 = np.asarray(block.mu_nd, dtype=np.float64)
+    ka0 = np.asarray(block.kappa_nd, dtype=np.float64)
+    ramp_i = (np.arange(ni) / (ni - 1.0))[:, None, None]
+    ramp_j = (np.arange(nj) / (nj - 1.0))[None, :, None]
+    mu_f = np.asfortranarray(mu0 * (1.0 + 0.4 * ramp_i), dtype=np.float32)
+    ka_f = np.asfortranarray(ka0 * (1.0 + 0.4 * ramp_j), dtype=np.float32)
+
+    base = _run_phase1()
+    got = _run_phase1(mu=mu_f, kappa=ka_f)
+
+    # Cell (i,j,k) is written at tau_cell(i+1,j+1,k+1); mu_turb is written at
+    # the cell's own low corner. Each run supplies its own mixing-length
+    # viscosity, because visc_lim scales with the laminar one and this
+    # fixture deliberately saturates that clamp in a minority of cells.
+    cells = (slice(1, ni), slice(1, nj), slice(1, nk))
+    mut_a, mut_b = base["mu_turb"], got["mu_turb"]
+    fac_a = _corner(mu0) + mut_a
+    fac_b = _corner(mu_f) + mut_b
+    cpc = _corner(block.cp_nd)
+    lam_a = _corner(ka0) + mut_a * cpc / PR_TURB
+    lam_b = _corner(ka_f) + mut_b * cpc / PR_TURB
+
+    for name, ratio in (("tau_cell", fac_b / fac_a), ("q_cell", lam_b / lam_a)):
+        expected = np.asarray(base[name], dtype=np.float64)[cells] * ratio[..., None]
+        actual = np.asarray(got[name], dtype=np.float64)[cells]
+        atol = 1e-5 * float(np.abs(expected).max())
+        np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=atol)
+        # Not vacuous: the field really does swing across the block.
+        assert ratio.max() / ratio.min() > 1.2
 
 
 if __name__ == "__main__":
