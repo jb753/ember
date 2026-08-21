@@ -69,6 +69,25 @@ without a deprecation period.
   surface it is the origin of. Passing ``P_dtm`` or ``T_dtm`` still overrides,
   either one on its own.
 
+* ``RealFluid`` now fits viscosity and thermal conductivity as surfaces of
+  density and internal energy, after Appendix B of the same paper, rather than
+  taking two constants. They are ordinary least-squares fits over the same box
+  and in the same coordinates as the compressibility factor, and they take no
+  part in the thermodynamic consistency argument: nothing relates transport to
+  entropy, and neither surface is ever differentiated, so they cost one
+  polynomial evaluation and no derivatives. Each is normalised by its own value
+  at the centre of the fit box, so the coefficients are of order unity and the
+  physical scale is a single readable number. **Breaking**: ``RealFluid`` takes
+  ``delta``, ``gamma``, ``mu_c`` and ``kappa_c`` in place of ``mu`` and ``Pr``,
+  and ``realgas_fit.fit`` requires viscosity and conductivity samples --
+  ``sample_coolprop`` returns them, so a pipeline built as
+  ``fit(**sample_coolprop(...))`` needs no change. ``get_kappa`` joins the fluid
+  interface, with ``PerfectFluid`` deriving it from the ``Pr`` it still takes
+  and ``RealFluid`` deriving ``Pr`` from its two surfaces instead. The solver
+  does not see any of this yet: its viscous kernel takes one viscosity and one
+  Prandtl number per block, and what it now gets are the surfaces evaluated at
+  the centre of the fit box.
+
 * Added ``change_visc`` on the fluid classes, a factory in the manner of
   ``change_datum`` returning the same fluid with its viscosity scaled by a
   factor. Sweeping Reynolds number needs nothing else to move --- the geometry,

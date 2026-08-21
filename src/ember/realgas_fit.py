@@ -30,6 +30,23 @@ surface rather than fitted independently, the resulting equation of state is
 thermodynamically consistent by construction. See :class:`ember.fluid.RealFluid`
 for the evaluation side.
 
+Transport properties
+====================
+
+Viscosity and thermal conductivity are fitted as two further surfaces over the
+same box, in the same normalised coordinates, following Appendix B of the same
+paper. They are ordinary least-squares fits and take no part in the consistency
+argument above: pressure and temperature must come from the one entropy surface
+because the relations between them are what consistency means, whereas
+viscosity and conductivity are related to nothing. Nor is either ever
+differentiated. So there is no integral to do and no derivative to keep
+accurate --- only the surfaces themselves.
+
+Each is normalised by its own value at the centre of the fit box, leaving
+coefficients of order unity and the physical scale in a single number. The
+Prandtl number is not fitted; it follows from the two surfaces and the specific
+heat.
+
 .. _reference-isochor:
 
 The reference isochor
@@ -107,17 +124,23 @@ class FitResult:
     kwargs : dict
         Keyword arguments defining the equation of state, ready to splat into
         :class:`ember.fluid.RealFluid`. Contains ``alpha``, ``beta``,
-        ``rho_lim``, ``u_lim`` and ``Rgas``.
+        ``rho_lim``, ``u_lim``, ``Rgas``, ``delta``, ``gamma``, ``mu_c`` and
+        ``kappa_c``.
     info_Z : FitInfo
         Residual of the compressibility surface [--].
     info_s : FitInfo
         Residual of the entropy fit, in units of the gas constant [--].
+    info_mu, info_kappa : FitInfo
+        Residuals of the two transport surfaces, relative to the value each is
+        normalised by [--], so that they read as fractional errors.
 
     """
 
     kwargs: dict
     info_Z: FitInfo
     info_s: FitInfo
+    info_mu: FitInfo
+    info_kappa: FitInfo
 
 
 def _fit_info(y, y_fit):
@@ -127,6 +150,36 @@ def _fit_info(y, y_fit):
     ss_tot = float(np.sum((y - np.mean(y)) ** 2))
     R2 = 1.0 if ss_tot == 0.0 else 1.0 - float(np.sum(resid**2)) / ss_tot
     return FitInfo(rmse=rmse, R2=R2)
+
+
+def _fit_normalised(x, y, z, order, basis, name):
+    """Fit a surface and divide it through by its value at the box centre.
+
+    Least squares is linear in its target, so scaling the coefficients of a fit
+    of ``z`` is exactly the fit of ``z`` scaled --- there is no second fit here,
+    and no interpolation of the sample data to find the centre value. It also
+    leaves the returned surface exactly one at the centre, which is what makes
+    that point an anchor a caller can rely on rather than a fit residual away.
+
+    Returns
+    -------
+    coef : ndarray
+        Normalised Legendre coefficients, of order unity.
+    centre : float
+        Value of the fitted surface at the centre of the box, in the units of
+        ``z``.
+    info : FitInfo
+        Residual statistics, scaled to match ``coef``.
+    """
+    coef, info = legfit2d(x, y, z, order, basis)
+    centre = float(_leg.legval2d(0.0, 0.0, coef))
+    if not centre > 0.0:
+        raise ValueError(
+            f"The fitted {name} surface is {centre} at the centre of the fit "
+            "box, so it cannot be normalised by that value. Check the sample "
+            "data for the wrong sign or the wrong units."
+        )
+    return coef / centre, centre, FitInfo(rmse=info.rmse / centre, R2=info.R2)
 
 
 def entropy_integral(alpha, c):
@@ -230,6 +283,8 @@ def fit(
     P,
     T,
     s,
+    mu,
+    kappa,
     Rgas,
     rho_lim,
     u_lim,
@@ -263,6 +318,10 @@ def fit(
         Temperature at the sample states [K].
     s : array_like
         Specific entropy at the sample states [J/kg/K], on any datum.
+    mu : array_like
+        Dynamic viscosity at the sample states [kg/m/s].
+    kappa : array_like
+        Thermal conductivity at the sample states [W/m/K].
     Rgas : float
         Specific gas constant [J/kg/K].
     rho_lim : tuple
@@ -307,14 +366,32 @@ def fit(
     beta = _leg.legfit(y, beta_target, order)
     info_s = _fit_info(beta_target, _leg.legval(y, beta))
 
+    # Transport surfaces, fitted over the same points in the same coordinates
+    # and normalised at the centre of the box; see `Transport properties`_.
+    # Nothing couples them to the entropy surface or to each other.
+    delta, mu_c, info_mu = _fit_normalised(x, y, mu, order, basis, "viscosity")
+    gamma, kappa_c, info_kappa = _fit_normalised(
+        x, y, kappa, order, basis, "conductivity"
+    )
+
     kwargs = {
         "alpha": alpha,
         "beta": beta,
+        "delta": delta,
+        "gamma": gamma,
         "rho_lim": tuple(float(v) for v in rho_lim),
         "u_lim": tuple(float(v) for v in u_lim),
         "Rgas": float(Rgas),
+        "mu_c": mu_c,
+        "kappa_c": kappa_c,
     }
-    return FitResult(kwargs=kwargs, info_Z=info_Z, info_s=info_s)
+    return FitResult(
+        kwargs=kwargs,
+        info_Z=info_Z,
+        info_s=info_s,
+        info_mu=info_mu,
+        info_kappa=info_kappa,
+    )
 
 
 def hat(x, lim):
@@ -421,7 +498,10 @@ def sample_coolprop(fluid_name, rho_lim, u_lim, ni=100):
 
     States that fail to converge or fall inside the two-phase dome are dropped:
     properties are not smooth across saturation, and including such points would
-    poison the fit far more than any choice of basis or order.
+    poison the fit far more than any choice of basis or order. So are states
+    whose transport properties CoolProp declines to report, which for a fluid
+    with no transport model at all is every one of them --- said so, rather
+    than reported as an empty box.
 
     Parameters
     ----------
@@ -437,9 +517,9 @@ def sample_coolprop(fluid_name, rho_lim, u_lim, ni=100):
     Returns
     -------
     dict
-        Arrays ``rho``, ``u``, ``P``, ``T``, ``s`` at the surviving states,
-        ``Rgas``, the specific gas constant [J/kg/K], and the ``rho_lim`` and
-        ``u_lim`` that were sampled. That is every argument :func:`fit` needs,
+        Arrays ``rho``, ``u``, ``P``, ``T``, ``s``, ``mu`` and ``kappa`` at the
+        surviving states, ``Rgas``, the specific gas constant [J/kg/K], and the
+        ``rho_lim`` and ``u_lim`` that were sampled. That is every argument :func:`fit` needs,
         so the whole pipeline is ``fit(**sample_coolprop(...))``.
 
         The box is passed on rather than left to the caller to repeat because
@@ -473,6 +553,8 @@ def sample_coolprop(fluid_name, rho_lim, u_lim, ni=100):
     P = np.full(rho_flat.shape, np.nan)
     T = np.full(rho_flat.shape, np.nan)
     s = np.full(rho_flat.shape, np.nan)
+    mu = np.full(rho_flat.shape, np.nan)
+    kappa = np.full(rho_flat.shape, np.nan)
     for k, (rho_k, u_k) in enumerate(zip(rho_flat, u_flat)):
         try:
             state.update(CP.DmassUmass_INPUTS, rho_k, u_k)
@@ -484,9 +566,24 @@ def sample_coolprop(fluid_name, rho_lim, u_lim, ni=100):
             s[k] = state.smass()
         except ValueError:
             continue  # state did not converge; leave as nan
+        # Separately, because a fluid can have a perfectly good equation of
+        # state and no transport model, and the two failures want telling
+        # apart below.
+        try:
+            mu[k] = state.viscosity()
+            kappa[k] = state.conductivity()
+        except ValueError:
+            continue
 
-    keep = np.isfinite(P) & np.isfinite(T) & np.isfinite(s)
+    thermodynamic = np.isfinite(P) & np.isfinite(T) & np.isfinite(s)
+    keep = thermodynamic & np.isfinite(mu) & np.isfinite(kappa)
     if not keep.any():
+        if thermodynamic.any():
+            raise ValueError(
+                f"CoolProp reports no transport properties for {fluid_name!r} "
+                "anywhere in the given box, so the viscosity and conductivity "
+                "surfaces cannot be fitted."
+            )
         raise ValueError(
             f"No valid single-phase states for {fluid_name!r} in the given box; "
             "check rho_lim and u_lim."
@@ -498,6 +595,8 @@ def sample_coolprop(fluid_name, rho_lim, u_lim, ni=100):
         "P": P[keep],
         "T": T[keep],
         "s": s[keep],
+        "mu": mu[keep],
+        "kappa": kappa[keep],
         "Rgas": Rgas,
         "rho_lim": (float(rho_lim[0]), float(rho_lim[1])),
         "u_lim": (float(u_lim[0]), float(u_lim[1])),

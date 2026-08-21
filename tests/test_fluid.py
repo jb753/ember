@@ -12,6 +12,8 @@ Test cases:
 - test_change_datum_effect: change_datum correctly affects u and s datum
 - test_change_visc: change_visc scales viscosity and nothing else
 - test_change_visc_nondim: change_visc with non-unity reference values
+- test_real_fluid_transport_surfaces_track_the_model: fitted mu and kappa
+- test_real_fluid_transport_is_anchored_at_the_box_centre: exact at the centre
 - test_datum_zero: u = 0 and s = 0 simultaneously at (P_dtm, T_dtm)
 - test_set_P_rho_accuracy_comparison: Numerical accuracy of set_P_rho with different datum values
 - test_set_P_rho_accuracy: Numerical accuracy of set_P_rho implementation
@@ -324,6 +326,16 @@ def test_universal_relations(case):
             rtol=rtol,
         )
 
+        # Viscosity, conductivity and Prandtl number are one relation, and
+        # which two of the three a fluid stores is its own business: a perfect
+        # gas is quoted with Pr and derives kappa, a fitted real gas has both
+        # transport surfaces and derives Pr.
+        assert np.allclose(
+            fluid.get_Pr(rho, u) * fluid.get_kappa(rho, u),
+            fluid.get_mu(rho, u) * fluid.get_cp(rho, u),
+            rtol=rtol,
+        )
+
 
 @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
 def test_universal_relations_numerical(case):
@@ -596,9 +608,14 @@ def test_change_visc(case):
 
     rho, u = case.rho_pt, case.u_pt
 
-    # Viscosity scaled, and nothing else moved with it
+    # Viscosity scaled, conductivity with it -- which is what leaves the
+    # Prandtl number among the properties preserved below -- and nothing else
+    # moved
     assert np.allclose(
         fluid_new.get_mu(rho, u), scale * fluid.get_mu(rho, u), rtol=1e-6
+    )
+    assert np.allclose(
+        fluid_new.get_kappa(rho, u), scale * fluid.get_kappa(rho, u), rtol=1e-6
     )
     assert (fluid_new.P_dtm, fluid_new.T_dtm) == (fluid.P_dtm, fluid.T_dtm)
     for name in ("cp", "gamma", "Rgas", "Pr", "P", "T", "s"):
@@ -641,6 +658,62 @@ def test_change_visc_nondim():
     assert np.isclose(
         float(fluid_new.get_mu(1.0, 1.0)), 10.0 * 1.8e-5 / (1.2 * 300.0), rtol=1e-6
     )
+
+
+def test_real_fluid_transport_surfaces_track_the_model():
+    """The fitted viscosity and conductivity reproduce what they were fitted to.
+
+    A constant would be reproduced by the leading coefficient alone, so the
+    model behind this carries both a temperature and a density dependence; see
+    :class:`conftest.VanDerWaals`.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    model = VanDerWaals()
+    u_lim = (3.0e5, 5.0e5)
+    fluid = fit_real_fluid(model, (1.0, 150.0), u_lim)
+
+    rho, u = np.meshgrid(
+        np.linspace(*fluid.rho_lim_nd, 30),
+        np.linspace(*fluid.u_lim_nd, 30),
+        indexing="ij",
+    )
+    # The model works in absolute internal energy; the fluid measures it from
+    # its datum, and the reference scales are unity here.
+    u_abs = u + (u_lim[0] - fluid.u_lim_nd[0])
+
+    # Measured at 5e-8, which is float32 resolution rather than fit error.
+    assert np.allclose(fluid.get_mu(rho, u), model.get_mu(rho, u_abs), rtol=1e-5)
+    assert np.allclose(fluid.get_kappa(rho, u), model.get_kappa(rho, u_abs), rtol=1e-5)
+
+    # The point of fitting both surfaces: the Prandtl number is now a property
+    # of the state rather than a number carried around from the constructor.
+    Pr = fluid.get_Pr(rho, u)
+    assert Pr.max() - Pr.min() > 0.05
+
+
+def test_real_fluid_transport_is_anchored_at_the_box_centre():
+    """Both surfaces are exactly their stored scale at the centre of the box.
+
+    Normalising by the value there is what makes the coefficients order unity,
+    and dividing the coefficients of a fit is exactly the fit of the divided
+    data -- so the anchor is exact rather than a fit residual away from it.
+    """
+    from conftest import VanDerWaals, fit_real_fluid
+
+    fluid = fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5))
+    data = fluid.to_dict()
+
+    rho_c = 0.5 * sum(fluid.rho_lim_nd)
+    u_c = 0.5 * sum(fluid.u_lim_nd)
+    assert float(fluid.get_mu(rho_c, u_c)) == pytest.approx(data["mu_c"], rel=1e-6)
+    assert float(fluid.get_kappa(rho_c, u_c)) == pytest.approx(
+        data["kappa_c"], rel=1e-6
+    )
+
+    # Coefficients of order unity are the reason for doing it this way.
+    assert np.abs(np.asarray(data["delta"])).max() < 10.0
+    assert np.abs(np.asarray(data["gamma"])).max() < 10.0
 
 
 def test_datum_zero():
@@ -1034,11 +1107,13 @@ def test_real_fluid_rejects_more_beta_than_alpha_can_carry():
             # fitted at a higher order, has nine.
             alpha=[[1.0]],
             beta=np.arange(9.0) + 1.0,
+            delta=[[1.0]],
+            gamma=[[1.0]],
             rho_lim=(0.5, 5.0),
             u_lim=(1e5, 3e5),
             Rgas=287.0,
-            mu=1.8e-5,
-            Pr=0.72,
+            mu_c=1.8e-5,
+            kappa_c=2.5e-2,
         )
 
 
@@ -1674,6 +1749,8 @@ def _fit_kwargs(model, rho_lim, u_lim, order=6, ni=40):
         P=model.get_P(rho, u),
         T=model.get_T(rho, u),
         s=model.get_s(rho, u),
+        mu=model.get_mu(rho, u),
+        kappa=model.get_kappa(rho, u),
         Rgas=model.Rgas,
         rho_lim=rho_lim,
         u_lim=u_lim,
@@ -1717,7 +1794,7 @@ def test_default_datum_lands_in_the_fit_box(name, model_kwargs, rho_lim, u_lim):
     from conftest import VanDerWaals
 
     kwargs = _fit_kwargs(VanDerWaals(**model_kwargs), rho_lim, u_lim)
-    fluid = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72)
+    fluid = ember.fluid.RealFluid(**kwargs)
 
     rho_box, u_box = fluid.rho_lim_nd, fluid.u_lim_nd
     assert rho_box[0] < 0.5 * (rho_box[0] + rho_box[1]) < rho_box[1]
@@ -1743,7 +1820,7 @@ def test_default_datum_is_the_state_at_the_box_centre(
 
     model = VanDerWaals(**model_kwargs)
     kwargs = _fit_kwargs(model, rho_lim, u_lim)
-    fluid = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72)
+    fluid = ember.fluid.RealFluid(**kwargs)
 
     # The analytic model at the same point, which the fit approximates.
     rho_m, u_m = float(np.mean(rho_lim)), float(np.mean(u_lim))
@@ -1756,9 +1833,7 @@ def test_a_given_datum_still_wins():
     from conftest import VanDerWaals
 
     kwargs = _fit_kwargs(VanDerWaals(), (1.0, 50.0), (3.0e5, 4.0e5), order=2)
-    given = ember.fluid.RealFluid(
-        **kwargs, mu=1.8e-5, Pr=0.72, P_dtm=334563.125, T_dtm=250.27320861816406
-    )
+    given = ember.fluid.RealFluid(**kwargs, P_dtm=334563.125, T_dtm=250.27320861816406)
 
     assert float(given.P_dtm) == pytest.approx(334563.125)
     assert float(given.T_dtm) == pytest.approx(250.27320861816406)
@@ -1769,8 +1844,8 @@ def test_one_half_of_the_datum_may_be_given():
     from conftest import VanDerWaals
 
     kwargs = _fit_kwargs(VanDerWaals(), (1.0, 50.0), (3.0e5, 4.0e5), order=2)
-    both = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72)
-    half = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72, T_dtm=260.0)
+    both = ember.fluid.RealFluid(**kwargs)
+    half = ember.fluid.RealFluid(**kwargs, T_dtm=260.0)
 
     assert float(half.T_dtm) == pytest.approx(260.0)
     assert float(half.P_dtm) == pytest.approx(float(both.P_dtm))
@@ -1781,7 +1856,7 @@ def test_a_defaulted_datum_round_trips_through_a_dict():
     from conftest import VanDerWaals
 
     kwargs = _fit_kwargs(VanDerWaals(), (1.0, 50.0), (3.0e5, 4.0e5), order=2)
-    fluid = ember.fluid.RealFluid(**kwargs, mu=1.8e-5, Pr=0.72)
+    fluid = ember.fluid.RealFluid(**kwargs)
 
     data = fluid.to_dict()
     assert data["P_dtm"] == pytest.approx(float(fluid.P_dtm))

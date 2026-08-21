@@ -68,7 +68,7 @@ Equations of state are unchanged when all quantities are scaled consistently. Fo
 
 .. math:: \frac{p}{\rho_\mathrm{ref} V_\mathrm{ref}^2} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{V_\mathrm{ref}^2 / R_\mathrm{ref}} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{T_\mathrm{ref}}
 
-Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters. Scaling the transport properties on their own, to sweep Reynolds number at a fixed flow field, is what :meth:`PerfectFluid.change_visc` is for.
+Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters: viscosity is divided by :math:`\rho_\mathrm{ref} V_\mathrm{ref}` and conductivity by :math:`\rho_\mathrm{ref} V_\mathrm{ref} R_\mathrm{ref}`, which are the two scalings that leave the Prandtl number :math:`\mu c_p / \kappa` dimensionless. Scaling the transport properties on their own, to sweep Reynolds number at a fixed flow field, is what :meth:`PerfectFluid.change_visc` is for.
 
 We can get a new instance with different reference scales using the :meth:`PerfectFluid.change_ref` method.
 
@@ -318,6 +318,16 @@ class _Fluid(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def get_kappa(self, rho, u, out=None):
+        """Quasi-dimensional thermal conductivity, kappa / (rho_ref * V_ref * Rgas_ref) [m].
+
+        Conductivity and viscosity are the two transport properties an equation
+        of state owns; the Prandtl number relating them is a derived quantity
+        whichever of the three a given fluid happens to store.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def get_mu(self, rho, u, out=None):
         """Quasi-dimensional dynamic viscosity, mu / (rho_ref * V_ref) [m]."""
         raise NotImplementedError()
@@ -407,9 +417,9 @@ class _Fluid(ABC):
         number is what this is for --- the geometry, the boundary conditions and
         the thermodynamics all stay put, and only the transport scale changes.
 
-        The Prandtl number is untouched, so the thermal conductivity
-        :math:`\kappa = \mu c_p / \mathit{Pr}` scales with the viscosity and the
-        Peclet number follows the Reynolds number.
+        The thermal conductivity scales by the same factor, leaving the
+        Prandtl number where it was, so the Peclet number follows the Reynolds
+        number.
 
         The scaling is relative to *this* fluid, so the factors of a chain of
         calls multiply together.
@@ -604,6 +614,11 @@ class PerfectFluid(_Fluid):
 
         self._gamma_m1 = self._gamma - np.float32(1.0)
         self._ga_gam1 = self._gamma / self._gamma_m1
+
+        # Conductivity is the property the interface asks for, and Pr the one
+        # a perfect gas is quoted with, so compose the two constants once here
+        # rather than at every node that wants a heat flux.
+        self._kappa_nd = self._mu_nd * self._cp_nd / self._Pr
 
     def _kwargs(self):
         """Constructor arguments reproducing this fluid; see :meth:`_Fluid._kwargs`."""
@@ -1164,6 +1179,31 @@ class PerfectFluid(_Fluid):
         out += self._T_dtm_nd * self._Rgas_nd
         return out
 
+    def get_kappa(self, rho, u, out=None):
+        r"""Thermal conductivity (constant for a perfect gas).
+
+        .. math:: \kappa = \frac{\mu c_p}{\mathit{Pr}}
+
+        If reference scales are set, then this method returns a
+        quasi-dimensional conductivity in units of [m] --- see
+        :ref:`reference-scales` for details.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        kappa : ndarray
+            Thermal conductivity [W/m/K].
+        """
+        return self._const_nd(rho, u, self._kappa_nd, out)
+
     def get_mu(self, rho, u, out=None):
         r"""Dynamic viscosity (constant for a perfect gas).
 
@@ -1440,7 +1480,11 @@ class PerfectFluid(_Fluid):
         """Get a new :class:`PerfectFluid` with scaled viscosity.
 
         The viscosity is a constant here, so scaling it is a change of the
-        stored ``mu`` and nothing else. See :meth:`_Fluid.change_visc`.
+        stored ``mu``. Conductivity follows it through the fixed Prandtl
+        number, with nothing to do.
+
+        Scaling is relative to this fluid, so the factors of a chain of calls
+        multiply together, and nothing but the transport properties moves.
 
         Parameters
         ----------
@@ -1502,14 +1546,23 @@ class RealFluid(_Fluid):
     surface extrapolates smoothly, so the solve would converge on a state that
     is self-consistent with a polynomial nobody fitted out there.
 
+    Transport properties
+    --------------------
+    Viscosity and conductivity are fitted surfaces of their own, in the same
+    normalised coordinates as :math:`Z` and produced by the same offline tool.
+    They are independent least-squares fits and take no part in the consistency
+    argument above --- nothing relates them to entropy, and neither is ever
+    differentiated. Each is normalised by its value at the centre of the fit
+    box, which ``mu_c`` and ``kappa_c`` carry, so the coefficients are of order
+    unity. The Prandtl number is not stored; :meth:`get_Pr` derives it from the
+    two surfaces and the specific heat.
+
     Limitations
     -----------
-    Transport properties are constant, as for :class:`PerfectFluid`. Wheeler's
-    fitted viscosity and conductivity surfaces are not implemented, so ``mu``
-    and ``Pr`` are supplied directly. The specific heat carried into the
-    conductivity is not among them: :attr:`~ember.block.Block.cp_nd` reads
-    :meth:`get_cp` at every node, so the heat flux sees the same state
-    dependence as the rest of the surface.
+    The solver does not yet see any of that. Its viscous kernel takes a single
+    viscosity and a single Prandtl number for a whole block, and until it takes
+    fields instead, what it gets are these surfaces evaluated at the centre of
+    the fit box.
 
     Parameters
     ----------
@@ -1521,6 +1574,12 @@ class RealFluid(_Fluid):
         One-dimensional Legendre coefficients of :math:`s/R` along the reference
         isochor, the one at the centre of the density box; see
         :ref:`reference-isochor`.
+    delta : array_like
+        Two-dimensional Legendre coefficients of the viscosity surface [--],
+        normalised by ``mu_c``.
+    gamma : array_like
+        Two-dimensional Legendre coefficients of the conductivity surface [--],
+        normalised by ``kappa_c``.
     rho_lim : tuple
         ``(min, max)`` density bounds of the fit box [kg/m³].
     u_lim : tuple
@@ -1529,10 +1588,12 @@ class RealFluid(_Fluid):
     Rgas : float
         Specific gas constant [J/kg/K]. Converts the two dimensionless
         coefficient arrays into entropy, and is what :meth:`get_Rgas` reports.
-    mu : float
-        Dynamic viscosity [kg/m/s].
-    Pr : float
-        Prandtl number [--].
+    mu_c : float
+        Dynamic viscosity at the centre of the fit box [kg/m/s], the scale the
+        ``delta`` surface is normalised by.
+    kappa_c : float
+        Thermal conductivity at the centre of the fit box [W/m/K], the scale
+        the ``gamma`` surface is normalised by.
     scale_visc : float, optional
         Factor multiplying the viscosity, for sweeping Reynolds number without
         touching the fit; see :meth:`change_visc`.
@@ -1596,11 +1657,13 @@ class RealFluid(_Fluid):
         self,
         alpha,
         beta,
+        delta,
+        gamma,
         rho_lim,
         u_lim,
         Rgas,
-        mu,
-        Pr,
+        mu_c,
+        kappa_c,
         scale_visc=1.0,
         P_dtm=None,
         T_dtm=None,
@@ -1614,12 +1677,13 @@ class RealFluid(_Fluid):
         self._beta = np.atleast_1d(np.asarray(beta, dtype=np.float64))
         self._rho_lim = (float(rho_lim[0]), float(rho_lim[1]))
         self._u_lim = (float(u_lim[0]), float(u_lim[1]))
+        self._delta = np.atleast_2d(np.asarray(delta, dtype=np.float64))
+        self._gamma = np.atleast_2d(np.asarray(gamma, dtype=np.float64))
         self._Rgas = np.float32(Rgas)
-        self._mu = np.float32(mu)
+        self._mu_c = np.float32(mu_c)
+        self._kappa_c = np.float32(kappa_c)
         self._scale_visc = np.float32(scale_visc)
-        self._mu_nd = np.float32(mu * scale_visc / (rho_ref * V_ref))
         self._Rgas_nd = np.float32(Rgas / Rgas_ref)
-        self._Pr = np.float32(Pr)
 
         if not self._rho_lim[1] > self._rho_lim[0] > 0.0:
             raise ValueError(f"rho_lim must be increasing and positive, got {rho_lim}")
@@ -1634,12 +1698,12 @@ class RealFluid(_Fluid):
             )
         if Rgas <= 0.0:
             raise ValueError(f"Rgas={Rgas} must be positive.")
-        if mu <= 0.0:
-            raise ValueError(f"mu={mu} must be positive.")
+        if mu_c <= 0.0:
+            raise ValueError(f"mu_c={mu_c} must be positive.")
+        if kappa_c <= 0.0:
+            raise ValueError(f"kappa_c={kappa_c} must be positive.")
         if scale_visc <= 0.0:
             raise ValueError(f"scale_visc={scale_visc} must be positive.")
-        if Pr <= 0.0:
-            raise ValueError(f"Pr={Pr} must be positive.")
 
         # Two-pass construction. The datum is the internal energy and entropy at
         # (P_dtm, T_dtm), which can only be found by inverting the surface --
@@ -1684,6 +1748,14 @@ class RealFluid(_Fluid):
             float(u_dtm), float(s_dtm), rho_ref, V_ref, Rgas_ref, dtype=np.float32
         )
 
+        # Prandtl number at the centre of the box, for the same reason as
+        # _mu_nd above: the kernel takes one per block. Read through get_Pr so
+        # that it is the ratio the surfaces actually give there, specific heat
+        # included, rather than a second definition of the same thing.
+        rho_c = 0.5 * (self._rho_box_nd[0] + self._rho_box_nd[1])
+        u_c = 0.5 * (self._u_box_nd[0] + self._u_box_nd[1])
+        self._Pr = np.float32(self.get_Pr(rho_c, u_c))
+
         self._companion = self._build_companion(P_dtm, T_dtm)
 
     def _build_companion(self, P_dtm, T_dtm):
@@ -1703,7 +1775,7 @@ class RealFluid(_Fluid):
         return PerfectFluid(
             cp=cp,
             gamma=gamma,
-            mu=float(self._mu) * float(self._scale_visc),
+            mu=float(self._mu_c) * float(self._scale_visc),
             Pr=float(self._Pr),
             P_dtm=float(P_dtm),
             T_dtm=float(T_dtm),
@@ -1747,6 +1819,27 @@ class RealFluid(_Fluid):
             dtype((self._u_lim[0] - u_dtm_abs) / u_ref),
             dtype((self._u_lim[1] - u_dtm_abs) / u_ref),
         )
+
+        # Transport surfaces. The scale each was normalised by, the
+        # non-dimensionalisation and the viscosity scaling are all constants, so
+        # they fold into the coefficients and the hot path is one surface
+        # evaluation with nothing after it. Conductivity carries the reference
+        # gas constant as well as the mass flux, which is what leaves the
+        # Prandtl number of the two dimensionless; see :ref:`reference-scales`.
+        mu_c_nd = float(self._mu_c) * float(self._scale_visc) / (rho_ref * V_ref)
+        kappa_c_nd = (
+            float(self._kappa_c)
+            * float(self._scale_visc)
+            / (rho_ref * V_ref * Rgas_ref)
+        )
+        self._mu_surf = (self._delta * mu_c_nd).astype(dtype)
+        self._kappa_surf = (self._gamma * kappa_c_nd).astype(dtype)
+
+        # The normalised surfaces are exactly one at the centre of the box, so
+        # these are the viscosity and conductivity there. The viscous kernel
+        # still takes one number for a whole block rather than a field, and
+        # this is the number it gets until it does.
+        self._mu_nd = dtype(mu_c_nd)
 
         # Characteristic magnitudes, used to scale convergence tests where a
         # target may legitimately pass through zero at the datum.
@@ -2170,11 +2263,13 @@ class RealFluid(_Fluid):
         return {
             "alpha": self._alpha,
             "beta": self._beta,
+            "delta": self._delta,
+            "gamma": self._gamma,
             "rho_lim": self._rho_lim,
             "u_lim": self._u_lim,
             "Rgas": float(self._Rgas),
-            "mu": float(self._mu),
-            "Pr": float(self._Pr),
+            "mu_c": float(self._mu_c),
+            "kappa_c": float(self._kappa_c),
             "scale_visc": float(self._scale_visc),
             "P_dtm": float(self._P_dtm),
             "T_dtm": float(self._T_dtm),
@@ -2951,14 +3046,38 @@ class RealFluid(_Fluid):
         """
         return self._write(u + self.get_P(rho, u) / rho, out)
 
-    def get_mu(self, rho, u, out=None):
-        r"""Dynamic viscosity (constant; the transport surfaces are not fitted).
+    def get_kappa(self, rho, u, out=None):
+        r"""Thermal conductivity from the fitted transport surface.
 
-        The constructor's ``mu``, multiplied by ``scale_visc``.
+        One polynomial evaluation and nothing else: unlike pressure and
+        temperature, conductivity is not derived from the entropy surface and
+        so needs none of its derivatives.
 
         If reference scales are set, then this method returns a
-        quasi-dimensional viscosity in units of [m] --- see
+        quasi-dimensional conductivity in units of [m] --- see
         :ref:`reference-scales` for details.
+
+        Parameters
+        ----------
+        rho : array_like
+            Density [kg/m³].
+        u : array_like
+            Specific internal energy [J/kg].
+        out : ndarray, optional
+            Pre-allocated output array.
+
+        Returns
+        -------
+        kappa : ndarray
+            Thermal conductivity [W/m/K].
+        """
+        x, y = self._hats(rho, u)
+        return self._write(_leg.legval2d(x, y, self._kappa_surf), out)
+
+    def get_mu(self, rho, u, out=None):
+        r"""Dynamic viscosity from the fitted transport surface.
+
+        As :meth:`get_kappa`, and scaled by ``scale_visc``.
 
         Parameters
         ----------
@@ -2974,7 +3093,8 @@ class RealFluid(_Fluid):
         mu : ndarray
             Dynamic viscosity [kg/m/s].
         """
-        return self._const_nd(rho, u, self._mu_nd, out)
+        x, y = self._hats(rho, u)
+        return self._write(_leg.legval2d(x, y, self._mu_surf), out)
 
     def get_P(self, rho, u, out=None):
         r"""Pressure from density and internal energy.
@@ -3046,9 +3166,15 @@ class RealFluid(_Fluid):
         )
 
     def get_Pr(self, rho, u, out=None):
-        r"""Prandtl number (constant; the transport surfaces are not fitted).
+        r"""Prandtl number, derived from the two transport surfaces.
 
         .. math:: \mathit{Pr} = \frac{\mu c_p}{\kappa}
+
+        Nothing here is stored: viscosity and conductivity are what this fluid
+        is given, and the ratio of the two is a property of the state like any
+        other. It is also the most expensive of the three, the specific heat
+        costing the second derivatives of the entropy surface, so a caller
+        after a heat flux wants :meth:`get_kappa` rather than this.
 
         Parameters
         ----------
@@ -3064,7 +3190,8 @@ class RealFluid(_Fluid):
         Pr : ndarray
             Prandtl number [--].
         """
-        return self._const_nd(rho, u, self._Pr, out)
+        mu_cp = self.get_mu(rho, u) * self.get_cp(rho, u)
+        return self._write(mu_cp / self.get_kappa(rho, u), out)
 
     def get_Rgas(self, rho, u, out=None):
         r"""Specific gas constant (a constant property of the species).
@@ -3199,11 +3326,14 @@ class RealFluid(_Fluid):
     def change_visc(self, scale_visc):
         r"""Get a new :class:`RealFluid` with scaled viscosity.
 
-        Carried as a multiplier on the viscosity rather than folded into the
-        stored ``mu``, so that it still means the same thing once the transport
-        properties become surfaces of :math:`(\rho, u)` in their own right: the
-        factor multiplies whatever the fluid says its viscosity is, wherever
-        that came from. See :meth:`_Fluid.change_visc`.
+        A multiplier on the two fitted transport surfaces, which is what a
+        factor on a surface has to be: there is no stored viscosity to change,
+        only a polynomial in :math:`(\rho, u)`. Conductivity is scaled with it,
+        so the Prandtl number the two surfaces give is unchanged everywhere in
+        the box.
+
+        Scaling is relative to this fluid, so the factors of a chain of calls
+        multiply together, and nothing but the transport properties moves.
 
         Parameters
         ----------
