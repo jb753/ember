@@ -420,6 +420,58 @@ def callers_pair(grid, b):
         if fn_ctl is not None:
             out[arm] = lambda fn_ctl=fn_ctl: fn_ctl(**kw)
 
+    # fused_faces is the first SELF-CONTAINED fused arm: it produces its own
+    # halo source (set_tau_q_faces, O(surface)), exchanges it (exchange_faces)
+    # and consumes it, all inside the timed window. Every other fused arm here
+    # free-rides on seed_tau_q, which fills the full-volume halo once, untimed,
+    # before the reps -- so their numbers omit the cost of producing the halo
+    # they read, while `unfused` pays set_tau_q_soa in full. This arm is the
+    # first that can be compared with `unfused` without that asymmetry.
+    fn_faces = getattr(F, "set_visc_force_tqf_faces", None)
+    if fn_faces is not None:
+        faces = b.tau_q_faces
+        kw_p1 = dict(
+            cons=b.conserved_nd, t=b.T_nd, mu=b.mu_nd, cp=b.cp_nd,
+            kappa=b.kappa_nd, pr_turb=1.0, xlength=b.xlen_sq_nd, vol=b.vol_nd,
+            dai=b.dAi_nd, daj=b.dAj_nd, dak=b.dAk_nd, r=b.r_nd, vx=b.Vx_nd,
+            vr=b.Vr_nd, vt=b.Vt_rel_nd,
+            f_i1=faces[0], f_ini=faces[1], f_j1=faces[2], f_jnj=faces[3],
+            f_k1=faces[4], f_knk=faces[5],
+            **b.ijk_wall_visc,
+        )
+        kw_faces = {k: v for k, v in kw.items()
+                    if k not in ("tau_cell", "q_cell")}
+        kw_faces.update(
+            f_i1=faces[0], f_ini=faces[1], f_j1=faces[2], f_jnj=faces[3],
+            f_k1=faces[4], f_knk=faces[5], tq=tq[..., :2],
+        )
+        p1_faces = F.set_tau_q_faces
+        exch_faces = grid.connectivity.periodic.exchange_faces
+        out["faces"] = lambda: (p1_faces(**kw_p1), exch_faces(),
+                                fn_faces(**kw_faces))
+        # Phase 1 alone, both forms, so the split between producer and
+        # consumer is measured rather than inferred by subtraction.
+        out["p1_faces"] = lambda: p1_faces(**kw_p1)
+        out["p1_soa"] = tauq
+
+        # STREAM-COUNT CONTROLS. Identical arithmetic, identical results, and
+        # the same instruction stream -- the only difference is how many
+        # DISTINCT arrays the loop walks. `streams_hi` hands the kernel three
+        # separate buffers holding the same values; `streams_lo` hands it one
+        # buffer three times. If the fused loop is limited by the number of
+        # concurrent streams rather than by the bytes it moves, these two must
+        # differ; if they do not, that hypothesis is dead.
+        same = np.array(b.mu_nd, copy=True, order="F")
+        kw_hi = dict(kw_faces, mu=np.array(same, copy=True, order="F"),
+                     cp=np.array(same, copy=True, order="F"),
+                     kappa=np.array(same, copy=True, order="F"))
+        kw_lo = dict(kw_faces, mu=same, cp=same, kappa=same)
+        out["streams_hi"] = lambda: fn_faces(**kw_hi)
+        out["streams_lo"] = lambda: fn_faces(**kw_lo)
+        # The consumer alone, for comparison with `fused` on equal footing
+        # (both then exclude their halo production).
+        out["faces_nop1"] = lambda: fn_faces(**kw_faces)
+
     # fused_nosig drops tau_cell/q_cell from the SIGNATURE, so it needs its own
     # kwargs dict. Paired with fused_noij it separates the cost of reading the
     # 37.8 MB buffer in the k loop from the cost of it merely being an
@@ -459,7 +511,7 @@ def check_pair(grid, b):
     where it passes through zero.
     """
     fns = callers_pair(grid, b)
-    arms = [n for n in ("fused", "fused_selfk") if n in fns]
+    arms = [n for n in ("fused", "fused_selfk", "faces") if n in fns]
     if not arms:
         return {}
     fvisc, mu_turb = b.F_body_nd, b.mu_turb
@@ -482,6 +534,12 @@ def check_pair(grid, b):
     def run(name):
         if name != "unfused":
             restore()
+        if name == "faces":
+            # Poison the full-volume buffer before every faces run. The arm
+            # claims never to touch it; if that is wrong the gate should fail
+            # loudly here rather than quietly agree because the buffer happens
+            # to hold the right values.
+            b.tau_q_halo[...] = np.nan
         fns[name]()
         return np.array(fvisc, copy=True), np.array(mu_turb, copy=True)
 
