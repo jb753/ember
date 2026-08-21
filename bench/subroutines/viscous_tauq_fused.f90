@@ -131,7 +131,7 @@ subroutine set_visc_force_tqf( &
     Omega_block, r, mu, P, P_offset, &
     fvisc, &
     Vx, Vr, Vt, &
-    T, cp, Pr_lam, Pr_turb, xlength, &
+    T, cp, kappa, Pr_turb, xlength, &
     mu_turb, &
     tau_cell, &
     q_cell, &
@@ -156,7 +156,8 @@ subroutine set_visc_force_tqf( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Omega_block, mu
+    real, intent(in) :: Omega_block
+    real, intent(in) :: mu(ni, nj, nk)
     real, intent(in) :: P(ni, nj, nk)
     real, intent(in) :: P_offset
     real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
@@ -164,7 +165,9 @@ subroutine set_visc_force_tqf( &
     real, intent(in) :: Vr(ni, nj, nk)
     real, intent(in) :: Vt(ni, nj, nk)
     real, intent(in) :: T(ni, nj, nk)
-    real, intent(in) :: cp, Pr_lam, Pr_turb
+    real, intent(in) :: cp(ni, nj, nk)
+    real, intent(in) :: kappa(ni, nj, nk)
+    real, intent(in) :: Pr_turb
     real, intent(in) :: xlength(ni-1, nj-1, nk-1)
     ! Cell-centred mixing-length viscosity, written at the cell's low-corner
     ! node exactly as set_tau_q_soa writes it; consumed downstream by
@@ -211,6 +214,7 @@ subroutine set_visc_force_tqf( &
     ! thing under test.
     real :: gVx(ni-1, 3), gVr(ni-1, 3), gVt(ni-1, 3)
     real :: vct(ni-1), rcr(ni-1), ivr(ni-1), rhoc(ni-1)
+    real :: cpc(ni-1), muc(ni-1), kac(ni-1)
     real :: visc_lim, lambda
     ! Scalars for the hand-inlined polar source (see the note at its first
     ! use): GCC inlines polar_src into production's set_visc_force but not
@@ -226,8 +230,6 @@ subroutine set_visc_force_tqf( &
     ! signature so the arm shares one kwargs dict with production, and are
     ! consumed in this guard rather than silenced.
     if (kb < 1 .or. i_cusp_start < 0 .or. i_cusp_end < 0) return
-
-    visc_lim = 3000e0 * mu
 
     pa = 1
     pb = 2
@@ -252,6 +254,12 @@ subroutine set_visc_force_tqf( &
                               + r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))
             rhoc(i) = 0.125e0 * (cons(i,j,k,1)   + cons(i+1,j,k,1)   + cons(i,j+1,k,1)   + cons(i+1,j+1,k,1) &
                                + cons(i,j,k+1,1) + cons(i+1,j,k+1,1) + cons(i,j+1,k+1,1) + cons(i+1,j+1,k+1,1))
+            cpc(i) = 0.125e0 * (cp(i,j,k)   + cp(i+1,j,k)   + cp(i,j+1,k)   + cp(i+1,j+1,k) &
+                              + cp(i,j,k+1) + cp(i+1,j,k+1) + cp(i,j+1,k+1) + cp(i+1,j+1,k+1))
+            muc(i) = 0.125e0 * (mu(i,j,k)   + mu(i+1,j,k)   + mu(i,j+1,k)   + mu(i+1,j+1,k) &
+                              + mu(i,j,k+1) + mu(i+1,j,k+1) + mu(i,j+1,k+1) + mu(i+1,j+1,k+1))
+            kac(i) = 0.125e0 * (kappa(i,j,k)   + kappa(i+1,j,k)   + kappa(i,j+1,k)   + kappa(i+1,j+1,k) &
+                              + kappa(i,j,k+1) + kappa(i+1,j,k+1) + kappa(i,j+1,k+1) + kappa(i+1,j+1,k+1))
             ! --- Vx ---
             f1 = Vx(i,j,k)+Vx(i,j+1,k)+Vx(i,j,k+1)+Vx(i,j+1,k+1)
             f2 = Vx(i+1,j,k)+Vx(i+1,j+1,k)+Vx(i+1,j,k+1)+Vx(i+1,j+1,k+1)
@@ -306,16 +314,17 @@ subroutine set_visc_force_tqf( &
             w2 = gVx(i,3) - gVt(i,1)
             w3 = gVr(i,1) - gVx(i,2)
             vm = sqrt(w1*w1 + w2*w2 + w3*w3)
+            visc_lim = 3000e0 * muc(i)
             mut = min(rhoc(i) * xlength(i,j,k) * vm, visc_lim)
             mu_turb(i,j,k) = mut
-            fac = (mu + mut) * 0.5e0
+            fac = (muc(i) + mut) * 0.5e0
             tq(i+1,j+1,1,tb) = t1*fac
             tq(i+1,j+1,2,tb) = t2*fac
             tq(i+1,j+1,3,tb) = t3*fac
             tq(i+1,j+1,4,tb) = t4*fac
             tq(i+1,j+1,5,tb) = t5*fac
             tq(i+1,j+1,6,tb) = t6*fac
-            lambda = mu*cp/Pr_lam + mut*cp/Pr_turb
+            lambda = kac(i) + mut * cpc(i) / Pr_turb
             f1 = T(i,j,k)+T(i,j+1,k)+T(i,j,k+1)+T(i,j+1,k+1)
             f2 = T(i+1,j,k)+T(i+1,j+1,k)+T(i+1,j,k+1)+T(i+1,j+1,k+1)
             f3 = T(i,j,k)+T(i+1,j,k)+T(i,j,k+1)+T(i+1,j,k+1)
