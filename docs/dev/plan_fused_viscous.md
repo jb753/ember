@@ -401,3 +401,101 @@ separate names and all three appear in this workflow.
 (an ambiguous `scale_visc_halos` between its own helper module and
 production's, dating from the commit that created it), so select only the arms
 needed rather than `EMBER_BENCH_KERNELS=all`.
+
+## Postscript: the surface-buffer path, and what it revealed
+
+`Block.tau_q_faces` (six two-layer surface buffers), `set_tau_q_faces` (an
+O(surface) boundary producer), `exchange_faces` and
+`set_visc_force_tqf_faces` now exist and are gated: the consumer reproduces
+production's fvisc to ~4.8 ulp of field scale with the ENTIRE full-volume
+buffer poisoned to NaN, on a full-span seam, a subset seam, and a sealed block
+with no periodic patches at all. The topology restriction is gone -- that part
+of the design worked.
+
+The timing did not. Serial, 1M cells, 10 launches, paired within launch:
+
+```
+  unfused      p1_soa + exchange_halos + set_visc_force   55.500 ns/cell
+  faces        p1_faces + exchange_faces + consumer       59.315   +6.96%  0/10
+  faces_nop1   consumer only                              47.768  -14.05% 10/10
+  fused        exchange_halos + set_visc_force_tqf        48.558  -12.56% 10/10
+```
+
+`faces` and `unfused` are the first two SELF-CONTAINED arms in this study:
+each produces the halo it reads, inside the timed window. Every other fused
+number here -- including every one recorded above -- free-rides on seed_tau_q,
+which fills the volume buffer once, untimed, before the reps. There was no
+boundary producer to charge it to until now.
+
+Phase costs, each measured through the harness rather than inferred:
+
+```
+  p1_soa   25.562      p1_faces  6.478      the boundary producer saves 19.1
+  exchange_halos 0.63  exchange_faces 0.56  the face exchange is the cheaper one
+  fused consumer 47.768  vs  p1_soa + visc = 54.87  ->  the fusion saves 7.07
+```
+
+**So the tau/q fusion, costed honestly, does not beat production.** It saves
+7.07 ns/cell of volume work and gives back 6.5 producing the halo plus ~4.5 of
+interaction the separate measurements do not show (running the producer
+immediately before the consumer evicts the consumer's working set; the parts
+sum to 54.8 against a measured 59.3). `fused`'s -12.5% was the free ride, not
+the fusion.
+
+The producer can be improved but not enough to change that. It runs at 87 ns
+per boundary cell against the row form's 25.6, because `tau_q_at_cell` is a
+scalar per-cell call; the j and k faces could use the row form directly, the
+two i faces pin the axis it vectorises over. Fixing the 90% would put `faces`
+near 55.2 -- break-even.
+
+WHAT NOT TO DO NEXT. Do not retire `set_visc_force_tqf_selfk` (staging step 5).
+It was to be retired once the faces path was proven, and the faces path is
+currently slower than the arm it would replace.
+
+## Why the fusion gives the round trip back: stream count, confirmed
+
+The surface buffers do remove the round trip. Measured by LLC misses x 64 B,
+differencing a 12-rep run against a 2-rep one so setup cancels:
+
+```
+  p1_soa     19.4 MB per call        p1_faces    4.0 MB per call
+```
+
+15.4 MB saved, and that matches the arithmetic: the tau/q span of tau_q_halo
+is 37.8 MB, written once and read back, ~116 B/cell, which at the ~6.4 GB/s a
+single process gets here is 18 ns/cell against a measured 19.1.
+
+But the PAIR only improves 27.5 -> 26.3 MB. The fused consumer alone moves
+11.4 MB where production's phase 2 moves ~8, and the two phases together move
+far more than their parts (4.0 + 11.4 = 15.4 against a measured 26.3).
+
+WHAT THE MECHANISM IS NOT. `l1d_pend_miss.fb_full` -- cycles with every L1
+fill buffer occupied, the direct signature of more outstanding misses than the
+core can track -- is 0.3% of cycles for the fused consumer, the LOWEST of any
+arm here (p1_soa and unfused both sit at 1.1%). It is not fill-buffer
+saturation.
+
+WHAT IT IS. Two arms, `streams_hi` and `streams_lo`, differ in one thing:
+whether mu, cp and kappa are three separate buffers holding identical values
+or one buffer passed three times. Same arithmetic, same results, same
+instruction stream, different stream count.
+
+```
+  streams_hi   150.9M cycles   10.14 MB          (10 launches, paired)
+  streams_lo   144.6M cycles    7.37 MB          -7.86% +/- 0.30, 10/10
+
+  time saved 2.44 ms;  traffic saved 2.77 MB, worth 0.43 ms at 6.4 GB/s
+```
+
+**82% of the gain is not explained by the bytes.** The fused loop is limited
+by how many streams it walks, not by what it moves -- which is what
+viscous_tauq_fused.f90's header predicted ("roughly doubles the concurrent
+stream count, the failure mode behind the rejected j-panel tiling and the IRS
+k-solve merge") and what these arms now measure. Not the fill buffers, so
+most likely the L2 streamer's stream-tracking capacity plus DRAM row-buffer
+thrashing across many open pages.
+
+SO THE LEVER IS THE CONSUMER, NOT THE HALO SOURCE. `kb` is already in the
+fused kernel's signature and inert. Slab-blocking the k walk so the nodal
+fields stream through in panels is the change that would let the 15.4 MB the
+surface buffers save actually reach the bottom line.
