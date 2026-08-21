@@ -230,23 +230,98 @@ def callers_tauq(b, active_arms=TAUQ_ARMS):
     return out
 
 
-def callers_pair(b):
+def selfk_ineligible(grid, b):
+    """Why this block cannot take the seam-free k path, or None if it can.
+
+    The seam-free arm replaces the exchanged k halo with a read of the block's
+    own far cell plane, selected per (i,j) against wallk1/wallnk. That is only
+    equivalent to the exchange under three conditions, checked here once at
+    setup (all O(surface), none of them in the timed window).
+
+    THE SENTINEL is block.i_perk: it is (0, 0) exactly when the block has no
+    k-face PeriodicPatch, so it is the switch between the general (exchange)
+    path and this one. It reads (ni, 1) for a full-span seam and (i_LE, i_TE)
+    for the H-mesh shape.
+
+    THE MASK IS NOT THE PREDICATE. block.ijk_wall_visc means "not a viscous
+    wall", not "periodic": it is 1.0 for every PERMEABLE_TYPES patch and, via
+    SLIP_TYPES (patch.py:200), for InviscidPatch too. Two ways that bites on
+    real geometry -- a slip endwall on a k face, and CuspPatch, which is in
+    PERMEABLE_TYPES and must sit on a constant-k face (cusp.py:25), so an
+    H-mesh trailing edge reads non-wall while being neither wall nor periodic.
+    Nothing exchanges those halos, so a kernel trusting the mask alone would
+    read the far plane there and be silently wrong. Hence the coverage check:
+    the non-wall part of each k face must be EXACTLY the periodic part.
+
+    Self-pairing is checked because a pitch split into two blocks would pair
+    A's k=0 to B's k=nk -- periodic.check_match accepts that -- and the far
+    plane the kernel reads would then belong to the wrong block.
+    """
+    if b.i_perk == (0, 0):
+        return "i_perk == (0, 0): no k-face PeriodicPatch, use the general path"
+
+    for (bid, pid), ((nxbid, _), _) in grid.connectivity.periodic.pair().items():
+        if grid[bid].patches[pid].const_dim != 2:
+            continue  # i/j periodicity is unrelated to the k seam
+        if bid != nxbid:
+            return (
+                f"k-face periodic patch {(bid, pid)} pairs to block {nxbid}, "
+                "not to itself: the far k plane is another block's"
+            )
+
+    # Rebuild the k-face indicator from k-face PeriodicPatches alone, exactly
+    # as Block._get_face_wall_arrays builds the real one (block.py:912), and
+    # require the non-wall part of the mask to be precisely that.
+    kperi = np.zeros(b.shape_kface, dtype=np.uint8)
+    for patch in b.patches.periodic:
+        if patch.const_dim == 2:
+            kperi[*patch.get_ijk_face().T] += 1
+    for name, kslot in (("wallk1", 0), ("wallnk", -1)):
+        nonwall = np.asarray(b.ijk_wall_visc[name])[:, :, 0] > 0
+        covered = kperi[:, :, kslot] > 0
+        if not np.array_equal(nonwall, covered):
+            n = int(np.count_nonzero(nonwall & ~covered))
+            return (
+                f"{name} is non-wall at {n} face cells that no k-face "
+                "PeriodicPatch covers (slip patch, cusp, or another permeable "
+                "type): their halo is never exchanged"
+            )
+    return None
+
+
+def callers_pair(grid, b):
     """Time the viscous PAIR: tau/q then face fluxes, unfused vs fused.
 
     The saving spans both kernels -- tau/q stops round-tripping through memory
     entirely -- so neither can be timed alone, exactly as the IRS fused-limiter
     study had to time set_residual+IRS together (irs_arms.callers_update).
-    Both arms are f2py calls against pre-built kwargs, so the Python
-    scaffolding either side is identical and favours neither.
 
-      unfused  set_tau_q_soa then set_visc_force -- production today
-      fused    set_visc_force_tqf                -- one call, tau/q produced
-                                                   inside the k walk
+      unfused      set_tau_q_soa, exchange_halos, set_visc_force -- production
+      fused        exchange_halos, set_visc_force_tqf -- tau/q produced inside
+                   the k walk, halo still exchanged between the phases
+      fused_selfk  set_visc_force_tqf_selfk -- no exchange at all: the k seam
+                   is read from the block's own far plane
 
-    Both are idempotent, for different reasons: `unfused` because phase 1
+    THE EXCHANGE IS IN THE TIMED WINDOW, and it did not use to be. grid.py's
+    update_sources runs it between the two phases every step, so by Rule 3 it
+    is part of the pair's per-step cost -- but the arms as originally written
+    timed `tauq(); visc()` with no exchange, and quoted the resulting -20.9%
+    as if the exchange had been in the loop. It had not: seed_tau_q runs the
+    only exchange in the bench once, untimed, before the reps.
+
+    Splitting the fused arm in two is what makes the two savings separable:
+    `unfused` vs `fused` prices the tau/q DRAM round trip with the exchange
+    held constant, and `fused` vs `fused_selfk` prices the exchange alone. The
+    exchange is a Python loop over pairs.items() around one swap_by_ijk call,
+    so it is O(surface) work behind a fixed Python overhead that does not
+    scale with ncell -- keeping it in its own column stops it flattering the
+    small end of the size ladder.
+
+    All three are idempotent, for different reasons: `unfused` because phase 1
     rewrites every tau/q slot including the halos that phase 2 then scales in
-    place, and `fused` because it never writes tau_cell/q_cell at all. Asserted
-    in check_pair rather than assumed.
+    place, and the two fused arms because they never write tau_cell/q_cell at
+    all (exchange_halos on a self-pair is idempotent too -- it reads only
+    interior cells). Asserted in check_pair rather than assumed.
     """
     import ember.fortran as F
 
@@ -262,23 +337,34 @@ def callers_pair(b):
 
     unfused = dict(callers_tauq(b), **callers_visc(b, ("visc",)))
     tauq, visc = unfused["tauq"], unfused["visc"]
+    # Hoisted so the timed lambda does no attribute lookup the other arms are
+    # not also paying; the communicator itself is cached on the connectivity.
+    exchange = grid.connectivity.periodic.exchange_halos
+
+    out = {"unfused": lambda: (tauq(), exchange(), visc())}
 
     fn = getattr(F, "set_visc_force_tqf", None)
-    out = {"unfused": lambda: (tauq(), visc())}
-    if fn is None:
+    fn_selfk = getattr(F, "set_visc_force_tqf_selfk", None)
+    if fn is None and fn_selfk is None:
         return out
 
     # The rolling tau/q plane pair and the tau/q row temps, carved from
     # block.scratch alongside the face-flow buffers -- NOT from tau_q_halo,
     # which is this kernel's halo input.
-    need = (ni + 1) * (nj + 1) * 9 * 2 + ni * nj * 4 * 2 + ni * 4 * 3
+    # The seam-free arm needs FOUR tq slots, not two: the rolling pair plus a
+    # saved cell plane nk-1 (produced by the pre-pass) and a stashed cell
+    # plane 1. That is the buffer growth the study's own risk note is about --
+    # 2.6 MB rather than 1.3 MB at the 1M shape, against a kernel whose main
+    # hazard is tq falling out of cache.
+    n_tq = 4 if fn_selfk is not None else 2
+    need = (ni + 1) * (nj + 1) * 9 * n_tq + ni * nj * 4 * 2 + ni * 4 * 3
     if need > b.scratch.size:
         raise SystemExit(
             f"callers_pair: block.scratch holds {b.scratch.size} floats, the "
-            f"fused arm needs {need}. A real integration wants its own buffer."
+            f"fused arms need {need}. A real integration wants its own buffer."
         )
     planes, rows, tq = util.carve_view(
-        b.scratch, (ni, nj, 4, 2), (ni, 4, 3), (ni + 1, nj + 1, 9, 2)
+        b.scratch, (ni, nj, 4, 2), (ni, 4, 3), (ni + 1, nj + 1, 9, n_tq)
     )
     halo = b.tau_q_halo
     b.F_body_nd.flags.writeable = True
@@ -315,11 +401,50 @@ def callers_pair(b):
         i_cusp_start=b.i_cusp[0],
         i_cusp_end=b.i_cusp[1],
     )
-    out["fused"] = lambda: fn(**kw)
+    # `fused` still needs the exchange: it reads the k halo slots exchange_halos
+    # fills (viscous_tauq_fused.f90's header calls tau_cell/q_cell a HALO SOURCE
+    # ONLY input). `fused_selfk` does not -- that is the whole point of it.
+    if fn is not None:
+        kw_tqf = dict(kw, tq=tq[..., :2])
+        out["fused"] = lambda: (exchange(), fn(**kw_tqf))
+    # Timing controls. Both are WRONG BY CONSTRUCTION and exist only to
+    # attribute the gap between `fused` and `fused_selfk`, which is far larger
+    # than the exchange it was supposed to come from:
+    #   fused_ctl   pre-pass + 4-slot tq, but the parent's halo reads put back
+    #   fused_noij  reads nothing at all from the full-volume tau/q buffer
+    # check_pair does not gate them -- it only ever compares `fused` and
+    # `fused_selfk` -- so they cannot be mistaken for candidate kernels.
+    for arm, sym in (("fused_ctl", "set_visc_force_tqf_ctl"),
+                     ("fused_noij", "set_visc_force_tqf_noij")):
+        fn_ctl = getattr(F, sym, None)
+        if fn_ctl is not None:
+            out[arm] = lambda fn_ctl=fn_ctl: fn_ctl(**kw)
+
+    # fused_nosig drops tau_cell/q_cell from the SIGNATURE, so it needs its own
+    # kwargs dict. Paired with fused_noij it separates the cost of reading the
+    # 37.8 MB buffer in the k loop from the cost of it merely being an
+    # argument. NEITHER measures the case for a compact surface buffer: the
+    # block still allocates the volume and seed_tau_q still fills it.
+    fn_nosig = getattr(F, "set_visc_force_tqf_nosig", None)
+    if fn_nosig is not None:
+        kw_nosig = {k: v for k, v in kw.items() if k not in ("tau_cell", "q_cell")}
+        out["fused_nosig"] = lambda: fn_nosig(**kw_nosig)
+
+    if fn_selfk is not None:
+        # i_perk is the sentinel, so a block with no k-face PeriodicPatch is
+        # not an error -- it is simply one the general path handles, and the
+        # other two arms are still a valid comparison on it. A block that IS
+        # k-periodic but fails a guard is an error: the caller asked for the
+        # seam case and the geometry cannot support the select.
+        ineligible = selfk_ineligible(grid, b)
+        if ineligible is None:
+            out["fused_selfk"] = lambda: fn_selfk(**kw)
+        elif b.i_perk != (0, 0):
+            raise SystemExit(f"callers_pair: seam-free arm not eligible: {ineligible}")
     return out
 
 
-def check_pair(b):
+def check_pair(grid, b):
     """Gate the fused pair against the unfused one, on fvisc AND mu_turb.
 
     mu_turb matters as much as fvisc here: it is the other output of the phase
@@ -333,8 +458,9 @@ def check_pair(b):
     fvisc is a small difference of large face flows and pointwise ulps blow up
     where it passes through zero.
     """
-    fns = callers_pair(b)
-    if "fused" not in fns:
+    fns = callers_pair(grid, b)
+    arms = [n for n in ("fused", "fused_selfk") if n in fns]
+    if not arms:
         return {}
     fvisc, mu_turb = b.F_body_nd, b.mu_turb
 
@@ -354,30 +480,54 @@ def check_pair(b):
     restore = halo_restorer(b)
 
     def run(name):
-        if name == "fused":
+        if name != "unfused":
             restore()
         fns[name]()
         return np.array(fvisc, copy=True), np.array(mu_turb, copy=True)
 
     base, base2 = run("unfused"), run("unfused")
-    got, got2 = run("fused"), run("fused")
 
     results = {}
-    for n, field in enumerate(("fvisc", "mu_turb")):
-        ref, val = base[n], got[n]
-        idem = np.array_equal(base[n], base2[n]) and np.array_equal(got[n], got2[n])
-        diff = np.abs(val - ref)
-        scale = float(np.abs(ref).max())
-        results[field] = dict(
-            bitwise=bool(np.array_equal(val, ref)),
-            max_abs=float(diff.max()),
-            rel=float(diff.max() / scale) if scale else 0.0,
-            max_ulp=(
-                float(diff.max() / np.spacing(np.float32(scale))) if scale else 0.0
-            ),
-            idempotent=bool(idem),
-        )
+    for arm in arms:
+        got, got2 = run(arm), run(arm)
+        for n, field in enumerate(("fvisc", "mu_turb")):
+            ref, val = base[n], got[n]
+            idem = np.array_equal(base[n], base2[n]) and np.array_equal(got[n], got2[n])
+            diff = np.abs(val - ref)
+            scale = float(np.abs(ref).max())
+            results[(arm, field)] = dict(
+                bitwise=bool(np.array_equal(val, ref)),
+                max_abs=float(diff.max()),
+                rel=float(diff.max() / scale) if scale else 0.0,
+                max_ulp=(
+                    float(diff.max() / np.spacing(np.float32(scale))) if scale else 0.0
+                ),
+                idempotent=bool(idem),
+                # Where the deviation sits matters more than its size for the
+                # seam arms: a k-seam bug lands on the k=1 / k=nk-1 cell planes
+                # and nowhere else, while compiler reassociation is spread
+                # through the interior. Reported so the two are never confused.
+                seam_only=bool(_seam_only(diff)) if diff.max() > 0 else True,
+            )
     return results
+
+
+def _seam_only(diff):
+    """True if every differing cell lies on the k=1 or k=nk-1 cell plane.
+
+    The reason this is reported: a wrong far-plane index in the seam select
+    shows up exactly on the two seam cell planes, whereas the reassociation
+    the fused arms are already known to carry is spread through the interior
+    (93% of differing entries strictly interior, per the arm header). Without
+    this split, "35 ulp" alone cannot tell the two apart.
+    """
+    if diff.ndim < 3:
+        return False
+    hit = diff > 0
+    interior = hit.copy()
+    interior[:, :, 0] = False
+    interior[:, :, -1] = False
+    return not interior.any()
 
 
 def check_correctness(b, active_arms=VISC_ARMS):
@@ -429,12 +579,25 @@ def main():
 
     ap = argparse.ArgumentParser(description=main.__doc__)
     ap.add_argument("--ncell", type=int, default=300_000)
+    ap.add_argument(
+        "--periodic-k",
+        default=None,
+        choices=("full", "hmesh"),
+        help="make the duct's k faces periodic to each other: 'full' for the "
+        "whole face, 'hmesh' for two i-intervals with a wall between. Without "
+        "it the duct has no seam at all, which is why the fused arm has never "
+        "exercised the halo path it models.",
+    )
     args = ap.parse_args()
 
-    grid, b = build_case(args.ncell)
+    grid, b = build_case(args.ncell, periodic_k=args.periodic_k)
     ni, nj, nk = b.shape
     active = [a for a in VISC_ARMS if a == "visc" or getattr(F, ENTRY[a], None)]
     print(f"grid {ni} x {nj} x {nk}  ncell={args.ncell}  cusp={b.i_cusp[0] > 0}")
+    print(f"periodic_k={args.periodic_k!r}  i_perk={b.i_perk}  "
+          f"k-seam non-wall fraction="
+          f"{float(np.asarray(b.ijk_wall_visc['wallk1']).mean()):.3f}")
+    print(f"seam-free eligibility: {selfk_ineligible(grid, b) or 'ELIGIBLE'}")
     print(f"arms in this build: {active}")
 
     # Rule 5: build_duct_grid is axially straight, so Vr = Vt = 0 and the
@@ -449,18 +612,30 @@ def main():
         ok = "BITWISE" if r["bitwise"] else f"DIFFERS max {r['max_abs']:.3e}"
         print(f"  {name:>8}  {ok}  ({r['rel']:.3e} of scale, {r['max_ulp']:.2f} ulp)")
 
-    pair = check_pair(b)
+    pair = check_pair(grid, b)
     if pair:
-        print("\nfused pair vs unfused pair (set_tau_q_soa + set_visc_force):")
-        for field, r in pair.items():
+        print("\nfused arms vs unfused (set_tau_q_soa + exchange_halos + "
+              "set_visc_force):")
+        for (arm, field), r in pair.items():
             ok = "BITWISE" if r["bitwise"] else f"DIFFERS max {r['max_abs']:.3e}"
+            where = "" if r["bitwise"] else (
+                "  SEAM-ONLY" if r["seam_only"] else "  interior"
+            )
             print(
-                f"  {field:>8}  {ok}  ({r['rel']:.3e} of scale, "
-                f"{r['max_ulp']:.2f} ulp)  idempotent={r['idempotent']}"
+                f"  {arm:>12} {field:>8}  {ok}  ({r['rel']:.3e} of scale, "
+                f"{r['max_ulp']:.2f} ulp){where}  idempotent={r['idempotent']}"
             )
         if not all(r["idempotent"] for r in pair.values()):
             print("  FAIL: an arm is not idempotent -- repeated reps would not "
                   "be measuring the same work")
+            return 1
+        # A deviation confined to the two seam cell planes is the seam select,
+        # not reassociation: the fused arms' known ~35 ulp is spread through
+        # the interior. Fail loudly rather than let it read as compiler noise.
+        seam = [k for k, r in pair.items() if not r["bitwise"] and r["seam_only"]]
+        if seam:
+            print(f"  FAIL: deviation confined to the k seam for {seam} -- "
+                  "that is the seam handling, not reassociation")
             return 1
     return 0
 
