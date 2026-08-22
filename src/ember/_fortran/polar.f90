@@ -6,13 +6,15 @@
 ! set_polar_source_v2: net_flow components-last layout (ni-1,nj-1,nk-1,5).
 !
 subroutine set_polar_source( &
-    cons_cell, r, P, P_offset, vol, net_flow, &
+    cons, r, P, P_offset, vol, net_flow, &
     ni, nj, nk &
     )
 
     implicit none
 
-    real, intent (in)    :: cons_cell(ni-1, nj-1, nk-1, 5)
+    ! Node-centered conserved variables, averaged to the cell below. Only rho
+    ! and rho*r*Vt are read, so only those two are ever averaged.
+    real, intent (in)    :: cons(ni, nj, nk, 5)
     real, intent (in)    :: r(ni, nj, nk)
     real, intent (in)    :: P(ni, nj, nk)
     real, intent (in)    :: P_offset
@@ -26,8 +28,8 @@ subroutine set_polar_source( &
     do k = 1, nk-1
     do j = 1, nj-1
     do i = 1, ni-1
-        rhoc    = cons_cell(i, j, k, 1)
-        rhorVtc = cons_cell(i, j, k, 4)
+        rhoc    = avg_cell5(cons, 1, i, j, k)
+        rhorVtc = avg_cell5(cons, 4, i, j, k)
         rc      = avg_cell(r, i, j, k)
         Pc      = avg_cell(P, i, j, k)
         Vtc = rhorVtc / (rhoc * rc)
@@ -48,5 +50,18 @@ contains
             x(i,j,k) + x(i+1,j,k) + x(i,j+1,k) + x(i+1,j+1,k) + &
             x(i,j,k+1) + x(i+1,j,k+1) + x(i,j+1,k+1) + x(i+1,j+1,k+1))
     end function avg_cell
+
+    ! avg_cell over one component of a five-component nodal array. Takes the
+    ! component index rather than a cons(:,:,:,m) section, which against an
+    ! explicit-shape dummy risks a copy-in/copy-out of the whole volume.
+    pure function avg_cell5(x, m, i, j, k) result(avg)
+        implicit none
+        real, intent(in) :: x(ni,nj,nk,5)
+        integer, intent(in) :: m, i, j, k
+        real :: avg
+        avg = 0.125e0 * ( &
+            x(i,j,k,m) + x(i+1,j,k,m) + x(i,j+1,k,m) + x(i+1,j+1,k,m) + &
+            x(i,j,k+1,m) + x(i+1,j,k+1,m) + x(i,j+1,k+1,m) + x(i+1,j+1,k+1,m))
+    end function avg_cell5
 
 end subroutine set_polar_source

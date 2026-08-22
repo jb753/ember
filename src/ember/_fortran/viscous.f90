@@ -398,15 +398,19 @@ contains
     ! the hot fused loop and the O(surface) boundary-shell pass cannot drift
     ! apart. Bitwise agreement with production depends on this staying an
     ! expression-for-expression copy of it.
-    pure function polar_src(cons_cell, P, r, P_offset, i, j, k) result(S)
+    pure function polar_src(cons, P, r, P_offset, i, j, k) result(S)
         implicit none
-        real, intent(in), contiguous :: cons_cell(:,:,:,:), P(:,:,:), r(:,:,:)
+        real, intent(in), contiguous :: cons(:,:,:,:), P(:,:,:), r(:,:,:)
         real, intent(in) :: P_offset
         integer, intent(in) :: i, j, k
         real :: S
         real :: rhoc, rhorVtc, rc, Pc, Vtc
-        rhoc    = cons_cell(i, j, k, 1)
-        rhorVtc = cons_cell(i, j, k, 4)
+        rhoc = 0.125e0 * ( &
+            cons(i,j,k,1) + cons(i+1,j,k,1) + cons(i,j+1,k,1) + cons(i+1,j+1,k,1) + &
+            cons(i,j,k+1,1) + cons(i+1,j,k+1,1) + cons(i,j+1,k+1,1) + cons(i+1,j+1,k+1,1))
+        rhorVtc = 0.125e0 * ( &
+            cons(i,j,k,4) + cons(i+1,j,k,4) + cons(i,j+1,k,4) + cons(i+1,j+1,k,4) + &
+            cons(i,j,k+1,4) + cons(i+1,j,k+1,4) + cons(i,j+1,k+1,4) + cons(i+1,j+1,k+1,4))
         rc = 0.125e0 * ( &
             r(i,j,k) + r(i+1,j,k) + r(i,j+1,k) + r(i+1,j+1,k) + &
             r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))
@@ -1095,7 +1099,7 @@ end subroutine set_tau_q_faces
 ! runs as a separate pass over the boundary shell after the wall zeroing, since
 ! it is geometric content the wall mask must not eat.
 subroutine set_visc_force( &
-    cons, cons_cell, vol, dAi, dAj, dAk, &
+    cons, vol, dAi, dAj, dAk, &
     Omega_block, r, mu, P, P_offset, &
     fvisc, &
     Vx, Vr, Vt, &
@@ -1122,7 +1126,6 @@ subroutine set_visc_force( &
     ! edges, which is exactly the kind of thing that goes quietly wrong.
     integer, intent(in) :: jbw_in
     real, intent(in) :: cons(ni, nj, nk, 5)
-    real, intent(in) :: cons_cell(ni-1, nj-1, nk-1, 5)
     real, intent(in) :: vol(ni-1, nj-1, nk-1)
     real, intent(in) :: dAi(3, ni, nj-1, nk-1)
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
@@ -1556,8 +1559,12 @@ subroutine set_visc_force( &
                     fvisc(ni-1,jc,kc,3) = fvisc(ni-1,jc,kc,3) * wallni(jc,kc)
                     fvisc(ni-1,jc,kc,4) = fvisc(ni-1,jc,kc,4) * wallni(jc,kc)
                     do i = 1, ni-1
-                        prhoc    = cons_cell(i, jc, kc, 1)
-                        prhorVtc = cons_cell(i, jc, kc, 4)
+                        prhoc = 0.125e0 * ( &
+                            cons(i,jc,kc,1) + cons(i+1,jc,kc,1) + cons(i,jc+1,kc,1) + cons(i+1,jc+1,kc,1) + &
+                            cons(i,jc,kc+1,1) + cons(i+1,jc,kc+1,1) + cons(i,jc+1,kc+1,1) + cons(i+1,jc+1,kc+1,1))
+                        prhorVtc = 0.125e0 * ( &
+                            cons(i,jc,kc,4) + cons(i+1,jc,kc,4) + cons(i,jc+1,kc,4) + cons(i+1,jc+1,kc,4) + &
+                            cons(i,jc,kc+1,4) + cons(i+1,jc,kc+1,4) + cons(i,jc+1,kc+1,4) + cons(i+1,jc+1,kc+1,4))
                         prc = 0.125e0 * ( &
                             r(i,jc,kc) + r(i+1,jc,kc) + r(i,jc+1,kc) + r(i+1,jc+1,kc) + &
                             r(i,jc,kc+1) + r(i+1,jc,kc+1) + r(i,jc+1,kc+1) + r(i+1,jc+1,kc+1))
@@ -1647,8 +1654,12 @@ subroutine set_visc_force( &
     ! high faces are the same cells) does not double-add either.
     do j = 1, nj-1
     do i = 1, ni-1
-        prhoc    = cons_cell(i, j, 1, 1)
-        prhorVtc = cons_cell(i, j, 1, 4)
+        prhoc = 0.125e0 * ( &
+            cons(i,j,1,1) + cons(i+1,j,1,1) + cons(i,j+1,1,1) + cons(i+1,j+1,1,1) + &
+            cons(i,j,1+1,1) + cons(i+1,j,1+1,1) + cons(i,j+1,1+1,1) + cons(i+1,j+1,1+1,1))
+        prhorVtc = 0.125e0 * ( &
+            cons(i,j,1,4) + cons(i+1,j,1,4) + cons(i,j+1,1,4) + cons(i+1,j+1,1,4) + &
+            cons(i,j,1+1,4) + cons(i+1,j,1+1,4) + cons(i,j+1,1+1,4) + cons(i+1,j+1,1+1,4))
         prc = 0.125e0 * ( &
             r(i,j,1) + r(i+1,j,1) + r(i,j+1,1) + r(i+1,j+1,1) + &
             r(i,j,1+1) + r(i+1,j,1+1) + r(i,j+1,1+1) + r(i+1,j+1,1+1))
@@ -1663,8 +1674,12 @@ subroutine set_visc_force( &
     if (nk-1 > 1) then
         do j = 1, nj-1
         do i = 1, ni-1
-            prhoc    = cons_cell(i, j, nk-1, 1)
-            prhorVtc = cons_cell(i, j, nk-1, 4)
+            prhoc = 0.125e0 * ( &
+                cons(i,j,nk-1,1) + cons(i+1,j,nk-1,1) + cons(i,j+1,nk-1,1) + cons(i+1,j+1,nk-1,1) + &
+                cons(i,j,nk-1+1,1) + cons(i+1,j,nk-1+1,1) + cons(i,j+1,nk-1+1,1) + cons(i+1,j+1,nk-1+1,1))
+            prhorVtc = 0.125e0 * ( &
+                cons(i,j,nk-1,4) + cons(i+1,j,nk-1,4) + cons(i,j+1,nk-1,4) + cons(i+1,j+1,nk-1,4) + &
+                cons(i,j,nk-1+1,4) + cons(i+1,j,nk-1+1,4) + cons(i,j+1,nk-1+1,4) + cons(i+1,j+1,nk-1+1,4))
             prc = 0.125e0 * ( &
                 r(i,j,nk-1) + r(i+1,j,nk-1) + r(i,j+1,nk-1) + r(i+1,j+1,nk-1) + &
                 r(i,j,nk-1+1) + r(i+1,j,nk-1+1) + r(i,j+1,nk-1+1) + r(i+1,j+1,nk-1+1))
@@ -1679,8 +1694,12 @@ subroutine set_visc_force( &
     end if
     do k = 2, nk-2
     do i = 1, ni-1
-        prhoc    = cons_cell(i, 1, k, 1)
-        prhorVtc = cons_cell(i, 1, k, 4)
+        prhoc = 0.125e0 * ( &
+            cons(i,1,k,1) + cons(i+1,1,k,1) + cons(i,1+1,k,1) + cons(i+1,1+1,k,1) + &
+            cons(i,1,k+1,1) + cons(i+1,1,k+1,1) + cons(i,1+1,k+1,1) + cons(i+1,1+1,k+1,1))
+        prhorVtc = 0.125e0 * ( &
+            cons(i,1,k,4) + cons(i+1,1,k,4) + cons(i,1+1,k,4) + cons(i+1,1+1,k,4) + &
+            cons(i,1,k+1,4) + cons(i+1,1,k+1,4) + cons(i,1+1,k+1,4) + cons(i+1,1+1,k+1,4))
         prc = 0.125e0 * ( &
             r(i,1,k) + r(i+1,1,k) + r(i,1+1,k) + r(i+1,1+1,k) + &
             r(i,1,k+1) + r(i+1,1,k+1) + r(i,1+1,k+1) + r(i+1,1+1,k+1))
@@ -1695,8 +1714,12 @@ subroutine set_visc_force( &
     if (nj-1 > 1) then
         do k = 2, nk-2
         do i = 1, ni-1
-            prhoc    = cons_cell(i, nj-1, k, 1)
-            prhorVtc = cons_cell(i, nj-1, k, 4)
+            prhoc = 0.125e0 * ( &
+                cons(i,nj-1,k,1) + cons(i+1,nj-1,k,1) + cons(i,nj-1+1,k,1) + cons(i+1,nj-1+1,k,1) + &
+                cons(i,nj-1,k+1,1) + cons(i+1,nj-1,k+1,1) + cons(i,nj-1+1,k+1,1) + cons(i+1,nj-1+1,k+1,1))
+            prhorVtc = 0.125e0 * ( &
+                cons(i,nj-1,k,4) + cons(i+1,nj-1,k,4) + cons(i,nj-1+1,k,4) + cons(i+1,nj-1+1,k,4) + &
+                cons(i,nj-1,k+1,4) + cons(i+1,nj-1,k+1,4) + cons(i,nj-1+1,k+1,4) + cons(i+1,nj-1+1,k+1,4))
             prc = 0.125e0 * ( &
                 r(i,nj-1,k) + r(i+1,nj-1,k) + r(i,nj-1+1,k) + r(i+1,nj-1+1,k) + &
                 r(i,nj-1,k+1) + r(i+1,nj-1,k+1) + r(i,nj-1+1,k+1) + r(i+1,nj-1+1,k+1))

@@ -3,7 +3,8 @@
 ``Block.scratch`` backs every throwaway buffer in the step: the viscous
 boundary tau/q face buffers and the rolling tau/q cell-plane pair, the nodal
 transport trio both viscous kernels read, both kernels' rolling planes and
-rows, the nodal acoustic speed the timestep kernel reads, the IRS work vector
+rows, the nodal acoustic speed the timestep kernel reads, the cell-shaped
+conserved volume the filter and the SFD force materialise, the IRS work vector
 and the multigrid coarse scratch. That is only safe under two rules,
 and neither is something the code can check for itself:
 
@@ -50,6 +51,9 @@ def _phase_buffers(block):
     return {
         "update_sources": [*faces, tq, planes, rows, *transport],
         "update_timestep": [util.carve_view(block.scratch, block.shape)],
+        # apply_sfd_force and update_filter are the only readers left that
+        # want a cell-shaped conserved volume; both materialise it here.
+        "filter_sfd": [util.carve_view(block.scratch, tmp_shape)],
         "update_residual": list(
             util.carve_view(block.scratch, (ni, njp, 5, 2), (ni, 5, 3))
         )

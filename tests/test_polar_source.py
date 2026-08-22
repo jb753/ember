@@ -31,16 +31,15 @@ def _fort(x):
 def _build_case(ni, nj, nk, rho0, r0, Vt0, P0, vol0):
     """Construct a uniform-field test case with an analytic source.
 
-    Nodal ``r`` and ``P`` are constant so their cell averages are exactly
-    ``r0`` and ``P0``. ``cons_cell`` is already cell-centred: density in
-    component 1 and angular momentum ``rho*r*Vt`` in component 4, so the
-    routine recovers ``Vt = Vt0`` exactly.
+    Every nodal field is constant, so its 8-corner cell average is exactly the
+    constant: ``r0``, ``P0``, and from ``cons`` a density ``rho0`` and angular
+    momentum ``rho*r*Vt`` that recover ``Vt = Vt0`` exactly.
     """
     nci, ncj, nck = ni - 1, nj - 1, nk - 1
 
-    cons_cell = np.zeros((nci, ncj, nck, 5), dtype=typ)
-    cons_cell[..., 0] = rho0
-    cons_cell[..., 3] = rho0 * r0 * Vt0  # rho * r * Vt (angular momentum)
+    cons = np.zeros((ni, nj, nk, 5), dtype=typ)
+    cons[..., 0] = rho0
+    cons[..., 3] = rho0 * r0 * Vt0  # rho * r * Vt (angular momentum)
 
     r = np.full((ni, nj, nk), r0, dtype=typ)
     P = np.full((ni, nj, nk), P0, dtype=typ)
@@ -48,7 +47,7 @@ def _build_case(ni, nj, nk, rho0, r0, Vt0, P0, vol0):
     net_flow = np.zeros((nci, ncj, nck, 5), dtype=typ)
 
     return (
-        _fort(cons_cell),
+        _fort(cons),
         _fort(r),
         _fort(P),
         _fort(vol),
@@ -59,10 +58,10 @@ def _build_case(ni, nj, nk, rho0, r0, Vt0, P0, vol0):
 def test_sign_is_outward():
     """A swirling, pressurised cell must drive radial momentum OUTWARD (+)."""
     rho0, r0, Vt0, P0, vol0 = 1.2, 0.5, 30.0, 1.0e5, 2.0e-3
-    cons_cell, r, P, vol, net_flow = _build_case(5, 4, 4, rho0, r0, Vt0, P0, vol0)
+    cons, r, P, vol, net_flow = _build_case(5, 4, 4, rho0, r0, Vt0, P0, vol0)
 
     fortran.set_polar_source(
-        cons_cell=cons_cell, r=r, p=P, p_offset=0.0, vol=vol, net_flow=net_flow
+        cons=cons, r=r, p=P, p_offset=0.0, vol=vol, net_flow=net_flow
     )
 
     assert np.all(net_flow[..., 2] > 0.0), (
@@ -74,10 +73,10 @@ def test_sign_is_outward():
 def test_magnitude_matches_analytic():
     """net_flow[...,2] == +vol*(P + rho*Vt^2)/r exactly."""
     rho0, r0, Vt0, P0, vol0 = 1.2, 0.5, 30.0, 1.0e5, 2.0e-3
-    cons_cell, r, P, vol, net_flow = _build_case(5, 4, 4, rho0, r0, Vt0, P0, vol0)
+    cons, r, P, vol, net_flow = _build_case(5, 4, 4, rho0, r0, Vt0, P0, vol0)
 
     fortran.set_polar_source(
-        cons_cell=cons_cell, r=r, p=P, p_offset=0.0, vol=vol, net_flow=net_flow
+        cons=cons, r=r, p=P, p_offset=0.0, vol=vol, net_flow=net_flow
     )
 
     S = (P0 + rho0 * Vt0**2) / r0
@@ -87,10 +86,10 @@ def test_magnitude_matches_analytic():
 
 def test_only_radial_component_touched():
     """Mass, axial, angular-momentum and energy components stay untouched."""
-    cons_cell, r, P, vol, net_flow = _build_case(5, 4, 4, 1.2, 0.5, 30.0, 1.0e5, 2e-3)
+    cons, r, P, vol, net_flow = _build_case(5, 4, 4, 1.2, 0.5, 30.0, 1.0e5, 2e-3)
 
     fortran.set_polar_source(
-        cons_cell=cons_cell, r=r, p=P, p_offset=0.0, vol=vol, net_flow=net_flow
+        cons=cons, r=r, p=P, p_offset=0.0, vol=vol, net_flow=net_flow
     )
 
     for comp in (0, 1, 3, 4):
@@ -100,10 +99,10 @@ def test_only_radial_component_touched():
 def test_zero_source_when_quiescent():
     """No swirl and P == p_offset gives an exactly zero source."""
     P0 = 1.0e5
-    cons_cell, r, P, vol, net_flow = _build_case(5, 4, 4, 1.2, 0.5, 0.0, P0, 2e-3)
+    cons, r, P, vol, net_flow = _build_case(5, 4, 4, 1.2, 0.5, 0.0, P0, 2e-3)
 
     fortran.set_polar_source(
-        cons_cell=cons_cell, r=r, p=P, p_offset=P0, vol=vol, net_flow=net_flow
+        cons=cons, r=r, p=P, p_offset=P0, vol=vol, net_flow=net_flow
     )
 
     assert np.all(net_flow[..., 2] == 0.0)
@@ -112,12 +111,12 @@ def test_zero_source_when_quiescent():
 def test_accumulates_into_existing():
     """The source adds to a pre-existing net_flow rather than overwriting."""
     rho0, r0, Vt0, P0, vol0 = 1.2, 0.5, 30.0, 1.0e5, 2.0e-3
-    cons_cell, r, P, vol, net_flow = _build_case(5, 4, 4, rho0, r0, Vt0, P0, vol0)
+    cons, r, P, vol, net_flow = _build_case(5, 4, 4, rho0, r0, Vt0, P0, vol0)
     seed = 7.0
     net_flow[..., 2] = seed
 
     fortran.set_polar_source(
-        cons_cell=cons_cell, r=r, p=P, p_offset=0.0, vol=vol, net_flow=net_flow
+        cons=cons, r=r, p=P, p_offset=0.0, vol=vol, net_flow=net_flow
     )
 
     S = (P0 + rho0 * Vt0**2) / r0

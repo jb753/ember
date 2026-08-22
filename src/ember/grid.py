@@ -1452,9 +1452,15 @@ class Grid(_LabelledList):
         for block in self:
             cons_filt = block.conserved_filt_nd
             cons_filt.flags.writeable = True
+            # Cell-centred conserved state, materialised into the arena for
+            # this call alone (as the SFD force does; see update_sources). The
+            # arena is free in this method, and the buffer is the size of the
+            # multigrid-off march's, so it never binds.
+            cons_cell = util.carve_view(block.scratch, block.shape_cell + (5,))
+            ember.fortran.node_to_cell(block.conserved_nd, cons_cell)
             kernel(
                 cons_filt=cons_filt,
-                cons_cell=block.conserved_cell_nd,
+                cons_cell=cons_cell,
                 cfl=cfl,
                 dt_vol=block.dt_vol_nd,
                 vol=block.vol_nd,
@@ -1726,7 +1732,6 @@ class Grid(_LabelledList):
                 )
                 ember.fortran.set_visc_force(
                     cons=block.conserved_nd,
-                    cons_cell=block.conserved_cell_nd,
                     vol=block.vol_nd,
                     dai=block.dAi_nd,
                     daj=block.dAj_nd,
@@ -1773,7 +1778,7 @@ class Grid(_LabelledList):
             # otherwise fused anywhere) needs its own pass here.
             for block in self:
                 ember.fortran.set_polar_source(
-                    cons_cell=block.conserved_cell_nd,
+                    cons=block.conserved_nd,
                     r=block.r_nd,
                     p=block.P_nd,
                     p_offset=block.P_offset_nd,
@@ -1785,10 +1790,22 @@ class Grid(_LabelledList):
             if gain_filt != 0.0:
                 # SFD body force runs pre-step so it drives the RK integration,
                 # not just the post-step residual.
+                #
+                # The cell-centred conserved state this wants is not kept
+                # anywhere: the kernels that need it every step average the
+                # nodal state as they walk, and SFD is off by default. So
+                # materialise it here, into the arena. This is its own
+                # sub-phase -- the viscous loop above has finished with the
+                # arena by now -- and the buffer is exactly the size of the
+                # multigrid-off march's, so it never binds (see _scratch_len).
+                cons_cell = util.carve_view(
+                    block.scratch, block.shape_cell + (5,)
+                )
+                ember.fortran.node_to_cell(block.conserved_nd, cons_cell)
                 ember.fortran.apply_sfd_force(
                     f_body=block.F_body_nd,
                     cons_filt=block.conserved_filt_nd,
-                    cons_cell=block.conserved_cell_nd,
+                    cons_cell=cons_cell,
                     vol=block.vol_nd,
                     gain_filt=gain_filt,
                 )
@@ -1835,7 +1852,7 @@ class Grid(_LabelledList):
             ember.fortran.set_timestep_spectral(
                 dt_vol=block.dt_vol_nd,
                 a=a,
-                cons_cell=block.conserved_cell_nd,
+                cons=block.conserved_nd,
                 r=block.r_nd,
                 omega=block.Omega_nd,
                 dai=block.dAi_nd,

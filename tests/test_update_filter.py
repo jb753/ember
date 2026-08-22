@@ -10,6 +10,7 @@ import numpy as np
 
 import ember.block
 import ember.fortran
+from conftest import cell_conserved
 import ember.grid
 from ember import util
 from ember.fluid import PerfectFluid
@@ -36,7 +37,7 @@ def _build_block():
     ember.fortran.set_timestep_spectral(
         dt_vol=block.dt_vol_nd,
         a=block.a_nd,
-        cons_cell=block.conserved_cell_nd,
+        cons=block.conserved_nd,
         r=block.r_nd,
         omega=block.Omega_nd,
         dai=block.dAi_nd,
@@ -66,7 +67,7 @@ def test_update_filter_array_matches_reference():
 
     before = block.conserved_filt_nd.copy()
     expected = _expected_ema(
-        before, block.conserved_cell_nd, cfl, block.dt_vol_nd, block.vol_nd, delta
+        before, cell_conserved(block), cfl, block.dt_vol_nd, block.vol_nd, delta
     )
     ember.grid.Grid([block]).update_filter(cfl, delta)
     np.testing.assert_allclose(block.conserved_filt_nd, expected, rtol=1e-5)
@@ -79,7 +80,7 @@ def test_update_filter_scalar_matches_reference():
 
     before = block.conserved_filt_nd.copy()
     expected = _expected_ema(
-        before, block.conserved_cell_nd, cfl, block.dt_vol_nd, block.vol_nd, delta
+        before, cell_conserved(block), cfl, block.dt_vol_nd, block.vol_nd, delta
     )
     ember.grid.Grid([block]).update_filter(cfl, delta)
     np.testing.assert_allclose(block.conserved_filt_nd, expected, rtol=1e-5)
@@ -114,7 +115,7 @@ def test_update_filter_spans_all_blocks():
     expected = [
         _expected_ema(
             b.conserved_filt_nd.copy(),
-            b.conserved_cell_nd,
+            cell_conserved(b),
             0.4,
             b.dt_vol_nd,
             b.vol_nd,

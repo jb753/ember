@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 
 import ember.block
+from conftest import cell_conserved
 import ember.grid
 from ember import util
 from ember.fluid import PerfectFluid
@@ -85,7 +86,7 @@ def _build_grid():
     # read-only cached buffer, so unlock it for this seeding write.
     cons_filt = block.conserved_filt_nd
     cons_filt.flags.writeable = True
-    cons_filt[...] = block.conserved_cell_nd * np.float32(1.02)
+    cons_filt[...] = cell_conserved(block) * np.float32(1.02)
     cons_filt.flags.writeable = False
 
     return grid, block
