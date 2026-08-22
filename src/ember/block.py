@@ -499,6 +499,73 @@ __all__ = [
 ]
 
 
+_GEOM_KCHUNK = 8
+"""k-planes of nodes the geometry helpers promote at a time.
+
+The face-area and volume kernels are double precision -- the cross products
+differencing nearly-equal node coordinates need it, and
+tests/test_geometry.py's theta-origin invariance pins that -- while a block's
+coordinates are float32. A whole-block call therefore had to promote the
+entire coordinate stack, hold a double-precision result beside it and then
+cast that back down: about 59 MB of transient per face array at 273x65x57,
+and with the four of them it was the process's peak RSS, reached before the
+march had taken a step.
+
+Every face's and every cell's stencil is contained within its own k-slab, so
+walking in slabs bounds the promotion to a few MB and changes not one
+returned value. The chunk is in PLANES rather than bytes because that is what
+the stencil overlap is expressed in; 8 is a few MB at any block this solver
+marches, and the per-call overhead is a handful of calls per array.
+"""
+
+
+def _slab_ranges(n_face_k, n_overlap):
+    """Walk `n_face_k` face planes in slabs, yielding (k0, n_face, n_node).
+
+    `n_overlap` is how many extra node planes a face plane needs beyond its
+    own: 1 where the face spans k..k+1 (i- and j-faces, and cells), 0 where it
+    sits in a single plane (k-faces).
+    """
+    for k0 in range(0, n_face_k, _GEOM_KCHUNK):
+        n_face = min(_GEOM_KCHUNK, n_face_k - k0)
+        yield k0, n_face, n_face + n_overlap
+
+
+def _da_dest(out, shape, dtype):
+    """Destination for a face-area walk, and which layout it is in.
+
+    Returns ``(dest, comp_first)``. `shape` is the components-LAST shape the
+    helper documents; the cached ``dA*_nd`` buffers are the transpose of it,
+    components first, and are passed in as `out` so the walk can write them
+    without a whole-block temporary in between. Anything else is rejected here
+    rather than guessed at from the shape, which for a small enough block is
+    genuinely ambiguous.
+    """
+    if out is None:
+        return np.empty(shape, dtype=dtype, order="F"), False
+    if out.shape == shape:
+        return out, False
+    if out.shape == (3,) + shape[:-1]:
+        return out, True
+    raise ValueError(
+        f"out has shape {out.shape}, wanted {shape} (components last) "
+        f"or {(3,) + shape[:-1]} (components first)"
+    )
+
+
+def _store_slab(dest, slab, k0, n_face, comp_first):
+    """Write one double-precision slab into `dest`, in `dest`'s own layout.
+
+    Assigning through the slice casts to `dest`'s dtype, so the rounding to
+    float32 is the same single rounding the whole-block path applied and the
+    stored values are unchanged by the walk.
+    """
+    if comp_first:
+        dest[:, :, :, k0:k0 + n_face] = np.moveaxis(slab, -1, 0)
+    else:
+        dest[:, :, k0:k0 + n_face, :] = slab
+
+
 def _handle_output(result, out=None):
     """Copy `result` into `out` if given, otherwise return `result` unchanged.
 
@@ -577,21 +644,20 @@ def _get_dai(xrt, out=None):
 
     # Preserve input dtype for precision
     input_dtype = xrt.dtype
-
-    # Ensure inputs are Fortran-ordered and float64 for Fortran compatibility
-    xrt_f = np.asarray(xrt, dtype=np.float64, order="F")
-
-    # Allocate output array if not provided
     ni, nj, nk = xrt.shape[:3]
-    dAi_temp = util.allocate_or_reuse(None, (ni, nj - 1, nk - 1, 3), dtype=np.float64)
+    dest, comp_first = _da_dest(out, (ni, nj - 1, nk - 1, 3), input_dtype)
 
-    # Call Fortran routine to perform face area calculation
-    ember.fortran.get_dai(xrt_f, dAi_temp)
+    # A slab at a time: each i-face spans k..k+1, so a slab of n+1 node planes
+    # carries every stencil of its n face planes (see _GEOM_KCHUNK).
+    for k0, n_face, n_node in _slab_ranges(nk - 1, 1):
+        node = np.asarray(xrt[:, :, k0:k0 + n_node, :], dtype=np.float64, order="F")
+        slab = util.allocate_or_reuse(
+            None, (ni, nj - 1, n_face, 3), dtype=np.float64
+        )
+        ember.fortran.get_dai(node, slab)
+        _store_slab(dest, slab, k0, n_face, comp_first)
 
-    # Convert back to input dtype to preserve precision
-    dAi = dAi_temp.astype(input_dtype, copy=False)
-
-    return _handle_output(dAi, out)
+    return dest
 
 
 def _get_daj(xrt, out=None):
@@ -622,21 +688,19 @@ def _get_daj(xrt, out=None):
 
     # Preserve input dtype for precision
     input_dtype = xrt.dtype
-
-    # Ensure inputs are Fortran-ordered and float64 for Fortran compatibility
-    xrt_f = np.asarray(xrt, dtype=np.float64, order="F")
-
-    # Allocate output array if not provided
     ni, nj, nk = xrt.shape[:3]
-    dAj_temp = util.allocate_or_reuse(None, (ni - 1, nj, nk - 1, 3), dtype=np.float64)
+    dest, comp_first = _da_dest(out, (ni - 1, nj, nk - 1, 3), input_dtype)
 
-    # Call Fortran routine to perform face area calculation
-    ember.fortran.get_daj(xrt_f, dAj_temp)
+    # As _get_dai: a j-face spans k..k+1, so the slab carries one extra plane.
+    for k0, n_face, n_node in _slab_ranges(nk - 1, 1):
+        node = np.asarray(xrt[:, :, k0:k0 + n_node, :], dtype=np.float64, order="F")
+        slab = util.allocate_or_reuse(
+            None, (ni - 1, nj, n_face, 3), dtype=np.float64
+        )
+        ember.fortran.get_daj(node, slab)
+        _store_slab(dest, slab, k0, n_face, comp_first)
 
-    # Convert back to input dtype to preserve precision
-    dAj = dAj_temp.astype(input_dtype, copy=False)
-
-    return _handle_output(dAj, out)
+    return dest
 
 
 def _get_dak(xrt, out=None):
@@ -667,21 +731,20 @@ def _get_dak(xrt, out=None):
 
     # Preserve input dtype for precision
     input_dtype = xrt.dtype
-
-    # Ensure inputs are Fortran-ordered and float64 for Fortran compatibility
-    xrt_f = np.asarray(xrt, dtype=np.float64, order="F")
-
-    # Allocate output array if not provided
     ni, nj, nk = xrt.shape[:3]
-    dAk_temp = util.allocate_or_reuse(None, (ni - 1, nj - 1, nk, 3), dtype=np.float64)
+    dest, comp_first = _da_dest(out, (ni - 1, nj - 1, nk, 3), input_dtype)
 
-    # Call Fortran routine to perform face area calculation
-    ember.fortran.get_dak(xrt_f, dAk_temp)
+    # A k-face lies IN a node plane rather than spanning two, so here the slab
+    # needs no extra plane and there are nk of them, not nk-1.
+    for k0, n_face, n_node in _slab_ranges(nk, 0):
+        node = np.asarray(xrt[:, :, k0:k0 + n_node, :], dtype=np.float64, order="F")
+        slab = util.allocate_or_reuse(
+            None, (ni - 1, nj - 1, n_face, 3), dtype=np.float64
+        )
+        ember.fortran.get_dak(node, slab)
+        _store_slab(dest, slab, k0, n_face, comp_first)
 
-    # Convert back to input dtype to preserve precision
-    dAk = dAk_temp.astype(input_dtype, copy=False)
-
-    return _handle_output(dAk, out)
+    return dest
 
 
 def _get_da_quad(xrt, out=None):
@@ -769,23 +832,31 @@ def _get_vol(xrt, dAi, dAj, dAk, out=None):
 
     # Preserve input dtype for precision (use xrt as reference)
     input_dtype = xrt.dtype
+    if out is None:
+        out = np.empty((ni - 1, nj - 1, nk - 1), dtype=input_dtype, order="F")
 
-    # Ensure inputs are Fortran-ordered and float64 for Fortran compatibility
-    xrt_f = np.asarray(xrt, dtype=np.float64, order="F")
-    dAi_f = np.asarray(dAi, dtype=np.float64, order="F")
-    dAj_f = np.asarray(dAj, dtype=np.float64, order="F")
-    dAk_f = np.asarray(dAk, dtype=np.float64, order="F")
+    # A slab at a time, as the face-area helpers do, and for the same reason:
+    # this one would otherwise promote the coordinate stack AND all three face
+    # arrays at once, the largest transient of the four. A cell spans k..k+1,
+    # so it needs n+1 node planes, n planes of the i- and j-face arrays (which
+    # sit between nodes in k) and n+1 of the k-face array (which does not).
+    for k0, n_cell, n_node in _slab_ranges(nk - 1, 1):
+        ks = slice(k0, k0 + n_cell)
+        xrt_f = np.asarray(
+            xrt[:, :, k0:k0 + n_node, :], dtype=np.float64, order="F"
+        )
+        dAi_f = np.asarray(dAi[:, :, :, ks], dtype=np.float64, order="F")
+        dAj_f = np.asarray(dAj[:, :, :, ks], dtype=np.float64, order="F")
+        dAk_f = np.asarray(
+            dAk[:, :, :, k0:k0 + n_node], dtype=np.float64, order="F"
+        )
+        slab = util.allocate_or_reuse(
+            None, (ni - 1, nj - 1, n_cell), dtype=np.float64
+        )
+        ember.fortran.get_vol(xrt_f, dAi_f, dAj_f, dAk_f, slab)
+        out[:, :, ks] = slab
 
-    # Allocate output array if not provided
-    vol_temp = util.allocate_or_reuse(None, (ni - 1, nj - 1, nk - 1), dtype=np.float64)
-
-    # Call Fortran routine to perform volume calculation
-    ember.fortran.get_vol(xrt_f, dAi_f, dAj_f, dAk_f, vol_temp)
-
-    # Convert back to input dtype to preserve precision
-    vol = vol_temp.astype(input_dtype, copy=False)
-
-    return _handle_output(vol, out)
+    return out
 
 
 class _MaskedBlock:
@@ -2616,10 +2687,11 @@ class Block(ember._struct.StructuredData):
 
         See :ref:`face-areas` for the calculation.
         """
-        dAi = _get_dai(self._xrt_nd)
+        # The helper walks in slabs and writes this component-first buffer
+        # directly, so neither a whole-block double array nor a transposed
+        # copy of the result is ever materialised.
         out = util.allocate_or_reuse(out, (3,) + self.shape_iface)
-        out[...] = np.moveaxis(dAi, -1, 0)
-        return out
+        return _get_dai(self._xrt_nd, out)
 
     @derived_array
     def dAj(self):
@@ -2635,10 +2707,11 @@ class Block(ember._struct.StructuredData):
 
         See :ref:`face-areas` for the calculation.
         """
-        dAj = _get_daj(self._xrt_nd)
+        # The helper walks in slabs and writes this component-first buffer
+        # directly, so neither a whole-block double array nor a transposed
+        # copy of the result is ever materialised.
         out = util.allocate_or_reuse(out, (3,) + self.shape_jface)
-        out[...] = np.moveaxis(dAj, -1, 0)
-        return out
+        return _get_daj(self._xrt_nd, out)
 
     @derived_array
     def dAk(self):
@@ -2654,10 +2727,11 @@ class Block(ember._struct.StructuredData):
 
         See :ref:`face-areas` for the calculation.
         """
-        dAk = _get_dak(self._xrt_nd)
+        # The helper walks in slabs and writes this component-first buffer
+        # directly, so neither a whole-block double array nor a transposed
+        # copy of the result is ever materialised.
         out = util.allocate_or_reuse(out, (3,) + self.shape_kface)
-        out[...] = np.moveaxis(dAk, -1, 0)
-        return out
+        return _get_dak(self._xrt_nd, out)
 
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def dhdP_rho_nd(self, out):

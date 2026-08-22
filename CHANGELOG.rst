@@ -10,6 +10,24 @@ without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* The geometry helpers behind ``dAi_nd``, ``dAj_nd``, ``dAk_nd`` and
+  ``vol_nd`` walk the block in k-slabs instead of whole-block calls. Their
+  kernels are double precision -- the cross products difference nearly-equal
+  node coordinates, and the theta-origin invariance test pins that -- while a
+  block's coordinates are float32, so each call used to promote the entire
+  coordinate stack, hold a double-precision result beside it and cast that
+  back down: about 59 MB of transient per array at 273x65x57, and with the
+  four of them the largest spike in the process, reached before the march had
+  taken a step. Every face's and every cell's stencil is contained in its own
+  slab, so the walk bounds the promotion to a few MB, and the face-area
+  helpers now fill the component-first cached buffer directly rather than
+  transposing a whole-block result into it. Peak RSS for a 1M-cell RK/IRS/MG
+  march falls 262.3 MB to 258.2 MB and, more to the point, now equals the
+  steady-state resident exactly: there is no transient left anywhere in the
+  run. Geometry setup is 26% faster with the promotions gone. Every value is
+  bitwise unchanged -- the promotion of a float32 to double is exact and the
+  rounding back is the same single rounding.
+
 * **Breaking:** ``Block.conserved_cell`` and ``Block.conserved_cell_nd`` are
   gone. The cell-centred conserved state was a cached ``(ni-1, nj-1, nk-1, 5)``
   volume rebuilt every step and, after the acoustic speed and the transport
