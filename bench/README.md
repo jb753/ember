@@ -642,6 +642,50 @@ the headline number, and where it lives.
   lets the face-flux loops vectorize at 32 bytes, and losing that SIMD
   dominates any locality gained. The lesson that shaped every protocol rule
   above: **never trust a standalone single-file compile for this codebase.**
+- **Removing `set_tau_q_soa`'s ten automatic arrays -- all three ways.** The
+  kernel declares its row temps as `gVx(ni-1,3)`, `vct(ni-1)` and seven more,
+  which is an `alloca` per call and the one thing kernel scratch here is not
+  supposed to do. It is also, measurably, the fastest arrangement of the
+  three available, so it stays -- with this entry to stop the next person
+  re-deriving it.
+
+  - **Fixed-size stack tiles plus an i-tile loop** (the shape that worked for
+    the wall-function rows): **+12.9% at 1M and +183.9% at 2M**, serial. The
+    cost is per loop ENTRY, not per cell: this loop only vectorizes under
+    the raised `--param=vect-max-version-for-alias-checks`, and that
+    versioning prologue is re-executed for every tile. Tile width buys it
+    back exactly as that explains -- 64-wide +184%, 128-wide +87%, 256-wide
+    breaks even, 512-wide +1%. **A kernel whose vectorization depends on
+    alias versioning must not have its rows tiled.**
+  - **Fusing the two stages into one all-scalar loop.** Legitimate on the
+    dependences -- stage 2 only ever reads stage 1's output at its own `i`,
+    so nothing needs to cross an iteration and the arrays are simply not
+    needed. -0.8% at 1M serial, but **+55.7% at 2M serial and +44.9%
+    contended**, and not bitwise (2-3 ulp: the split loop rounds through
+    memory at each store, the fused one keeps the values in registers).
+  - **Caller-owned row scratch from the arena** (`tqrow(ni-1,16)`, carved in
+    `_carve_viscous`), which keeps the loop structure, the vectorization and
+    the arithmetic exactly as they were and is bitwise identical. Still
+    **about +2% at every size, in both regimes** -- consistent across six
+    points, and the only change is where the memory comes from. Two follow-up
+    experiments say what it is NOT. **It is not the alias check**: `!GCC$
+    ivdep` on both stage loops does remove the versioning (the opt report's
+    "loop versioned for vectorization because of possible aliasing" is gone
+    for both, and they still vectorize at 32 bytes), but paired against the
+    same build without it the hint is a wash -- +2.2% / -1.4% serial at
+    1M/2M, flat contended. One runtime check per (j,k) row is amortised over
+    ni cells; it only mattered when tiling multiplied it. **And it is not
+    where the buffer lives**: allocating the row temps outside the arena
+    entirely, so they cannot conflict with the tau/q volume the same loop
+    streams, measures the same 1-4% above baseline. What is left is that a
+    local automatic array simply tells the compiler more than any dummy can.
+
+  The lesson generalises past this kernel: **`alloca` in a hot kernel is
+  worth removing only if you can show it costs something.** Here it is one
+  allocation per call, of ~35 KB at 2M cells, against a kernel that runs
+  ~10^6 cells -- and every arrangement that removes it perturbs something
+  the compiler was relying on. Results in `results/tauq_tile_*.jsonl` and
+  `results/tauq_arena_*.jsonl`.
 - **The `njp` 4K-aliasing pad, re-measured after the j-panel.** The rule
   exists so the ten component streams of the k-accumulate (5 components x
   the plane pair) cannot land on the same cache sets. Forcing exactly that
