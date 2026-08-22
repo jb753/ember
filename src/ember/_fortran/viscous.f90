@@ -17,6 +17,17 @@ module viscous_helpers
     public :: polar_src, zero_wall_fvisc_border
     public :: wall_row_kface, wall_row_jface
     public :: VISC_JAREA
+    public :: XLEN_FAC
+
+    ! Mixing length squared per unit of SUMMED nodal wall distance: the
+    ! turbulent length is kappa*w with von Karman kappa = 0.41 and w the
+    ! 8-corner cell average of the nodal wall distance, so
+    ! (kappa*w)^2 = (0.41 * sum/8)^2 = (0.41*0.125)^2 * sum^2. Folding the
+    ! averaging into the constant is what keeps deriving it at the point of
+    ! use down to a sum, a square and one multiply -- see the callers, which
+    ! take the nodal wall distance rather than a cell-shaped mixing-length
+    ! volume the block would otherwise have to store.
+    real, parameter :: XLEN_FAC = (0.41e0 * 0.125e0)**2
 
     ! Skin-friction curve fit, shared by wall_core and the row forms below so
     ! the two spellings of the same physics cannot drift apart.
@@ -491,7 +502,7 @@ contains
     ! shapes of the same arithmetic there, that producer walks those two faces
     ! cell by cell and calls this. They are ~8% of the shell, so the per-cell
     ! call costs little; the other four faces keep the row form.
-    pure subroutine tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, &
+    pure subroutine tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, wdist, &
         vol, dAi, dAj, dAk, r, Vx, Vr, Vt, i, j, k, ni, nj, nk, tq)
         implicit none
         integer, intent(in) :: i, j, k, ni, nj, nk
@@ -499,7 +510,7 @@ contains
         real, intent(in) :: T(ni, nj, nk), mu(ni, nj, nk)
         real, intent(in) :: cp(ni, nj, nk), kappa(ni, nj, nk)
         real, intent(in) :: Pr_turb
-        real, intent(in) :: xlength(ni-1, nj-1, nk-1), vol(ni-1, nj-1, nk-1)
+        real, intent(in) :: wdist(ni, nj, nk), vol(ni-1, nj-1, nk-1)
         real, intent(in) :: dAi(3, ni, nj-1, nk-1)
         real, intent(in) :: dAj(3, ni-1, nj, nk-1)
         real, intent(in) :: dAk(3, ni-1, nj-1, nk)
@@ -511,7 +522,7 @@ contains
         real :: gVx1, gVx2, gVx3, gVr1, gVr2, gVr3, gVt1, gVt2, gVt3
         real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
         real :: t1, t2, t3, t4, t5, t6, w1, w2, w3
-        real :: vm, mut, fac, lambda, visc_lim
+        real :: vm, mut, fac, lambda, visc_lim, wsum
 
         ivr = 0.25e0 / vol(i,j,k)
         rcr = 0.125e0 * (r(i,j,k)   + r(i+1,j,k)   + r(i,j+1,k)   + r(i+1,j+1,k) &
@@ -577,8 +588,10 @@ contains
         vm = sqrt(w1*w1 + w2*w2 + w3*w3)
         ! The max(0) contains the same gfortran 13 codegen fault set_visc_force
         ! documents at its own copy of this line -- keep the three identical.
+        wsum = wdist(i,j,k) + wdist(i+1,j,k) + wdist(i,j+1,k) + wdist(i+1,j+1,k) + &
+               wdist(i,j,k+1) + wdist(i+1,j,k+1) + wdist(i,j+1,k+1) + wdist(i+1,j+1,k+1)
         visc_lim = 3000e0 * muc
-        mut = max(0.0e0, min(rhoc * xlength(i,j,k) * vm, visc_lim))
+        mut = max(0.0e0, min(rhoc * (XLEN_FAC * wsum * wsum) * vm, visc_lim))
         fac = (muc + mut) * 0.5e0
         tq(1) = t1*fac
         tq(2) = t2*fac
@@ -802,7 +815,7 @@ end module viscous_helpers
 ! once per face they lie on. That duplication is O(edge), and removing it would
 ! mean carrying a "which faces own this cell" test into every loop.
 subroutine set_tau_q_faces( &
-    cons, T, mu, cp, kappa, Pr_turb, xlength, vol, dAi, dAj, dAk, &
+    cons, T, mu, cp, kappa, Pr_turb, wdist, vol, dAi, dAj, dAk, &
     r, Vx, Vr, Vt, &
     f_i1, f_ini, f_j1, f_jnj, f_k1, f_knk, &
     walli1, wallni, wallj1, wallnj, wallk1, wallnk, &
@@ -818,7 +831,7 @@ subroutine set_tau_q_faces( &
     real, intent(in) :: cp(ni, nj, nk)
     real, intent(in) :: kappa(ni, nj, nk)
     real, intent(in) :: Pr_turb
-    real, intent(in) :: xlength(ni-1, nj-1, nk-1)
+    real, intent(in) :: wdist(ni, nj, nk)
     real, intent(in) :: vol(ni-1, nj-1, nk-1)
     real, intent(in) :: dAi(3, ni, nj-1, nk-1)
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
@@ -850,18 +863,18 @@ subroutine set_tau_q_faces( &
     ! whichever face buffer this row belongs to.
     real :: tqr(ni-1, 9)
     real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
-    real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac, lambda
+    real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac, lambda, wsum
 
     ! --- i faces: the two that pin the axis the row body vectorises over ---
     do k = 1, nk-1
     do j = 1, nj-1
-        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, wdist, vol, &
             dAi, dAj, dAk, r, Vx, Vr, Vt, 1, j, k, ni, nj, nk, tq)
         do c = 1, 9
             f_i1(j,c,k,1) = tq(c)
             f_i1(j,c,k,2) = tq(c) * (2.0e0*walli1(j,k) - 1.0e0)
         end do
-        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, wdist, vol, &
             dAi, dAj, dAk, r, Vx, Vr, Vt, ni-1, j, k, ni, nj, nk, tq)
         do c = 1, 9
             f_ini(j,c,k,1) = tq(c)
@@ -981,8 +994,10 @@ subroutine set_tau_q_faces( &
             ! The max(0) carries the same gfortran 13 codegen fault
             ! set_visc_force documents at length at its own copy of this line --
             ! keep the three copies (there and in tau_q_at_cell) identical.
+            wsum = wdist(i,j,k) + wdist(i+1,j,k) + wdist(i,j+1,k) + wdist(i+1,j+1,k) + &
+                   wdist(i,j,k+1) + wdist(i+1,j,k+1) + wdist(i,j+1,k+1) + wdist(i+1,j+1,k+1)
             visc_lim = 3000e0 * muc(i)
-            mut = max(0.0e0, min(rhoc(i) * xlength(i,j,k) * vm, visc_lim))
+            mut = max(0.0e0, min(rhoc(i) * (XLEN_FAC * wsum * wsum) * vm, visc_lim))
             fac = (muc(i) + mut) * 0.5e0
             tqr(i,1) = t1*fac
             tqr(i,2) = t2*fac
@@ -1103,7 +1118,7 @@ subroutine set_visc_force( &
     Omega_block, r, mu, P, P_offset, &
     fvisc, &
     Vx, Vr, Vt, &
-    T, cp, kappa, Pr_turb, xlength, &
+    T, cp, kappa, Pr_turb, wdist, &
     mu_turb, &
     f_i1, f_ini, f_j1, f_jnj, f_k1, f_knk, &
     tq, &
@@ -1143,7 +1158,7 @@ subroutine set_visc_force( &
     real, intent(in) :: cp(ni, nj, nk)
     real, intent(in) :: kappa(ni, nj, nk)
     real, intent(in) :: Pr_turb
-    real, intent(in) :: xlength(ni-1, nj-1, nk-1)
+    real, intent(in) :: wdist(ni, nj, nk)
     ! Cell-centred mixing-length viscosity, written at the cell's low-corner
     ! node. The final node in each axis is padding that is not written here and
     ! must not be read; intent(inout) so that padding is left untouched rather
@@ -1210,7 +1225,7 @@ subroutine set_visc_force( &
     ! vectorization outright.
     real :: prhoc, prhorVtc, prc, pPc, pVtc
     real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
-    real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac
+    real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac, wsum
 
     ! There is no k-slab depth here: the fused schedule subsumes k-slab
     ! blocking, because each tau/q cell plane is consumed by all three face
@@ -1334,8 +1349,10 @@ subroutine set_visc_force( &
             w2 = gVx(i,3) - gVt(i,1)
             w3 = gVr(i,1) - gVx(i,2)
             vm = sqrt(w1*w1 + w2*w2 + w3*w3)
+            wsum = wdist(i,j,k) + wdist(i+1,j,k) + wdist(i,j+1,k) + wdist(i+1,j+1,k) + &
+                   wdist(i,j,k+1) + wdist(i+1,j,k+1) + wdist(i,j+1,k+1) + wdist(i+1,j+1,k+1)
             visc_lim = 3000e0 * muc(i)
-            mut = min(rhoc(i) * xlength(i,j,k) * vm, visc_lim)
+            mut = min(rhoc(i) * (XLEN_FAC * wsum * wsum) * vm, visc_lim)
             mu_turb(i,j,k) = mut
             fac = (muc(i) + mut) * 0.5e0
             tq(i+1,j+1,1,tb) = t1*fac

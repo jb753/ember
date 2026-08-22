@@ -419,7 +419,6 @@ directly and are not usually needed by end users.
    Block.Vx_nd
    Block.Vxrt_nd
    Block.wdist_nd
-   Block.xlen_sq_nd
    Block.xrt_nd
 
 
@@ -3740,25 +3739,6 @@ class Block(ember._struct.StructuredData):
         x_nd = self._get_data_by_keys(("x",))
         out = util.allocate_or_reuse(out, x_nd.shape)
         np.multiply(x_nd, self.L_ref, out=out)
-        return out
-
-    @cached_array("wdist")
-    def xlen_sq_nd(self, out):
-        r"""Mixing-length squared :math:`(\kappa w)^2` [-], cell-shaped.
-
-        The turbulent mixing length is :math:`\kappa w` with von Karman
-        constant :math:`\kappa = 0.41` and :math:`w` the cell-averaged wall
-        distance. Any mixing-length cap is baked into :attr:`wdist_nd` upstream
-        by :meth:`~ember.grid.Grid.calculate_wdist`, so none is applied here.
-        Cached against the ``wdist`` data key: recomputed only when the wall
-        distance changes.
-        """
-        out = util.allocate_or_reuse(out, self.shape_cell)
-        node = util.zeros(self.shape)
-        node[...] = self.wdist_nd
-        ember.fortran.node_to_cell(node, out)
-        out *= 0.41
-        out *= out
         return out
 
     @derived_array

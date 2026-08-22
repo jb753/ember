@@ -71,7 +71,7 @@ def _build_grid():
     block.set_Omega(50.0)
 
     # Nonzero wall distance => nonzero mixing length => turbulent viscosity is
-    # exercised (xlen_sq_nd derives from this).
+    # exercised (the kernels' mixing length derives from this).
     wdist = 0.02 * (1.0 + np.sin(np.pi * (r - r.min()) / r_span))
     block.set_wdist(wdist.astype(np.float32))
 

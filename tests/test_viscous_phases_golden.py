@@ -109,7 +109,7 @@ def _build_block():
     # viscous work term and wall slip in phase 2) is exercised.
     block.set_Omega(50.0)
 
-    # Wall distance => mixing length (xlen_sq_nd derives from this). The 0.008
+    # Wall distance => mixing length (the kernels derive it). The 0.008
     # amplitude is chosen so mu_turb mostly sits on the rho*l^2*|omega| formula
     # (~70% of cells) while a minority saturate the visc_lim clamp, exercising
     # both branches of the phase-1 mixing-length min().
@@ -148,7 +148,7 @@ def _run_phase1(mu=None, kappa=None):
         cp=block.cp_nd,
         kappa=block.kappa_nd if kappa is None else kappa,
         pr_turb=PR_TURB,
-        xlength=block.xlen_sq_nd,
+        wdist=block.wdist_nd,
         vol=block.vol_nd,
         dai=block.dAi_nd,
         daj=block.dAj_nd,
@@ -241,7 +241,7 @@ def _run_phase2(jbw=0, mu=None, kappa=None):
         cp=block.cp_nd,
         kappa=block.kappa_nd if kappa is None else kappa,
         pr_turb=PR_TURB,
-        xlength=block.xlen_sq_nd,
+        wdist=block.wdist_nd,
         mu_turb=mu_turb,
         f_i1=faces[0],
         f_ini=faces[1],
