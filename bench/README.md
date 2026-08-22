@@ -108,6 +108,7 @@ on a Haswell workstation, not the production ifort/Sapphire target -- see
 | `run_visc_baseline.sh` | Production `set_visc_force` over the size ladder in the 8-rank socket-contended regime, plus one `set_tau_q_soa` point for the phase split. |
 | `run_so_ab.sh` | A/B of two or more BUILDS of the same production kernel, swapping `src/ember/fortran*.so` between launches. The instrument for changing production itself, where freezing a copy of the old kernel as an arm would put two near-duplicate bodies in one translation unit and have their inline budgets starve each other (Rule 9's +56% swing). Launch-outer, build-inner, so drift cannot alias onto one build; `bench_prod_baseline.py --label` records which build a row came from and the paired-within-launch analysis differences them inside a launch. Build each candidate with `make compile` and copy the `.so` aside first. |
 | `visc_arms.py` (`callers_pair`) | `--kernel viscpair` times the two viscous phases as a UNIT (`unfused` = `set_tau_q_soa` then `set_visc_force`; `fused` = the experimental single call), because a fusion spanning both kernels cannot be attributed to either. Same shape as `irs_arms.callers_update`. Its gate covers `mu_turb` as well as `fvisc` -- a fused kernel producing right forces from a wrong mixing length would pass an `fvisc`-only gate -- and asserts both arms are idempotent. |
+| `rk_arms.py` | The RK stage counterpart, for `advance_rk_stage_mg`'s kernels (`--kernel rk`). Its arms are CONFIGURATIONS of production rather than competing implementations: `rk` (`rk_mg_irs`, the solver defaults -- 3 coarse levels, coarse-IRS on), `rknoirs` (`rk_mg_noirs`, what `sf_resid=0` dispatches) and `rkplain` (`rk_plain`, the `n_levels=0` path), so the differences price the coarse smoother and the whole restrict/prolong machinery. They compute different things, so there is no cross-arm value gate; the gate is IDEMPOTENCE -- each kernel reads the frozen step-top snapshot and writes `cons`, so a repeated rep must reproduce the first bitwise or the reps are not timing one operation. Run standalone for that check. |
 | `subroutines/` | The non-production Fortran arms themselves (see below) -- not compiled by default, only via `EMBER_BENCH_KERNELS`. |
 | `results/` | Tracked `.jsonl` result files from the corrected instrument (`bench_all_arms.jsonl`, `bench_prod_baseline.jsonl`, `bench_flagsweep_{serial,phase2}.jsonl`) plus wherever you point `--json`/`--out`/`RESULTS`/`OUT`. Untracked `.pdf`/`.npz` plots regenerate from the jsonl in seconds; don't commit them. |
 
@@ -372,6 +373,43 @@ the headline number, and where it lives.
   (`set_tau_q_soa` + `exchange_halos` + `set_visc_force`) at 1M cells,
   8 ranks. Measured with `run_so_ab.sh`; results in
   `results/visc_jpanel_final_*.jsonl` and `visc_jpanel_pair_1000000.jsonl`.
+- **Cascade ping-pong in `mg_coarse_correction`** (`scree.f90`), plus its
+  four per-call `alloca`s. The coarsest-to-finest prolongation cascade
+  copied its accumulator back to `acc0` after every hop, purely so the
+  caller would find the result there; a perf profile put `memmove` at ~7% of
+  the RK stage. The parity of the hop count says where the cascade ends, so
+  choosing the STARTING buffer by that parity lands it in `acc0` with no
+  copy-back. Separately, the level tables (`dib`/`djb`/`dkb`/`offc`) were
+  automatic arrays sized by `n_levels`, i.e. four `alloca`s and a
+  `stack_save`/`stack_restore` pair per call, with memory clobbers across
+  the body; `ember.block.MAX_MG_LEVELS` is a compile-time bound, so they are
+  now fixed-size. **-3.2 / -2.5 / -2.6% contended** and **-4.4 / -2.8 /
+  -1.1% serial** at 300k/1M/2M, faster in 47 of 48 launches, and **bitwise
+  identical at every `n_levels` of 1, 2 and 3** (both cascade parities).
+  Removing the automatic arrays also removed a `__builtin_trap` GCC had been
+  emitting in this routine -- it was the guard on the runtime-sized local.
+- **Prolongation weights computed, not tabulated** (`scree.f90`). The three
+  prolongations each built six index arrays and three weight arrays the
+  length of the fine directions, per call -- six more `alloca`s, ~4.7 KB of
+  stack at a 1M-cell block, recomputing pure geometry every call. The
+  bracket is a closed form in the fine index, so j and k now evaluate it per
+  outer-loop iteration (`mg_bracket2x`), and the contiguous i direction
+  drops it entirely: `mg_interp_i2x` is driven by the COARSE index and emits
+  both fine cells of each coarse pair, which turns the gathers the index
+  arrays forced into contiguous reads. **-5.2 to -5.8% serial** across the
+  ladder, 8 of 8 launches at every size; **-2.1% contended at 300k and flat
+  at 1M/2M**, which is the signature of a compute win on a phase that
+  contention makes bandwidth-bound. Not bitwise: at most 1 ulp of field
+  scale, on 1 to 70 cells of a million (the constant-folded weights contract
+  differently from the runtime ones). `scree.f90` now has **no `alloca` and
+  no `__builtin_trap` at all**.
+
+  Together with the ping-pong above, against the kernel as it stood:
+  **-4.3 / -2.7 / -2.1% contended** and **-10.8 / -7.9 / -6.6% serial** at
+  300k/1M/2M, faster in 48 of 48 launches. Results in
+  `results/rk_pingpong_*.jsonl`, `results/rk_weights_*.jsonl` and
+  `results/rk_final_*.jsonl`; the baseline ladder the three arms establish
+  is in `results/rk_arms_*.jsonl`.
 - **j-panel tiling of `set_residual`'s k walk** (`RES_JAREA`, `RES_JMIN`),
   the same lever as the viscous panel above, applied to the larger kernel.
   The carry here is the rolling k-face plane pair, `ni*njp*5*2*4` bytes --
@@ -731,6 +769,31 @@ the headline number, and where it lives.
   `exchange_halos`, and a dedicated buffer.
 
 ### Cross-cutting findings, not tied to one kernel
+
+- **What a whole step actually costs** (1M-cell duct, `n_stage=4`, `cfl=2`,
+  solver defaults, `kernprof` on the `util.profile` decorators). Percent of
+  `_run`, serial then 8-rank socket-contended: `advance_rk_stage_mg`
+  21.0/22.5, `set_residual` 22.8/21.0, the IRS smoother 16.2/14.9,
+  `update_primitive` 7.7/7.6, `set_visc_force` 6.5/6.5, `set_tau_q_soa`
+  6.6/6.0, `damp_residual` 3.4/4.6, `apply_bconds` 3.3/4.2, and
+  `Grid.smooth`, `update_timestep`, `update_bconds` about 2-3 each. Three
+  things fall out of it. `update_residual` is 49% of a step because it runs
+  FOUR times (once at the top, once per RK stage bar the last) against
+  `update_sources`' once, so a percent off the residual is worth four times
+  a percent off the viscous pass. `advance_rk_stage_mg` is the largest
+  single phase under contention and had never been benchmarked. And
+  `exchange_halos` is 0.004% -- whatever separates the viscous pair's
+  end-to-end number from `set_visc_force`'s own, it is not the halo
+  exchange.
+- **Kernel wins are contention wins; a single-rank run will not show them.**
+  The wall-clock cost of a step at 1M cells, before the viscous work,
+  after it, and after the residual panel as well: 379 / 377 / 378 ns per
+  cell per step serial -- nothing -- against 724 / 707 / 666 with eight
+  cores of the socket busy, which is **-8.0%**. Serially the two changes
+  very nearly cancel (the viscous rows win ~0.8% of the step, the residual
+  panel gives back ~0.5%). Quote the contended figure, and do not conclude
+  from an idle-machine timing that a change did nothing.
+
 
 - **`set_residual` is ~45% `vgatherdps` under ifort**, spread evenly across
   all three face directions, inherent to the 4-corner-average pattern in
