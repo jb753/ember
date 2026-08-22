@@ -27,6 +27,8 @@ before.
 | `IRS_TB = 8` | `_fortran/residual.f90` | **SIMD lane count** (8 for AVX2, 16 for AVX-512). Edge of the transpose block, so one staged row is exactly one vector load. Steeply optimal — 4 and 16 are both large regressions on AVX2. |
 | `IRS_W = 64` | `_fortran/residual.f90` | **L2 capacity.** The i-strip carried through the fused j+k solves is `IRS_W*(nj-1)*(nk-1)*4` bytes — 917 KB on a 273×65×57 block, inside a 2 MB L2. Also sets the vector loop length, so it trades off in two directions at once. |
 | `_KB_SLAB = 8` | `grid.py` | **L2/L3 capacity.** Depth of the k-slab that `set_residual` and `set_visc_force` stream their nodal working set in. Re-sweep if blocks grow past ~1M cells. |
+| `WALL_TW = 64` | `_fortran/viscous.f90` | **L1d capacity, loosely.** i-tile the wall-function row forms carry their phase-A temps in. Eleven `WALL_TW`-float stack arrays, so 64 is under 3 KB and stays L1-resident across the three phases. Flat over a wide range -- it only has to be long enough to amortise the loop overhead and short enough not to spill. |
+| `VISC_JAREA = 4400` | `_fortran/viscous.f90` | **L2 capacity.** j-panel AREA (in cells) of `set_visc_force`'s k walk: the panel is `VISC_JAREA/ni` rows deep, so the carry it bounds -- the rolling `planes` pair and one tau/q plane -- is a fixed number of BYTES whatever the block's aspect ratio, which a fixed row count would not be. 4400 cells puts both inside a 256 KB L2. Re-sweep on a machine with a different L2, and see the adopted entry for why the win is mostly a contended one. |
 | `njp` pad rule | `grid.py` | **Page size.** Pads the rolling face-flow plane by one j-row when `ni*nj` is a multiple of 1024 (= 4096-byte page ÷ 4-byte float), to dodge a 4K-aliasing penalty at power-of-two plane sizes. |
 
 Build flags matter as much as the constants:
@@ -102,6 +104,7 @@ on a Haswell workstation, not the production ifort/Sapphire target -- see
 | `irs_arms.py` | The IRS counterpart of `residual_arms.py`, for the implicit residual smoother (`smooth_residual_tri_tiled`) rather than `set_residual`. Same shape: `callers_irs`, a bitwise gate for the arms that compute the exact operator (`check_correctness`), a quantified gate for the ones that deliberately approximate it (`check_jacobi`), and `callers_update` for the `set_residual`+IRS pair, whose fusion spans both kernels. Also `check_denormals`, because the smoother runs in place and repeated reps compound. Drive it with `bench_prod_baseline.py --kernel irs` (or `--kernel update`); run standalone for a Gate-2 pre-flight. |
 | `visc_arms.py` | The viscous counterpart, for `set_visc_force` (`--kernel visc`) and `set_tau_q_soa` (`--kernel tauq`). Same shape as the two above, plus `halo_restorer`: `set_visc_force` is **not idempotent** -- its entry pass scales the tau/q halo slots by `(2*wall-1)` in place -- so a repeated-rep instrument must restore those six faces (O(surface)) between calls. On the duct case that turns out to be insurance rather than a repair, for two reasons that are accidents of the case; see the module docstring before assuming it can be dropped. |
 | `run_visc_baseline.sh` | Production `set_visc_force` over the size ladder in the 8-rank socket-contended regime, plus one `set_tau_q_soa` point for the phase split. |
+| `run_so_ab.sh` | A/B of two or more BUILDS of the same production kernel, swapping `src/ember/fortran*.so` between launches. The instrument for changing production itself, where freezing a copy of the old kernel as an arm would put two near-duplicate bodies in one translation unit and have their inline budgets starve each other (Rule 9's +56% swing). Launch-outer, build-inner, so drift cannot alias onto one build; `bench_prod_baseline.py --label` records which build a row came from and the paired-within-launch analysis differences them inside a launch. Build each candidate with `make compile` and copy the `.so` aside first. |
 | `visc_arms.py` (`callers_pair`) | `--kernel viscpair` times the two viscous phases as a UNIT (`unfused` = `set_tau_q_soa` then `set_visc_force`; `fused` = the experimental single call), because a fusion spanning both kernels cannot be attributed to either. Same shape as `irs_arms.callers_update`. Its gate covers `mu_turb` as well as `fvisc` -- a fused kernel producing right forces from a wrong mixing length would pass an `fvisc`-only gate -- and asserts both arms are idempotent. |
 | `subroutines/` | The non-production Fortran arms themselves (see below) -- not compiled by default, only via `EMBER_BENCH_KERNELS`. |
 | `results/` | Tracked `.jsonl` result files from the corrected instrument (`bench_all_arms.jsonl`, `bench_prod_baseline.jsonl`, `bench_flagsweep_{serial,phase2}.jsonl`) plus wherever you point `--json`/`--out`/`RESULTS`/`OUT`. Untracked `.pdf`/`.npz` plots regenerate from the jsonl in seconds; don't commit them. |
@@ -335,6 +338,38 @@ the headline number, and where it lives.
 
 ### Adopted (shipped in production today)
 
+- **Vectorized wall-function row forms**, `set_visc_force`
+  (`wall_row_kface`/`wall_row_jface` in `viscous.f90`). The scalar
+  `wall_func_kface`/`_jface` were not being inlined in the production build
+  (5 symbols in the call closure, 15.7% of kernel time) and their i-loops
+  could not vectorize anyway: `wall_core`'s Reynolds-number branch sits in the
+  middle of the arithmetic, leaving 4 scalar divides and 2 scalar sqrt per
+  wall face cell. Split into three phases over a `WALL_TW`-wide i-tile --
+  face averages and `Re`, then the branch alone, then stress and flux --
+  so only the middle phase stays scalar and the two that carry the divides
+  and roots vectorize. Worth **-20.6% / -12.1% / -8.9% serial** at 300k/1M/2M
+  cells; much less contended, because the wall work is compute-bound and
+  DRAM contention masks it. Not bitwise: 0.625 ulp of the field scale,
+  confined entirely to the two-cell shell the wall faces touch (the wall
+  injection writes the SECOND face plane, not the first). The deviation is
+  `vrcpps`+Newton vector reciprocals under `-Ofast`, not reassociation --
+  `-fno-associative-math -ffp-contract=off` does not collapse it.
+- **j-panel tiling of `set_visc_force`'s k walk** (`VISC_JAREA`). The fused
+  walk carries a rolling `planes(ni,nj,4,2)` pair plus a tau/q plane across
+  each k step; at 273x65x57 that is 568 KB and 639 KB, both past the 256 KB
+  L2, so the carry round-tripped through L3 -- and at 8 ranks the socket's
+  20 MB L3 is entirely consumed by it. Running the whole k walk over j-panels
+  of fixed AREA bounds the concurrent working set (not the traffic) to L2.
+  **-10.5% / -16.8% / -33.7% / -40.1%** at 100k/300k/1M/2M cells in the
+  8-rank socket-contended regime, growing with size exactly as a capacity
+  effect should; **bitwise identical** to the un-panelled kernel. Panels are
+  floored at four rows wide because a panel duplicates its lowest j-face row,
+  so `1/jbw` of the j-face work is redundant.
+
+  Together the two are **-19.6%** on the viscous pair end to end
+  (`set_tau_q_soa` + `exchange_halos` + `set_visc_force`) at 1M cells,
+  8 ranks. Measured with `run_so_ab.sh`; results in
+  `results/visc_jpanel_final_*.jsonl` and `visc_jpanel_pair_1000000.jsonl`.
 - **k-slab cache blocking**, `set_visc_force` and `set_residual`
   (`viscous.f90`, `residual.f90`). Both stream their nodal working set in
   `kb`-plane slabs instead of full-volume passes, so tau/q (or the residual's
