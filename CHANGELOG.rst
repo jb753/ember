@@ -10,6 +10,24 @@ without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* **Breaking:** ``Block.xlen_sq_nd`` is gone. The squared mixing length was a
+  cell-shaped array cached against the ``wdist`` data row, so a block stored
+  the same quantity twice; both viscous kernels now take the nodal wall
+  distance and derive it where they use it, folding the 8-corner average into
+  the constant (``XLEN_FAC``) so it costs a sum, a square and a multiply per
+  cell. That is 3.90 MB per block at 273x65x57, and peak RSS for a 1M-cell
+  RK/IRS/MG march falls 258.3 MB to 254.5 MB.
+
+  The pass also gets slightly FASTER, which was not the expectation going in:
+  **-0.45%** on the pair and **-1.05%** on ``set_visc_force`` at 8-rank socket
+  contention, because deleting the cell volume deletes a stream from a walk
+  that is bandwidth-bound in that regime, and the nodal corners replacing it
+  are already in cache. The boundary producer ``set_tau_q_faces`` goes the
+  other way, **+5.40%**: it touches only the shell, so it was never streaming
+  the volume and the average is pure added work there. It is the O(surface)
+  phase against the fused walk's O(volume), so the pair nets out ahead. (8
+  launches x 30 reps, paired within launch, 1M cells.)
+
 * The geometry helpers behind ``dAi_nd``, ``dAj_nd``, ``dAk_nd`` and
   ``vol_nd`` walk the block in k-slabs instead of whole-block calls. Their
   kernels are double precision -- the cross products difference nearly-equal
