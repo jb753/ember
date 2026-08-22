@@ -431,7 +431,7 @@ contains
     end subroutine kface_flow_plane
 
 
-    subroutine correct_cusp_kface_du(vx, vr, vt, ho, P, P_offset, r, &
+    subroutine correct_cusp_kface_du(ho, P, P_offset, r, &
                                      cons, Omega, dAk, &
                                      wall_lo, wall_hi, dU, &
                                      i_cusp_start, i_cusp_end, ni, nj, nk)
@@ -456,7 +456,6 @@ contains
 
         implicit none
         integer, intent(in) :: ni, nj, nk
-        real, intent(in) :: vx(ni, nj, nk), vr(ni, nj, nk), vt(ni, nj, nk)
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
@@ -569,18 +568,29 @@ contains
             real, intent(inout) :: pm(6), mf(3)
             integer, intent(in) :: i, j, k
             real, intent(in) :: wfac
-            real :: dp, w
+            real :: dp, w, g
             dp = P(i,j,k) - P_offset
-            pm(1) = pm(1) + 0.25e0*vx(i,j,k)
-            pm(2) = pm(2) + 0.25e0*vr(i,j,k)
-            pm(3) = pm(3) + 0.25e0*r(i,j,k)*vt(i,j,k)
+            ! Vx, Vr and r*Vt from the conserved state, spelled as
+            ! kface_flow_plane's accum_corners spells them -- one reciprocal,
+            ! then c2/c1, c3/c1, c4/c1 -- because that is what makes this
+            ! pass's raw recompute match the flux the sweep actually
+            ! accumulated. It used to read the nodal velocity arrays, which
+            ! were the same numbers by a different route: Vx = c2/c1 either
+            ! way, but r*Vt arrived as r*(c4/(c1*r)) rather than c4/c1, so
+            ! the two spellings could part company in the last bit.
+            g = 1.0e0/cons(i,j,k,1)
+            pm(1) = pm(1) + 0.25e0*cons(i,j,k,2)*g
+            pm(2) = pm(2) + 0.25e0*cons(i,j,k,3)*g
+            pm(3) = pm(3) + 0.25e0*cons(i,j,k,4)*g
             pm(4) = pm(4) + 0.25e0*ho(i,j,k)
             pm(5) = pm(5) + 0.25e0*dp
             pm(6) = pm(6) + 0.25e0*r(i,j,k)*dp
             w = 0.25e0*wfac
             mf(1) = mf(1) + w*cons(i,j,k,2)
             mf(2) = mf(2) + w*cons(i,j,k,3)
-            mf(3) = mf(3) + w*cons(i,j,k,1)*(vt(i,j,k) - Omega*r(i,j,k))
+            ! rho*Vt_rel = rho*Vt - Omega*rho*r = c4/r - Omega*c1*r
+            mf(3) = mf(3) + w*(cons(i,j,k,4)/r(i,j,k) &
+                               - Omega*cons(i,j,k,1)*r(i,j,k))
         end subroutine accum
     end subroutine correct_cusp_kface_du
 
@@ -1011,7 +1021,7 @@ subroutine set_residual( &
     r, Omega, dAi, dAj, dAk, &
     f_body, &
     dU, &
-    vx, vr, vt, ho, &
+    ho, &
     planes, rows, &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
@@ -1033,9 +1043,6 @@ subroutine set_residual( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: f_body(ni-1, nj-1, nk-1, 5)
-    real, intent(in) :: vx(ni, nj, nk)
-    real, intent(in) :: vr(ni, nj, nk)
-    real, intent(in) :: vt(ni, nj, nk)
     real, intent(in) :: ho(ni, nj, nk)
     real, intent(in) :: walli1(nj-1, nk-1)
     real, intent(in) :: wallni(nj-1, nk-1)
@@ -1177,7 +1184,7 @@ subroutine set_residual( &
     ! a deferred O(surface) correction to dU after the sweep. nk=2 (the two
     ! seam cells coincide) is not supported.
     if (i_cusp_start > 0 .and. nk > 2) then
-        call correct_cusp_kface_du(vx, vr, vt, ho, P, P_offset, r, cons, &
+        call correct_cusp_kface_du(ho, P, P_offset, r, cons, &
                                    Omega, dAk, wallk1, wallnk, dU, &
                                    i_cusp_start, i_cusp_end, ni, nj, nk)
     end if
