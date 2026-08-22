@@ -6,6 +6,22 @@ module residual_helpers
     public :: irs_tri_coeffs, irs_gather_tile, irs_gather_tile_scaled
     public :: irs_scatter_tile, irs_tile_solve, irs_jk_strips, irs_jac_line
     public :: IRS_BJ, IRS_TB, IRS_W
+    public :: RES_JAREA, RES_JMIN
+
+    ! j-panel AREA of set_residual's k walk, in cells: the panel is
+    ! RES_JAREA/ni rows deep, so the carry it bounds -- the rolling k-face
+    ! plane pair -- is a fixed number of BYTES whatever the block's aspect
+    ! ratio, which a fixed row count would not be. See the panel loop in
+    ! set_residual for what it bounds and why area is the right unit.
+    integer, parameter :: RES_JAREA = 4400
+    ! Floor on the panel depth in rows. A panel recomputes its own lowest
+    ! j-face row, so 1/jbw of the j-face flux work -- about a third of the
+    ! kernel's flux arithmetic -- is redundant, and on a long-i block the
+    ! area rule alone drives jbw down to single digits, where that overhead
+    ! is worth several percent. Serial that overhead is the whole story and
+    ! the panel loses; contended the cache win pays for it many times over.
+    ! Swept: see bench/README.md.
+    integer, parameter :: RES_JMIN = 16
 
     ! Tile width for the i-solve transpose pad: sized to fill L1d without
     ! spilling it, NOT to match the SIMD lane count. The tile is
@@ -297,15 +313,18 @@ contains
 
     pure subroutine kface_flow_plane(ho, P, P_offset, r, &
                                      cons, Omega, dA, &
-                                     wall_lo, wall_hi, plane, kf, njp, &
+                                     wall_lo, wall_hi, plane, kf, j0, j1, njp, &
                                      ni, nj, nk)
-        ! Compute inviscid face flows on the (ni-1)x(nj-1) k-face plane kf;
-        ! kf=1 / kf=nk are the wall-masked boundary planes. njp (nj or nj+1)
-        ! is the plane buffer's padded j-extent -- see set_residual.
+        ! Compute inviscid face flows on face rows j0..j1 of the k-face plane
+        ! kf; kf=1 / kf=nk are the wall-masked boundary planes. njp (nj or
+        ! nj+1) is the plane buffer's padded j-extent -- see set_residual.
+        ! The j range is the panel the caller is walking (j0=1, j1=nj-1 is
+        ! the whole plane); rows outside it are left untouched, which is safe
+        ! because a panel only ever reads back the rows it wrote.
         ! k-face corners: (i:i+1, j:j+1, kf)
 
         implicit none
-        integer, intent(in) :: kf, njp, ni, nj, nk
+        integer, intent(in) :: kf, j0, j1, njp, ni, nj, nk
         real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
@@ -323,7 +342,7 @@ contains
         ! there for the full justification and its July 2026 re-measurement.
         if (kf == 1) then
             ! Low boundary k=1
-            do j = 1, nj-1
+            do j = j0, j1
             !DIR$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, j, 1, wall_lo(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
@@ -337,7 +356,7 @@ contains
             end do
         else if (kf == nk) then
             ! High boundary k=nk
-            do j = 1, nj-1
+            do j = j0, j1
             !DIR$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, j, nk, wall_hi(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
@@ -351,7 +370,7 @@ contains
             end do
         else
             ! Interior 2 <= kf <= nk-1
-            do j = 1, nj-1
+            do j = j0, j1
             !DIR$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, j, kf, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
@@ -1054,12 +1073,36 @@ subroutine set_residual( &
     integer, intent(in) :: kb, njp, ni, nj, nk
 
     integer :: i, j, k, m, k0, k1, ja, jb, pa, pb, stmp
+    integer :: jp, jp0, jp1, jbw
     integer :: ncell
     real :: avg(5), ravg(5)
 
     do m = 1, 5
         avg(m) = 0.0e0
     end do
+
+    ! ===== j-panel over the k walk =====
+    ! What the walk CARRIES from one k to the next is the rolling k-face
+    ! plane pair, ni*njp*5*2*4 bytes -- 720 KB on a 273x65x57 block, which
+    ! is nowhere near a 256 KB L2. So plane k, written on step k, is
+    ! evicted before step k+1 reads it, and every one of the five
+    ! components round-trips through L3; with eight ranks on a socket that
+    ! carry alone asks for more than the 20 MB they share.
+    !
+    ! Walking the whole k sweep over a panel of j rows bounds that carry
+    ! instead. It does not change how much nodal data is read -- each panel
+    ! streams its own j-strip, and the strips are disjoint bar one shared
+    ! row -- it bounds how much is LIVE at once, which is the thing the L2
+    ! actually has to hold.
+    !
+    ! The panel is sized by AREA, not by a row count, because the carry is
+    ! ni*jbw planes wide: a fixed jbw would bound it on a thin block and
+    ! blow it on a fat one. Floored at RES_JMIN rows, because the panel is
+    ! not free -- see the comment there.
+    jbw = min(nj-1, max(RES_JMIN, RES_JAREA / max(ni, 1)))
+    do jp = 1, nj-1, jbw
+    jp0 = jp
+    jp1 = min(jp + jbw - 1, nj-1)
 
     pa = 1
     pb = 2
@@ -1069,7 +1112,7 @@ subroutine set_residual( &
     ! k, needing only face k+1 freshly computed into pb).
     call kface_flow_plane(ho, P, P_offset, r, cons, &
                           Omega, dAk, wallk1, wallnk, planes(:,:,:,pa), &
-                          1, njp, ni, nj, nk)
+                          1, jp0, jp1, njp, ni, nj, nk)
 
     do k0 = 1, nk-1, kb
     k1 = min(k0 + kb - 1, nk-1)
@@ -1089,17 +1132,17 @@ subroutine set_residual( &
     do k = k0, k1
         ja = 2
         jb = 3
-        ! Prime the rolling j-face pair with the j=1 boundary face.
+        ! Prime the rolling j-face pair with the panel's lowest j face.
         call jface_flow_row(ho, P, P_offset, r, cons, &
                             Omega, dAj, wallj1, wallnj, rows(:,:,ja), &
-                            1, k, ni, nj, nk)
+                            jp0, k, ni, nj, nk)
         ! Advance the rolling k-face pair: pa already holds face k (primed
         ! before the sweep, or carried from the previous k iteration); pb
         ! gets face k+1 computed fresh.
         call kface_flow_plane(ho, P, P_offset, r, cons, &
                               Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
-                              k+1, njp, ni, nj, nk)
-        do j = 1, nj-1
+                              k+1, jp0, jp1, njp, ni, nj, nk)
+        do j = jp0, jp1
             call iface_flow_row(ho, P, P_offset, r, cons, &
                                 Omega, dAi, walli1(j,k), wallni(j,k), &
                                 rows(:,:,1), j, k, ni, nj, nk)
@@ -1127,6 +1170,8 @@ subroutine set_residual( &
     end do
 
     end do  ! ===== end slab sweep =====
+
+    end do  ! ===== end j-panel =====
 
     ! Cusp seam: non-local in k (couples the k=1 and k=nk faces), applied as
     ! a deferred O(surface) correction to dU after the sweep. nk=2 (the two

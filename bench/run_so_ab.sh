@@ -43,6 +43,17 @@ PERIODIC_K="${PERIODIC_K:-}"
 PERIODIC_ARGS=()
 [ -n "$PERIODIC_K" ] && PERIODIC_ARGS=(--periodic-k "$PERIODIC_K")
 RESULTS="${RESULTS:-bench/results/bench_so_ab.jsonl}"
+# Symbol the fingerprint is taken on. Defaults to the entry point KERNEL
+# times, so the printed gauge is of the kernel actually under test rather
+# than of whatever the last A/B looked at.
+case "${SYMBOL:-}" in
+    "") case "$KERNEL" in
+            residual|update) SYMBOL=set_residual_ ;;
+            irs) SYMBOL=smooth_residual_tri_tiled_ ;;
+            tauq) SYMBOL=set_tau_q_soa_ ;;
+            *) SYMBOL=set_visc_force_ ;;
+        esac ;;
+esac
 
 SO_DEST="$(ls src/ember/fortran.cpython-*.so)"
 [ -f "$SO_DEST" ] || { echo "no built extension at src/ember/fortran*.so" >&2; exit 1; }
@@ -80,7 +91,7 @@ for spec in $BUILDS; do
     label="${spec%%=*}"
     cp "${spec#*=}" "$SO_DEST"
     echo "--- $label"
-    uv run python bench/codegen_gauge.py "set_visc_force_" 2>/dev/null | sed 's/^/    /' || true
+    uv run python bench/codegen_gauge.py "$SYMBOL" 2>/dev/null | sed 's/^/    /' || true
 done
 
 for ((L = 0; L < LAUNCHES; L++)); do
