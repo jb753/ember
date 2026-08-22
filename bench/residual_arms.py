@@ -49,13 +49,30 @@ from ember.cases import build_duct_grid
 # every arm, so even the damped result should agree, but 0 isolates the sweep.
 DAMPIN = 2.0
 
-ARMS = ("prod", "staged", "split", "multall", "nodal", "tbaos", "prodsoa", "rinv")
+ARMS = (
+    "prod",
+    "padnjp",
+    "alias4k",
+    "staged",
+    "split",
+    "multall",
+    "nodal",
+    "tbaos",
+    "prodsoa",
+    "rinv",
+)
 
 # Arm name -> entry point in the .so. Not derivable from the arm name: `tbaos`
 # is short for the ladder tables, but the kernel is set_residual_multall_aos so
 # that its file sorts next to the arm it varies.
 ENTRY = {
     "prod": "set_residual",
+    # Not variant KERNELS: production's kernel, called with a different
+    # j-extent on its rolling k-face plane buffer. njp is a runtime argument,
+    # so all three are the same machine code and the comparison isolates the
+    # buffer's address layout from codegen entirely. See build_kwargs.
+    "padnjp": "set_residual",
+    "alias4k": "set_residual",
     "staged": "set_residual_staged",
     "split": "set_residual_split",
     "multall": "set_residual_multall",
@@ -196,10 +213,31 @@ def build_kwargs(b):
         nj=nj,
         nk=nk,
     )
+    # The two njp arms, which ask whether production's conditional pad rule
+    # (grid.py: pad by one j-row iff ni*nj is a multiple of 1024, so the ten
+    # component streams of the k-accumulate cannot 4K-alias into the same
+    # cache sets) still earns its place. `padnjp` applies the pad
+    # unconditionally; `alias4k` forces the pathology the rule exists to
+    # avoid, by choosing the smallest j-extent at or above nj that makes the
+    # component stride ni*njp an exact multiple of 1024 floats. Their buffers
+    # are allocated standalone rather than carved from the arena because
+    # alias4k's is far larger than the arena holds -- the extra extent is
+    # stride, never touched: the kernel only ever writes rows 1..nj-1.
+    njp_pad = nj + 1
+    njp_alias = next(x for x in range(nj, nj + 1024 * 4) if (ni * x) % 1024 == 0)
+    planes_pad = np.zeros((ni, njp_pad, 5, 2), dtype=np.float32, order="F")
+    rows_pad = np.zeros((ni, 5, 3), dtype=np.float32, order="F")
+    planes_alias = np.zeros((ni, njp_alias, 5, 2), dtype=np.float32, order="F")
+    rows_alias = np.zeros((ni, 5, 3), dtype=np.float32, order="F")
+
     private = dict(
         # kb is inert for production (its slab loop is a pure re-nesting of
         # `do k = 1, nk-1`); the two new arms drop the dummy entirely.
         prod=dict(planes=planes5, rows=rows5, kb=nk - 1),
+        padnjp=dict(planes=planes_pad, rows=rows_pad, kb=nk - 1, njp=njp_pad),
+        alias4k=dict(
+            planes=planes_alias, rows=rows_alias, kb=nk - 1, njp=njp_alias
+        ),
         staged=dict(planes=planes, rows=rows, fi=fi, fj=fj, fk=fk),
         split=dict(planes=planes, rows=rows, mrows=mrows, mplanes=mplanes),
         # The AoS dai/daj are stripped for this arm in callers(); dak stays,

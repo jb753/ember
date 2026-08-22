@@ -31,7 +31,7 @@ before.
 | `RES_JMIN = 16` | `_fortran/residual.f90` | **Redundant-work floor, not a cache bound.** A panel recomputes its own lowest j-face row, so `1/jbw` of the j-face flux work is wasted; on a long-i block the area rule alone drives `jbw` to single digits and that overhead reaches several percent. Floor 16 is worth about 1.8% over no floor at 2M cells, in BOTH regimes. Do not raise it to 32: that fits fewer panels in L2 and costs -33% -> -21% contended at 2M, for 1.5% serial. |
 | `WALL_TW = 64` | `_fortran/viscous.f90` | **L1d capacity, loosely.** i-tile the wall-function row forms carry their phase-A temps in. Eleven `WALL_TW`-float stack arrays, so 64 is under 3 KB and stays L1-resident across the three phases. Flat over a wide range -- it only has to be long enough to amortise the loop overhead and short enough not to spill. |
 | `VISC_JAREA = 4400` | `_fortran/viscous.f90` | **L2 capacity.** j-panel AREA (in cells) of `set_visc_force`'s k walk: the panel is `VISC_JAREA/ni` rows deep, so the carry it bounds -- the rolling `planes` pair and one tau/q plane -- is a fixed number of BYTES whatever the block's aspect ratio, which a fixed row count would not be. 4400 cells puts both inside a 256 KB L2. Re-sweep on a machine with a different L2, and see the adopted entry for why the win is mostly a contended one. |
-| `njp` pad rule | `grid.py` | **Page size.** Pads the rolling face-flow plane by one j-row when `ni*nj` is a multiple of 1024 (= 4096-byte page ÷ 4-byte float), to dodge a 4K-aliasing penalty at power-of-two plane sizes. |
+| `njp` pad rule | `grid.py` | **Page size** -- but worth almost nothing here now; see the negative result below before spending time on it. Pads the rolling face-flow plane by one j-row when `ni*nj` is a multiple of 1024 (= 4096-byte page / 4-byte float), to dodge a 4K-aliasing penalty at power-of-two plane sizes. Kept because it is one line and costs nothing to keep, not because this machine can measure it. |
 
 Build flags matter as much as the constants:
 
@@ -96,7 +96,7 @@ on a Haswell workstation, not the production ifort/Sapphire target -- see
 
 | file | role |
 | --- | --- |
-| `residual_arms.py` | Shared library: grid/state setup (`build_case`), the scratch-carving kwargs builder (`build_kwargs`), one callable per arm (`callers`), the non-degenerate correctness state (`swirl`), the correctness gate (`check_correctness`), and an LLC-flush helper. Import this rather than copying any of it. Run standalone (`uv run python bench/residual_arms.py --ncell 300000`) for a fast Gate-2 correctness pre-flight; it does **not** time anything -- that's `bench_prod_baseline.py`. |
+| `residual_arms.py` | Shared library: grid/state setup (`build_case`), the scratch-carving kwargs builder (`build_kwargs`), one callable per arm (`callers`), the non-degenerate correctness state (`swirl`), the correctness gate (`check_correctness`), and an LLC-flush helper. Import this rather than copying any of it. Two of its arms, `padnjp` and `alias4k`, are not variant kernels at all: they call production with a different rolling-plane j-extent, to price the `njp` pad rule against the aliasing it prevents (both are bitwise identical to `prod` by construction). Run standalone (`uv run python bench/residual_arms.py --ncell 300000`) for a fast Gate-2 correctness pre-flight; it does **not** time anything -- that's `bench_prod_baseline.py`. |
 | `bench_prod_baseline.py` | The corrected instrument: one arm per process, rank-barriered before every timed call, replication at the launch. `--analyze` summarises a results file. Normally driven by the two scripts below rather than invoked directly. |
 | `run_prod_baseline.sh` | Launch-repeat driver for a **single** arm (default `prod`). `bench/run_prod_baseline.sh [launches] [nranks] [ncell] [reps] [arm]`. |
 | `run_all_arms.sh` | Launch-outer/arm-inner sweep over every arm, on one fingerprint-verified binary (`EMBER_BENCH_KERNELS=all` build with the inline budgets pinned). This is what produced the table above. |
@@ -604,6 +604,27 @@ the headline number, and where it lives.
   lets the face-flux loops vectorize at 32 bytes, and losing that SIMD
   dominates any locality gained. The lesson that shaped every protocol rule
   above: **never trust a standalone single-file compile for this codebase.**
+- **The `njp` 4K-aliasing pad, re-measured after the j-panel.** The rule
+  exists so the ten component streams of the k-accumulate (5 components x
+  the plane pair) cannot land on the same cache sets. Forcing exactly that
+  pathology -- the `alias4k` arm, which picks the smallest j-extent making
+  the component stride `ni*njp` an exact multiple of 1024 floats -- now
+  costs **+0.1% to +0.8%**, contended and serial alike, and applying the pad
+  unconditionally (`padnjp`) costs about the same again. Neither is clearly
+  outside the ~0.5% uncertainty on a ratio. Plausibly the panel is what
+  shrank it: the plane pair is now walked in narrow j-strips, so far fewer
+  sets are live at once. Note also that the rule **cannot fire on the duct
+  bench at all** -- `build_duct_grid` forces `ni-1` to a multiple of 8, so
+  `ni` is odd and `ni*nj` is a multiple of 1024 only if `nj` is, which no
+  sane cross-section is. The pad is kept, but do not go looking for percent
+  in it here.
+
+  Getting this wrong is instructive. An unbarriered 8-rank screen of the
+  same question showed a **fabricated 11-12% win** for whichever j-extent
+  was measured LAST in each process -- free-running ranks drift apart over
+  a sweep, so the final configuration is effectively timed uncontended.
+  Rule 10 is not a formality; it is the difference between +0.6% and -12%
+  on the same code.
 - **A second-level j-panel tile on top of k-slab tiling**, `set_residual`.
   The slab-tiled kernel already fetches every nodal field from DRAM ~once;
   panelling the j-dimension on top only converts already-cheap L3 re-touches
@@ -611,6 +632,19 @@ the headline number, and where it lives.
   per panel boundary, shorter contiguous plane walks) is real. Loses or ties
   at 7 of 8 sizes tested. **L3 traffic was not the remaining bottleneck** --
   don't add a second tiling dimension speculatively.
+
+  **Superseded, and worth understanding why.** A j-panel IS production
+  today (see the adopted entry above), and this result is not wrong: it was
+  measured on a kernel that still fetched through a k-slab, and in a regime
+  where one rank owns the whole L3. Both halves matter. Once the fused
+  rewrite made the k walk carry a rolling PLANE PAIR from step to step, the
+  thing to bound stopped being nodal-field traffic (which the slab already
+  handled) and became the carry itself; and once eight ranks share the L3,
+  a carry that fits it alone no longer fits. Serially, the panel still
+  loses about 2% at 1M cells and above, exactly as this entry found. The
+  lesson is narrower than "don't panel": a tiling dimension is worth what
+  the machine's contention makes it worth, so measure it in the regime
+  production actually runs in.
 - **The "idiomatic" rewrite, the separable box-filter tiled rewrite, and the
   naive textbook kernel** (all measured against production in the same
   `.so`, same arithmetic where checked). All are **1.5x-2.7x slower**, under
