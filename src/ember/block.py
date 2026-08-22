@@ -303,7 +303,6 @@ conserved variables themselves.
 
    Block.ao
    Block.conserved
-   Block.conserved_cell
    Block.ho
    Block.ho_rel
    Block.I
@@ -382,7 +381,6 @@ directly and are not usually needed by end users.
 
    Block.a_nd
    Block.conserved_avg_nd
-   Block.conserved_cell_nd
    Block.conserved_filt_nd
    Block.conserved_nd
    Block.cp_nd
@@ -862,6 +860,12 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
                        rolling tau/q cell-plane pair, planes and rows + the
                        nodal transport trio (mu, kappa, cp) both kernels read
       update_timestep  the nodal acoustic speed set_timestep_spectral reads
+      filter / SFD     one cell-shaped conserved volume, materialised for
+                       apply_sfd_force and update_filter (both off by default;
+                       every other cell-conserved reader averages the nodal
+                       state as it walks). A sub-phase of update_sources for
+                       the first and a whole method for the second, never live
+                       alongside either's other buffers
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
       scree / RK, MG   the eleven multigrid coarse buffers + the caller's
@@ -899,6 +903,7 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     return max(
         faces + tq + visc_pr + transport,                      # update_sources
         ni * nj * nk,                                          # update_timestep
+        (ni - 1) * (nj - 1) * (nk - 1) * 5,                    # filter / SFD
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,      # update_residual
         mg + (ni - 1) * (nj - 1) * 5 * 2,                      # scree/RK + multigrid
         (ni - 1) * (nj - 1) * (nk - 1) * 5,                    # scree/RK, no multigrid
@@ -2472,7 +2477,7 @@ class Block(ember._struct.StructuredData):
 
         """
         # Guard initialisation, then rescale the nondimensional view in place
-        # (mirrors conserved_cell, avoiding a stack of five component temps).
+        # (a stack of five component temps would be the alternative).
         self._get_data_by_keys(("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"))
         nd = self.conserved_nd
         out = np.empty_like(nd)
@@ -2498,54 +2503,6 @@ class Block(ember._struct.StructuredData):
         cons_avg = util.allocate_or_reuse(out, self.shape + (5,), dtype=np.float32)
         cons_avg.fill(0.0)
         return cons_avg
-
-    @derived_array
-    def conserved_cell(self):
-        r"""Stacked cell-centered conserved variables :math:`\mathcal{U}_\mathrm{cell}`, five-component nodal array.
-
-
-        .. math::
-            \mathcal{U}_\mathrm{cell} = \begin{bmatrix}
-            \rho \\
-            \rho V_x \\
-            \rho V_r \\
-            \rho r V_\theta \\
-            \rho e
-            \end{bmatrix}
-
-        Each component is the 8-corner average of the corresponding nodal
-        component, with shape ``(ni-1, nj-1, nk-1, 5)``.
-
-        """
-        nd = self.conserved_cell_nd
-        out = np.empty_like(nd)
-        out[..., 0] = nd[..., 0] * self.fluid.rho_ref
-        out[..., 1] = nd[..., 1] * self._rhoV_ref
-        out[..., 2] = nd[..., 2] * self._rhoV_ref
-        out[..., 3] = nd[..., 3] * self._rhoV_ref * self.L_ref
-        out[..., 4] = nd[..., 4] * self._rhoV_ref * self.fluid.V_ref
-        return out
-
-    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
-    def conserved_cell_nd(self, out):
-        r"""Stacked non-dimensional cell-centered conserved variables :math:`\mathcal{U}^*_\mathrm{cell}`, array with 5 components on last axis.
-
-        .. math::
-            \mathcal{U}^*_\mathrm{cell} = \begin{bmatrix}
-            \rho / \rho_\mathrm{ref} \\
-            \rho V_x / \rho_\mathrm{ref} V_\mathrm{ref} \\
-            \rho V_r / \rho_\mathrm{ref} V_\mathrm{ref} \\
-            \rho r V_\theta / \rho_\mathrm{ref} L_\mathrm{ref} V_\mathrm{ref} \\
-            \rho e / \rho_\mathrm{ref} u_\mathrm{ref}
-            \end{bmatrix}
-
-        Each component is the 8-corner average of the corresponding nodal
-        component of :attr:`conserved_nd`, with shape ``(ni-1, nj-1, nk-1, 5)``.
-
-        """
-        out = util.allocate_or_reuse(out, self.shape_cell + (5,))
-        ember.fortran.node_to_cell(self.conserved_nd, out)
-        return out
 
     @cached_array()
     def conserved_filt_nd(self, out):

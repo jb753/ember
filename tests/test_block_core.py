@@ -2,14 +2,10 @@
 
 Note: tests shared with test_block.py (e.g. property/setter round-trips)
 live there; this module covers the remaining core behaviour not
-duplicated elsewhere (datum handling, conserved-cell caching, rpm/L_ref
-scaling, etc).
+duplicated elsewhere (datum handling, rpm/L_ref scaling, etc).
 
 Test cases:
 - test_props_not_writable_in_place: In-place write rejection for basic/cached/derived properties
-- test_conserved_cell_nd_shape_and_values: Shape/value checks for conserved_cell_nd
-- test_conserved_cell_dimensional_scaling: Dimensional scaling of conserved_cell_nd
-- test_conserved_cell_nd_cache_invalidation: Cache invalidation for conserved_cell_nd
 - test_set_rho_s: Density and entropy setting
 - test_set_datum: Thermodynamic datum setting
 - test_set_datum_effect: Effect of datum changes on u and s
@@ -88,83 +84,14 @@ def test_props_not_writable_in_place(block):
         "u",
         "P_nd",
         "T_nd",
-        "conserved_cell_nd",
     ]
     # derived_array results
-    derived_props = ["dAi", "dAj", "dAk", "vol", "conserved", "conserved_cell"]
+    derived_props = ["dAi", "dAj", "dAk", "vol", "conserved"]
 
     for prop in basic_props + cached_props + derived_props:
         arr = getattr(block, prop)
         with pytest.raises((ValueError, TypeError)):
             arr[...] = 0
-
-
-def _populate(block):
-    """Populate a block fixture with non-trivial conserved variables."""
-    rho = np.full(block.shape, 1.2, dtype=np.float32)
-    u = np.full(block.shape, 200000.0, dtype=np.float32)
-    # Spatially-varying velocity so the 8-corner average is not trivial.
-    i = np.arange(block.shape[0], dtype=np.float32)[:, None, None]
-    j = np.arange(block.shape[1], dtype=np.float32)[None, :, None]
-    k = np.arange(block.shape[2], dtype=np.float32)[None, None, :]
-    Vx = np.broadcast_to(10.0 + i, block.shape).astype(np.float32)
-    Vr = np.broadcast_to(5.0 + j, block.shape).astype(np.float32)
-    Vt = np.broadcast_to(2.0 + k, block.shape).astype(np.float32)
-    block.set_rho_u(rho, u)
-    block.set_Vx(Vx)
-    block.set_Vr(Vr)
-    block.set_Vt(Vt)
-
-
-def _manual_node_avg(x):
-    """8-corner average of a nodal array along the first three axes."""
-    return 0.125 * (
-        x[:-1, :-1, :-1]
-        + x[1:, :-1, :-1]
-        + x[:-1, 1:, :-1]
-        + x[1:, 1:, :-1]
-        + x[:-1, :-1, 1:]
-        + x[1:, :-1, 1:]
-        + x[:-1, 1:, 1:]
-        + x[1:, 1:, 1:]
-    )
-
-
-def test_conserved_cell_nd_shape_and_values(block):
-    """conserved_cell_nd is the 8-corner average of conserved_nd."""
-    _populate(block)
-    cell = block.conserved_cell_nd
-    assert cell.shape == block.shape_cell + (5,)
-    expected = _manual_node_avg(block.conserved_nd)
-    assert np.allclose(cell, expected, rtol=1e-6, atol=1e-6)
-
-
-def test_conserved_cell_dimensional_scaling(block):
-    """conserved_cell equals conserved_cell_nd rescaled componentwise."""
-    _populate(block)
-    nd = block.conserved_cell_nd
-    dim = block.conserved_cell
-    rho_ref = block.fluid.rho_ref
-    rhoV_ref = block._rhoV_ref
-    L_ref = block.L_ref
-    V_ref = block.fluid.V_ref
-    assert np.allclose(dim[..., 0], nd[..., 0] * rho_ref)
-    assert np.allclose(dim[..., 1], nd[..., 1] * rhoV_ref)
-    assert np.allclose(dim[..., 2], nd[..., 2] * rhoV_ref)
-    assert np.allclose(dim[..., 3], nd[..., 3] * rhoV_ref * L_ref)
-    assert np.allclose(dim[..., 4], nd[..., 4] * rhoV_ref * V_ref)
-
-
-def test_conserved_cell_nd_cache_invalidation(block):
-    """conserved_cell_nd reflects in-place mutations to conserved_nd after invalidation."""
-    _populate(block)
-    first = block.conserved_cell_nd.copy()
-
-    block.conserved_nd[...] *= 2.0
-    block.update_cached_conserved()
-
-    second = block.conserved_cell_nd
-    assert np.allclose(second, 2.0 * first, rtol=1e-6, atol=1e-6)
 
 
 def test_set_rho_s(block):

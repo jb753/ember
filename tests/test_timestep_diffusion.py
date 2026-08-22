@@ -18,6 +18,7 @@ regimes:
 import numpy as np
 
 import ember.block
+from conftest import cell_conserved
 import ember.grid
 from ember import util
 from ember.fluid import PerfectFluid
@@ -81,7 +82,7 @@ def test_viscous_timestep_matches_max_of_spectral_radii():
     # Closed-form diffusion radius from the same cell-centred fields the kernel
     # uses: max over directions of |S_d|^2, each S_d the mean of the two opposing
     # face-area vectors, then the max-of-radii timestep.
-    rho = block.conserved_cell_nd[..., 0]
+    rho = cell_conserved(block)[..., 0]
     vol = block.vol_nd
     Si = 0.5 * (block.dAi_nd[:, :-1] + block.dAi_nd[:, 1:])
     Sj = 0.5 * (block.dAj_nd[:, :, :-1] + block.dAj_nd[:, :, 1:])
@@ -130,7 +131,7 @@ def test_convective_timestep_matches_naive_directional_max():
 
     a = _avg_cell(np.asarray(block.a_nd))
     r = _avg_cell(np.asarray(block.r_nd))
-    cons = np.asarray(block.conserved_cell_nd)
+    cons = cell_conserved(block)
     rho = cons[..., 0]
     Vx = cons[..., 1] / rho
     Vr = cons[..., 2] / rho

@@ -136,7 +136,7 @@ def _run_polar_only(block):
     fbody.flags.writeable = True
     fbody.fill(0.0)
     ember.fortran.set_polar_source(
-        cons_cell=block.conserved_cell_nd,
+        cons=block.conserved_nd,
         r=block.r_nd,
         p=block.P_nd,
         p_offset=block.P_offset_nd,

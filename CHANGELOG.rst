@@ -10,6 +10,23 @@ without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* **Breaking:** ``Block.conserved_cell`` and ``Block.conserved_cell_nd`` are
+  gone. The cell-centred conserved state was a cached ``(ni-1, nj-1, nk-1, 5)``
+  volume rebuilt every step and, after the acoustic speed and the transport
+  trio moved out of the cache, the largest derived array a block owned ---
+  5.73 MB at 81x65x57, 19.6 MB at 273x65x57. It was too big to move into the
+  scratch arena, so it is no longer materialised at all: ``set_visc_force``,
+  ``set_polar_source`` and ``set_timestep_spectral`` now take the nodal
+  ``cons`` and average the corners they need inside their own walk, which is
+  what those kernels already did for ``r``, ``P`` and the acoustic speed
+  beside them. Only the two readers that are off by default
+  (``apply_sfd_force`` and ``update_filter_*``) still take a cell-shaped
+  argument, and their callers build it in the arena for the one call. Per-block
+  derived storage falls 55.13 MB to 49.39 MB at 81x65x57 with the arena
+  unchanged. The averages reassociate, so cell-derived quantities move by a
+  few ulp; a 400-step duct march converges in the same 2.05 decades and settles
+  at the same step.
+
 * The viscous pass no longer keeps a full-volume tau/q buffer, which was
   three quarters of the solver's scratch arena. ``set_tau_q_soa`` wrote a
   stress tensor and heat flux for every cell, nine floats each, purely so that

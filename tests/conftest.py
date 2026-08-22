@@ -3,6 +3,8 @@
 import ast
 import pytest
 import numpy as np
+import ember.fortran
+from ember import util
 from ember.block import Block
 from ember.fluid import PerfectFluid
 
@@ -101,6 +103,21 @@ def assert_class_member_order(src, class_name):
             f"  got:      {names}\n"
             f"  expected: {sorted(names, key=_SORT_KEY)}"
         )
+
+
+def cell_conserved(block):
+    """The 8-corner cell average of ``block.conserved_nd``, as an own array.
+
+    No block property serves this any more: the kernels that need cell-centred
+    conserved values every step average the nodal state inside their own walk,
+    and the two that still take a cell-shaped argument
+    (``apply_sfd_force``, ``update_filter_*``) are handed a buffer the caller
+    materialised. Tests that want the value as DATA -- a reference to check a
+    kernel against, or a seed for the SFD filter state -- build it here.
+    """
+    out = util.zeros(block.shape_cell + (5,))
+    ember.fortran.node_to_cell(block.conserved_nd, out)
+    return out
 
 
 def _make_block(shape):

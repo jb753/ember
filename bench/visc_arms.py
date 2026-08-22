@@ -90,7 +90,6 @@ def _k2_kwargs(b):
     b.F_body_nd.flags.writeable = True
     return dict(
         cons=b.conserved_nd,
-        cons_cell=b.conserved_cell_nd,
         vol=b.vol_nd,
         dai=b.dAi_nd,
         daj=b.dAj_nd,

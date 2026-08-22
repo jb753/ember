@@ -76,7 +76,7 @@ end subroutine apply_sfd_force
 subroutine set_timestep_spectral( &
         dt_vol, &
         a, &
-        cons_cell, &
+        cons, &
         r, &
         Omega, &
         dAi, &
@@ -99,8 +99,11 @@ subroutine set_timestep_spectral( &
     real, intent(in) :: r(ni, nj, nk)               ! Radial coordinate
     real, intent(in) :: Omega                       ! Angular velocity [rad/s]
 
-    ! Cell-centered conserved variables
-    real, intent(in) :: cons_cell(ni-1, nj-1, nk-1, 5)
+    ! Node-centered conserved variables. Averaged to the cell in the walk
+    ! below rather than taken from a cell-centred volume: the average is four
+    ! fused multiply-adds against a buffer that would otherwise be the largest
+    ! derived array the block owns.
+    real, intent(in) :: cons(ni, nj, nk, 5)
 
     ! Face-area vectors (component on first axis, same layout as the flux kernel)
     real, intent(in) :: dAi(3, ni, nj-1, nk-1)
@@ -128,26 +131,35 @@ subroutine set_timestep_spectral( &
     real :: Sx, Sr, St, s2_i, s2_j, s2_k, lam_i, lam_j, lam_k
     real :: lam_conv, lam_diff
 
-    ! Loop over cells. a_cell/r_cell's avg_cell() calls are inlined by hand
-    ! below (not left as a pure-function call): ifort 2022.1.0's IPO
+    ! Loop over cells. Every avg_cell() call is inlined by hand below (not
+    ! left as a pure-function call): ifort 2022.1.0's IPO
     ! analysis treats the call as an assumed dependence on the loop
     ! counters themselves after inlining, blocking vectorization of the
     ! whole i/j/k nest (opt-report: "assumed OUTPUT dependence between
     ! J/I ..."); renaming avg_cell's dummy args away from i/j/k did not
     ! change this. gfortran vectorizes the call form fine, so this is
-    ! ifort-motivated.
+    ! ifort-motivated. That applies to the four conserved averages as much as
+    ! to a_cell/r_cell, so they are written out the same way.
     do k = 1, nk-1
     do j = 1, nj-1
     do i = 1, ni-1
-        ! Average nodal properties to cell centers (geometric/thermo);
-        ! conserved values come from the cell-centered cache.
+        ! Average nodal properties to cell centers. rhoe (component 5) is
+        ! never read here, so it is never averaged.
         a_cell = 0.125e0 * ( &
             a(i,j,k) + a(i+1,j,k) + a(i,j+1,k) + a(i+1,j+1,k) + &
             a(i,j,k+1) + a(i+1,j,k+1) + a(i,j+1,k+1) + a(i+1,j+1,k+1))
-        rho_cell    = cons_cell(i, j, k, 1)
-        rhoVx_cell  = cons_cell(i, j, k, 2)
-        rhoVr_cell  = cons_cell(i, j, k, 3)
-        rhorVt_cell = cons_cell(i, j, k, 4)
+        rho_cell = 0.125e0 * ( &
+            cons(i,j,k,1) + cons(i+1,j,k,1) + cons(i,j+1,k,1) + cons(i+1,j+1,k,1) + &
+            cons(i,j,k+1,1) + cons(i+1,j,k+1,1) + cons(i,j+1,k+1,1) + cons(i+1,j+1,k+1,1))
+        rhoVx_cell = 0.125e0 * ( &
+            cons(i,j,k,2) + cons(i+1,j,k,2) + cons(i,j+1,k,2) + cons(i+1,j+1,k,2) + &
+            cons(i,j,k+1,2) + cons(i+1,j,k+1,2) + cons(i,j+1,k+1,2) + cons(i+1,j+1,k+1,2))
+        rhoVr_cell = 0.125e0 * ( &
+            cons(i,j,k,3) + cons(i+1,j,k,3) + cons(i,j+1,k,3) + cons(i+1,j+1,k,3) + &
+            cons(i,j,k+1,3) + cons(i+1,j,k+1,3) + cons(i,j+1,k+1,3) + cons(i+1,j+1,k+1,3))
+        rhorVt_cell = 0.125e0 * ( &
+            cons(i,j,k,4) + cons(i+1,j,k,4) + cons(i,j+1,k,4) + cons(i+1,j+1,k,4) + &
+            cons(i,j,k+1,4) + cons(i+1,j,k+1,4) + cons(i,j+1,k+1,4) + cons(i+1,j+1,k+1,4))
         r_cell = 0.125e0 * ( &
             r(i,j,k) + r(i+1,j,k) + r(i,j+1,k) + r(i+1,j+1,k) + &
             r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))

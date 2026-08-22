@@ -224,7 +224,6 @@ def _run_phase2(jbw=0, mu=None, kappa=None):
     faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
-        cons_cell=block.conserved_cell_nd,
         vol=block.vol_nd,
         dai=block.dAi_nd,
         daj=block.dAj_nd,
