@@ -133,20 +133,19 @@ def main():
     ap.add_argument(
         "--kernel",
         default="residual",
-        choices=("residual", "irs", "update", "visc", "tauq", "viscpair", "rk"),
+        choices=("residual", "irs", "update", "viscpair", "rk"),
         help="which kernel's arm set to time: set_residual "
-        "(residual_arms.py), the IRS smoother (irs_arms.py), or the two "
-        "viscous phases set_visc_force / set_tau_q_soa, the pair "
-        "tau/q+fvisc fused vs unfused (viscpair, visc_arms.py), or the RK stage advance (rk, rk_arms.py)",
+        "(residual_arms.py), the IRS smoother (irs_arms.py), the viscous pair "
+        "and its two phases (viscpair, visc_arms.py), or the RK stage advance "
+        "(rk, rk_arms.py)",
     )
     ap.add_argument("--ncell", type=int, default=1_000_000)
     ap.add_argument(
         "--periodic-k",
         default=None,
         choices=("full", "hmesh"),
-        help="make the duct k faces periodic (viscpair only): the seam-free "
-        "arm needs a real seam, and without one the fused arms never exercise "
-        "the halo path they model",
+        help="make the duct k faces periodic (viscpair only): without a seam "
+        "exchange_faces moves nothing, so the pair never pays for it",
     )
     ap.add_argument("--reps", type=int, default=30)
     ap.add_argument("--warmup", type=int, default=5)
@@ -175,23 +174,20 @@ def main():
     du = b.residual_nd
     du.flags.writeable = True
     # Per-call input restore, run OUTSIDE the timed window and before the
-    # barrier. Only --kernel visc needs one (its entry pass mutates the tau/q
-    # halo in place); everything else re-initialises its own output.
+    # barrier. No arm needs one today -- every kernel re-initialises its own
+    # output -- but the hook stays: the viscous kernel that mutated its own
+    # tau/q halo input in place is exactly the sort of thing that comes back.
     pre = None
-    if args.kernel in ("visc", "tauq", "viscpair"):
+    if args.kernel == "viscpair":
         import visc_arms
 
         visc_arms.swirl(b)
         visc_arms.seed_tau_q(grid, b)
-        if args.kernel == "visc":
-            built = visc_arms.callers_visc(b)
-            pre = visc_arms.halo_restorer(b)
-        elif args.kernel == "viscpair":
-            # Both pair arms are idempotent (visc_arms.callers_pair), so no
-            # restore hook -- asserted by check_pair, not assumed.
-            built = visc_arms.callers_pair(grid, b)
-        else:
-            built = visc_arms.callers_tauq(b)
+        # Every arm is idempotent (asserted by visc_arms.check_pair, not
+        # assumed), so there is no per-call restore hook: the sign convention
+        # on the tau/q halo is applied once by the producer and only read by
+        # the consumer, unlike the volume-halo kernel this replaced.
+        built = visc_arms.callers_pair(grid, b)
     elif args.kernel == "update":
         # Phase 3: the limiter+IRS fusion spans set_residual and the smoother,
         # so the pair is timed together. dU is an output of the first call, so
@@ -377,7 +373,7 @@ def analyze_multi(rows, arms, stat="median"):
     # The incumbent is `prod` for the set_residual arms and `irs` for the
     # smoother arms; a results file only ever holds one kernel's arms.
     baseline = next(
-        (a for a in ("prod", "irs", "unfused", "visc", "tauq", "rk") if a in arms),
+        (a for a in ("prod", "irs", "rk") if a in arms),
         arms[0],
     )
     base = _launch_medians(rows, baseline, stat)

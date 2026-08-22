@@ -1,7 +1,7 @@
 # Benchmarking ember's hot kernels
 
 This directory holds the harness for A/B-benchmarking `set_residual` and its
-neighbours (`set_visc_force`, `set_tau_q_soa`, the IRS smoother, the RK
+neighbours (`set_visc_force`, `set_tau_q_faces`, the IRS smoother, the RK
 multigrid path), plus a condensed record of what was found the hard way. It
 replaces `docs/dev/kernel_benchmark_methodology.md` and
 `docs/dev/viscous_kernels.md`, which grew to ~3000 lines documenting a
@@ -26,11 +26,11 @@ before.
 | `IRS_BJ = 32` | `_fortran/residual.f90` | **Vector-chain count, then nothing.** Sets how many independent lanes the i-solve's recurrence runs over. Below 32 it goes latency-bound (16 costs +19%); above 32 it is flat (64 and 128 are within ±2%), so the tile spilling L1d no longer matters. The least fussy of these constants — but only because the transpose is blocked; it was a sharp L1d-capacity optimum before that. |
 | `IRS_TB = 8` | `_fortran/residual.f90` | **SIMD lane count** (8 for AVX2, 16 for AVX-512). Edge of the transpose block, so one staged row is exactly one vector load. Steeply optimal — 4 and 16 are both large regressions on AVX2. |
 | `IRS_W = 64` | `_fortran/residual.f90` | **L2 capacity.** The i-strip carried through the fused j+k solves is `IRS_W*(nj-1)*(nk-1)*4` bytes — 917 KB on a 273×65×57 block, inside a 2 MB L2. Also sets the vector loop length, so it trades off in two directions at once. |
-| `_KB_SLAB = 8` | `grid.py` | **Nothing, any more -- do not sweep it.** It was the k-slab depth for both kernels, but the fused rewrites of `set_residual` and `set_visc_force` subsumed slab blocking: what is left of the slab loop is a pure re-nesting of `do k = 1, nk-1`, and `set_visc_force` consumes `kb` only as a sanity guard. Measured at 1M cells: `kb` in 2..nk-1 is bitwise identical and within 1% on time. The panel constants above are what bound the working set now. Kept as a dummy so the bench arms share one kwargs dict with production. |
+| `_KB_SLAB = 8` | `grid.py` | **Nothing, any more -- do not sweep it.** It was the k-slab depth for both kernels, but the fused rewrites of `set_residual` and `set_visc_force` subsumed slab blocking: what is left of the slab loop is a pure re-nesting of `do k = 1, nk-1`. Measured at 1M cells: `kb` in 2..nk-1 is bitwise identical and within 1% on time. `set_visc_force` no longer takes it at all -- the fused walk has no slab to size -- so what is left is `set_residual`'s. The panel constants above are what bound the working set now. |
 | `RES_JAREA = 4400` | `_fortran/residual.f90` | **L2 capacity.** j-panel AREA (in cells) of `set_residual`'s k walk, the counterpart of `VISC_JAREA` below and swept the same way. The carry it bounds is the rolling k-face plane pair, `ni*njp*5*2*4` bytes. |
 | `RES_JMIN = 16` | `_fortran/residual.f90` | **Redundant-work floor, not a cache bound.** A panel recomputes its own lowest j-face row, so `1/jbw` of the j-face flux work is wasted; on a long-i block the area rule alone drives `jbw` to single digits and that overhead reaches several percent. Floor 16 is worth about 1.8% over no floor at 2M cells, in BOTH regimes. Do not raise it to 32: that fits fewer panels in L2 and costs -33% -> -21% contended at 2M, for 1.5% serial. |
 | `WALL_TW = 64` | `_fortran/viscous.f90` | **L1d capacity, loosely.** i-tile the wall-function row forms carry their phase-A temps in. Eleven `WALL_TW`-float stack arrays, so 64 is under 3 KB and stays L1-resident across the three phases. Flat over a wide range -- it only has to be long enough to amortise the loop overhead and short enough not to spill. |
-| `VISC_JAREA = 4400` | `_fortran/viscous.f90` | **L2 capacity.** j-panel AREA (in cells) of `set_visc_force`'s k walk: the panel is `VISC_JAREA/ni` rows deep, so the carry it bounds -- the rolling `planes` pair and one tau/q plane -- is a fixed number of BYTES whatever the block's aspect ratio, which a fixed row count would not be. 4400 cells puts both inside a 256 KB L2. Re-sweep on a machine with a different L2, and see the adopted entry for why the win is mostly a contended one. |
+| `VISC_JAREA = 4400` | `_fortran/viscous.f90` | **L2 capacity, and the single most valuable constant here.** j-panel AREA (in cells) of `set_visc_force`'s k walk: the panel is `VISC_JAREA/ni` rows deep, so the carry it bounds -- the rolling `planes` pair and the tau/q cell-plane pair the fused walk produces into -- is a fixed number of BYTES whatever the block's aspect ratio, which a fixed row count would not be. Unpanelled the same kernel is +40% at 8 ranks while being 8% faster serially (see the adopted entry). Sweep it with `visc_arms.py`'s `jbwN` arms, which drive the kernel's `jbw_in` override, and re-sweep on a machine with a different L2. |
 | `njp` pad rule | `grid.py` | **Page size** -- but worth almost nothing here now; see the negative result below before spending time on it. Pads the rolling face-flow plane by one j-row when `ni*nj` is a multiple of 1024 (= 4096-byte page / 4-byte float), to dodge a 4K-aliasing penalty at power-of-two plane sizes. Kept because it is one line and costs nothing to keep, not because this machine can measure it. |
 
 Build flags matter as much as the constants:
@@ -104,10 +104,9 @@ on a Haswell workstation, not the production ifort/Sapphire target -- see
 | `codegen_gauge.py` | Fingerprints a compiled symbol's machine code (recursive call closure, layout-normalised, hashed). The gate for any cross-build comparison: **`prod` must fingerprint identically between the builds you're comparing, or the comparison is meaningless** (Rule 9 below). |
 | `run_flag_sweep.sh` | One-factor-at-a-time compiler flag sweep, fingerprint-gated so a no-op flag is never timed. `MODE=serial\|contended`, `CONFIGS="name1 name2"` to run a subset. |
 | `irs_arms.py` | The IRS counterpart of `residual_arms.py`, for the implicit residual smoother (`smooth_residual_tri_tiled`) rather than `set_residual`. Same shape: `callers_irs`, a bitwise gate for the arms that compute the exact operator (`check_correctness`), a quantified gate for the ones that deliberately approximate it (`check_jacobi`), and `callers_update` for the `set_residual`+IRS pair, whose fusion spans both kernels. Also `check_denormals`, because the smoother runs in place and repeated reps compound. Drive it with `bench_prod_baseline.py --kernel irs` (or `--kernel update`); run standalone for a Gate-2 pre-flight. |
-| `visc_arms.py` | The viscous counterpart, for `set_visc_force` (`--kernel visc`) and `set_tau_q_soa` (`--kernel tauq`). Same shape as the two above, plus `halo_restorer`: `set_visc_force` is **not idempotent** -- its entry pass scales the tau/q halo slots by `(2*wall-1)` in place -- so a repeated-rep instrument must restore those six faces (O(surface)) between calls. On the duct case that turns out to be insurance rather than a repair, for two reasons that are accidents of the case; see the module docstring before assuming it can be dropped. |
-| `run_visc_baseline.sh` | Production `set_visc_force` over the size ladder in the 8-rank socket-contended regime, plus one `set_tau_q_soa` point for the phase split. |
+| `visc_arms.py` | The viscous counterpart (`--kernel viscpair`), timing the pair (`prod`) and each phase alone (`p1`, `k2`), plus a sweep of the fused walk's j-panel width (`jbw4`...`jbw4096`, production being `jbw_in=0`). There is no competing implementation left to gate against -- correctness lives in pytest now -- so its `check_pair` gates what the METHOD needs instead: every arm idempotent (the kernel this replaced was not: its entry pass scaled the tau/q halo in place, so rep n read rep n-1's), and every panel width bitwise identical, or the sweep is comparing different computations. |
+| `run_visc_baseline.sh` | Production `set_visc_force` over the size ladder in the 8-rank socket-contended regime, plus one producer point for the phase split. |
 | `run_so_ab.sh` | A/B of two or more BUILDS of the same production kernel, swapping `src/ember/fortran*.so` between launches. The instrument for changing production itself, where freezing a copy of the old kernel as an arm would put two near-duplicate bodies in one translation unit and have their inline budgets starve each other (Rule 9's +56% swing). Launch-outer, build-inner, so drift cannot alias onto one build; `bench_prod_baseline.py --label` records which build a row came from and the paired-within-launch analysis differences them inside a launch. Build each candidate with `make compile` and copy the `.so` aside first. |
-| `visc_arms.py` (`callers_pair`) | `--kernel viscpair` times the two viscous phases as a UNIT (`unfused` = `set_tau_q_soa` then `set_visc_force`; `fused` = the experimental single call), because a fusion spanning both kernels cannot be attributed to either. Same shape as `irs_arms.callers_update`. Its gate covers `mu_turb` as well as `fvisc` -- a fused kernel producing right forces from a wrong mixing length would pass an `fvisc`-only gate -- and asserts both arms are idempotent. |
 | `rk_arms.py` | The RK stage counterpart, for `advance_rk_stage_mg`'s kernels (`--kernel rk`). Its arms are CONFIGURATIONS of production rather than competing implementations: `rk` (`rk_mg_irs`, the solver defaults -- 3 coarse levels, coarse-IRS on), `rknoirs` (`rk_mg_noirs`, what `sf_resid=0` dispatches) and `rkplain` (`rk_plain`, the `n_levels=0` path), so the differences price the coarse smoother and the whole restrict/prolong machinery. They compute different things, so there is no cross-arm value gate; the gate is IDEMPOTENCE -- each kernel reads the frozen step-top snapshot and writes `cons`, so a repeated rep must reproduce the first bitwise or the reps are not timing one operation. Run standalone for that check. |
 | `subroutines/` | The non-production Fortran arms themselves (see below) -- not compiled by default, only via `EMBER_BENCH_KERNELS`. |
 | `results/` | Tracked `.jsonl` result files from the corrected instrument (`bench_all_arms.jsonl`, `bench_prod_baseline.jsonl`, `bench_flagsweep_{serial,phase2}.jsonl`) plus wherever you point `--json`/`--out`/`RESULTS`/`OUT`. Untracked `.pdf`/`.npz` plots regenerate from the jsonl in seconds; don't commit them. |
@@ -319,11 +318,13 @@ taskset -c 0 uv run python bench/bench_rep_convergence.py \
 bench/run_flag_sweep.sh                       # serial screen
 MODE=contended bench/run_flag_sweep.sh
 
-# Viscous kernels: baseline ladder, then an A/B of the fvisc-fusion arms
+# Viscous pass: the pair, its two phases, and the j-panel sweep. All
+# production -- the fused/volume ladder that got here is gone, and the arms
+# under subroutines/ that measured it no longer compile (see "Arms are
+# snapshots" above).
 bench/run_visc_baseline.sh 10 30
-EMBER_BENCH_KERNELS=viscous_fused make compile
-KERNEL=visc ARMS="visc viscijk viscpol2" NRANKS=8 NCELL=1000000 \
-    RESULTS=bench/results/bench_visc_pol2_1000000.jsonl bench/run_all_arms.sh
+KERNEL=viscpair ARMS="prod p1 k2 jbw8 jbw4096" NRANKS=8 NCELL=1000000 \
+    RESULTS=bench/results/viscpair_prod_8rank.jsonl bench/run_all_arms.sh
 ```
 
 ---
@@ -370,8 +371,8 @@ the headline number, and where it lives.
   so `1/jbw` of the j-face work is redundant.
 
   Together the two are **-19.6%** on the viscous pair end to end
-  (`set_tau_q_soa` + `exchange_halos` + `set_visc_force`) at 1M cells,
-  8 ranks. Measured with `run_so_ab.sh`; results in
+  (`set_tau_q_soa` + `exchange_halos` + `set_visc_force`, the two-kernel pair
+  of the time) at 1M cells, 8 ranks. Measured with `run_so_ab.sh`; results in
   `results/visc_jpanel_final_*.jsonl` and `visc_jpanel_pair_1000000.jsonl`.
 - **Cascade ping-pong in `mg_coarse_correction`** (`scree.f90`), plus its
   four per-call `alloca`s. The coarsest-to-finest prolongation cascade
@@ -572,7 +573,9 @@ the headline number, and where it lives.
   checks; past the limit it silently declines to vectorize at all and reports
   a bare `couldn't vectorize loop` with no reason attached.
   `set_tau_q_soa`'s **stage-2 row loop -- tau, `mu_turb` and q, a full-volume
-  loop -- was over the limit and had never vectorized**: seven variable-size
+  loop -- was over the limit and had never vectorized** (that kernel is gone,
+  but the loop is not: it is the producer inside `set_visc_force`'s walk and
+  the row body of `set_tau_q_faces`, so the flag still buys what it bought): seven variable-size
   automatic row temps, which GCC lowers to pointers it cannot disambiguate
   from the dummy arrays, against five dummies. At 200 it vectorizes at 32
   bytes. Stage 1 was always under the limit and always versioned, which is why
@@ -642,7 +645,9 @@ the headline number, and where it lives.
   lets the face-flux loops vectorize at 32 bytes, and losing that SIMD
   dominates any locality gained. The lesson that shaped every protocol rule
   above: **never trust a standalone single-file compile for this codebase.**
-- **Removing `set_tau_q_soa`'s ten automatic arrays -- all three ways.** The
+- **Removing `set_tau_q_soa`'s ten automatic arrays -- all three ways.** Still
+  live: that kernel is gone, but both of its successors declare the same row
+  temps the same way, and for the reason found here. The
   kernel declares its row temps as `gVx(ni-1,3)`, `vct(ni-1)` and seven more,
   which is an `alloca` per call and the one thing kernel scratch here is not
   supposed to do. It is also, measurably, the fastest arrangement of the
@@ -785,37 +790,60 @@ the headline number, and where it lives.
   determined. Adopted anyway: production blocks are at the sizes where it
   wins, and the kernel is memory-bound there.
 
-- **Fusing `set_tau_q_soa` into `set_visc_force`** (experimental,
-  `bench/subroutines/viscous_tauq_fused.f90`, NOT adopted). tau/q stops
-  round-tripping through memory: the adopted `set_visc_force` is a single walk
-  over k face planes consuming tau/q cell planes k-1 and k and nothing else, so
-  tau/q is produced inside the walk into a rolling plane pair. `tau_cell`/
-  `q_cell` demote to halo source only. **Bitwise** on both `fvisc` and
-  `mu_turb`. On the pair at 1M cells: **-20.9% serial, but only -8.2% at
-  8-rank socket contention**, 10/10 launches in both.
-  **The win shrinks under contention, which is the opposite of a bandwidth
-  saving** and is the whole finding. The rolling pair is 1.24 MB per rank at
-  that shape: 6% of the 20 MB L3 for one rank, but 9.9 MB across 8 ranks, so
-  half of each rank's 2.5 MB share is the buffer itself, evicting the nodal
-  fields both halves re-read. The fusion trades DRAM traffic for L3 pressure
-  that scales with rank count while the traffic saving does not -- so going to
-  higher concurrency makes it *worse*, not better. Static spill density is up
-  ~40% (36.4 vs 25.9 stack vector moves per 1k insns) but cannot be the
-  explanation: spills cost the same in both regimes.
-  **The lever, untried: j-tile the walk to ~12 rows**, putting the pair at
-  ~250 KB in the PRIVATE per-core L2, where its cost stops depending on how
-  many ranks share the socket. Unlike the j-panel tiling rejected for
-  `set_residual` above, this is not a speculative second tiling dimension --
-  it shrinks a buffer the fusion itself introduced, and there is a measured
-  regime-dependence pointing at it.
-  Not adoptable as it stands regardless: no cusp seam support, and integration
-  needs an O(surface) boundary-only phase 1, the `grid.py` resequencing around
-  `exchange_halos`, and a dedicated buffer.
+- **Fusing `set_tau_q_soa` into `set_visc_force`, and deleting the tau/q
+  volume with it** (`_fortran/viscous.f90`). The two viscous kernels used to
+  hand each other a `(ni+1)(nj+1)(nk+1)*9` buffer -- 36 MB at 273x65x57, three
+  quarters of the scratch arena -- because a grid-wide periodic seam exchange
+  had to run between them. It is now `set_tau_q_faces`, an O(surface) producer
+  writing the boundary shell into six face buffers, then `exchange_faces`, then
+  a `set_visc_force` that makes every interior cell's tau/q inside its own k
+  walk and consumes it there. The arena falls 41.5 -> 23.3 MB and is now bound
+  by the multigrid phase at every shape; peak RSS for a 1M-cell march falls
+  308 -> 293 MB. `fvisc` moves ~7 ulp of field scale (reassociation, spread
+  through the interior), `mu_turb` is bitwise.
+
+  Timing at 1M cells, 6 launches, paired within launch, `prod` being
+  producer+exchange+consumer:
+
+  ```
+                        serial              8 ranks
+    prod             51.78 ns/cell       67.34 ns/cell
+    p1 (producer)     2.65   -94.9%       6.41   -90.5%
+    k2 (consumer)    47.81   -7.7%       60.98   -9.4%
+    jbw8             50.93   -1.7%       64.46   -4.3%
+    jbw4096          44.12  -14.8%       94.28  +40.0%   <- unpanelled
+  ```
+
+  **The j panel is the whole contended story.** `jbw4096` is a single panel,
+  i.e. the unpanelled walk: it is the FASTEST arm serially and by a wide margin
+  the slowest at 8 ranks, because what the walk carries from one k step to the
+  next -- a tau/q cell-plane pair plus the k-face flow planes, ~1.9 MB at this
+  shape -- is 15 MB across eight ranks of a 20 MB L3, evicting the nodal fields
+  both halves of the walk re-read every plane. Panelling costs 8% serially and
+  buys 35% contended. This is the lever the earlier experiment predicted but
+  never tried, and it is worth more than everything else here put together: the
+  same kernel measured +23.8% against the old pair before panelling and -22.8%
+  after.
+
+  **The producer had to be vectorized before any of this held.** Evaluating the
+  shell cell by cell (`tau_q_at_cell`, which the two i faces still use because
+  they pin the axis) cost 6.5 ns per cell of the block; the strip-mined row
+  form the volume pass already used costs 2.6. That single change moved the
+  scheme from +7% on the pair to parity, before the panel made it a win.
+
+  Two things that did NOT matter, both measured earlier on the same family and
+  both worth not re-deriving: removing the seam exchange entirely (0.63 ns/cell
+  at 1M, ~1% of the pair -- it moves 0.83 MB, not the buffer), and passing a
+  37.8 MB array the kernel never reads (0.10 ns/cell +/- 0.25, null: f2py
+  marshals one descriptor per call). The cost of the volume was never the
+  exchange or the argument -- it was the writes, the read-back, and the arena.
 
 ### Cross-cutting findings, not tied to one kernel
 
 - **What a whole step actually costs** (1M-cell duct, `n_stage=4`, `cfl=2`,
-  solver defaults, `kernprof` on the `util.profile` decorators). Percent of
+  solver defaults, `kernprof` on the `util.profile` decorators). The viscous
+  rows predate the fusion and are the two-kernel pair; the pair is ~23% cheaper
+  contended now, so read them as an upper bound. Percent of
   `_run`, serial then 8-rank socket-contended: `advance_rk_stage_mg`
   21.0/22.5, `set_residual` 22.8/21.0, the IRS smoother 16.2/14.9,
   `update_primitive` 7.7/7.6, `set_visc_force` 6.5/6.5, `set_tau_q_soa`
@@ -826,9 +854,10 @@ the headline number, and where it lives.
   `update_sources`' once, so a percent off the residual is worth four times
   a percent off the viscous pass. `advance_rk_stage_mg` is the largest
   single phase under contention and had never been benchmarked. And
-  `exchange_halos` is 0.004% -- whatever separates the viscous pair's
-  end-to-end number from `set_visc_force`'s own, it is not the halo
-  exchange.
+  the seam exchange is 0.004% -- whatever separates the viscous pair's
+  end-to-end number from `set_visc_force`'s own, it is not the exchange.
+  (Since measured directly at 0.63 ns/cell for the volume form and 0.56 for
+  the face form that replaced it, both ~1% of the pair.)
 - **Kernel wins are contention wins; a single-rank run will not show them.**
   The wall-clock cost of a step at 1M cells, before the viscous work,
   after it, and after the residual panel as well: 379 / 377 / 378 ns per

@@ -1510,8 +1510,8 @@ class Grid(_LabelledList):
             convergence) it does not change the steady-state solution. Per-block
             only: block/periodic interfaces are treated as zero-gradient. Borrows
             ``block.scratch`` as its work buffer -- free at this point, since
-            ``set_residual`` stages its face flows in ``tau_q_halo`` and the
-            march reuses ``scratch`` only afterwards.
+            ``set_residual`` stages its face flows further into the arena and
+            the march reuses the head of ``scratch`` only afterwards.
 
         """
         for block in self:
@@ -1524,7 +1524,7 @@ class Grid(_LabelledList):
             ni, nj, nk = block.shape
             # Rolling face-flow buffers for the fused k-tiled residual: a
             # k-face plane pair and three rows (one i, two alternating j),
-            # borrowed zero-copy from the leading block.tau_q_halo storage.
+            # borrowed zero-copy from the leading block.scratch storage.
             # planes takes one padding j-row exactly when its component
             # stride ni*nj*4 bytes would be a whole page multiple, so the
             # k-accumulate's component streams never 4K-alias (see
@@ -1620,10 +1620,11 @@ class Grid(_LabelledList):
         afterwards.
 
         The viscous calculation is phased across the whole grid: every block's
-        tau/q is computed first, then a single periodic seam halo exchange runs,
-        then the face fluxes are accumulated. This keeps the seam consistent for
-        block-to-block periodic interfaces, where a per-block exchange would read
-        a stale neighbour halo.
+        BOUNDARY tau/q is computed first, then a single periodic seam exchange
+        runs over the face buffers, then interior tau/q and the face fluxes are
+        produced together in one walk per block. This keeps the seam consistent
+        for block-to-block periodic interfaces, where a per-block exchange would
+        read a stale neighbour halo.
 
         Parameters
         ----------
@@ -1642,28 +1643,21 @@ class Grid(_LabelledList):
             block.F_body_nd.fill(0.0)
 
         if not inviscid:
-            # tau_q_halo is pure scratch (always writeable); no locking needed.
-            # First viscous phase: tau/q per cell (Pr_turb fixed at 1.0 for the
-            # grid march; mixing-length vorticity always evaluated absolute-frame).
+            # The face buffers are pure scratch (always writeable); no locking
+            # needed. First viscous phase: tau/q on the boundary SHELL only
+            # (Pr_turb fixed at 1.0 for the grid march; mixing-length vorticity
+            # always evaluated absolute-frame). Interior tau/q is not computed
+            # here at all -- set_visc_force produces it inside its own k walk,
+            # into a rolling cell-plane pair that never reaches memory -- so
+            # what this phase leaves behind, and all the seam exchange below
+            # has to carry, is O(surface).
             for block in self:
                 # See Grid.update_residual: fill the primitive cache eagerly
                 # (T_nd below is otherwise the access that pays for the whole
                 # chain in this method).
                 block.update_primitive()
-                halo = block.tau_q_halo
-                # tau_cell/q_cell are comp-last views sharing storage with the
-                # halo; an order="F" reshape would alias a different cell and
-                # silently drop the periodic seam exchange below.
-                tau_cell = halo[..., 0:6]
-                q_cell = halo[..., 6:9]
-                # mu_turb is a data-row field the public property serves
-                # read-only; grab a writeable view so the kernel can leave the
-                # cell-centred mixing-length viscosity in place. Tolerate an
-                # uninitialised field on entry since this pass is its producer.
-                mu_turb = block._get_data_by_keys(
-                    ("mu_turb",), raise_uninit=False, writeable=True
-                )
-                ember.fortran.set_tau_q_soa(
+                faces = block.tau_q_faces
+                ember.fortran.set_tau_q_faces(
                     cons=block.conserved_nd,
                     t=block.T_nd,
                     mu=block.mu_nd,
@@ -1679,40 +1673,42 @@ class Grid(_LabelledList):
                     vx=block.Vx_nd,
                     vr=block.Vr_nd,
                     vt=block.Vt_rel_nd,
-                    tau_cell=tau_cell,
-                    q_cell=q_cell,
-                    mu_turb=mu_turb,
+                    f_i1=faces[0],
+                    f_ini=faces[1],
+                    f_j1=faces[2],
+                    f_jnj=faces[3],
+                    f_k1=faces[4],
+                    f_knk=faces[5],
+                    **block.ijk_wall_visc,
                 )
-                # The kernel has now populated mu_turb; mark it initialised so
-                # later reads through the public property succeed.
-                block._versions["mu_turb"] += 1
 
-            # One seam exchange after all tau/q are fresh (see method docstring).
-            self.connectivity.periodic.exchange_halos()
+            # One seam exchange after all boundary tau/q are fresh (see method
+            # docstring). It reads each face buffer's layer 0 and writes its
+            # partner's layer 1, so unlike the volume exchange it replaced it
+            # is a plain copy needing no temporary.
+            self.connectivity.periodic.exchange_faces()
 
-            # Second viscous phase: face fluxes from tau/q, accumulated into
-            # F_body_nd, with the polar (radial-momentum) source fused into
-            # the same kernel's final pass over fvisc -- see set_visc_force's
-            # header comment. No separate halo exchange is needed for the
-            # cusp seam -- the kernel couples the seam flux internally by
-            # averaging the two one-sided fluxes there.
+            # Second viscous phase: interior tau/q and the face fluxes in one
+            # walk, accumulated into F_body_nd, with the polar (radial-momentum)
+            # source fused into the same kernel's final pass over fvisc -- see
+            # set_visc_force's header comment. The cusp seam is handled inside
+            # the kernel, from the two k face buffers.
             for block in self:
-                halo = block.tau_q_halo
-                tau_cell = halo[..., 0:6]
-                q_cell = halo[..., 6:9]
                 i_cusp_start, i_cusp_end = block.i_cusp
-                # Rolling face-flow buffers for the fused k-tiled kernel: a
-                # plane pair for the k-direction and three rows (one i, two
-                # alternating j), borrowed zero-copy from the leading
-                # block.scratch storage (5 nodal slots: fits for nk >= 3, or
-                # nk == 2 with nj >= 6; carve_view raises otherwise).
-                ni, nj, nk = block.shape
-                kb = min(_KB_SLAB, nk - 1)
-                # The tau/q volume above and these rolling buffers reach the
-                # same kernel call and now come from the same arena, so they
-                # are carved together (ember.block._carve_viscous) rather than
-                # separately -- carving them apart would overlap them.
-                _, _, planes, rows = ember.block._carve_viscous(block)
+                # Everything the kernel takes from the arena, from one carve
+                # (ember.block._carve_viscous): the six face buffers it reads
+                # its halo from, the rolling tau/q cell-plane pair it produces
+                # into, and the rolling face-flow planes and rows. All four
+                # reach this one call, so carving them together is what makes
+                # them disjoint.
+                faces, tq, planes, rows = ember.block._carve_viscous(block)
+                # mu_turb is a data-row field the public property serves
+                # read-only; grab a writeable view so the kernel can leave the
+                # cell-centred mixing-length viscosity in place. Tolerate an
+                # uninitialised field on entry since this pass is its producer.
+                mu_turb = block._get_data_by_keys(
+                    ("mu_turb",), raise_uninit=False, writeable=True
+                )
                 ember.fortran.set_visc_force(
                     cons=block.conserved_nd,
                     cons_cell=block.conserved_cell_nd,
@@ -1729,16 +1725,34 @@ class Grid(_LabelledList):
                     vx=block.Vx_nd,
                     vr=block.Vr_nd,
                     vt=block.Vt_rel_nd,
-                    tau_cell=tau_cell,
-                    q_cell=q_cell,
+                    t=block.T_nd,
+                    cp=block.cp_nd,
+                    kappa=block.kappa_nd,
+                    pr_turb=1.0,
+                    xlength=block.xlen_sq_nd,
+                    mu_turb=mu_turb,
+                    f_i1=faces[0],
+                    f_ini=faces[1],
+                    f_j1=faces[2],
+                    f_jnj=faces[3],
+                    f_k1=faces[4],
+                    f_knk=faces[5],
+                    tq=tq,
                     planes=planes,
                     rows=rows,
-                    kb=kb,
                     **block.ijk_wall_visc,
                     **block.Omega_wall_nd,
                     i_cusp_start=i_cusp_start,
                     i_cusp_end=i_cusp_end,
+                    # 0: panel width from the kernel's own VISC_JAREA. Nothing
+                    # marches with anything else; the argument exists so the
+                    # tests can sweep it (see test_viscous_phases_golden).
+                    jbw_in=0,
                 )
+                # The kernel has now populated mu_turb; mark it initialised so
+                # later reads through the public property succeed.
+                block._versions["mu_turb"] += 1
+
         else:
             # Inviscid: set_visc_force never runs, so the polar source (not
             # otherwise fused anywhere) needs its own pass here.
@@ -2178,7 +2192,7 @@ class GridConnectivity:
         """Build (and cache) the communicator for this patch type.
 
         Private to the connectivity machinery: prefer the delegating methods
-        (:meth:`apply`, :meth:`exchange_halos`, :meth:`exchange`) at call sites.
+        (:meth:`apply`, :meth:`exchange_faces`, :meth:`exchange`) at call sites.
 
         Returns
         -------
@@ -2226,10 +2240,6 @@ class GridConnectivity:
     def exchange_faces(self):
         """Exchange boundary tau/q across periodic patches, face-buffer form."""
         return self._get_communicator().exchange_faces()
-
-    def exchange_halos(self):
-        """Exchange halo data across periodic patches."""
-        return self._get_communicator().exchange_halos()
 
     def pair(self, rtol=1e-6):
         """Pair patches of the specified type, caching the result.

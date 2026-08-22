@@ -1,8 +1,9 @@
 """One arena, sized by its worst phase, carved so nothing overlaps.
 
-``Block.scratch`` backs every throwaway buffer in the step: the viscous tau/q
-volume and face buffers, both kernels' rolling planes and rows, the IRS work
-vector and the multigrid coarse scratch. That is only safe under two rules,
+``Block.scratch`` backs every throwaway buffer in the step: the viscous
+boundary tau/q face buffers and the rolling tau/q cell-plane pair, both
+kernels' rolling planes and rows, the IRS work vector and the multigrid coarse
+scratch. That is only safe under two rules,
 and neither is something the code can check for itself:
 
   * buffers reaching the SAME kernel call must come from one
@@ -35,21 +36,24 @@ def _phase_buffers(block):
     """Every buffer, grouped by the phase it is live in."""
     ni, nj, nk = block.shape
     njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
-    vol, faces, planes, rows = ember.block._carve_viscous(block)
+    faces, tq, planes, rows = ember.block._carve_viscous(block)
 
     tmp_shape = (ni - 1, nj - 1, nk - 1, 5)
     mg_shapes = ember.solver.mg_coarse_shapes(ni, nj, nk, MAX_MG_LEVELS)
-    scree = util.carve_view(block.scratch, tmp_shape, *mg_shapes)
-    rk = util.carve_view(block.scratch, (ni - 1, nj - 1, 5, 2), *mg_shapes)
+    # Both marching schemes carve the same way with multigrid on -- a rolling
+    # two-plane increment plus the coarse scratch, since both fuse the final
+    # prolong with the cell->node scatter -- and with it off both materialise a
+    # full-volume cell-shaped increment on its own.
+    mg_on = util.carve_view(block.scratch, (ni - 1, nj - 1, 5, 2), *mg_shapes)
 
     return {
-        "update_sources": [vol, *faces, planes, rows],
+        "update_sources": [*faces, tq, planes, rows],
         "update_residual": list(
             util.carve_view(block.scratch, (ni, njp, 5, 2), (ni, 5, 3))
         )
         + [util.carve_view(block.scratch, (ni, nj, nk, 5))],
-        "scree": list(scree),
-        "rk_mg": list(rk),
+        "march_mg": list(mg_on),
+        "march_nomg": [util.carve_view(block.scratch, tmp_shape)],
     }
 
 
@@ -92,22 +96,18 @@ def test_scratch_len_covers_every_phase(shape):
 def test_viscous_views_are_stable_and_inside_the_arena(shape):
     """Repeated access returns the same storage, and all of it is the arena.
 
-    ``tau_q_halo`` and ``tau_q_faces`` are views now, not allocations, so each
-    access re-carves. ``periodic_communicator.exchange_halos`` depends on
-    seeing exactly the storage the viscous kernels wrote, so two accesses
-    landing in different places would be silent corruption.
+    ``tau_q_faces`` is a view, not an allocation, so each access re-carves.
+    ``periodic_communicator.exchange_faces`` depends on seeing exactly the
+    storage ``set_tau_q_faces`` wrote and ``set_visc_force`` will read, so two
+    accesses landing in different places would be silent corruption.
     """
     block = ember.block.Block(shape=shape)
-    assert np.shares_memory(block.tau_q_halo, block.tau_q_halo)
-    assert block.tau_q_halo.__array_interface__["data"][0] == (
-        block.tau_q_halo.__array_interface__["data"][0]
-    )
     for face_a, face_b in zip(block.tau_q_faces, block.tau_q_faces):
         assert face_a.__array_interface__["data"][0] == (
             face_b.__array_interface__["data"][0]
         )
-    vol, faces, planes, rows = ember.block._carve_viscous(block)
-    for buf in (block.tau_q_halo, *block.tau_q_faces, planes, rows):
+    faces, tq, planes, rows = ember.block._carve_viscous(block)
+    for buf in (*block.tau_q_faces, tq, planes, rows):
         assert np.shares_memory(block.scratch, buf)
 
 
@@ -117,7 +117,8 @@ def test_arena_is_smaller_than_the_buffers_it_replaced():
     Three allocations became one: the tau/q volume (with its spare tenth
     slot), the six face buffers, and the nodal scratch. The arena is sized by
     the multigrid phase, which binds at every shape tried, so it is smaller
-    than their sum.
+    than their sum -- and smaller again since the viscous fusion deleted the
+    volume, which used to be what bound it.
     """
     ni, nj, nk = 273, 65, 57
     before = (ni + 1) * (nj + 1) * (nk + 1) * 10 + ni * nj * nk * 5 + sum(
@@ -125,7 +126,27 @@ def test_arena_is_smaller_than_the_buffers_it_replaced():
     )
     after = _scratch_len((ni, nj, nk))
     assert after < before
-    assert after / before < 0.7   # measured 0.646 at this shape
+    assert after / before < 0.4   # measured 0.363 at this shape
+
+
+def test_no_phase_needs_a_volume_of_tau_q():
+    """The viscous phase is the SMALLEST of the four, not the largest.
+
+    It used to bind the arena by a wide margin, on a (ni+1)(nj+1)(nk+1)*9
+    tau/q volume that was three quarters of the whole thing. Fusing the two
+    viscous kernels removed it: what a pass now has to keep is the boundary
+    shell plus one rolling cell-plane pair. This asserts the new state of
+    affairs rather than the saving, so a change that reintroduced a
+    volume-shaped viscous buffer fails here and not just on someone's RSS.
+    """
+    ni, nj, nk = 273, 65, 57
+    block = ember.block.Block(shape=(ni, nj, nk))
+    visc = sum(b.size for b in _phase_buffers(block)["update_sources"])
+    assert visc == min(
+        sum(b.size for b in bufs) for bufs in _phase_buffers(block).values()
+    )
+    # An order of magnitude under the volume it replaced, not a few percent.
+    assert visc < 0.25 * (ni + 1) * (nj + 1) * (nk + 1) * 9
 
 
 def test_degenerate_block_raises_rather_than_overlapping():
@@ -144,8 +165,8 @@ def test_degenerate_block_raises_rather_than_overlapping():
 def test_real_grid_carves_cleanly():
     """End to end on an assembled grid, not a bare Block."""
     block = build_duct_grid(300_000)[0]
-    vol, faces, planes, rows = ember.block._carve_viscous(block)
-    bufs = [vol, *faces, planes, rows]
+    faces, tq, planes, rows = ember.block._carve_viscous(block)
+    bufs = [*faces, tq, planes, rows]
     for a in range(len(bufs)):
         for b in range(a + 1, len(bufs)):
             assert not np.shares_memory(bufs[a], bufs[b])

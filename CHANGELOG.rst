@@ -10,6 +10,43 @@ without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* The viscous pass no longer keeps a full-volume tau/q buffer, which was
+  three quarters of the solver's scratch arena. ``set_tau_q_soa`` wrote a
+  stress tensor and heat flux for every cell, nine floats each, purely so that
+  ``set_visc_force`` could stream them straight back and read the boundary
+  shell out of them; the volume existed only because a grid-wide periodic seam
+  exchange had to run between the two kernels. It is now two kernels of a
+  different shape: ``set_tau_q_faces`` computes tau/q for the boundary shell
+  alone, into the six surface buffers of ``Block.tau_q_faces``, and
+  ``set_visc_force`` produces every interior cell's tau/q inside its own k
+  walk, into a rolling cell-plane pair, consuming each plane in the same walk
+  that made it. The seam exchange moves the shell instead of a volume
+  (``PeriodicCommunicator.exchange_faces``, replacing ``exchange_halos``), and
+  the cusp seam correction, which needs cell planes 1 and nk-1 at once, reads
+  them out of the two k face buffers. At a 273x65x57 block the scratch arena
+  falls from 41.5 MB to 23.3 MB and peak RSS for a 1M-cell march from 308 MB
+  to 293 MB; the arena is now sized by the multigrid phase at every shape
+  tried, and the viscous phase is the smallest of the four. ``Block.tau_q_halo``
+  is gone with it.
+
+  The pass is also faster, though that was not the point: **-9.4% on the
+  face-flux kernel and -22.8% on the pair at 8-rank socket contention**, and
+  roughly parity serially (1M cells, 8 launches, paired within launch). Two
+  things had to be true for that. The boundary producer walks i in the same
+  strip-mined row form the volume pass used, on the four faces where i is free
+  --- per-cell evaluation made it 6.5 ns per cell of the block against 2.6 ---
+  and the fused walk is panelled in j, so what it carries from one k step to
+  the next fits a private L2 rather than the shared L3. The panel is the whole
+  contended story: unpanelled, the same kernel is **+40%** against the pair at
+  8 ranks while being 8% faster serially. Its width comes from the kernel's own
+  ``VISC_JAREA``, with a ``jbw_in`` argument to override it for sweeps.
+
+  ``fvisc`` moves by about 7 ulp of the field scale, spread through the
+  interior --- the reassociation of producing tau/q in registers rather than
+  through memory --- and ``mu_turb`` is bitwise. Over a 400-step duct march the
+  energy residual history agrees to 2.4e-7 relative and the loss coefficient to
+  5.6e-6, both converging in the same 2.05 decades.
+
 * Added ``RealFluid``, a real-gas equation of state, and ``ember.realgas_fit``,
   the offline tool that produces the coefficients it evaluates. Both follow
   Wheeler (2024): a polynomial surface is fitted to the compressibility factor

@@ -54,6 +54,8 @@ import ember.block
 import ember.fortran
 from ember import util
 from ember.fluid import PerfectFluid
+
+import viscous_util
 from ember.inviscid import InviscidPatch
 from ember.periodic import PeriodicPatch
 
@@ -146,74 +148,13 @@ def _run_polar_only(block):
 
 
 def _run_fused_viscous_and_polar(block):
-    """Real (not synthetic) phase 1 + phase 2, exactly as Grid.update_sources
-    runs the viscous branch: set_tau_q_soa from this block's own flow field,
-    then set_visc_force, which now folds the polar source into its own final
-    pass over fvisc."""
-    halo = block.tau_q_halo
-    halo.fill(0.0)
-    tau_cell = halo[..., 0:6]
-    q_cell = halo[..., 6:9]
-    mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
-    ember.fortran.set_tau_q_soa(
-        cons=block.conserved_nd,
-        t=block.T_nd,
-        mu=block.mu_nd,
-        cp=block.cp_nd,
-        kappa=block.kappa_nd,
-        pr_turb=PR_TURB,
-        xlength=block.xlen_sq_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        r=block.r_nd,
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
-        mu_turb=mu_turb,
-    )
-
-    fbody = block.F_body_nd
-    fbody.flags.writeable = True
-    fbody.fill(0.0)
-
-    i_cusp_start, i_cusp_end = block.i_cusp
-    ni, nj, nk = block.shape
-    kb = min(8, nk - 1)
-    # One carve for the whole viscous phase, so these cannot land on
-    # top of the tau/q volume at the arena's head.
-    _, _, planes, rows = ember.block._carve_viscous(block)
-    ember.fortran.set_visc_force(
-        cons=block.conserved_nd,
-        cons_cell=block.conserved_cell_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        omega_block=block.Omega_nd,
-        r=block.r_nd,
-        mu=block.mu_nd,
-        p=block.P_nd,
-        p_offset=block.P_offset_nd,
-        fvisc=fbody[..., 1:],
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
-        planes=planes,
-        rows=rows,
-        kb=kb,
-        **block.ijk_wall_visc,
-        **block.Omega_wall_nd,
-        i_cusp_start=i_cusp_start,
-        i_cusp_end=i_cusp_end,
-    )
-    fbody.flags.writeable = False
-    return np.array(fbody)
+    """The real viscous pair, exactly as Grid.update_sources runs it:
+    ``set_tau_q_faces`` for the boundary shell from this block's own flow
+    field, then ``set_visc_force``, which derives every interior tau/q itself
+    and folds the polar source into its own final pass over fvisc."""
+    viscous_util.fill_faces(block, PR_TURB)
+    viscous_util.run_visc_force(block, PR_TURB)
+    return np.array(block.F_body_nd)
 
 
 def test_polar_source_is_nonzero():

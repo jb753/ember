@@ -3,7 +3,7 @@
 A single block is made periodic in theta (the k direction) and carries an axial
 velocity that varies sinusoidally in theta with *two* full wavelengths across
 the pitch.  The field is smooth and exactly periodic across the seam, so the
-viscous halo exchange should make the seam transparent:
+viscous seam exchange should make the seam transparent:
 
   (A) toggling the exchange on/off may change only the two seam-adjacent
       k-cells -- never an interior cell; and
@@ -16,19 +16,15 @@ The seam (theta = 0) is placed at a generic phase (pi/4 offset) so that a
 non-transparent boundary cannot be masked by the field being even or odd about
 the seam.
 
-The same block gates the seam-free fused arm
-(``bench/subroutines/viscous_tauq_selfk.f90``), which claims a block periodic
-to itself in k needs no halo exchange at all because it can read its own far
-cell plane instead.  That claim is exactly (A) and (B) above with the exchange
-deleted rather than toggled, so it is tested here rather than by a tolerance
-comparison in the bench: a wrong far-plane index moves the seam cells by tens
-of percent, which an ulp gate on a 300k-cell case would report in the same
-breath as compiler reassociation.  Skipped unless the arm is in the build
-(``EMBER_BENCH_KERNELS=viscous_tauq_selfk``).
+What crosses the seam is O(surface): ``set_tau_q_faces`` writes each boundary
+face's own tau/q into layer 0 of its buffer and a ``(2*wall - 1)`` ghost into
+layer 1, and ``exchange_faces`` overwrites layer 1 with the partner's layer 0
+wherever a patch connects. So these tests gate the whole seam mechanism, and
+the two-block tests below gate the direction handling that a block periodic to
+itself cannot: with both ends the same block, filling only one side still
+leaves every value right.
 """
-
 import numpy as np
-import pytest
 
 import ember.block
 import ember.fortran
@@ -37,6 +33,13 @@ from ember import util
 from ember.fluid import PerfectFluid
 from ember.periodic import PeriodicPatch
 from ember.periodic_communicator import PeriodicCommunicator
+
+import viscous_util
+
+# Turbulent Prandtl number for the pair. Any fixed value does: the fixture
+# is laminar (zero wall distance, so zero mixing length) and it only
+# multiplies a term that is zero here.
+PR_TURB = 0.9
 
 
 def _build_periodic_block(i_lims=None):
@@ -111,102 +114,14 @@ def _build_two_block_periodic():
     return half(-pitch / 2, 0.0), half(0.0, pitch / 2)
 
 
-def _fill_faces(block):
-    """Run the O(surface) boundary producer into ``block.tau_q_faces``."""
-    f = block.tau_q_faces
-    ember.fortran.set_tau_q_faces(
-        cons=block.conserved_nd,
-        t=block.T_nd,
-        mu=block.mu_nd,
-        cp=block.cp_nd,
-        kappa=block.kappa_nd,
-        pr_turb=0.9,
-        xlength=block.xlen_sq_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        r=block.r_nd,
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        f_i1=f[0], f_ini=f[1], f_j1=f[2], f_jnj=f[3], f_k1=f[4], f_knk=f[5],
-        **block.ijk_wall_visc,
-    )
-    return f
-
-
 def _fvisc_x(block, comm):
-    """x-momentum viscous body force, cell-centred, with/without exchange."""
-    # F_body_nd is a read-only cached buffer; this test owns its lifecycle here.
-    block.F_body_nd.flags.writeable = True
-    block.F_body_nd.fill(0.0)
+    """x-momentum viscous body force, cell-centred, with/without exchange.
 
-    # First viscous phase: tau/q per cell (mirrors Grid.update_sources).
-    halo = block.tau_q_halo
-    tau_cell = halo[..., 0:6]
-    q_cell = halo[..., 6:9]
-    mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
-    ember.fortran.set_tau_q_soa(
-        cons=block.conserved_nd,
-        t=block.T_nd,
-        mu=block.mu_nd,
-        cp=block.cp_nd,
-        kappa=block.kappa_nd,
-        pr_turb=0.9,
-        xlength=block.xlen_sq_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        r=block.r_nd,
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
-        mu_turb=mu_turb,
-    )
-    block._versions["mu_turb"] += 1
-
-    if comm is not None:
-        comm.exchange_halos()
-
-    # Second viscous phase: face fluxes from tau/q, accumulated into F_body_nd.
-    i_cusp_start, i_cusp_end = block.i_cusp
-    ni, nj, nk = block.shape
-    kb = min(8, nk - 1)  # mirrors the ember.grid._KB_SLAB production clamp
-    # One carve for the whole viscous phase, so these cannot land on
-    # top of the tau/q volume at the arena's head.
-    _, _, planes, rows = ember.block._carve_viscous(block)
-    ember.fortran.set_visc_force(
-        cons=block.conserved_nd,
-        cons_cell=block.conserved_cell_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        omega_block=block.Omega_nd,
-        r=block.r_nd,
-        mu=block.mu_nd,
-        p=block.P_nd,
-        p_offset=block.P_offset_nd,
-        fvisc=block.F_body_nd[..., 1:],
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
-        planes=planes,
-        rows=rows,
-        kb=kb,
-        **block.ijk_wall_visc,
-        **block.Omega_wall_nd,
-        i_cusp_start=i_cusp_start,
-        i_cusp_end=i_cusp_end,
-    )
-
-    block.F_body_nd.flags.writeable = False
+    ``comm=None`` skips the exchange, which leaves the seam faces reading the
+    ``+edge`` ghost their own producer seeded instead of the neighbour's edge
+    cell -- the toggle test (A) is the difference between the two.
+    """
+    viscous_util.run_pair(block, PR_TURB, comm=comm)
     return block.F_body_nd[..., 1].copy()
 
 
@@ -241,223 +156,6 @@ def test_viscous_periodic_seam_transparent():
     np.testing.assert_allclose(fe[:half], fe[half:], rtol=0, atol=tol)
 
 
-def _fvisc_x_fused(block, entry="set_visc_force_tqf_selfk", n_tq=4,
-                   between_phases=None):
-    """x-momentum viscous body force from a fused arm, with NO exchange.
-
-    ``between_phases`` is called after set_tau_q_soa and before the fused
-    kernel.  It exists so a test can perturb the halo at exactly the point the
-    exchange would have run -- set_tau_q_soa rewrites every halo slot on its
-    way out (its "+edge" fill), so anything done to the halo BEFORE it is
-    simply erased.
-
-    Phase 1 still runs, for two reasons that are not the k seam: it fills the
-    i/j halo edge slots the fused kernel reads on every k plane (via
-    load_halo_ijedge), and it writes the mu_turb the caller compares.  What is
-    deleted is the ``comm.exchange_halos()`` between the phases -- the thing
-    this arm exists to remove.
-    """
-    block.F_body_nd.flags.writeable = True
-    block.F_body_nd.fill(0.0)
-
-    halo = block.tau_q_halo
-    tau_cell = halo[..., 0:6]
-    q_cell = halo[..., 6:9]
-    mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
-    ember.fortran.set_tau_q_soa(
-        cons=block.conserved_nd,
-        t=block.T_nd,
-        mu=block.mu_nd,
-        cp=block.cp_nd,
-        kappa=block.kappa_nd,
-        pr_turb=0.9,
-        xlength=block.xlen_sq_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        r=block.r_nd,
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
-        mu_turb=mu_turb,
-    )
-    block._versions["mu_turb"] += 1
-
-    # NO exchange_halos here. That is the whole point. Anything the caller
-    # wants done in its place happens now, after phase 1 has finished writing
-    # the halo and before the fused kernel reads it.
-    if between_phases is not None:
-        between_phases()
-
-    ni, nj, nk = block.shape
-    # One carve for the whole viscous phase, so these cannot land on
-    # top of the tau/q volume at the arena's head.
-    _, _, planes, rows = ember.block._carve_viscous(block)
-    # Four rolling/saved tau/q planes. Allocated rather than carved from
-    # block.scratch: at this block size scratch holds 1125 floats and the arm
-    # needs 1556. A real integration wants its own buffer anyway.
-    tq = np.zeros((ni + 1, nj + 1, 9, n_tq), dtype=np.float32, order="F")
-    i_cusp_start, i_cusp_end = block.i_cusp
-    getattr(ember.fortran, entry)(
-        cons=block.conserved_nd,
-        cons_cell=block.conserved_cell_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        omega_block=block.Omega_nd,
-        r=block.r_nd,
-        mu=block.mu_nd,
-        p=block.P_nd,
-        p_offset=block.P_offset_nd,
-        fvisc=block.F_body_nd[..., 1:],
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        t=block.T_nd,
-        cp=block.cp_nd,
-        kappa=block.kappa_nd,
-        pr_turb=0.9,
-        xlength=block.xlen_sq_nd,
-        mu_turb=mu_turb,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
-        tq=tq,
-        planes=planes,
-        rows=rows,
-        kb=min(8, nk - 1),
-        **block.ijk_wall_visc,
-        **block.Omega_wall_nd,
-        i_cusp_start=i_cusp_start,
-        i_cusp_end=i_cusp_end,
-    )
-    block.F_body_nd.flags.writeable = False
-    return block.F_body_nd[..., 1].copy()
-
-
-@pytest.mark.skipif(
-    not hasattr(ember.fortran, "set_visc_force_tqf_selfk"),
-    reason="bench arm viscous_tauq_selfk not in this build",
-)
-def test_viscous_selfk_seam_free_matches_exchange():
-    """The seam-free arm reproduces the exchanged answer without exchanging.
-
-    This is the claim the arm is built on: for a block periodic to ITSELF in
-    k, the halo exchange is a copy from the block's own far cell plane, so the
-    kernel can read that plane directly and skip the exchange entirely.
-
-    Gated against `fx_exchange` rather than against the no-exchange reference,
-    because those two differ by tens of percent AT the seam -- a kernel that
-    quietly fell back to the zero-gradient seam would sail through a
-    comparison with `fx_noexchange` and fail this one.
-    """
-    block = _build_periodic_block()
-    grid = ember.grid.Grid([block])
-    comm = PeriodicCommunicator(grid, grid.connectivity.periodic.pair())
-
-    fx_exchange = _fvisc_x(block, comm)
-    fx_noexchange = _fvisc_x(block, None)
-    fx_selfk = _fvisc_x_selfk(block)
-
-    scale = np.max(np.abs(fx_exchange))
-    tol = 1e-6 * scale
-
-    # The seam must actually matter here, or the test proves nothing: if the
-    # exchange were a no-op on this case, a kernel that ignored the seam
-    # entirely would pass. So require the exchange to move fvisc by at least
-    # 100x the tolerance the comparison below runs at -- that ratio IS the
-    # test's discriminating power.
-    #
-    # The margin is deliberately modest because this block is built to be
-    # smooth and exactly periodic across the seam (that is what makes claim
-    # (B) meaningful), so the exchange only has the float32 truncation of a
-    # continuous field to correct: ~5e-4 of scale here, against a 1e-6
-    # comparison. A case with a discontinuity at the seam would separate them
-    # much further, but would not support the twin test.
-    seam_gap = np.max(np.abs(fx_exchange - fx_noexchange))
-    assert seam_gap > 100.0 * tol, (
-        f"the exchange moves fvisc by only {seam_gap:.3e} ({seam_gap / scale:.1e} "
-        "of scale) on this case, so it cannot discriminate a seam-free kernel"
-    )
-
-    # The whole field, not just the interior column (A) inspects: the seam-free
-    # arm reproduces production everywhere, seam cells included.
-    np.testing.assert_allclose(fx_selfk, fx_exchange, rtol=0, atol=tol)
-
-    # And it must not merely be reproducing the zero-gradient seam.
-    assert np.max(np.abs(fx_selfk - fx_noexchange)) > 100.0 * tol
-
-
-def _fvisc_x_selfk(block, between_phases=None):
-    """The seam-free arm: four tau/q planes, no exchange."""
-    return _fvisc_x_fused(block, "set_visc_force_tqf_selfk", 4, between_phases)
-
-
-def _fvisc_x_tqf(block, between_phases=None):
-    """The PARENT fused arm, which does read the k halo. Reference for the
-    poison test below: same call shape, two rolling tau/q planes not four."""
-    return _fvisc_x_fused(block, "set_visc_force_tqf", 2, between_phases)
-
-
-@pytest.mark.skipif(
-    not hasattr(ember.fortran, "set_visc_force_tqf_selfk"),
-    reason="bench arm viscous_tauq_selfk not in this build",
-)
-def test_viscous_selfk_never_reads_the_k_halo():
-    """The seam-free arm is independent of the k halo slots, provably.
-
-    The transparency test above shows the arm gets the right answer without an
-    exchange.  This shows *why*: it never reads the exchanged slots at all.
-    Poisoning the two k-direction halo planes with NaN leaves its output
-    bitwise unchanged, while the same poison floods the parent arm's fvisc
-    with NaN.
-
-    That is the claim "there is nothing to exchange" reduced to something a
-    single assertion can establish, and unlike a timing comparison it cannot
-    be confounded by codegen.  Only the k planes are poisoned: the i/j halo
-    edges are unrelated to the k seam and both arms legitimately read them.
-    """
-    block = _build_periodic_block()
-    grid = ember.grid.Grid([block])
-    comm = PeriodicCommunicator(grid, grid.connectivity.periodic.pair())
-    _fvisc_x(block, comm)  # seed the halo, including the i/j edges
-
-    ni, nj, nk = block.shape
-    halo = block.tau_q_halo
-    clean = np.array(halo, copy=True)
-
-    def poison():
-        # Only the two k-direction halo planes. The i/j edges are unrelated to
-        # the k seam and both arms legitimately read them.
-        halo[1:ni, 1:nj, 0, :] = np.nan
-        halo[1:ni, 1:nj, nk, :] = np.nan
-
-    reference = _fvisc_x_selfk(block)
-    poisoned = _fvisc_x_selfk(block, between_phases=poison)
-
-    # The poison must still be in place when the kernel returns -- the fused
-    # arms take tau_cell/q_cell as intent(in), so nothing should have cleared
-    # it, and if phase 1 had erased it (it rewrites every halo slot on its way
-    # out) this test would be asserting nothing at all.
-    assert np.isnan(halo[1:ni, 1:nj, 0, :]).all()
-
-    assert not np.isnan(poisoned).any()
-    np.testing.assert_array_equal(poisoned, reference)
-
-    # Trap armed: the same poison at the same point floods the PARENT arm,
-    # which does read those slots. Without this, a kernel that had somehow
-    # stopped reading tau_cell entirely would pass on a technicality.
-    if hasattr(ember.fortran, "set_visc_force_tqf"):
-        assert np.isnan(_fvisc_x_tqf(block, between_phases=poison)).any(), (
-            "poisoning the k halo left set_visc_force_tqf unaffected, so the "
-            "poison is not reaching the slots this test is about"
-        )
-    halo[...] = clean
-
-
 def test_exchange_faces_fills_both_blocks():
     """Both sides of a cross-block periodic pair get their halo layer filled.
 
@@ -473,7 +171,7 @@ def test_exchange_faces_fills_both_blocks():
     comm = PeriodicCommunicator(grid, grid.connectivity.periodic.pair())
 
     for block in (up, dn):
-        _fill_faces(block)
+        viscous_util.fill_faces(block, PR_TURB)
 
     # k1 is index 4 in the tau_q_faces tuple, knk index 5.
     before = [np.array(b.tau_q_faces[i][:, :, :, 1], copy=True)
@@ -511,7 +209,7 @@ def test_exchange_faces_respects_subset_patches():
     block = _build_periodic_block(i_lims=[(0, 1), (3, 4)])
     grid = ember.grid.Grid([block])
     comm = PeriodicCommunicator(grid, grid.connectivity.periodic.pair())
-    _fill_faces(block)
+    viscous_util.fill_faces(block, PR_TURB)
 
     k1 = block.tau_q_faces[4]
     before = np.array(k1[:, :, :, 1], copy=True)
@@ -533,126 +231,3 @@ def test_exchange_faces_respects_subset_patches():
         np.where(wall, k1[:, :, :, 1], 0.0),
         np.where(wall, -k1[:, :, :, 0], 0.0),
     )
-
-
-def _fvisc_x_faces(block, comm):
-    """x-momentum viscous force through the surface-buffer path, end to end.
-
-    Produces the halo with the O(surface) boundary kernel, exchanges it, and
-    consumes it -- never touching the full-volume tau/q buffer, which is
-    poisoned here to prove exactly that.
-    """
-    block.F_body_nd.flags.writeable = True
-    block.F_body_nd.fill(0.0)
-
-    _fill_faces(block)
-    if comm is not None:
-        comm.exchange_faces()
-
-    # The claim is that this path needs nothing from the volume buffer, so
-    # leave it holding nothing usable.
-    block.tau_q_halo[...] = np.nan
-
-    ni, nj, nk = block.shape
-    # One carve for the whole viscous phase, so these cannot land on
-    # top of the tau/q volume at the arena's head.
-    _, _, planes, rows = ember.block._carve_viscous(block)
-    tq = np.zeros((ni + 1, nj + 1, 9, 2), dtype=np.float32, order="F")
-    f = block.tau_q_faces
-    i_cusp_start, i_cusp_end = block.i_cusp
-    ember.fortran.set_visc_force_tqf_faces(
-        cons=block.conserved_nd,
-        cons_cell=block.conserved_cell_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        omega_block=block.Omega_nd,
-        r=block.r_nd,
-        mu=block.mu_nd,
-        p=block.P_nd,
-        p_offset=block.P_offset_nd,
-        fvisc=block.F_body_nd[..., 1:],
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        t=block.T_nd,
-        cp=block.cp_nd,
-        kappa=block.kappa_nd,
-        pr_turb=0.9,
-        xlength=block.xlen_sq_nd,
-        mu_turb=block._get_data_by_keys(
-            ("mu_turb",), raise_uninit=False, writeable=True
-        ),
-        f_i1=f[0], f_ini=f[1], f_j1=f[2], f_jnj=f[3], f_k1=f[4], f_knk=f[5],
-        tq=tq,
-        planes=planes,
-        rows=rows,
-        kb=min(8, nk - 1),
-        **block.ijk_wall_visc,
-        **block.Omega_wall_nd,
-        i_cusp_start=i_cusp_start,
-        i_cusp_end=i_cusp_end,
-    )
-    block.F_body_nd.flags.writeable = False
-    return block.F_body_nd[..., 1].copy()
-
-
-@pytest.mark.skipif(
-    not hasattr(ember.fortran, "set_visc_force_tqf_faces"),
-    reason="bench arm viscous_tauq_faces not in this build",
-)
-@pytest.mark.parametrize("i_lims", [None, [(0, 1), (3, 4)]])
-def test_viscous_faces_path_matches_production(i_lims):
-    """The surface-buffer path reproduces production without the volume buffer.
-
-    Run with the seam spanning the whole face and with it split into two
-    subsets, because the subset case is what catches an exchange that assumed
-    whole-face coverage.
-
-    The tolerance is looser than the fused arms' own gates (~0.05 ulp) for a
-    reason worth stating: ``set_tau_q_faces`` evaluates the producer per cell
-    where ``set_tau_q_soa`` evaluates it a row at a time, and the two round
-    differently. The gap concentrates in ``q(3)``, whose six-term sum collapses
-    on an orthogonal mesh to a difference of two nearly-equal temperature sums,
-    so its relative error is amplified by the cancellation. Every other
-    component agrees to ~4e-7 of the field scale.
-    """
-    block = _build_periodic_block(i_lims=i_lims)
-    grid = ember.grid.Grid([block])
-    comm = PeriodicCommunicator(grid, grid.connectivity.periodic.pair())
-
-    reference = _fvisc_x(block, comm)
-    scale = np.max(np.abs(reference))
-    got = _fvisc_x_faces(block, comm)
-
-    assert not np.isnan(got).any(), (
-        "the faces path produced NaN, so it read the poisoned volume buffer"
-    )
-    np.testing.assert_allclose(got, reference, rtol=0, atol=1e-5 * scale)
-
-
-@pytest.mark.skipif(
-    not hasattr(ember.fortran, "set_visc_force_tqf_faces"),
-    reason="bench arm viscous_tauq_faces not in this build",
-)
-def test_viscous_faces_path_serves_a_sealed_block():
-    """No periodic patches at all, and the faces path still works.
-
-    This is the point of the surface buffers over the seam-free arm they
-    replace: ``set_visc_force_tqf_selfk`` needs a block periodic to itself in
-    k and refuses anything else, while this path is indifferent. A block whose
-    every face is a wall exercises the ``(2*wall - 1)`` seeding with no
-    exchange involved at all.
-    """
-    block = _build_periodic_block()
-    for patch in list(block.patches.periodic):
-        block.patches.remove(patch)
-    block.clear_cache()
-
-    assert not block.patches.periodic
-    reference = _fvisc_x(block, None)
-    got = _fvisc_x_faces(block, None)
-    scale = np.max(np.abs(reference))
-    assert not np.isnan(got).any()
-    np.testing.assert_allclose(got, reference, rtol=0, atol=1e-5 * scale)

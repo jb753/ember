@@ -1,5 +1,19 @@
 # Prototype: exchange-free fused viscous pass for a k-self-periodic block
 
+> **OUTCOME (this study is closed).** The surface-buffer scheme it ends on was
+> adopted: `set_tau_q_faces` + `exchange_faces` + a fused, j-panelled
+> `set_visc_force` are production, `set_tau_q_soa` and the tau/q volume are
+> deleted, and `Block.tau_q_halo` with them -- the scratch arena falls
+> 41.5 -> 23.3 MB at 273x65x57. Two things this document did not have: the
+> boundary producer had to take the strip-mined row form (per-cell evaluation
+> cost 6.5 ns per cell of the block against 2.6, which was the whole of the
+> scheme's initial 7% regression), and the fused walk had to be panelled in j
+> -- the lever named as untried below. Unpanelled it is +40% at 8 ranks while
+> being 8% faster serially. Final numbers in `bench/README.md`; the
+> `set_visc_force_tqf*` arms and the volume kernels they were measured against
+> no longer exist, so nothing here is re-runnable. Kept for the attribution
+> work, the method warnings, and the two null results.
+
 ## Context
 
 The two viscous kernels hand ~40% of the pair's DRAM traffic to each other

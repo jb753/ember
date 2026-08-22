@@ -30,20 +30,17 @@ REPS="${REPS:-30}"
 ARMS="${ARMS:-prod staged split multall nodal tbaos prodsoa rinv}"
 RESULTS="${RESULTS:-bench/results/bench_all_arms.jsonl}"
 # Which kernel's arm set to time: `residual` (bench/residual_arms.py), `irs`
-# (bench/irs_arms.py) or `visc`/`tauq` (bench/visc_arms.py). Also picks the
+# (bench/irs_arms.py) or `viscpair` (bench/visc_arms.py). Also picks the
 # symbol fingerprinted below.
 KERNEL="${KERNEL:-residual}"
-# viscpair only: make the duct's k faces periodic ("full" or "hmesh"). The
-# seam-free arm needs a real seam to be eligible at all; without one
-# callers_pair skips it and the fused arms never exercise the halo path they
-# model.
+# viscpair only: make the duct's k faces periodic ("full" or "hmesh"). Without
+# a seam exchange_faces moves nothing, so the pair never pays for it.
 PERIODIC_K="${PERIODIC_K:-}"
 PERIODIC_ARGS=()
 [ -n "$PERIODIC_K" ] && PERIODIC_ARGS=(--periodic-k "$PERIODIC_K")
 case "$KERNEL" in
     irs | update) GAUGE_SYM="${GAUGE_SYM:-smooth_residual_tri_tiled_}" ;;
-    visc | viscpair) GAUGE_SYM="${GAUGE_SYM:-set_visc_force_}" ;;
-    tauq)         GAUGE_SYM="${GAUGE_SYM:-set_tau_q_soa_}" ;;
+    viscpair)     GAUGE_SYM="${GAUGE_SYM:-set_visc_force_}" ;;
     *)            GAUGE_SYM="${GAUGE_SYM:-set_residual_}" ;;
 esac
 

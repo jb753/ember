@@ -65,7 +65,7 @@ def _reference(grid, b, dampin, sf):
     i_cusp_start, i_cusp_end = b.i_cusp
     kb = min(ember.grid._KB_SLAB, nk - 1)
     njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
-    planes, rows = util.carve_view(b.tau_q_halo, (ni, njp, 5, 2), (ni, 5, 3))
+    planes, rows = util.carve_view(b.scratch, (ni, njp, 5, 2), (ni, 5, 3))
     du = b.residual_nd
     du.flags.writeable = True
     ember.fortran.set_residual(
