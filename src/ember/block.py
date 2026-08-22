@@ -483,6 +483,8 @@ Indexing and slicing return a view over a sub-region::
     print(b2.x)  # -6.0
 """
 
+import logging
+
 import ember._struct
 import ember.perturbation
 import ember.collections
@@ -492,6 +494,8 @@ from ember import util
 from ember._struct import cached_array, cached_object, derived_array, scratch_array
 from functools import wraps
 import ember.fortran
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "Block",
@@ -859,10 +863,15 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
                        rolling planes and rows
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
-      scree / RK+MG    the eleven multigrid coarse buffers + the caller's
-                       cell-shaped increment
+      scree / RK, MG   the eleven multigrid coarse buffers + the caller's
+                       rolling two-plane increment (both schemes fuse the
+                       final prolong with the cell->node scatter)
+      scree / RK, no MG  the caller's full-volume cell-shaped increment, which
+                       the multigrid-off kernels still materialise
 
-    The multigrid phase binds at every shape tried. Sizes are computed, never
+    ``update_sources`` binds at every shape tried, its full-volume tau/q the
+    single largest buffer in any phase; the multigrid phase is next. Sizes are
+    computed, never
     written as literals, so a buffer added to a phase shows up here rather than
     silently overrunning its neighbour -- which is what tests/test_scratch_arena
     exists to enforce.
@@ -879,8 +888,8 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     return max(
         (ni + 1) * (nj + 1) * (nk + 1) * 9 + faces + visc_pr,  # update_sources
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,      # update_residual
-        mg + (ni - 1) * (nj - 1) * (nk - 1) * 5,               # scree
-        mg + (ni - 1) * (nj - 1) * 5 * 2,                      # RK + multigrid
+        mg + (ni - 1) * (nj - 1) * 5 * 2,                      # scree/RK + multigrid
+        (ni - 1) * (nj - 1) * (nk - 1) * 5,                    # scree/RK, no multigrid
     )
 
 
@@ -3255,7 +3264,14 @@ class Block(ember._struct.StructuredData):
         single kernel call or between calls, see :attr:`store` the persistent
         buffer.
         """
-        return util.allocate_or_reuse(out, (_scratch_len(self.shape),))
+        # First touch only: scratch_array calls this once per block, and the
+        # arena is one of the two big solver allocations.
+        n = _scratch_len(self.shape)
+        logger.debug(
+            "alloc: scratch arena %d elements (%.1f MB) for block %s",
+            n, n * 4 / 1024**2, self.shape,
+        )
+        return util.allocate_or_reuse(out, (n,))
 
     @derived_array
     def sinBeta(self):
@@ -3282,6 +3298,11 @@ class Block(ember._struct.StructuredData):
         -------
         Array, shape (ni, nj, nk, 5)
         """
+        # First touch only, like scratch: the other big solver allocation.
+        logger.debug(
+            "alloc: store buffer %.1f MB for block %s",
+            int(np.prod(self.shape)) * 5 * 4 / 1024**2, self.shape,
+        )
         return util.zeros(self.shape + (5,))
 
     @derived_array

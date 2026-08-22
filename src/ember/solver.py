@@ -277,6 +277,25 @@ from ember.grid import DivergenceError
 logger = logging.getLogger(__name__)
 
 
+def _log_rss(what, *args):
+    """Debug-log process RSS and its high-water mark at a labelled point.
+
+    ``what`` is a printf-style label, formatted with ``args`` only when debug
+    logging is on. The high-water mark comes from the kernel (``VmHWM``), so it
+    catches transient allocations that came and went between two probes --
+    which is the whole point of scattering these through the march.
+    """
+    if not logger.isEnabledFor(logging.DEBUG):
+        return
+    rss, peak = util.rss_bytes()
+    logger.debug(
+        "rss: %s -- %.1f MB resident, %.1f MB peak",
+        what % args if args else what,
+        rss / 1024**2,
+        peak / 1024**2,
+    )
+
+
 class BaseSolver(ABC):
     """Common interface for in-place flow solvers.
 
@@ -419,21 +438,10 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
     for block in grid:
         ni, nj, nk = block.shape
         cell_shape = (ni - 1, nj - 1, nk - 1, 5)
-        # Borrow the nodal scratch (shape (ni,nj,nk,5)) as the cell-shaped
-        # increment buffer -- a zero-copy view. block.store is likewise sized to
-        # the nodal shape (shared with the RK path) but the Denton residual
-        # history is cell-shaped, so carve a leading cell-shaped view of it too.
-        # ONE carve for everything this kernel gets from the arena. tmp and
-        # the multigrid scratch are live in the same call, so carving them
-        # together is what makes them disjoint -- util.carve_view packs the
-        # shapes end to end and guarantees it. block.store is a separate,
-        # persistent buffer and is carved on its own.
-        tmp, *mg_bufs = util.carve_view(
-            block.scratch,
-            cell_shape,
-            *mg_coarse_shapes(ni, nj, nk, max(n_levels_eff, 0)),
-        )
-        mg_scratch = dict(zip(MG_COARSE_NAMES, mg_bufs))
+        # block.store is sized to the nodal shape (shared with the RK path) but
+        # the Denton residual history is cell-shaped, so carve a leading
+        # cell-shaped view of it. It is a separate, persistent buffer from the
+        # arena and so is carved on its own.
         store_cell = util.carve_view(block.store, cell_shape)
         # residual_nd is read here (a cache hit from the loop's get_convergence, or
         # a fresh evaluation) BEFORE the kernel runs. Evaluating residual_nd
@@ -452,13 +460,26 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
             # coef_l = cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1) (advance_rk_stage_mg's
             # formula at alpha=1, since scree takes one full-weight step), with
             # the coarse timestep the volume-weighted mean of dt_vol over the
-            # block. sf_irs > 0 selects the coarse-IRS kernel; sf_irs == 0 selects
+            # block. The wrapper's final factor-2 hop is fused with the
+            # cell->node scatter, so like the RK path it takes a rolling
+            # two-plane buffer rather than a full-volume increment. ONE carve
+            # for everything the kernel gets from the arena: rbuf and the
+            # multigrid scratch are live in the same call, so carving them
+            # together is what makes them disjoint -- util.carve_view packs the
+            # shapes end to end and guarantees it.
+            # sf_irs > 0 selects the coarse-IRS kernel; sf_irs == 0 selects
             # the plain _noirs kernel, which enters no smoothing code at all (no
             # Fortran-side IRS branch -- the two share the engine and differ only
             # in the smoother passed). The fine term is not smoothed here: it
             # already carries the residual the caller's update_residual smoothed.
             # Coarse scratch is carved from tau_q_halo, dead outside the viscous
             # pass (already completed and consumed before this call).
+            rbuf, *mg_bufs = util.carve_view(
+                block.scratch,
+                (ni - 1, nj - 1, 5, 2),
+                *mg_coarse_shapes(ni, nj, nk, n_levels_eff),
+            )
+            mg_scratch = dict(zip(MG_COARSE_NAMES, mg_bufs))
             kernel = (
                 ember.fortran.scree_mg_irs
                 if sf_irs > 0.0
@@ -475,7 +496,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
-                tmp=tmp,
+                rbuf=rbuf,
                 **mg_scratch,
             )
         else:
@@ -483,7 +504,9 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
             # q = 2*residual - store in store, builds the increment cfl*dt_vol*q,
             # rolls the history (store <- residual) and frozen-scatters the
             # increment straight onto cons -- bypassing the setters so the P/T
-            # cache stays frozen. Untouched by fac_mgrid/n_levels.
+            # cache stays frozen. Untouched by fac_mgrid/n_levels. This path
+            # still materialises the full-volume increment, as rk_plain does.
+            tmp = util.carve_view(block.scratch, cell_shape)
             ember.fortran.scree_plain(
                 cons=block.conserved_nd,
                 residual=block.residual_nd,
@@ -875,6 +898,9 @@ def _run(grid, conf):
     n_log = -(-conf.n_step // conf.n_step_log)
     hist = ConvergenceHistory.from_grid(n_log, grid)
 
+    _log_rss("march start, n_levels=%d, shape(s) %s", conf.n_levels,
+             [block.shape for block in grid])
+
     for i_step in range(conf.n_step):
         #
         # We overwrote conserved_nd in place last step
@@ -902,10 +928,12 @@ def _run(grid, conf):
         if i_step % n_step_source == 0:
             # grid.update_filter(conf.delta_filt)
             grid.update_sources(conf.inviscid, conf.gain_filt)
+            _log_rss("step %d after update_sources", i_step)
         grid.update_timestep(rf=0.2, fac_visc=conf.fac_visc)
 
         # Prepare the residual
         grid.update_residual(dampin=conf.dampin, sf=conf.sf_resid)
+        _log_rss("step %d after update_residual", i_step)
 
         # Convergence logging of the pre-march state
         if i_step % conf.n_step_log == 0:
@@ -914,6 +942,7 @@ def _run(grid, conf):
                 "%s",
                 hist.format_message(n_step=conf.n_step),
             )
+            _log_rss("step %d after get_convergence", i_step)
 
         # Take a step with the selected integrator.  Both reuse the first
         # residual evaluated above, RK then recalculates each substep
@@ -929,8 +958,11 @@ def _run(grid, conf):
         else:
             rk_step(grid, conf)
 
+        _log_rss("step %d after integrator", i_step)
+
         # Smooth the post-step conserved solution
         grid.smooth(conf.sf4 * conf.cfl, conf.sf2 * conf.cfl)
+        _log_rss("step %d after smooth", i_step)
 
         # Pseudotime avearge over last n_step_avg steps
         if i_step >= (conf.n_step - conf.n_step_avg):
@@ -941,6 +973,8 @@ def _run(grid, conf):
     # invalid conserved_nd with a zeroed average buffer and destroy the evidence.
     if not hist.diverged:
         grid.finalise_average()
+
+    _log_rss("march end, n_levels=%d", conf.n_levels)
 
     # A completed march logs on every one of the ceil(n_step / n_step_log) rows
     # that from_grid allocated, so this only bites when the loop broke early:
@@ -991,15 +1025,19 @@ def _run_fmg(grid, conf):
 
     # Build finest -> coarsest, then reverse. resample carries the already-set
     # fine guess down, so the coarsest starts from the coarsened cold start.
+    _log_rss("fmg: before building the coarse chain")
     chain = [grid]
     for _ in range(conf.n_levels):
         chain.append(chain[-1].resample(0.5))
+        _log_rss("fmg: resampled level with shape(s) %s",
+                 [block.shape for block in chain[-1]])
     chain.reverse()  # chain[-1] is the original `grid`
 
     histories = []
     for i, level_grid in enumerate(chain):  # i == in-step MG depth for this mesh
         if i > 0:
             level_grid.interp_from_grid(chain[i - 1])  # prolong previous solution
+            _log_rss("fmg: interpolated onto level %d", i)
         logger.info(
             "FMG level %d/%d, shape(s) %s",
             i,
@@ -1007,4 +1045,5 @@ def _run_fmg(grid, conf):
             [block.shape for block in level_grid],
         )
         histories.append(_run(level_grid, replace(conf, n_levels=i)))
+        _log_rss("fmg: finished level %d", i)
     return histories

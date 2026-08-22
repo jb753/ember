@@ -5,7 +5,7 @@
 ! over one shared, scheme-agnostic engine (mg_coarse_correction) and a set of
 ! branch-free building blocks. No configuration is decided by a runtime `if`
 ! inside a kernel: the scheme is fixed by which fine quantity `q` the wrapper
-! forms and which scatter tail it calls; multigrid on/off is which wrapper the
+! forms and what it passes as the scatter's `base`; multigrid on/off is which wrapper the
 ! caller picks (mg-off wrappers never touch the coarse engine); IRS on/off is the
 ! `smoother` dummy-procedure argument (smooth_residual_tri_tiled vs mg_smooth_noop).
 ! See the banner above mg_coarse_correction for the algorithm and the wrapper
@@ -214,72 +214,27 @@ subroutine mg_prolong2x_acc(src, nci, ncj, nck, out, nfi, nfj, nfk, np, &
 end subroutine mg_prolong2x_acc
 
 
-! Final cascade hop onto the fine grid, fused with the fine term in one write:
-!   tmp = scale*dt_vol*q + interp_2x(src)
-! q is the scheme's fine quantity (residual for RK, 2*residual-store for scree),
-! formed by the wrapper -- this block is scheme-agnostic (no denton branch).
-subroutine mg_prolong2x_fine(src, nci, ncj, nck, tmp, scale, dt_vol, q, &
-        ni, nj, nk, np, aplane, bb, nc1j, nc1k)
-    implicit none
-    integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np, nc1j, nc1k
-    real, intent(in)    :: src(nci, ncj, nck, np)
-    real, intent(in)    :: scale
-    real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
-    real, intent(in)    :: q(ni-1, nj-1, nk-1, np)
-    real, intent(out)   :: tmp(ni-1, nj-1, nk-1, np)
-    real, intent(inout) :: aplane(ni-1, nc1j)
-    real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
-    integer :: i, j, k, ip, jc, kc
-    integer :: jlo, jhi, klo, khi
-    real    :: wj, wk
-    real    :: ft
-
-    do ip = 1, np
-        do kc = 1, nck
-            do jc = 1, ncj
-                call mg_interp_i2x(src(1,jc,kc,ip), nci, aplane(1,jc), ni-1)
-            end do
-            do j = 1, nj-1
-                call mg_bracket2x(j, ncj, jlo, jhi, wj)
-                do i = 1, ni-1
-                    bb(i,j,kc,ip) = aplane(i,jlo)*(1e0-wj) &
-                                  + aplane(i,jhi)*wj
-                end do
-            end do
-        end do
-    end do
-
-    do ip = 1, np
-        do k = 1, nk-1
-            call mg_bracket2x(k, nck, klo, khi, wk)
-            do j = 1, nj-1
-                do i = 1, ni-1
-                    ft = scale * dt_vol(i,j,k) * q(i,j,k,ip)
-                    tmp(i,j,k,ip) = ft + bb(i,j,klo,ip)*(1e0-wk) &
-                                       + bb(i,j,khi,ip)*wk
-                end do
-            end do
-        end do
-    end do
-end subroutine mg_prolong2x_fine
-
-
-! Fused final cascade hop + cell->node scatter (RK path only). Instead of
-! writing the full-volume cell increment `tmp` (mg_prolong2x_fine) and
+! Fused final cascade hop + cell->node scatter, shared by the RK and scree
+! multigrid wrappers. Instead of writing a full-volume cell increment and
 ! re-reading it in cell_to_node_generic, this produces the increment one fine
 ! k-plane at a time into a rolling two-plane buffer `rbuf` and scatters each
 ! finished node plane straight into `cons`, so the 5-component increment is
-! never materialised full-volume -- removing that write+read round-trip.
+! never materialised full-volume -- removing that write+read round-trip and,
+! with it, the (ni-1)*(nj-1)*(nk-1)*np arena slot it used to need.
 !
-! Arithmetic mirrors mg_prolong2x_fine + cell_to_node_generic term-for-term
-! and in the same summation order: the per-plane increment is the identical
-! `scale*dt_vol*q + k-interp(bb)` expression, and each node value is the same
+! The increment is `scale*dt_vol*q + k-interp(bb)` and each node value is the
 ! average of its surrounding cell increments (interior 1/8 of 8 cells, i/j
-! faces 1/4 of 4, edges 1/2 of 2, corners 1 of 1). Cell plane kc feeds node
+! faces 1/4 of 4, edges 1/2 of 2, corners 1 of 1) -- term-for-term and in the
+! same summation order as the split form it replaced. Cell plane kc feeds node
 ! plane kc (as the k-upper plane) and, at the ends, the two k-boundary node
-! planes. `base` is the snapshot the RK scatter adds onto (distinct from
-! `cons`); the scree scatter is in-place and rolls the Denton history, so it
-! keeps the unfused mg_prolong2x_fine + scree_roll_and_scatter path.
+! planes.
+!
+! `base` is what the scatter adds onto. RK passes its sub-stage snapshot, an
+! array distinct from `cons`. scree scatters IN PLACE and passes `cons` itself
+! for both, the same aliased call cell_to_node makes into cell_to_node_generic:
+! every node is read and written at its own index within one statement, so the
+! aliasing is benign. scree then rolls its Denton history separately
+! (scree_roll), which needs no increment buffer.
 subroutine mg_prolong2x_fine_scatter(src, nci, ncj, nck, base, cons, &
         scale, dt_vol, q, ni, nj, nk, np, aplane, bb, rbuf, nc1j, nc1k)
     implicit none
@@ -297,7 +252,7 @@ subroutine mg_prolong2x_fine_scatter(src, nci, ncj, nck, base, cons, &
     integer :: jlo, jhi, klo, khi
     real    :: wj, wk
 
-    ! Phase A: build bb (the k-interpolation source planes), as mg_prolong2x_fine.
+    ! Phase A: build bb, the k-interpolation source planes (i then j interp).
     do ip = 1, np
         do kc = 1, nck
             do jc = 1, ncj
@@ -414,9 +369,10 @@ end subroutine mg_prolong2x_fine_scatter
 
 
 ! Scheme-agnostic fine term (the multigrid-off increment):  tmp = scale*dt_vol*q.
-! Grouping (scale*dt_vol)*q matches the fused fine term in mg_prolong2x_fine, so
-! an mg-off march is byte-identical to an mg-on march whose coarse correction is
-! exactly zero (fmgrid == 0).
+! Grouping (scale*dt_vol)*q matches the fused fine term in
+! mg_prolong2x_fine_scatter, so an mg-off march is byte-identical to an mg-on
+! march whose coarse correction is exactly zero (fmgrid == 0), up to that
+! path's contraction of the added zero.
 subroutine fine_term(q, dt_vol, scale, tmp, ni, nj, nk, np)
     implicit none
     integer, intent(in) :: ni, nj, nk, np
@@ -462,16 +418,15 @@ subroutine scree_form_q(store, residual, ni, nj, nk, np)
 end subroutine scree_form_q
 
 
-! Roll the Denton history (store = residual) and frozen-pressure accumulate the
-! increment onto cons. Shared post-march tail of the scree wrappers; called only
-! after the engine/fine-term has consumed q from store.
-subroutine scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+! Roll the Denton history: store = residual, discarding the q it held. Called
+! only after the engine/fine-term has consumed q from store. Split out of
+! scree_roll_and_scatter so the fused scree tail, whose scatter happens inside
+! mg_prolong2x_fine_scatter, can roll without a second increment buffer.
+subroutine scree_roll(residual, store, ni, nj, nk, np)
     implicit none
     integer, intent(in) :: ni, nj, nk, np
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
-    real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)
-    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
     integer :: i, j, k, ip
     do ip = 1, np
         do k = 1, nk-1
@@ -482,6 +437,21 @@ subroutine scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
             end do
         end do
     end do
+end subroutine scree_roll
+
+
+! Roll the Denton history and frozen-pressure accumulate the full-volume
+! increment onto cons. Tail of the multigrid-OFF scree wrapper, which still
+! materialises the increment (as rk_plain does); the multigrid-on wrappers use
+! the fused mg_prolong2x_fine_scatter and scree_roll instead.
+subroutine scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    call scree_roll(residual, store, ni, nj, nk, np)
     call cell_to_node(tmp, cons, ni, nj, nk, np)
 end subroutine scree_roll_and_scatter
 
@@ -499,9 +469,11 @@ end subroutine scree_roll_and_scatter
 !   scree_plain     rk_plain      fine_term + scatter          (multigrid off)
 !   scree_mg_noirs  rk_mg_noirs   engine(mg_smooth_noop) + scatter
 !   scree_mg_irs    rk_mg_irs     engine(smooth_residual_tri_tiled) + scatter
-! scree wrappers form q in store (scree_form_q) and roll+frozen-scatter
-! (scree_roll_and_scatter); rk wrappers pass residual as q and scatter off the
-! sub-stage snapshot (cell_to_node_generic).
+! scree wrappers form q in store (scree_form_q) and roll the history
+! (scree_roll); rk wrappers pass residual as q. Both multigrid-on wrappers
+! scatter through the fused mg_prolong2x_fine_scatter, scree frozen-in-place
+! (base = cons) and rk off the sub-stage snapshot (base = snapshot); the
+! multigrid-off pair still materialises a full-volume increment.
 !
 ! Restriction is HIERARCHICAL: a level-l block-sum equals eight level-(l-1)
 ! block-sums (the block-sum is associative), so only level 1 reads the fine grid;
@@ -743,9 +715,8 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
         cur_k = dkb(lvl)
     end do
     ! Leaves the finest-coarse correction in acc0 at (nc1i,nc1j,nc1k). The final
-    ! factor-2 hop onto the fine grid is done by the caller so the RK path can
-    ! fuse it with the cell->node scatter (mg_prolong2x_fine_scatter) while the
-    ! scree path keeps the separate mg_prolong2x_fine + roll/scatter tail.
+    ! factor-2 hop onto the fine grid is done by the caller so that both schemes
+    ! can fuse it with the cell->node scatter (mg_prolong2x_fine_scatter).
 end subroutine mg_coarse_correction
 
 
@@ -775,7 +746,7 @@ end subroutine scree_plain
 
 ! scree, multigrid on, coarse-level IRS.
 subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
-        fmgrid, expon_mgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -787,7 +758,7 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
-    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
     real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
     real, intent(inout) :: aplane(ni-1, nc1j)
     real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
@@ -806,15 +777,16 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
                        dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-    call mg_prolong2x_fine(acc0, nc1i, nc1j, nc1k, tmp, cfl, dt_vol, store, &
-                           ni, nj, nk, np, aplane, bb, nc1j, nc1k)
-    call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+    call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
+                           cfl, dt_vol, store, ni, nj, nk, np, &
+                           aplane, bb, rbuf, nc1j, nc1k)
+    call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_irs
 
 
 ! scree, multigrid on, no smoothing.
 subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
-        fmgrid, expon_mgrid, sf_irs, n_levels, tmp, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -826,7 +798,7 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
-    real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
     real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
     real, intent(inout) :: aplane(ni-1, nc1j)
     real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
@@ -845,9 +817,10 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
                        dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
-    call mg_prolong2x_fine(acc0, nc1i, nc1j, nc1k, tmp, cfl, dt_vol, store, &
-                           ni, nj, nk, np, aplane, bb, nc1j, nc1k)
-    call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
+    call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
+                           cfl, dt_vol, store, ni, nj, nk, np, &
+                           aplane, bb, rbuf, nc1j, nc1k)
+    call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_noirs
 
 
