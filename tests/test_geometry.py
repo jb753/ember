@@ -976,3 +976,52 @@ def test_vol_annular_sector_exact_at_offset_theta():
         xrt = np.asfortranarray(np.stack([x, r, t], axis=-1))
         vol = ember.block._get_vol(xrt, *_face_areas(xrt))
         np.testing.assert_allclose(vol, expected, rtol=1e-12)
+
+
+@pytest.mark.parametrize("chunk", [1, 2, 3, 7, 8, 64])
+def test_geometry_is_invariant_to_the_slab_walk(chunk, monkeypatch):
+    """Face areas and volumes do not depend on how the k walk is chunked.
+
+    The helpers promote the float32 coordinates to the double precision the
+    kernels need one k-slab at a time, which is what keeps the promotion off
+    the process's peak RSS. Every stencil is contained in its own slab, so the
+    chunk size must not be able to change a single value -- and the way it
+    WOULD change one is an off-by-one in the node planes a slab carries, which
+    only shows at a slab boundary. Sweeping the chunk past 1, past the block's
+    own k extent, and across divisors and non-divisors of it puts a boundary
+    at every k.
+    """
+    xrt = _warped_grid(0.05)
+    nk = xrt.shape[2]
+
+    monkeypatch.setattr(ember.block, "_GEOM_KCHUNK", nk + 8)
+    ref = (*_face_areas(xrt), ember.block._get_vol(xrt, *_face_areas(xrt)))
+
+    monkeypatch.setattr(ember.block, "_GEOM_KCHUNK", chunk)
+    got = (*_face_areas(xrt), ember.block._get_vol(xrt, *_face_areas(xrt)))
+
+    for name, a, b in zip(("dAi", "dAj", "dAk", "vol"), ref, got):
+        np.testing.assert_array_equal(a, b, err_msg=f"{name} changed at chunk={chunk}")
+
+
+def test_face_areas_fill_a_components_first_buffer():
+    """The helpers write the cached dA*_nd layout directly, without a transpose.
+
+    Block.dAi_nd and friends hand their own component-first buffer in as
+    ``out``; that is what lets the walk avoid materialising a whole-block
+    result and then transposing it. The values must be the transpose of the
+    components-last return, exactly.
+    """
+    xrt = np.asfortranarray(_warped_grid(0.02).astype(np.float32))
+    ni, nj, nk = xrt.shape[:3]
+    for fn, shape in (
+        (ember.block._get_dai, (ni, nj - 1, nk - 1)),
+        (ember.block._get_daj, (ni - 1, nj, nk - 1)),
+        (ember.block._get_dak, (ni - 1, nj - 1, nk)),
+    ):
+        out = np.empty((3,) + shape, dtype=np.float32, order="F")
+        fn(xrt, out)
+        np.testing.assert_array_equal(out, np.moveaxis(fn(xrt), -1, 0))
+
+    with pytest.raises(ValueError, match="components last"):
+        ember.block._get_dai(xrt, np.empty((5, 5, 5, 5), dtype=np.float32))
