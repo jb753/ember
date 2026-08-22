@@ -1622,7 +1622,10 @@ class Grid(_LabelledList):
         The viscous calculation is phased across the whole grid: every block's
         BOUNDARY tau/q is computed first, then a single periodic seam exchange
         runs over the face buffers, then interior tau/q and the face fluxes are
-        produced together in one walk per block. This keeps the seam consistent
+        produced together in one walk per block. The nodal transport properties
+        both kernels read (mu, kappa, cp) are borrowed from each block's scratch
+        arena rather than cached on the block, filled in the first phase and
+        read back in the second. This keeps the seam consistent
         for block-to-block periodic interfaces, where a per-block exchange would
         read a stale neighbour halo.
 
@@ -1656,13 +1659,21 @@ class Grid(_LabelledList):
                 # (T_nd below is otherwise the access that pays for the whole
                 # chain in this method).
                 block.update_primitive()
-                faces = block.tau_q_faces
+                # The transport trio is borrowed from the arena, not cached on
+                # the block: this phase and the face-flux phase below are its
+                # only readers in the step, so keeping three nodal volumes
+                # allocated for the whole run bought nothing. Filled here and
+                # read back there -- across the seam exchange, exactly as the
+                # face buffers are -- from the one carve that owns the viscous
+                # layout (see ember.block._carve_viscous).
+                faces, _, _, _, (mu, kappa, cp) = ember.block._carve_viscous(block)
+                block._fill_transport_nd(mu=mu, kappa=kappa, cp=cp)
                 ember.fortran.set_tau_q_faces(
                     cons=block.conserved_nd,
                     t=block.T_nd,
-                    mu=block.mu_nd,
-                    cp=block.cp_nd,
-                    kappa=block.kappa_nd,
+                    mu=mu,
+                    cp=cp,
+                    kappa=kappa,
                     pr_turb=1.0,
                     xlength=block.xlen_sq_nd,
                     vol=block.vol_nd,
@@ -1701,7 +1712,11 @@ class Grid(_LabelledList):
                 # into, and the rolling face-flow planes and rows. All four
                 # reach this one call, so carving them together is what makes
                 # them disjoint.
-                faces, tq, planes, rows = ember.block._carve_viscous(block)
+                # The transport trio comes back out of the same carve that
+                # the boundary phase filled it through.
+                faces, tq, planes, rows, (mu, kappa, cp) = (
+                    ember.block._carve_viscous(block)
+                )
                 # mu_turb is a data-row field the public property serves
                 # read-only; grab a writeable view so the kernel can leave the
                 # cell-centred mixing-length viscosity in place. Tolerate an
@@ -1718,7 +1733,7 @@ class Grid(_LabelledList):
                     dak=block.dAk_nd,
                     omega_block=block.Omega_nd,
                     r=block.r_nd,
-                    mu=block.mu_nd,
+                    mu=mu,
                     p=block.P_nd,
                     p_offset=block.P_offset_nd,
                     fvisc=block.F_body_nd[..., 1:],
@@ -1726,8 +1741,8 @@ class Grid(_LabelledList):
                     vr=block.Vr_nd,
                     vt=block.Vt_rel_nd,
                     t=block.T_nd,
-                    cp=block.cp_nd,
-                    kappa=block.kappa_nd,
+                    cp=cp,
+                    kappa=kappa,
                     pr_turb=1.0,
                     xlength=block.xlen_sq_nd,
                     mu_turb=mu_turb,

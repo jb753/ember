@@ -65,7 +65,7 @@ def run_visc_force(block, pr_turb, i_cusp=None, jbw=0):
     mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
 
     i_cusp_start, i_cusp_end = block.i_cusp if i_cusp is None else i_cusp
-    faces, tq, planes, rows = ember.block._carve_viscous(block)
+    faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
         cons_cell=block.conserved_cell_nd,

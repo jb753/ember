@@ -1,9 +1,10 @@
 """One arena, sized by its worst phase, carved so nothing overlaps.
 
 ``Block.scratch`` backs every throwaway buffer in the step: the viscous
-boundary tau/q face buffers and the rolling tau/q cell-plane pair, both
-kernels' rolling planes and rows, the nodal acoustic speed the timestep kernel
-reads, the IRS work vector and the multigrid coarse scratch. That is only safe under two rules,
+boundary tau/q face buffers and the rolling tau/q cell-plane pair, the nodal
+transport trio both viscous kernels read, both kernels' rolling planes and
+rows, the nodal acoustic speed the timestep kernel reads, the IRS work vector
+and the multigrid coarse scratch. That is only safe under two rules,
 and neither is something the code can check for itself:
 
   * buffers reaching the SAME kernel call must come from one
@@ -36,7 +37,7 @@ def _phase_buffers(block):
     """Every buffer, grouped by the phase it is live in."""
     ni, nj, nk = block.shape
     njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
-    faces, tq, planes, rows = ember.block._carve_viscous(block)
+    faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
 
     tmp_shape = (ni - 1, nj - 1, nk - 1, 5)
     mg_shapes = ember.solver.mg_coarse_shapes(ni, nj, nk, MAX_MG_LEVELS)
@@ -47,7 +48,7 @@ def _phase_buffers(block):
     mg_on = util.carve_view(block.scratch, (ni - 1, nj - 1, 5, 2), *mg_shapes)
 
     return {
-        "update_sources": [*faces, tq, planes, rows],
+        "update_sources": [*faces, tq, planes, rows, *transport],
         "update_timestep": [util.carve_view(block.scratch, block.shape)],
         "update_residual": list(
             util.carve_view(block.scratch, (ni, njp, 5, 2), (ni, 5, 3))
@@ -107,8 +108,8 @@ def test_viscous_views_are_stable_and_inside_the_arena(shape):
         assert face_a.__array_interface__["data"][0] == (
             face_b.__array_interface__["data"][0]
         )
-    faces, tq, planes, rows = ember.block._carve_viscous(block)
-    for buf in (*block.tau_q_faces, tq, planes, rows):
+    faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
+    for buf in (*block.tau_q_faces, tq, planes, rows, *transport):
         assert np.shares_memory(block.scratch, buf)
 
 
@@ -131,30 +132,25 @@ def test_arena_is_smaller_than_the_buffers_it_replaced():
 
 
 def test_no_phase_needs_a_volume_of_tau_q():
-    """The viscous phase is the smallest of the volume phases, not the largest.
+    """The tau/q the viscous phase keeps is a surface, not a volume.
 
     It used to bind the arena by a wide margin, on a (ni+1)(nj+1)(nk+1)*9
     tau/q volume that was three quarters of the whole thing. Fusing the two
-    viscous kernels removed it: what a pass now has to keep is the boundary
-    shell plus one rolling cell-plane pair. This asserts the new state of
-    affairs rather than the saving, so a change that reintroduced a
-    volume-shaped viscous buffer fails here and not just on someone's RSS.
+    viscous kernels removed it: what a pass now keeps is the boundary shell
+    plus one rolling cell-plane pair. This asserts the new state of affairs
+    rather than the saving, so a change that reintroduced a volume-shaped
+    tau/q buffer fails here and not just on someone's RSS.
 
-    ``update_timestep`` sits out of the comparison: it borrows a single nodal
-    scalar field and is smaller than any phase that carries a volume, so
-    including it would say nothing about the viscous one.
+    The claim is about tau/q specifically, not about the phase as a whole: the
+    phase does carry three nodal volumes, the transport trio, and borrowing
+    those rather than caching them is the whole point of their being here.
     """
     ni, nj, nk = 273, 65, 57
     block = ember.block.Block(shape=(ni, nj, nk))
-    sizes = {
-        phase: sum(b.size for b in bufs)
-        for phase, bufs in _phase_buffers(block).items()
-        if phase != "update_timestep"
-    }
-    visc = sizes["update_sources"]
-    assert visc == min(sizes.values())
+    faces, tq, _, _, _ = ember.block._carve_viscous(block)
+    kept = sum(b.size for b in (*faces, tq))
     # An order of magnitude under the volume it replaced, not a few percent.
-    assert visc < 0.25 * (ni + 1) * (nj + 1) * (nk + 1) * 9
+    assert kept < 0.25 * (ni + 1) * (nj + 1) * (nk + 1) * 9
 
 
 def test_degenerate_block_raises_rather_than_overlapping():
@@ -173,8 +169,8 @@ def test_degenerate_block_raises_rather_than_overlapping():
 def test_real_grid_carves_cleanly():
     """End to end on an assembled grid, not a bare Block."""
     block = build_duct_grid(300_000)[0]
-    faces, tq, planes, rows = ember.block._carve_viscous(block)
-    bufs = [*faces, tq, planes, rows]
+    faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
+    bufs = [*faces, tq, planes, rows, *transport]
     for a in range(len(bufs)):
         for b in range(a + 1, len(bufs)):
             assert not np.shares_memory(bufs[a], bufs[b])
