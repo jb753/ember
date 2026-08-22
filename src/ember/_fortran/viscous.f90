@@ -522,7 +522,7 @@ contains
         real :: gVx1, gVx2, gVx3, gVr1, gVr2, gVr3, gVt1, gVt2, gVt3
         real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
         real :: t1, t2, t3, t4, t5, t6, w1, w2, w3
-        real :: vm, mut, fac, lambda, visc_lim, wsum
+        real :: vm, mut, fac, lambda, visc_lim, wsum, xl
 
         ivr = 0.25e0 / vol(i,j,k)
         rcr = 0.125e0 * (r(i,j,k)   + r(i+1,j,k)   + r(i,j+1,k)   + r(i+1,j+1,k) &
@@ -588,10 +588,11 @@ contains
         vm = sqrt(w1*w1 + w2*w2 + w3*w3)
         ! The max(0) contains the same gfortran 13 codegen fault set_visc_force
         ! documents at its own copy of this line -- keep the three identical.
-        wsum = wdist(i,j,k) + wdist(i+1,j,k) + wdist(i,j+1,k) + wdist(i+1,j+1,k) + &
-               wdist(i,j,k+1) + wdist(i+1,j,k+1) + wdist(i,j+1,k+1) + wdist(i+1,j+1,k+1)
+        wsum = wdist(i,j,k)   + wdist(i+1,j,k)   + wdist(i,j+1,k)   + wdist(i+1,j+1,k) &
+             + wdist(i,j,k+1) + wdist(i+1,j,k+1) + wdist(i,j+1,k+1) + wdist(i+1,j+1,k+1)
+        xl = XLEN_FAC * wsum * wsum
         visc_lim = 3000e0 * muc
-        mut = max(0.0e0, min(rhoc * (XLEN_FAC * wsum * wsum) * vm, visc_lim))
+        mut = max(0.0e0, min(rhoc * xl * vm, visc_lim))
         fac = (muc + mut) * 0.5e0
         tq(1) = t1*fac
         tq(2) = t2*fac
@@ -858,7 +859,7 @@ subroutine set_tau_q_faces( &
     ! against a runtime alias check and will not do so against a dummy.
     real :: gVx(ni-1, 3), gVr(ni-1, 3), gVt(ni-1, 3)
     real :: vct(ni-1), rcr(ni-1), ivr(ni-1), rhoc(ni-1), cpc(ni-1)
-    real :: muc(ni-1), kac(ni-1)
+    real :: muc(ni-1), kac(ni-1), xlr(ni-1)
     ! One row of the nine components, staged here and then dispatched to
     ! whichever face buffer this row belongs to.
     real :: tqr(ni-1, 9)
@@ -894,10 +895,30 @@ subroutine set_tau_q_faces( &
     ! 7% and it winning 4% (bench/README.md).
     !
     ! The arithmetic below is set_visc_force's producer, statement for statement
-    ! and with the same associations. That is not tidiness: the consumer
-    ! averages an edge cell it produced with its own row body against a halo
-    ! value it reads from here, so the two agreeing to the bit is what keeps a
-    ! boundary face from carrying a spurious jump.
+    ! and with the same associations, with ONE deliberate exception: the mixing
+    ! length. That matching is not tidiness -- the consumer averages an edge
+    ! cell it produced with its own row body against a halo value it reads from
+    ! here, so the two agreeing keeps a boundary face from carrying a spurious
+    ! jump -- which is why the exception is worth stating precisely.
+    !
+    ! This kernel takes the mixing length from a stage-1 row (xlr below); the
+    ! consumer computes it where it uses it. Same expression, same order, but
+    ! the round trip through the row gives the compiler different contraction
+    ! freedom under -Ofast, so the two no longer agree to the BIT. Measured, the
+    ! disagreement reaches this kernel's own face buffers at 1.2e-7 relative --
+    ! one to two ulp of float32 -- and does not reach the consumer's output at
+    ! all: fvisc and mu_turb are bitwise unchanged by the split. The face
+    ! goldens carry rtol 1e-4, so a divergence that is anything more than
+    ! last-ulp fails there.
+    !
+    ! The split is what it costs to walk the shell: this kernel visits a
+    ! scattered set of rows with nothing to amortise the eight corner loads
+    ! against, and hoisting them into stage 1 -- beside the five eight-corner
+    ! averages already there, sharing their addressing -- is worth -2.45% of
+    ! it. The consumer walks every cell in a j panel where those same rows are
+    ! resident and reused between adjacent j, so the row buys it nothing and
+    ! the extra store, load and automatic array cost it 2.05%. Nine tenths of
+    ! the pair's time is the consumer's, so it keeps the in-place form.
     !
     ! ONE copy of the body serves all four faces. The row index below names the
     ! (j, k) of each row and which buffer it lands in, and the dispatch runs
@@ -936,6 +957,14 @@ subroutine set_tau_q_faces( &
                               + mu(i,j,k+1) + mu(i+1,j,k+1) + mu(i,j+1,k+1) + mu(i+1,j+1,k+1))
             kac(i) = 0.125e0 * (kappa(i,j,k)   + kappa(i+1,j,k)   + kappa(i,j+1,k)   + kappa(i+1,j+1,k) &
                               + kappa(i,j,k+1) + kappa(i+1,j,k+1) + kappa(i,j+1,k+1) + kappa(i+1,j+1,k+1))
+            ! Mixing length squared, from the nodal wall distance -- here
+            ! rather than at its point of use in stage 2, and NOT matching the
+            ! consumer's spelling. See the header note above for why the two
+            ! differ, what it is worth (-2.45% here) and what it costs in
+            ! precision (last-ulp, contained to this kernel's face buffers).
+            wsum = wdist(i,j,k)   + wdist(i+1,j,k)   + wdist(i,j+1,k)   + wdist(i+1,j+1,k) &
+                 + wdist(i,j,k+1) + wdist(i+1,j,k+1) + wdist(i,j+1,k+1) + wdist(i+1,j+1,k+1)
+            xlr(i) = XLEN_FAC * wsum * wsum
             ! --- Vx ---
             f1 = Vx(i,j,k)+Vx(i,j+1,k)+Vx(i,j,k+1)+Vx(i,j+1,k+1)
             f2 = Vx(i+1,j,k)+Vx(i+1,j+1,k)+Vx(i+1,j,k+1)+Vx(i+1,j+1,k+1)
@@ -993,11 +1022,10 @@ subroutine set_tau_q_faces( &
             vm = sqrt(w1*w1 + w2*w2 + w3*w3)
             ! The max(0) carries the same gfortran 13 codegen fault
             ! set_visc_force documents at length at its own copy of this line --
-            ! keep the three copies (there and in tau_q_at_cell) identical.
-            wsum = wdist(i,j,k) + wdist(i+1,j,k) + wdist(i,j+1,k) + wdist(i+1,j+1,k) + &
-                   wdist(i,j,k+1) + wdist(i+1,j,k+1) + wdist(i,j+1,k+1) + wdist(i+1,j+1,k+1)
+            ! keep it in all three copies (there and in tau_q_at_cell). Only
+            ! where the mixing length comes from differs between them.
             visc_lim = 3000e0 * muc(i)
-            mut = max(0.0e0, min(rhoc(i) * (XLEN_FAC * wsum * wsum) * vm, visc_lim))
+            mut = max(0.0e0, min(rhoc(i) * xlr(i) * vm, visc_lim))
             fac = (muc(i) + mut) * 0.5e0
             tqr(i,1) = t1*fac
             tqr(i,2) = t2*fac
