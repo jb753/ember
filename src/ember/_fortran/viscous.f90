@@ -14,6 +14,24 @@ module viscous_helpers
     public :: wall_yplus_iface, wall_yplus_jface, wall_yplus_kface
     public :: kface_flow, tau_q_at_cell
     public :: polar_src, scale_visc_halos, zero_wall_fvisc_border
+    public :: wall_row_kface, wall_row_jface
+    public :: VISC_JAREA
+
+    ! Skin-friction curve fit, shared by wall_core and the row forms below so
+    ! the two spellings of the same physics cannot drift apart.
+    real, parameter :: WALL_A1 = -1.767e-3
+    real, parameter :: WALL_A2 = 3.177e-2
+    real, parameter :: WALL_A3 = 2.5614e-1
+    ! i-tile the row forms work in. Fixed size so their phase-A temps are
+    ! plain stack locals rather than automatic arrays sized by ni: kernel
+    ! scratch is never allocated per call. 64 floats x ~11 temps is under
+    ! 3 KB, so a tile stays in L1 across the three phases.
+    integer, parameter :: WALL_TW = 64
+    ! j-panel AREA of set_visc_force's k walk, in cells: the panel is
+    ! VISC_JAREA/ni rows deep, so the carry it bounds is a fixed number of
+    ! bytes whatever the block's aspect ratio. Bounds the concurrent working
+    ! set, not the traffic -- see the comment on the panel loop there.
+    integer, parameter :: VISC_JAREA = 4400
 
 contains
 
@@ -54,9 +72,9 @@ contains
         real, intent(in) :: r, dA(3), vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt
         real, intent(out) :: V, dA_mag, Vt_slip, cf, Re, tau
         real :: d, lnRew
-        real, parameter :: a1 = -1.767e-3
-        real, parameter :: a2 = 3.177e-2
-        real, parameter :: a3 = 2.5614e-1
+        real, parameter :: a1 = WALL_A1
+        real, parameter :: a2 = WALL_A2
+        real, parameter :: a3 = WALL_A3
         ! Vt is relative to block frame; subtract wall velocity in block frame
         Vt_slip = Vt - (Omega_wall - Omega_block) * r
         V = sqrt(Vx**2 + Vr**2 + Vt_slip**2 + 1e-9)
@@ -161,6 +179,161 @@ contains
         call wall_func(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * dk
     end subroutine wall_func_kface
+
+    ! ------------------------------------------------------------------
+    ! Row forms of wall_func_kface/jface, blending straight into the face-
+    ! flow buffer the sweep is filling.
+    !
+    ! WHY THESE EXIST. The per-cell forms above are called from an `i` loop at
+    ! every wall face, and that loop does not vectorize: the opt report says
+    ! "unsupported control flow in loop", which is wall_core's Re branch, and
+    ! GCC then leaves a real call in the loop as well. The result is four
+    ! SCALAR divides and two scalar square roots per wall face cell, on their
+    ! own dependence chain -- 15.7% of set_visc_force's samples sit in the
+    ! three wall_func_*face symbols, against ~7% of cells being wall faces.
+    !
+    ! The fix is the three-phase split the branch forces:
+    !   A  gather the four-node face averages, the areas and Re
+    !   B  the skin-friction curve, which carries the branch
+    !   C  tau, the flux vector and the mask blend
+    ! Phase B is written as the part that has to stay scalar; GCC in fact
+    ! if-converts it and vectorises it too, calling libmvec's _ZGVdN8v_logf
+    ! for the turbulent branch (-Ofast is what permits that). Splitting it out
+    ! is still what makes A and C vectorise, which is where the divides and
+    ! roots are.
+    !
+    ! Every expression keeps production's operands, order and association, so
+    ! the change is which lane does the work, not what the work is. It is not
+    ! bitwise all the same: under -Ofast GCC implements some of the vector
+    ! divides as vrcpps plus a Newton step, where the scalar form used an
+    ! exact vdivss. Measured on the duct case, the deviation is 0.625 ulp of
+    ! the fvisc field scale and every differing cell lies in the two-cell
+    ! shell the wall faces reach -- not one cell outside it moves, which is
+    ! the structural statement that no interior term changed. Turning
+    ! -fno-associative-math -ffp-contract=off on does NOT shrink it, so it is
+    ! the reciprocals and not reassociation.
+    !
+    ! Phase A's outputs are fixed-size stack tiles, not automatic arrays: the
+    ! row length is not known at compile time and kernel scratch is never
+    ! allocated per call (nor may a `block` construct appear in this tree --
+    ! it silently drops unrelated subroutines from the f2py build).
+    ! ------------------------------------------------------------------
+    pure subroutine wall_row_kface(ni, nj, nk, r, dAk, vol, Omega_block, Omega_wall, &
+        mu, rho, Vx, Vr, Vt, wall, planes, j, k, dk, pslot)
+        implicit none
+        integer, intent(in) :: ni, nj, nk, j, k, dk, pslot
+        real, intent(in) :: r(ni,nj,nk), mu(ni,nj,nk), rho(ni,nj,nk)
+        real, intent(in) :: Vx(ni,nj,nk), Vr(ni,nj,nk), Vt(ni,nj,nk)
+        real, intent(in) :: dAk(3,ni-1,nj-1,nk), vol(ni-1,nj-1,nk-1)
+        real, intent(in) :: Omega_block, Omega_wall(ni-1), wall(ni-1)
+        real, intent(inout) :: planes(ni,nj,4,2)
+        integer :: i, i0, t, m, kv, kc
+        real :: rf(WALL_TW), Vxf(WALL_TW), Vrf(WALL_TW), Vsf(WALL_TW)
+        real :: rhof(WALL_TW), muf(WALL_TW), dAm(WALL_TW), Vm(WALL_TW)
+        real :: Rew(WALL_TW), cf(WALL_TW)
+        real :: tau, vec1, vec2, vec3, wfac, w, d, lnRew
+        kv = k + dk
+        kc = k + (dk - 1) / 2
+        do i0 = 1, ni-1, WALL_TW
+            m = min(WALL_TW, ni - i0)
+            ! --- A: face averages, areas, Reynolds number ---
+            do t = 1, m
+                i = i0 + t - 1
+                Vxf(t)  = (Vx(i,j,kv) + Vx(i+1,j,kv) + Vx(i,j+1,kv) + Vx(i+1,j+1,kv)) * 0.25e0
+                Vrf(t)  = (Vr(i,j,kv) + Vr(i+1,j,kv) + Vr(i,j+1,kv) + Vr(i+1,j+1,kv)) * 0.25e0
+                Vsf(t)  = (Vt(i,j,kv) + Vt(i+1,j,kv) + Vt(i,j+1,kv) + Vt(i+1,j+1,kv)) * 0.25e0
+                rhof(t) = (rho(i,j,kv) + rho(i+1,j,kv) + rho(i,j+1,kv) + rho(i+1,j+1,kv)) * 0.25e0
+                muf(t)  = (mu(i,j,kv) + mu(i+1,j,kv) + mu(i,j+1,kv) + mu(i+1,j+1,kv)) * 0.25e0
+                rf(t)   = (r(i,j,k) + r(i+1,j,k) + r(i,j+1,k) + r(i+1,j+1,k)) * 0.25e0
+                Vsf(t)  = Vsf(t) - (Omega_wall(i) - Omega_block) * rf(t)
+                Vm(t)   = sqrt(Vxf(t)**2 + Vrf(t)**2 + Vsf(t)**2 + 1e-9)
+                dAm(t)  = sqrt(dAk(1,i,j,k)**2 + dAk(2,i,j,k)**2 + dAk(3,i,j,k)**2)
+                d       = vol(i,j,kc) / dAm(t)
+                Rew(t)  = rhof(t) * Vm(t) * d / muf(t)
+            end do
+            ! --- B: skin friction, the one phase the branch keeps scalar ---
+            do t = 1, m
+                if (Rew(t) .lt. 127.53373025e0) then
+                    cf(t) = 2e0 / Rew(t)
+                else
+                    lnRew = log(Rew(t))
+                    cf(t) = (WALL_A1 + WALL_A2/lnRew + WALL_A3/lnRew/lnRew)
+                end if
+            end do
+            ! --- C: stress, flux vector, mask blend ---
+            do t = 1, m
+                i = i0 + t - 1
+                tau  = cf(t) * 0.5e0 * rhof(t) * Vm(t) * Vm(t)
+                vec1 = Vxf(t) / Vm(t) * dAm(t)
+                vec2 = Vrf(t) / Vm(t) * dAm(t)
+                vec3 = Vsf(t) / Vm(t) * dAm(t)
+                w = wall(i)
+                wfac = 1.0e0 - w
+                planes(i,j,1,pslot) = w*planes(i,j,1,pslot) + wfac*(vec1 * tau * dk)
+                planes(i,j,2,pslot) = w*planes(i,j,2,pslot) + wfac*(vec2 * tau * dk)
+                planes(i,j,3,pslot) = w*planes(i,j,3,pslot) + wfac*(rf(t) * vec3 * tau * dk)
+                planes(i,j,4,pslot) = w*planes(i,j,4,pslot) &
+                    + wfac*(Omega_wall(i) * rf(t) * vec3 * tau * dk)
+            end do
+        end do
+    end subroutine wall_row_kface
+
+    pure subroutine wall_row_jface(ni, nj, nk, r, dAj, vol, Omega_block, Omega_wall, &
+        mu, rho, Vx, Vr, Vt, wall, rows, j, kc, dj, sslot)
+        implicit none
+        integer, intent(in) :: ni, nj, nk, j, kc, dj, sslot
+        real, intent(in) :: r(ni,nj,nk), mu(ni,nj,nk), rho(ni,nj,nk)
+        real, intent(in) :: Vx(ni,nj,nk), Vr(ni,nj,nk), Vt(ni,nj,nk)
+        real, intent(in) :: dAj(3,ni-1,nj,nk-1), vol(ni-1,nj-1,nk-1)
+        real, intent(in) :: Omega_block, Omega_wall(ni-1), wall(ni-1)
+        real, intent(inout) :: rows(ni,4,3)
+        integer :: i, i0, t, m, jv, jc
+        real :: rf(WALL_TW), Vxf(WALL_TW), Vrf(WALL_TW), Vsf(WALL_TW)
+        real :: rhof(WALL_TW), muf(WALL_TW), dAm(WALL_TW), Vm(WALL_TW)
+        real :: Rew(WALL_TW), cf(WALL_TW)
+        real :: tau, vec1, vec2, vec3, wfac, w, d, lnRew
+        jv = j + dj
+        jc = j + (dj - 1) / 2
+        do i0 = 1, ni-1, WALL_TW
+            m = min(WALL_TW, ni - i0)
+            do t = 1, m
+                i = i0 + t - 1
+                Vxf(t)  = (Vx(i,jv,kc) + Vx(i+1,jv,kc) + Vx(i,jv,kc+1) + Vx(i+1,jv,kc+1)) * 0.25e0
+                Vrf(t)  = (Vr(i,jv,kc) + Vr(i+1,jv,kc) + Vr(i,jv,kc+1) + Vr(i+1,jv,kc+1)) * 0.25e0
+                Vsf(t)  = (Vt(i,jv,kc) + Vt(i+1,jv,kc) + Vt(i,jv,kc+1) + Vt(i+1,jv,kc+1)) * 0.25e0
+                rhof(t) = (rho(i,jv,kc) + rho(i+1,jv,kc) + rho(i,jv,kc+1) + rho(i+1,jv,kc+1)) * 0.25e0
+                muf(t)  = (mu(i,jv,kc) + mu(i+1,jv,kc) + mu(i,jv,kc+1) + mu(i+1,jv,kc+1)) * 0.25e0
+                rf(t)   = (r(i,j,kc) + r(i+1,j,kc) + r(i,j,kc+1) + r(i+1,j,kc+1)) * 0.25e0
+                Vsf(t)  = Vsf(t) - (Omega_wall(i) - Omega_block) * rf(t)
+                Vm(t)   = sqrt(Vxf(t)**2 + Vrf(t)**2 + Vsf(t)**2 + 1e-9)
+                dAm(t)  = sqrt(dAj(1,i,j,kc)**2 + dAj(2,i,j,kc)**2 + dAj(3,i,j,kc)**2)
+                d       = vol(i,jc,kc) / dAm(t)
+                Rew(t)  = rhof(t) * Vm(t) * d / muf(t)
+            end do
+            do t = 1, m
+                if (Rew(t) .lt. 127.53373025e0) then
+                    cf(t) = 2e0 / Rew(t)
+                else
+                    lnRew = log(Rew(t))
+                    cf(t) = (WALL_A1 + WALL_A2/lnRew + WALL_A3/lnRew/lnRew)
+                end if
+            end do
+            do t = 1, m
+                i = i0 + t - 1
+                tau  = cf(t) * 0.5e0 * rhof(t) * Vm(t) * Vm(t)
+                vec1 = Vxf(t) / Vm(t) * dAm(t)
+                vec2 = Vrf(t) / Vm(t) * dAm(t)
+                vec3 = Vsf(t) / Vm(t) * dAm(t)
+                w = wall(i)
+                wfac = 1.0e0 - w
+                rows(i,1,sslot) = w*rows(i,1,sslot) + wfac*(vec1 * tau * dj)
+                rows(i,2,sslot) = w*rows(i,2,sslot) + wfac*(vec2 * tau * dj)
+                rows(i,3,sslot) = w*rows(i,3,sslot) + wfac*(rf(t) * vec3 * tau * dj)
+                rows(i,4,sslot) = w*rows(i,4,sslot) &
+                    + wfac*(Omega_wall(i) * rf(t) * vec3 * tau * dj)
+            end do
+        end do
+    end subroutine wall_row_jface
 
     ! Diagnostic y+ counterparts of wall_func_iface/jface/kface above -- same
     ! face-averaging, mu included, calling wall_yplus instead of wall_func.
@@ -908,6 +1081,11 @@ end subroutine set_tau_q_faces
 ! is handled by an O(surface) correction pass after the slab sweep instead of
 ! the pre-accumulation flux averaging the unblocked version used; see the
 ! comment at the correction loop.
+!
+! The k walk is itself panelled in j, so what it carries from one k step to
+! the next fits a private L2 instead of the shared L3. That is the change
+! that made the kernel scale at production concurrency; see the comment on
+! the panel loop, and bench/README.md for the numbers.
 subroutine set_visc_force( &
     cons, cons_cell, vol, dAi, dAj, dAk, &
     Omega_block, r, mu, P, P_offset, &
@@ -963,6 +1141,7 @@ subroutine set_visc_force( &
     integer :: i, j, k, jc, kc
     logical :: k_interior, row_interior
     integer :: sa, sb, pa, pb, stmp
+    integer :: jp, jp0, jp1, jbw
     real :: tauf(6), qf(3), Vf(3), rf
     real :: wvisc(3), Vabs, wf(4), wfac
     real :: flow1(4), flownk(4), fcorr(4)
@@ -976,12 +1155,36 @@ subroutine set_visc_force( &
     call scale_visc_halos(tau_cell, q_cell, &
         walli1, wallj1, wallk1, wallni, wallnj, wallnk, ni, nj, nk)
 
+    ! ===== j-panel over the k walk =====
+    ! The walk carries three things across one k step: the k-face flow plane
+    ! pair, and the tau/q cell plane the i/j scan re-reads after the k-face
+    ! loop produced it. Untiled at a 273x65x57 block those are 568 KB of
+    ! `planes` and 639 KB per tau/q plane -- every one of them past a 256 KB
+    ! L2, so each k step round-trips its carry through L3, and at 8 ranks the
+    ! socket's whole 20 MB L3 is the carry. Panelling j leaves the traffic
+    ! identical (each cell is still visited once) and divides the carry by
+    ! nj-1 / jbw.
+    !
+    ! The cost is one duplicated j-face row per panel per k plane: a panel's
+    ! first cell row needs the face row below it, which the previous panel
+    ! also computed. That is 1/jbw of the j-face loop and nothing else --
+    ! the i- and k-face loops and the fvisc store do exactly the work they
+    ! did, in the same order, on the same values, so the result is unchanged
+    ! cell for cell.
+    ! Never narrower than four rows: a panel duplicates its lowest j-face
+    ! row, so 1/jbw of the j-face loop is redundant work, and a block long
+    ! enough in i to drive jbw below that cannot fit its carry in L2 anyway.
+    jbw = min(nj-1, max(4, VISC_JAREA / max(ni, 1)))
+    do jp = 1, nj-1, jbw
+    jp0 = jp
+    jp1 = min(jp + jbw - 1, nj-1)
+
     pa = 1
     pb = 2
 
     do k = 1, nk
     ! --- k-face plane k into the rolling pair ---
-    do j = 1, nj-1
+    do j = jp0, jp1
     do i = 1, ni-1
         tauf(1) = (tau_cell(i+1, j+1, k, 1) + tau_cell(i+1, j+1, k+1, 1)) * 0.5e0
         tauf(2) = (tau_cell(i+1, j+1, k, 2) + tau_cell(i+1, j+1, k+1, 2)) * 0.5e0
@@ -1008,28 +1211,22 @@ subroutine set_visc_force( &
                          + (wvisc(3)-qf(3))*dAk(3,i,j,k)
     end do
     end do
+    ! The wall-function injections go through the ROW forms, which vectorize
+    ! over i; the per-cell wall_func_*face left four scalar divides and two
+    ! scalar square roots on one dependence chain per wall face cell. Same
+    ! operands and same order, sub-ulp -- see wall_row_kface's header.
     if (k == 2) then
-        do j = 1, nj-1
-        do i = 1, ni-1
-            wfac = 1.0e0 - wallk1(i,j)
-            call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, 1, 1, wf)
-            planes(i,j,1,pb) = wallk1(i,j)*planes(i,j,1,pb) + wfac*wf(1)
-            planes(i,j,2,pb) = wallk1(i,j)*planes(i,j,2,pb) + wfac*wf(2)
-            planes(i,j,3,pb) = wallk1(i,j)*planes(i,j,3,pb) + wfac*wf(3)
-            planes(i,j,4,pb) = wallk1(i,j)*planes(i,j,4,pb) + wfac*wf(4)
-        end do
+        do j = jp0, jp1
+            call wall_row_kface(ni, nj, nk, r, dAk, vol, Omega_block, &
+                Omega_wallk1_nd(:,j), mu, cons(:,:,:,1), Vx, Vr, Vt, &
+                wallk1(:,j), planes, j, 1, 1, pb)
         end do
     end if
     if (k == nk-1) then
-        do j = 1, nj-1
-        do i = 1, ni-1
-            wfac = 1.0e0 - wallnk(i,j)
-            call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, nk, -1, wf)
-            planes(i,j,1,pb) = wallnk(i,j)*planes(i,j,1,pb) + wfac*wf(1)
-            planes(i,j,2,pb) = wallnk(i,j)*planes(i,j,2,pb) + wfac*wf(2)
-            planes(i,j,3,pb) = wallnk(i,j)*planes(i,j,3,pb) + wfac*wf(3)
-            planes(i,j,4,pb) = wallnk(i,j)*planes(i,j,4,pb) + wfac*wf(4)
-        end do
+        do j = jp0, jp1
+            call wall_row_kface(ni, nj, nk, r, dAk, vol, Omega_block, &
+                Omega_wallnk_nd(:,j), mu, cons(:,:,:,1), Vx, Vr, Vt, &
+                wallnk(:,j), planes, j, nk, -1, pb)
         end do
     end if
 
@@ -1039,7 +1236,7 @@ subroutine set_visc_force( &
         k_interior = (kc >= 2 .and. kc <= nk-2)
         sa = 2
         sb = 3
-        do j = 1, nj
+        do j = jp0, jp1+1
             do i = 1, ni-1
                 tauf(1) = (tau_cell(i+1, j, kc+1, 1) + tau_cell(i+1, j+1, kc+1, 1)) * 0.5e0
                 tauf(2) = (tau_cell(i+1, j, kc+1, 2) + tau_cell(i+1, j+1, kc+1, 2)) * 0.5e0
@@ -1066,28 +1263,16 @@ subroutine set_visc_force( &
                              + (wvisc(3)-qf(3))*dAj(3,i,j,kc)
             end do
             if (j == 2) then
-                do i = 1, ni-1
-                    wfac = 1.0e0 - wallj1(i,kc)
-                    call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallj1_nd(i,kc), &
-                        mu, cons(:,:,:,1), Vx, Vr, Vt, i, 1, kc, 1, wf)
-                    rows(i,1,sb) = wallj1(i,kc)*rows(i,1,sb) + wfac*wf(1)
-                    rows(i,2,sb) = wallj1(i,kc)*rows(i,2,sb) + wfac*wf(2)
-                    rows(i,3,sb) = wallj1(i,kc)*rows(i,3,sb) + wfac*wf(3)
-                    rows(i,4,sb) = wallj1(i,kc)*rows(i,4,sb) + wfac*wf(4)
-                end do
+                call wall_row_jface(ni, nj, nk, r, dAj, vol, Omega_block, &
+                    Omega_wallj1_nd(:,kc), mu, cons(:,:,:,1), Vx, Vr, Vt, &
+                    wallj1(:,kc), rows, 1, kc, 1, sb)
             end if
             if (j == nj-1) then
-                do i = 1, ni-1
-                    wfac = 1.0e0 - wallnj(i,kc)
-                    call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallnj_nd(i,kc), &
-                        mu, cons(:,:,:,1), Vx, Vr, Vt, i, nj, kc, -1, wf)
-                    rows(i,1,sb) = wallnj(i,kc)*rows(i,1,sb) + wfac*wf(1)
-                    rows(i,2,sb) = wallnj(i,kc)*rows(i,2,sb) + wfac*wf(2)
-                    rows(i,3,sb) = wallnj(i,kc)*rows(i,3,sb) + wfac*wf(3)
-                    rows(i,4,sb) = wallnj(i,kc)*rows(i,4,sb) + wfac*wf(4)
-                end do
+                call wall_row_jface(ni, nj, nk, r, dAj, vol, Omega_block, &
+                    Omega_wallnj_nd(:,kc), mu, cons(:,:,:,1), Vx, Vr, Vt, &
+                    wallnj(:,kc), rows, nj, kc, -1, sb)
             end if
-            if (j > 1) then
+            if (j > jp0) then
                 jc = j - 1
                 row_interior = k_interior .and. (jc >= 2 .and. jc <= nj-2)
                 do i = 1, ni
@@ -1183,6 +1368,7 @@ subroutine set_visc_force( &
     stmp = pa
     pa = pb
     pb = stmp
+    end do
     end do
 
     ! ===== Cusp seam: replace each seam face flux with the two-sided average =====

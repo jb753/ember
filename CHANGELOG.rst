@@ -167,6 +167,22 @@ without a deprecation period.
   ``ember.block.MAX_MG_LEVELS`` (3), validated in ``_validate_mg`` alongside
   the divisibility rule, because the arena is sized for that depth.
 
+* ``set_visc_force`` is faster, by two independent changes to how it does the
+  same arithmetic. The wall-function face helpers were not being inlined in the
+  production build and could not vectorize regardless, because the
+  Reynolds-number branch of the skin-friction fit sits in the middle of their
+  arithmetic; they are now row forms split into three phases over a fixed i-tile,
+  so only the branch stays scalar and the phases carrying the divides and square
+  roots vectorize. Separately, the fused k walk now runs over j-panels of fixed
+  cell AREA, which bounds the rolling face-flow buffers it carries across each k
+  step to a fixed number of bytes whatever the block's aspect ratio, keeping them
+  in L2 rather than round-tripping through a last-level cache that eight ranks
+  share. Together, -33.7% at a 1M-cell block and -40.1% at 2M with all eight
+  cores of a socket busy, -19.6% over the viscous pair end to end; serial the
+  split is the other way round, -20.6% at 300k falling to -8.9% at 2M. The panel
+  change is bitwise; the row forms move ``fvisc`` by 0.625 ulp of the field
+  scale, confined to the two-cell shell the wall faces touch.
+
 .. _v0.2.0:
 
 0.2.0 (2026-08-18)

@@ -152,6 +152,16 @@ def main():
     ap.add_argument("--warmup", type=int, default=5)
     ap.add_argument("--nranks", type=int, default=16)
     ap.add_argument("--launch", type=int, default=0)
+    ap.add_argument(
+        "--label",
+        default=None,
+        help="name recorded in the `arm` field, defaulting to --arm. Lets one "
+        "arm measured against several BUILDS of the same kernel be compared as "
+        "if it were several arms -- see bench/run_so_ab.sh, which is the only "
+        "way to A/B a change to production itself (a same-build A/B would have "
+        "two near-duplicate kernel bodies sharing one inline budget, worth a "
+        "+56% false alarm; see bench/README.md).",
+    )
     ap.add_argument("--json", default=None)
     args = ap.parse_args()
 
@@ -252,7 +262,7 @@ def main():
                 flush=True,
             )
     print(
-        f"launch {args.launch:>2} rank {rank:>2} {args.arm:>8}  {med:7.3f} ns/cell  "
+        f"launch {args.launch:>2} rank {rank:>2} {(args.label or args.arm):>12}  {med:7.3f} ns/cell  "
         f"(p5 {np.percentile(samples, 5):.2f} p95 {np.percentile(samples, 95):.2f}, "
         f"build {t_build:.1f}s)",
         flush=True,
@@ -264,7 +274,7 @@ def main():
                 json.dumps(
                     dict(
                         **extra,
-                        arm=args.arm,
+                        arm=args.label or args.arm,
                         launch=args.launch,
                         rank=rank,
                         nranks=args.nranks,
