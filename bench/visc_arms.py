@@ -86,7 +86,7 @@ def _k2_kwargs(b):
     Every buffer it takes from the arena comes from ONE `_carve_viscous`, which
     is what makes them disjoint -- carving them apart would overlap them.
     """
-    faces, tq, planes, rows = ember.block._carve_viscous(b)
+    faces, tq, planes, rows, transport = ember.block._carve_viscous(b)
     b.F_body_nd.flags.writeable = True
     return dict(
         cons=b.conserved_nd,

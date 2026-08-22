@@ -859,7 +859,8 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     of what is live within a phase and the MAX across phases:
 
       update_sources   the six boundary tau/q face buffers + set_visc_force's
-                       rolling tau/q cell-plane pair, planes and rows
+                       rolling tau/q cell-plane pair, planes and rows + the
+                       nodal transport trio (mu, kappa, cp) both kernels read
       update_timestep  the nodal acoustic speed set_timestep_spectral reads
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
@@ -874,12 +875,15 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     opposite: ``update_sources`` used to bind by a wide margin, on a
     ``(ni+1)(nj+1)(nk+1)*9`` tau/q volume that was three quarters of the arena,
     and its removal (with the viscous fusion that made the volume unnecessary)
-    took a 273x65x57 block from 41.54 MB to 23.34 MB. update_sources is now the
-    smallest of the phases that carry a volume, and update_timestep -- one
-    nodal scalar field -- is smaller than any of them. Sizes are computed,
-    never written as literals, so a buffer added to a phase shows up here
-    rather than silently overrunning its neighbour -- which is what
-    tests/test_scratch_arena exists to enforce.
+    took a 273x65x57 block from 41.54 MB to 23.34 MB. The volume the viscous
+    phase does carry now is the transport trio, three nodal fields that used
+    to be cached arrays outliving the phase that reads them; borrowing them
+    here trades 12.1 MB of permanent per-block storage for space in an arena
+    the multigrid phase was already sizing (19.24 MB against 24.47 MB at
+    273x65x57, and the margin is thinnest on a cube: 2.67 against 2.79 at
+    49x49x49). Sizes are computed, never written as literals, so a buffer
+    added to a phase shows up here rather than silently overrunning its
+    neighbour -- which is what tests/test_scratch_arena exists to enforce.
     """
     from ember.solver import mg_coarse_shapes  # noqa: PLC0415 - circular import
 
@@ -890,9 +894,10 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     visc_pr = ni * nj * 4 * 2 + ni * 4 * 3
     faces = sum(int(np.prod(sh)) for sh in _viscous_face_shapes(ni, nj, nk))
     tq = (ni + 1) * (nj + 1) * 9 * 2
+    transport = ni * nj * nk * 3
     mg = sum(int(np.prod(sh)) for sh in mg_coarse_shapes(ni, nj, nk, n_levels))
     return max(
-        faces + tq + visc_pr,                                  # update_sources
+        faces + tq + visc_pr + transport,                      # update_sources
         ni * nj * nk,                                          # update_timestep
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,      # update_residual
         mg + (ni - 1) * (nj - 1) * 5 * 2,                      # scree/RK + multigrid
@@ -903,18 +908,26 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
 def _carve_viscous(block):
     """Everything ``update_sources`` needs from the arena, from one carve.
 
-    Returns ``(faces, tq, planes, rows)``: the six boundary tau/q face buffers,
-    the rolling tau/q cell-plane pair, and ``set_visc_force``'s rolling
-    face-flow planes and rows. This is the only place the viscous phase's arena
-    layout is written down, and every caller that needs any part of it comes
-    through here -- ``grid.update_sources``, the :attr:`Block.tau_q_faces`
-    accessor, and the tests and bench arms that drive ``set_visc_force``
-    directly. Being deterministic, separate calls agree.
+    Returns ``(faces, tq, planes, rows, transport)``: the six boundary tau/q
+    face buffers, the rolling tau/q cell-plane pair, ``set_visc_force``'s
+    rolling face-flow planes and rows, and the nodal transport trio
+    ``(mu, kappa, cp)`` both viscous kernels read. This is the only place the
+    viscous phase's arena layout is written down, and every caller that needs
+    any part of it comes through here -- ``grid.update_sources``, the
+    :attr:`Block.tau_q_faces` accessor, and the tests and bench arms that drive
+    ``set_visc_force`` directly. Being deterministic, separate calls agree.
 
-    All four reach the same ``set_visc_force`` call, so they must not overlap.
-    One carve is what guarantees that -- ``util.carve_view`` packs the shapes
-    end to end -- and it is why the accessor and ``grid.update_sources`` both
-    come through here rather than each carving what it happens to want.
+    All of them reach the same ``set_visc_force`` call, so they must not
+    overlap. One carve is what guarantees that -- ``util.carve_view`` packs the
+    shapes end to end -- and it is why the accessor and ``grid.update_sources``
+    both come through here rather than each carving what it happens to want.
+
+    The trio is the one part with a lifetime longer than a single kernel call:
+    ``grid.update_sources`` fills it in the boundary phase and reads it back in
+    the face-flux phase, across the seam exchange in between, exactly as the
+    face buffers do. That is safe because each block owns its arena and nothing
+    else carves it during the pass -- the same contract the rest of the arena
+    runs on, and not something the code can check.
     """
     ni, nj, nk = block.shape
     bufs = util.carve_view(
@@ -923,8 +936,9 @@ def _carve_viscous(block):
         (ni + 1, nj + 1, 9, 2),
         (ni, nj, 4, 2),
         (ni, 4, 3),
+        *((ni, nj, nk),) * 3,
     )
-    return tuple(bufs[:6]), bufs[6], bufs[7], bufs[8]
+    return tuple(bufs[:6]), bufs[6], bufs[7], bufs[8], tuple(bufs[9:])
 
 
 class Block(ember._struct.StructuredData):
@@ -1094,6 +1108,29 @@ class Block(ember._struct.StructuredData):
     def _face_wall_arrays(self):
         """Permeable-variant face wall arrays (iwall, jwall, kwall)."""
         return self._get_face_wall_arrays()
+
+    def _fill_transport_nd(self, mu=None, kappa=None, cp=None):
+        r"""Write the nodal transport properties into caller buffers.
+
+        Fills whichever of `mu`, `kappa` and `cp` are given, each a nodal-shaped
+        buffer the caller owns, with :attr:`mu_nd`, :attr:`kappa_nd` and
+        :attr:`cp_nd` -- see those for what the nondimensionalisations mean.
+        This is the one place they are applied; the three properties and
+        :meth:`ember.grid.Grid.update_sources`, which borrows the trio from the
+        scratch arena rather than keeping it, both come through here.
+
+        Not cached and not stored: the viscous pass is the only consumer that
+        wants all three at once, and it supplies its own storage.
+        """
+        rho, u = self._rho_nd_uninit, self.u_nd
+        if mu is not None:
+            self.fluid.get_mu(rho, u, out=mu)
+            mu /= self.L_ref
+        if kappa is not None:
+            self.fluid.get_kappa(rho, u, out=kappa)
+            kappa /= self.L_ref
+        if cp is not None:
+            self.fluid.get_cp(rho, u, out=cp)
 
     @cached_object
     def _face_wall_arrays_slip(self):
@@ -2551,11 +2588,16 @@ class Block(ember._struct.StructuredData):
             raise_uninit=False,
         )
 
-    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
-    def cp_nd(self, out):
-        r"""Non-dimensional specific heat at constant pressure :math:`c_p / R_\mathrm{ref}` [-], nodal array."""
-        out = util.allocate_or_reuse(out, self.shape)
-        return self.fluid.get_cp(self._rho_nd_uninit, self.u_nd, out=out)
+    @derived_array
+    def cp_nd(self):
+        r"""Non-dimensional specific heat at constant pressure :math:`c_p / R_\mathrm{ref}` [-], nodal array.
+
+        Derived, not cached, like :attr:`mu_nd` and :attr:`kappa_nd`; see
+        :attr:`mu_nd` for why the three of them are not kept.
+        """
+        out = util.empty(self.shape)
+        self._fill_transport_nd(cp=out)
+        return out
 
     @derived_array
     def dA_quad(self):
@@ -2909,8 +2951,8 @@ class Block(ember._struct.StructuredData):
             "wallnk": _f(~(kwall[:, :, -1] == 0))[:, :, np.newaxis],
         }
 
-    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
-    def kappa_nd(self, out):
+    @derived_array
+    def kappa_nd(self):
         r"""Non-dimensional thermal conductivity :math:`\kappa^*` [--], nodal array.
 
         .. math ::
@@ -2921,10 +2963,11 @@ class Block(ember._struct.StructuredData):
         dimensionless, so this is what the viscous kernel's heat flux takes in
         place of the viscosity and Prandtl number it used to be handed.
 
+        Derived, not cached, like :attr:`mu_nd` and :attr:`cp_nd`; see
+        :attr:`mu_nd` for why the three of them are not kept.
         """
-        out = util.allocate_or_reuse(out, self.shape)
-        self.fluid.get_kappa(self._rho_nd_uninit, self.u_nd, out=out)
-        out /= self.L_ref
+        out = util.empty(self.shape)
+        self._fill_transport_nd(kappa=out)
         return out
 
     @property
@@ -2957,8 +3000,8 @@ class Block(ember._struct.StructuredData):
         r"""Axial Mach number :math:`\mathit{M\kern-0.1ema}_x` [-], nodal array."""
         return self.Vx / self.a
 
-    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
-    def mu_nd(self, out):
+    @derived_array
+    def mu_nd(self):
         r"""Non-dimensional dynamic viscosity :math:`\mu^*` [--], nodal array.
 
         .. math ::
@@ -2971,10 +3014,18 @@ class Block(ember._struct.StructuredData):
         array with one repeated constant, as it already does for
         :attr:`cp_nd`.
 
+        Derived, not cached: each access allocates. The transport trio (this,
+        :attr:`kappa_nd` and :attr:`cp_nd`) is read in one phase of the step
+        and nowhere else -- the two viscous kernels of
+        :meth:`ember.grid.Grid.update_sources` -- and that phase borrows all
+        three from the scratch arena instead of coming through here, so
+        caching them meant three nodal volumes sitting allocated for a whole
+        run to serve nothing but diagnostics. What is left here are those
+        diagnostics and the tests. Do not put this in a per-node loop over a
+        full block.
         """
-        out = util.allocate_or_reuse(out, self.shape)
-        self.fluid.get_mu(self._rho_nd_uninit, self.u_nd, out=out)
-        out /= self.L_ref
+        out = util.empty(self.shape)
+        self._fill_transport_nd(mu=out)
         return out
 
     @property
@@ -3257,7 +3308,8 @@ class Block(ember._struct.StructuredData):
 
         THE ONE ARENA. Every throwaway buffer in the step comes from here,
         including the six boundary tau/q face buffers (:attr:`tau_q_faces`),
-        ``set_visc_force``'s rolling tau/q cell-plane pair, the nodal acoustic
+        ``set_visc_force``'s rolling tau/q cell-plane pair, the nodal transport
+        trio the viscous kernels read, the nodal acoustic
         speed ``set_timestep_spectral`` reads, ``set_residual``'s
         and ``set_visc_force``'s rolling planes and rows, the IRS work vector,
         and the multigrid coarse scratch. :func:`_scratch_len` sizes it from

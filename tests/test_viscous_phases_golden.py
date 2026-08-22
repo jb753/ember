@@ -221,7 +221,7 @@ def _run_phase2(jbw=0, mu=None, kappa=None):
     i_cusp_start, i_cusp_end = block.i_cusp
     # One carve for the whole viscous phase: every buffer below reaches this
     # one call, so carving them together is what makes them disjoint.
-    faces, tq, planes, rows = ember.block._carve_viscous(block)
+    faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
         cons_cell=block.conserved_cell_nd,
