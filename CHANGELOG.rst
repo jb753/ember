@@ -19,14 +19,26 @@ without a deprecation period.
   RK/IRS/MG march falls 258.3 MB to 254.5 MB.
 
   The pass also gets slightly FASTER, which was not the expectation going in:
-  **-0.45%** on the pair and **-1.05%** on ``set_visc_force`` at 8-rank socket
+  **-0.30%** on the pair and **-1.05%** on ``set_visc_force`` at 8-rank socket
   contention, because deleting the cell volume deletes a stream from a walk
   that is bandwidth-bound in that regime, and the nodal corners replacing it
   are already in cache. The boundary producer ``set_tau_q_faces`` goes the
-  other way, **+5.40%**: it touches only the shell, so it was never streaming
+  other way, **+2.8%**: it touches only the shell, so it was never streaming
   the volume and the average is pure added work there. It is the O(surface)
-  phase against the fused walk's O(volume), so the pair nets out ahead. (8
-  launches x 30 reps, paired within launch, 1M cells.)
+  phase -- a tenth of the pair against the fused walk's nine tenths -- so the
+  pair nets out ahead. (8 launches x 30 reps, paired within launch, 1M cells.)
+
+  That +2.8% is after halving an initial +5.40% by hoisting the mixing length
+  into ``set_tau_q_faces``'s stage-1 row, beside the eight-corner averages
+  already there: -2.45% on that kernel. The consumer keeps computing it in
+  place, where its j panel already has the rows resident and the row form
+  costs 2.05% instead of saving anything. Two consequences of the two kernels
+  no longer spelling it the same way, both bounded and both recorded at the
+  spelling split in the source: the pair gave 0.15% back to codegen
+  perturbation in the neighbouring kernel (same translation unit, unchanged
+  source, measurably slower binary), and the two producers agree to within one
+  to two ulp rather than to the bit -- confined to ``set_tau_q_faces``'s own
+  face buffers, with ``fvisc`` and ``mu_turb`` bitwise unchanged.
 
 * The geometry helpers behind ``dAi_nd``, ``dAj_nd``, ``dAk_nd`` and
   ``vol_nd`` walk the block in k-slabs instead of whole-block calls. Their
