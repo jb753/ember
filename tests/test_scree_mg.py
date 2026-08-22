@@ -120,7 +120,7 @@ def _run_mg(
         expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
-        tmp=Z(ni - 1, nj - 1, nk - 1, NP),
+        rbuf=Z(ni - 1, nj - 1, NP, 2),
         dtblk=Z(nc1i, nc1j, nc1k),
         aplane=Z(ni - 1, nc1j),
         bb=Z(ni - 1, nj - 1, nc1k, NP),
@@ -140,9 +140,10 @@ def test_fac_mgrid_zero_matches_plain():
     """fac_mgrid=0 with n_levels>0 must reproduce scree_plain (coarse coef=0, so
     every coarse correction is exactly zero and only the fine term survives).
 
-    Not bit-exact: the mg path's fused fine term goes through mg_prolong2x_fine
-    (ft + zero-correction prolong), whose FMA contraction of the +0 differs from
-    fine_term's bare multiply by <=1 ULP. The store roll is exact."""
+    Not bit-exact: the mg path's fused fine term goes through
+    mg_prolong2x_fine_scatter (ft + zero-correction prolong), whose FMA
+    contraction of the +0 differs from fine_term's bare multiply by <=1 ULP.
+    The store roll is exact."""
     residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=1)
 
     cons_plain, store_plain = _run_plain(residual, dt_vol, store, cons, NI, NJ, NK)

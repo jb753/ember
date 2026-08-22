@@ -72,6 +72,7 @@ management: allocation, or buffer creation and reuse.
    allocate_or_reuse
    bcast_if_needed
    carve_view
+   rss_bytes
 
 Miscellaneous geometry
 ========================
@@ -86,7 +87,10 @@ Assorted utilities for working with coordinates and bounding boxes.
    unwrap_meridional
 """
 
+import re
+
 import numpy as np
+
 import ember.fortran
 
 try:
@@ -447,6 +451,32 @@ def carve_view(buf, *shapes):
         views.append(flat[start : start + count].reshape(shape, order="F"))
         start += count
     return views[0] if len(shapes) == 1 else views
+
+
+def rss_bytes():
+    """Resident and peak-resident memory of this process, in bytes.
+
+    Reads ``VmRSS``/``VmHWM`` from ``/proc/self/status``, so the peak is the
+    kernel's own high-water mark: it covers transients that came and went
+    between two calls, which sampling ``VmRSS`` alone would miss. Where
+    ``/proc`` is unavailable (non-Linux) both come back as ``0``, so callers on
+    a debug-logging path never have to branch.
+
+    Returns
+    -------
+    tuple of int
+        ``(rss, peak_rss)`` in bytes.
+    """
+    try:
+        with open("/proc/self/status") as f:
+            status = f.read()
+    except OSError:
+        return 0, 0
+    out = []
+    for field in ("VmRSS", "VmHWM"):
+        match = re.search(rf"^{field}:\s+(\d+) kB", status, re.MULTILINE)
+        out.append(int(match.group(1)) * 1024 if match else 0)
+    return tuple(out)
 
 
 def meshgrid3(xv, rv, tv):
