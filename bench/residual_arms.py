@@ -130,7 +130,7 @@ def build_case(ncell, periodic_k=None):
     grid = build_duct_grid(ncell, periodic_k=periodic_k)
     grid.update_cached_conserved()
     grid.apply_bconds()
-    grid.update_sources(False, 0.0)  # seeds F_body, tau_q_halo, mu_turb
+    grid.update_sources(False, 0.0)  # seeds F_body and mu_turb
     grid.update_timestep(rf=1.0)
     return grid, grid[0]
 
@@ -139,7 +139,7 @@ def build_kwargs(b):
     """Common kwargs plus each arm's private scratch, all carved zero-copy.
 
     Every buffer for a given call comes from ONE carve_view call, which
-    guarantees the spans are disjoint -- block.tau_q_halo's docstring forbids
+    guarantees the spans are disjoint -- Block.scratch's docstring forbids
     aliasing two arrays into the same kernel call.
     """
     ni, nj, nk = b.shape
@@ -159,7 +159,7 @@ def build_kwargs(b):
         fj,
         fk,
     ) = util.carve_view(
-        b.tau_q_halo,
+        b.scratch,
         (ni, njp, 5, 2),
         (ni, 5, 3),
         (ni, njp, 2),

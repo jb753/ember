@@ -1048,8 +1048,8 @@ subroutine set_residual( &
     ! Two transient rolling flow-scratch buffers: planes holds the k-face
     ! plane pair (slots pa/pb), rows holds the i-face row (slot 1) and the
     ! j-face row pair (slots ja/jb alternating 2/3). Caller backs these with
-    ! block._tau_q_halo, which is pure transient scratch -- the layout here
-    ! is private to this call. njp is planes' padded j-extent, chosen by the
+    ! block.scratch, the one arena, which is pure transient scratch -- the
+    ! layout here is private to this call. njp is planes' padded j-extent, chosen by the
     ! caller: nj+1 whenever ni*nj*4 bytes is a whole page multiple (e.g.
     ! ni=128, nj=96: 48 KB exactly), so the ten concurrent component streams
     ! of the k-accumulate (5 components x pa/pb) never 4K-alias into the

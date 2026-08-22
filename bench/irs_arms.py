@@ -173,7 +173,7 @@ def callers_irs(b, du, sf=SF, active_arms=IRS_ARMS):
         # Carved from block.scratch, exactly as grid.py does: nodal
         # (ni,nj,nk,5) and so vastly oversized for either length. Free at this
         # point in a real step -- set_residual stages its face flows in
-        # tau_q_halo and the march reuses scratch only afterwards.
+        # further into the arena and the march reuses its head afterwards.
         work = util.carve_view(b.scratch, (nwork,))
         kw = dict(du=du, sf=sf, work=work, ni=ni, nj=nj, nk=nk)
         if tiled:

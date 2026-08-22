@@ -12,8 +12,9 @@ module viscous_helpers
     public :: wall_core, wall_func, wall_yplus
     public :: wall_func_iface, wall_func_jface, wall_func_kface
     public :: wall_yplus_iface, wall_yplus_jface, wall_yplus_kface
-    public :: kface_flow, tau_q_at_cell
-    public :: polar_src, scale_visc_halos, zero_wall_fvisc_border
+    public :: kface_flow_tq, tau_q_at_cell
+    public :: load_kface, load_ijedge_faces
+    public :: polar_src, zero_wall_fvisc_border
     public :: wall_row_kface, wall_row_jface
     public :: VISC_JAREA
 
@@ -390,44 +391,6 @@ contains
         call wall_yplus(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_kface
 
-    ! One k-face viscous flux at face plane k: identical arithmetic to the
-    ! k-direction face loop in set_visc_force. Used only by the O(surface)
-    ! cusp-seam correction pass there, never by the hot slab loops (which keep
-    ! the body inlined for vectorization). tau_cell/q_cell are halo-indexed
-    ! (ni+1, nj+1, nk+1, 6/3), component-last.
-    pure subroutine kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, k, flow)
-        implicit none
-        real, intent(in), contiguous :: tau_cell(:,:,:,:), q_cell(:,:,:,:)
-        real, intent(in), contiguous :: Vx(:,:,:), Vr(:,:,:), Vt(:,:,:), r(:,:,:)
-        real, intent(in), contiguous :: dAk(:,:,:,:)
-        real, intent(in) :: Omega_block
-        integer, intent(in) :: i, j, k
-        real, intent(out) :: flow(4)
-        real :: tauf(6), qf(3), Vf(3), rf, Vabs, wvisc(3)
-        tauf(1) = (tau_cell(i+1, j+1, k, 1) + tau_cell(i+1, j+1, k+1, 1)) * 0.5e0
-        tauf(2) = (tau_cell(i+1, j+1, k, 2) + tau_cell(i+1, j+1, k+1, 2)) * 0.5e0
-        tauf(3) = (tau_cell(i+1, j+1, k, 3) + tau_cell(i+1, j+1, k+1, 3)) * 0.5e0
-        tauf(4) = (tau_cell(i+1, j+1, k, 4) + tau_cell(i+1, j+1, k+1, 4)) * 0.5e0
-        tauf(5) = (tau_cell(i+1, j+1, k, 5) + tau_cell(i+1, j+1, k+1, 5)) * 0.5e0
-        tauf(6) = (tau_cell(i+1, j+1, k, 6) + tau_cell(i+1, j+1, k+1, 6)) * 0.5e0
-        qf(1)   = (q_cell(i+1, j+1, k, 1) + q_cell(i+1, j+1, k+1, 1)) * 0.5e0
-        qf(2)   = (q_cell(i+1, j+1, k, 2) + q_cell(i+1, j+1, k+1, 2)) * 0.5e0
-        qf(3)   = (q_cell(i+1, j+1, k, 3) + q_cell(i+1, j+1, k+1, 3)) * 0.5e0
-        Vf(1) = (Vx(i,j,k) + Vx(i+1,j,k) + Vx(i,j+1,k) + Vx(i+1,j+1,k)) * 0.25e0
-        Vf(2) = (Vr(i,j,k) + Vr(i+1,j,k) + Vr(i,j+1,k) + Vr(i+1,j+1,k)) * 0.25e0
-        Vf(3) = (Vt(i,j,k) + Vt(i+1,j,k) + Vt(i,j+1,k) + Vt(i+1,j+1,k)) * 0.25e0
-        rf     = (r(i,j,k)  + r(i+1,j,k)  + r(i,j+1,k)  + r(i+1,j+1,k))  * 0.25e0
-        Vabs = Vf(3) + Omega_block * rf
-        flow(1) = tauf(1)*dAk(1,i,j,k) + tauf(4)*dAk(2,i,j,k) + tauf(5)*dAk(3,i,j,k)
-        flow(2) = tauf(4)*dAk(1,i,j,k) + tauf(2)*dAk(2,i,j,k) + tauf(6)*dAk(3,i,j,k)
-        flow(3) = (tauf(5)*dAk(1,i,j,k) + tauf(6)*dAk(2,i,j,k) + tauf(3)*dAk(3,i,j,k)) * rf
-        wvisc(1) = Vf(1)*tauf(1) + Vf(2)*tauf(4) + Vabs*tauf(5)
-        wvisc(2) = Vf(1)*tauf(4) + Vf(2)*tauf(2) + Vabs*tauf(6)
-        wvisc(3) = Vf(1)*tauf(5) + Vf(2)*tauf(6) + Vabs*tauf(3)
-        flow(4) = (wvisc(1)-qf(1))*dAk(1,i,j,k) &
-                + (wvisc(2)-qf(2))*dAk(2,i,j,k) &
-                + (wvisc(3)-qf(3))*dAk(3,i,j,k)
-    end subroutine kface_flow
 
     ! Polar (radial-momentum) source per unit volume for cell (i,j,k):
     !     S = (rho*Vt^2 + (P - P_offset)) / r
@@ -454,55 +417,6 @@ contains
         S = ((Pc - P_offset) + rhoc * Vtc**2) / rc
     end function polar_src
 
-    ! Scale the tau/q boundary halos by (2*wall - 1): wall=0 gives -edge so the
-    ! face average is zero, wall=1 keeps +edge for the single-sided stress.
-    subroutine scale_visc_halos(tau_cell, q_cell, &
-        walli1, wallj1, wallk1, wallni, wallnj, wallnk, ni, nj, nk)
-        implicit none
-        integer, intent(in) :: ni, nj, nk
-        real, intent(inout) :: tau_cell(ni+1, nj+1, nk+1, 6)
-        real, intent(inout) :: q_cell(ni+1, nj+1, nk+1, 3)
-        real, intent(in) :: walli1(nj-1, nk-1), wallni(nj-1, nk-1)
-        real, intent(in) :: wallj1(ni-1, nk-1), wallnj(ni-1, nk-1)
-        real, intent(in) :: wallk1(ni-1, nj-1), wallnk(ni-1, nj-1)
-        integer :: i, j, k
-        do k = 1, nk-1
-        do j = 1, nj-1
-            tau_cell(1, j+1, k+1, :) = tau_cell(1, j+1, k+1, :) * (2.0e0*walli1(j,k) - 1.0e0)
-            q_cell(1, j+1, k+1, :) = q_cell(1, j+1, k+1, :) * (2.0e0*walli1(j,k) - 1.0e0)
-        end do
-        end do
-        do k = 1, nk-1
-        do j = 1, nj-1
-            tau_cell(ni+1, j+1, k+1, :) = tau_cell(ni+1, j+1, k+1, :) * (2.0e0*wallni(j,k) - 1.0e0)
-            q_cell(ni+1, j+1, k+1, :) = q_cell(ni+1, j+1, k+1, :) * (2.0e0*wallni(j,k) - 1.0e0)
-        end do
-        end do
-        do k = 1, nk-1
-        do i = 1, ni-1
-            tau_cell(i+1, 1, k+1, :) = tau_cell(i+1, 1, k+1, :) * (2.0e0*wallj1(i,k) - 1.0e0)
-            q_cell(i+1, 1, k+1, :) = q_cell(i+1, 1, k+1, :) * (2.0e0*wallj1(i,k) - 1.0e0)
-        end do
-        end do
-        do k = 1, nk-1
-        do i = 1, ni-1
-            tau_cell(i+1, nj+1, k+1, :) = tau_cell(i+1, nj+1, k+1, :) * (2.0e0*wallnj(i,k) - 1.0e0)
-            q_cell(i+1, nj+1, k+1, :) = q_cell(i+1, nj+1, k+1, :) * (2.0e0*wallnj(i,k) - 1.0e0)
-        end do
-        end do
-        do j = 1, nj-1
-        do i = 1, ni-1
-            tau_cell(i+1, j+1, 1, :) = tau_cell(i+1, j+1, 1, :) * (2.0e0*wallk1(i,j) - 1.0e0)
-            q_cell(i+1, j+1, 1, :) = q_cell(i+1, j+1, 1, :) * (2.0e0*wallk1(i,j) - 1.0e0)
-        end do
-        end do
-        do j = 1, nj-1
-        do i = 1, ni-1
-            tau_cell(i+1, j+1, nk+1, :) = tau_cell(i+1, j+1, nk+1, :) * (2.0e0*wallnk(i,j) - 1.0e0)
-            q_cell(i+1, j+1, nk+1, :) = q_cell(i+1, j+1, nk+1, :) * (2.0e0*wallnk(i,j) - 1.0e0)
-        end do
-        end do
-    end subroutine scale_visc_halos
 
     ! zero_wall_fvisc for set_visc_force, whose fused store has ALREADY
     ! applied the i-mask to every row interior in j and k. Only the border of
@@ -564,15 +478,15 @@ contains
     end subroutine zero_wall_fvisc_border
 
 
-    ! tau/q for ONE cell: the expressions of set_tau_q_soa's row body written
-    ! for a single (i,j,k), with the same associations, so the two agree to the
-    ! bit where the compiler treats them alike.
+    ! tau/q for ONE cell: the expressions of the row body written for a single
+    ! (i,j,k), with the same associations, so the two agree to the bit where
+    ! the compiler treats them alike.
     !
-    ! set_tau_q_soa vectorises over i, which the O(surface) boundary producer
-    ! cannot do on two of its six faces -- the i faces pin exactly that axis.
-    ! Rather than carry two shapes of the same arithmetic, the producer walks
-    ! cells and calls this. It is O(surface) work, so the per-cell call costs
-    ! little; the volume pass keeps its row form untouched.
+    ! The row body vectorises over i, which set_tau_q_faces cannot do on two of
+    ! its six faces -- the i faces pin exactly that axis. Rather than carry two
+    ! shapes of the same arithmetic there, that producer walks those two faces
+    ! cell by cell and calls this. They are ~8% of the shell, so the per-cell
+    ! call costs little; the other four faces keep the row form.
     pure subroutine tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, &
         vol, dAi, dAj, dAk, r, Vx, Vr, Vt, i, j, k, ni, nj, nk, tq)
         implicit none
@@ -657,8 +571,8 @@ contains
         w2 = gVx3 - gVt1
         w3 = gVr1 - gVx2
         vm = sqrt(w1*w1 + w2*w2 + w3*w3)
-        ! The max(0) contains the same gfortran 13 codegen fault set_tau_q_soa
-        ! documents at its own copy of this line -- keep them identical.
+        ! The max(0) contains the same gfortran 13 codegen fault set_visc_force
+        ! documents at its own copy of this line -- keep the three identical.
         visc_lim = 3000e0 * muc
         mut = max(0.0e0, min(rhoc * xlength(i,j,k) * vm, visc_lim))
         fac = (muc + mut) * 0.5e0
@@ -684,6 +598,114 @@ contains
               + 0.125e0*(f1+f2)/rcr) * (lambda*0.5e0)
     end subroutine tau_q_at_cell
 
+    ! One k-face viscous flux with tau/q supplied as two 9-vectors, for the
+    ! cusp seam correction.
+    !
+    ! Production's kface_flow (viscous.f90) takes the halo-indexed volume and
+    ! reads tau_cell(i+1,j+1,k,:) and (i+1,j+1,k+1,:): at k=1 that is the halo
+    ! slot then cell plane 1, at k=nk cell plane nk-1 then the halo slot. Those
+    ! four values are exactly the two layers of the two k face buffers -- f_k1
+    ! layer 2 is the low halo and layer 1 is cell plane 1; f_knk layer 1 is
+    ! cell plane nk-1 and layer 2 its halo -- so the correction needs no volume
+    ! and no rolling plane. It is also why the correction is reachable HERE and
+    ! was not from the parent arms: they carry a rolling pair, and cell plane 1
+    ! is long gone by the time the walk reaches nk, while the face buffers hold
+    ! both planes at once for the whole call.
+    !
+    ! The arithmetic below is production's kface_flow, statement for statement.
+    ! tests/test_viscous_cusp_seam.py gates the sign against an independent
+    ! Python evaluation of the same face flux.
+    pure subroutine kface_flow_tq(tqlo, tqhi, Vx, Vr, Vt, r, dAk, Omega_block, i, j, k, flow)
+        implicit none
+        real, intent(in) :: tqlo(9), tqhi(9)
+        real, intent(in), contiguous :: Vx(:,:,:), Vr(:,:,:), Vt(:,:,:), r(:,:,:)
+        real, intent(in), contiguous :: dAk(:,:,:,:)
+        real, intent(in) :: Omega_block
+        integer, intent(in) :: i, j, k
+        real, intent(out) :: flow(4)
+        real :: tauf(6), qf(3), Vf(3), rf, Vabs, wvisc(3)
+        tauf(1) = (tqlo(1) + tqhi(1)) * 0.5e0
+        tauf(2) = (tqlo(2) + tqhi(2)) * 0.5e0
+        tauf(3) = (tqlo(3) + tqhi(3)) * 0.5e0
+        tauf(4) = (tqlo(4) + tqhi(4)) * 0.5e0
+        tauf(5) = (tqlo(5) + tqhi(5)) * 0.5e0
+        tauf(6) = (tqlo(6) + tqhi(6)) * 0.5e0
+        qf(1)   = (tqlo(7) + tqhi(7)) * 0.5e0
+        qf(2)   = (tqlo(8) + tqhi(8)) * 0.5e0
+        qf(3)   = (tqlo(9) + tqhi(9)) * 0.5e0
+        Vf(1) = (Vx(i,j,k) + Vx(i+1,j,k) + Vx(i,j+1,k) + Vx(i+1,j+1,k)) * 0.25e0
+        Vf(2) = (Vr(i,j,k) + Vr(i+1,j,k) + Vr(i,j+1,k) + Vr(i+1,j+1,k)) * 0.25e0
+        Vf(3) = (Vt(i,j,k) + Vt(i+1,j,k) + Vt(i,j+1,k) + Vt(i+1,j+1,k)) * 0.25e0
+        rf     = (r(i,j,k)  + r(i+1,j,k)  + r(i,j+1,k)  + r(i+1,j+1,k))  * 0.25e0
+        Vabs = Vf(3) + Omega_block * rf
+        flow(1) = tauf(1)*dAk(1,i,j,k) + tauf(4)*dAk(2,i,j,k) + tauf(5)*dAk(3,i,j,k)
+        flow(2) = tauf(4)*dAk(1,i,j,k) + tauf(2)*dAk(2,i,j,k) + tauf(6)*dAk(3,i,j,k)
+        flow(3) = (tauf(5)*dAk(1,i,j,k) + tauf(6)*dAk(2,i,j,k) + tauf(3)*dAk(3,i,j,k)) * rf
+        wvisc(1) = Vf(1)*tauf(1) + Vf(2)*tauf(4) + Vabs*tauf(5)
+        wvisc(2) = Vf(1)*tauf(4) + Vf(2)*tauf(2) + Vabs*tauf(6)
+        wvisc(3) = Vf(1)*tauf(5) + Vf(2)*tauf(6) + Vabs*tauf(3)
+        flow(4) = (wvisc(1)-qf(1))*dAk(1,i,j,k) &
+                + (wvisc(2)-qf(2))*dAk(2,i,j,k) &
+                + (wvisc(3)-qf(3))*dAk(3,i,j,k)
+    end subroutine kface_flow_tq
+
+    ! One k-direction halo plane, from its face buffer into a rolling tq slot.
+    ! No mask: the face buffer's layer 2 already carries (2*wall-1), applied
+    ! once by set_tau_q_faces rather than on every read.
+    ! jlo/jhi restrict the fill to the caller's j panel: outside it the plane
+    ! holds another panel's rows and is not read.
+    subroutine load_kface(fk, plane, jlo, jhi, ni, nj)
+        implicit none
+        integer, intent(in) :: jlo, jhi, ni, nj
+        real, intent(in) :: fk(ni-1, 9, nj-1, 2)
+        real, intent(inout) :: plane(ni+1, nj+1, 9)
+        integer :: i, j, c
+        do j = jlo, jhi
+        do c = 1, 9
+        do i = 1, ni-1
+            plane(i+1,j+1,c) = fk(i,c,j,2)
+        end do
+        end do
+        end do
+    end subroutine load_kface
+
+    ! The four i/j halo edges of one cell plane, from their face buffers.
+    ! Both reads are unit-stride in the face buffer; the i-edge WRITE into the
+    ! halo-shaped plane still strides (ni+1), which is the plane's layout, not
+    ! this buffer's.
+    ! jlo/jhi are the cell rows this panel produced, so the i edges follow the
+    ! rows that exist. The j edges are the plane's own row 0 and row nj, which
+    ! belong to the first and last panel respectively -- a middle panel has
+    ! real cell rows on both sides and reads no j edge at all.
+    subroutine load_ijedge_faces(f_i1, f_ini, f_j1, f_jnj, plane, k, jlo, jhi, ni, nj, nk)
+        implicit none
+        integer, intent(in) :: k, jlo, jhi, ni, nj, nk
+        real, intent(in) :: f_i1(nj-1, 9, nk-1, 2), f_ini(nj-1, 9, nk-1, 2)
+        real, intent(in) :: f_j1(ni-1, 9, nk-1, 2), f_jnj(ni-1, 9, nk-1, 2)
+        real, intent(inout) :: plane(ni+1, nj+1, 9)
+        integer :: i, j, c
+        do c = 1, 9
+        do j = jlo, jhi
+            plane(1,j+1,c)    = f_i1(j,c,k,2)
+            plane(ni+1,j+1,c) = f_ini(j,c,k,2)
+        end do
+        end do
+        if (jlo == 1) then
+            do c = 1, 9
+            do i = 1, ni-1
+                plane(i+1,1,c) = f_j1(i,c,k,2)
+            end do
+            end do
+        end if
+        if (jhi == nj-1) then
+            do c = 1, 9
+            do i = 1, ni-1
+                plane(i+1,nj+1,c) = f_jnj(i,c,k,2)
+            end do
+            end do
+        end if
+    end subroutine load_ijedge_faces
+
 end module viscous_helpers
 
 ! The viscous calculation, in two kernels
@@ -697,30 +719,42 @@ end module viscous_helpers
 ! (frame-subtracted), and Omega*r is added back where absolute velocity is
 ! needed (the shear-work terms).
 !
-! `set_tau_q_soa` computes, for every cell, the stress tensor tau(6) and
-! heat-flux vector q(3) by a Green-Gauss gradient over the six cell faces,
-! each face average being the mean of its four corner nodes. tau and q are
-! stored multiplied by 2, so that averaging two adjacent cells recovers the
-! correct face value without a further factor.
+! `set_tau_q_faces` computes the stress tensor tau(6) and heat-flux vector q(3)
+! for the cells on the block's BOUNDARY SHELL only, by a Green-Gauss gradient
+! over the six cell faces, each face average being the mean of its four corner
+! nodes. tau and q are stored multiplied by 2, so that averaging two adjacent
+! cells recovers the correct face value without a further factor.
 !
-! `set_visc_force` then accumulates the viscous face flows into fvisc. The two
-! are separate kernels, not two passes of one, because a grid-wide periodic
-! seam halo exchange runs between them (grid.py's update_sources).
+! `set_visc_force` then walks k, producing interior tau/q into a rolling cell
+! plane pair as it goes and consuming it in the same walk, and accumulates the
+! viscous face flows into fvisc. Interior tau/q therefore never reaches memory:
+! only the shell does, in the six surface buffers (Block.tau_q_faces), which is
+! all the grid-wide periodic seam exchange between the two kernels needs to
+! carry (grid.py's update_sources, PeriodicCommunicator.exchange_faces).
+!
+! WHY THE SHELL IS A SEPARATE KERNEL AT ALL. The exchange has to run after
+! every block's boundary tau/q exists and before any block consumes its
+! neighbour's, so something O(surface) must precede the walk. That something is
+! `set_tau_q_faces`; the volume pass it replaced wrote 9 floats per cell that
+! the second kernel then streamed straight back, and sizing the scratch arena
+! for that volume was three quarters of the arena.
 !
 ! Interior faces take tauf as the average of tau_cell from the two adjacent
 ! cells; boundary faces (i=1, i=ni, j=1, j=nj, k=1, k=nk) take it from the
 ! single adjacent interior cell (already doubled above, so no extra factor)
 ! and blend the free-stream viscous stress with a wall-function force
 ! according to the wall weight.
-
+!
 ! Strip-mined / SoA evaluation of tau and q: the per-cell work is split into
 ! two flat do-i loops over each (j,k) row, with the per-cell intermediates held
 ! in row temps dimensioned with i as the contiguous axis. This gives the auto-
 ! vectorizer simple, call-light, unit-stride loops to vectorize over i instead
-! of one deep nest with a heavy inlined body.
+! of one deep nest with a heavy inlined body. Both kernels use that row form,
+! bar the two i faces of the shell, which pin exactly the axis it vectorises
+! over and fall back to the per-cell `tau_q_at_cell`.
 !
-! Three modelling choices are built into the arithmetic below and are not
-! obvious from it:
+! Three modelling choices are built into the arithmetic and are not obvious
+! from it:
 !
 !   Normal stresses are 2*mu*strain, with no -2/3 div(V) deviatoric term,
 !   matching Multall NEW_LOSS (TXX = 2*VISTOT*DVXDX).
@@ -737,13 +771,37 @@ end module viscous_helpers
 !   block-frame value as differenced from Vt_rel. The strain rate itself is
 !   frame-invariant regardless, since the rigid rotation Omega*r contributes
 !   only an antisymmetric part.
-subroutine set_tau_q_soa( &
+
+
+! O(surface) boundary producer for the viscous face buffers.
+!
+! set_visc_force produces interior tau/q inside its own k walk and reads only
+! the boundary shell. This kernel is that shell -- six surface buffers instead
+! of a volume, so the producer is O(surface), the periodic seam exchange
+! carries O(surface) too, and the consumer's halo source does not depend on
+! the block's topology. The volume pass this replaced wrote nine floats for
+! every cell so that the second kernel could read the shell out of them.
+!
+! Layer 1 of each face is the block's own edge-cell tau/q. Layer 2 is the halo
+! value, seeded here as (2*wall - 1) * layer1: a viscous wall gets -edge, so
+! the face average is zero, and a permeable or slip face gets +edge, the
+! single-sided stress -- which is right for every face nothing exchanges. The
+! periodic exchange then overwrites layer 2 wherever a patch connects. Applying
+! the sign once here is what lets the consumer read the halo with no mask.
+!
+! mu_turb is deliberately NOT written. set_visc_force writes it for every cell
+! from its own producer pass, so writing the shell here as well would be
+! duplicated traffic for a value about to be overwritten with the identical
+! number.
+!
+! The shell's edges and corners belong to more than one face and are computed
+! once per face they lie on. That duplication is O(edge), and removing it would
+! mean carrying a "which faces own this cell" test into every loop.
+subroutine set_tau_q_faces( &
     cons, T, mu, cp, kappa, Pr_turb, xlength, vol, dAi, dAj, dAk, &
-    r, &
-    Vx, Vr, Vt, &
-    tau_cell, &
-    q_cell, &
-    mu_turb, &
+    r, Vx, Vr, Vt, &
+    f_i1, f_ini, f_j1, f_jnj, f_k1, f_knk, &
+    walli1, wallni, wallj1, wallnj, wallk1, wallnk, &
     ni, nj, nk)
 
     use viscous_helpers
@@ -752,44 +810,460 @@ subroutine set_tau_q_soa( &
     integer, intent(in) :: ni, nj, nk
     real, intent(in) :: cons(ni, nj, nk, 5)
     real, intent(in) :: T(ni, nj, nk)
-    real, intent(in) :: Pr_turb
-    ! All three nodal: a real gas's viscosity, conductivity and specific heat
-    ! are surfaces over the field, and freezing any of them at one state was
-    ! worth as much as its whole spread over a fit box. Averaged to the cell
-    ! below, like rho. The laminar Prandtl number is not among them -- it is
-    ! the ratio of two of these, so passing it as well would be a second
-    ! definition of the same thing.
     real, intent(in) :: mu(ni, nj, nk)
     real, intent(in) :: cp(ni, nj, nk)
     real, intent(in) :: kappa(ni, nj, nk)
+    real, intent(in) :: Pr_turb
     real, intent(in) :: xlength(ni-1, nj-1, nk-1)
     real, intent(in) :: vol(ni-1, nj-1, nk-1)
     real, intent(in) :: dAi(3, ni, nj-1, nk-1)
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Vx(ni, nj, nk)
-    real, intent(in) :: Vr(ni, nj, nk)
-    real, intent(in) :: Vt(ni, nj, nk)
-    real, intent(inout) :: tau_cell(ni+1, nj+1, nk+1, 6)
-    real, intent(inout) :: q_cell(ni+1, nj+1, nk+1, 3)
-    ! Cell-centred mixing-length turbulent viscosity, written at the cell's
-    ! low-corner node (i,j,k). The final node in each axis is padding that is
-    ! not written here and must not be read. intent(inout) so that padding is
-    ! left untouched rather than becoming undefined.
-    real, intent(inout) :: mu_turb(ni, nj, nk)
+    real, intent(in) :: Vx(ni, nj, nk), Vr(ni, nj, nk), Vt(ni, nj, nk)
+    ! Component axis second so that, at a fixed trailing spatial index, the
+    ! (edge, component) block is contiguous -- the order the consumers walk it.
+    real, intent(inout) :: f_i1(nj-1, 9, nk-1, 2), f_ini(nj-1, 9, nk-1, 2)
+    real, intent(inout) :: f_j1(ni-1, 9, nk-1, 2), f_jnj(ni-1, 9, nk-1, 2)
+    real, intent(inout) :: f_k1(ni-1, 9, nj-1, 2), f_knk(ni-1, 9, nj-1, 2)
+    real, intent(in) :: walli1(nj-1, nk-1), wallni(nj-1, nk-1)
+    real, intent(in) :: wallj1(ni-1, nk-1), wallnj(ni-1, nk-1)
+    real, intent(in) :: wallk1(ni-1, nj-1), wallnk(ni-1, nj-1)
 
-    integer :: i, j, k
+    integer :: i, j, k, c
+    integer :: irow, nrow, face
+    real :: tq(9)
     real :: visc_lim
-    ! Row temps -- i is the contiguous (dim-1) axis, the SIMD lane index.
+    ! Row temps for the j/k face rows -- i is the contiguous (dim-1) axis, the
+    ! SIMD lane index, as set_visc_force's producer declares them. AUTOMATIC, and
+    ! that is load-bearing: making them dummy arguments of a shared helper
+    ! costs the stage-1 loop its vectorization, because GCC versions that loop
+    ! against a runtime alias check and will not do so against a dummy.
     real :: gVx(ni-1, 3), gVr(ni-1, 3), gVt(ni-1, 3)
     real :: vct(ni-1), rcr(ni-1), ivr(ni-1), rhoc(ni-1), cpc(ni-1)
     real :: muc(ni-1), kac(ni-1)
+    ! One row of the nine components, staged here and then dispatched to
+    ! whichever face buffer this row belongs to.
+    real :: tqr(ni-1, 9)
     real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
     real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac, lambda
 
+    ! --- i faces: the two that pin the axis the row body vectorises over ---
     do k = 1, nk-1
     do j = 1, nj-1
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+            dAi, dAj, dAk, r, Vx, Vr, Vt, 1, j, k, ni, nj, nk, tq)
+        do c = 1, 9
+            f_i1(j,c,k,1) = tq(c)
+            f_i1(j,c,k,2) = tq(c) * (2.0e0*walli1(j,k) - 1.0e0)
+        end do
+        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
+            dAi, dAj, dAk, r, Vx, Vr, Vt, ni-1, j, k, ni, nj, nk, tq)
+        do c = 1, 9
+            f_ini(j,c,k,1) = tq(c)
+            f_ini(j,c,k,2) = tq(c) * (2.0e0*wallni(j,k) - 1.0e0)
+        end do
+    end do
+    end do
+
+    ! --- j and k faces: one row body, dispatched to the four buffers ---
+    !
+    ! These four faces walk i, the axis the tau/q body vectorises over, so they
+    ! take the ROW form rather than the per-cell call the i faces are stuck
+    ! with. They are ~88% of the shell, and the per-cell form costs about
+    ! 85 ns per surface cell against the row form's ~26: this kernel went from
+    ! 6.5 to 2.6 ns per CELL of the block when they were converted, which is
+    ! the difference between the surface-buffer scheme costing the viscous pair
+    ! 7% and it winning 4% (bench/README.md).
+    !
+    ! The arithmetic below is set_visc_force's producer, statement for statement
+    ! and with the same associations. That is not tidiness: the consumer
+    ! averages an edge cell it produced with its own row body against a halo
+    ! value it reads from here, so the two agreeing to the bit is what keeps a
+    ! boundary face from carrying a spurious jump.
+    !
+    ! ONE copy of the body serves all four faces. The row index below names the
+    ! (j, k) of each row and which buffer it lands in, and the dispatch runs
+    ! once per row of ni-1 cells. Writing the body out four times would be four
+    ! chances for the faces to drift apart.
+    nrow = 2*(nk-1) + 2*(nj-1)
+    do irow = 1, nrow
+        if (irow <= nk-1) then
+            face = 1
+            j = 1
+            k = irow
+        else if (irow <= 2*(nk-1)) then
+            face = 2
+            j = nj-1
+            k = irow - (nk-1)
+        else if (irow <= 2*(nk-1) + (nj-1)) then
+            face = 3
+            j = irow - 2*(nk-1)
+            k = 1
+        else
+            face = 4
+            j = irow - 2*(nk-1) - (nj-1)
+            k = nk-1
+        end if
+
+        ! Stage 1: velocity gradients + cell metrics, vectorizable over i.
+        do i = 1, ni-1
+            ivr(i) = 0.25e0 / vol(i,j,k)
+            rcr(i) = 0.125e0 * (r(i,j,k)   + r(i+1,j,k)   + r(i,j+1,k)   + r(i+1,j+1,k) &
+                              + r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))
+            rhoc(i) = 0.125e0 * (cons(i,j,k,1)   + cons(i+1,j,k,1)   + cons(i,j+1,k,1)   + cons(i+1,j+1,k,1) &
+                               + cons(i,j,k+1,1) + cons(i+1,j,k+1,1) + cons(i,j+1,k+1,1) + cons(i+1,j+1,k+1,1))
+            cpc(i) = 0.125e0 * (cp(i,j,k)   + cp(i+1,j,k)   + cp(i,j+1,k)   + cp(i+1,j+1,k) &
+                              + cp(i,j,k+1) + cp(i+1,j,k+1) + cp(i,j+1,k+1) + cp(i+1,j+1,k+1))
+            muc(i) = 0.125e0 * (mu(i,j,k)   + mu(i+1,j,k)   + mu(i,j+1,k)   + mu(i+1,j+1,k) &
+                              + mu(i,j,k+1) + mu(i+1,j,k+1) + mu(i,j+1,k+1) + mu(i+1,j+1,k+1))
+            kac(i) = 0.125e0 * (kappa(i,j,k)   + kappa(i+1,j,k)   + kappa(i,j+1,k)   + kappa(i+1,j+1,k) &
+                              + kappa(i,j,k+1) + kappa(i+1,j,k+1) + kappa(i,j+1,k+1) + kappa(i+1,j+1,k+1))
+            ! --- Vx ---
+            f1 = Vx(i,j,k)+Vx(i,j+1,k)+Vx(i,j,k+1)+Vx(i,j+1,k+1)
+            f2 = Vx(i+1,j,k)+Vx(i+1,j+1,k)+Vx(i+1,j,k+1)+Vx(i+1,j+1,k+1)
+            f3 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j,k+1)+Vx(i+1,j,k+1)
+            f4 = Vx(i,j+1,k)+Vx(i+1,j+1,k)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
+            f5 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j+1,k)+Vx(i+1,j+1,k)
+            f6 = Vx(i,j,k+1)+Vx(i+1,j,k+1)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
+            g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
+            g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
+            g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
+            gVx(i,1) = g1*ivr(i)
+            gVx(i,3) = g3*ivr(i)
+            gVx(i,2) = g2*ivr(i) - 0.125e0*(f1+f2)/rcr(i)
+            ! --- Vr ---
+            f1 = Vr(i,j,k)+Vr(i,j+1,k)+Vr(i,j,k+1)+Vr(i,j+1,k+1)
+            f2 = Vr(i+1,j,k)+Vr(i+1,j+1,k)+Vr(i+1,j,k+1)+Vr(i+1,j+1,k+1)
+            f3 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j,k+1)+Vr(i+1,j,k+1)
+            f4 = Vr(i,j+1,k)+Vr(i+1,j+1,k)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
+            f5 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j+1,k)+Vr(i+1,j+1,k)
+            f6 = Vr(i,j,k+1)+Vr(i+1,j,k+1)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
+            g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
+            g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
+            g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
+            gVr(i,1) = g1*ivr(i)
+            gVr(i,3) = g3*ivr(i)
+            gVr(i,2) = g2*ivr(i) - 0.125e0*(f1+f2)/rcr(i)
+            ! --- Vt ---
+            f1 = Vt(i,j,k)+Vt(i,j+1,k)+Vt(i,j,k+1)+Vt(i,j+1,k+1)
+            f2 = Vt(i+1,j,k)+Vt(i+1,j+1,k)+Vt(i+1,j,k+1)+Vt(i+1,j+1,k+1)
+            f3 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j,k+1)+Vt(i+1,j,k+1)
+            f4 = Vt(i,j+1,k)+Vt(i+1,j+1,k)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
+            f5 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j+1,k)+Vt(i+1,j+1,k)
+            f6 = Vt(i,j,k+1)+Vt(i+1,j,k+1)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
+            vct(i) = (f1+f2)*0.125e0
+            g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
+            g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
+            g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
+            gVt(i,1) = g1*ivr(i)
+            gVt(i,3) = g3*ivr(i)
+            gVt(i,2) = g2*ivr(i) - 0.125e0*(f1+f2)/rcr(i)
+        end do
+        ! Stage 2: tau, the mixing-length viscosity and q, into the row buffer.
+        ! mu_turb is deliberately NOT stored (see the header): the fused
+        ! consumer writes it for every cell from its own producer pass.
+        do i = 1, ni-1
+            t1 = gVx(i,1)
+            t2 = gVr(i,2)
+            t3 = gVt(i,3)
+            t4 = gVx(i,2) + gVr(i,1)
+            t5 = gVx(i,3) + gVt(i,1)
+            t6 = gVr(i,3) + gVt(i,2) - vct(i)/rcr(i)
+            w1 = gVt(i,2) - gVr(i,3) + vct(i)/rcr(i)
+            w2 = gVx(i,3) - gVt(i,1)
+            w3 = gVr(i,1) - gVx(i,2)
+            vm = sqrt(w1*w1 + w2*w2 + w3*w3)
+            ! The max(0) carries the same gfortran 13 codegen fault
+            ! set_visc_force documents at length at its own copy of this line --
+            ! keep the three copies (there and in tau_q_at_cell) identical.
+            visc_lim = 3000e0 * muc(i)
+            mut = max(0.0e0, min(rhoc(i) * xlength(i,j,k) * vm, visc_lim))
+            fac = (muc(i) + mut) * 0.5e0
+            tqr(i,1) = t1*fac
+            tqr(i,2) = t2*fac
+            tqr(i,3) = t3*fac
+            tqr(i,4) = t4*fac
+            tqr(i,5) = t5*fac
+            tqr(i,6) = t6*fac
+            lambda = kac(i) + mut * cpc(i) / Pr_turb
+            f1 = T(i,j,k)+T(i,j+1,k)+T(i,j,k+1)+T(i,j+1,k+1)
+            f2 = T(i+1,j,k)+T(i+1,j+1,k)+T(i+1,j,k+1)+T(i+1,j+1,k+1)
+            f3 = T(i,j,k)+T(i+1,j,k)+T(i,j,k+1)+T(i+1,j,k+1)
+            f4 = T(i,j+1,k)+T(i+1,j+1,k)+T(i,j+1,k+1)+T(i+1,j+1,k+1)
+            f5 = T(i,j,k)+T(i+1,j,k)+T(i,j+1,k)+T(i+1,j+1,k)
+            f6 = T(i,j,k+1)+T(i+1,j,k+1)+T(i,j+1,k+1)+T(i+1,j+1,k+1)
+            tqr(i,7) = (f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k) &
+                  -f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1)) * (ivr(i)*lambda*0.5e0)
+            tqr(i,9) = (f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k) &
+                  -f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1)) * (ivr(i)*lambda*0.5e0)
+            tqr(i,8) = ((f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k) &
+                  -f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))*ivr(i) &
+                  + 0.125e0*(f1+f2)/rcr(i)) * (lambda*0.5e0)
+        end do
+
+        ! Dispatch: layer 1 is the block's own edge cell, layer 2 the halo
+        ! value with (2*wall - 1) applied once here rather than on every read.
+        select case (face)
+        case (1)
+            do c = 1, 9
+            do i = 1, ni-1
+                f_j1(i,c,k,1) = tqr(i,c)
+                f_j1(i,c,k,2) = tqr(i,c) * (2.0e0*wallj1(i,k) - 1.0e0)
+            end do
+            end do
+        case (2)
+            do c = 1, 9
+            do i = 1, ni-1
+                f_jnj(i,c,k,1) = tqr(i,c)
+                f_jnj(i,c,k,2) = tqr(i,c) * (2.0e0*wallnj(i,k) - 1.0e0)
+            end do
+            end do
+        case (3)
+            do c = 1, 9
+            do i = 1, ni-1
+                f_k1(i,c,j,1) = tqr(i,c)
+                f_k1(i,c,j,2) = tqr(i,c) * (2.0e0*wallk1(i,j) - 1.0e0)
+            end do
+            end do
+        case default
+            do c = 1, 9
+            do i = 1, ni-1
+                f_knk(i,c,j,1) = tqr(i,c)
+                f_knk(i,c,j,2) = tqr(i,c) * (2.0e0*wallnk(i,j) - 1.0e0)
+            end do
+            end do
+        end select
+    end do
+
+end subroutine set_tau_q_faces
+
+
+! Pass 2: interior tau/q and the viscous face flows, in one walk.
+!
+! The halo source is the six SURFACE buffers (Block.tau_q_faces), layer 2 of
+! each holding the halo value: set_tau_q_faces applied (2*wall - 1) to it once
+! -- so a viscous wall arrives as -edge and a permeable or slip face as +edge,
+! which is right for every face nothing exchanges -- and exchange_faces has
+! overwritten it wherever a patch connects. The kernel neither writes those
+! buffers nor reads layer 1 of them, except in the cusp pass at the end, and
+! it needs no wall mask on the halo path and no knowledge of the block's
+! topology: a block connected to neighbours is served exactly as one periodic
+! to itself.
+!
+! ROLLING tau/q. The walk over k face planes consumes tau/q cell planes k-1
+! and k and nothing else, so tau/q is produced inside the walk into a rolling
+! plane pair (`tq`, slot ta = cell plane k-1, slot tb = cell plane k) and never
+! reaches memory. That is the whole reason there is no tau/q volume: the arena
+! holds two cell planes where it used to hold a padded volume of nine floats
+! per cell.
+!
+! ROLLING FACE FLOWS, one store per cell. Each direction fuses its face-flux
+! loop with its fvisc accumulate through a rolling buffer -- the i direction a
+! face row (`rows` slot 1), the j direction an alternating face-row pair (slots
+! 2/3), the k direction an alternating face-plane pair (`planes`) -- and the
+! three differences plus the polar source land in ONE store per cell rather
+! than production's former four visits to fvisc.
+!
+! J-PANELLED. The k walk carries a tau/q cell plane pair and the k-face flow
+! plane pair from one k step to the next. Untiled that is ~1.9 MB at a
+! 273x65x57 block: one rank holds it in a 20 MB L3, eight ranks cannot, and the
+! carry then evicts the nodal fields both halves of the walk re-read every
+! plane. Panelling j divides the carry by nj-1 / jbw and leaves each cell
+! visited once. It is worth about 4% serially and about 46 points at 8-rank
+! socket contention -- the arm was +23.8% against the old two-kernel pair
+! before panelling and -22.8% after (bench/README.md).
+!
+! The panel costs two duplicated cell rows per panel per k plane: the j-face
+! row at jp0, and the producer rows at jp0-1 and jp1+1 that its lowest and
+! highest j faces average against. That is 2/jbw of the producer, and it is
+! what having no volume to read those rows out of costs.
+!
+! WALL FUNCTIONS are injected into the first interior face row/plane rather
+! than the wall face itself (the Multall scheme): a k injection at k=2 and
+! k=nk-1, a j injection at j=2 and j=nj-1, and the two i injections inline in
+! the row scan. Blending is unconditional and by wfac, so a mask of 0 and a
+! mask of 1 cost the same.
+!
+! THE CUSP SEAM (k=1 face coupled to k=nk) is inherently non-local in k, so it
+! is an O(surface) correction pass after the walk. It reads the two k face
+! buffers, which hold cell planes 1 and nk-1 and both their halos for the whole
+! call -- a rolling pair never could, which is why the fused kernels that took
+! their halo from a volume could not implement this at all.
+!
+! The polar (radial-momentum) source is fused into the interior store above and
+! runs as a separate pass over the boundary shell after the wall zeroing, since
+! it is geometric content the wall mask must not eat.
+subroutine set_visc_force( &
+    cons, cons_cell, vol, dAi, dAj, dAk, &
+    Omega_block, r, mu, P, P_offset, &
+    fvisc, &
+    Vx, Vr, Vt, &
+    T, cp, kappa, Pr_turb, xlength, &
+    mu_turb, &
+    f_i1, f_ini, f_j1, f_jnj, f_k1, f_knk, &
+    tq, &
+    planes, rows, &
+    walli1, wallj1, wallk1, &
+    wallni, wallnj, wallnk, &
+    Omega_walli1_nd, Omega_wallj1_nd, Omega_wallk1_nd, &
+    Omega_wallni_nd, Omega_wallnj_nd, Omega_wallnk_nd, &
+    i_cusp_start, i_cusp_end, &
+    jbw_in, ni, nj, nk)
+
+    use viscous_helpers
+    implicit none
+
+    integer, intent(in) :: ni, nj, nk
+    ! j-panel width in cell rows. 0 -- what production passes -- sizes it from
+    ! VISC_JAREA, which is the only setting anyone should march with. A
+    ! positive value overrides it, so a test can sweep the panelling and prove
+    ! the answer does not depend on it: the panel duplicates rows at its
+    ! edges, which is exactly the kind of thing that goes quietly wrong.
+    integer, intent(in) :: jbw_in
+    real, intent(in) :: cons(ni, nj, nk, 5)
+    real, intent(in) :: cons_cell(ni-1, nj-1, nk-1, 5)
+    real, intent(in) :: vol(ni-1, nj-1, nk-1)
+    real, intent(in) :: dAi(3, ni, nj-1, nk-1)
+    real, intent(in) :: dAj(3, ni-1, nj, nk-1)
+    real, intent(in) :: dAk(3, ni-1, nj-1, nk)
+    real, intent(in) :: r(ni, nj, nk)
+    real, intent(in) :: Omega_block
+    real, intent(in) :: mu(ni, nj, nk)
+    real, intent(in) :: P(ni, nj, nk)
+    real, intent(in) :: P_offset
+    real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
+    real, intent(in) :: Vx(ni, nj, nk)
+    real, intent(in) :: Vr(ni, nj, nk)
+    real, intent(in) :: Vt(ni, nj, nk)
+    real, intent(in) :: T(ni, nj, nk)
+    real, intent(in) :: cp(ni, nj, nk)
+    real, intent(in) :: kappa(ni, nj, nk)
+    real, intent(in) :: Pr_turb
+    real, intent(in) :: xlength(ni-1, nj-1, nk-1)
+    ! Cell-centred mixing-length viscosity, written at the cell's low-corner
+    ! node. The final node in each axis is padding that is not written here and
+    ! must not be read; intent(inout) so that padding is left untouched rather
+    ! than becoming undefined. Consumed downstream by timestep_diffusion, so
+    ! unlike tau/q it keeps its full-volume write.
+    real, intent(inout) :: mu_turb(ni, nj, nk)
+    ! HALO SOURCE, and the only one: six surface buffers, layer 2 of each
+    ! holding the halo value with (2*wall-1) already applied by
+    ! set_tau_q_faces and the periodic part already overwritten by
+    ! exchange_faces. The kernel neither writes them nor reads layer 1.
+    real, intent(in) :: f_i1(nj-1, 9, nk-1, 2), f_ini(nj-1, 9, nk-1, 2)
+    real, intent(in) :: f_j1(ni-1, 9, nk-1, 2), f_jnj(ni-1, 9, nk-1, 2)
+    real, intent(in) :: f_k1(ni-1, 9, nj-1, 2), f_knk(ni-1, 9, nj-1, 2)
+    real, intent(inout) :: planes(ni, nj, 4, 2)
+    real, intent(inout) :: rows(ni, 4, 3)
+    ! Rolling tau/q CELL-plane pair, halo-indexed in i and j -- owned cell
+    ! (i,j) at (i+1,j+1), the shell in index 1 and ni+1/nj+1 -- with slots 1-6
+    ! tau and 7-9 q. Slot ta holds cell plane k-1, slot tb cell plane k. Carved
+    ! from the scratch arena by the caller (ember.block._carve_viscous), never
+    ! allocated here. Dimensioned over the FULL j extent though the walk only
+    ! ever touches the current panel's rows: what has to fit in cache is the
+    ! rows actually touched, and indexing by global j keeps the body's indices
+    ! the same as the volume scheme's -- at 1.3 MB against the 36 MB volume
+    ! this replaces, sizing it to the panel would buy nothing.
+    real, intent(inout) :: tq(ni+1, nj+1, 9, 2)
+    real, intent(in) :: walli1(nj-1, nk-1)
+    real, intent(in) :: wallni(nj-1, nk-1)
+    real, intent(in) :: wallj1(ni-1, nk-1)
+    real, intent(in) :: wallnj(ni-1, nk-1)
+    real, intent(in) :: wallk1(ni-1, nj-1)
+    real, intent(in) :: wallnk(ni-1, nj-1)
+    real, intent(in) :: Omega_walli1_nd(nj-1, nk-1)
+    real, intent(in) :: Omega_wallni_nd(nj-1, nk-1)
+    real, intent(in) :: Omega_wallj1_nd(ni-1, nk-1)
+    real, intent(in) :: Omega_wallnj_nd(ni-1, nk-1)
+    real, intent(in) :: Omega_wallk1_nd(ni-1, nj-1)
+    real, intent(in) :: Omega_wallnk_nd(ni-1, nj-1)
+    integer, intent(in) :: i_cusp_start, i_cusp_end
+
+    integer :: i, j, k, c, jc, kc
+    logical :: k_interior, row_interior
+    ! Cusp seam correction: the two seam face flows and the half-difference
+    ! they contribute to both seam cells.
+    real :: flow1(4), flownk(4), fcorr(4)
+    real :: tq1lo(9), tq1hi(9), tqnlo(9), tqnhi(9)
+    integer :: sa, sb, pa, pb, stmp
+    integer :: jp, jp0, jp1, jprod0, jprod1, jbw
+    real :: tauf(6), qf(3), Vf(3), rf
+    real :: wvisc(3), Vabs, wf(4), wfac
+    integer :: ta, tb
+    ! Row temps for the tau/q stage, AUTOMATIC, and deliberately so: a
+    ! caller-preallocated buffer was tried and cost the stage-1 loop its
+    ! vectorization, because GCC versions that loop with a runtime alias check
+    ! (opt-report: "loop versioned for vectorization because of possible
+    ! aliasing") and will not do so against a dummy argument. set_tau_q_faces
+    ! declares its own copies the same way and for the same reason.
+    real :: gVx(ni-1, 3), gVr(ni-1, 3), gVt(ni-1, 3)
+    real :: vct(ni-1), rcr(ni-1), ivr(ni-1), rhoc(ni-1)
+    real :: cpc(ni-1), muc(ni-1), kac(ni-1)
+    real :: visc_lim, lambda
+    ! Scalars for the hand-inlined polar source (see the note at its first
+    ! use): GCC inlines polar_src into production's set_visc_force but not
+    ! into this larger fused body, and a call in the loop blocks
+    ! vectorization outright.
+    real :: prhoc, prhorVtc, prc, pPc, pVtc
+    real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
+    real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac
+
+    ! There is no k-slab depth here: the fused schedule subsumes k-slab
+    ! blocking, because each tau/q cell plane is consumed by all three face
+    ! directions at the same moment it is produced, so a single walk over k IS
+    ! the blocked schedule. The blocking that remains is the j panel below.
+    ! A degenerate extent is refused rather than silently walked.
+    if (ni < 2 .or. nj < 2 .or. nk < 2) return
+    if (i_cusp_start < 0 .or. i_cusp_end < 0) return
+
+    ! ===== j-panel over the k walk =====
+    ! Without this the walk carries a whole tau/q cell-plane pair plus the
+    ! k-face flow planes from one k step to the next: ~1.9 MB at a 273x65x57
+    ! block, which one rank holds in a 20 MB L3 and eight ranks do not -- 15 MB
+    ! of carry, against the nodal fields both halves of the walk re-read every
+    ! plane. That is the failure mode of a fusion like this one, and it is
+    ! severe: unpanelled, this kernel is 8% FASTER serially and 40% SLOWER at
+    ! 8-rank socket contention (bench/README.md). Panelling divides the carry
+    ! by nj-1 / jbw and leaves each cell visited once, so it buys the contended
+    ! case at the serial case's expense -- take that trade, production runs
+    ! contended. set_residual carries the same panel for the same reason.
+    !
+    ! The panel costs TWO duplicated cell rows per panel per k plane: the
+    ! j-face row at jp0, which the previous panel also computed, and the tau/q
+    ! producer rows at jp0-1 and jp1+1, which its lowest and highest j faces
+    ! average against. That second one is the price of having no tau/q volume
+    ! to read those rows out of -- 2/jbw of the producer, and cheap at the
+    ! panel widths VISC_JAREA gives.
+    if (jbw_in > 0) then
+        jbw = min(nj-1, jbw_in)
+    else
+        jbw = min(nj-1, max(4, VISC_JAREA / max(ni, 1)))
+    end if
+    do jp = 1, nj-1, jbw
+    jp0 = jp
+    jp1 = min(jp + jbw - 1, nj-1)
+    ! Cell rows this panel must produce: its own, plus the row below and the
+    ! row above, which its lowest and highest j faces average against.
+    jprod0 = max(1, jp0 - 1)
+    jprod1 = min(nj-1, jp1 + 1)
+
+    pa = 1
+    pb = 2
+    ta = 1
+    tb = 2
+
+    do k = 1, nk
+    ! ===== PRODUCE tau/q for cell plane k into slot tb =====
+    ! The per-(j,k) row body, storing into the rolling pair: the whole point of
+    ! the fusion is that cell plane k is consumed by the k-face flux below and
+    ! by the i/j scan on the next iteration, and by nothing else, so it never
+    ! needs to reach memory. set_tau_q_faces runs the same body for the shell.
+    if (k == 1) then
+        call load_kface(f_k1, tq(1,1,1,ta), jp0, jp1, ni, nj)
+    end if
+    if (k <= nk-1) then
+        do j = jprod0, jprod1
         ! Stage 1: velocity gradients + cell metrics, vectorizable over i.
         do i = 1, ni-1
             ivr(i) = 0.25e0 / vol(i,j,k)
@@ -857,32 +1331,16 @@ subroutine set_tau_q_soa( &
             w2 = gVx(i,3) - gVt(i,1)
             w3 = gVr(i,1) - gVx(i,2)
             vm = sqrt(w1*w1 + w2*w2 + w3*w3)
-            ! The max(0) is not physics -- mut is analytically confined to
-            ! [0, visc_lim] already, since rhoc, xlength and vm are all
-            ! non-negative and nothing here divides. It contains a gfortran 13
-            ! codegen fault: built with the setup.py production flags (the
-            ! raised --param=vect-max-version-for-alias-checks is what forces
-            ! this loop to vectorize at all), gfortran 13.3 returns -inf from
-            ! this line for about two thirds of cells whenever the vorticity
-            ! sits at the float32 cancellation noise floor, i.e. a uniform flow
-            ! with no real shear -- the chi = 90/270 duct cases in
-            ! tests/test_nonreflecting_integration.py. The -inf then travels
-            ! fac -> tau_cell -> F_body -> residual and NaNs the whole field
-            ! inside one step. gfortran 14.2 is unaffected, as is any build at
-            ! -O2, without fast-math, or at the default alias-check budget.
-            ! Ubuntu 24.04 (the CI runner) ships gfortran 13.3, so this is a
-            ! live target, not a historical one. The clamp costs one vmaxps
-            ! and leaves the loop vectorized.
             visc_lim = 3000e0 * muc(i)
-            mut = max(0.0e0, min(rhoc(i) * xlength(i,j,k) * vm, visc_lim))
+            mut = min(rhoc(i) * xlength(i,j,k) * vm, visc_lim)
             mu_turb(i,j,k) = mut
             fac = (muc(i) + mut) * 0.5e0
-            tau_cell(i+1,j+1,k+1,1) = t1*fac
-            tau_cell(i+1,j+1,k+1,2) = t2*fac
-            tau_cell(i+1,j+1,k+1,3) = t3*fac
-            tau_cell(i+1,j+1,k+1,4) = t4*fac
-            tau_cell(i+1,j+1,k+1,5) = t5*fac
-            tau_cell(i+1,j+1,k+1,6) = t6*fac
+            tq(i+1,j+1,1,tb) = t1*fac
+            tq(i+1,j+1,2,tb) = t2*fac
+            tq(i+1,j+1,3,tb) = t3*fac
+            tq(i+1,j+1,4,tb) = t4*fac
+            tq(i+1,j+1,5,tb) = t5*fac
+            tq(i+1,j+1,6,tb) = t6*fac
             lambda = kac(i) + mut * cpc(i) / Pr_turb
             f1 = T(i,j,k)+T(i,j+1,k)+T(i,j,k+1)+T(i,j+1,k+1)
             f2 = T(i+1,j,k)+T(i+1,j+1,k)+T(i+1,j,k+1)+T(i+1,j+1,k+1)
@@ -890,311 +1348,36 @@ subroutine set_tau_q_soa( &
             f4 = T(i,j+1,k)+T(i+1,j+1,k)+T(i,j+1,k+1)+T(i+1,j+1,k+1)
             f5 = T(i,j,k)+T(i+1,j,k)+T(i,j+1,k)+T(i+1,j+1,k)
             f6 = T(i,j,k+1)+T(i+1,j,k+1)+T(i,j+1,k+1)+T(i+1,j+1,k+1)
-            q_cell(i+1,j+1,k+1,1) = (f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k) &
+            tq(i+1,j+1,7,tb) = (f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k) &
                   -f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1)) * (ivr(i)*lambda*0.5e0)
-            q_cell(i+1,j+1,k+1,3) = (f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k) &
+            tq(i+1,j+1,9,tb) = (f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k) &
                   -f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1)) * (ivr(i)*lambda*0.5e0)
-            q_cell(i+1,j+1,k+1,2) = ((f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k) &
+            tq(i+1,j+1,8,tb) = ((f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k) &
                   -f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))*ivr(i) &
                   + 0.125e0*(f1+f2)/rcr(i)) * (lambda*0.5e0)
         end do
-    end do
-    end do
-
-    ! Fill boundary halo slots with +edge (identical to set_tau_q).
-    do k = 1, nk-1
-    do j = 1, nj-1
-        tau_cell(1, j+1, k+1, :) = tau_cell(2, j+1, k+1, :)
-        q_cell(1, j+1, k+1, :) = q_cell(2, j+1, k+1, :)
-        tau_cell(ni+1, j+1, k+1, :) = tau_cell(ni, j+1, k+1, :)
-        q_cell(ni+1, j+1, k+1, :) = q_cell(ni, j+1, k+1, :)
-    end do
-    end do
-    do k = 1, nk-1
-    do i = 1, ni-1
-        tau_cell(i+1, 1, k+1, :) = tau_cell(i+1, 2, k+1, :)
-        q_cell(i+1, 1, k+1, :) = q_cell(i+1, 2, k+1, :)
-        tau_cell(i+1, nj+1, k+1, :) = tau_cell(i+1, nj, k+1, :)
-        q_cell(i+1, nj+1, k+1, :) = q_cell(i+1, nj, k+1, :)
-    end do
-    end do
-    do j = 1, nj-1
-    do i = 1, ni-1
-        tau_cell(i+1, j+1, 1, :) = tau_cell(i+1, j+1, 2, :)
-        q_cell(i+1, j+1, 1, :) = q_cell(i+1, j+1, 2, :)
-        tau_cell(i+1, j+1, nk+1, :) = tau_cell(i+1, j+1, nk, :)
-        q_cell(i+1, j+1, nk+1, :) = q_cell(i+1, j+1, nk, :)
-    end do
-    end do
-
-end subroutine set_tau_q_soa
-
-
-! O(surface) boundary producer for the viscous face buffers.
-!
-! set_tau_q_soa writes tau/q for every owned cell plus a halo shell, because
-! the face-flux phase reads the shell out of that same full-volume array. The
-! FUSED face-flux kernels do not: they produce interior tau/q inside their own
-! walk and read only the shell. This kernel is the shell, on its own -- six
-! surface buffers instead of a volume, so the producer is O(surface) and the
-! consumer's halo source no longer depends on the block's topology.
-!
-! Layer 1 of each face is the block's own edge-cell tau/q. Layer 2 is the halo
-! value, seeded here as (2*wall - 1) * layer1: that single expression is what
-! set_tau_q_soa's "+edge" halo fill and set_visc_force's entry scale_visc_halos
-! compose to, so a viscous wall gets -edge and a permeable or slip face gets
-! +edge, which is right for every face nothing exchanges. The periodic exchange
-! then overwrites layer 2 wherever a patch connects.
-!
-! mu_turb is deliberately NOT written. The fused consumers write it for every
-! cell from their own producer pass, so writing the shell here as well would
-! be duplicated traffic for a value that is about to be overwritten with the
-! identical number.
-!
-! The shell's edges and corners belong to more than one face and are computed
-! once per face they lie on. That duplication is O(edge), and removing it would
-! mean carrying a "which faces own this cell" test into every loop.
-subroutine set_tau_q_faces( &
-    cons, T, mu, cp, kappa, Pr_turb, xlength, vol, dAi, dAj, dAk, &
-    r, Vx, Vr, Vt, &
-    f_i1, f_ini, f_j1, f_jnj, f_k1, f_knk, &
-    walli1, wallni, wallj1, wallnj, wallk1, wallnk, &
-    ni, nj, nk)
-
-    use viscous_helpers
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk
-    real, intent(in) :: cons(ni, nj, nk, 5)
-    real, intent(in) :: T(ni, nj, nk)
-    real, intent(in) :: mu(ni, nj, nk)
-    real, intent(in) :: cp(ni, nj, nk)
-    real, intent(in) :: kappa(ni, nj, nk)
-    real, intent(in) :: Pr_turb
-    real, intent(in) :: xlength(ni-1, nj-1, nk-1)
-    real, intent(in) :: vol(ni-1, nj-1, nk-1)
-    real, intent(in) :: dAi(3, ni, nj-1, nk-1)
-    real, intent(in) :: dAj(3, ni-1, nj, nk-1)
-    real, intent(in) :: dAk(3, ni-1, nj-1, nk)
-    real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Vx(ni, nj, nk), Vr(ni, nj, nk), Vt(ni, nj, nk)
-    ! Component axis second so that, at a fixed trailing spatial index, the
-    ! (edge, component) block is contiguous -- the order the consumers walk it.
-    real, intent(inout) :: f_i1(nj-1, 9, nk-1, 2), f_ini(nj-1, 9, nk-1, 2)
-    real, intent(inout) :: f_j1(ni-1, 9, nk-1, 2), f_jnj(ni-1, 9, nk-1, 2)
-    real, intent(inout) :: f_k1(ni-1, 9, nj-1, 2), f_knk(ni-1, 9, nj-1, 2)
-    real, intent(in) :: walli1(nj-1, nk-1), wallni(nj-1, nk-1)
-    real, intent(in) :: wallj1(ni-1, nk-1), wallnj(ni-1, nk-1)
-    real, intent(in) :: wallk1(ni-1, nj-1), wallnk(ni-1, nj-1)
-
-    integer :: i, j, k, c
-    real :: tq(9)
-
-    ! --- i faces: the two that pin the axis set_tau_q_soa vectorises over ---
-    do k = 1, nk-1
-    do j = 1, nj-1
-        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
-            dAi, dAj, dAk, r, Vx, Vr, Vt, 1, j, k, ni, nj, nk, tq)
-        do c = 1, 9
-            f_i1(j,c,k,1) = tq(c)
-            f_i1(j,c,k,2) = tq(c) * (2.0e0*walli1(j,k) - 1.0e0)
         end do
-        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
-            dAi, dAj, dAk, r, Vx, Vr, Vt, ni-1, j, k, ni, nj, nk, tq)
-        do c = 1, 9
-            f_ini(j,c,k,1) = tq(c)
-            f_ini(j,c,k,2) = tq(c) * (2.0e0*wallni(j,k) - 1.0e0)
-        end do
-    end do
-    end do
+        ! i/j halo edges of this plane, straight out of their face buffers.
+        ! No scaling on the way in and no mask argument: set_tau_q_faces
+        ! applied (2*wall-1) once, when it wrote layer 2.
+        call load_ijedge_faces(f_i1, f_ini, f_j1, f_jnj, &
+            tq(1,1,1,tb), k, jprod0, jprod1, ni, nj, nk)
+    else
+        call load_kface(f_knk, tq(1,1,1,tb), jp0, jp1, ni, nj)
+    end if
 
-    ! --- j faces ---
-    do k = 1, nk-1
-    do i = 1, ni-1
-        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
-            dAi, dAj, dAk, r, Vx, Vr, Vt, i, 1, k, ni, nj, nk, tq)
-        do c = 1, 9
-            f_j1(i,c,k,1) = tq(c)
-            f_j1(i,c,k,2) = tq(c) * (2.0e0*wallj1(i,k) - 1.0e0)
-        end do
-        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
-            dAi, dAj, dAk, r, Vx, Vr, Vt, i, nj-1, k, ni, nj, nk, tq)
-        do c = 1, 9
-            f_jnj(i,c,k,1) = tq(c)
-            f_jnj(i,c,k,2) = tq(c) * (2.0e0*wallnj(i,k) - 1.0e0)
-        end do
-    end do
-    end do
-
-    ! --- k faces ---
-    do j = 1, nj-1
-    do i = 1, ni-1
-        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
-            dAi, dAj, dAk, r, Vx, Vr, Vt, i, j, 1, ni, nj, nk, tq)
-        do c = 1, 9
-            f_k1(i,c,j,1) = tq(c)
-            f_k1(i,c,j,2) = tq(c) * (2.0e0*wallk1(i,j) - 1.0e0)
-        end do
-        call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, xlength, vol, &
-            dAi, dAj, dAk, r, Vx, Vr, Vt, i, j, nk-1, ni, nj, nk, tq)
-        do c = 1, 9
-            f_knk(i,c,j,1) = tq(c)
-            f_knk(i,c,j,2) = tq(c) * (2.0e0*wallnk(i,j) - 1.0e0)
-        end do
-    end do
-    end do
-
-end subroutine set_tau_q_faces
-
-
-! Pass 2 of a split viscous calculation: given tau_cell and q_cell (which may
-! have been exchanged across periodic boundaries since eval_tau_q returned),
-! compute face fluxes and accumulate into fvisc.
-!
-! tau_cell and q_cell are halo-dimensioned (ni+1, nj+1, nk+1, 6/3): owned
-! cells sit at indices 2..ni (2..nj, 2..nk).  Halo slots 1 and ni+1 (etc.)
-! will carry neighbour data after exchange; until then the boundary loops
-! below are single-sided and use only the nearest owned cell, as before.
-!
-! k-slab cache blocking and rolling-buffer fusion
-! -----------------------------------------------
-! The three face-direction sweeps are tiled over slabs of kb cell planes
-! (1 <= kb <= nk-1) so that a slab's tau_cell/q_cell planes stay hot in cache
-! across all three directions: tau/q is then streamed from memory roughly once
-! instead of once per direction. Within a slab the i-, j- and k-direction
-! sweeps run back to back, and each fuses its face-flux loop with its fvisc
-! accumulate through a rolling buffer, so no slab-sized flow scratch exists:
-!   - i-direction: one face row (rows slot 1) per (j,k), differenced in place;
-!   - j-direction: an alternating face-row pair (rows slots 2/3);
-!   - k-direction: an alternating face-plane pair (planes slots 1/2).
-! The per-cell arithmetic and its ordering (i, then j, then k) are identical
-! to the staged version, so the result differs only by float reassociation at
-! the cusp seam (see below).
-!
-! The k direction couples adjacent slabs: a slab's low k-face plane is the
-! previous slab's high plane. The rolling plane pair persists across the slab
-! boundary (the intervening i/j phases touch only rows), so the carry is
-! automatic, and the carried plane preserves the k=2 / k=nk-1 wall-function
-! injections for both adjacent cells.
-!
-! The cusp seam (k=1 face coupled to k=nk) is inherently non-local in k, so it
-! is handled by an O(surface) correction pass after the slab sweep instead of
-! the pre-accumulation flux averaging the unblocked version used; see the
-! comment at the correction loop.
-!
-! The k walk is itself panelled in j, so what it carries from one k step to
-! the next fits a private L2 instead of the shared L3. That is the change
-! that made the kernel scale at production concurrency; see the comment on
-! the panel loop, and bench/README.md for the numbers.
-subroutine set_visc_force( &
-    cons, cons_cell, vol, dAi, dAj, dAk, &
-    Omega_block, r, mu, P, P_offset, &
-    fvisc, &
-    Vx, Vr, Vt, &
-    tau_cell, &
-    q_cell, &
-    planes, rows, &
-    walli1, wallj1, wallk1, &
-    wallni, wallnj, wallnk, &
-    Omega_walli1_nd, Omega_wallj1_nd, Omega_wallk1_nd, &
-    Omega_wallni_nd, Omega_wallnj_nd, Omega_wallnk_nd, &
-    i_cusp_start, i_cusp_end, &
-    kb, ni, nj, nk)
-
-    use viscous_helpers
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk, kb
-    real, intent(in) :: cons(ni, nj, nk, 5)
-    real, intent(in) :: cons_cell(ni-1, nj-1, nk-1, 5)
-    real, intent(in) :: vol(ni-1, nj-1, nk-1)
-    real, intent(in) :: dAi(3, ni, nj-1, nk-1)
-    real, intent(in) :: dAj(3, ni-1, nj, nk-1)
-    real, intent(in) :: dAk(3, ni-1, nj-1, nk)
-    real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Omega_block
-    real, intent(in) :: mu(ni, nj, nk)
-    real, intent(in) :: P(ni, nj, nk)
-    real, intent(in) :: P_offset
-    real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
-    real, intent(in) :: Vx(ni, nj, nk)
-    real, intent(in) :: Vr(ni, nj, nk)
-    real, intent(in) :: Vt(ni, nj, nk)
-    real, intent(inout) :: tau_cell(ni+1, nj+1, nk+1, 6)
-    real, intent(inout) :: q_cell(ni+1, nj+1, nk+1, 3)
-    real, intent(inout) :: planes(ni, nj, 4, 2)
-    real, intent(inout) :: rows(ni, 4, 3)
-    real, intent(in) :: walli1(nj-1, nk-1)
-    real, intent(in) :: wallni(nj-1, nk-1)
-    real, intent(in) :: wallj1(ni-1, nk-1)
-    real, intent(in) :: wallnj(ni-1, nk-1)
-    real, intent(in) :: wallk1(ni-1, nj-1)
-    real, intent(in) :: wallnk(ni-1, nj-1)
-    real, intent(in) :: Omega_walli1_nd(nj-1, nk-1)
-    real, intent(in) :: Omega_wallni_nd(nj-1, nk-1)
-    real, intent(in) :: Omega_wallj1_nd(ni-1, nk-1)
-    real, intent(in) :: Omega_wallnj_nd(ni-1, nk-1)
-    real, intent(in) :: Omega_wallk1_nd(ni-1, nj-1)
-    real, intent(in) :: Omega_wallnk_nd(ni-1, nj-1)
-    integer, intent(in) :: i_cusp_start, i_cusp_end
-
-    integer :: i, j, k, jc, kc
-    logical :: k_interior, row_interior
-    integer :: sa, sb, pa, pb, stmp
-    integer :: jp, jp0, jp1, jbw
-    real :: tauf(6), qf(3), Vf(3), rf
-    real :: wvisc(3), Vabs, wf(4), wfac
-    real :: flow1(4), flownk(4), fcorr(4)
-
-    ! kb is inert here -- the fused schedule subsumes k-slab blocking (see the
-    ! file header) -- but it stays in the signature so these arms share one
-    ! kwargs dict with production. Consumed as a sanity guard rather than
-    ! silenced, so a caller passing a nonsense slab depth still fails loudly.
-    if (kb < 1) return
-
-    call scale_visc_halos(tau_cell, q_cell, &
-        walli1, wallj1, wallk1, wallni, wallnj, wallnk, ni, nj, nk)
-
-    ! ===== j-panel over the k walk =====
-    ! The walk carries three things across one k step: the k-face flow plane
-    ! pair, and the tau/q cell plane the i/j scan re-reads after the k-face
-    ! loop produced it. Untiled at a 273x65x57 block those are 568 KB of
-    ! `planes` and 639 KB per tau/q plane -- every one of them past a 256 KB
-    ! L2, so each k step round-trips its carry through L3, and at 8 ranks the
-    ! socket's whole 20 MB L3 is the carry. Panelling j leaves the traffic
-    ! identical (each cell is still visited once) and divides the carry by
-    ! nj-1 / jbw.
-    !
-    ! The cost is one duplicated j-face row per panel per k plane: a panel's
-    ! first cell row needs the face row below it, which the previous panel
-    ! also computed. That is 1/jbw of the j-face loop and nothing else --
-    ! the i- and k-face loops and the fvisc store do exactly the work they
-    ! did, in the same order, on the same values, so the result is unchanged
-    ! cell for cell.
-    ! Never narrower than four rows: a panel duplicates its lowest j-face
-    ! row, so 1/jbw of the j-face loop is redundant work, and a block long
-    ! enough in i to drive jbw below that cannot fit its carry in L2 anyway.
-    jbw = min(nj-1, max(4, VISC_JAREA / max(ni, 1)))
-    do jp = 1, nj-1, jbw
-    jp0 = jp
-    jp1 = min(jp + jbw - 1, nj-1)
-
-    pa = 1
-    pb = 2
-
-    do k = 1, nk
     ! --- k-face plane k into the rolling pair ---
     do j = jp0, jp1
     do i = 1, ni-1
-        tauf(1) = (tau_cell(i+1, j+1, k, 1) + tau_cell(i+1, j+1, k+1, 1)) * 0.5e0
-        tauf(2) = (tau_cell(i+1, j+1, k, 2) + tau_cell(i+1, j+1, k+1, 2)) * 0.5e0
-        tauf(3) = (tau_cell(i+1, j+1, k, 3) + tau_cell(i+1, j+1, k+1, 3)) * 0.5e0
-        tauf(4) = (tau_cell(i+1, j+1, k, 4) + tau_cell(i+1, j+1, k+1, 4)) * 0.5e0
-        tauf(5) = (tau_cell(i+1, j+1, k, 5) + tau_cell(i+1, j+1, k+1, 5)) * 0.5e0
-        tauf(6) = (tau_cell(i+1, j+1, k, 6) + tau_cell(i+1, j+1, k+1, 6)) * 0.5e0
-        qf(1)   = (q_cell(i+1, j+1, k, 1) + q_cell(i+1, j+1, k+1, 1)) * 0.5e0
-        qf(2)   = (q_cell(i+1, j+1, k, 2) + q_cell(i+1, j+1, k+1, 2)) * 0.5e0
-        qf(3)   = (q_cell(i+1, j+1, k, 3) + q_cell(i+1, j+1, k+1, 3)) * 0.5e0
+        tauf(1) = (tq(i+1, j+1, 1, ta) + tq(i+1, j+1, 1, tb)) * 0.5e0
+        tauf(2) = (tq(i+1, j+1, 2, ta) + tq(i+1, j+1, 2, tb)) * 0.5e0
+        tauf(3) = (tq(i+1, j+1, 3, ta) + tq(i+1, j+1, 3, tb)) * 0.5e0
+        tauf(4) = (tq(i+1, j+1, 4, ta) + tq(i+1, j+1, 4, tb)) * 0.5e0
+        tauf(5) = (tq(i+1, j+1, 5, ta) + tq(i+1, j+1, 5, tb)) * 0.5e0
+        tauf(6) = (tq(i+1, j+1, 6, ta) + tq(i+1, j+1, 6, tb)) * 0.5e0
+        qf(1)   = (tq(i+1, j+1, 7, ta) + tq(i+1, j+1, 7, tb)) * 0.5e0
+        qf(2)   = (tq(i+1, j+1, 8, ta) + tq(i+1, j+1, 8, tb)) * 0.5e0
+        qf(3)   = (tq(i+1, j+1, 9, ta) + tq(i+1, j+1, 9, tb)) * 0.5e0
         Vf(1) = (Vx(i,j,k) + Vx(i+1,j,k) + Vx(i,j+1,k) + Vx(i+1,j+1,k)) * 0.25e0
         Vf(2) = (Vr(i,j,k) + Vr(i+1,j,k) + Vr(i,j+1,k) + Vr(i+1,j+1,k)) * 0.25e0
         Vf(3) = (Vt(i,j,k) + Vt(i+1,j,k) + Vt(i,j+1,k) + Vt(i+1,j+1,k)) * 0.25e0
@@ -1211,22 +1394,28 @@ subroutine set_visc_force( &
                          + (wvisc(3)-qf(3))*dAk(3,i,j,k)
     end do
     end do
-    ! The wall-function injections go through the ROW forms, which vectorize
-    ! over i; the per-cell wall_func_*face left four scalar divides and two
-    ! scalar square roots on one dependence chain per wall face cell. Same
-    ! operands and same order, sub-ulp -- see wall_row_kface's header.
     if (k == 2) then
         do j = jp0, jp1
-            call wall_row_kface(ni, nj, nk, r, dAk, vol, Omega_block, &
-                Omega_wallk1_nd(:,j), mu, cons(:,:,:,1), Vx, Vr, Vt, &
-                wallk1(:,j), planes, j, 1, 1, pb)
+        do i = 1, ni-1
+            wfac = 1.0e0 - wallk1(i,j)
+            call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, 1, 1, wf)
+            planes(i,j,1,pb) = wallk1(i,j)*planes(i,j,1,pb) + wfac*wf(1)
+            planes(i,j,2,pb) = wallk1(i,j)*planes(i,j,2,pb) + wfac*wf(2)
+            planes(i,j,3,pb) = wallk1(i,j)*planes(i,j,3,pb) + wfac*wf(3)
+            planes(i,j,4,pb) = wallk1(i,j)*planes(i,j,4,pb) + wfac*wf(4)
+        end do
         end do
     end if
     if (k == nk-1) then
         do j = jp0, jp1
-            call wall_row_kface(ni, nj, nk, r, dAk, vol, Omega_block, &
-                Omega_wallnk_nd(:,j), mu, cons(:,:,:,1), Vx, Vr, Vt, &
-                wallnk(:,j), planes, j, nk, -1, pb)
+        do i = 1, ni-1
+            wfac = 1.0e0 - wallnk(i,j)
+            call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, nk, -1, wf)
+            planes(i,j,1,pb) = wallnk(i,j)*planes(i,j,1,pb) + wfac*wf(1)
+            planes(i,j,2,pb) = wallnk(i,j)*planes(i,j,2,pb) + wfac*wf(2)
+            planes(i,j,3,pb) = wallnk(i,j)*planes(i,j,3,pb) + wfac*wf(3)
+            planes(i,j,4,pb) = wallnk(i,j)*planes(i,j,4,pb) + wfac*wf(4)
+        end do
         end do
     end if
 
@@ -1238,15 +1427,15 @@ subroutine set_visc_force( &
         sb = 3
         do j = jp0, jp1+1
             do i = 1, ni-1
-                tauf(1) = (tau_cell(i+1, j, kc+1, 1) + tau_cell(i+1, j+1, kc+1, 1)) * 0.5e0
-                tauf(2) = (tau_cell(i+1, j, kc+1, 2) + tau_cell(i+1, j+1, kc+1, 2)) * 0.5e0
-                tauf(3) = (tau_cell(i+1, j, kc+1, 3) + tau_cell(i+1, j+1, kc+1, 3)) * 0.5e0
-                tauf(4) = (tau_cell(i+1, j, kc+1, 4) + tau_cell(i+1, j+1, kc+1, 4)) * 0.5e0
-                tauf(5) = (tau_cell(i+1, j, kc+1, 5) + tau_cell(i+1, j+1, kc+1, 5)) * 0.5e0
-                tauf(6) = (tau_cell(i+1, j, kc+1, 6) + tau_cell(i+1, j+1, kc+1, 6)) * 0.5e0
-                qf(1)   = (q_cell(i+1, j, kc+1, 1) + q_cell(i+1, j+1, kc+1, 1)) * 0.5e0
-                qf(2)   = (q_cell(i+1, j, kc+1, 2) + q_cell(i+1, j+1, kc+1, 2)) * 0.5e0
-                qf(3)   = (q_cell(i+1, j, kc+1, 3) + q_cell(i+1, j+1, kc+1, 3)) * 0.5e0
+                tauf(1) = (tq(i+1, j, 1, ta) + tq(i+1, j+1, 1, ta)) * 0.5e0
+                tauf(2) = (tq(i+1, j, 2, ta) + tq(i+1, j+1, 2, ta)) * 0.5e0
+                tauf(3) = (tq(i+1, j, 3, ta) + tq(i+1, j+1, 3, ta)) * 0.5e0
+                tauf(4) = (tq(i+1, j, 4, ta) + tq(i+1, j+1, 4, ta)) * 0.5e0
+                tauf(5) = (tq(i+1, j, 5, ta) + tq(i+1, j+1, 5, ta)) * 0.5e0
+                tauf(6) = (tq(i+1, j, 6, ta) + tq(i+1, j+1, 6, ta)) * 0.5e0
+                qf(1)   = (tq(i+1, j, 7, ta) + tq(i+1, j+1, 7, ta)) * 0.5e0
+                qf(2)   = (tq(i+1, j, 8, ta) + tq(i+1, j+1, 8, ta)) * 0.5e0
+                qf(3)   = (tq(i+1, j, 9, ta) + tq(i+1, j+1, 9, ta)) * 0.5e0
                 Vf(1) = (Vx(i,j,kc) + Vx(i+1,j,kc) + Vx(i,j,kc+1) + Vx(i+1,j,kc+1)) * 0.25e0
                 Vf(2) = (Vr(i,j,kc) + Vr(i+1,j,kc) + Vr(i,j,kc+1) + Vr(i+1,j,kc+1)) * 0.25e0
                 Vf(3) = (Vt(i,j,kc) + Vt(i+1,j,kc) + Vt(i,j,kc+1) + Vt(i+1,j,kc+1)) * 0.25e0
@@ -1263,28 +1452,40 @@ subroutine set_visc_force( &
                              + (wvisc(3)-qf(3))*dAj(3,i,j,kc)
             end do
             if (j == 2) then
-                call wall_row_jface(ni, nj, nk, r, dAj, vol, Omega_block, &
-                    Omega_wallj1_nd(:,kc), mu, cons(:,:,:,1), Vx, Vr, Vt, &
-                    wallj1(:,kc), rows, 1, kc, 1, sb)
+                do i = 1, ni-1
+                    wfac = 1.0e0 - wallj1(i,kc)
+                    call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallj1_nd(i,kc), &
+                        mu, cons(:,:,:,1), Vx, Vr, Vt, i, 1, kc, 1, wf)
+                    rows(i,1,sb) = wallj1(i,kc)*rows(i,1,sb) + wfac*wf(1)
+                    rows(i,2,sb) = wallj1(i,kc)*rows(i,2,sb) + wfac*wf(2)
+                    rows(i,3,sb) = wallj1(i,kc)*rows(i,3,sb) + wfac*wf(3)
+                    rows(i,4,sb) = wallj1(i,kc)*rows(i,4,sb) + wfac*wf(4)
+                end do
             end if
             if (j == nj-1) then
-                call wall_row_jface(ni, nj, nk, r, dAj, vol, Omega_block, &
-                    Omega_wallnj_nd(:,kc), mu, cons(:,:,:,1), Vx, Vr, Vt, &
-                    wallnj(:,kc), rows, nj, kc, -1, sb)
+                do i = 1, ni-1
+                    wfac = 1.0e0 - wallnj(i,kc)
+                    call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallnj_nd(i,kc), &
+                        mu, cons(:,:,:,1), Vx, Vr, Vt, i, nj, kc, -1, wf)
+                    rows(i,1,sb) = wallnj(i,kc)*rows(i,1,sb) + wfac*wf(1)
+                    rows(i,2,sb) = wallnj(i,kc)*rows(i,2,sb) + wfac*wf(2)
+                    rows(i,3,sb) = wallnj(i,kc)*rows(i,3,sb) + wfac*wf(3)
+                    rows(i,4,sb) = wallnj(i,kc)*rows(i,4,sb) + wfac*wf(4)
+                end do
             end if
             if (j > jp0) then
                 jc = j - 1
                 row_interior = k_interior .and. (jc >= 2 .and. jc <= nj-2)
                 do i = 1, ni
-                    tauf(1) = (tau_cell(i, jc+1, kc+1, 1) + tau_cell(i+1, jc+1, kc+1, 1)) * 0.5e0
-                    tauf(2) = (tau_cell(i, jc+1, kc+1, 2) + tau_cell(i+1, jc+1, kc+1, 2)) * 0.5e0
-                    tauf(3) = (tau_cell(i, jc+1, kc+1, 3) + tau_cell(i+1, jc+1, kc+1, 3)) * 0.5e0
-                    tauf(4) = (tau_cell(i, jc+1, kc+1, 4) + tau_cell(i+1, jc+1, kc+1, 4)) * 0.5e0
-                    tauf(5) = (tau_cell(i, jc+1, kc+1, 5) + tau_cell(i+1, jc+1, kc+1, 5)) * 0.5e0
-                    tauf(6) = (tau_cell(i, jc+1, kc+1, 6) + tau_cell(i+1, jc+1, kc+1, 6)) * 0.5e0
-                    qf(1)   = (q_cell(i, jc+1, kc+1, 1) + q_cell(i+1, jc+1, kc+1, 1)) * 0.5e0
-                    qf(2)   = (q_cell(i, jc+1, kc+1, 2) + q_cell(i+1, jc+1, kc+1, 2)) * 0.5e0
-                    qf(3)   = (q_cell(i, jc+1, kc+1, 3) + q_cell(i+1, jc+1, kc+1, 3)) * 0.5e0
+                    tauf(1) = (tq(i, jc+1, 1, ta) + tq(i+1, jc+1, 1, ta)) * 0.5e0
+                    tauf(2) = (tq(i, jc+1, 2, ta) + tq(i+1, jc+1, 2, ta)) * 0.5e0
+                    tauf(3) = (tq(i, jc+1, 3, ta) + tq(i+1, jc+1, 3, ta)) * 0.5e0
+                    tauf(4) = (tq(i, jc+1, 4, ta) + tq(i+1, jc+1, 4, ta)) * 0.5e0
+                    tauf(5) = (tq(i, jc+1, 5, ta) + tq(i+1, jc+1, 5, ta)) * 0.5e0
+                    tauf(6) = (tq(i, jc+1, 6, ta) + tq(i+1, jc+1, 6, ta)) * 0.5e0
+                    qf(1)   = (tq(i, jc+1, 7, ta) + tq(i+1, jc+1, 7, ta)) * 0.5e0
+                    qf(2)   = (tq(i, jc+1, 8, ta) + tq(i+1, jc+1, 8, ta)) * 0.5e0
+                    qf(3)   = (tq(i, jc+1, 9, ta) + tq(i+1, jc+1, 9, ta)) * 0.5e0
                     Vf(1) = (Vx(i,jc,kc) + Vx(i,jc+1,kc) + Vx(i,jc,kc+1) + Vx(i,jc+1,kc+1)) * 0.25e0
                     Vf(2) = (Vr(i,jc,kc) + Vr(i,jc+1,kc) + Vr(i,jc,kc+1) + Vr(i,jc+1,kc+1)) * 0.25e0
                     Vf(3) = (Vt(i,jc,kc) + Vt(i,jc+1,kc) + Vt(i,jc,kc+1) + Vt(i,jc+1,kc+1)) * 0.25e0
@@ -1355,8 +1556,17 @@ subroutine set_visc_force( &
                     fvisc(ni-1,jc,kc,3) = fvisc(ni-1,jc,kc,3) * wallni(jc,kc)
                     fvisc(ni-1,jc,kc,4) = fvisc(ni-1,jc,kc,4) * wallni(jc,kc)
                     do i = 1, ni-1
+                        prhoc    = cons_cell(i, jc, kc, 1)
+                        prhorVtc = cons_cell(i, jc, kc, 4)
+                        prc = 0.125e0 * ( &
+                            r(i,jc,kc) + r(i+1,jc,kc) + r(i,jc+1,kc) + r(i+1,jc+1,kc) + &
+                            r(i,jc,kc+1) + r(i+1,jc,kc+1) + r(i,jc+1,kc+1) + r(i+1,jc+1,kc+1))
+                        pPc = 0.125e0 * ( &
+                            P(i,jc,kc) + P(i+1,jc,kc) + P(i,jc+1,kc) + P(i+1,jc+1,kc) + &
+                            P(i,jc,kc+1) + P(i+1,jc,kc+1) + P(i,jc+1,kc+1) + P(i+1,jc+1,kc+1))
+                        pVtc = prhorVtc / (prhoc * prc)
                         fvisc(i,jc,kc,2) = fvisc(i,jc,kc,2) &
-                            + vol(i,jc,kc) * polar_src(cons_cell, P, r, P_offset, i, jc, kc)
+                            + vol(i,jc,kc) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
                     end do
                 end if
             end if
@@ -1368,42 +1578,43 @@ subroutine set_visc_force( &
     stmp = pa
     pa = pb
     pb = stmp
+    stmp = ta
+    ta = tb
+    tb = stmp
     end do
     end do
 
-    ! ===== Cusp seam: replace each seam face flux with the two-sided average =====
-    ! The seam is non-local in k, so under the sweep both seam cells have
-    ! accumulated their raw one-sided flux; replacing it with
-    ! avg = 0.5*(flow(k=1) + flow(k=nk)) is the same delta for both cells.
+    ! ===== Cusp seam correction, O(surface) =====
+    ! The k=1 face is coupled to k=nk over the cusp i-interval, which is
+    ! non-local in k and so cannot ride inside the walk. Production handles it
+    ! the same way and in the same place -- after the walk, before the wall
+    ! zeroing -- by replacing each seam cell's one-sided face flow with the
+    ! mean of the two: adding 0.5*(flow(1) - flow(nk)) to BOTH seam cells is
+    ! that replacement, since avg - flow(1) = -0.5*(flow(1) - flow(nk)) at the
+    ! low cell and avg - flow(nk) = the same delta at the high cell, once the
+    ! accumulate's sign convention is taken into account. The sign is what
+    ! tests/test_viscous_cusp_seam.py exists to pin: an earlier flip left the
+    ! seam cells taking +2*fcorr of spurious anti-diffusive force every step.
     !
-    ! fcorr is a REPLACEMENT DELTA, not a face difference, so it carries the
-    ! accumulate's sign convention -- fvisc = high-minus-low here (this kernel
-    ! produces the residual's sign directly; there is no trailing negation pass
-    ! as there was before commit 2381658745). Deriving it for the k=1 cell,
-    ! which holds flow(2) - flow(1): swapping flow(1) for avg adds
-    ! flow(1) - avg = 0.5*(flow(1) - flow(nk)). The k=nk-1 cell holds
-    ! flow(nk) - flow(nk-1), and swapping flow(nk) for avg adds
-    ! avg - flow(nk) = the same thing -- which is why one fcorr serves both.
-    !
-    ! NB the pre-2381658745 code accumulated low-minus-high and negated
-    ! everything at the end, so it added the opposite, 0.5*(flow(nk) - flow(1)),
-    ! and the negation flipped accumulate and correction together. When that
-    ! commit flipped the accumulate it left this pass alone, on the reasoning
-    ! that fcorr's own high-minus-low ordering already matched the new
-    ! convention. It does not follow: a replacement delta must flip with the
-    ! quantity it corrects regardless of how it is spelled internally, and the
-    ! seam cells took +2*fcorr of spurious, anti-diffusive viscous force every
-    ! step as a result. See tests/test_viscous_cusp_seam.py.
-    !
-    ! The two raw seam-face fluxes are recomputed via kface_flow: tau_cell/
-    ! q_cell are unchanged since the entry halo scaling and neither seam plane
-    ! takes a wall-function injection, so the recompute matches the sweep's
-    ! values. (nk=2, where the two seam cells coincide, is not supported here.)
+    ! The two raw seam face flows are recomputed rather than stashed: f_k1 and
+    ! f_knk are intent(in) and untouched by the walk, and neither seam plane
+    ! takes a wall-function injection, so the recompute reproduces the values
+    ! the walk used. (nk=2, where the two seam cells coincide, is not
+    ! supported, exactly as in production.)
     if (i_cusp_start > 0 .and. nk > 2) then
         do j = 1, nj-1
         do i = i_cusp_start, i_cusp_end-1
-            call kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, 1, flow1)
-            call kface_flow(tau_cell, q_cell, Vx, Vr, Vt, r, dAk, Omega_block, i, j, nk, flownk)
+            do c = 1, 9
+                ! k=1 face: low side is the halo (layer 2), high side is cell
+                ! plane 1 (layer 1). k=nk face: low side is cell plane nk-1
+                ! (layer 1), high side its halo (layer 2).
+                tq1lo(c) = f_k1(i,c,j,2)
+                tq1hi(c) = f_k1(i,c,j,1)
+                tqnlo(c) = f_knk(i,c,j,1)
+                tqnhi(c) = f_knk(i,c,j,2)
+            end do
+            call kface_flow_tq(tq1lo, tq1hi, Vx, Vr, Vt, r, dAk, Omega_block, i, j, 1, flow1)
+            call kface_flow_tq(tqnlo, tqnhi, Vx, Vr, Vt, r, dAk, Omega_block, i, j, nk, flownk)
             fcorr(1) = 0.5e0 * (flow1(1) - flownk(1))
             fcorr(2) = 0.5e0 * (flow1(2) - flownk(2))
             fcorr(3) = 0.5e0 * (flow1(3) - flownk(3))
@@ -1436,27 +1647,65 @@ subroutine set_visc_force( &
     ! high faces are the same cells) does not double-add either.
     do j = 1, nj-1
     do i = 1, ni-1
-        fvisc(i,j,1,2) = fvisc(i,j,1,2) + vol(i,j,1) * polar_src(cons_cell, P, r, P_offset, i, j, 1)
+        prhoc    = cons_cell(i, j, 1, 1)
+        prhorVtc = cons_cell(i, j, 1, 4)
+        prc = 0.125e0 * ( &
+            r(i,j,1) + r(i+1,j,1) + r(i,j+1,1) + r(i+1,j+1,1) + &
+            r(i,j,1+1) + r(i+1,j,1+1) + r(i,j+1,1+1) + r(i+1,j+1,1+1))
+        pPc = 0.125e0 * ( &
+            P(i,j,1) + P(i+1,j,1) + P(i,j+1,1) + P(i+1,j+1,1) + &
+            P(i,j,1+1) + P(i+1,j,1+1) + P(i,j+1,1+1) + P(i+1,j+1,1+1))
+        pVtc = prhorVtc / (prhoc * prc)
+        fvisc(i,j,1,2) = fvisc(i,j,1,2) &
+            + vol(i,j,1) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
     end do
     end do
     if (nk-1 > 1) then
         do j = 1, nj-1
         do i = 1, ni-1
+            prhoc    = cons_cell(i, j, nk-1, 1)
+            prhorVtc = cons_cell(i, j, nk-1, 4)
+            prc = 0.125e0 * ( &
+                r(i,j,nk-1) + r(i+1,j,nk-1) + r(i,j+1,nk-1) + r(i+1,j+1,nk-1) + &
+                r(i,j,nk-1+1) + r(i+1,j,nk-1+1) + r(i,j+1,nk-1+1) + r(i+1,j+1,nk-1+1))
+            pPc = 0.125e0 * ( &
+                P(i,j,nk-1) + P(i+1,j,nk-1) + P(i,j+1,nk-1) + P(i+1,j+1,nk-1) + &
+                P(i,j,nk-1+1) + P(i+1,j,nk-1+1) + P(i,j+1,nk-1+1) + P(i+1,j+1,nk-1+1))
+            pVtc = prhorVtc / (prhoc * prc)
             fvisc(i,j,nk-1,2) = fvisc(i,j,nk-1,2) &
-                + vol(i,j,nk-1) * polar_src(cons_cell, P, r, P_offset, i, j, nk-1)
+                + vol(i,j,nk-1) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
         end do
         end do
     end if
     do k = 2, nk-2
     do i = 1, ni-1
-        fvisc(i,1,k,2) = fvisc(i,1,k,2) + vol(i,1,k) * polar_src(cons_cell, P, r, P_offset, i, 1, k)
+        prhoc    = cons_cell(i, 1, k, 1)
+        prhorVtc = cons_cell(i, 1, k, 4)
+        prc = 0.125e0 * ( &
+            r(i,1,k) + r(i+1,1,k) + r(i,1+1,k) + r(i+1,1+1,k) + &
+            r(i,1,k+1) + r(i+1,1,k+1) + r(i,1+1,k+1) + r(i+1,1+1,k+1))
+        pPc = 0.125e0 * ( &
+            P(i,1,k) + P(i+1,1,k) + P(i,1+1,k) + P(i+1,1+1,k) + &
+            P(i,1,k+1) + P(i+1,1,k+1) + P(i,1+1,k+1) + P(i+1,1+1,k+1))
+        pVtc = prhorVtc / (prhoc * prc)
+        fvisc(i,1,k,2) = fvisc(i,1,k,2) &
+            + vol(i,1,k) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
     end do
     end do
     if (nj-1 > 1) then
         do k = 2, nk-2
         do i = 1, ni-1
+            prhoc    = cons_cell(i, nj-1, k, 1)
+            prhorVtc = cons_cell(i, nj-1, k, 4)
+            prc = 0.125e0 * ( &
+                r(i,nj-1,k) + r(i+1,nj-1,k) + r(i,nj-1+1,k) + r(i+1,nj-1+1,k) + &
+                r(i,nj-1,k+1) + r(i+1,nj-1,k+1) + r(i,nj-1+1,k+1) + r(i+1,nj-1+1,k+1))
+            pPc = 0.125e0 * ( &
+                P(i,nj-1,k) + P(i+1,nj-1,k) + P(i,nj-1+1,k) + P(i+1,nj-1+1,k) + &
+                P(i,nj-1,k+1) + P(i+1,nj-1,k+1) + P(i,nj-1+1,k+1) + P(i+1,nj-1+1,k+1))
+            pVtc = prhorVtc / (prhoc * prc)
             fvisc(i,nj-1,k,2) = fvisc(i,nj-1,k,2) &
-                + vol(i,nj-1,k) * polar_src(cons_cell, P, r, P_offset, i, nj-1, k)
+                + vol(i,nj-1,k) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
         end do
         end do
     end if

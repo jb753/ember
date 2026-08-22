@@ -58,48 +58,21 @@ subroutine average_by_ijk(x1, x2, ijk1, ijk2, rf, ni1, nj1, nk1, ni2, nj2, nk2, 
 end subroutine
 
 
-! Swap values between two 4D arrays at given lists of ijk indices.
-! h1[hs1[ipt]] <-> h2[ec2[ipt]]  and  h2[hs2[ipt]] <-> h1[ec1[ipt]]
-! i.e. write neighbour's owned edge-cell value into local halo slot.
-! Uses a scalar tmp(nv) so no heap allocation occurs.
-subroutine swap_by_ijk(h1, h2, hs1, ec1, hs2, ec2, &
-        ni1, nj1, nk1, ni2, nj2, nk2, npt, nv)
-
-    integer, intent(in) :: npt, nv
-    integer, intent(in) :: ni1, nj1, nk1, ni2, nj2, nk2
-    real, intent(inout) :: h1(ni1, nj1, nk1, nv)
-    real, intent(inout) :: h2(ni2, nj2, nk2, nv)
-    integer*2, intent(in) :: hs1(npt, 3)   ! halo slot indices into h1 (1-based)
-    integer*2, intent(in) :: ec1(npt, 3)   ! owned edge-cell indices in h1 (1-based)
-    integer*2, intent(in) :: hs2(npt, 3)   ! halo slot indices into h2 (1-based)
-    integer*2, intent(in) :: ec2(npt, 3)   ! owned edge-cell indices in h2 (1-based)
-
-    integer :: ipt
-    real :: tmp(nv)
-
-    do ipt = 1, npt
-        tmp = h1(ec1(ipt,1), ec1(ipt,2), ec1(ipt,3), :)
-        h1(hs1(ipt,1), hs1(ipt,2), hs1(ipt,3), :) = h2(ec2(ipt,1), ec2(ipt,2), ec2(ipt,3), :)
-        h2(hs2(ipt,1), hs2(ipt,2), hs2(ipt,3), :) = tmp
-    end do
-
-end subroutine
-
-
 ! Copy tau/q from one block face buffer's OWNED layer into another's HALO
-! layer, at matched index lists. The face-buffer counterpart of swap_by_ijk.
+! layer, at matched index lists. This is the whole periodic seam exchange for
+! the viscous pass: the boundary tau/q the two kernels hand each other is
+! O(surface), so this moves it, and nothing walks a volume.
 !
-! Two differences from swap_by_ijk, both consequences of the face buffers
-! carrying their owned and halo values in separate layers:
+! Two properties follow from the face buffers carrying their owned and halo
+! values in separate layers:
 !
 !   * It is a copy, not a swap. src is read only at layer 1 and dst written
 !     only at layer 2, so the two never collide and no temporary is needed --
-!     not even when a face is somehow paired to itself.
+!     not even when a face is paired to itself, which is what a block periodic
+!     to itself in theta does.
 !   * It moves one direction only. PeriodicCommunicator prunes its pairs to
 !     one key per pair, so the caller makes this call twice per pair, once
-!     each way. swap_by_ijk got both directions from one call because it had
-!     both index lists and could swap in place; keeping that here would mean
-!     reintroducing the aliasing this layout exists to remove.
+!     each way.
 !
 ! Indices are Fortran 1-based cell coordinates within the face: (j,k) on an
 ! i face, (i,k) on a j face, (i,j) on a k face. Which face each buffer is, and

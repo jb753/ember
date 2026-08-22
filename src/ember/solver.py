@@ -477,9 +477,9 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
         store_cell = util.carve_view(block.store, cell_shape)
         # residual_nd is read here (a cache hit from the loop's get_convergence, or
         # a fresh evaluation) BEFORE the kernel runs. Evaluating residual_nd
-        # borrows block.scratch (IRS work) and tau_q_halo (rolling flow
-        # buffers), both reused as scratch by the kernels below, so it must be
-        # fully materialised first -- passing it as an argument guarantees
+        # borrows block.scratch for both the IRS work vector and the rolling
+        # flow buffers, and the kernels below reuse the same arena, so it must
+        # be fully materialised first -- passing it as an argument guarantees
         # that ordering.
         if n_levels_eff > 0:
             # Denton block-sum multigrid over the scheme-agnostic engine
@@ -504,7 +504,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
             # Fortran-side IRS branch -- the two share the engine and differ only
             # in the smoother passed). The fine term is not smoothed here: it
             # already carries the residual the caller's update_residual smoothed.
-            # Coarse scratch is carved from tau_q_halo, dead outside the viscous
+            # Coarse scratch is carved from the arena, dead outside the viscous
             # pass (already completed and consumed before this call).
             rbuf, *mg_bufs = util.carve_view(
                 block.scratch,
@@ -557,7 +557,7 @@ def _mg_coarse_scratch_sizes(ni, nj, nk, n_levels, np=5):
     the sum of per-level element counts. ``cres``/``triw`` are reused per level
     rather than packed, so they only need the largest (level-1) slice: ``n_res``
     is that coarse residual size and ``n_tri`` its IRS Thomas-coefficient size.
-    All three are carved once per call from ``block.tau_q_halo``, never
+    All three are carved once per call from ``block.scratch``, never
     reallocated -- see :func:`advance_rk_stage_mg` and :func:`scree_step`.
     """
     n_corr = 0
@@ -661,20 +661,20 @@ def advance_rk_stage_mg(
     is **cascaded**: the packed per-level corrections (``corr_all``) accumulate
     coarsest -> finest through the ``acc0``/``acc1`` ping-pong, so only the final
     factor-2 hop writes the fine grid (fused with the fine term).
-    ``block.scratch`` is borrowed as the cell-shaped increment workspace (nodal,
-    free between kernel calls); the coarse timestep (``dtblk``), the restriction
+The coarse timestep (``dtblk``), the restriction
     accumulators, ``corr_all``/``acc0``/``acc1``, the separable-prolong scratch
-    (``aplane``, ``bb``) and the coarse-IRS buffers (``cres``, ``triw``) are all
-    carved from ``block.tau_q_halo`` at non-overlapping offsets -- dead outside
-    the viscous pass and a distinct buffer from ``scratch``, so they survive
-    alongside the increment within the call. The scatter reads the snapshot
+    (``aplane``, ``bb``), the coarse-IRS buffers (``cres``, ``triw``) and the
+    rolling increment are all carved from ``block.scratch`` at non-overlapping
+    offsets, in ONE ``carve_view`` -- they reach the same kernel call, so
+    carving them together is what makes them disjoint. The multigrid phase is
+    what sizes the arena (:func:`ember.block._scratch_len`). The scatter reads the snapshot
     from ``block.store`` and writes
     ``conserved_nd`` directly (frozen pressure, bypasses the P/T cache).
 
     ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is
     recomputed once per stage even though ``dt_vol`` only changes once per step.
     That redundancy is deliberate: confining ``dtblk``'s live range to a single
-    kernel call is what makes it safe to borrow ``tau_q_halo``, which
+    kernel call is what makes it safe to borrow the arena, which
     :meth:`~ember.grid.Grid.update_residual` clobbers between stages. The
     pre-pass costs under 1.15 fine-cell passes of two multiply-adds per level,
     against a full residual evaluation already paid every stage.
@@ -696,7 +696,7 @@ def advance_rk_stage_mg(
     with no ``sf_irs`` test inside the engine (the fine term is never smoothed
     here -- it already carries the fine residual the caller smoothed). The
     per-level scratch it needs (``cres``, ``triw``) is carved from
-    ``block.tau_q_halo`` -- caller-owned, no per-call allocation.
+    ``block.scratch`` -- caller-owned, no per-call allocation.
 
     Assumes ``block.dt_vol_nd`` and ``block.residual_nd`` are populated and the
     caller refreshes P/T, boundary conditions and the residual between stages.
@@ -716,7 +716,7 @@ def advance_rk_stage_mg(
             # otherwise the plain _noirs kernel, which enters no smoothing code
             # (the two share the engine and differ only in the smoother passed --
             # no Fortran-side IRS branch). Coarse scratch is carved from
-            # tau_q_halo, dead outside the viscous pass. The engine leaves the
+            # the arena, dead outside the viscous pass. The engine leaves the
             # coarse correction in acc0; the wrapper's final factor-2 hop is
             # fused with the cell->node scatter, so instead of a full-volume
             # increment it takes a rolling two-plane buffer carved from scratch.

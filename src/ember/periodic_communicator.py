@@ -45,11 +45,8 @@ class PeriodicCommunicator:
         self._grid = grid
         self.pairs = {}
         self.ijk_node_flat = {}
-        self.ijk_halo_flat = {}
-        self.ijk_ec_flat = {}  # owned edge-cell indices, Fortran 1-based (precomputed)
         self.ij_face_flat = {}  # (npt, 2) face-buffer indices, Fortran 1-based
         self.face_of = {}  # which Block.tau_q_faces entry each patch sits on
-        # ijk_halo_flat is overwritten to Fortran 1-based ints during setup
 
         self._prune_pairs(periodic_pairs)
         self._setup_matching_indices()
@@ -95,27 +92,6 @@ class PeriodicCommunicator:
         return ijk_cell_flat
 
     @staticmethod
-    def _cell_to_halo_indices(patch, block, ijk_cell_flat):
-        """Convert cell indices to tau_q_halo indices for the boundary halo slot.
-
-        tau_q_halo is (ni+1, nj+1, nk+1, 9) with owned cell c at halo index c+1.
-        The halo slot for a boundary face is one step outside the owned range:
-          low face:  halo index = cell index      (i.e. cell+1 - 1 = cell)
-          high face: halo index = cell index + 2  (i.e. cell+1 + 1 = cell+2)
-        Non-const dims are offset by +1 to account for the halo padding.
-        """
-        const_dim = patch.const_dim
-        const_idx = patch.ijk_lim_abs[const_dim, 0]
-        is_high_face = const_idx == block.shape[const_dim] - 1
-        ijk_halo = ijk_cell_flat.copy()
-        ijk_halo += 1  # offset all dims for halo padding
-        if is_high_face:
-            ijk_halo[:, const_dim] += 1  # one further out on high side
-        else:
-            ijk_halo[:, const_dim] -= 1  # one further out on low side
-        return ijk_halo
-
-    @staticmethod
     def _cell_to_face_indices(patch, block, ijk_cell_flat):
         """Convert cell indices to ``(face, (a, b))`` for ``Block.tau_q_faces``.
 
@@ -144,9 +120,9 @@ class PeriodicCommunicator:
     def _setup_matching_indices(self):
         """Setup matching ijk indices for each patch pair.
 
-        Stores node indices (for conserved variable averaging) and halo-slot
-        indices (for halo exchange) for both patches: source patch untransformed,
-        and target patch with transformation applied.
+        Stores node indices (for conserved variable averaging) and face-buffer
+        coordinates (for the boundary tau/q exchange) for both patches: source
+        patch untransformed, and target patch with transformation applied.
         """
         for (bid, pid), ((nxbid, nxpid), (perm, flip)) in self.pairs.items():
             # Store original source patch indices as int16 F-contiguous
@@ -164,7 +140,7 @@ class PeriodicCommunicator:
                 (target_ijk.reshape(-1, 3) + 1).astype(np.int16)
             )
 
-            # Cell indices (0-based) feeding the halo-slot index computation
+            # Cell indices (0-based) feeding the face-buffer index computation
             source_face = source_patch.get_ijk_face().reshape(-1, 3)
             src_cells = self._face_to_cell_indices(
                 source_patch, self._grid[bid], source_face
@@ -177,18 +153,9 @@ class PeriodicCommunicator:
                 target_patch, self._grid[nxbid], target_face
             )
 
-            # Halo slot indices into tau_q_halo for exchange_halos()
-            self.ijk_halo_flat[(bid, pid)] = self._cell_to_halo_indices(
-                source_patch, self._grid[bid], src_cells
-            )
-            self.ijk_halo_flat[(nxbid, nxpid)] = self._cell_to_halo_indices(
-                target_patch, self._grid[nxbid], tgt_cells
-            )
-
-            # Face-buffer coordinates for exchange_faces(). Same points, same
-            # order and the same already-applied transform as the volume lists
-            # below -- only the index space differs, so the two exchanges stay
-            # point-for-point equivalent.
+            # Face-buffer coordinates for exchange_faces(): the same points, in
+            # the same order, with the same already-applied transform as the
+            # node lists above.
             for key, patch, blk, cells in (
                 ((bid, pid), source_patch, self._grid[bid], src_cells),
                 ((nxbid, nxpid), target_patch, self._grid[nxbid], tgt_cells),
@@ -197,22 +164,6 @@ class PeriodicCommunicator:
                 self.face_of[key] = face
                 self.ij_face_flat[key] = np.asfortranarray(ab.astype(np.int16))
 
-            # Precompute Fortran (1-based) indices for exchange_halos.
-            # cells is 0-based; owned cell c sits at tau_q_halo[c+1] (0-based)
-            # = tau_q_halo[c+2] in Fortran 1-based indexing.
-            # ijk_halo_flat is already 0-based halo slot; add 1 for Fortran.
-            # Use int32 C-contiguous arrays so f2py passes them without copying.
-            for key, cells in (
-                ((bid, pid), src_cells),
-                ((nxbid, nxpid), tgt_cells),
-            ):
-                # cells is 0-based; owned cell c is at tau_q_halo[c+1] (0-based)
-                # = tau_q_halo[c+2] in Fortran 1-based indexing
-                self.ijk_ec_flat[key] = np.asfortranarray((cells + 2).astype(np.int16))
-                # ijk_halo_flat was computed 0-based; convert to Fortran 1-based
-                self.ijk_halo_flat[key] = np.asfortranarray(
-                    (self.ijk_halo_flat[key] + 1).astype(np.int16)
-                )
 
     def apply(self):
         """Apply periodic boundary conditions by averaging conserved variables.
@@ -236,15 +187,17 @@ class PeriodicCommunicator:
     def exchange_faces(self):
         """Fill each block's face-buffer halo layer from its periodic partner.
 
-        The :attr:`~ember.block.Block.tau_q_faces` counterpart of
-        :meth:`exchange_halos`. Reads layer 0 (the partner's own edge cells)
-        and writes layer 1 (this side's halo), so unlike the volume exchange it
-        never reads and writes the same storage and needs no temporary.
+        The one seam exchange the viscous pass needs, run between
+        ``set_tau_q_faces`` and ``set_visc_force``: it fills the halo layer of
+        each block's :attr:`~ember.block.Block.tau_q_faces` with the adjacent
+        block's owned edge-cell tau/q, so the face flux there averages two real
+        cell values instead of the -edge ghost the producer seeded. Reads layer
+        0 (the partner's own edge cells) and writes layer 1 (this side's halo),
+        so it never reads and writes the same storage and needs no temporary.
 
-        TWO CALLS PER PAIR, one each way. ``self.pairs`` is pruned to a single
-        key per pair by :meth:`_prune_pairs`, and ``swap_by_ijk`` got away with
-        one call because it swapped in place. A copy cannot, so both directions
-        are issued explicitly. A block periodic to itself cannot catch a
+        TWO CALLS PER PAIR, one each way, because ``self.pairs`` is pruned to a
+        single key per pair by :meth:`_prune_pairs` and a copy cannot move both
+        directions at once. A block periodic to itself cannot catch a
         regression here -- both ends are the same block -- which is why the
         gate for this is a two-block case.
         """
@@ -259,24 +212,3 @@ class PeriodicCommunicator:
             ember.fortran.copy_faces_by_ij(f1, f2, idx1, idx2)
             ember.fortran.copy_faces_by_ij(f2, f1, idx2, idx1)
 
-    def exchange_halos(self):
-        """Copy periodic neighbour tau/q into the local halo slot of tau_q_halo.
-
-        Called between set_tau_q_soa and set_visc_force.  Each block's halo slot
-        at its periodic face is filled with the adjacent block's owned edge-cell
-        tau/q, so that set_visc_force averages two real cell values there instead
-        of the -edge ghost written by eval_tau_q.
-        """
-        for (bid, pid), ((nxbid, nxpid), _) in self.pairs.items():
-            h1 = self._grid[bid].tau_q_halo  # (ni+1, nj+1, nk+1, 9)
-            h2 = self._grid[nxbid].tau_q_halo
-            key1 = (bid, pid)
-            key2 = (nxbid, nxpid)
-            ember.fortran.swap_by_ijk(
-                h1,
-                h2,
-                self.ijk_halo_flat[key1],
-                self.ijk_ec_flat[key1],
-                self.ijk_halo_flat[key2],
-                self.ijk_ec_flat[key2],
-            )

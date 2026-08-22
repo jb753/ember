@@ -2889,14 +2889,12 @@ def test_stagnation_props_require_velocity():
     stagnation = re.compile(r"o(?:_rel)?(?:_nd)?$")
     # Density and derivatives held at constant density also end in 'o' (the 'o'
     # of "rho"), but are not stagnation quantities and do not depend on velocity.
-    # tau_q_halo ends in 'o' (the 'o' of "halo") but is pure transient scratch.
     NON_STAGNATION = {
         "rho",
         "rho_nd",
         "dhdP_rho_nd",
         "dsdP_rho_nd",
         "dudP_rho_nd",
-        "tau_q_halo",
     }
     names = sorted(
         n

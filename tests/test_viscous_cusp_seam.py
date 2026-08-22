@@ -63,6 +63,8 @@ from ember.cusp import CuspPatch
 from ember.fluid import PerfectFluid
 from ember.inviscid import InviscidPatch
 
+import viscous_util
+
 SHAPE = (7, 9, 9)
 NB = 36
 PR_TURB = 1.0
@@ -136,84 +138,37 @@ def _build_block():
     return block
 
 
-def _set_tau_q(block):
-    """Viscous phase 1, as Grid.update_sources runs it. Returns tau/q views."""
-    halo = block.tau_q_halo
-    halo.fill(0.0)
-    tau_cell = halo[..., 0:6]
-    q_cell = halo[..., 6:9]
-    mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
-    ember.fortran.set_tau_q_soa(
-        cons=block.conserved_nd,
-        t=block.T_nd,
-        mu=block.mu_nd,
-        cp=block.cp_nd,
-        kappa=block.kappa_nd,
-        pr_turb=PR_TURB,
-        xlength=block.xlen_sq_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        r=block.r_nd,
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
-        mu_turb=mu_turb,
-    )
-    block._versions["mu_turb"] += 1
-    return tau_cell, q_cell
-
-
 def _run_visc_force(block, i_cusp):
-    """Viscous phase 2 with the cusp correction spanning ``i_cusp``.
+    """The viscous pair with the cusp correction spanning ``i_cusp``.
 
-    tau/q are rebuilt from scratch on every call: ``set_visc_force`` scales
-    the tau/q boundary halos in place on entry, so a second call on the same
-    buffer would otherwise see a twice-scaled field.
+    Phase 1 is re-run on every call because phase 2 is not idempotent in
+    general; here it also keeps each call independent of what the last one
+    left in the shared arena.
     """
-    tau_cell, q_cell = _set_tau_q(block)
+    viscous_util.fill_faces(block, PR_TURB)
+    return viscous_util.run_visc_force(block, PR_TURB, i_cusp=i_cusp)
 
-    fbody = block.F_body_nd
-    fbody.flags.writeable = True
-    fbody.fill(0.0)
 
+def _seam_tau_q(block):
+    """The tau/q the correction reads, as a halo-indexed volume for the
+    reference below.
+
+    The kernel takes it from the two k face buffers -- ``f_k1`` holding cell
+    plane 1 in layer 0 and its halo in layer 1, ``f_knk`` cell plane nk-1 and
+    its halo -- which is all the seam flux needs. The numpy reference is
+    written against the halo-indexed shape the flux formula is stated in, so
+    this scatters those four planes back into one.
+    """
+    viscous_util.fill_faces(block, PR_TURB)
     ni, nj, nk = block.shape
-    kb = min(8, nk - 1)
-    # One carve for the whole viscous phase, so these cannot land on
-    # top of the tau/q volume at the arena's head.
-    _, _, planes, rows = ember.block._carve_viscous(block)
-    ember.fortran.set_visc_force(
-        cons=block.conserved_nd,
-        cons_cell=block.conserved_cell_nd,
-        vol=block.vol_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        omega_block=block.Omega_nd,
-        r=block.r_nd,
-        mu=block.mu_nd,
-        p=block.P_nd,
-        p_offset=block.P_offset_nd,
-        fvisc=fbody[..., 1:],
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
-        planes=planes,
-        rows=rows,
-        kb=kb,
-        **block.ijk_wall_visc,
-        **block.Omega_wall_nd,
-        i_cusp_start=i_cusp[0],
-        i_cusp_end=i_cusp[1],
-    )
-    fbody.flags.writeable = False
-    # Components 1: of F_body_nd are set_visc_force's own fvisc(:,:,:,1:4).
-    return np.array(fbody[..., 1:], dtype=np.float64)
+    f_k1, f_knk = block.tau_q_faces[4], block.tau_q_faces[5]
+    tq = np.zeros((ni + 1, nj + 1, nk + 1, 9), dtype=np.float64)
+    # f_*(i, c, j, layer) -> tq(i+1, j+1, k, c)
+    tq[1:ni, 1:nj, 0, :] = np.moveaxis(f_k1[..., 1], 1, -1)
+    tq[1:ni, 1:nj, 1, :] = np.moveaxis(f_k1[..., 0], 1, -1)
+    tq[1:ni, 1:nj, nk - 1, :] = np.moveaxis(f_knk[..., 0], 1, -1)
+    tq[1:ni, 1:nj, nk, :] = np.moveaxis(f_knk[..., 1], 1, -1)
+    return tq[..., 0:6], tq[..., 6:9]
 
 
 def _kface_flow(block, tau_cell, q_cell, kf):
@@ -298,7 +253,7 @@ def test_cusp_seam_correction_sign():
     f_on = _run_visc_force(block, block.i_cusp)
     delta = f_on - f_off
 
-    tau_cell, q_cell = _set_tau_q(block)
+    tau_cell, q_cell = _seam_tau_q(block)
     _, _, nk = block.shape
     flow1 = _kface_flow(block, tau_cell, q_cell, 1)
     flownk = _kface_flow(block, tau_cell, q_cell, nk)

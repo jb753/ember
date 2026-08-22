@@ -3,12 +3,15 @@
 :meth:`ember.grid.Grid.update_sources` builds the viscous body force in two
 Fortran passes (see :mod:`test_set_F_body_golden` for the composed force):
 
-  * phase 1 -- ``ember.fortran.set_tau_q_soa`` fills the per-cell stress tensor
-    ``tau_cell``, heat flux ``q_cell`` and mixing-length ``mu_turb``; then
-  * phase 2 -- ``ember.fortran.set_visc_force`` turns tau/q into face fluxes,
-    accumulates the viscous force into ``F_body_nd``, and also folds in the
-    polar (radial-momentum) source in the same final pass (an optimisation:
-    both write the same ``F_body_nd`` slots, so this saves a whole separate
+  * phase 1 -- ``ember.fortran.set_tau_q_faces`` fills the stress tensor and
+    heat flux for the cells on the block's BOUNDARY SHELL, into the six
+    surface buffers of ``Block.tau_q_faces``, layer 0 the block's own edge
+    cells and layer 1 the halo value; then
+  * phase 2 -- ``ember.fortran.set_visc_force`` produces INTERIOR tau/q inside
+    its own k walk, turns tau/q into face fluxes, accumulates the viscous force
+    into ``F_body_nd``, writes ``mu_turb``, and folds in the polar
+    (radial-momentum) source in the same final pass (an optimisation: both
+    write the same ``F_body_nd`` slots, so this saves a whole separate
     full-array touch -- see the kernel's header comment).
 
 ``test_set_F_body_golden`` only locks the *composition* of these passes with
@@ -18,25 +21,26 @@ a single subroutine. These tests lock each pass independently -- phase 2's
 golden below is viscous+polar combined, not viscous alone, since that is now
 what ``set_visc_force`` computes:
 
-  * phase 1 is called directly and its tau/q/mu_turb output is compared to a
+  * phase 1 is called directly and its six face buffers are compared to a
     committed golden; and
-  * phase 2 is fed a *synthetic, analytic* tau/q (NOT the phase-1 output), so a
-    regression in ``set_tau_q_soa`` cannot cascade into the phase-2 golden --
-    the two goldens fail independently.
+  * phase 2 is fed *synthetic, analytic* face buffers (NOT the phase-1 output),
+    so a regression in ``set_tau_q_faces`` cannot cascade into the phase-2
+    golden -- the two goldens fail independently. That independence is now
+    structural as well as procedural: phase 2 derives every interior tau/q
+    itself and reads phase 1 only at the shell.
 
 The fixture is a deterministic single-block, theta-periodic, swirling and
-sheared flow modelled on ``test_set_F_body_golden``, extended so both phase-1
+sheared flow modelled on ``test_set_F_body_golden``, extended so both phases'
 outputs are meaningfully exercised: a radial/axial temperature gradient gives
-q_cell a real signal, and the wall distance is tuned so mu_turb straddles the
-mixing-length formula and its limiter. The i/j faces are walls, so the
-wall-shear scaling and wall-function branches of phase 2 are exercised; the
-block has no cusp patch, so that seam branch stays inactive here.
+the heat flux a real signal, and the wall distance is tuned so mu_turb
+straddles the mixing-length formula and its limiter. The i/j faces are walls,
+so the wall-shear scaling and wall-function branches of phase 2 are exercised;
+the block has no cusp patch, so that seam branch stays inactive here.
 
 Regenerate the golden after an *intentional* change to either pass:
 
     uv run python tests/test_viscous_phases_golden.py
 """
-
 from pathlib import Path
 
 import numpy as np
@@ -117,27 +121,27 @@ def _build_block():
     return block
 
 
+FACE_NAMES = ("f_i1", "f_ini", "f_j1", "f_jnj", "f_k1", "f_knk")
+
+
 def _run_phase1(mu=None, kappa=None):
-    """Call ``set_tau_q_soa`` directly; return its tau/q/mu_turb output.
+    """Call ``set_tau_q_faces`` directly; return its six face buffers.
 
     ``mu`` and ``kappa`` default to the block's own nodal fields; pass arrays
     to drive the kernel with transport that varies where this fixture's
     perfect gas leaves it constant.
 
-    The tau/q scratch buffer is zeroed first so the corner/edge halo slots the
-    subroutine leaves untouched are a deterministic zero rather than stale
-    scratch. ``mu_turb`` is captured on its written region only ([:-1, :-1, :-1]);
-    the final node in each axis is padding the kernel never writes.
+    The buffers are poisoned first, so a slot the kernel fails to write shows
+    up as a NaN here rather than as whatever the arena last held. Every slot of
+    all six IS written: the producer covers the whole shell.
     """
     block = _build_block()
 
-    halo = block.tau_q_halo
-    halo.fill(0.0)
-    tau_cell = halo[..., 0:6]
-    q_cell = halo[..., 6:9]
-    mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
+    faces = block.tau_q_faces
+    for buf in faces:
+        buf.fill(np.nan)
 
-    ember.fortran.set_tau_q_soa(
+    ember.fortran.set_tau_q_faces(
         cons=block.conserved_nd,
         t=block.T_nd,
         mu=block.mu_nd if mu is None else mu,
@@ -153,79 +157,71 @@ def _run_phase1(mu=None, kappa=None):
         vx=block.Vx_nd,
         vr=block.Vr_nd,
         vt=block.Vt_rel_nd,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
-        mu_turb=mu_turb,
+        f_i1=faces[0],
+        f_ini=faces[1],
+        f_j1=faces[2],
+        f_jnj=faces[3],
+        f_k1=faces[4],
+        f_knk=faces[5],
+        **block.ijk_wall_visc,
     )
-    return {
-        "tau_cell": np.array(tau_cell),
-        "q_cell": np.array(q_cell),
-        "mu_turb": np.array(mu_turb[:-1, :-1, :-1]),
-    }
+    return {name: np.array(buf) for name, buf in zip(FACE_NAMES, faces)}
 
 
-def _synthetic_tau_q(shape):
-    """Deterministic, smooth analytic tau/q over the halo-padded cell grid.
+def _synthetic_faces(block):
+    """Deterministic, smooth analytic tau/q for the six face buffers.
 
     Independent of phase 1 by construction: phase 2's golden is locked against
-    THIS field, not against ``set_tau_q_soa`` output, so the two passes fail
+    THIS shell, not against ``set_tau_q_faces`` output, so the two passes fail
     independently. Smooth O(1) fields (rather than an RNG fill) keep every
     face-flux difference well-resolved and free of platform RNG dependence.
-    Every slot ``set_visc_force`` reads -- owned cells and the single-sided
-    boundary halos -- is filled.
+    Both layers of every buffer are filled -- the edge cell and the halo value
+    -- and they are given DIFFERENT fields, so a kernel that read the wrong
+    layer would not pass.
     """
-    ni1, nj1, nk1 = shape
-    ii = np.linspace(0.0, 1.0, ni1)
-    jj = np.linspace(0.0, 1.0, nj1)
-    kk = np.linspace(0.0, 1.0, nk1)
-    gi, gj, gk = np.meshgrid(ii, jj, kk, indexing="ij")
-
-    tau = np.empty((ni1, nj1, nk1, 6), dtype=np.float32)
-    for c in range(6):
-        phase = 2.0 * np.pi * ((c + 1) * gi + (c + 2) * gj + (c + 3) * gk)
-        tau[..., c] = (0.5 + 0.4 * np.sin(phase + 0.3 * c)).astype(np.float32)
-
-    q = np.empty((ni1, nj1, nk1, 3), dtype=np.float32)
-    for c in range(3):
-        phase = 2.0 * np.pi * ((c + 2) * gi + (c + 1) * gj + (c + 3) * gk)
-        q[..., c] = (0.2 * np.cos(phase + 0.5 * c)).astype(np.float32)
-    return tau, q
+    out = []
+    for buf in block.tau_q_faces:
+        na, _, nb, _ = buf.shape
+        ga, gc, gb = np.meshgrid(
+            np.linspace(0.0, 1.0, na), np.arange(9.0), np.linspace(0.0, 1.0, nb),
+            indexing="ij",
+        )
+        phase = 2.0 * np.pi * ((gc + 1.0) * ga + (gc + 2.0) * gb)
+        layer0 = 0.5 + 0.4 * np.sin(phase + 0.3 * gc)
+        layer1 = 0.2 * np.cos(phase + 0.5 * gc)
+        out.append(np.stack([layer0, layer1], axis=-1).astype(np.float32))
+    return out
 
 
-def _run_phase2(kb=None):
-    """Call ``set_visc_force`` on a synthetic tau/q; return the fvisc output.
+def _run_phase2(jbw=0, mu=None, kappa=None):
+    """Call ``set_visc_force`` on a synthetic shell; return fvisc and mu_turb.
 
-    ``set_visc_force`` now folds the polar (radial-momentum) source into its
-    own final pass over ``fvisc`` (see the kernel's header comment), so this
-    golden locks viscous+polar combined, not viscous alone -- the previous
-    isolation from polar no longer applies to this kernel; the pass-1/pass-2
-    independence (analytic tau/q, not phase-1 output) is unaffected.
+    ``set_visc_force`` folds the polar (radial-momentum) source into its own
+    final pass over ``fvisc`` (see the kernel's header comment), so this golden
+    locks viscous+polar combined, not viscous alone. It also produces every
+    interior tau/q itself and writes ``mu_turb``, so that field is part of
+    THIS phase's golden and not phase 1's.
 
-    ``kb`` is the k-slab depth of the tiled kernel; ``None`` mirrors the
-    production clamp in :meth:`ember.grid.Grid.update_sources`.
+    ``jbw`` is the j-panel width; 0 mirrors production and sizes it from the
+    kernel's own VISC_JAREA. ``mu``/``kappa`` override the block's own nodal
+    transport, as in :func:`_run_phase1`.
     """
     block = _build_block()
 
-    halo = block.tau_q_halo
-    tau, q = _synthetic_tau_q(halo.shape[:3])
-    halo[..., 0:6] = tau
-    halo[..., 6:9] = q
-    tau_cell = halo[..., 0:6]
-    q_cell = halo[..., 6:9]
+    for buf, synth in zip(block.tau_q_faces, _synthetic_faces(block)):
+        buf[...] = synth
 
     # F_body_nd is a read-only cached buffer; unlock and zero it as update_sources
     # does before accumulating the viscous force into components 1: (momenta+energy).
     fbody = block.F_body_nd
     fbody.flags.writeable = True
     fbody.fill(0.0)
+    mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
 
     i_cusp_start, i_cusp_end = block.i_cusp
-    ni, nj, nk = block.shape
-    if kb is None:
-        kb = min(8, nk - 1)
-    # One carve for the whole viscous phase, so these cannot land on
-    # top of the tau/q volume at the arena's head.
-    _, _, planes, rows = ember.block._carve_viscous(block)
+    # One carve for the whole viscous phase: every buffer below reaches this
+    # one call, so carving them together is what makes them disjoint.
+    faces, tq, planes, rows = ember.block._carve_viscous(block)
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
         cons_cell=block.conserved_cell_nd,
@@ -235,24 +231,36 @@ def _run_phase2(kb=None):
         dak=block.dAk_nd,
         omega_block=block.Omega_nd,
         r=block.r_nd,
-        mu=block.mu_nd,
+        mu=block.mu_nd if mu is None else mu,
         p=block.P_nd,
         p_offset=block.P_offset_nd,
         fvisc=fbody[..., 1:],
         vx=block.Vx_nd,
         vr=block.Vr_nd,
         vt=block.Vt_rel_nd,
-        tau_cell=tau_cell,
-        q_cell=q_cell,
+        t=block.T_nd,
+        cp=block.cp_nd,
+        kappa=block.kappa_nd if kappa is None else kappa,
+        pr_turb=PR_TURB,
+        xlength=block.xlen_sq_nd,
+        mu_turb=mu_turb,
+        f_i1=faces[0],
+        f_ini=faces[1],
+        f_j1=faces[2],
+        f_jnj=faces[3],
+        f_k1=faces[4],
+        f_knk=faces[5],
+        tq=tq,
         planes=planes,
         rows=rows,
-        kb=kb,
         **block.ijk_wall_visc,
         **block.Omega_wall_nd,
         i_cusp_start=i_cusp_start,
         i_cusp_end=i_cusp_end,
+        jbw_in=jbw,
     )
-    return np.array(fbody[..., 1:])
+    # mu_turb's final node in each axis is padding the kernel never writes.
+    return np.array(fbody[..., 1:]), np.array(mu_turb[:-1, :-1, :-1])
 
 
 def _assert_matches_golden(actual, expected):
@@ -267,11 +275,11 @@ def _assert_matches_golden(actual, expected):
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=atol)
 
 
-# ---- phase 1: set_tau_q_soa ------------------------------------------------
+# ---- phase 1: set_tau_q_faces ----------------------------------------------
 
 
-@pytest.mark.parametrize("field", ["tau_cell", "q_cell", "mu_turb"])
-def test_set_tau_q_soa_matches_golden(field):
+@pytest.mark.parametrize("field", FACE_NAMES)
+def test_set_tau_q_faces_matches_golden(field):
     if not GOLDEN_FILE.exists():
         pytest.skip(f"golden missing; regenerate with: uv run python {__file__}")
     out = _run_phase1()
@@ -300,27 +308,48 @@ REGIONS = {
 def test_set_visc_force_matches_golden(region):
     if not GOLDEN_FILE.exists():
         pytest.skip(f"golden missing; regenerate with: uv run python {__file__}")
-    fvisc = _run_phase2()
+    fvisc, _ = _run_phase2()
     golden = np.load(GOLDEN_FILE)["fvisc"]
     sl = REGIONS[region]
     _assert_matches_golden(fvisc[sl], golden[sl])
 
 
-@pytest.mark.parametrize("kb", [1, 2, 3])
-def test_set_visc_force_kb_consistent(kb):
-    """The k-slab depth must not change the result.
+def test_set_visc_force_mu_turb_matches_golden():
+    """The mixing-length viscosity is phase 2's output now, not phase 1's.
 
-    Compare each kb against the single-slab kb = nk-1 reference, which
-    degenerates to the unblocked sweep. The per-cell arithmetic is identical
-    for every kb (only staging of the face flows differs, and the i-loop trip
-    counts the vectorizer sees are unchanged), so the comparison is exact --
-    any difference is a slab bookkeeping bug (carry plane, short last slab,
-    wall-injection slab selection). kb=3 exercises a short last slab
-    (nk-1 = 8 = 3+3+2).
+    It is the one thing the fused kernel produces that is not a force, so a
+    producer that drifted while still giving the right fvisc -- a plausible
+    failure, since fvisc is a difference of large face flows and mu_turb is
+    not -- would show up here and nowhere else in this file.
     """
-    ref = _run_phase2(kb=SHAPE[2] - 1)
-    out = _run_phase2(kb=kb)
-    np.testing.assert_array_equal(out, ref)
+    if not GOLDEN_FILE.exists():
+        pytest.skip(f"golden missing; regenerate with: uv run python {__file__}")
+    _, mu_turb = _run_phase2()
+    _assert_matches_golden(mu_turb, np.load(GOLDEN_FILE)["mu_turb"])
+
+
+@pytest.mark.parametrize("jbw", [4, 5, 8])
+def test_set_visc_force_panel_consistent(jbw):
+    """The j-panel width must not change the result.
+
+    Compare each panel width against the single-panel jbw = nj-1 reference,
+    which degenerates to an unpanelled walk. The per-cell arithmetic is
+    identical for every width -- a panel only changes which rows are live at
+    once -- so the comparison is exact. What it catches is panel bookkeeping:
+    a panel duplicates its lowest j-face row and its producer rows at jp0-1
+    and jp1+1, and getting those bounds wrong leaves a seam one row wide that
+    no other test in this file would separate from ordinary reassociation.
+    jbw = 5 exercises a short last panel (nj-1 = 8 = 5 + 3).
+
+    This is the successor to the old k-slab consistency test: the fused walk
+    has no k slab (each tau/q plane is consumed the moment it is produced, so
+    a single walk over k IS the blocked schedule), and the j panel is the
+    blocking that remains.
+    """
+    ref_f, ref_m = _run_phase2(jbw=SHAPE[1] - 1)
+    out_f, out_m = _run_phase2(jbw=jbw)
+    np.testing.assert_array_equal(out_f, ref_f)
+    np.testing.assert_array_equal(out_m, ref_m)
 
 
 def _corner(a):
@@ -339,7 +368,7 @@ def _corner(a):
 
 
 def test_phase1_reads_the_transport_fields_cell_by_cell():
-    """tau follows the local viscosity and q the local conductivity.
+    """Shell tau follows the local viscosity and q the local conductivity.
 
     Every other test in this file hands the kernel a perfect gas, whose
     transport is one number repeated over the whole field -- which a kernel
@@ -351,6 +380,14 @@ def test_phase1_reads_the_transport_fields_cell_by_cell():
 
     The two fields vary along different axes, so a kernel that crossed them
     would not pass either.
+
+    Both of the producer's shapes are checked: the k1 face, which the vectorized
+    ROW body writes, and the i1 face, which pins that axis and falls back to
+    the per-cell ``tau_q_at_cell``. They are the same arithmetic twice over,
+    and this is the test that would notice if one of them stopped being.
+
+    The mixing-length viscosity the ratio needs comes from phase 2 (it is that
+    kernel's output now), evaluated on the same state and the same transport.
     """
     block = _build_block()
     ni, nj, nk = SHAPE
@@ -361,37 +398,55 @@ def test_phase1_reads_the_transport_fields_cell_by_cell():
     mu_f = np.asfortranarray(mu0 * (1.0 + 0.4 * ramp_i), dtype=np.float32)
     ka_f = np.asfortranarray(ka0 * (1.0 + 0.4 * ramp_j), dtype=np.float32)
 
-    base = _run_phase1()
-    got = _run_phase1(mu=mu_f, kappa=ka_f)
+    base, got = _run_phase1(), _run_phase1(mu=mu_f, kappa=ka_f)
+    _, mut_a = _run_phase2()
+    _, mut_b = _run_phase2(mu=mu_f, kappa=ka_f)
 
-    # Cell (i,j,k) is written at tau_cell(i+1,j+1,k+1); mu_turb is written at
-    # the cell's own low corner. Each run supplies its own mixing-length
-    # viscosity, because visc_lim scales with the laminar one and this
-    # fixture deliberately saturates that clamp in a minority of cells.
-    cells = (slice(1, ni), slice(1, nj), slice(1, nk))
-    mut_a, mut_b = base["mu_turb"], got["mu_turb"]
-    fac_a = _corner(mu0) + mut_a
-    fac_b = _corner(mu_f) + mut_b
     cpc = _corner(block.cp_nd)
+    fac_a, fac_b = _corner(mu0) + mut_a, _corner(mu_f) + mut_b
     lam_a = _corner(ka0) + mut_a * cpc / PR_TURB
     lam_b = _corner(ka_f) + mut_b * cpc / PR_TURB
 
-    for name, ratio in (("tau_cell", fac_b / fac_a), ("q_cell", lam_b / lam_a)):
-        expected = np.asarray(base[name], dtype=np.float64)[cells] * ratio[..., None]
-        actual = np.asarray(got[name], dtype=np.float64)[cells]
+    # Each face buffer is (a, 9, b, 2) over the cells of one boundary face;
+    # take the same cells out of the cell-shaped ratios, with the component
+    # axis moved into place.
+    # knk is written by the vectorized ROW body, i1 by the per-cell fallback.
+    # Both are chosen for carrying cells where the mixing-length CLAMP binds
+    # (60% and 28% of them here): where it does not, mut is independent of the
+    # laminar viscosity and swamps it, so the predicted ratio is 1 and the
+    # comparison, while still correct, says nothing. k1 has no clamped cell at
+    # all on this fixture, which is why it is not one of the two.
+    faces = {"f_knk": np.s_[:, :, -1], "f_i1": np.s_[0, :, :]}
+    for name, cells in faces.items():
+        tau_ratio = np.moveaxis(np.broadcast_to(
+            (fac_b / fac_a)[cells][..., None], (fac_a[cells].shape + (6,))), -1, 1)
+        q_ratio = np.moveaxis(np.broadcast_to(
+            (lam_b / lam_a)[cells][..., None], (lam_a[cells].shape + (3,))), -1, 1)
+        ratio = np.concatenate([tau_ratio, q_ratio], axis=1)
+        # Layer 0, the block's own edge cell. Layer 1 is that times a mask the
+        # transport cannot reach, so it carries no independent information.
+        ref = np.asarray(base[name], dtype=np.float64)[..., 0]
+        expected = ref * ratio
+        actual = np.asarray(got[name], dtype=np.float64)[..., 0]
         atol = 1e-5 * float(np.abs(expected).max())
-        np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=atol)
-        # Not vacuous: the field really does swing across the block.
-        assert ratio.max() / ratio.min() > 1.2
+        np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=atol,
+                                   err_msg=f"{name} does not scale with transport")
+        # Not vacuous: varying the transport has to MOVE the output by much
+        # more than the tolerance the comparison allows, or a kernel ignoring
+        # the fields entirely would pass. It moves by a few percent here rather
+        # than the ramp's 40%, because the clamped mixing-length viscosity
+        # swamps the laminar one over most of the shell -- so this is asserted
+        # against the tolerance rather than against the ramp.
+        assert np.abs(actual - ref).max() > 100.0 * atol
 
 
 if __name__ == "__main__":
     phase1 = _run_phase1()
-    fvisc = _run_phase2()
+    fvisc, mu_turb = _run_phase2()
     GOLDEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(GOLDEN_FILE, fvisc=fvisc, **phase1)
+    np.savez_compressed(GOLDEN_FILE, fvisc=fvisc, mu_turb=mu_turb, **phase1)
     print(f"wrote {GOLDEN_FILE}")
-    for name, arr in {**phase1, "fvisc": fvisc}.items():
+    for name, arr in {**phase1, "fvisc": fvisc, "mu_turb": mu_turb}.items():
         print(
             f"  {name:9s} shape={arr.shape}  "
             f"|.|_max={np.abs(arr).max():.6e}  sum={arr.sum():.6e}"

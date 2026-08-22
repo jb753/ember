@@ -370,7 +370,6 @@ Miscellaneous:
    Block.scratch
    Block.store
    Block.tau_q_faces
-   Block.tau_q_halo
 
 Nondimensional:
 
@@ -859,8 +858,8 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     consumers fall into phases that never overlap, so the arena holds the SUM
     of what is live within a phase and the MAX across phases:
 
-      update_sources   tau/q volume + the six face buffers + set_visc_force's
-                       rolling planes and rows
+      update_sources   the six boundary tau/q face buffers + set_visc_force's
+                       rolling tau/q cell-plane pair, planes and rows
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
       scree / RK, MG   the eleven multigrid coarse buffers + the caller's
@@ -869,12 +868,15 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
       scree / RK, no MG  the caller's full-volume cell-shaped increment, which
                        the multigrid-off kernels still materialise
 
-    ``update_sources`` binds at every shape tried, its full-volume tau/q the
-    single largest buffer in any phase; the multigrid phase is next. Sizes are
-    computed, never
-    written as literals, so a buffer added to a phase shows up here rather than
-    silently overrunning its neighbour -- which is what tests/test_scratch_arena
-    exists to enforce.
+    The MULTIGRID phase binds, at every shape tried. That is a recent state of
+    affairs and worth stating, because two earlier decisions turned on the
+    opposite: ``update_sources`` used to bind by a wide margin, on a
+    ``(ni+1)(nj+1)(nk+1)*9`` tau/q volume that was three quarters of the arena,
+    and its removal (with the viscous fusion that made the volume unnecessary)
+    took a 273x65x57 block from 41.54 MB to 23.34 MB. update_sources is now the
+    SMALLEST of the four. Sizes are computed, never written as literals, so a
+    buffer added to a phase shows up here rather than silently overrunning its
+    neighbour -- which is what tests/test_scratch_arena exists to enforce.
     """
     from ember.solver import mg_coarse_shapes  # noqa: PLC0415 - circular import
 
@@ -884,9 +886,10 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
     visc_pr = ni * nj * 4 * 2 + ni * 4 * 3
     faces = sum(int(np.prod(sh)) for sh in _viscous_face_shapes(ni, nj, nk))
+    tq = (ni + 1) * (nj + 1) * 9 * 2
     mg = sum(int(np.prod(sh)) for sh in mg_coarse_shapes(ni, nj, nk, n_levels))
     return max(
-        (ni + 1) * (nj + 1) * (nk + 1) * 9 + faces + visc_pr,  # update_sources
+        faces + tq + visc_pr,                                  # update_sources
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,      # update_residual
         mg + (ni - 1) * (nj - 1) * 5 * 2,                      # scree/RK + multigrid
         (ni - 1) * (nj - 1) * (nk - 1) * 5,                    # scree/RK, no multigrid
@@ -896,32 +899,28 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
 def _carve_viscous(block):
     """Everything ``update_sources`` needs from the arena, from one carve.
 
-    Returns ``(volume, faces, planes, rows)``. This is the only place the
-    viscous phase's arena layout is written down, and every caller that needs
-    any part of it comes through here -- ``grid.update_sources``, the
-    :attr:`Block.tau_q_halo` and :attr:`Block.tau_q_faces` accessors, and the
-    tests and bench arms that drive ``set_visc_force`` directly. Being
-    deterministic, separate calls agree, so a caller wanting only the rolling
-    buffers gets ones that provably miss the volume without any accessor
-    existing to hand them out.
+    Returns ``(faces, tq, planes, rows)``: the six boundary tau/q face buffers,
+    the rolling tau/q cell-plane pair, and ``set_visc_force``'s rolling
+    face-flow planes and rows. This is the only place the viscous phase's arena
+    layout is written down, and every caller that needs any part of it comes
+    through here -- ``grid.update_sources``, the :attr:`Block.tau_q_faces`
+    accessor, and the tests and bench arms that drive ``set_visc_force``
+    directly. Being deterministic, separate calls agree.
 
-    All four are live at once --
-    ``set_visc_force`` takes the tau/q volume and its rolling planes and rows
-    in the same call, and the face path's independence from the volume is
-    asserted by poisoning the volume while the faces hold real data -- so they
-    must not overlap. One carve is what guarantees that, and it is why the
-    accessors and ``grid.update_sources`` both come through here rather than
-    each carving what it happens to want.
+    All four reach the same ``set_visc_force`` call, so they must not overlap.
+    One carve is what guarantees that -- ``util.carve_view`` packs the shapes
+    end to end -- and it is why the accessor and ``grid.update_sources`` both
+    come through here rather than each carving what it happens to want.
     """
     ni, nj, nk = block.shape
-    vol, *rest = util.carve_view(
+    bufs = util.carve_view(
         block.scratch,
-        (ni + 1, nj + 1, nk + 1, 9),
         *_viscous_face_shapes(ni, nj, nk),
+        (ni + 1, nj + 1, 9, 2),
         (ni, nj, 4, 2),
         (ni, 4, 3),
     )
-    return vol, tuple(rest[:6]), rest[6], rest[7]
+    return tuple(bufs[:6]), bufs[6], bufs[7], bufs[8]
 
 
 class Block(ember._struct.StructuredData):
@@ -3243,11 +3242,11 @@ class Block(ember._struct.StructuredData):
         toggling ``flags.writeable``.
 
         THE ONE ARENA. Every throwaway buffer in the step comes from here,
-        including the viscous tau/q volume (:attr:`tau_q_halo`), the six
-        boundary face buffers (:attr:`tau_q_faces`), ``set_residual``'s and
-        ``set_visc_force``'s rolling planes and rows, the IRS work vector, and
-        the multigrid coarse scratch. :func:`_scratch_len` sizes it from the
-        worst phase; the phases are listed there.
+        including the six boundary tau/q face buffers (:attr:`tau_q_faces`),
+        ``set_visc_force``'s rolling tau/q cell-plane pair, ``set_residual``'s
+        and ``set_visc_force``'s rolling planes and rows, the IRS work vector,
+        and the multigrid coarse scratch. :func:`_scratch_len` sizes it from
+        the worst phase; the phases are listed there.
 
         THE RULE, and it is the whole safety argument. Buffers that reach the
         same kernel call must come from ONE ``util.carve_view``, which packs
@@ -3352,18 +3351,19 @@ class Block(ember._struct.StructuredData):
 
         WARNING -- PURE TRANSIENT SCRATCH, and a VIEW into :attr:`scratch`,
         not its own allocation. Valid only within a single viscous pass and
-        only in the slots that pass refreshes. Carved together with
-        :attr:`tau_q_halo` so the two are provably disjoint: the face path's
-        independence from the volume is asserted by poisoning the volume
-        while these hold real data.
+        only in the slots that pass refreshes: ``set_tau_q_faces`` writes them,
+        ``exchange_faces`` overwrites the halo layer wherever a patch connects,
+        and ``set_visc_force`` reads them back -- all sequentially, within one
+        :meth:`ember.grid.Grid.update_sources`. Nothing may rely on what they
+        hold after that.
 
-        The viscous face-flux phase reads tau/q at the boundary in a halo slot
-        one step outside the owned range, and today that slot lives in
-        :attr:`tau_q_halo`, a full-volume array. Nothing about the *values*
-        needs a volume -- they are O(surface) -- so holding them here lets the
-        producer be an O(surface) boundary kernel rather than a pass over every
-        cell, and lets the fused face-flux kernels take a halo source that does
-        not depend on the block's topology.
+        This is the ONLY tau/q that reaches memory. ``set_visc_force`` produces
+        interior tau/q inside its own k walk, into a rolling cell-plane pair,
+        and reads nothing but the boundary shell from outside it -- so the
+        values a viscous pass has to keep are O(surface), which is what these
+        buffers hold. They are also all the grid-wide periodic seam exchange
+        between the two kernels has to carry, and they are what lets that
+        kernel's halo source not depend on the block's topology.
 
         Each face carries TWO layers on its trailing axis:
 
@@ -3371,19 +3371,23 @@ class Block(ember._struct.StructuredData):
           producer;
         * layer 1, the halo value the face-flux kernel reads. The producer
           seeds it to ``(2*wall - 1) * layer0`` -- ``+edge`` for a permeable or
-          slip face, ``-edge`` for a viscous wall, which is what
-          ``set_tau_q_soa``'s halo fill and ``scale_visc_halos`` compose to --
-          and the periodic exchange then overwrites it wherever a patch
-          connects.
+          slip face, so the boundary face takes the single-sided stress,
+          ``-edge`` for a viscous wall, so the face average is zero -- and the
+          periodic exchange then overwrites it wherever a patch connects.
+          Applying the sign once here is what lets the consumer read the halo
+          with no wall mask at all.
 
         Keeping the two layers apart is what makes that exchange a
         one-directional copy: it reads layer 0 and writes layer 1, which never
-        coincide, so unlike :func:`swap_by_ijk` it needs no temporary and
-        tolerates a face pairing to itself.
+        coincide, so it needs no temporary and tolerates a face pairing to
+        itself.
 
         The component axis sits second so that, at a fixed index on the
         trailing spatial axis, the ``(edge, component)`` block is contiguous --
-        the order the face-flux kernels walk it in.
+        the order the face-flux kernel walks it in. The cusp seam correction
+        reads layer 0 as well: ``k1`` and ``knk`` between them hold cell planes
+        1 and nk-1 and both their halos for the whole call, which is exactly
+        what that correction needs and what a rolling pair could never give.
 
         Returns
         -------
@@ -3392,65 +3396,8 @@ class Block(ember._struct.StructuredData):
             ``(ni-1, 9, nk-1, 2)`` and ``(ni-1, 9, nj-1, 2)`` respectively,
             all carved from one allocation and therefore mutually disjoint.
         """
-        return _carve_viscous(self)[1]
-
-    @property
-    def tau_q_halo(self):
-        """Halo-padded viscous tau/q, shape (ni+1, nj+1, nk+1, 9).
-
-        A VIEW into :attr:`scratch`, not its own allocation. Production's
-        ``set_tau_q_soa``/``set_visc_force`` take the full volume and read
-        its interior, so it stays until that pair migrates to the face
-        buffers; when it does, this property goes and the arena does not
-        change size, because the multigrid phase binds either way.
-
-        WARNING -- PURE TRANSIENT SCRATCH. This is throwaway kernel workspace,
-        NOT a cached value. Its contents are
-        valid only *within* a single viscous pass and *only* in the slots that
-        pass refreshes: the tau/q phase writes the owned cells, ``exchange_halos``
-        fills the periodic neighbour slots, then the face-flux phase reads them
-        back -- all sequentially, within one :meth:`ember.grid.Grid.update_sources`. Nothing
-        may rely on what it holds after that. (Verified: the viscous force is
-        bit-identical even if the entire buffer is poisoned before the pass,
-        because the pass re-derives every slot it reads.)
-
-        Unlike :attr:`scratch`, the slots DO carry coordinated meaning *within
-        a single viscous pass*: the three sub-steps cooperate on the same data
-        (writer -> halo fill -> reader), so the tau/q layout documented below is
-        real for the duration of that pass. That coordination does not extend
-        beyond the pass -- once it ends the buffer is pure private scratch again.
-
-        Because it carries no state between passes, the flat buffer doubles as
-        the coarse block-sum accumulator and separable-prolong scratch in
-        ``solver.advance_rk_stage_mg`` (see that function's docstring) and,
-        likewise, in ``solver.scree_step``'s multigrid path (``n_levels >= 1``,
-        calling ``ember.fortran.scree_mg_irs``/``scree_mg_noirs``), where the (i,j,k) layout
-        inside is irrelevant -- only the element count matters. Each borrower
-        (a viscous pass, or one scree/RK-stage multigrid call) owns the whole
-        buffer for its own duration and may treat it as freshly-allocated
-        private memory; borrowers never overlap in time.
-
-        DO NOT alias a second array onto this storage and pass both into the
-        same kernel call that already takes this buffer (as scratch or as the
-        tau/q workspace): the kernel writes these slots freely, so any other
-        argument sharing the memory is silently corrupted. If you need a buffer
-        that must survive *alongside* this one, allocate a separate one -- do
-        not carve it out of ``tau_q_halo``.
-
-        Left writeable (see :func:`scratch_array`), so the viscous passes and
-        the periodic exchange write through it without toggling
-        ``flags.writeable``.
-
-        Returns
-        -------
-        Array, shape (ni+1, nj+1, nk+1, 9)
-            Slots 0-5: tau_cell (6 components), slots 6-8: q_cell (3 components).
-            Owned cells occupy indices [1:ni+1, 1:nj+1, 1:nk+1] (0-based),
-            i.e. Fortran indices 2..ni, 2..nj, 2..nk.
-            Halo slots at index 0 and ni (etc.) are reserved for periodic
-            neighbour exchange.
-        """
         return _carve_viscous(self)[0]
+
 
     @derived_array
     def To(self):
