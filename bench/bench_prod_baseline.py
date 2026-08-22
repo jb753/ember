@@ -133,11 +133,11 @@ def main():
     ap.add_argument(
         "--kernel",
         default="residual",
-        choices=("residual", "irs", "update", "visc", "tauq", "viscpair"),
+        choices=("residual", "irs", "update", "visc", "tauq", "viscpair", "rk"),
         help="which kernel's arm set to time: set_residual "
         "(residual_arms.py), the IRS smoother (irs_arms.py), or the two "
-        "viscous phases set_visc_force / set_tau_q_soa, or the pair "
-        "tau/q+fvisc fused vs unfused (viscpair, visc_arms.py)",
+        "viscous phases set_visc_force / set_tau_q_soa, the pair "
+        "tau/q+fvisc fused vs unfused (viscpair, visc_arms.py), or the RK stage advance (rk, rk_arms.py)",
     )
     ap.add_argument("--ncell", type=int, default=1_000_000)
     ap.add_argument(
@@ -200,6 +200,17 @@ def main():
 
         irs_arms.swirl_state(b)
         built = irs_arms.callers_update(b, du)
+    elif args.kernel == "rk":
+        # The stage reads a residual and the frozen step-top snapshot, so both
+        # are seeded untimed: pricing the residual build here would be timing
+        # set_residual. Every arm is idempotent (rk_arms.check_correctness),
+        # so no restore hook.
+        import rk_arms
+
+        rk_arms.swirl(b)
+        grid.update_residual()
+        rk_arms.seed_stage(b)
+        built = rk_arms.callers_rk(b)
     elif args.kernel == "irs":
         # The smoother consumes the residual, so seed dU with a real one
         # (untimed: it is the previous kernel's output, and pricing it here
@@ -366,7 +377,8 @@ def analyze_multi(rows, arms, stat="median"):
     # The incumbent is `prod` for the set_residual arms and `irs` for the
     # smoother arms; a results file only ever holds one kernel's arms.
     baseline = next(
-        (a for a in ("prod", "irs", "unfused", "visc", "tauq") if a in arms), arms[0]
+        (a for a in ("prod", "irs", "unfused", "visc", "tauq", "rk") if a in arms),
+        arms[0],
     )
     base = _launch_medians(rows, baseline, stat)
     if not base:

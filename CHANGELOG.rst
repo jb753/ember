@@ -197,6 +197,29 @@ without a deprecation period.
   residual is bitwise unchanged --- only the change limiter's block-mean
   scale factor moves, by a few ulps, its summation order having changed.
 
+* The RK multigrid stage advance stops copying its prolongation cascade back
+  and forth. The cascade runs coarsest to finest, and each hop accumulated into
+  one of two buffers and was then copied back to the other so the caller would
+  find the result where it expected it; a profile put that copy at about 7% of
+  the stage. Which buffer the cascade ends in follows from the parity of the hop
+  count, so choosing where it starts lands the result in the right place with no
+  copy at all. The level tables it indexes with are also fixed-size now rather
+  than sized by ``n_levels`` at run time, which was a stack allocation on every
+  call. Together, 2.5-3.2% off the stage with a socket busy and 1.1-4.4% off it
+  serially, bitwise identical at every multigrid depth.
+
+  The prolongations also stop tabulating their interpolation weights. Each
+  built six index arrays and three weight arrays as long as the fine
+  directions on every call --- another stack allocation, and pure geometry
+  recomputed each time. The bracketing coarse cells and the weight are a closed
+  form in the fine index, so the two outer directions now evaluate it per row,
+  and the contiguous direction is driven by the coarse index instead, emitting
+  both fine cells of each coarse pair and reading contiguously where it used to
+  gather. A further 5.2-5.8% off the stage serially and 2.1% at the smallest
+  block with a socket busy, flat at the larger ones. This part is not bitwise:
+  the folded weights round differently in the last place, at most one ulp of
+  field scale on a few dozen cells in a million.
+
 .. _v0.2.0:
 
 0.2.0 (2026-08-18)
