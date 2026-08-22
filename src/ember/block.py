@@ -860,6 +860,7 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
 
       update_sources   the six boundary tau/q face buffers + set_visc_force's
                        rolling tau/q cell-plane pair, planes and rows
+      update_timestep  the nodal acoustic speed set_timestep_spectral reads
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
       scree / RK, MG   the eleven multigrid coarse buffers + the caller's
@@ -874,9 +875,11 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     ``(ni+1)(nj+1)(nk+1)*9`` tau/q volume that was three quarters of the arena,
     and its removal (with the viscous fusion that made the volume unnecessary)
     took a 273x65x57 block from 41.54 MB to 23.34 MB. update_sources is now the
-    SMALLEST of the four. Sizes are computed, never written as literals, so a
-    buffer added to a phase shows up here rather than silently overrunning its
-    neighbour -- which is what tests/test_scratch_arena exists to enforce.
+    smallest of the phases that carry a volume, and update_timestep -- one
+    nodal scalar field -- is smaller than any of them. Sizes are computed,
+    never written as literals, so a buffer added to a phase shows up here
+    rather than silently overrunning its neighbour -- which is what
+    tests/test_scratch_arena exists to enforce.
     """
     from ember.solver import mg_coarse_shapes  # noqa: PLC0415 - circular import
 
@@ -890,6 +893,7 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     mg = sum(int(np.prod(sh)) for sh in mg_coarse_shapes(ni, nj, nk, n_levels))
     return max(
         faces + tq + visc_pr,                                  # update_sources
+        ni * nj * nk,                                          # update_timestep
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,      # update_residual
         mg + (ni - 1) * (nj - 1) * 5 * 2,                      # scree/RK + multigrid
         (ni - 1) * (nj - 1) * (nk - 1) * 5,                    # scree/RK, no multigrid
@@ -2356,11 +2360,21 @@ class Block(ember._struct.StructuredData):
         """
         return self.a_nd * self.fluid.V_ref
 
-    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
-    def a_nd(self, out):
-        r"""Nondimensional acoustic speed :math:`a/V_\mathrm{ref}` [-], nodal array."""
-        out = util.allocate_or_reuse(out, self.shape)
-        return self.fluid.get_a(self._rho_nd_uninit, self.u_nd, out=out)
+    @derived_array
+    def a_nd(self):
+        r"""Nondimensional acoustic speed :math:`a/V_\mathrm{ref}` [-], nodal array.
+
+        Derived, not cached: each access allocates. The equation of state call
+        is cheap next to a nodal buffer that would live for the whole run, and
+        the solver's one whole-block consumer,
+        :meth:`ember.grid.Grid.update_timestep`, does not come through here --
+        it writes the same expression into :attr:`scratch` instead. What is
+        left are the patch-average consumers (the mixing planes, the
+        nonreflecting boundaries and the :mod:`ember.perturbation` matrices
+        they drive), whose blocks are a surface rather than a volume. Do not
+        put this in a per-node loop over a full block.
+        """
+        return self.fluid.get_a(self._rho_nd_uninit, self.u_nd)
 
     @derived_array
     def Alpha(self):
@@ -3243,7 +3257,8 @@ class Block(ember._struct.StructuredData):
 
         THE ONE ARENA. Every throwaway buffer in the step comes from here,
         including the six boundary tau/q face buffers (:attr:`tau_q_faces`),
-        ``set_visc_force``'s rolling tau/q cell-plane pair, ``set_residual``'s
+        ``set_visc_force``'s rolling tau/q cell-plane pair, the nodal acoustic
+        speed ``set_timestep_spectral`` reads, ``set_residual``'s
         and ``set_visc_force``'s rolling planes and rows, the IRS work vector,
         and the multigrid coarse scratch. :func:`_scratch_len` sizes it from
         the worst phase; the phases are listed there.
