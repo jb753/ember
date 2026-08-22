@@ -51,7 +51,9 @@ Overview of one time step
     steps, :meth:`~ember.grid.Grid.accumulate_avg` accumulates the conserved
     state into a running average, which
     :meth:`~ember.grid.Grid.finalise_average` uses to replace the
-    instantaneous state once the run completes.
+    instantaneous state once the run completes. With
+    :attr:`~Solver.n_step_avg` of 0 or 1 the whole stage is skipped and the
+    final state stands as the solution.
 
 .. _march-schemes:
 
@@ -262,7 +264,9 @@ Pseudotime averaging of the conserved variables accumulates over the final
 state replaces the instantaneous state
 (:meth:`ember.grid.Grid.finalise_average`) -- skipped if the run diverged, so
 the invalid field is preserved for inspection rather than overwritten by a
-partially-accumulated average.
+partially-accumulated average, and skipped when ``Solver.n_step_avg`` is 0 or
+1, where the mean of one sample is the sample and no accumulator is
+allocated.
 """
 
 import logging
@@ -332,7 +336,12 @@ class Solver(BaseSolver):
     """Number of steps between convergence log messages."""
 
     n_step_avg: int = 1
-    """Number of steps to average over."""
+    """Number of steps at the end of the march to average the solution over.
+
+    ``0`` and ``1`` both mean no averaging: a one-sample mean is the sample,
+    so the march skips the accumulator entirely and leaves the final state as
+    the solution. Must not exceed :attr:`n_step` --- see :meth:`__post_init__`.
+    """
 
     cfl: float = 5.0
     """Constant CFL number for the march"""
@@ -405,6 +414,29 @@ class Solver(BaseSolver):
     :class:`~ember.mixing_communicator.MixingCommunicator` at each exchange.
     As :attr:`rf_inlet`, the default is imposed and None leaves each plane's own
     value alone."""
+
+    def __post_init__(self):
+        """Reject averaging windows the march cannot honour.
+
+        :attr:`n_step_avg` counts the steps at the end of the march that
+        :meth:`~ember.grid.Grid.accumulate_avg` sums into the pseudotime
+        average, dividing each sample by it. A negative window has no meaning.
+        One longer than the march is worse than meaningless: the loop can only
+        add ``n_step`` samples but the accumulator still divides by
+        ``n_step_avg``, so the solution comes back scaled by
+        ``n_step / n_step_avg`` --- silently, because a scaled field is every
+        bit as finite as the real one and neither the divergence check nor the
+        convergence history has any way to notice. Caught at construction
+        rather than after a march has been paid for.
+        """
+        if self.n_step_avg < 0:
+            raise ValueError(f"n_step_avg must be >= 0, got {self.n_step_avg}.")
+        if self.n_step_avg > self.n_step:
+            raise ValueError(
+                f"n_step_avg={self.n_step_avg} exceeds n_step={self.n_step}: the "
+                "march cannot accumulate more samples than it takes steps, so the "
+                "averaged solution would come back scaled by n_step/n_step_avg."
+            )
 
     def run(self, grid):
         """Drive ``grid`` through ``n_step`` steps in place; return the history.
@@ -964,15 +996,34 @@ def _run(grid, conf):
         grid.smooth(conf.sf4 * conf.cfl, conf.sf2 * conf.cfl)
         _log_rss("step %d after smooth", i_step)
 
-        # Pseudotime avearge over last n_step_avg steps
-        if i_step >= (conf.n_step - conf.n_step_avg):
+        # Pseudotime average over the last n_step_avg steps. A window of 0 or
+        # 1 needs no accumulator: the mean of one sample is that sample, which
+        # conserved_nd already holds. Skipping it keeps Block.conserved_avg_nd
+        # -- a full nodal five-component buffer, 19.3 MB at a 1M-cell block --
+        # from ever being allocated.
+        if conf.n_step_avg > 1 and i_step >= (conf.n_step - conf.n_step_avg):
             grid.accumulate_avg(conf.n_step_avg)
 
-    # Copy the final average back in the primary storage. Skipped on divergence:
-    # the loop broke before accumulate_avg ran, so this would overwrite the
-    # invalid conserved_nd with a zeroed average buffer and destroy the evidence.
+    # Copy the final average back into the primary storage. Skipped on
+    # divergence: the loop broke before accumulate_avg ran, so this would
+    # overwrite the invalid conserved_nd with a zeroed average buffer and
+    # destroy the evidence. Skipped too when no averaging was asked for, where
+    # the accumulator was never touched and copying it back would write zeros
+    # over a perfectly good solution.
+    #
+    # The cache invalidation is NOT optional on that path. The integrators and
+    # smooth write conserved_nd through the frozen-pressure path, which does
+    # not bump the conserved versions, so the last cached P/T can still be
+    # marked current while the field underneath has moved on. finalise_average
+    # ends in update_cached_conserved and was covering for that; gating it out
+    # without this leaves a scree march handing back a stale P (the RK path
+    # only escapes because its per-stage apply_bconds bumps the versions
+    # anyway, which is luck, not a contract).
     if not hist.diverged:
-        grid.finalise_average()
+        if conf.n_step_avg > 1:
+            grid.finalise_average()
+        else:
+            grid.update_cached_conserved()
 
     _log_rss("march end, n_levels=%d", conf.n_levels)
 
@@ -1029,8 +1080,10 @@ def _run_fmg(grid, conf):
     chain = [grid]
     for _ in range(conf.n_levels):
         chain.append(chain[-1].resample(0.5))
-        _log_rss("fmg: resampled level with shape(s) %s",
-                 [block.shape for block in chain[-1]])
+        _log_rss(
+            "fmg: resampled level with shape(s) %s",
+            [block.shape for block in chain[-1]],
+        )
     chain.reverse()  # chain[-1] is the original `grid`
 
     histories = []
