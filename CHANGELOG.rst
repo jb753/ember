@@ -183,6 +183,20 @@ without a deprecation period.
   change is bitwise; the row forms move ``fvisc`` by 0.625 ulp of the field
   scale, confined to the two-cell shell the wall faces touch.
 
+* ``set_residual`` now walks k over j-panels of fixed cell area, the same
+  change made to ``set_visc_force`` above and for the same reason: what the
+  fused walk carries from one k step to the next is a rolling pair of k-face
+  flow planes, 720 KB at a 1M-cell block, so each plane was evicted before the
+  next step read it and every component round-tripped through a last-level
+  cache that all the ranks on a socket share. Panelling bounds what is live at
+  once without changing what is read. With eight cores of a socket busy,
+  -16.0% at 1M cells and -33.0% at 2M, -3.8% at 300k, neutral at 100k. Run
+  serially it is instead about 2% slower at 1M and above, because a panel
+  recomputes its lowest j-face row and a lone rank has the whole cache anyway;
+  the contended figure is the one that describes a real solver run. The
+  residual is bitwise unchanged --- only the change limiter's block-mean
+  scale factor moves, by a few ulps, its summation order having changed.
+
 .. _v0.2.0:
 
 0.2.0 (2026-08-18)

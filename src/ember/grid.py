@@ -193,8 +193,16 @@ import ember.nonmatch_communicator
 
 # k-slab depth for the tiled kernels (set_visc_force, set_residual): cell
 # planes per slab, so that a slab's input planes stay cache-resident across
-# all three face directions. Clamped per block to nk-1. Value chosen by
-# benchmark sweep (see bench/README.md, "k-slab cache blocking").
+# all three face directions.
+#
+# INERT TODAY, and kept only as a dummy the bench arms can share with
+# production. Both kernels were since rewritten to walk k once with rolling
+# face buffers, which subsumed the slab blocking: set_residual's slab loop
+# is now a pure re-nesting of `do k = 1, nk-1` (measured at 1M cells: every
+# kb from 2 to nk-1 is bitwise identical and within 1% on time), and
+# set_visc_force consumes kb only as a sanity guard. What bounds the
+# concurrent working set now is the j-panel width inside each kernel
+# (RES_JAREA/RES_JMIN, VISC_JAREA). Do not sweep this; see bench/README.md.
 _KB_SLAB = 8
 
 

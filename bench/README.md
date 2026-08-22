@@ -26,7 +26,9 @@ before.
 | `IRS_BJ = 32` | `_fortran/residual.f90` | **Vector-chain count, then nothing.** Sets how many independent lanes the i-solve's recurrence runs over. Below 32 it goes latency-bound (16 costs +19%); above 32 it is flat (64 and 128 are within ±2%), so the tile spilling L1d no longer matters. The least fussy of these constants — but only because the transpose is blocked; it was a sharp L1d-capacity optimum before that. |
 | `IRS_TB = 8` | `_fortran/residual.f90` | **SIMD lane count** (8 for AVX2, 16 for AVX-512). Edge of the transpose block, so one staged row is exactly one vector load. Steeply optimal — 4 and 16 are both large regressions on AVX2. |
 | `IRS_W = 64` | `_fortran/residual.f90` | **L2 capacity.** The i-strip carried through the fused j+k solves is `IRS_W*(nj-1)*(nk-1)*4` bytes — 917 KB on a 273×65×57 block, inside a 2 MB L2. Also sets the vector loop length, so it trades off in two directions at once. |
-| `_KB_SLAB = 8` | `grid.py` | **L2/L3 capacity.** Depth of the k-slab that `set_residual` and `set_visc_force` stream their nodal working set in. Re-sweep if blocks grow past ~1M cells. |
+| `_KB_SLAB = 8` | `grid.py` | **Nothing, any more -- do not sweep it.** It was the k-slab depth for both kernels, but the fused rewrites of `set_residual` and `set_visc_force` subsumed slab blocking: what is left of the slab loop is a pure re-nesting of `do k = 1, nk-1`, and `set_visc_force` consumes `kb` only as a sanity guard. Measured at 1M cells: `kb` in 2..nk-1 is bitwise identical and within 1% on time. The panel constants above are what bound the working set now. Kept as a dummy so the bench arms share one kwargs dict with production. |
+| `RES_JAREA = 4400` | `_fortran/residual.f90` | **L2 capacity.** j-panel AREA (in cells) of `set_residual`'s k walk, the counterpart of `VISC_JAREA` below and swept the same way. The carry it bounds is the rolling k-face plane pair, `ni*njp*5*2*4` bytes. |
+| `RES_JMIN = 16` | `_fortran/residual.f90` | **Redundant-work floor, not a cache bound.** A panel recomputes its own lowest j-face row, so `1/jbw` of the j-face flux work is wasted; on a long-i block the area rule alone drives `jbw` to single digits and that overhead reaches several percent. Floor 16 is worth about 1.8% over no floor at 2M cells, in BOTH regimes. Do not raise it to 32: that fits fewer panels in L2 and costs -33% -> -21% contended at 2M, for 1.5% serial. |
 | `WALL_TW = 64` | `_fortran/viscous.f90` | **L1d capacity, loosely.** i-tile the wall-function row forms carry their phase-A temps in. Eleven `WALL_TW`-float stack arrays, so 64 is under 3 KB and stays L1-resident across the three phases. Flat over a wide range -- it only has to be long enough to amortise the loop overhead and short enough not to spill. |
 | `VISC_JAREA = 4400` | `_fortran/viscous.f90` | **L2 capacity.** j-panel AREA (in cells) of `set_visc_force`'s k walk: the panel is `VISC_JAREA/ni` rows deep, so the carry it bounds -- the rolling `planes` pair and one tau/q plane -- is a fixed number of BYTES whatever the block's aspect ratio, which a fixed row count would not be. 4400 cells puts both inside a 256 KB L2. Re-sweep on a machine with a different L2, and see the adopted entry for why the win is mostly a contended one. |
 | `njp` pad rule | `grid.py` | **Page size.** Pads the rolling face-flow plane by one j-row when `ni*nj` is a multiple of 1024 (= 4096-byte page ÷ 4-byte float), to dodge a 4K-aliasing penalty at power-of-two plane sizes. |
@@ -370,6 +372,28 @@ the headline number, and where it lives.
   (`set_tau_q_soa` + `exchange_halos` + `set_visc_force`) at 1M cells,
   8 ranks. Measured with `run_so_ab.sh`; results in
   `results/visc_jpanel_final_*.jsonl` and `visc_jpanel_pair_1000000.jsonl`.
+- **j-panel tiling of `set_residual`'s k walk** (`RES_JAREA`, `RES_JMIN`),
+  the same lever as the viscous panel above, applied to the larger kernel.
+  The carry here is the rolling k-face plane pair, `ni*njp*5*2*4` bytes --
+  720 KB on a 273x65x57 block -- so plane `k`, written on step `k`, was
+  evicted before step `k+1` read it. **-3.8% / -16.0% / -33.0%** at
+  300k/1M/2M cells, 8 ranks on a socket, every launch of 10; neutral at
+  100k (+0.8%, where the panel does not engage at all -- `jbw` covers the
+  whole block -- so that is the loop's own codegen cost, not the tiling).
+  The residual itself is **bitwise identical**; the only output that moves
+  is the change limiter's block-mean `ravg`, whose summation order the
+  panel changes, and it moves dU by 1e-7 to 1.6e-6 relative -- a few ulps
+  of a scalar that scales the whole field.
+
+  **Unlike the viscous panel, this one costs serial time**: -5.7% at 300k
+  but **+2.3% / +2.2%** at 1M/2M. That is the redundant j-face row (see
+  `RES_JMIN`), which serial has nothing to buy with it -- one rank owns the
+  whole 20 MB L3 and the un-panelled carry fits. It is adopted on the
+  contended regime because that is the one production runs in: every rank
+  of a socket evaluating residuals at once is the normal case, and a 33%
+  win there is not comparable to a 2% loss in a regime nobody runs.
+  Results in `results/res_panel_final_*.jsonl`, sweep in
+  `results/res_jarea_ab_*.jsonl`.
 - **k-slab cache blocking**, `set_visc_force` and `set_residual`
   (`viscous.f90`, `residual.f90`). Both stream their nodal working set in
   `kb`-plane slabs instead of full-volume passes, so tau/q (or the residual's
