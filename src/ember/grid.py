@@ -1807,10 +1807,19 @@ class Grid(_LabelledList):
 
         """
         for block in self:
+            # Acoustic speed, nodal, into block.scratch: this is its only
+            # whole-block consumer in the step, so there is nothing to gain
+            # from caching a volume that would then sit allocated for the whole
+            # run. The arena is free here -- update_sources has finished with
+            # the tau/q faces and update_residual has not yet carved its
+            # planes -- and one (ni,nj,nk) carve is a fifth of what that phase
+            # takes anyway.
+            a = util.carve_view(block.scratch, block.shape)
+            block.fluid.get_a(block._rho_nd_uninit, block.u_nd, out=a)
             block.dt_vol_nd.flags.writeable = True
             ember.fortran.set_timestep_spectral(
                 dt_vol=block.dt_vol_nd,
-                a=block.a_nd,
+                a=a,
                 cons_cell=block.conserved_cell_nd,
                 r=block.r_nd,
                 omega=block.Omega_nd,

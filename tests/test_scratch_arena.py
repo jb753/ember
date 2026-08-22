@@ -2,8 +2,8 @@
 
 ``Block.scratch`` backs every throwaway buffer in the step: the viscous
 boundary tau/q face buffers and the rolling tau/q cell-plane pair, both
-kernels' rolling planes and rows, the IRS work vector and the multigrid coarse
-scratch. That is only safe under two rules,
+kernels' rolling planes and rows, the nodal acoustic speed the timestep kernel
+reads, the IRS work vector and the multigrid coarse scratch. That is only safe under two rules,
 and neither is something the code can check for itself:
 
   * buffers reaching the SAME kernel call must come from one
@@ -48,6 +48,7 @@ def _phase_buffers(block):
 
     return {
         "update_sources": [*faces, tq, planes, rows],
+        "update_timestep": [util.carve_view(block.scratch, block.shape)],
         "update_residual": list(
             util.carve_view(block.scratch, (ni, njp, 5, 2), (ni, 5, 3))
         )
@@ -130,7 +131,7 @@ def test_arena_is_smaller_than_the_buffers_it_replaced():
 
 
 def test_no_phase_needs_a_volume_of_tau_q():
-    """The viscous phase is the SMALLEST of the four, not the largest.
+    """The viscous phase is the smallest of the volume phases, not the largest.
 
     It used to bind the arena by a wide margin, on a (ni+1)(nj+1)(nk+1)*9
     tau/q volume that was three quarters of the whole thing. Fusing the two
@@ -138,13 +139,20 @@ def test_no_phase_needs_a_volume_of_tau_q():
     shell plus one rolling cell-plane pair. This asserts the new state of
     affairs rather than the saving, so a change that reintroduced a
     volume-shaped viscous buffer fails here and not just on someone's RSS.
+
+    ``update_timestep`` sits out of the comparison: it borrows a single nodal
+    scalar field and is smaller than any phase that carries a volume, so
+    including it would say nothing about the viscous one.
     """
     ni, nj, nk = 273, 65, 57
     block = ember.block.Block(shape=(ni, nj, nk))
-    visc = sum(b.size for b in _phase_buffers(block)["update_sources"])
-    assert visc == min(
-        sum(b.size for b in bufs) for bufs in _phase_buffers(block).values()
-    )
+    sizes = {
+        phase: sum(b.size for b in bufs)
+        for phase, bufs in _phase_buffers(block).items()
+        if phase != "update_timestep"
+    }
+    visc = sizes["update_sources"]
+    assert visc == min(sizes.values())
     # An order of magnitude under the volume it replaced, not a few percent.
     assert visc < 0.25 * (ni + 1) * (nj + 1) * (nk + 1) * 9
 
