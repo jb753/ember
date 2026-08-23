@@ -1,13 +1,18 @@
 """Eager fused evaluation of the primitive cache, ``Block.update_primitive``.
 
-The five primitives ``_halfVsq_nd_uninit``, ``_u_nd_uninit``, ``P_nd``,
-``ho_nd`` and ``T_nd`` are normally pulled lazily by ``@cached_array``, one
-numpy pass at a time. ``update_primitive`` fills all five in two fused passes
--- a Fortran kinematic kernel and the fluid's batched ``get_P_h_T`` -- and
-publishes them into the same ``_store`` entries with the same data-key
-versions.
+The four primitives ``_u_nd_uninit``, ``P_nd``, ``ho_nd`` and ``T_nd`` are
+normally pulled lazily by ``@cached_array``, one numpy pass at a time.
+``update_primitive`` fills all four in two fused passes -- a Fortran kinematic
+kernel and the fluid's batched ``get_P_h_T`` -- and publishes them into the
+same ``_store`` entries with the same data-key versions.
 
-Velocity is NOT among them. The kinematic kernel still forms it, to build
+The kinetic energy is NOT among them, though the kernel writes it: it is live
+only from that kernel to the ``ho +=`` two lines later, so it is carved from
+``block.scratch`` and dropped. ``_halfVsq_nd_uninit`` is a plain derived
+property, and the only in-suite evidence that the borrowed buffer reached its
+consumer is ``ho_nd`` -- which is what ``test_halfvsq_is_borrowed`` pins.
+
+Velocity is NOT among them either. The kinematic kernel still forms it, to build
 ``halfvsq`` and ``u``, but nothing stores it: the kernels that want a nodal
 velocity derive it from ``cons`` where they walk, so ``_Vxrt_nd_uninit`` is a
 plain derived property and has no cache entry to publish into.
@@ -41,7 +46,7 @@ SHAPE = (9, 7, 5)
 # means something. (Same trap as the bench harness's swirl(): ask what the test
 # state actually exercises before trusting a gate.)
 TOL_ULP = dict.fromkeys(
-    ("P_nd", "ho_nd", "T_nd", "_halfVsq_nd_uninit", "_u_nd_uninit"),
+    ("P_nd", "ho_nd", "T_nd", "_u_nd_uninit"),
     8.0,
 )
 
@@ -98,6 +103,25 @@ def test_matches_the_lazy_path():
         assert _ulps(got, ref[name]) <= TOL_ULP[name], (
             f"{name}: {_ulps(got, ref[name]):.1f} ulp of scale exceeds {TOL_ULP[name]}"
         )
+
+
+def test_halfvsq_is_borrowed():
+    """The kinetic energy is not published, but it still reaches ``ho``.
+
+    Two halves, and the second is the one that matters: dropping the cache is
+    easy to get right, silently failing to add the borrowed buffer into the
+    stagnation enthalpy is not, and no other test in the suite would see it.
+    """
+    block = _build_block()
+    _invalidate(block)
+    block.update_primitive()
+
+    assert "_halfVsq_nd_uninit" not in block._store
+
+    # ho = h(rho, u) + halfVsq, with every term read back after the call.
+    halfVsq = np.asarray(block._halfVsq_nd_uninit)
+    h = block.fluid.get_h(block._rho_nd_uninit, np.asarray(block._u_nd_uninit))
+    assert _ulps(np.asarray(block.ho_nd), h + halfVsq) <= 8.0
 
 
 def test_leaves_the_properties_cached():
