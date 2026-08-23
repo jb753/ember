@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Version history &#8212; ember 0.2.1.dev67+g4d9c2eac2 documentation</title>
+    <title>Version history &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="_static/documentation_options.js?v=db67b7ea"></script>
+    <script src="_static/documentation_options.js?v=b2f063ce"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/sg-tags.js?v=d80f6fa4"></script>
@@ -36,7 +36,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev67+g4d9c2eac2</p>
+<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
 
 
 
@@ -157,380 +157,28 @@
             
   <section id="version-history">
 <h1>Version history<a class="headerlink" href="#version-history" title="Link to this heading">¶</a></h1>
-<p>ember follows <a class="reference external" href="https://semver.org/">semantic versioning</a> from 0.1.0 onwards.
-Until 1.0.0, minor releases may make breaking changes to the public API
-without a deprecation period.</p>
+<p>ember roughly follows <a class="reference external" href="https://semver.org/">semantic versioning</a> starting at
+0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
+public API without a deprecation period.</p>
 <section id="unreleased">
 <span id="v0-3-0"></span><h2>0.3.0 (unreleased)<a class="headerlink" href="#unreleased" title="Link to this heading">¶</a></h2>
-<ul>
-<li><p><strong>Breaking:</strong> <code class="docutils literal notranslate"><span class="pre">Block.ho_nd</span></code> is no longer cached, and <code class="docutils literal notranslate"><span class="pre">set_residual</span></code> no
-longer takes it. Stagnation enthalpy is derived at the face corners the
-kernel already walks, from the conserved state and the pressure it is already
-handed: <code class="docutils literal notranslate"><span class="pre">h</span> <span class="pre">=</span> <span class="pre">u</span> <span class="pre">+</span> <span class="pre">p/rho</span></code> is the definition of enthalpy, so
-<code class="docutils literal notranslate"><span class="pre">ho</span> <span class="pre">=</span> <span class="pre">e</span> <span class="pre">+</span> <span class="pre">p/rho</span> <span class="pre">=</span> <span class="pre">(rho*e</span> <span class="pre">+</span> <span class="pre">P)/rho</span></code> exactly, for any fluid. The property
-survives as a derived array for the patch-average and post-processing readers,
-which are surfaces rather than volumes. The nondimensional form needs no
-conversion factor because <code class="docutils literal notranslate"><span class="pre">P_ref/rho_ref</span> <span class="pre">==</span> <span class="pre">u_ref</span></code>, and both shipped
-equations of state satisfy the identity by construction –
-<code class="docutils literal notranslate"><span class="pre">RealFluid.get_h</span></code> <em>is</em> <code class="docutils literal notranslate"><span class="pre">u</span> <span class="pre">+</span> <span class="pre">P/rho</span></code>, and <code class="docutils literal notranslate"><span class="pre">PerfectFluid</span></code>’s
-<code class="docutils literal notranslate"><span class="pre">gamma*u</span> <span class="pre">+</span> <span class="pre">R*T_dtm</span></code> is the same expression expanded. A new test pins it on
-both, since it is an assumption the Fortran cannot check.</p>
-<p><strong>This one costs time to save memory, unlike the two above it.</strong> Per-block
-derived store falls 4.05 MB at 273x65x57 (1.20 MB at 81x65x57, measured) and
-the arena is unchanged at every shape, but the march is <strong>+0.70% slower</strong>
-end to end: the streams are a wash – the <code class="docutils literal notranslate"><span class="pre">ho</span></code> volume leaves the flux
-kernel’s working set and <code class="docutils literal notranslate"><span class="pre">cons(...,5)</span></code> enters it – while the arithmetic is
-not, each corner now doing an add and a multiply where it read a precomputed
-value. <code class="docutils literal notranslate"><span class="pre">update_primitive</span></code> gets cheaper in exchange (no <code class="docutils literal notranslate"><span class="pre">ho</span></code> buffer, no
-<code class="docutils literal notranslate"><span class="pre">ho</span> <span class="pre">+=</span> <span class="pre">halfvsq</span></code> pass over the volume) but not by enough to cover it.</p>
-<p>Measured end to end on a 1M-cell RK4/IRS/MG duct, 8 launches per arm in
-alternating blocks, pinned to one physical core with a warmup march excluded
-from the timed region: medians 0.3545 against 0.3569 us/node/step, slower in
-both rounds, exact permutation test p = 0.0078 against a within-arm spread of
-0.95%. <code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code> and <code class="docutils literal notranslate"><span class="pre">set_timestep_spectral</span></code> fingerprint
-identically across all four builds (<code class="docutils literal notranslate"><span class="pre">bench/codegen_gauge.py</span></code>), so no
-unrelated codegen moved. The residual and cusp goldens pass unregenerated.</p>
-</li>
-<li><p><strong>Breaking:</strong> <code class="docutils literal notranslate"><span class="pre">Block._halfVsq_nd_uninit</span></code> is no longer cached. The kinetic
-energy is live only between the kinematic kernel that writes it and the
-<code class="docutils literal notranslate"><span class="pre">ho</span> <span class="pre">+=</span></code> two lines later, so <code class="docutils literal notranslate"><span class="pre">update_primitive</span></code> now carves it from
-<code class="docutils literal notranslate"><span class="pre">block.scratch</span></code> and drops it, and the property is derived. That is 4.05 MB
-per block at 273x65x57 (1.20 MB at 81x65x57, the measured fall in per-block
-derived store) traded for space in an arena the multigrid phase was already
-sizing: 24.47 MB at 273x65x57, 7.20 at 81x65x57 and 2.79 on a 49-cube, all
-unchanged. Nothing on the hot path recomputes it – the readers left are the
-<code class="docutils literal notranslate"><span class="pre">u_nd</span></code> fallback on patch views, <code class="docutils literal notranslate"><span class="pre">V_nd</span></code> and the relative-frame stagnation
-properties, and the state setters, which a march never reaches.</p>
-<p><code class="docutils literal notranslate"><span class="pre">Grid.update_timestep</span></code> now calls <code class="docutils literal notranslate"><span class="pre">update_primitive</span></code> before carving its
-acoustic-speed buffer, which is what makes the borrow safe and also removes
-a duplicate that predates it. A lazy <code class="docutils literal notranslate"><span class="pre">u_nd</span></code> read used to land ahead of
-<code class="docutils literal notranslate"><span class="pre">update_primitive</span></code> in every step, filling the internal-energy and kinetic-
-energy caches by the op-by-op numpy route – materialising a whole nodal
-velocity volume to do it – after which <code class="docutils literal notranslate"><span class="pre">update_primitive</span></code> ran anyway,
-because the pressure, enthalpy and temperature stamps were still stale, and
-recomputed both in Fortran. Traced over two steps, the whole-block numpy
-rebuilds go from one per step to none. Peak RSS for a 1M-cell RK/MG march
-falls 238.8 MB to 235.0 MB and still equals steady-state resident at every
-probe.</p>
-</li>
-<li><p><strong>Breaking:</strong> the nodal velocity is no longer cached. <code class="docutils literal notranslate"><span class="pre">Block.Vx_nd</span></code>,
-<code class="docutils literal notranslate"><span class="pre">Vr_nd</span></code>, <code class="docutils literal notranslate"><span class="pre">Vt_nd</span></code>, <code class="docutils literal notranslate"><span class="pre">Vxrt_nd</span></code> and <code class="docutils literal notranslate"><span class="pre">Vt_rel_nd</span></code> are still there and still
-return the same values, but each access now derives them from the conserved
-momenta and allocates; they are no longer views on a per-block buffer, so a
-caller that holds one across a step gets a snapshot rather than a live view,
-and one inside a per-node loop over a full block will allocate per iteration.
-All the remaining readers are O(surface) – boundary conditions, mixing
-planes, post-processing – where an allocation per access is cheaper than the
-buffer it replaces.</p>
-<p>What paid for it is the solver side: every kernel that wanted a nodal
-velocity now forms it from <code class="docutils literal notranslate"><span class="pre">cons</span></code> at the corners it walks, since
-<code class="docutils literal notranslate"><span class="pre">cons</span> <span class="pre">=</span> <span class="pre">(rho,</span> <span class="pre">rho*Vx,</span> <span class="pre">rho*Vr,</span> <span class="pre">rho*r*Vt,</span> <span class="pre">rho*e)</span></code> makes the velocity arrays
-redundant with a division. <code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code>, <code class="docutils literal notranslate"><span class="pre">set_tau_q_faces</span></code> and the
-wall-function rows take <code class="docutils literal notranslate"><span class="pre">cons</span></code> and <code class="docutils literal notranslate"><span class="pre">Omega_block</span></code> in place of the three
-velocity arguments, sharing one <code class="docutils literal notranslate"><span class="pre">vel_at</span></code> spelling of the block-relative
-velocity, and <code class="docutils literal notranslate"><span class="pre">set_primitive_kinematic</span></code> stops writing the velocity out at
-all – it forms it, uses it for the kinetic energy, and discards it. Per-block
-derived-array store falls by exactly the four nodal volumes that go away:
-4.80 MB at 81x65x57, 16.19 MB at 273x65x57.</p>
-<p>Two things about the arithmetic are load bearing and are recorded at
-<code class="docutils literal notranslate"><span class="pre">vel_at</span></code> in the source. The three eight-corner bodies divide per component
-rather than sharing one reciprocal per corner across the three: the shared
-form is slower there (register pressure, eight reciprocals live) and, under
-<code class="docutils literal notranslate"><span class="pre">-Ofast</span></code>, miscompiles <code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code>’s interior to NaN on a rotated
-duct. And the vectorised bodies inline <code class="docutils literal notranslate"><span class="pre">vel_at</span></code> rather than calling it,
-because a call in those loops costs them their vectorisation.</p>
-</li>
-<li><p><strong>Breaking:</strong> <code class="docutils literal notranslate"><span class="pre">Block.xlen_sq_nd</span></code> is gone. The squared mixing length was a
-cell-shaped array cached against the <code class="docutils literal notranslate"><span class="pre">wdist</span></code> data row, so a block stored
-the same quantity twice; both viscous kernels now take the nodal wall
-distance and derive it where they use it, folding the 8-corner average into
-the constant (<code class="docutils literal notranslate"><span class="pre">XLEN_FAC</span></code>) so it costs a sum, a square and a multiply per
-cell. That is 3.90 MB per block at 273x65x57, and peak RSS for a 1M-cell
-RK/IRS/MG march falls 258.3 MB to 254.5 MB.</p>
-<p>The pass also gets slightly FASTER, which was not the expectation going in:
-<strong>-0.30%</strong> on the pair and <strong>-1.05%</strong> on <code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code> at 8-rank socket
-contention, because deleting the cell volume deletes a stream from a walk
-that is bandwidth-bound in that regime, and the nodal corners replacing it
-are already in cache. The boundary producer <code class="docutils literal notranslate"><span class="pre">set_tau_q_faces</span></code> goes the
-other way, <strong>+2.8%</strong>: it touches only the shell, so it was never streaming
-the volume and the average is pure added work there. It is the O(surface)
-phase – a tenth of the pair against the fused walk’s nine tenths – so the
-pair nets out ahead. (8 launches x 30 reps, paired within launch, 1M cells.)</p>
-<p>That +2.8% is after halving an initial +5.40% by hoisting the mixing length
-into <code class="docutils literal notranslate"><span class="pre">set_tau_q_faces</span></code>’s stage-1 row, beside the eight-corner averages
-already there: -2.45% on that kernel. The consumer keeps computing it in
-place, where its j panel already has the rows resident and the row form
-costs 2.05% instead of saving anything. Two consequences of the two kernels
-no longer spelling it the same way, both bounded and both recorded at the
-spelling split in the source: the pair gave 0.15% back to codegen
-perturbation in the neighbouring kernel (same translation unit, unchanged
-source, measurably slower binary), and the two producers agree to within one
-to two ulp rather than to the bit – confined to <code class="docutils literal notranslate"><span class="pre">set_tau_q_faces</span></code>’s own
-face buffers, with <code class="docutils literal notranslate"><span class="pre">fvisc</span></code> and <code class="docutils literal notranslate"><span class="pre">mu_turb</span></code> bitwise unchanged.</p>
-</li>
-<li><p>The geometry helpers behind <code class="docutils literal notranslate"><span class="pre">dAi_nd</span></code>, <code class="docutils literal notranslate"><span class="pre">dAj_nd</span></code>, <code class="docutils literal notranslate"><span class="pre">dAk_nd</span></code> and
-<code class="docutils literal notranslate"><span class="pre">vol_nd</span></code> walk the block in k-slabs instead of whole-block calls. Their
-kernels are double precision – the cross products difference nearly-equal
-node coordinates, and the theta-origin invariance test pins that – while a
-block’s coordinates are float32, so each call used to promote the entire
-coordinate stack, hold a double-precision result beside it and cast that
-back down: about 59 MB of transient per array at 273x65x57, and with the
-four of them the largest spike in the process, reached before the march had
-taken a step. Every face’s and every cell’s stencil is contained in its own
-slab, so the walk bounds the promotion to a few MB, and the face-area
-helpers now fill the component-first cached buffer directly rather than
-transposing a whole-block result into it. Peak RSS for a 1M-cell RK/IRS/MG
-march falls 262.3 MB to 258.2 MB and, more to the point, now equals the
-steady-state resident exactly: there is no transient left anywhere in the
-run. Geometry setup is 26% faster with the promotions gone. Every value is
-bitwise unchanged – the promotion of a float32 to double is exact and the
-rounding back is the same single rounding.</p></li>
-<li><p><strong>Breaking:</strong> <code class="docutils literal notranslate"><span class="pre">Block.conserved_cell</span></code> and <code class="docutils literal notranslate"><span class="pre">Block.conserved_cell_nd</span></code> are
-gone. The cell-centred conserved state was a cached <code class="docutils literal notranslate"><span class="pre">(ni-1,</span> <span class="pre">nj-1,</span> <span class="pre">nk-1,</span> <span class="pre">5)</span></code>
-volume rebuilt every step and, after the acoustic speed and the transport
-trio moved out of the cache, the largest derived array a block owned —
-5.73 MB at 81x65x57, 19.6 MB at 273x65x57. It was too big to move into the
-scratch arena, so it is no longer materialised at all: <code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code>,
-<code class="docutils literal notranslate"><span class="pre">set_polar_source</span></code> and <code class="docutils literal notranslate"><span class="pre">set_timestep_spectral</span></code> now take the nodal
-<code class="docutils literal notranslate"><span class="pre">cons</span></code> and average the corners they need inside their own walk, which is
-what those kernels already did for <code class="docutils literal notranslate"><span class="pre">r</span></code>, <code class="docutils literal notranslate"><span class="pre">P</span></code> and the acoustic speed
-beside them. Only the two readers that are off by default
-(<code class="docutils literal notranslate"><span class="pre">apply_sfd_force</span></code> and <code class="docutils literal notranslate"><span class="pre">update_filter_*</span></code>) still take a cell-shaped
-argument, and their callers build it in the arena for the one call. Per-block
-derived storage falls 55.13 MB to 49.39 MB at 81x65x57 with the arena
-unchanged. The averages reassociate, so cell-derived quantities move by a
-few ulp; a 400-step duct march converges in the same 2.05 decades and settles
-at the same step.</p></li>
-<li><p>The viscous pass no longer keeps a full-volume tau/q buffer, which was
-three quarters of the solver’s scratch arena. <code class="docutils literal notranslate"><span class="pre">set_tau_q_soa</span></code> wrote a
-stress tensor and heat flux for every cell, nine floats each, purely so that
-<code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code> could stream them straight back and read the boundary
-shell out of them; the volume existed only because a grid-wide periodic seam
-exchange had to run between the two kernels. It is now two kernels of a
-different shape: <code class="docutils literal notranslate"><span class="pre">set_tau_q_faces</span></code> computes tau/q for the boundary shell
-alone, into the six surface buffers of <code class="docutils literal notranslate"><span class="pre">Block.tau_q_faces</span></code>, and
-<code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code> produces every interior cell’s tau/q inside its own k
-walk, into a rolling cell-plane pair, consuming each plane in the same walk
-that made it. The seam exchange moves the shell instead of a volume
-(<code class="docutils literal notranslate"><span class="pre">PeriodicCommunicator.exchange_faces</span></code>, replacing <code class="docutils literal notranslate"><span class="pre">exchange_halos</span></code>), and
-the cusp seam correction, which needs cell planes 1 and nk-1 at once, reads
-them out of the two k face buffers. At a 273x65x57 block the scratch arena
-falls from 41.5 MB to 23.3 MB and peak RSS for a 1M-cell march from 308 MB
-to 293 MB; the arena is now sized by the multigrid phase at every shape
-tried, and the viscous phase is the smallest of the four. <code class="docutils literal notranslate"><span class="pre">Block.tau_q_halo</span></code>
-is gone with it.</p>
-<p>The pass is also faster, though that was not the point: <strong>-9.4% on the
-face-flux kernel and -22.8% on the pair at 8-rank socket contention</strong>, and
-roughly parity serially (1M cells, 8 launches, paired within launch). Two
-things had to be true for that. The boundary producer walks i in the same
-strip-mined row form the volume pass used, on the four faces where i is free
-— per-cell evaluation made it 6.5 ns per cell of the block against 2.6 —
-and the fused walk is panelled in j, so what it carries from one k step to
-the next fits a private L2 rather than the shared L3. The panel is the whole
-contended story: unpanelled, the same kernel is <strong>+40%</strong> against the pair at
-8 ranks while being 8% faster serially. Its width comes from the kernel’s own
-<code class="docutils literal notranslate"><span class="pre">VISC_JAREA</span></code>, with a <code class="docutils literal notranslate"><span class="pre">jbw_in</span></code> argument to override it for sweeps.</p>
-<p><code class="docutils literal notranslate"><span class="pre">fvisc</span></code> moves by about 7 ulp of the field scale, spread through the
-interior — the reassociation of producing tau/q in registers rather than
-through memory — and <code class="docutils literal notranslate"><span class="pre">mu_turb</span></code> is bitwise. Over a 400-step duct march the
-energy residual history agrees to 2.4e-7 relative and the loss coefficient to
-5.6e-6, both converging in the same 2.05 decades.</p>
-</li>
-<li><p>Added <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code>, a real-gas equation of state, and <code class="docutils literal notranslate"><span class="pre">ember.realgas_fit</span></code>,
-the offline tool that produces the coefficients it evaluates. Both follow
-Wheeler (2024): a polynomial surface is fitted to the compressibility factor
-over a box in density and internal energy, and integrated analytically to give
-entropy, with temperature and pressure derived from that one surface rather
-than fitted alongside it. That is what separates it from a lookup table, which
-reproduces its own tabulated values but not the relations between them, and so
-creates spurious entropy wherever gradients are steep. The fitting module
-needs CoolProp only to sample a table — <code class="docutils literal notranslate"><span class="pre">sample_coolprop</span></code>, which imports it
-lazily — so a fluid built from coefficients someone else fitted carries no
-such dependency. <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> implements the whole <code class="docutils literal notranslate"><span class="pre">_Fluid</span></code> interface, so it
-drops in wherever <code class="docutils literal notranslate"><span class="pre">PerfectFluid</span></code> went; the surface evaluation and the Newton
-inversions behind <code class="docutils literal notranslate"><span class="pre">set_P_T</span></code> and friends are in Fortran.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">RealFluid</span></code>’s Newton solves now work in Fortran order and allocate nothing
-per iteration. The scalar solve forced its inputs C contiguous to reach the
-surface kernel, so every call from the solver — whose block fields are
-Fortran contiguous — copied both arrays on the way in, and both solves
-rebuilt their whole update as fresh temporaries at every step. They now write
-each step through buffers allocated once, which is also what settles the
-memory order: the kernel pairs density against energy element by element, and
-numpy takes an expression’s layout from all of its inputs, so a C-ordered
-target alone was enough to hand back an iterate that walks against the
-density the wrong way. Measured at 512x512, about 15% off a scalar solve and
-5-10% off a two-dimensional one, with the peak memory of the latter down by
-about a tenth. Two consequences for callers: a single-precision scalar solve
-hands back a Fortran-ordered energy whatever it was given, and the derivative
-getters return zero-dimensional arrays rather than numpy scalars where they
-are handed scalars.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Block.cp_nd</span></code> is now a nodal array rather than a single number — which is
-what it had always documented itself as. The distinction is invisible for a
-perfect gas, whose specific heat is constant, and the viscous kernel behind
-it took cp as a scalar, so a real gas’s conductivity was built from a
-specific heat frozen at the datum. That made it a function of where the datum
-sat rather than of the flow: shifting the datum with <code class="docutils literal notranslate"><span class="pre">change_datum</span></code>, which
-re-labels <code class="docutils literal notranslate"><span class="pre">u</span></code> and <code class="docutils literal notranslate"><span class="pre">s</span></code> and is meant to change nothing physical, moved it
-by as much as cp varies over the whole fit box. The kernel now takes the
-field and averages it to the cell, for about 7% of that kernel’s time.</p></li>
-<li><p>Added <code class="docutils literal notranslate"><span class="pre">to_dict</span></code> and <code class="docutils literal notranslate"><span class="pre">from_dict</span></code> on the fluid classes, giving a fitted
-equation of state a portable form. A <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> surface costs a property
-table and an offline fit to produce, and until now the only thing that
-persisted one was a pickle of the grid it happened to be attached to —
-which also carried every derived surface alongside the twelve numbers that
-actually define the fluid. The dict holds plain floats and nested lists, so
-<code class="docutils literal notranslate"><span class="pre">json</span></code> or a plain YAML dumper can write it, and it names its own class in a
-<code class="docutils literal notranslate"><span class="pre">type</span></code> key, so <code class="docutils literal notranslate"><span class="pre">_Fluid.from_dict</span></code> reads one back without the caller
-knowing which equation of state wrote it.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> now defaults its datum to its own state at the centre of the
-fit box, rather than to 1 bar and 300 K. A fitted surface exists only inside
-its box and the datum has to lie in there, so a fixed pair of numbers can
-only ever belong to some other fluid’s box: ambient falls inside an air-like
-fit and hundreds of bar outside a dense one, which is the case a real gas is
-for. The datum is read off the fitted surface, so it sits exactly on the
-surface it is the origin of. Passing <code class="docutils literal notranslate"><span class="pre">P_dtm</span></code> or <code class="docutils literal notranslate"><span class="pre">T_dtm</span></code> still overrides,
-either one on its own.</p></li>
-<li><p>The viscous kernels now take viscosity and conductivity as nodal fields, so
-a real gas’s fitted transport surfaces reach the flow instead of stopping at
-the fluid. <code class="docutils literal notranslate"><span class="pre">Block.mu_nd</span></code> becomes a field like <code class="docutils literal notranslate"><span class="pre">Block.cp_nd</span></code> — which it
-had always documented itself as — and is joined by <code class="docutils literal notranslate"><span class="pre">Block.kappa_nd</span></code> and a
-dimensional <code class="docutils literal notranslate"><span class="pre">Block.kappa</span></code>. The kernel takes that conductivity directly and
-no longer takes a laminar Prandtl number: deriving conductivity back from a
-ratio the fluid does not store is a round trip, and the ratio is only defined
-by the two surfaces in the first place. The mixing-length clamp
-<code class="docutils literal notranslate"><span class="pre">3000*mu</span></code> and the wall functions’ <code class="docutils literal notranslate"><span class="pre">Re</span> <span class="pre">=</span> <span class="pre">rho*V*d/mu</span></code> follow the local
-value too, the latter face-averaged at the same node plane as the density it
-divides. Measured at about 13% of <code class="docutils literal notranslate"><span class="pre">set_tau_q_soa</span></code> for the two fields
-together, in line with the 7% one field cost when <code class="docutils literal notranslate"><span class="pre">cp</span></code> went nodal;
-<code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code> is unchanged within noise, since it reads viscosity only
-at wall faces. Perfect-gas results move by float32 round-off rather than not
-at all — averaging eight copies of one float32 to a cell is not exact –
-and a perfect gas now fills a whole nodal array with one repeated constant,
-as it already did for <code class="docutils literal notranslate"><span class="pre">cp</span></code>. Two consequences for callers: <code class="docutils literal notranslate"><span class="pre">Block.mu_nd</span></code>
-needs an initialised flow field, where before it was a property of the fluid
-and the reference length alone, and <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> no longer carries the
-block-wide <code class="docutils literal notranslate"><span class="pre">_mu_nd</span></code> and <code class="docutils literal notranslate"><span class="pre">_Pr</span></code> it used to hand the solver.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> now fits viscosity and thermal conductivity as surfaces of
-density and internal energy, after Appendix B of the same paper, rather than
-taking two constants. They are ordinary least-squares fits over the same box
-and in the same coordinates as the compressibility factor, and they take no
-part in the thermodynamic consistency argument: nothing relates transport to
-entropy, and neither surface is ever differentiated, so they cost one
-polynomial evaluation and no derivatives. Each is normalised by its own value
-at the centre of the fit box, so the coefficients are of order unity and the
-physical scale is a single readable number. <strong>Breaking</strong>: <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> takes
-<code class="docutils literal notranslate"><span class="pre">delta</span></code>, <code class="docutils literal notranslate"><span class="pre">gamma</span></code>, <code class="docutils literal notranslate"><span class="pre">mu_c</span></code> and <code class="docutils literal notranslate"><span class="pre">kappa_c</span></code> in place of <code class="docutils literal notranslate"><span class="pre">mu</span></code> and <code class="docutils literal notranslate"><span class="pre">Pr</span></code>,
-and <code class="docutils literal notranslate"><span class="pre">realgas_fit.fit</span></code> requires viscosity and conductivity samples –
-<code class="docutils literal notranslate"><span class="pre">sample_coolprop</span></code> returns them, so a pipeline built as
-<code class="docutils literal notranslate"><span class="pre">fit(**sample_coolprop(...))</span></code> needs no change. <code class="docutils literal notranslate"><span class="pre">get_kappa</span></code> joins the fluid
-interface, with <code class="docutils literal notranslate"><span class="pre">PerfectFluid</span></code> deriving it from the <code class="docutils literal notranslate"><span class="pre">Pr</span></code> it still takes
-and <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> deriving <code class="docutils literal notranslate"><span class="pre">Pr</span></code> from its two surfaces instead. The solver
-does not see any of this yet: its viscous kernel takes one viscosity and one
-Prandtl number per block, and what it now gets are the surfaces evaluated at
-the centre of the fit box.</p></li>
-<li><p>Added <code class="docutils literal notranslate"><span class="pre">change_visc</span></code> on the fluid classes, a factory in the manner of
-<code class="docutils literal notranslate"><span class="pre">change_datum</span></code> returning the same fluid with its viscosity scaled by a
-factor. Sweeping Reynolds number needs nothing else to move — the geometry,
-the boundary conditions and the thermodynamics all stay put — and the
-Prandtl number is untouched, so the conductivity scales with the viscosity
-and the Peclet number follows the Reynolds number. <code class="docutils literal notranslate"><span class="pre">PerfectFluid</span></code> changes
-its stored <code class="docutils literal notranslate"><span class="pre">mu</span></code>; <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> carries the factor as a new <code class="docutils literal notranslate"><span class="pre">scale_visc</span></code>
-constructor argument multiplying the viscosity, so that it will still mean
-the same thing once the transport properties are fitted surfaces of density
-and internal energy rather than the constants they are today.</p></li>
-<li><p>Fixed <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code>’s inversions returning an array of one where they were
-given a single state. <code class="docutils literal notranslate"><span class="pre">asfortranarray</span></code> forces <code class="docutils literal notranslate"><span class="pre">ndmin=1</span></code>, so laying the
-iterate out for the kernel promoted a 0-d solve to shape <code class="docutils literal notranslate"><span class="pre">(1,)</span></code> – and the
-result then refused to be printed, <code class="docutils literal notranslate"><span class="pre">ndarray.__format__</span></code> rejecting a format
-spec at any rank. The convergence history reports the inlet and outlet state
-on every log line, so a real-gas run raised a TypeError there rather than
-logging. The solves now keep 0-d at 0-d and hand back a numpy scalar, which
-is what <code class="docutils literal notranslate"><span class="pre">PerfectFluid</span></code> always did.</p></li>
-<li><p>Added a <code class="docutils literal notranslate"><span class="pre">periodic_k</span></code> argument to <code class="docutils literal notranslate"><span class="pre">ember.cases.build_duct_grid</span></code>, which
-makes the duct’s pitchwise faces periodic to each other instead of walls:
-<code class="docutils literal notranslate"><span class="pre">&quot;full&quot;</span></code> for the whole face, <code class="docutils literal notranslate"><span class="pre">&quot;hmesh&quot;</span></code> for two streamwise intervals with
-a wall between, the topology <code class="docutils literal notranslate"><span class="pre">Block.i_perk</span></code> describes. The patches have to
-be appended during construction rather than afterwards, because
-<code class="docutils literal notranslate"><span class="pre">ijk_wall_visc</span></code> and <code class="docutils literal notranslate"><span class="pre">i_perk</span></code> are cached on first access and the wall
-distance is computed from the patches – appending later leaves the seam
-reading as a wall, silently. Written for the viscous seam study, where a
-block periodic to itself in k is the case under test.</p></li>
-<li><p>Added <code class="docutils literal notranslate"><span class="pre">Block.tau_q_faces</span></code>, six two-layer surface buffers holding the
-boundary tau/q that the viscous face-flux phase reads, with
-<code class="docutils literal notranslate"><span class="pre">set_tau_q_faces</span></code> to produce them in an O(surface) pass and
-<code class="docutils literal notranslate"><span class="pre">Grid.connectivity.periodic.exchange_faces</span></code> to exchange them across
-periodic patches. Together these give a fused viscous kernel a halo source
-that is not a full-volume array, which is what lets one serve arbitrary
-block connectivity rather than only a block periodic to itself in k.
-Production’s <code class="docutils literal notranslate"><span class="pre">set_tau_q_soa</span></code>/<code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code> path is untouched and
-still uses <code class="docutils literal notranslate"><span class="pre">tau_q_halo</span></code>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Block.scratch</span></code> is now the single scratch arena and is flat rather than
-<code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">nj,</span> <span class="pre">nk,</span> <span class="pre">5)</span></code>. <code class="docutils literal notranslate"><span class="pre">Block.tau_q_halo</span></code> and <code class="docutils literal notranslate"><span class="pre">Block.tau_q_faces</span></code> are
-views into it rather than allocations of their own, and <code class="docutils literal notranslate"><span class="pre">tau_q_halo</span></code> drops
-its spare tenth slot. Three allocations become one, sized by whichever step
-phase needs the most: 67.4 MB to 43.6 MB at a 1M-cell block, with peak RSS
-over a short run falling 351 MB to 341 MB. Timing is unchanged
-(<code class="docutils literal notranslate"><span class="pre">set_residual</span></code> 24.479 to 24.476 ns/cell, the viscous pair 56.4 to 56.6,
-both inside their error bars).</p>
-<p>Consumers that carve from the arena must take every buffer a single kernel
-call needs from ONE <code class="docutils literal notranslate"><span class="pre">util.carve_view</span></code>, which packs them end to end and so
-cannot overlap; buffers in different phases may share a span because no two
-phases are live at once. <code class="docutils literal notranslate"><span class="pre">ember.solver</span></code> gains <code class="docutils literal notranslate"><span class="pre">mg_coarse_shapes</span></code> so its
-callers can fold the multigrid scratch into their own carve, replacing
-<code class="docutils literal notranslate"><span class="pre">_mg_coarse_carve</span></code>. Multigrid <code class="docutils literal notranslate"><span class="pre">n_levels</span></code> is now capped at
-<code class="docutils literal notranslate"><span class="pre">ember.block.MAX_MG_LEVELS</span></code> (3), validated in <code class="docutils literal notranslate"><span class="pre">_validate_mg</span></code> alongside
-the divisibility rule, because the arena is sized for that depth.</p>
-</li>
-<li><p><code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code> is faster, by two independent changes to how it does the
-same arithmetic. The wall-function face helpers were not being inlined in the
-production build and could not vectorize regardless, because the
-Reynolds-number branch of the skin-friction fit sits in the middle of their
-arithmetic; they are now row forms split into three phases over a fixed i-tile,
-so only the branch stays scalar and the phases carrying the divides and square
-roots vectorize. Separately, the fused k walk now runs over j-panels of fixed
-cell AREA, which bounds the rolling face-flow buffers it carries across each k
-step to a fixed number of bytes whatever the block’s aspect ratio, keeping them
-in L2 rather than round-tripping through a last-level cache that eight ranks
-share. Together, -33.7% at a 1M-cell block and -40.1% at 2M with all eight
-cores of a socket busy, -19.6% over the viscous pair end to end; serial the
-split is the other way round, -20.6% at 300k falling to -8.9% at 2M. The panel
-change is bitwise; the row forms move <code class="docutils literal notranslate"><span class="pre">fvisc</span></code> by 0.625 ulp of the field
-scale, confined to the two-cell shell the wall faces touch.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">set_residual</span></code> now walks k over j-panels of fixed cell area, the same
-change made to <code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code> above and for the same reason: what the
-fused walk carries from one k step to the next is a rolling pair of k-face
-flow planes, 720 KB at a 1M-cell block, so each plane was evicted before the
-next step read it and every component round-tripped through a last-level
-cache that all the ranks on a socket share. Panelling bounds what is live at
-once without changing what is read. With eight cores of a socket busy,
--16.0% at 1M cells and -33.0% at 2M, -3.8% at 300k, neutral at 100k. Run
-serially it is instead about 2% slower at 1M and above, because a panel
-recomputes its lowest j-face row and a lone rank has the whole cache anyway;
-the contended figure is the one that describes a real solver run. The
-residual is bitwise unchanged — only the change limiter’s block-mean
-scale factor moves, by a few ulps, its summation order having changed.</p></li>
-<li><p>The RK multigrid stage advance stops copying its prolongation cascade back
-and forth. The cascade runs coarsest to finest, and each hop accumulated into
-one of two buffers and was then copied back to the other so the caller would
-find the result where it expected it; a profile put that copy at about 7% of
-the stage. Which buffer the cascade ends in follows from the parity of the hop
-count, so choosing where it starts lands the result in the right place with no
-copy at all. The level tables it indexes with are also fixed-size now rather
-than sized by <code class="docutils literal notranslate"><span class="pre">n_levels</span></code> at run time, which was a stack allocation on every
-call. Together, 2.5-3.2% off the stage with a socket busy and 1.1-4.4% off it
-serially, bitwise identical at every multigrid depth.</p>
-<p>The prolongations also stop tabulating their interpolation weights. Each
-built six index arrays and three weight arrays as long as the fine
-directions on every call — another stack allocation, and pure geometry
-recomputed each time. The bracketing coarse cells and the weight are a closed
-form in the fine index, so the two outer directions now evaluate it per row,
-and the contiguous direction is driven by the coarse index instead, emitting
-both fine cells of each coarse pair and reading contiguously where it used to
-gather. A further 5.2-5.8% off the stage serially and 2.1% at the smallest
-block with a socket busy, flat at the larger ones. This part is not bitwise:
-the folded weights round differently in the last place, at most one ulp of
-field scale on a few dozen cells in a million.</p>
-</li>
+<ul class="simple">
+<li><p>Delete <code class="docutils literal notranslate"><span class="pre">Block.xlen_sq_nd</span></code> and <code class="docutils literal notranslate"><span class="pre">Block.conserved_cell_nd</span></code>, calculate them
+inline in the Fortran kernels instead.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">RealFluid</span></code> real-gas equation of state and fitting module, following
+Wheeler (2024) polynomial entropy fit.</p></li>
+<li><p>Make <code class="docutils literal notranslate"><span class="pre">Block.cp_nd</span></code> a nodal array rather than a scalar, pass fields
+of viscous and thermal transport properties to the source term kernels.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">to_dict</span></code> and <code class="docutils literal notranslate"><span class="pre">from_dict</span></code> to fluid classes.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">Fluid.get_kappa</span></code> thermal conductivity to the fluid API.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">change_visc()</span></code> to fluid clasess, returning a new instance with
+viscosity scaled up or down. Perfect gases simply alter their scalar viscosity;
+real gases carry a <code class="docutils literal notranslate"><span class="pre">scale_visc</span></code> factor that multiplies the true fitted viscosity.</p></li>
+<li><p>Exchange viscous/thermal halos via six face arrays instead of a full volume
+array.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Block.scratch</span></code> is now the sole scratch array, and all transient
+workspace for the Fortan kernels is carved out of it.</p></li>
+<li><p>Various performance improvements to reduce memory footprint.</p></li>
 </ul>
 </section>
 <section id="v0-2-0">
@@ -551,33 +199,14 @@ casing turning with the blade. Set <code class="docutils literal notranslate"><s
 <li><p>Pruned dead code from <code class="docutils literal notranslate"><span class="pre">ember.util</span></code> and made its single-caller helpers
 private.</p></li>
 <li><p>Replaced the reflecting mixing plane with the non-reflecting one.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Solver</span></code> is now frozen. Nothing in the package assigned to a solver field
-— the working state of a march lives on the grid, and the configuration is
-only read — so this states that rather than changing it. Beyond
-immutability it makes a <code class="docutils literal notranslate"><span class="pre">Solver</span></code> a value: two with the same settings
-compare equal, it is hashable, and a frozen dataclass elsewhere may inherit
-from it. Derive a variant with <code class="docutils literal notranslate"><span class="pre">dataclasses.replace</span></code> instead of assigning.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Solver</span></code> is now a frozen immutable class, derive a variant with
+<code class="docutils literal notranslate"><span class="pre">dataclasses.replace</span></code> instead of assigning.</p></li>
 <li><p>Changed <code class="docutils literal notranslate"><span class="pre">Solver</span></code> defaults: <code class="docutils literal notranslate"><span class="pre">cfl</span></code> 0.4 to 5.0, <code class="docutils literal notranslate"><span class="pre">dampin</span></code> <code class="docutils literal notranslate"><span class="pre">None</span></code> to 25,
-<code class="docutils literal notranslate"><span class="pre">sf_resid</span></code> 0.0 to 1.0, and <code class="docutils literal notranslate"><span class="pre">n_levels</span></code> 0 to 3. Multigrid and a higher CFL
-are now on by default, so a march that set none of these will converge
-differently — and faster. Note <code class="docutils literal notranslate"><span class="pre">n_levels=3</span></code> needs cell counts divisible
-by <code class="docutils literal notranslate"><span class="pre">2**n_levels</span></code>; set <code class="docutils literal notranslate"><span class="pre">n_levels=0</span></code> for a grid that is not.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Block.flat</span></code> is now a property, and flattens in Fortran order. It reshaped
-the column-major backing array in C order, which numpy silently satisfies
-with a copy for any block with more than one spatial axis, so the promised
-view semantics were quietly lost — writes through one object were not seen
-by the other. It now shares storage for any freshly allocated shape, and
-raises rather than copies where a non-contiguous slice has no contiguous
-flattening. Pair it with <code class="docutils literal notranslate"><span class="pre">reshape(...,</span> <span class="pre">order=&quot;F&quot;)</span></code>.</p></li>
+<code class="docutils literal notranslate"><span class="pre">sf_resid</span></code> 0.0 to 1.0, and <code class="docutils literal notranslate"><span class="pre">n_levels</span></code> 0 to 3.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Block.flat</span></code> is now a property, and flattens in Fortran order.</p></li>
 <li><p>Split <code class="docutils literal notranslate"><span class="pre">interp_from</span></code> into <code class="docutils literal notranslate"><span class="pre">Grid.interp_from_arrays</span></code> and
 <code class="docutils literal notranslate"><span class="pre">Grid.interp_from_grid</span></code>, and transfer primitives rather than conserved
-variables. <code class="docutils literal notranslate"><span class="pre">rhoe</span></code> is not a property of the flow alone — it depends on the
-gas through <code class="docutils literal notranslate"><span class="pre">cv</span></code> and on where its energy datum sits — so interpolating
-between blocks whose fluids differ changed the state it was meant to
-preserve, silently: a datum 600 K apart turned 400 K into 1000 K. Pressure,
-temperature and velocity cross unchanged. A field read back from a file is
-now a first-class input rather than something to wrap a block around, and a
-negative temperature is impossible rather than merely asserted against.</p></li>
+variables to prevent datum offset errors.</p></li>
 <li><p>Generalised non-reflecting patches to any surface of revolution.</p></li>
 <li><p>Added <code class="docutils literal notranslate"><span class="pre">OutletPatch.Kp</span></code> and <code class="docutils literal notranslate"><span class="pre">OutletPatch.Ki</span></code>, exposing the throttle gains
 set by <code class="docutils literal notranslate"><span class="pre">set_throttle</span></code>.</p></li>
@@ -594,10 +223,7 @@ the next leading edge, or a shock crossing a pitch. Returns one copy per
 passage rather than a concatenated block, and drops patches, a rotated copy
 being a view of the flow rather than a member of a connected grid.</p></li>
 <li><p>Added <code class="docutils literal notranslate"><span class="pre">util.unwrap_meridional</span></code>, giving the conformal coordinate
-<code class="docutils literal notranslate"><span class="pre">m'</span> <span class="pre">=</span> <span class="pre">int</span> <span class="pre">dm/r</span></code> that a blade-to-blade view is drawn on. It belongs to the
-curve rather than to any grid: one integration along the polyline sets the
-datum, so points from different blocks, or from different cuts of the same
-machine, come back on a common scale with nothing to reconcile.</p></li>
+<code class="docutils literal notranslate"><span class="pre">m'</span> <span class="pre">=</span> <span class="pre">int</span> <span class="pre">dm/r</span></code> that a blade-to-blade view is drawn on.</p></li>
 <li><p>Fixed <code class="docutils literal notranslate"><span class="pre">mix_out</span></code> returning slightly different states for a cut and its
 k-reversed twin. The Newton loop now iterates to its fixed point instead of
 stopping at the first iterate inside <code class="docutils literal notranslate"><span class="pre">atol</span></code>, cutting that difference from
@@ -610,23 +236,15 @@ scalar, so averaging over the pitch alone and keeping the span raised about
 an ambiguous truth value instead of returning a profile.</p></li>
 <li><p>Fixed <code class="docutils literal notranslate"><span class="pre">matvec</span></code> broadcast dispatch order for <code class="docutils literal notranslate"><span class="pre">(ni,1,1)</span></code> matrices.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">yaml_util</span></code> now uses libyaml’s <code class="docutils literal notranslate"><span class="pre">CSafeLoader</span></code>/<code class="docutils literal notranslate"><span class="pre">CSafeDumper</span></code> where
-available, falling back to the pure-Python classes otherwise. Same API,
-faster scanner and emitter.</p></li>
+available for speed.</p></li>
 <li><p>Fixed YAML being read and written in the locale’s encoding rather than
 UTF-8, so a file carrying a degree sign or a non-ASCII name round-tripped
 losslessly only by coincidence of environment.</p></li>
-<li><p>Fixed writing a <code class="docutils literal notranslate"><span class="pre">Path</span></code> raising <code class="docutils literal notranslate"><span class="pre">RepresenterError</span></code> on Windows. PyYAML
-dispatches a representer on the exact runtime type, and only <code class="docutils literal notranslate"><span class="pre">Path</span></code> and
-<code class="docutils literal notranslate"><span class="pre">PosixPath</span></code> were registered — <code class="docutils literal notranslate"><span class="pre">Path(&quot;...&quot;)</span></code> builds a <code class="docutils literal notranslate"><span class="pre">WindowsPath</span></code>
-there, which had no representer at all. Registered for <code class="docutils literal notranslate"><span class="pre">PurePath</span></code> along
-the mro instead, covering every concrete path class.</p></li>
+<li><p>Fixed YAML writing a <code class="docutils literal notranslate"><span class="pre">Path</span></code> raising <code class="docutils literal notranslate"><span class="pre">RepresenterError</span></code> on Windows.</p></li>
 <li><p>Fixed the sign of the cusp seam correction.</p></li>
 <li><p>Restored the smooth-then-damp order in <code class="docutils literal notranslate"><span class="pre">update_residual</span></code>.</p></li>
 <li><p>Fixed the mixing-length viscosity returning <code class="docutils literal notranslate"><span class="pre">-inf</span></code> on flows with no
-resolved shear when built with gfortran 13, which diverged the march within
-one step.</p></li>
-<li><p>Added API documentation pages for <code class="docutils literal notranslate"><span class="pre">cases</span></code>, <code class="docutils literal notranslate"><span class="pre">communicators</span></code>,
-<code class="docutils literal notranslate"><span class="pre">block_util</span></code>, <code class="docutils literal notranslate"><span class="pre">patch</span></code>, <code class="docutils literal notranslate"><span class="pre">util</span></code>, and <code class="docutils literal notranslate"><span class="pre">yaml_util</span></code>.</p></li>
+resolved shear when built with gfortran 13.</p></li>
 </ul>
 </section>
 <section id="v0-1-0">
