@@ -1831,6 +1831,15 @@ class Grid(_LabelledList):
 
         """
         for block in self:
+            # Fill the primitive cache before the carve below, not lazily
+            # through `u_nd` after it. Two reasons, and the ordering is load
+            # bearing for both: the lazy path is numpy, so it rebuilds `u` and
+            # the kinetic energy a second time in the step after
+            # set_primitive_kinematic already made them (materialising a whole
+            # nodal velocity volume to do it); and it would fire with `a`
+            # already carved, leaving no arena for a kernel fill to use. A
+            # no-op if the caches are current, which is the common case.
+            block.update_primitive()
             # Acoustic speed, nodal, into block.scratch: this is its only
             # whole-block consumer in the step, so there is nothing to gain
             # from caching a volume that would then sit allocated for the whole

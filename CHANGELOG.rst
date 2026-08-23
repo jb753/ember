@@ -10,6 +10,29 @@ without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* **Breaking:** ``Block._halfVsq_nd_uninit`` is no longer cached. The kinetic
+  energy is live only between the kinematic kernel that writes it and the
+  ``ho +=`` two lines later, so ``update_primitive`` now carves it from
+  ``block.scratch`` and drops it, and the property is derived. That is 4.05 MB
+  per block at 273x65x57 (1.20 MB at 81x65x57, the measured fall in per-block
+  derived store) traded for space in an arena the multigrid phase was already
+  sizing: 24.47 MB at 273x65x57, 7.20 at 81x65x57 and 2.79 on a 49-cube, all
+  unchanged. Nothing on the hot path recomputes it -- the readers left are the
+  ``u_nd`` fallback on patch views, ``V_nd`` and the relative-frame stagnation
+  properties, and the state setters, which a march never reaches.
+
+  ``Grid.update_timestep`` now calls ``update_primitive`` before carving its
+  acoustic-speed buffer, which is what makes the borrow safe and also removes
+  a duplicate that predates it. A lazy ``u_nd`` read used to land ahead of
+  ``update_primitive`` in every step, filling the internal-energy and kinetic-
+  energy caches by the op-by-op numpy route -- materialising a whole nodal
+  velocity volume to do it -- after which ``update_primitive`` ran anyway,
+  because the pressure, enthalpy and temperature stamps were still stale, and
+  recomputed both in Fortran. Traced over two steps, the whole-block numpy
+  rebuilds go from one per step to none. Peak RSS for a 1M-cell RK/MG march
+  falls 238.8 MB to 235.0 MB and still equals steady-state resident at every
+  probe.
+
 * **Breaking:** the nodal velocity is no longer cached. ``Block.Vx_nd``,
   ``Vr_nd``, ``Vt_nd``, ``Vxrt_nd`` and ``Vt_rel_nd`` are still there and still
   return the same values, but each access now derives them from the conserved

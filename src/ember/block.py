@@ -929,6 +929,11 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
       update_sources   the six boundary tau/q face buffers + set_visc_force's
                        rolling tau/q cell-plane pair, planes and rows + the
                        nodal transport trio (mu, kappa, cp) both kernels read
+      update_primitive the nodal kinetic energy the kinematic kernel writes
+                       and `ho` absorbs two lines later, live for that window
+                       only. Every caller fills the primitive cache before
+                       carving anything of its own, so this never coexists
+                       with another phase's buffers
       update_timestep  the nodal acoustic speed set_timestep_spectral reads
       filter / SFD     one cell-shaped conserved volume, materialised for
                        apply_sfd_force and update_filter (both off by default;
@@ -972,6 +977,7 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     mg = sum(int(np.prod(sh)) for sh in mg_coarse_shapes(ni, nj, nk, n_levels))
     return max(
         faces + tq + visc_pr + transport,                      # update_sources
+        ni * nj * nk,                                          # update_primitive
         ni * nj * nk,                                          # update_timestep
         (ni - 1) * (nj - 1) * (nk - 1) * 5,                    # filter / SFD
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,      # update_residual
@@ -1216,18 +1222,27 @@ class Block(ember._struct.StructuredData):
         """
         return self._get_face_wall_arrays(self.patches.slip)
 
-    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "r")
-    def _halfVsq_nd_uninit(self, out):
+    @property
+    def _halfVsq_nd_uninit(self):
         """Nondimensional half velocity squared [-], tolerating uninitialised data.
 
-        Sums the squared components of the derived nondimensional velocity
-        :attr:`_Vxrt_nd_uninit` into its own cached buffer, so the returned
-        array is stable across other computations (no shared scratch). This one
-        stays cached: unlike the velocity it is built from, it has no kernel
-        that re-derives it, and the solver reads it every step.
+        Derived, not cached, and each access allocates. The one consumer that
+        reads it every step is :meth:`update_primitive`, which needs it only
+        between the kinematic kernel that makes it and the ``ho`` it is added
+        into -- a lifetime inside a single method -- so it is carved from
+        :attr:`scratch` there rather than kept on the block. That is 4.05 MB
+        per block at 273x65x57 not held for the whole run.
+
+        What is left here serves the readers outside that window: the
+        :attr:`_u_nd_uninit` fallback on patch views (a surface, not a volume),
+        :attr:`V_nd` and the relative-frame stagnation properties in
+        post-processing, and :meth:`_update_rhoe_nd` in the state setters,
+        which a march never reaches. Do not put an access in a per-node loop
+        over a full block, and do not add a per-step reader without giving it
+        the scratch treatment instead.
         """
         Vxrt_nd = self._Vxrt_nd_uninit
-        out = util.allocate_or_reuse(out, self.shape)
+        out = util.empty(self.shape)
         np.einsum("...i,...i->...", Vxrt_nd, Vxrt_nd, out=out)
         out *= 0.5
         return out
@@ -2454,12 +2469,11 @@ class Block(ember._struct.StructuredData):
         for key in ("rho", "rhoe", "rhoVx", "rhoVr", "rhorVt"):
             self._get_data_by_keys((key,))
 
-        # The two key tuples differ: velocity depends on the radius, the
-        # thermodynamic properties on the energy.
-        ver_r = self._get_version(("rho", "rhoVx", "rhoVr", "rhorVt", "r"))
+        # Every cache filled here depends on the energy as well as the momenta;
+        # the kinetic energy, which depended on the radius instead, is no
+        # longer among them (it is borrowed below, not cached).
         ver_e = self._get_version(("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"))
         stamps = (
-            ("_halfVsq_nd_uninit", ver_r),
             ("_u_nd_uninit", ver_e),
             ("P_nd", ver_e),
             ("ho_nd", ver_e),
@@ -2469,7 +2483,12 @@ class Block(ember._struct.StructuredData):
             return
 
         shape = self.shape
-        halfvsq = self._primitive_buffer("_halfVsq_nd_uninit", shape)
+        # The kinetic energy is borrowed, not cached: it is live only from the
+        # kernel below to the `ho +=` two lines further on, so keeping a nodal
+        # volume on the block for the whole run bought nothing. The arena is
+        # free at every call site -- each calls this before carving anything of
+        # its own (see Grid.update_sources, update_residual, update_timestep).
+        halfvsq = util.carve_view(self.scratch, shape)
         u = self._primitive_buffer("_u_nd_uninit", shape)
         P = self._primitive_buffer("P_nd", shape)
         ho = self._primitive_buffer("ho_nd", shape)
@@ -2485,7 +2504,7 @@ class Block(ember._struct.StructuredData):
         self.fluid.get_P_h_T(self._rho_nd_uninit, u, P, ho, T)
         ho += halfvsq
 
-        for (cache_key, versions), arr in zip(stamps, (halfvsq, u, P, ho, T)):
+        for (cache_key, versions), arr in zip(stamps, (u, P, ho, T)):
             arr.flags.writeable = False
             self._store[cache_key] = (versions, arr)
 
