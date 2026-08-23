@@ -661,15 +661,16 @@ def advance_rk_stage_mg(
     is **cascaded**: the packed per-level corrections (``corr_all``) accumulate
     coarsest -> finest through the ``acc0``/``acc1`` ping-pong, so only the final
     factor-2 hop writes the fine grid (fused with the fine term).
-The coarse timestep (``dtblk``), the restriction
-    accumulators, ``corr_all``/``acc0``/``acc1``, the separable-prolong scratch
-    (``aplane``, ``bb``), the coarse-IRS buffers (``cres``, ``triw``) and the
-    rolling increment are all carved from ``block.scratch`` at non-overlapping
-    offsets, in ONE ``carve_view`` -- they reach the same kernel call, so
-    carving them together is what makes them disjoint. The multigrid phase is
-    what sizes the arena (:func:`ember.block._scratch_len`). The scatter reads the snapshot
-    from ``block.store`` and writes
-    ``conserved_nd`` directly (frozen pressure, bypasses the P/T cache).
+
+    The coarse timestep (``dtblk``), the restriction accumulators,
+    ``corr_all``/``acc0``/``acc1``, the separable-prolong scratch (``aplane``,
+    ``bb``), the coarse-IRS buffers (``cres``, ``triw``) and the rolling
+    increment are all carved from ``block.scratch`` at non-overlapping offsets,
+    in ONE ``carve_view`` -- they reach the same kernel call, so carving them
+    together is what makes them disjoint. The multigrid phase is what sizes the
+    arena (:func:`ember.block._scratch_len`). The scatter reads the snapshot
+    from ``block.store`` and writes ``conserved_nd`` directly (frozen pressure,
+    bypasses the P/T cache).
 
     ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is
     recomputed once per stage even though ``dt_vol`` only changes once per step.
