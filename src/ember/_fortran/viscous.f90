@@ -1573,8 +1573,26 @@ subroutine set_visc_force( &
             vm = sqrt(w1*w1 + w2*w2 + w3*w3)
             wsum = wdist(i,j,k) + wdist(i+1,j,k) + wdist(i,j+1,k) + wdist(i+1,j+1,k) + &
                    wdist(i,j,k+1) + wdist(i+1,j,k+1) + wdist(i,j+1,k+1) + wdist(i+1,j+1,k+1)
+            ! The max(0) is not physics -- mut is analytically confined to
+            ! [0, visc_lim] already, since rhoc, the mixing length and vm are
+            ! all non-negative and nothing here divides. It contains a gfortran
+            ! 13 codegen fault: built with the setup.py production flags (the
+            ! raised --param=vect-max-version-for-alias-checks is what forces
+            ! this loop to vectorize at all), gfortran 13.3 returns -inf from
+            ! this line for about two thirds of cells whenever the vorticity
+            ! sits at the float32 cancellation noise floor, i.e. a uniform flow
+            ! with no real shear -- the chi = 90/270 duct cases in
+            ! tests/test_nonreflecting_integration.py. The -inf then travels
+            ! fac -> tq -> F_body -> residual and NaNs the whole field inside
+            ! one step. gfortran 14.2 is unaffected, as is any build at -O2 or
+            ! without fast-math (-ffinite-math-only alone is enough to trigger
+            ! it). Ubuntu 24.04 (the CI runner) ships gfortran 13.3, so this is
+            ! a live target, not a historical one. The clamp costs one vmaxps
+            ! and leaves the loop vectorized. tau_q_at_cell and the shell row
+            ! carry the same line and point back here -- keep the three
+            ! identical; only where the mixing length comes from differs.
             visc_lim = 3000e0 * muc(i)
-            mut = min(rhoc(i) * (XLEN_FAC * wsum * wsum) * vm, visc_lim)
+            mut = max(0.0e0, min(rhoc(i) * (XLEN_FAC * wsum * wsum) * vm, visc_lim))
             mu_turb(i,j,k) = mut
             fac = (muc(i) + mut) * 0.5e0
             tq(i+1,j+1,1,tb) = t1*fac
