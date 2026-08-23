@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.cases &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
+    <title>ember.cases &#8212; ember 0.2.1.dev67+g4d9c2eac2 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=fd19fe6e"></script>
+    <script src="../../_static/documentation_options.js?v=db67b7ea"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
+<p class="blurb">Version 0.2.1.dev67+g4d9c2eac2</p>
 
 
 
@@ -185,6 +185,7 @@
     <span class="n">length_ratio</span><span class="o">=</span><span class="mf">3.0</span><span class="p">,</span>
     <span class="n">nj</span><span class="o">=</span><span class="mi">65</span><span class="p">,</span>
     <span class="n">nk</span><span class="o">=</span><span class="mi">57</span><span class="p">,</span>
+    <span class="n">periodic_k</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="n">Ma_bulk</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
     <span class="n">Po</span><span class="o">=</span><span class="mf">1e5</span><span class="p">,</span>
     <span class="n">To</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span>
@@ -228,6 +229,13 @@
 <span class="sd">        Cross-section side, mean-radius ratio, and length ratio of the duct.</span>
 <span class="sd">    nj, nk : int</span>
 <span class="sd">        Cross-stream node counts. Must be odd for symmetric clustering.</span>
+<span class="sd">    periodic_k : {None, &quot;full&quot;, &quot;hmesh&quot;}, optional</span>
+<span class="sd">        Make the k (pitchwise) faces periodic to each other instead of walls.</span>
+<span class="sd">        ``None`` leaves the duct closed, as before. ``&quot;full&quot;`` makes the whole</span>
+<span class="sd">        of both k faces periodic. ``&quot;hmesh&quot;`` makes two streamwise intervals</span>
+<span class="sd">        periodic with a wall between them, the topology</span>
+<span class="sd">        :attr:`~ember.block.Block.i_perk` describes, so that a single seam</span>
+<span class="sd">        carries both a periodic and a wall region.</span>
 <span class="sd">    Ma_bulk, Po, To : float</span>
 <span class="sd">        Bulk Mach number and inlet stagnation pressure and temperature.</span>
 
@@ -305,6 +313,33 @@
     <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;outlet&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_P</span><span class="p">(</span><span class="n">P_out</span><span class="p">)</span>
     <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;outlet&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_backflow_ho_s</span><span class="p">(</span><span class="n">ho</span><span class="p">,</span> <span class="n">so</span><span class="p">)</span>
     <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;outlet&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set_backflow_Vt</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+
+    <span class="c1"># Optional pitchwise periodicity. The duct&#39;s k faces are walls by default;</span>
+    <span class="c1"># making them periodic gives a block that is periodic to ITSELF in k, the</span>
+    <span class="c1"># topology the fused viscous seam study needs.</span>
+    <span class="c1">#</span>
+    <span class="c1"># Appended HERE, before grid.calculate_wdist() below and before anything</span>
+    <span class="c1"># reads a wall array, because block.ijk_wall_visc, block.i_perk and</span>
+    <span class="c1"># block._face_wall_arrays_slip are all cached_object and their docstrings</span>
+    <span class="c1"># forbid modifying patches after first access. Appending after the grid is</span>
+    <span class="c1"># built would leave wallk1 at 0.0 across the whole seam AND i_perk at</span>
+    <span class="c1"># (0, 0), silently -- the wall distance would be wrong too.</span>
+    <span class="k">if</span> <span class="n">periodic_k</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">periodic_k</span> <span class="o">==</span> <span class="s2">&quot;full&quot;</span><span class="p">:</span>
+            <span class="n">i_lims</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+        <span class="k">elif</span> <span class="n">periodic_k</span> <span class="o">==</span> <span class="s2">&quot;hmesh&quot;</span><span class="p">:</span>
+            <span class="c1"># Periodic over the upstream and downstream thirds with a &quot;blade&quot;</span>
+            <span class="c1"># (wall) between: i_perk reads back (i_LE, i_TE) rather than the</span>
+            <span class="c1"># degenerate (ni, 1) of the full-span case.</span>
+            <span class="n">i_le</span> <span class="o">=</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">3</span>
+            <span class="n">i_lims</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="n">i_le</span><span class="p">),</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">i_le</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;periodic_k must be None, &#39;full&#39; or &#39;hmesh&#39;, got </span><span class="si">{</span><span class="n">periodic_k</span><span class="si">!r}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">for</span> <span class="n">i_lim</span> <span class="ow">in</span> <span class="n">i_lims</span><span class="p">:</span>
+            <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">PeriodicPatch</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="o">=</span><span class="n">i_lim</span><span class="p">))</span>
+            <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">PeriodicPatch</span><span class="p">(</span><span class="n">k</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="o">=</span><span class="n">i_lim</span><span class="p">))</span>
 
     <span class="c1"># Velocity ripple, applied before the non-dimensional reference is set (as in</span>
     <span class="c1"># the original example/script ordering).</span>

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Solver &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
+    <title>Solver &#8212; ember 0.2.1.dev67+g4d9c2eac2 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=fd19fe6e"></script>
+    <script src="../_static/documentation_options.js?v=db67b7ea"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
+<p class="blurb">Version 0.2.1.dev67+g4d9c2eac2</p>
 
 
 
@@ -157,6 +157,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.solver.scree_step"><code class="docutils literal notranslate"><span class="pre">solver.scree_step()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.mg_coarse_shapes"><code class="docutils literal notranslate"><span class="pre">solver.mg_coarse_shapes()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.solver.advance_rk_stage_mg"><code class="docutils literal notranslate"><span class="pre">solver.advance_rk_stage_mg()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.solver.rk_step"><code class="docutils literal notranslate"><span class="pre">solver.rk_step()</span></code></a></li>
 </ul>
@@ -247,7 +248,9 @@ suppress odd-even decoupling.</p></li>
 <dt><strong>Pseudotime averaging</strong>: over the final <a class="reference internal" href="#ember.solver.Solver.n_step_avg" title="ember.solver.Solver.n_step_avg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_step_avg</span></code></a></dt><dd><p>steps, <a class="reference internal" href="grid.html#ember.grid.Grid.accumulate_avg" title="ember.grid.Grid.accumulate_avg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">accumulate_avg()</span></code></a> accumulates the conserved
 state into a running average, which
 <a class="reference internal" href="grid.html#ember.grid.Grid.finalise_average" title="ember.grid.Grid.finalise_average"><code class="xref py py-meth docutils literal notranslate"><span class="pre">finalise_average()</span></code></a> uses to replace the
-instantaneous state once the run completes.</p>
+instantaneous state once the run completes. With
+<a class="reference internal" href="#ember.solver.Solver.n_step_avg" title="ember.solver.Solver.n_step_avg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_step_avg</span></code></a> of 0 or 1 the whole stage is skipped and the
+final state stands as the solution.</p>
 </dd>
 </dl>
 </li>
@@ -423,7 +426,9 @@ enthalpy / entropy at row interfaces, and outlet throttle state
 state replaces the instantaneous state
 (<a class="reference internal" href="grid.html#ember.grid.Grid.finalise_average" title="ember.grid.Grid.finalise_average"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.finalise_average()</span></code></a>) – skipped if the run diverged, so
 the invalid field is preserved for inspection rather than overwritten by a
-partially-accumulated average.</p>
+partially-accumulated average, and skipped when <code class="docutils literal notranslate"><span class="pre">Solver.n_step_avg</span></code> is 0 or
+1, where the mean of one sample is the sample and no accumulator is
+allocated.</p>
 </section>
 <dl class="py class">
 <dt class="sig sig-object py" id="ember.solver.BaseSolver">
@@ -467,7 +472,10 @@ would otherwise be adjusted in place are made by building another one.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="ember.solver.Solver.n_step_avg">
 <span class="sig-name descname"><span class="pre">n_step_avg</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></span><a class="headerlink" href="#ember.solver.Solver.n_step_avg" title="Link to this definition">¶</a></dt>
-<dd><p>Number of steps to average over.</p>
+<dd><p>Number of steps at the end of the march to average the solution over.</p>
+<p><code class="docutils literal notranslate"><span class="pre">0</span></code> and <code class="docutils literal notranslate"><span class="pre">1</span></code> both mean no averaging: a one-sample mean is the sample,
+so the march skips the accumulator entirely and leaves the final state as
+the solution. Must not exceed <a class="reference internal" href="#ember.solver.Solver.n_step" title="ember.solver.Solver.n_step"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_step</span></code></a> — see <code class="xref py py-meth docutils literal notranslate"><span class="pre">__post_init__()</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -618,6 +626,19 @@ analogue).</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="ember.solver.mg_coarse_shapes">
+<span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">mg_coarse_shapes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ni</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nj</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nk</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_levels</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#mg_coarse_shapes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.mg_coarse_shapes" title="Link to this definition">¶</a></dt>
+<dd><p>Shapes of the hier2 kernels’ eleven scratch buffers, in MG_COARSE_NAMES order.</p>
+<p>Separated from the carve so a CALLER can fold these into the single
+<code class="docutils literal notranslate"><span class="pre">util.carve_view</span></code> that also carves its own buffers. That matters because
+the multigrid scratch and the caller’s increment buffer are live at the same
+time and now come from the same arena (<code class="docutils literal notranslate"><span class="pre">Block.scratch</span></code>): carving them
+together is what makes them provably disjoint rather than disjoint by
+convention. It is also what <code class="xref py py-func docutils literal notranslate"><span class="pre">ember.block._scratch_len()</span></code> sizes the arena
+from, so the sizing and the carve cannot disagree.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="ember.solver.advance_rk_stage_mg">
 <span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">advance_rk_stage_mg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfl</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_mgrid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_levels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expon_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf_irs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#advance_rk_stage_mg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.advance_rk_stage_mg" title="Link to this definition">¶</a></dt>
 <dd><p>One Jameson RK stage, optionally with Denton block-sum multigrid.</p>
@@ -667,20 +688,20 @@ reads the fine grid, coarser levels reduce the running accumulators
 cutting restriction reads from <code class="docutils literal notranslate"><span class="pre">n_levels</span> <span class="pre">x</span> <span class="pre">N</span></code> to ~``1.14 x N``. Prolongation
 is <strong>cascaded</strong>: the packed per-level corrections (<code class="docutils literal notranslate"><span class="pre">corr_all</span></code>) accumulate
 coarsest -&gt; finest through the <code class="docutils literal notranslate"><span class="pre">acc0</span></code>/<code class="docutils literal notranslate"><span class="pre">acc1</span></code> ping-pong, so only the final
-factor-2 hop writes the fine grid (fused with the fine term).
-<code class="docutils literal notranslate"><span class="pre">block.scratch</span></code> is borrowed as the cell-shaped increment workspace (nodal,
-free between kernel calls); the coarse timestep (<code class="docutils literal notranslate"><span class="pre">dtblk</span></code>), the restriction
-accumulators, <code class="docutils literal notranslate"><span class="pre">corr_all</span></code>/<code class="docutils literal notranslate"><span class="pre">acc0</span></code>/<code class="docutils literal notranslate"><span class="pre">acc1</span></code>, the separable-prolong scratch
-(<code class="docutils literal notranslate"><span class="pre">aplane</span></code>, <code class="docutils literal notranslate"><span class="pre">bb</span></code>) and the coarse-IRS buffers (<code class="docutils literal notranslate"><span class="pre">cres</span></code>, <code class="docutils literal notranslate"><span class="pre">triw</span></code>) are all
-carved from <code class="docutils literal notranslate"><span class="pre">block.tau_q_halo</span></code> at non-overlapping offsets – dead outside
-the viscous pass and a distinct buffer from <code class="docutils literal notranslate"><span class="pre">scratch</span></code>, so they survive
-alongside the increment within the call. The scatter reads the snapshot
-from <code class="docutils literal notranslate"><span class="pre">block.store</span></code> and writes
-<code class="docutils literal notranslate"><span class="pre">conserved_nd</span></code> directly (frozen pressure, bypasses the P/T cache).</p>
+factor-2 hop writes the fine grid (fused with the fine term).</p>
+<p>The coarse timestep (<code class="docutils literal notranslate"><span class="pre">dtblk</span></code>), the restriction accumulators,
+<code class="docutils literal notranslate"><span class="pre">corr_all</span></code>/<code class="docutils literal notranslate"><span class="pre">acc0</span></code>/<code class="docutils literal notranslate"><span class="pre">acc1</span></code>, the separable-prolong scratch (<code class="docutils literal notranslate"><span class="pre">aplane</span></code>,
+<code class="docutils literal notranslate"><span class="pre">bb</span></code>), the coarse-IRS buffers (<code class="docutils literal notranslate"><span class="pre">cres</span></code>, <code class="docutils literal notranslate"><span class="pre">triw</span></code>) and the rolling
+increment are all carved from <code class="docutils literal notranslate"><span class="pre">block.scratch</span></code> at non-overlapping offsets,
+in ONE <code class="docutils literal notranslate"><span class="pre">carve_view</span></code> – they reach the same kernel call, so carving them
+together is what makes them disjoint. The multigrid phase is what sizes the
+arena (<code class="xref py py-func docutils literal notranslate"><span class="pre">ember.block._scratch_len()</span></code>). The scatter reads the snapshot
+from <code class="docutils literal notranslate"><span class="pre">block.store</span></code> and writes <code class="docutils literal notranslate"><span class="pre">conserved_nd</span></code> directly (frozen pressure,
+bypasses the P/T cache).</p>
 <p><code class="docutils literal notranslate"><span class="pre">dtblk</span></code> is rebuilt inside the kernel on every call, so for RK it is
 recomputed once per stage even though <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> only changes once per step.
 That redundancy is deliberate: confining <code class="docutils literal notranslate"><span class="pre">dtblk</span></code>’s live range to a single
-kernel call is what makes it safe to borrow <code class="docutils literal notranslate"><span class="pre">tau_q_halo</span></code>, which
+kernel call is what makes it safe to borrow the arena, which
 <a class="reference internal" href="grid.html#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_residual()</span></code></a> clobbers between stages. The
 pre-pass costs under 1.15 fine-cell passes of two multiply-adds per level,
 against a full residual evaluation already paid every stage.</p>
@@ -700,7 +721,7 @@ passed to it, so the choice is a Python-side branch
 with no <code class="docutils literal notranslate"><span class="pre">sf_irs</span></code> test inside the engine (the fine term is never smoothed
 here – it already carries the fine residual the caller smoothed). The
 per-level scratch it needs (<code class="docutils literal notranslate"><span class="pre">cres</span></code>, <code class="docutils literal notranslate"><span class="pre">triw</span></code>) is carved from
-<code class="docutils literal notranslate"><span class="pre">block.tau_q_halo</span></code> – caller-owned, no per-call allocation.</p>
+<code class="docutils literal notranslate"><span class="pre">block.scratch</span></code> – caller-owned, no per-call allocation.</p>
 <p>Assumes <code class="docutils literal notranslate"><span class="pre">block.dt_vol_nd</span></code> and <code class="docutils literal notranslate"><span class="pre">block.residual_nd</span></code> are populated and the
 caller refreshes P/T, boundary conditions and the residual between stages.</p>
 <p><code class="docutils literal notranslate"><span class="pre">fac_mgrid</span> <span class="pre">==</span> <span class="pre">0</span></code> scales every coarse correction to identically zero, so it

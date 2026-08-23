@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.solver &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
+    <title>ember.solver &#8212; ember 0.2.1.dev67+g4d9c2eac2 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=fd19fe6e"></script>
+    <script src="../../_static/documentation_options.js?v=db67b7ea"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
+<p class="blurb">Version 0.2.1.dev67+g4d9c2eac2</p>
 
 
 
@@ -203,7 +203,9 @@
 <span class="sd">    steps, :meth:`~ember.grid.Grid.accumulate_avg` accumulates the conserved</span>
 <span class="sd">    state into a running average, which</span>
 <span class="sd">    :meth:`~ember.grid.Grid.finalise_average` uses to replace the</span>
-<span class="sd">    instantaneous state once the run completes.</span>
+<span class="sd">    instantaneous state once the run completes. With</span>
+<span class="sd">    :attr:`~Solver.n_step_avg` of 0 or 1 the whole stage is skipped and the</span>
+<span class="sd">    final state stands as the solution.</span>
 
 <span class="sd">.. _march-schemes:</span>
 
@@ -414,7 +416,9 @@
 <span class="sd">state replaces the instantaneous state</span>
 <span class="sd">(:meth:`ember.grid.Grid.finalise_average`) -- skipped if the run diverged, so</span>
 <span class="sd">the invalid field is preserved for inspection rather than overwritten by a</span>
-<span class="sd">partially-accumulated average.</span>
+<span class="sd">partially-accumulated average, and skipped when ``Solver.n_step_avg`` is 0 or</span>
+<span class="sd">1, where the mean of one sample is the sample and no accumulator is</span>
+<span class="sd">allocated.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
@@ -427,6 +431,25 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">ember.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">DivergenceError</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_log_rss</span><span class="p">(</span><span class="n">what</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Debug-log process RSS and its high-water mark at a labelled point.</span>
+
+<span class="sd">    ``what`` is a printf-style label, formatted with ``args`` only when debug</span>
+<span class="sd">    logging is on. The high-water mark comes from the kernel (``VmHWM``), so it</span>
+<span class="sd">    catches transient allocations that came and went between two probes --</span>
+<span class="sd">    which is the whole point of scattering these through the march.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">logger</span><span class="o">.</span><span class="n">isEnabledFor</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="n">rss</span><span class="p">,</span> <span class="n">peak</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">rss_bytes</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="s2">&quot;rss: </span><span class="si">%s</span><span class="s2"> -- </span><span class="si">%.1f</span><span class="s2"> MB resident, </span><span class="si">%.1f</span><span class="s2"> MB peak&quot;</span><span class="p">,</span>
+        <span class="n">what</span> <span class="o">%</span> <span class="n">args</span> <span class="k">if</span> <span class="n">args</span> <span class="k">else</span> <span class="n">what</span><span class="p">,</span>
+        <span class="n">rss</span> <span class="o">/</span> <span class="mi">1024</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span>
+        <span class="n">peak</span> <span class="o">/</span> <span class="mi">1024</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span>
+    <span class="p">)</span>
 
 
 <div class="viewcode-block" id="BaseSolver">
@@ -473,7 +496,12 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of steps between convergence log messages.&quot;&quot;&quot;</span>
 
     <span class="n">n_step_avg</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of steps to average over.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of steps at the end of the march to average the solution over.</span>
+
+<span class="sd">    ``0`` and ``1`` both mean no averaging: a one-sample mean is the sample,</span>
+<span class="sd">    so the march skips the accumulator entirely and leaves the final state as</span>
+<span class="sd">    the solution. Must not exceed :attr:`n_step` --- see :meth:`__post_init__`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">cfl</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Constant CFL number for the march&quot;&quot;&quot;</span>
@@ -547,6 +575,29 @@
 <span class="sd">    As :attr:`rf_inlet`, the default is imposed and None leaves each plane&#39;s own</span>
 <span class="sd">    value alone.&quot;&quot;&quot;</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reject averaging windows the march cannot honour.</span>
+
+<span class="sd">        :attr:`n_step_avg` counts the steps at the end of the march that</span>
+<span class="sd">        :meth:`~ember.grid.Grid.accumulate_avg` sums into the pseudotime</span>
+<span class="sd">        average, dividing each sample by it. A negative window has no meaning.</span>
+<span class="sd">        One longer than the march is worse than meaningless: the loop can only</span>
+<span class="sd">        add ``n_step`` samples but the accumulator still divides by</span>
+<span class="sd">        ``n_step_avg``, so the solution comes back scaled by</span>
+<span class="sd">        ``n_step / n_step_avg`` --- silently, because a scaled field is every</span>
+<span class="sd">        bit as finite as the real one and neither the divergence check nor the</span>
+<span class="sd">        convergence history has any way to notice. Caught at construction</span>
+<span class="sd">        rather than after a march has been paid for.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;n_step_avg must be &gt;= 0, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;n_step_avg=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span><span class="si">}</span><span class="s2"> exceeds n_step=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_step</span><span class="si">}</span><span class="s2">: the &quot;</span>
+                <span class="s2">&quot;march cannot accumulate more samples than it takes steps, so the &quot;</span>
+                <span class="s2">&quot;averaged solution would come back scaled by n_step/n_step_avg.&quot;</span>
+            <span class="p">)</span>
+
 <div class="viewcode-block" id="Solver.run">
 <a class="viewcode-back" href="../../api/solver.html#ember.solver.Solver.run">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
@@ -588,17 +639,16 @@
     <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">:</span>
         <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
         <span class="n">cell_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
-        <span class="c1"># Borrow the nodal scratch (shape (ni,nj,nk,5)) as the cell-shaped</span>
-        <span class="c1"># increment buffer -- a zero-copy view. block.store is likewise sized to</span>
-        <span class="c1"># the nodal shape (shared with the RK path) but the Denton residual</span>
-        <span class="c1"># history is cell-shaped, so carve a leading cell-shaped view of it too.</span>
-        <span class="n">tmp</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="n">cell_shape</span><span class="p">)</span>
+        <span class="c1"># block.store is sized to the nodal shape (shared with the RK path) but</span>
+        <span class="c1"># the Denton residual history is cell-shaped, so carve a leading</span>
+        <span class="c1"># cell-shaped view of it. It is a separate, persistent buffer from the</span>
+        <span class="c1"># arena and so is carved on its own.</span>
         <span class="n">store_cell</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">store</span><span class="p">,</span> <span class="n">cell_shape</span><span class="p">)</span>
         <span class="c1"># residual_nd is read here (a cache hit from the loop&#39;s get_convergence, or</span>
         <span class="c1"># a fresh evaluation) BEFORE the kernel runs. Evaluating residual_nd</span>
-        <span class="c1"># borrows block.scratch (IRS work) and tau_q_halo (rolling flow</span>
-        <span class="c1"># buffers), both reused as scratch by the kernels below, so it must be</span>
-        <span class="c1"># fully materialised first -- passing it as an argument guarantees</span>
+        <span class="c1"># borrows block.scratch for both the IRS work vector and the rolling</span>
+        <span class="c1"># flow buffers, and the kernels below reuse the same arena, so it must</span>
+        <span class="c1"># be fully materialised first -- passing it as an argument guarantees</span>
         <span class="c1"># that ordering.</span>
         <span class="k">if</span> <span class="n">n_levels_eff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="c1"># Denton block-sum multigrid over the scheme-agnostic engine</span>
@@ -611,13 +661,26 @@
             <span class="c1"># coef_l = cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1) (advance_rk_stage_mg&#39;s</span>
             <span class="c1"># formula at alpha=1, since scree takes one full-weight step), with</span>
             <span class="c1"># the coarse timestep the volume-weighted mean of dt_vol over the</span>
-            <span class="c1"># block. sf_irs &gt; 0 selects the coarse-IRS kernel; sf_irs == 0 selects</span>
+            <span class="c1"># block. The wrapper&#39;s final factor-2 hop is fused with the</span>
+            <span class="c1"># cell-&gt;node scatter, so like the RK path it takes a rolling</span>
+            <span class="c1"># two-plane buffer rather than a full-volume increment. ONE carve</span>
+            <span class="c1"># for everything the kernel gets from the arena: rbuf and the</span>
+            <span class="c1"># multigrid scratch are live in the same call, so carving them</span>
+            <span class="c1"># together is what makes them disjoint -- util.carve_view packs the</span>
+            <span class="c1"># shapes end to end and guarantees it.</span>
+            <span class="c1"># sf_irs &gt; 0 selects the coarse-IRS kernel; sf_irs == 0 selects</span>
             <span class="c1"># the plain _noirs kernel, which enters no smoothing code at all (no</span>
             <span class="c1"># Fortran-side IRS branch -- the two share the engine and differ only</span>
             <span class="c1"># in the smoother passed). The fine term is not smoothed here: it</span>
             <span class="c1"># already carries the residual the caller&#39;s update_residual smoothed.</span>
-            <span class="c1"># Coarse scratch is carved from tau_q_halo, dead outside the viscous</span>
+            <span class="c1"># Coarse scratch is carved from the arena, dead outside the viscous</span>
             <span class="c1"># pass (already completed and consumed before this call).</span>
+            <span class="n">rbuf</span><span class="p">,</span> <span class="o">*</span><span class="n">mg_bufs</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
+                <span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+                <span class="o">*</span><span class="n">mg_coarse_shapes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels_eff</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="n">mg_scratch</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">MG_COARSE_NAMES</span><span class="p">,</span> <span class="n">mg_bufs</span><span class="p">))</span>
             <span class="n">kernel</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">scree_mg_irs</span>
                 <span class="k">if</span> <span class="n">sf_irs</span> <span class="o">&gt;</span> <span class="mf">0.0</span>
@@ -634,15 +697,17 @@
                 <span class="n">expon_mgrid</span><span class="o">=</span><span class="n">expon_mgrid</span><span class="p">,</span>
                 <span class="n">sf_irs</span><span class="o">=</span><span class="n">sf_irs</span><span class="p">,</span>
                 <span class="n">n_levels</span><span class="o">=</span><span class="n">n_levels_eff</span><span class="p">,</span>
-                <span class="n">tmp</span><span class="o">=</span><span class="n">tmp</span><span class="p">,</span>
-                <span class="o">**</span><span class="n">_mg_coarse_carve</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels_eff</span><span class="p">),</span>
+                <span class="n">rbuf</span><span class="o">=</span><span class="n">rbuf</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">mg_scratch</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Multigrid off: fine term only, no coarse scratch. Forms</span>
             <span class="c1"># q = 2*residual - store in store, builds the increment cfl*dt_vol*q,</span>
             <span class="c1"># rolls the history (store &lt;- residual) and frozen-scatters the</span>
             <span class="c1"># increment straight onto cons -- bypassing the setters so the P/T</span>
-            <span class="c1"># cache stays frozen. Untouched by fac_mgrid/n_levels.</span>
+            <span class="c1"># cache stays frozen. Untouched by fac_mgrid/n_levels. This path</span>
+            <span class="c1"># still materialises the full-volume increment, as rk_plain does.</span>
+            <span class="n">tmp</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="n">cell_shape</span><span class="p">)</span>
             <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">scree_plain</span><span class="p">(</span>
                 <span class="n">cons</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
                 <span class="n">residual</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">residual_nd</span><span class="p">,</span>
@@ -662,7 +727,7 @@
 <span class="sd">    the sum of per-level element counts. ``cres``/``triw`` are reused per level</span>
 <span class="sd">    rather than packed, so they only need the largest (level-1) slice: ``n_res``</span>
 <span class="sd">    is that coarse residual size and ``n_tri`` its IRS Thomas-coefficient size.</span>
-<span class="sd">    All three are carved once per call from ``block.tau_q_halo``, never</span>
+<span class="sd">    All three are carved once per call from ``block.scratch``, never</span>
 <span class="sd">    reallocated -- see :func:`advance_rk_stage_mg` and :func:`scree_step`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">n_corr</span> <span class="o">=</span> <span class="mi">0</span>
@@ -675,44 +740,44 @@
     <span class="k">return</span> <span class="n">n_corr</span><span class="p">,</span> <span class="n">n_res</span><span class="p">,</span> <span class="n">n_tri</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_mg_coarse_carve</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels_eff</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Carve the hier2 kernels&#39; scratch from ``block.tau_q_halo`` (dead outside</span>
-<span class="sd">    the viscous pass, which has completed and been consumed before this call, so</span>
-<span class="sd">    it is free private memory here). Returns the argument dict shared by both the</span>
-<span class="sd">    RK and scree fused kernels.</span>
+<span class="c1"># The hier2 kernels&#39; scratch arguments, in the order _mg_coarse_shapes returns</span>
+<span class="c1"># their shapes. Kept together so the two cannot drift apart.</span>
+<span class="n">MG_COARSE_NAMES</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;aplane&quot;</span><span class="p">,</span> <span class="s2">&quot;bb&quot;</span><span class="p">,</span> <span class="s2">&quot;dtblk&quot;</span><span class="p">,</span> <span class="s2">&quot;rawbuf&quot;</span><span class="p">,</span> <span class="s2">&quot;sdt&quot;</span><span class="p">,</span> <span class="s2">&quot;sv&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;corr_all&quot;</span><span class="p">,</span> <span class="s2">&quot;acc0&quot;</span><span class="p">,</span> <span class="s2">&quot;acc1&quot;</span><span class="p">,</span> <span class="s2">&quot;cres&quot;</span><span class="p">,</span> <span class="s2">&quot;triw&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="mg_coarse_shapes">
+<a class="viewcode-back" href="../../api/solver.html#ember.solver.mg_coarse_shapes">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">mg_coarse_shapes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Shapes of the hier2 kernels&#39; eleven scratch buffers, in MG_COARSE_NAMES order.</span>
+
+<span class="sd">    Separated from the carve so a CALLER can fold these into the single</span>
+<span class="sd">    ``util.carve_view`` that also carves its own buffers. That matters because</span>
+<span class="sd">    the multigrid scratch and the caller&#39;s increment buffer are live at the same</span>
+<span class="sd">    time and now come from the same arena (``Block.scratch``): carving them</span>
+<span class="sd">    together is what makes them provably disjoint rather than disjoint by</span>
+<span class="sd">    convention. It is also what :func:`ember.block._scratch_len` sizes the arena</span>
+<span class="sd">    from, so the sizing and the carve cannot disagree.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">nc1i</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">,</span> <span class="n">nc1k</span> <span class="o">=</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="p">(</span><span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="p">(</span><span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
-    <span class="n">n_corr</span><span class="p">,</span> <span class="n">n_res</span><span class="p">,</span> <span class="n">n_tri</span> <span class="o">=</span> <span class="n">_mg_coarse_scratch_sizes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels_eff</span><span class="p">)</span>
+    <span class="n">n_corr</span><span class="p">,</span> <span class="n">n_res</span><span class="p">,</span> <span class="n">n_tri</span> <span class="o">=</span> <span class="n">_mg_coarse_scratch_sizes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels</span><span class="p">)</span>
     <span class="n">acc_sz</span> <span class="o">=</span> <span class="n">nc1i</span> <span class="o">*</span> <span class="n">nc1j</span> <span class="o">*</span> <span class="n">nc1k</span> <span class="o">*</span> <span class="mi">5</span>
-    <span class="n">aplane</span><span class="p">,</span> <span class="n">bb</span><span class="p">,</span> <span class="n">dtblk</span><span class="p">,</span> <span class="n">rawbuf</span><span class="p">,</span> <span class="n">sdt</span><span class="p">,</span> <span class="n">sv</span><span class="p">,</span> <span class="n">corr_all</span><span class="p">,</span> <span class="n">acc0</span><span class="p">,</span> <span class="n">acc1</span><span class="p">,</span> <span class="n">cres</span><span class="p">,</span> <span class="n">triw</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
-            <span class="n">block</span><span class="o">.</span><span class="n">tau_q_halo</span><span class="p">,</span>
-            <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">nc1i</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">nc1i</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">nc1i</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">nc1i</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">n_corr</span><span class="p">,),</span>
-            <span class="p">(</span><span class="n">acc_sz</span><span class="p">,),</span>
-            <span class="p">(</span><span class="n">acc_sz</span><span class="p">,),</span>
-            <span class="p">(</span><span class="n">n_res</span><span class="p">,),</span>
-            <span class="p">(</span><span class="n">n_tri</span><span class="p">,),</span>
-        <span class="p">)</span>
-    <span class="p">)</span>
-    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span>
-        <span class="n">dtblk</span><span class="o">=</span><span class="n">dtblk</span><span class="p">,</span>
-        <span class="n">aplane</span><span class="o">=</span><span class="n">aplane</span><span class="p">,</span>
-        <span class="n">bb</span><span class="o">=</span><span class="n">bb</span><span class="p">,</span>
-        <span class="n">rawbuf</span><span class="o">=</span><span class="n">rawbuf</span><span class="p">,</span>
-        <span class="n">sdt</span><span class="o">=</span><span class="n">sdt</span><span class="p">,</span>
-        <span class="n">sv</span><span class="o">=</span><span class="n">sv</span><span class="p">,</span>
-        <span class="n">corr_all</span><span class="o">=</span><span class="n">corr_all</span><span class="p">,</span>
-        <span class="n">acc0</span><span class="o">=</span><span class="n">acc0</span><span class="p">,</span>
-        <span class="n">acc1</span><span class="o">=</span><span class="n">acc1</span><span class="p">,</span>
-        <span class="n">cres</span><span class="o">=</span><span class="n">cres</span><span class="p">,</span>
-        <span class="n">triw</span><span class="o">=</span><span class="n">triw</span><span class="p">,</span>
-    <span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">nc1i</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">nc1i</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">nc1i</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">nc1i</span><span class="p">,</span> <span class="n">nc1j</span><span class="p">,</span> <span class="n">nc1k</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">n_corr</span><span class="p">,),</span>
+        <span class="p">(</span><span class="n">acc_sz</span><span class="p">,),</span>
+        <span class="p">(</span><span class="n">acc_sz</span><span class="p">,),</span>
+        <span class="p">(</span><span class="n">n_res</span><span class="p">,),</span>
+        <span class="p">(</span><span class="n">n_tri</span><span class="p">,),</span>
+    <span class="p">)</span></div>
+
 
 
 <div class="viewcode-block" id="advance_rk_stage_mg">
@@ -771,20 +836,21 @@
 <span class="sd">    is **cascaded**: the packed per-level corrections (``corr_all``) accumulate</span>
 <span class="sd">    coarsest -&gt; finest through the ``acc0``/``acc1`` ping-pong, so only the final</span>
 <span class="sd">    factor-2 hop writes the fine grid (fused with the fine term).</span>
-<span class="sd">    ``block.scratch`` is borrowed as the cell-shaped increment workspace (nodal,</span>
-<span class="sd">    free between kernel calls); the coarse timestep (``dtblk``), the restriction</span>
-<span class="sd">    accumulators, ``corr_all``/``acc0``/``acc1``, the separable-prolong scratch</span>
-<span class="sd">    (``aplane``, ``bb``) and the coarse-IRS buffers (``cres``, ``triw``) are all</span>
-<span class="sd">    carved from ``block.tau_q_halo`` at non-overlapping offsets -- dead outside</span>
-<span class="sd">    the viscous pass and a distinct buffer from ``scratch``, so they survive</span>
-<span class="sd">    alongside the increment within the call. The scatter reads the snapshot</span>
-<span class="sd">    from ``block.store`` and writes</span>
-<span class="sd">    ``conserved_nd`` directly (frozen pressure, bypasses the P/T cache).</span>
+
+<span class="sd">    The coarse timestep (``dtblk``), the restriction accumulators,</span>
+<span class="sd">    ``corr_all``/``acc0``/``acc1``, the separable-prolong scratch (``aplane``,</span>
+<span class="sd">    ``bb``), the coarse-IRS buffers (``cres``, ``triw``) and the rolling</span>
+<span class="sd">    increment are all carved from ``block.scratch`` at non-overlapping offsets,</span>
+<span class="sd">    in ONE ``carve_view`` -- they reach the same kernel call, so carving them</span>
+<span class="sd">    together is what makes them disjoint. The multigrid phase is what sizes the</span>
+<span class="sd">    arena (:func:`ember.block._scratch_len`). The scatter reads the snapshot</span>
+<span class="sd">    from ``block.store`` and writes ``conserved_nd`` directly (frozen pressure,</span>
+<span class="sd">    bypasses the P/T cache).</span>
 
 <span class="sd">    ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is</span>
 <span class="sd">    recomputed once per stage even though ``dt_vol`` only changes once per step.</span>
 <span class="sd">    That redundancy is deliberate: confining ``dtblk``&#39;s live range to a single</span>
-<span class="sd">    kernel call is what makes it safe to borrow ``tau_q_halo``, which</span>
+<span class="sd">    kernel call is what makes it safe to borrow the arena, which</span>
 <span class="sd">    :meth:`~ember.grid.Grid.update_residual` clobbers between stages. The</span>
 <span class="sd">    pre-pass costs under 1.15 fine-cell passes of two multiply-adds per level,</span>
 <span class="sd">    against a full residual evaluation already paid every stage.</span>
@@ -806,7 +872,7 @@
 <span class="sd">    with no ``sf_irs`` test inside the engine (the fine term is never smoothed</span>
 <span class="sd">    here -- it already carries the fine residual the caller smoothed). The</span>
 <span class="sd">    per-level scratch it needs (``cres``, ``triw``) is carved from</span>
-<span class="sd">    ``block.tau_q_halo`` -- caller-owned, no per-call allocation.</span>
+<span class="sd">    ``block.scratch`` -- caller-owned, no per-call allocation.</span>
 
 <span class="sd">    Assumes ``block.dt_vol_nd`` and ``block.residual_nd`` are populated and the</span>
 <span class="sd">    caller refreshes P/T, boundary conditions and the residual between stages.</span>
@@ -826,11 +892,18 @@
             <span class="c1"># otherwise the plain _noirs kernel, which enters no smoothing code</span>
             <span class="c1"># (the two share the engine and differ only in the smoother passed --</span>
             <span class="c1"># no Fortran-side IRS branch). Coarse scratch is carved from</span>
-            <span class="c1"># tau_q_halo, dead outside the viscous pass. The engine leaves the</span>
+            <span class="c1"># the arena, dead outside the viscous pass. The engine leaves the</span>
             <span class="c1"># coarse correction in acc0; the wrapper&#39;s final factor-2 hop is</span>
             <span class="c1"># fused with the cell-&gt;node scatter, so instead of a full-volume</span>
             <span class="c1"># increment it takes a rolling two-plane buffer carved from scratch.</span>
-            <span class="n">rbuf</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+            <span class="c1"># One carve, same reason as scree_step above: rbuf and the</span>
+            <span class="c1"># multigrid scratch reach the same kernel call.</span>
+            <span class="n">rbuf</span><span class="p">,</span> <span class="o">*</span><span class="n">mg_bufs</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
+                <span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+                <span class="o">*</span><span class="n">mg_coarse_shapes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">n_levels_eff</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span>
+            <span class="p">)</span>
+            <span class="n">mg_scratch</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">MG_COARSE_NAMES</span><span class="p">,</span> <span class="n">mg_bufs</span><span class="p">))</span>
             <span class="n">kernel</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">rk_mg_irs</span> <span class="k">if</span> <span class="n">sf_irs</span> <span class="o">&gt;</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">rk_mg_noirs</span>
             <span class="p">)</span>
@@ -847,7 +920,7 @@
                 <span class="n">sf_irs</span><span class="o">=</span><span class="n">sf_irs</span><span class="p">,</span>
                 <span class="n">n_levels</span><span class="o">=</span><span class="n">n_levels_eff</span><span class="p">,</span>
                 <span class="n">rbuf</span><span class="o">=</span><span class="n">rbuf</span><span class="p">,</span>
-                <span class="o">**</span><span class="n">_mg_coarse_carve</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels_eff</span><span class="p">),</span>
+                <span class="o">**</span><span class="n">mg_scratch</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Multigrid off: plain Jameson RK fine-term stage, no coarse scratch.</span>
@@ -946,9 +1019,23 @@
 <span class="sd">    multiple of the coarsest block size. Since the sizes are powers of two,</span>
 <span class="sd">    divisibility by the coarsest implies it for every finer level, so one check</span>
 <span class="sd">    per dimension suffices. No-op when ``n_levels &lt;= 0``.</span>
+
+<span class="sd">    Also caps ``n_levels`` at :data:`ember.block.MAX_MG_LEVELS`, because the</span>
+<span class="sd">    shared scratch arena is sized for that depth and a deeper hierarchy would</span>
+<span class="sd">    carve past its end. Checked here rather than at allocation so a bad</span>
+<span class="sd">    configuration is refused before marching, alongside the divisibility rule</span>
+<span class="sd">    it belongs with.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">n_levels</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span>
+    <span class="k">if</span> <span class="n">n_levels</span> <span class="o">&gt;</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">MAX_MG_LEVELS</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;multigrid n_levels=</span><span class="si">{</span><span class="n">n_levels</span><span class="si">}</span><span class="s2"> exceeds the maximum &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">MAX_MG_LEVELS</span><span class="si">}</span><span class="s2">. Block.scratch is one arena sized for &quot;</span>
+            <span class="s2">&quot;that many levels (ember.block._scratch_len), so a deeper hierarchy &quot;</span>
+            <span class="s2">&quot;would carve past the end of it. Raise MAX_MG_LEVELS if you need &quot;</span>
+            <span class="s2">&quot;one, and the arena grows to match.&quot;</span>
+        <span class="p">)</span>
     <span class="n">b_coarse</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="n">n_levels</span>
     <span class="k">for</span> <span class="n">i_block</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
         <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
@@ -1023,6 +1110,9 @@
     <span class="n">n_log</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="o">-</span><span class="n">conf</span><span class="o">.</span><span class="n">n_step</span> <span class="o">//</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_step_log</span><span class="p">)</span>
     <span class="n">hist</span> <span class="o">=</span> <span class="n">ConvergenceHistory</span><span class="o">.</span><span class="n">from_grid</span><span class="p">(</span><span class="n">n_log</span><span class="p">,</span> <span class="n">grid</span><span class="p">)</span>
 
+    <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;march start, n_levels=</span><span class="si">%d</span><span class="s2">, shape(s) </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_levels</span><span class="p">,</span>
+             <span class="p">[</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">])</span>
+
     <span class="k">for</span> <span class="n">i_step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">n_step</span><span class="p">):</span>
         <span class="c1">#</span>
         <span class="c1"># We overwrote conserved_nd in place last step</span>
@@ -1050,10 +1140,12 @@
         <span class="k">if</span> <span class="n">i_step</span> <span class="o">%</span> <span class="n">n_step_source</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="c1"># grid.update_filter(conf.delta_filt)</span>
             <span class="n">grid</span><span class="o">.</span><span class="n">update_sources</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">inviscid</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">gain_filt</span><span class="p">)</span>
+            <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;step </span><span class="si">%d</span><span class="s2"> after update_sources&quot;</span><span class="p">,</span> <span class="n">i_step</span><span class="p">)</span>
         <span class="n">grid</span><span class="o">.</span><span class="n">update_timestep</span><span class="p">(</span><span class="n">rf</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">fac_visc</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">fac_visc</span><span class="p">)</span>
 
         <span class="c1"># Prepare the residual</span>
         <span class="n">grid</span><span class="o">.</span><span class="n">update_residual</span><span class="p">(</span><span class="n">dampin</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">dampin</span><span class="p">,</span> <span class="n">sf</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">sf_resid</span><span class="p">)</span>
+        <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;step </span><span class="si">%d</span><span class="s2"> after update_residual&quot;</span><span class="p">,</span> <span class="n">i_step</span><span class="p">)</span>
 
         <span class="c1"># Convergence logging of the pre-march state</span>
         <span class="k">if</span> <span class="n">i_step</span> <span class="o">%</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_step_log</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -1062,6 +1154,7 @@
                 <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
                 <span class="n">hist</span><span class="o">.</span><span class="n">format_message</span><span class="p">(</span><span class="n">n_step</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">n_step</span><span class="p">),</span>
             <span class="p">)</span>
+            <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;step </span><span class="si">%d</span><span class="s2"> after get_convergence&quot;</span><span class="p">,</span> <span class="n">i_step</span><span class="p">)</span>
 
         <span class="c1"># Take a step with the selected integrator.  Both reuse the first</span>
         <span class="c1"># residual evaluated above, RK then recalculates each substep</span>
@@ -1077,18 +1170,42 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">rk_step</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">conf</span><span class="p">)</span>
 
+        <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;step </span><span class="si">%d</span><span class="s2"> after integrator&quot;</span><span class="p">,</span> <span class="n">i_step</span><span class="p">)</span>
+
         <span class="c1"># Smooth the post-step conserved solution</span>
         <span class="n">grid</span><span class="o">.</span><span class="n">smooth</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">sf4</span> <span class="o">*</span> <span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">sf2</span> <span class="o">*</span> <span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">)</span>
+        <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;step </span><span class="si">%d</span><span class="s2"> after smooth&quot;</span><span class="p">,</span> <span class="n">i_step</span><span class="p">)</span>
 
-        <span class="c1"># Pseudotime avearge over last n_step_avg steps</span>
-        <span class="k">if</span> <span class="n">i_step</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">n_step</span> <span class="o">-</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_step_avg</span><span class="p">):</span>
+        <span class="c1"># Pseudotime average over the last n_step_avg steps. A window of 0 or</span>
+        <span class="c1"># 1 needs no accumulator: the mean of one sample is that sample, which</span>
+        <span class="c1"># conserved_nd already holds. Skipping it keeps Block.conserved_avg_nd</span>
+        <span class="c1"># -- a full nodal five-component buffer, 19.3 MB at a 1M-cell block --</span>
+        <span class="c1"># from ever being allocated.</span>
+        <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_step_avg</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">i_step</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">n_step</span> <span class="o">-</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_step_avg</span><span class="p">):</span>
             <span class="n">grid</span><span class="o">.</span><span class="n">accumulate_avg</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">n_step_avg</span><span class="p">)</span>
 
-    <span class="c1"># Copy the final average back in the primary storage. Skipped on divergence:</span>
-    <span class="c1"># the loop broke before accumulate_avg ran, so this would overwrite the</span>
-    <span class="c1"># invalid conserved_nd with a zeroed average buffer and destroy the evidence.</span>
+    <span class="c1"># Copy the final average back into the primary storage. Skipped on</span>
+    <span class="c1"># divergence: the loop broke before accumulate_avg ran, so this would</span>
+    <span class="c1"># overwrite the invalid conserved_nd with a zeroed average buffer and</span>
+    <span class="c1"># destroy the evidence. Skipped too when no averaging was asked for, where</span>
+    <span class="c1"># the accumulator was never touched and copying it back would write zeros</span>
+    <span class="c1"># over a perfectly good solution.</span>
+    <span class="c1">#</span>
+    <span class="c1"># The cache invalidation is NOT optional on that path. The integrators and</span>
+    <span class="c1"># smooth write conserved_nd through the frozen-pressure path, which does</span>
+    <span class="c1"># not bump the conserved versions, so the last cached P/T can still be</span>
+    <span class="c1"># marked current while the field underneath has moved on. finalise_average</span>
+    <span class="c1"># ends in update_cached_conserved and was covering for that; gating it out</span>
+    <span class="c1"># without this leaves a scree march handing back a stale P (the RK path</span>
+    <span class="c1"># only escapes because its per-stage apply_bconds bumps the versions</span>
+    <span class="c1"># anyway, which is luck, not a contract).</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">hist</span><span class="o">.</span><span class="n">diverged</span><span class="p">:</span>
-        <span class="n">grid</span><span class="o">.</span><span class="n">finalise_average</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_step_avg</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">grid</span><span class="o">.</span><span class="n">finalise_average</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">grid</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span>
+
+    <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;march end, n_levels=</span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_levels</span><span class="p">)</span>
 
     <span class="c1"># A completed march logs on every one of the ceil(n_step / n_step_log) rows</span>
     <span class="c1"># that from_grid allocated, so this only bites when the loop broke early:</span>
@@ -1139,15 +1256,21 @@
 
     <span class="c1"># Build finest -&gt; coarsest, then reverse. resample carries the already-set</span>
     <span class="c1"># fine guess down, so the coarsest starts from the coarsened cold start.</span>
+    <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;fmg: before building the coarse chain&quot;</span><span class="p">)</span>
     <span class="n">chain</span> <span class="o">=</span> <span class="p">[</span><span class="n">grid</span><span class="p">]</span>
     <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">n_levels</span><span class="p">):</span>
         <span class="n">chain</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">chain</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">resample</span><span class="p">(</span><span class="mf">0.5</span><span class="p">))</span>
+        <span class="n">_log_rss</span><span class="p">(</span>
+            <span class="s2">&quot;fmg: resampled level with shape(s) </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="p">[</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">chain</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span>
+        <span class="p">)</span>
     <span class="n">chain</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>  <span class="c1"># chain[-1] is the original `grid`</span>
 
     <span class="n">histories</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">level_grid</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">chain</span><span class="p">):</span>  <span class="c1"># i == in-step MG depth for this mesh</span>
         <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">level_grid</span><span class="o">.</span><span class="n">interp_from_grid</span><span class="p">(</span><span class="n">chain</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>  <span class="c1"># prolong previous solution</span>
+            <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;fmg: interpolated onto level </span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
             <span class="s2">&quot;FMG level </span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">, shape(s) </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
             <span class="n">i</span><span class="p">,</span>
@@ -1155,6 +1278,7 @@
             <span class="p">[</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">level_grid</span><span class="p">],</span>
         <span class="p">)</span>
         <span class="n">histories</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_run</span><span class="p">(</span><span class="n">level_grid</span><span class="p">,</span> <span class="n">replace</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">n_levels</span><span class="o">=</span><span class="n">i</span><span class="p">)))</span>
+        <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;fmg: finished level </span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">histories</span>
 </pre></div>
 

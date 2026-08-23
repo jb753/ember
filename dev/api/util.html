@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Array utilities &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
+    <title>Array utilities &#8212; ember 0.2.1.dev67+g4d9c2eac2 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=fd19fe6e"></script>
+    <script src="../_static/documentation_options.js?v=db67b7ea"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
+<p class="blurb">Version 0.2.1.dev67+g4d9c2eac2</p>
 
 
 
@@ -139,6 +139,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#ember.util.allocate_or_reuse"><code class="docutils literal notranslate"><span class="pre">util.allocate_or_reuse()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.util.bcast_if_needed"><code class="docutils literal notranslate"><span class="pre">util.bcast_if_needed()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.util.carve_view"><code class="docutils literal notranslate"><span class="pre">util.carve_view()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.rss_bytes"><code class="docutils literal notranslate"><span class="pre">util.rss_bytes()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.util.meshgrid3"><code class="docutils literal notranslate"><span class="pre">util.meshgrid3()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.util.linmesh3"><code class="docutils literal notranslate"><span class="pre">util.linmesh3()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.util.pol_to_pseudocart"><code class="docutils literal notranslate"><span class="pre">util.pol_to_pseudocart()</span></code></a></li>
@@ -303,6 +304,9 @@ management: allocation, or buffer creation and reuse.</p>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.carve_view" title="ember.util.carve_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">carve_view</span></code></a>(buf, *shapes)</p></td>
 <td><p>Carve one or more zero-copy Fortran-order views from a buffer of any shape.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.rss_bytes" title="ember.util.rss_bytes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rss_bytes</span></code></a>()</p></td>
+<td><p>Resident and peak-resident memory of this process, in bytes.</p></td>
 </tr>
 </tbody>
 </table>
@@ -608,6 +612,25 @@ aliasing a disjoint span of <cite>buf</cite>.</p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the packed views would not fit within <cite>buf</cite>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.rss_bytes">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">rss_bytes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#rss_bytes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.rss_bytes" title="Link to this definition">¶</a></dt>
+<dd><p>Resident and peak-resident memory of this process, in bytes.</p>
+<p>Reads <code class="docutils literal notranslate"><span class="pre">VmRSS</span></code>/<code class="docutils literal notranslate"><span class="pre">VmHWM</span></code> from <code class="docutils literal notranslate"><span class="pre">/proc/self/status</span></code>, so the peak is the
+kernel’s own high-water mark: it covers transients that came and went
+between two calls, which sampling <code class="docutils literal notranslate"><span class="pre">VmRSS</span></code> alone would miss. Where
+<code class="docutils literal notranslate"><span class="pre">/proc</span></code> is unavailable (non-Linux) both come back as <code class="docutils literal notranslate"><span class="pre">0</span></code>, so callers on
+a debug-logging path never have to branch.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">(rss,</span> <span class="pre">peak_rss)</span></code> in bytes.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
 </dd>
 </dl>
 </dd></dl>

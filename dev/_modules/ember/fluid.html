@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.fluid &#8212; ember 0.2.1.dev32+g842bf9ca6 documentation</title>
+    <title>ember.fluid &#8212; ember 0.2.1.dev67+g4d9c2eac2 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=fd19fe6e"></script>
+    <script src="../../_static/documentation_options.js?v=db67b7ea"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev32+g842bf9ca6</p>
+<p class="blurb">Version 0.2.1.dev67+g4d9c2eac2</p>
 
 
 
@@ -220,7 +220,7 @@
 
 <span class="sd">.. math:: \frac{p}{\rho_\mathrm{ref} V_\mathrm{ref}^2} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{V_\mathrm{ref}^2 / R_\mathrm{ref}} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{T_\mathrm{ref}}</span>
 
-<span class="sd">Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters.</span>
+<span class="sd">Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters: viscosity is divided by :math:`\rho_\mathrm{ref} V_\mathrm{ref}` and conductivity by :math:`\rho_\mathrm{ref} V_\mathrm{ref} R_\mathrm{ref}`, which are the two scalings that leave the Prandtl number :math:`\mu c_p / \kappa` dimensionless. Scaling the transport properties on their own, to sweep Reynolds number at a fixed flow field, is what :meth:`PerfectFluid.change_visc` is for.</span>
 
 <span class="sd">We can get a new instance with different reference scales using the :meth:`PerfectFluid.change_ref` method.</span>
 
@@ -470,6 +470,16 @@
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
 
     <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_kappa</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Quasi-dimensional thermal conductivity, kappa / (rho_ref * V_ref * Rgas_ref) [m].</span>
+
+<span class="sd">        Conductivity and viscosity are the two transport properties an equation</span>
+<span class="sd">        of state owns; the Prandtl number relating them is a derived quantity</span>
+<span class="sd">        whichever of the three a given fluid happens to store.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abstractmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Quasi-dimensional dynamic viscosity, mu / (rho_ref * V_ref) [m].&quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
@@ -549,6 +559,34 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">change_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">V_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Rgas_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a new instance with different reference scales.&quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Subclasses must implement change_ref&quot;</span><span class="p">)</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">change_visc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scale_visc</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Return a new instance with the viscosity scaled by a factor.</span>
+
+<span class="sd">        A pure factory in the manner of :meth:`change_datum`: nothing else about</span>
+<span class="sd">        the fluid moves, and no field values are transformed. Sweeping Reynolds</span>
+<span class="sd">        number is what this is for --- the geometry, the boundary conditions and</span>
+<span class="sd">        the thermodynamics all stay put, and only the transport scale changes.</span>
+
+<span class="sd">        The thermal conductivity scales by the same factor, leaving the</span>
+<span class="sd">        Prandtl number where it was, so the Peclet number follows the Reynolds</span>
+<span class="sd">        number.</span>
+
+<span class="sd">        The scaling is relative to *this* fluid, so the factors of a chain of</span>
+<span class="sd">        calls multiply together.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        scale_visc : float</span>
+<span class="sd">            Factor to multiply this fluid&#39;s viscosity by. Must be positive.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        fluid_new : _Fluid</span>
+<span class="sd">            New fluid instance with scaled viscosity.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a portable record of this fluid, ready for :meth:`from_dict`.</span>
@@ -730,6 +768,11 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_gamma_m1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ga_gam1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma_m1</span>
+
+        <span class="c1"># Conductivity is the property the interface asks for, and Pr the one</span>
+        <span class="c1"># a perfect gas is quoted with, so compose the two constants once here</span>
+        <span class="c1"># rather than at every node that wants a heat flux.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kappa_nd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mu_nd</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp_nd</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Pr</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_kwargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Constructor arguments reproducing this fluid; see :meth:`_Fluid._kwargs`.&quot;&quot;&quot;</span>
@@ -1347,6 +1390,34 @@
         <span class="k">return</span> <span class="n">out</span></div>
 
 
+<div class="viewcode-block" id="PerfectFluid.get_kappa">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_kappa">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_kappa</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Thermal conductivity (constant for a perfect gas).</span>
+
+<span class="sd">        .. math:: \kappa = \frac{\mu c_p}{\mathit{Pr}}</span>
+
+<span class="sd">        If reference scales are set, then this method returns a</span>
+<span class="sd">        quasi-dimensional conductivity in units of [m] --- see</span>
+<span class="sd">        :ref:`reference-scales` for details.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        kappa : ndarray</span>
+<span class="sd">            Thermal conductivity [W/m/K].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kappa_nd</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="PerfectFluid.get_mu">
 <a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.get_mu">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -1644,6 +1715,34 @@
             <span class="n">V_ref</span><span class="o">=</span><span class="n">V_ref</span> <span class="k">if</span> <span class="n">V_ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">V_ref</span><span class="p">,</span>
             <span class="n">Rgas_ref</span><span class="o">=</span><span class="n">Rgas_ref</span> <span class="k">if</span> <span class="n">Rgas_ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">Rgas_ref</span><span class="p">,</span>
         <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PerfectFluid.change_visc">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.PerfectFluid.change_visc">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">change_visc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scale_visc</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get a new :class:`PerfectFluid` with scaled viscosity.</span>
+
+<span class="sd">        The viscosity is a constant here, so scaling it is a change of the</span>
+<span class="sd">        stored ``mu``. Conductivity follows it through the fixed Prandtl</span>
+<span class="sd">        number, with nothing to do.</span>
+
+<span class="sd">        Scaling is relative to this fluid, so the factors of a chain of calls</span>
+<span class="sd">        multiply together, and nothing but the transport properties moves.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        scale_visc : float</span>
+<span class="sd">            Factor to multiply this fluid&#39;s viscosity by. Must be positive.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        fluid_new : PerfectFluid</span>
+<span class="sd">            New fluid instance with scaled viscosity.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">scale_visc</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;scale_visc=</span><span class="si">{</span><span class="n">scale_visc</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">mu</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mu</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale_visc</span><span class="p">))</span></div>
 </div>
 
 
@@ -1694,14 +1793,20 @@
 <span class="sd">    surface extrapolates smoothly, so the solve would converge on a state that</span>
 <span class="sd">    is self-consistent with a polynomial nobody fitted out there.</span>
 
-<span class="sd">    Limitations</span>
-<span class="sd">    -----------</span>
-<span class="sd">    Transport properties are constant, as for :class:`PerfectFluid`. Wheeler&#39;s</span>
-<span class="sd">    fitted viscosity and conductivity surfaces are not implemented, so ``mu``</span>
-<span class="sd">    and ``Pr`` are supplied directly. The specific heat carried into the</span>
-<span class="sd">    conductivity is not among them: :attr:`~ember.block.Block.cp_nd` reads</span>
-<span class="sd">    :meth:`get_cp` at every node, so the heat flux sees the same state</span>
-<span class="sd">    dependence as the rest of the surface.</span>
+<span class="sd">    Transport properties</span>
+<span class="sd">    --------------------</span>
+<span class="sd">    Viscosity and conductivity are fitted surfaces of their own, in the same</span>
+<span class="sd">    normalised coordinates as :math:`Z` and produced by the same offline tool.</span>
+<span class="sd">    They are independent least-squares fits and take no part in the consistency</span>
+<span class="sd">    argument above --- nothing relates them to entropy, and neither is ever</span>
+<span class="sd">    differentiated. Each is normalised by its value at the centre of the fit</span>
+<span class="sd">    box, which ``mu_c`` and ``kappa_c`` carry, so the coefficients are of order</span>
+<span class="sd">    unity. The Prandtl number is not stored; :meth:`get_Pr` derives it from the</span>
+<span class="sd">    two surfaces and the specific heat.</span>
+
+<span class="sd">    The solver reads both surfaces at every node: :attr:`~ember.block.Block.mu_nd`</span>
+<span class="sd">    and :attr:`~ember.block.Block.kappa_nd` are nodal fields, and the viscous</span>
+<span class="sd">    kernel takes them as such.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -1711,23 +1816,31 @@
 <span class="sd">        :ref:`normalised-coordinates`.</span>
 <span class="sd">    beta : array_like</span>
 <span class="sd">        One-dimensional Legendre coefficients of :math:`s/R` along the reference</span>
-<span class="sd">        isochor [--].</span>
+<span class="sd">        isochor, the one at the centre of the density box; see</span>
+<span class="sd">        :ref:`reference-isochor`.</span>
+<span class="sd">    delta : array_like</span>
+<span class="sd">        Two-dimensional Legendre coefficients of the viscosity surface [--],</span>
+<span class="sd">        normalised by ``mu_c``.</span>
+<span class="sd">    gamma : array_like</span>
+<span class="sd">        Two-dimensional Legendre coefficients of the conductivity surface [--],</span>
+<span class="sd">        normalised by ``kappa_c``.</span>
 <span class="sd">    rho_lim : tuple</span>
 <span class="sd">        ``(min, max)`` density bounds of the fit box [kg/m³].</span>
 <span class="sd">    u_lim : tuple</span>
 <span class="sd">        ``(min, max)`` internal energy bounds of the fit box [J/kg], on the same</span>
 <span class="sd">        datum as the data ``beta`` was fitted to.</span>
-<span class="sd">    rho_isochor : float</span>
-<span class="sd">        Density of the isochor the entropy integral starts from [kg/m³]. This is</span>
-<span class="sd">        Wheeler&#39;s :math:`\rho_\mathrm{ref}`, and is unrelated to</span>
-<span class="sd">        :attr:`rho_ref`, the non-dimensionalisation scale.</span>
 <span class="sd">    Rgas : float</span>
 <span class="sd">        Specific gas constant [J/kg/K]. Converts the two dimensionless</span>
 <span class="sd">        coefficient arrays into entropy, and is what :meth:`get_Rgas` reports.</span>
-<span class="sd">    mu : float</span>
-<span class="sd">        Dynamic viscosity [kg/m/s].</span>
-<span class="sd">    Pr : float</span>
-<span class="sd">        Prandtl number [--].</span>
+<span class="sd">    mu_c : float</span>
+<span class="sd">        Dynamic viscosity at the centre of the fit box [kg/m/s], the scale the</span>
+<span class="sd">        ``delta`` surface is normalised by.</span>
+<span class="sd">    kappa_c : float</span>
+<span class="sd">        Thermal conductivity at the centre of the fit box [W/m/K], the scale</span>
+<span class="sd">        the ``gamma`` surface is normalised by.</span>
+<span class="sd">    scale_visc : float, optional</span>
+<span class="sd">        Factor multiplying the viscosity, for sweeping Reynolds number without</span>
+<span class="sd">        touching the fit; see :meth:`change_visc`.</span>
 <span class="sd">    P_dtm : float, optional</span>
 <span class="sd">        Datum pressure where u = 0 and s = 0 [Pa]. Must lie in the fit box.</span>
 <span class="sd">        Defaults to this fluid&#39;s own pressure at the centre of that box, which</span>
@@ -1788,12 +1901,14 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">alpha</span><span class="p">,</span>
         <span class="n">beta</span><span class="p">,</span>
+        <span class="n">delta</span><span class="p">,</span>
+        <span class="n">gamma</span><span class="p">,</span>
         <span class="n">rho_lim</span><span class="p">,</span>
         <span class="n">u_lim</span><span class="p">,</span>
-        <span class="n">rho_isochor</span><span class="p">,</span>
         <span class="n">Rgas</span><span class="p">,</span>
-        <span class="n">mu</span><span class="p">,</span>
-        <span class="n">Pr</span><span class="p">,</span>
+        <span class="n">mu_c</span><span class="p">,</span>
+        <span class="n">kappa_c</span><span class="p">,</span>
+        <span class="n">scale_visc</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
         <span class="n">P_dtm</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">T_dtm</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">rho_ref</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
@@ -1806,21 +1921,18 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">beta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_rho_lim</span> <span class="o">=</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">rho_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">float</span><span class="p">(</span><span class="n">rho_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_u_lim</span> <span class="o">=</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">u_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">float</span><span class="p">(</span><span class="n">u_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_rho_isochor</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">rho_isochor</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">delta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">gamma</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">Rgas</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">mu</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_mu_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">mu</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mu_c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">mu_c</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kappa_c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">kappa_c</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_scale_visc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">scale_visc</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_Rgas_nd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">Rgas</span> <span class="o">/</span> <span class="n">Rgas_ref</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_Pr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">Pr</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;rho_lim must be increasing and positive, got </span><span class="si">{</span><span class="n">rho_lim</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_u_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_u_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;u_lim must be increasing, got </span><span class="si">{</span><span class="n">u_lim</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_isochor</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;rho_isochor=</span><span class="si">{</span><span class="n">rho_isochor</span><span class="si">}</span><span class="s2"> must lie within rho_lim=</span><span class="si">{</span><span class="n">rho_lim</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_beta</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_alpha</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;beta has </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_beta</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2"> coefficients but alpha carries &quot;</span>
@@ -1830,10 +1942,12 @@
             <span class="p">)</span>
         <span class="k">if</span> <span class="n">Rgas</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rgas=</span><span class="si">{</span><span class="n">Rgas</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">mu</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mu=</span><span class="si">{</span><span class="n">mu</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">Pr</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Pr=</span><span class="si">{</span><span class="n">Pr</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mu_c</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mu_c=</span><span class="si">{</span><span class="n">mu_c</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kappa_c</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;kappa_c=</span><span class="si">{</span><span class="n">kappa_c</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">scale_visc</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;scale_visc=</span><span class="si">{</span><span class="n">scale_visc</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
 
         <span class="c1"># Two-pass construction. The datum is the internal energy and entropy at</span>
         <span class="c1"># (P_dtm, T_dtm), which can only be found by inverting the surface --</span>
@@ -1897,8 +2011,8 @@
         <span class="k">return</span> <span class="n">PerfectFluid</span><span class="p">(</span>
             <span class="n">cp</span><span class="o">=</span><span class="n">cp</span><span class="p">,</span>
             <span class="n">gamma</span><span class="o">=</span><span class="n">gamma</span><span class="p">,</span>
-            <span class="n">mu</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mu</span><span class="p">),</span>
-            <span class="n">Pr</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_Pr</span><span class="p">),</span>
+            <span class="n">mu</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mu_c</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_scale_visc</span><span class="p">),</span>
+            <span class="n">Pr</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_Pr</span><span class="p">(</span><span class="n">rho_c</span><span class="p">,</span> <span class="n">u_c</span><span class="p">)),</span>
             <span class="n">P_dtm</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">P_dtm</span><span class="p">),</span>
             <span class="n">T_dtm</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">T_dtm</span><span class="p">),</span>
             <span class="n">rho_ref</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rho_ref</span><span class="p">),</span>
@@ -1942,15 +2056,29 @@
             <span class="n">dtype</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_u_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">u_dtm_abs</span><span class="p">)</span> <span class="o">/</span> <span class="n">u_ref</span><span class="p">),</span>
         <span class="p">)</span>
 
+        <span class="c1"># Transport surfaces. The scale each was normalised by, the</span>
+        <span class="c1"># non-dimensionalisation and the viscosity scaling are all constants, so</span>
+        <span class="c1"># they fold into the coefficients and the hot path is one surface</span>
+        <span class="c1"># evaluation with nothing after it. Conductivity carries the reference</span>
+        <span class="c1"># gas constant as well as the mass flux, which is what leaves the</span>
+        <span class="c1"># Prandtl number of the two dimensionless; see :ref:`reference-scales`.</span>
+        <span class="n">mu_c_nd</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mu_c</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_scale_visc</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span><span class="p">)</span>
+        <span class="n">kappa_c_nd</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kappa_c</span><span class="p">)</span>
+            <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_scale_visc</span><span class="p">)</span>
+            <span class="o">/</span> <span class="p">(</span><span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span> <span class="o">*</span> <span class="n">Rgas_ref</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mu_surf</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_delta</span> <span class="o">*</span> <span class="n">mu_c_nd</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kappa_surf</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span> <span class="o">*</span> <span class="n">kappa_c_nd</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+
         <span class="c1"># Characteristic magnitudes, used to scale convergence tests where a</span>
         <span class="c1"># target may legitimately pass through zero at the datum.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_u_scale</span> <span class="o">=</span> <span class="n">dtype</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_u_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_u_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">/</span> <span class="n">u_ref</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_s_scale</span> <span class="o">=</span> <span class="n">dtype</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_Rgas</span><span class="p">)</span> <span class="o">/</span> <span class="n">Rgas_ref</span><span class="p">)</span>
 
-        <span class="c1"># Density integral of the compressibility surface, in closed form.</span>
-        <span class="n">c</span> <span class="o">=</span> <span class="n">rho_m</span> <span class="o">/</span> <span class="n">rho_f</span>
-        <span class="n">x0</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rho_isochor</span> <span class="o">-</span> <span class="n">rho_m</span><span class="p">)</span> <span class="o">/</span> <span class="n">rho_f</span>
-        <span class="n">D</span><span class="p">,</span> <span class="n">Lam</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">realgas_fit</span><span class="o">.</span><span class="n">entropy_integral</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_alpha</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
+        <span class="c1"># Density integral of the compressibility surface, in closed form, from</span>
+        <span class="c1"># the reference isochor at the centre of the density box.</span>
+        <span class="n">D</span><span class="p">,</span> <span class="n">Lam</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">realgas_fit</span><span class="o">.</span><span class="n">entropy_integral</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_alpha</span><span class="p">,</span> <span class="n">rho_m</span> <span class="o">/</span> <span class="n">rho_f</span><span class="p">)</span>
 
         <span class="c1"># Assemble the non-dimensional entropy surface,</span>
         <span class="c1">#     s = legval2d(x, y, Sc) + legval(y, Sl)*log(rho)</span>
@@ -2365,12 +2493,14 @@
         <span class="k">return</span> <span class="p">{</span>
             <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_alpha</span><span class="p">,</span>
             <span class="s2">&quot;beta&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_beta</span><span class="p">,</span>
+            <span class="s2">&quot;delta&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_delta</span><span class="p">,</span>
+            <span class="s2">&quot;gamma&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gamma</span><span class="p">,</span>
             <span class="s2">&quot;rho_lim&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_lim</span><span class="p">,</span>
             <span class="s2">&quot;u_lim&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_u_lim</span><span class="p">,</span>
-            <span class="s2">&quot;rho_isochor&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_isochor</span><span class="p">,</span>
             <span class="s2">&quot;Rgas&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_Rgas</span><span class="p">),</span>
-            <span class="s2">&quot;mu&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mu</span><span class="p">),</span>
-            <span class="s2">&quot;Pr&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_Pr</span><span class="p">),</span>
+            <span class="s2">&quot;mu_c&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mu_c</span><span class="p">),</span>
+            <span class="s2">&quot;kappa_c&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kappa_c</span><span class="p">),</span>
+            <span class="s2">&quot;scale_visc&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_scale_visc</span><span class="p">),</span>
             <span class="s2">&quot;P_dtm&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_P_dtm</span><span class="p">),</span>
             <span class="s2">&quot;T_dtm&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_T_dtm</span><span class="p">),</span>
             <span class="s2">&quot;rho_ref&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rho_ref</span><span class="p">),</span>
@@ -3203,14 +3333,43 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_write</span><span class="p">(</span><span class="n">u</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_P</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span> <span class="o">/</span> <span class="n">rho</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="RealFluid.get_kappa">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.RealFluid.get_kappa">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_kappa</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Thermal conductivity from the fitted transport surface.</span>
+
+<span class="sd">        One polynomial evaluation and nothing else: unlike pressure and</span>
+<span class="sd">        temperature, conductivity is not derived from the entropy surface and</span>
+<span class="sd">        so needs none of its derivatives.</span>
+
+<span class="sd">        If reference scales are set, then this method returns a</span>
+<span class="sd">        quasi-dimensional conductivity in units of [m] --- see</span>
+<span class="sd">        :ref:`reference-scales` for details.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rho : array_like</span>
+<span class="sd">            Density [kg/m³].</span>
+<span class="sd">        u : array_like</span>
+<span class="sd">            Specific internal energy [J/kg].</span>
+<span class="sd">        out : ndarray, optional</span>
+<span class="sd">            Pre-allocated output array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        kappa : ndarray</span>
+<span class="sd">            Thermal conductivity [W/m/K].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hats</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_write</span><span class="p">(</span><span class="n">_leg</span><span class="o">.</span><span class="n">legval2d</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kappa_surf</span><span class="p">),</span> <span class="n">out</span><span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="RealFluid.get_mu">
 <a class="viewcode-back" href="../../api/fluid.html#ember.fluid.RealFluid.get_mu">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Dynamic viscosity (constant; the transport surfaces are not fitted).</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Dynamic viscosity from the fitted transport surface.</span>
 
-<span class="sd">        If reference scales are set, then this method returns a</span>
-<span class="sd">        quasi-dimensional viscosity in units of [m] --- see</span>
-<span class="sd">        :ref:`reference-scales` for details.</span>
+<span class="sd">        As :meth:`get_kappa`, and scaled by ``scale_visc``.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
@@ -3226,7 +3385,8 @@
 <span class="sd">        mu : ndarray</span>
 <span class="sd">            Dynamic viscosity [kg/m/s].</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mu_nd</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hats</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_write</span><span class="p">(</span><span class="n">_leg</span><span class="o">.</span><span class="n">legval2d</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mu_surf</span><span class="p">),</span> <span class="n">out</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="RealFluid.get_P">
@@ -3307,9 +3467,15 @@
 <div class="viewcode-block" id="RealFluid.get_Pr">
 <a class="viewcode-back" href="../../api/fluid.html#ember.fluid.RealFluid.get_Pr">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_Pr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prandtl number (constant; the transport surfaces are not fitted).</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Prandtl number, derived from the two transport surfaces.</span>
 
 <span class="sd">        .. math:: \mathit{Pr} = \frac{\mu c_p}{\kappa}</span>
+
+<span class="sd">        Nothing here is stored: viscosity and conductivity are what this fluid</span>
+<span class="sd">        is given, and the ratio of the two is a property of the state like any</span>
+<span class="sd">        other. It is also the most expensive of the three, the specific heat</span>
+<span class="sd">        costing the second derivatives of the entropy surface, so a caller</span>
+<span class="sd">        after a heat flux wants :meth:`get_kappa` rather than this.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
@@ -3325,7 +3491,8 @@
 <span class="sd">        Pr : ndarray</span>
 <span class="sd">            Prandtl number [--].</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const_nd</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Pr</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span></div>
+        <span class="n">mu_cp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_mu</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cp</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_write</span><span class="p">(</span><span class="n">mu_cp</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_kappa</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">u</span><span class="p">),</span> <span class="n">out</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="RealFluid.get_Rgas">
@@ -3471,6 +3638,36 @@
             <span class="n">V_ref</span><span class="o">=</span><span class="n">V_ref</span> <span class="k">if</span> <span class="n">V_ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">V_ref</span><span class="p">,</span>
             <span class="n">Rgas_ref</span><span class="o">=</span><span class="n">Rgas_ref</span> <span class="k">if</span> <span class="n">Rgas_ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">Rgas_ref</span><span class="p">,</span>
         <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RealFluid.change_visc">
+<a class="viewcode-back" href="../../api/fluid.html#ember.fluid.RealFluid.change_visc">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">change_visc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scale_visc</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Get a new :class:`RealFluid` with scaled viscosity.</span>
+
+<span class="sd">        A multiplier on the two fitted transport surfaces, which is what a</span>
+<span class="sd">        factor on a surface has to be: there is no stored viscosity to change,</span>
+<span class="sd">        only a polynomial in :math:`(\rho, u)`. Conductivity is scaled with it,</span>
+<span class="sd">        so the Prandtl number the two surfaces give is unchanged everywhere in</span>
+<span class="sd">        the box.</span>
+
+<span class="sd">        Scaling is relative to this fluid, so the factors of a chain of calls</span>
+<span class="sd">        multiply together, and nothing but the transport properties moves.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        scale_visc : float</span>
+<span class="sd">            Factor to multiply this fluid&#39;s viscosity by. Must be positive.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        fluid_new : RealFluid</span>
+<span class="sd">            New fluid instance with scaled viscosity.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">scale_visc</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;scale_visc=</span><span class="si">{</span><span class="n">scale_visc</span><span class="si">}</span><span class="s2"> must be positive.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">scale_visc</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_scale_visc</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale_visc</span><span class="p">))</span></div>
 
 
     <span class="nd">@property</span>
