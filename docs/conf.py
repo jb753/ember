@@ -104,6 +104,9 @@ nitpick_ignore = [
     # points readers at it for the ordering rules.
     ("py:attr", "ember._struct.StructuredData.flat"),
     ("py:func", "ember._struct.cached_array"),
+    # Private helper, so no page of its own; the multigrid docstrings name
+    # it as what sizes Block.scratch, which is the invariant they turn on.
+    ("py:func", "ember.block._scratch_len"),
 ]
 
 html_theme = "alabaster"
