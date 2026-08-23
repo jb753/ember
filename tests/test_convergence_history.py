@@ -34,7 +34,7 @@ P0 = 101325.0
 _FLUID = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72)
 
 
-def _throttle_conv(mdot_target, mdot_throttle, P_throttle):
+def _throttle_conv(mdot_target, mdot_throttle, dP_throttle):
     """A ConvergenceStep carrying only throttle state (flow monitors left NaN)."""
     return ConvergenceStep(
         residual=np.full(5, np.nan, np.float32),
@@ -43,7 +43,7 @@ def _throttle_conv(mdot_target, mdot_throttle, P_throttle):
         s=np.full(2, np.nan, np.float32),
         mdot_target=mdot_target,
         mdot_throttle=mdot_throttle,
-        P_throttle=P_throttle,
+        dP_throttle=dP_throttle,
     )
 
 
@@ -562,3 +562,59 @@ def test_check_convergence_cfl_scales_slope():
     thr = 0.75 * m1
     assert hist.check_convergence(slope=thr, cfl=1.0) is False
     assert hist.check_convergence(slope=thr, cfl=2.0) is True
+
+
+#
+# READING A FILE WRITTEN BEFORE THE COLUMN WAS RENAMED
+#
+# A `.cnv` is a pickle of the history, and the name-to-column map is pickled
+# with it, so renaming a column leaves every file already on disk labelled the
+# way it was written. The fixture below is a real run's history, written when
+# the throttle correction was still called `P_throttle`: a turbine cascade
+# throttled to its design mass flow, which the controller reached by sitting
+# 1154.9 Pa below the prescribed exit pressure.
+#
+
+
+def test_a_history_written_before_the_rename_still_reads():
+    """The column comes back under its new name, at its old position."""
+    hist = ConvergenceHistory.read_cnv(_DATA / "throttled_pre_rename.cnv")
+
+    assert "P_throttle" not in hist._data_inds
+    assert "dP_throttle" in hist._data_inds
+
+    mdot_target, mdot, dP = hist.throttle[-1]
+    assert mdot_target == pytest.approx(0.43676, rel=1e-4)
+    assert mdot == pytest.approx(0.43677, rel=1e-4)
+    assert dP == pytest.approx(-1154.9, rel=1e-4)
+
+
+def test_relabelling_does_not_move_any_data():
+    """A relabel and not a conversion: every other column reads as before."""
+    hist = ConvergenceHistory.read_cnv(_DATA / "throttled_pre_rename.cnv")
+
+    # The parts of the controller that were never renamed still line up with
+    # the column that was, which is what would break if the map were rebuilt
+    # rather than relabelled in place.
+    assert hist.throttle[-1][2] == pytest.approx(
+        hist.dP_P[-1] + hist.dP_I[-1] + hist.dP_D[-1], rel=1e-4
+    )
+    assert np.isfinite(hist.residual[-1]).all()
+
+
+def test_a_history_written_since_the_rename_is_untouched():
+    """The migration is a no-op on a file that has none of the old names."""
+    hist = ConvergenceHistory(shape=(4,))
+    hist._set_metadata_by_key("n_node", 100)
+    hist._set_metadata_by_key("fluid", _FLUID)
+    hist._set_metadata_by_key("_time_start", 0.0)
+    hist._set_metadata_by_key("i_log", -1)
+    for k in hist._data_keys:
+        hist._versions[k] += 1
+    hist.record_convergence(0, _throttle_conv(1.0, 0.9, -50.0))
+
+    with _tmp_path(".cnv") as path:
+        hist.write_cnv(path)
+        back = ConvergenceHistory.read_cnv(path)
+
+    assert back.throttle[0] == pytest.approx(np.array([1.0, 0.9, -50.0]), rel=1e-5)

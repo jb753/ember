@@ -152,7 +152,7 @@ class ConvergenceHistory(StructuredData):
                 "time",
                 "mdot_target",
                 "mdot_throttle",
-                "P_throttle",
+                "dP_throttle",
                 "dP_P",
                 "dP_I",
                 "dP_D",
@@ -166,6 +166,39 @@ class ConvergenceHistory(StructuredData):
         # Mark all data keys as initialized (we write to slices, not whole arrays)
         for k in self._data_keys:
             self._versions[k] += 1
+
+    # Column names that have been renamed, old to new. A `.cnv` is a pickle of
+    # this object and the name-to-column map travels inside it, so a file
+    # written before a rename comes back labelled the way it was written and
+    # every lookup by the new name misses.
+    _RENAMED_KEYS = {"P_throttle": "dP_throttle"}
+
+    def __setstate__(self, state):
+        """Restore a pickled history, relabelling columns that have been renamed.
+
+        Positions are untouched: a rename moves a name from one dict key to
+        another in the maps a lookup goes through, and the data array behind
+        them is the same array in the same order. So an old file reads as a new
+        one rather than needing conversion, and a file written since the rename
+        passes through unchanged because it has none of the old names in it.
+
+        `_data_keys` is handled but usually absent. A history is written after
+        being trimmed to the records it actually holds, and the trimmed copy
+        comes through `_bare_copy`, which carries `_data_inds` but not
+        `_data_keys` --- so the maps below, not that tuple, are what a lookup
+        by name actually reads.
+        """
+        super().__setstate__(state)
+
+        for old_key, new_key in self._RENAMED_KEYS.items():
+            if old_key in self._data_inds:
+                self._data_inds[new_key] = self._data_inds.pop(old_key)
+            if old_key in self._versions:
+                self._versions[new_key] = self._versions.pop(old_key)
+
+        keys = self.__dict__.get("_data_keys")
+        if keys is not None:
+            self._data_keys = tuple(self._RENAMED_KEYS.get(k, k) for k in keys)
 
     @property
     def _n_station(self):
@@ -519,7 +552,7 @@ class ConvergenceHistory(StructuredData):
         now._set_data_by_keys(tuple(f"s_st{i}" for i in range(n)), conv.s)
         now._set_data_by_keys(("mdot_target",), conv.mdot_target)
         now._set_data_by_keys(("mdot_throttle",), conv.mdot_throttle)
-        now._set_data_by_keys(("P_throttle",), conv.P_throttle)
+        now._set_data_by_keys(("dP_throttle",), conv.dP_throttle)
         now._set_data_by_keys(("dP_P",), conv.dP_P)
         now._set_data_by_keys(("dP_I",), conv.dP_I)
         now._set_data_by_keys(("dP_D",), conv.dP_D)
@@ -782,7 +815,7 @@ class ConvergenceHistory(StructuredData):
         :math:`\Delta p_\mathrm{throttle}` [Pa], the sum of :attr:`dP_P`,
         :attr:`dP_I` and :attr:`dP_D`.
         """
-        return self._get_data_by_keys(("mdot_target", "mdot_throttle", "P_throttle"))
+        return self._get_data_by_keys(("mdot_target", "mdot_throttle", "dP_throttle"))
 
     @property
     def time(self):

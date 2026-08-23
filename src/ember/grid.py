@@ -1541,9 +1541,7 @@ class Grid(_LabelledList):
             # viscous pass, so it reuses the same span the tau/q volume had --
             # which is the point of the arena, and is safe only because the
             # two are never live together.
-            planes, rows = util.carve_view(
-                block.scratch, (ni, njp, 5, 2), (ni, 5, 3)
-            )
+            planes, rows = util.carve_view(block.scratch, (ni, njp, 5, 2), (ni, 5, 3))
             block.residual_nd.flags.writeable = True
             # dampin=0 here disables set_residual's fused limiter entirely:
             # the limiter is applied as a separate damp_residual pass below,
@@ -1714,8 +1712,8 @@ class Grid(_LabelledList):
                 # them disjoint.
                 # The transport trio comes back out of the same carve that
                 # the boundary phase filled it through.
-                faces, tq, planes, rows, (mu, kappa, cp) = (
-                    ember.block._carve_viscous(block)
+                faces, tq, planes, rows, (mu, kappa, cp) = ember.block._carve_viscous(
+                    block
                 )
                 # mu_turb is a data-row field the public property serves
                 # read-only; grab a writeable view so the kernel can leave the
@@ -1789,9 +1787,7 @@ class Grid(_LabelledList):
                 # sub-phase -- the viscous loop above has finished with the
                 # arena by now -- and the buffer is exactly the size of the
                 # multigrid-off march's, so it never binds (see _scratch_len).
-                cons_cell = util.carve_view(
-                    block.scratch, block.shape_cell + (5,)
-                )
+                cons_cell = util.carve_view(block.scratch, block.shape_cell + (5,))
                 ember.fortran.node_to_cell(block.conserved_nd, cons_cell)
                 ember.fortran.apply_sfd_force(
                     f_body=block.F_body_nd,
@@ -2491,17 +2487,17 @@ class ConvergenceStep:
     mdot_throttle: float = 0.0
     """Mass flow measured at the outlet patch on its last target update [kg/s]."""
 
-    P_throttle: float = 0.0
+    dP_throttle: float = 0.0
     """Total throttle pressure correction applied at the outlet [Pa]."""
 
     dP_P: float = 0.0
-    """Proportional contribution to :attr:`P_throttle` [Pa]."""
+    """Proportional contribution to :attr:`dP_throttle` [Pa]."""
 
     dP_I: float = 0.0
-    """Integral contribution to :attr:`P_throttle` [Pa]."""
+    """Integral contribution to :attr:`dP_throttle` [Pa]."""
 
     dP_D: float = 0.0
-    """Derivative contribution to :attr:`P_throttle` [Pa]. Always zero: the
+    """Derivative contribution to :attr:`dP_throttle` [Pa]. Always zero: the
     throttle is a PI controller. The column is retained so the pickled
     ConvergenceHistory (.cnv) layout reads in both directions."""
 

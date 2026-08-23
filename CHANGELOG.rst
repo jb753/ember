@@ -10,6 +10,17 @@ public API without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* Rename the throttle pressure correction from ``P_throttle`` to
+  ``dP_throttle``, in ``OutletPatch.get_throttle_stats``, ``ConvergenceStep``
+  and the ``ConvergenceHistory`` column. Breaking, the last of these being a
+  public attribute; a ``.cnv`` written before the rename is relabelled as it
+  unpickles, so existing files still read.
+* Add ``OutletPatch.P_throttle``, the static pressure level a throttled outlet
+  has arrived at [Pa], being the prescribed pressure plus the correction. This
+  is what to record to reproduce an operating point later, and what to
+  re-prescribe to hold one: ``set_P(patch.P_throttle)`` before
+  ``set_throttle(None)``, since clearing a throttle reverts to the pressure
+  that was prescribed rather than freezing the one it reached.
 * Delete ``Block.xlen_sq_nd`` and ``Block.conserved_cell_nd``, calculate them
   inline in the Fortran kernels instead.
 * Add ``RealFluid`` real-gas equation of state and fitting module, following

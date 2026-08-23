@@ -9,7 +9,8 @@ itself.
 
 Test cases:
 - Target: what set_P accepts and refuses
-- Throttle: what set_throttle accepts, refuses and clears, the direction and
+- Throttle: what set_throttle accepts, refuses and clears, the level it
+  arrives at and the two calls that hold it, the direction and
   size of the correction, the integral accumulating per timestep, adding to
   rather than fighting the radial-equilibrium profile, invariance of the
   dimensionless gains to the reference scales, what survives a copy and a
@@ -437,7 +438,7 @@ def test_throttle_and_nonscalar_P_are_incompatible():
 
 
 def test_set_throttle_none_clears_the_controller():
-    """Clearing leaves the pressure standing where the controller put it."""
+    """Clearing reverts to the pressure set_P prescribed, not the one reached."""
     _, patch = _attached()
     patch.set_throttle(_natural_mdot(patch) * 0.9)
     patch.update_soln()
@@ -455,6 +456,81 @@ def test_set_throttle_none_clears_the_controller():
     patch.update_target()
     np.testing.assert_array_equal(patch.P_nd, patch._P_level_nd)
     assert not np.array_equal(patch.P_nd, held)
+
+
+def test_P_throttle_is_the_prescription_when_nothing_is_throttling():
+    """With no controller acting there is no correction, so the level is what
+    set_P was given -- which `P`, a field broadcast over the face, is not."""
+    _, patch = _attached()
+    patch.set_P(P_MEAN)
+
+    assert patch.P_throttle == pytest.approx(P_MEAN, rel=1e-6)
+    assert np.shape(patch.P) != ()
+
+
+def test_P_throttle_is_the_level_the_controller_reached():
+    """Prescribed plus correction, so a caller recording an operating point
+    does not have to remember what it prescribed and add the two."""
+    _, patch = _attached()
+    patch.set_P(P_MEAN)
+    patch.set_throttle(_natural_mdot(patch) * 0.9)
+    patch.update_soln()
+    patch.update_target()
+
+    dP = patch.get_throttle_stats()["dP_throttle"]
+    assert dP != 0.0
+    assert patch.P_throttle == pytest.approx(P_MEAN + dP, rel=1e-6)
+
+    # And it is the level the boundary is actually holding, which without a
+    # spanwise adjustment is every node of the imposed field.
+    imposed = np.unique(patch.P)
+    assert imposed.size == 1
+    assert patch.P_throttle == pytest.approx(float(imposed[0]), rel=1e-6)
+
+
+def test_P_throttle_reverts_when_the_throttle_is_cleared():
+    """Reading it after clearing gives the prescription back, in step with what
+    the patch then imposes."""
+    _, patch = _attached()
+    patch.set_P(P_MEAN)
+    patch.set_throttle(_natural_mdot(patch) * 0.9)
+    patch.update_soln()
+    patch.update_target()
+    assert patch.P_throttle != pytest.approx(P_MEAN, rel=1e-6)
+
+    patch.set_throttle(None)
+    patch.update_target()
+
+    assert patch.P_throttle == pytest.approx(P_MEAN, rel=1e-6)
+
+
+def test_re_prescribing_before_clearing_holds_the_operating_point():
+    """The documented way to keep what the controller found: two calls, in an
+    order the caller can see, rather than a hidden fold inside the clear."""
+    _, patch = _attached()
+    patch.set_P(P_MEAN)
+    patch.set_throttle(_natural_mdot(patch) * 0.9)
+    patch.update_soln()
+    patch.update_target()
+    reached = patch.P_throttle
+
+    patch.set_P(reached)
+    patch.set_throttle(None)
+    patch.update_target()
+
+    assert patch.P_throttle == pytest.approx(reached, rel=1e-6)
+    np.testing.assert_allclose(patch.P, reached, rtol=1e-6)
+
+
+def test_P_throttle_needs_a_prescription_first():
+    """A patch attached but never given a pressure has no level to report, and
+    says so rather than reading back whatever the target row happens to hold."""
+    block = make_block()
+    patch = OutletPatch(i=-1, label="bare")
+    block.patches.append(patch)
+
+    with pytest.raises(ValueError, match="set_P"):
+        patch.P_throttle
 
 
 @pytest.mark.parametrize("ratio, sign", [(0.9, +1.0), (1.1, -1.0)])
@@ -583,8 +659,8 @@ def test_throttle_correction_is_formed_nondimensionally():
     got = float((rescaled.P_nd - rescaled._P_level_nd).mean())
     assert got == pytest.approx(dP_nd, rel=1e-4)
     # The reported pressure tracks P_ref exactly, no more and no less.
-    assert rescaled.get_throttle_stats()["P_throttle"] == pytest.approx(
-        patch.get_throttle_stats()["P_throttle"] * ratio, rel=1e-4
+    assert rescaled.get_throttle_stats()["dP_throttle"] == pytest.approx(
+        patch.get_throttle_stats()["dP_throttle"] * ratio, rel=1e-4
     )
 
 
@@ -642,13 +718,13 @@ def test_get_throttle_stats_derives_the_correction_terms():
     assert stats["mdot_throttle"] == pytest.approx(_natural_mdot(patch))
     assert stats["dP_P"] == pytest.approx(0.4 * eps * P_ref)
     assert stats["dP_I"] == pytest.approx(0.02 * patch._eps_int * P_ref)
-    assert stats["P_throttle"] == pytest.approx(stats["dP_P"] + stats["dP_I"])
+    assert stats["dP_throttle"] == pytest.approx(stats["dP_P"] + stats["dP_I"])
     # PI, so there is no derivative term; the column survives for the .cnv
     # layout alone.
     assert stats["dP_D"] == 0.0
     # And the correction the target actually carries is that pressure.
     moved = float((patch.P_nd - patch._P_level_nd).mean()) * P_ref
-    assert moved == pytest.approx(stats["P_throttle"], rel=1e-4)
+    assert moved == pytest.approx(stats["dP_throttle"], rel=1e-4)
 
 
 def test_unthrottled_outlet_reports_zeros():
@@ -659,7 +735,7 @@ def test_unthrottled_outlet_reports_zeros():
     assert patch.get_throttle_stats() == dict(
         mdot_target=0.0,
         mdot_throttle=0.0,
-        P_throttle=0.0,
+        dP_throttle=0.0,
         dP_P=0.0,
         dP_I=0.0,
         dP_D=0.0,
@@ -693,7 +769,7 @@ def test_grid_convergence_reports_the_throttled_outlet():
     stats = outlet.get_throttle_stats()
     assert step.mdot_target == pytest.approx(stats["mdot_target"])
     assert step.mdot_throttle == pytest.approx(stats["mdot_throttle"])
-    assert step.P_throttle == pytest.approx(stats["P_throttle"])
+    assert step.dP_throttle == pytest.approx(stats["dP_throttle"])
     assert step.dP_D == 0.0
     # The station monitor is a different quantity, per annulus rather than per
     # passage, and is not disturbed by the throttle reporting alongside it.
@@ -1029,7 +1105,14 @@ def test_grid_closed_by_this_patch_alone():
     # columns stay at the zero defaults rather than going unwritten.
     step = grid.get_convergence()
     assert len(step.mdot) == 2
-    for field in ("mdot_target", "mdot_throttle", "P_throttle", "dP_P", "dP_I", "dP_D"):
+    for field in (
+        "mdot_target",
+        "mdot_throttle",
+        "dP_throttle",
+        "dP_P",
+        "dP_I",
+        "dP_D",
+    ):
         assert getattr(step, field) == 0.0
     assert ConvergenceHistory.from_grid(1, grid) is not None
 
