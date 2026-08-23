@@ -1,18 +1,23 @@
 """Eager fused evaluation of the primitive cache, ``Block.update_primitive``.
 
-The four primitives ``_u_nd_uninit``, ``P_nd``, ``ho_nd`` and ``T_nd`` are
-normally pulled lazily by ``@cached_array``, one numpy pass at a time.
-``update_primitive`` fills all four in two fused passes -- a Fortran kinematic
+The three primitives ``_u_nd_uninit``, ``P_nd`` and ``T_nd`` are normally
+pulled lazily by ``@cached_array``, one numpy pass at a time.
+``update_primitive`` fills all three in two fused passes -- a Fortran kinematic
 kernel and the fluid's batched ``get_P_h_T`` -- and publishes them into the
 same ``_store`` entries with the same data-key versions.
 
-The kinetic energy is NOT among them, though the kernel writes it: it is live
-only from that kernel to the ``ho +=`` two lines later, so it is carved from
-``block.scratch`` and dropped. ``_halfVsq_nd_uninit`` is a plain derived
-property, and the only in-suite evidence that the borrowed buffer reached its
-consumer is ``ho_nd`` -- which is what ``test_halfvsq_is_borrowed`` pins.
+Three quantities it forms are NOT published, each because a consumer derives it
+where it walks: the velocity, the kinetic energy and the stagnation enthalpy.
+The last is the interesting one and ``test_stagnation_enthalpy_identity``
+pins it: ``set_residual`` builds ``ho`` from the conserved state and the
+pressure as ``(rho*e + P)/rho``, which is exact only because ``h = u + P/rho``
+is the definition of enthalpy. A fluid whose ``get_h`` did not satisfy that
+would silently disagree with the kernel, and nothing else in the suite would
+say so.
 
-Velocity is NOT among them either. The kinematic kernel still forms it, to build
+The two throwaways share one borrowed nodal buffer, in turn: the kernel writes
+the kinetic energy into it, then ``get_P_h_T`` writes the static enthalpy over
+the top. The kinematic kernel still forms it, to build
 ``halfvsq`` and ``u``, but nothing stores it: the kernels that want a nodal
 velocity derive it from ``cons`` where they walk, so ``_Vxrt_nd_uninit`` is a
 plain derived property and has no cache entry to publish into.
@@ -46,7 +51,7 @@ SHAPE = (9, 7, 5)
 # means something. (Same trap as the bench harness's swirl(): ask what the test
 # state actually exercises before trusting a gate.)
 TOL_ULP = dict.fromkeys(
-    ("P_nd", "ho_nd", "T_nd", "_u_nd_uninit"),
+    ("P_nd", "T_nd", "_u_nd_uninit"),
     8.0,
 )
 
@@ -105,23 +110,69 @@ def test_matches_the_lazy_path():
         )
 
 
-def test_halfvsq_is_borrowed():
-    """The kinetic energy is not published, but it still reaches ``ho``.
-
-    Two halves, and the second is the one that matters: dropping the cache is
-    easy to get right, silently failing to add the borrowed buffer into the
-    stagnation enthalpy is not, and no other test in the suite would see it.
-    """
+def test_borrowed_quantities_are_not_published():
+    """The kinetic energy and the stagnation enthalpy get no cache entry."""
     block = _build_block()
     _invalidate(block)
     block.update_primitive()
 
     assert "_halfVsq_nd_uninit" not in block._store
+    assert "ho_nd" not in block._store
+    # Still correct through the derived path, and still finite -- the static
+    # enthalpy is written over the kinetic energy in one shared buffer, so a
+    # mistake there shows up as one of the two being the other.
+    assert np.all(np.isfinite(np.asarray(block.ho_nd)))
+    assert _ulps(
+        np.asarray(block.ho_nd),
+        block.fluid.get_h(block._rho_nd_uninit, np.asarray(block._u_nd_uninit))
+        + np.asarray(block._halfVsq_nd_uninit),
+    ) <= 8.0
 
-    # ho = h(rho, u) + halfVsq, with every term read back after the call.
-    halfVsq = np.asarray(block._halfVsq_nd_uninit)
-    h = block.fluid.get_h(block._rho_nd_uninit, np.asarray(block._u_nd_uninit))
-    assert _ulps(np.asarray(block.ho_nd), h + halfVsq) <= 8.0
+
+@pytest.mark.parametrize("kind", ("perfect", "real"))
+def test_stagnation_enthalpy_identity(kind):
+    """``ho == (rho*e + P)/rho``, which is what set_residual now assumes.
+
+    The kernel stopped taking a nodal ``ho`` array and forms it at its face
+    corners from the conserved state and the pressure, on the strength of
+    ``h = u + P/rho``. That is the definition of enthalpy rather than a
+    perfect-gas shortcut -- RealFluid.get_h computes exactly it, and
+    PerfectFluid's ``gamma*u + R*T_dtm`` is the same expression with ``P/rho``
+    expanded -- but it is an assumption the Fortran cannot check, so it is
+    checked here, on both fluids the package ships.
+
+    The state sits away from the datum for the reason at the top of this
+    module, and carries swirl so no velocity component drops out.
+    """
+    if kind == "perfect":
+        block = _build_block()
+    else:
+        from conftest import VanDerWaals, fit_real_fluid
+
+        # Built rather than re-fluided: set_fluid re-derives the stored state
+        # through the new equation of state, and this block's perfect-gas
+        # state lies outside the fit box. rho and u are set directly, in the
+        # middle of that box, so both fitted surfaces are read well inside it.
+        block = ember.block.Block(shape=SHAPE)
+        block.set_Nb(36)
+        xrt = util.linmesh3((0.0, 0.1), (0.5, 1.0), (0.0, 0.2), SHAPE)
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
+        block.set_fluid(fit_real_fluid(VanDerWaals(), (1.0, 150.0), (3.0e5, 5.0e5)))
+        rho = np.full(SHAPE, 60.0, dtype=np.float32)
+        u = np.full(SHAPE, 4.0e5, dtype=np.float32)
+        block.set_rho_u(rho, u)
+        Vx = 100.0 + 20.0 * np.sin(2.0 * np.pi * block.r)
+        block.set_Vx(Vx.astype(np.float32))
+        block.set_Vr((0.05 * Vx).astype(np.float32))
+        block.set_Vt((0.10 * Vx).astype(np.float32))
+
+    cons = np.asarray(block.conserved_nd)
+    rho, rhoe = cons[..., 0], cons[..., 4]
+    inline = (rhoe + np.asarray(block.P_nd)) / rho
+
+    assert _ulps(inline, np.asarray(block.ho_nd)) <= 8.0
 
 
 def test_leaves_the_properties_cached():

@@ -2452,20 +2452,24 @@ class Block(ember._struct.StructuredData):
     def update_primitive(self):
         """Evaluate the primitive cache eagerly.
 
-        Populates :attr:`P_nd`, :attr:`ho_nd` and :attr:`T_nd` together, which
-        may save time when done in the solver hot loop. Lazily accessing any of
-        those properties afterwards is a fast cache hit.
+        Populates :attr:`P_nd`, :attr:`T_nd` and the internal energy behind
+        :attr:`u_nd` together, which may save time when done in the solver hot
+        loop. Lazily accessing any of those properties afterwards is a fast
+        cache hit.
 
-        Velocity is formed inside the kinematic pass and discarded: nothing
-        caches it, because the kernels that need it derive it from ``cons``
-        themselves (see :attr:`_Vxrt_nd_uninit`).
+        Three things this forms are NOT published, each because a consumer
+        derives it where it walks instead: the velocity (see
+        :attr:`_Vxrt_nd_uninit`), the kinetic energy
+        (:attr:`_halfVsq_nd_uninit`) and the stagnation enthalpy
+        (:attr:`ho_nd`, which ``set_residual`` builds from ``cons`` and the
+        pressure at its own face corners).
 
         Returns early when the caches are already current, so calling it
         more often than necessary costs a handful of dict lookups.
 
         """
         # Raise on uninitialised state exactly as the public properties do:
-        # P_nd/T_nd need rho and rhoe, ho_nd additionally needs the momenta.
+        # P_nd/T_nd need rho and rhoe, and the kinematic pass the momenta.
         for key in ("rho", "rhoe", "rhoVx", "rhoVr", "rhorVt"):
             self._get_data_by_keys((key,))
 
@@ -2476,35 +2480,36 @@ class Block(ember._struct.StructuredData):
         stamps = (
             ("_u_nd_uninit", ver_e),
             ("P_nd", ver_e),
-            ("ho_nd", ver_e),
             ("T_nd", ver_e),
         )
         if all(self._store.get(k, (None,))[0] == v for k, v in stamps):
             return
 
         shape = self.shape
-        # The kinetic energy is borrowed, not cached: it is live only from the
-        # kernel below to the `ho +=` two lines further on, so keeping a nodal
-        # volume on the block for the whole run bought nothing. The arena is
-        # free at every call site -- each calls this before carving anything of
-        # its own (see Grid.update_sources, update_residual, update_timestep).
-        halfvsq = util.carve_view(self.scratch, shape)
+        # One borrowed nodal buffer serves both passes in turn, because their
+        # two throwaways never coexist: the kinetic energy exists only to make
+        # `u` inside the kernel, and the static enthalpy only because
+        # get_P_h_T produces it beside the pressure and temperature that are
+        # wanted. Neither is kept -- `ho_nd` is derived now, set_residual
+        # forming it from the conserved state at its own corners -- so the
+        # second write lands on top of the first. The arena is free at every
+        # call site: each calls this before carving anything of its own (see
+        # Grid.update_sources, update_residual, update_timestep).
+        scrap = util.carve_view(self.scratch, shape)
         u = self._primitive_buffer("_u_nd_uninit", shape)
         P = self._primitive_buffer("P_nd", shape)
-        ho = self._primitive_buffer("ho_nd", shape)
         T = self._primitive_buffer("T_nd", shape)
 
         # Pass 1: kinematics, fluid-agnostic (velocity is defined by the
         # conserved variables for any fluid).
         ember.fortran.set_primitive_kinematic(
-            cons=self.conserved_nd, r=self.r_nd, u=u, halfvsq=halfvsq
+            cons=self.conserved_nd, r=self.r_nd, u=u, halfvsq=scrap
         )
-        # Pass 2: thermodynamics, behind the Fluid interface. `ho` receives the
-        # STATIC enthalpy here and becomes stagnation on the next line.
-        self.fluid.get_P_h_T(self._rho_nd_uninit, u, P, ho, T)
-        ho += halfvsq
+        # Pass 2: thermodynamics, behind the Fluid interface. The enthalpy is
+        # written over the kinetic energy, which is dead by now.
+        self.fluid.get_P_h_T(self._rho_nd_uninit, u, P, scrap, T)
 
-        for (cache_key, versions), arr in zip(stamps, (u, P, ho, T)):
+        for (cache_key, versions), arr in zip(stamps, (u, P, T)):
             arr.flags.writeable = False
             self._store[cache_key] = (versions, arr)
 
@@ -2888,9 +2893,24 @@ class Block(ember._struct.StructuredData):
         """
         return self.ho_nd * self.fluid.u_ref
 
-    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
-    def ho_nd(self, out):
+    @derived_array
+    def ho_nd(self):
         r"""Nondimensional stagnation enthalpy :math:`h_0/u_\mathrm{ref}` [-].
+
+        Derived, not cached: each access allocates. The solver's one whole-block
+        consumer, ``set_residual``, does not come through here -- it forms the
+        same quantity at the face corners it is already walking, from the
+        conserved state and the pressure it is already handed:
+
+        .. math::
+            h_0 = u + p/\rho + \tfrac{1}{2}V^2 = e + p/\rho
+                = (\rho e + p) / \rho
+
+        which is exact for any fluid, :math:`h = u + p/\rho` being the
+        definition of enthalpy rather than an approximation of it. What is left
+        here are the patch-average and post-processing readers, whose blocks are
+        a surface rather than a volume. Do not put this in a per-node loop over
+        a full block.
 
         Carries an offset dependent on the arbitrary datum state where
         :math:`u = s = 0` at :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`; only
@@ -2899,10 +2919,9 @@ class Block(ember._struct.StructuredData):
         # Stagnation quantities are undefined without a velocity; require the
         # momenta (r is tolerated, matching the velocity getters).
         self._get_data_by_keys(("rhoVx", "rhoVr", "rhorVt"))
-        out = util.allocate_or_reuse(out, self.shape)
-        self.fluid.get_h(self._rho_nd_uninit, self.u_nd, out=out)
-        out += self._halfVsq_nd_uninit
-        return out
+        return self.fluid.get_h(self._rho_nd_uninit, self.u_nd) + (
+            self._halfVsq_nd_uninit
+        )
 
     @derived_array
     def ho_rel(self):

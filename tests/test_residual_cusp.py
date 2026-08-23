@@ -41,7 +41,6 @@ def _run_residual(block, i_cusp):
         dak=block.dAk_nd,
         du=du,
         f_body=block.F_body_nd,
-        ho=block.ho_nd,
         planes=planes,
         rows=rows,
         **block.ijk_wall_conv,

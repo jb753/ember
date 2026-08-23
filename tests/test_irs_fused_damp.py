@@ -79,7 +79,6 @@ def _reference(grid, b, dampin, sf):
         dak=b.dAk_nd,
         du=du,
         f_body=b.F_body_nd,
-        ho=b.ho_nd,
         planes=planes,
         rows=rows,
         **b.ijk_wall_conv,
