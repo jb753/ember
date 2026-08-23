@@ -1560,7 +1560,6 @@ class Grid(_LabelledList):
                 dak=block.dAk_nd,
                 du=block.residual_nd,
                 f_body=block.F_body_nd,
-                ho=block.ho_nd,
                 planes=planes,
                 rows=rows,
                 **block.ijk_wall_conv,

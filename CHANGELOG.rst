@@ -10,6 +10,36 @@ without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* **Breaking:** ``Block.ho_nd`` is no longer cached, and ``set_residual`` no
+  longer takes it. Stagnation enthalpy is derived at the face corners the
+  kernel already walks, from the conserved state and the pressure it is already
+  handed: ``h = u + p/rho`` is the definition of enthalpy, so
+  ``ho = e + p/rho = (rho*e + P)/rho`` exactly, for any fluid. The property
+  survives as a derived array for the patch-average and post-processing readers,
+  which are surfaces rather than volumes. The nondimensional form needs no
+  conversion factor because ``P_ref/rho_ref == u_ref``, and both shipped
+  equations of state satisfy the identity by construction --
+  ``RealFluid.get_h`` *is* ``u + P/rho``, and ``PerfectFluid``'s
+  ``gamma*u + R*T_dtm`` is the same expression expanded. A new test pins it on
+  both, since it is an assumption the Fortran cannot check.
+
+  **This one costs time to save memory, unlike the two above it.** Per-block
+  derived store falls 4.05 MB at 273x65x57 (1.20 MB at 81x65x57, measured) and
+  the arena is unchanged at every shape, but the march is **+0.70% slower**
+  end to end: the streams are a wash -- the ``ho`` volume leaves the flux
+  kernel's working set and ``cons(...,5)`` enters it -- while the arithmetic is
+  not, each corner now doing an add and a multiply where it read a precomputed
+  value. ``update_primitive`` gets cheaper in exchange (no ``ho`` buffer, no
+  ``ho += halfvsq`` pass over the volume) but not by enough to cover it.
+
+  Measured end to end on a 1M-cell RK4/IRS/MG duct, 8 launches per arm in
+  alternating blocks, pinned to one physical core with a warmup march excluded
+  from the timed region: medians 0.3545 against 0.3569 us/node/step, slower in
+  both rounds, exact permutation test p = 0.0078 against a within-arm spread of
+  0.95%. ``set_visc_force`` and ``set_timestep_spectral`` fingerprint
+  identically across all four builds (``bench/codegen_gauge.py``), so no
+  unrelated codegen moved. The residual and cusp goldens pass unregenerated.
+
 * **Breaking:** ``Block._halfVsq_nd_uninit`` is no longer cached. The kinetic
   energy is live only between the kinematic kernel that writes it and the
   ``ho +=`` two lines later, so ``update_primitive`` now carves it from

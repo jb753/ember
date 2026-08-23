@@ -83,7 +83,7 @@ contains
     ! Granularity is one row (i/j directions) or one plane (k direction) so
     ! the caller can roll small buffers instead of staging full volumes.
 
-    pure subroutine iface_flow_row(ho, P, P_offset, r, &
+    pure subroutine iface_flow_row(P, P_offset, r, &
                                    cons, Omega, dA, &
                                    wall_lo, wall_hi, row, j, k, ni, nj, nk)
         ! Compute inviscid face flows on the ni i-faces of cell row (j,k);
@@ -92,7 +92,7 @@ contains
 
         implicit none
         integer, intent(in) :: j, k, ni, nj, nk
-        real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
+        real, intent(in) :: P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
@@ -186,7 +186,21 @@ contains
                 + 0.25e0*cons(i,j,k+1,3)*g3 + 0.25e0*cons(i,j+1,k+1,3)*g4
             pm3 = 0.25e0*cons(i,j,k,4)*g1 + 0.25e0*cons(i,j+1,k,4)*g2 &
                 + 0.25e0*cons(i,j,k+1,4)*g3 + 0.25e0*cons(i,j+1,k+1,4)*g4
-            pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i,j+1,k) + 0.25e0*ho(i,j,k+1) + 0.25e0*ho(i,j+1,k+1)
+            ! Stagnation enthalpy from the conserved state and the pressure,
+            ! not its own nodal array: h = u + P/rho is the definition of
+            ! enthalpy, so ho = u + P/rho + V^2/2 = e + P/rho = (c5 + P)/c1
+            ! exactly, for any fluid (RealFluid.get_h IS u + P/rho;
+            ! PerfectFluid's gamma*u + R*T_dtm is the same expression once
+            ! P/rho is expanded). The reciprocal is the one already formed
+            ! for the velocity components and P is already loaded for dp, so
+            ! this trades a streamed nodal field for an add and a multiply.
+            ! RAW P, not dp: stagnation enthalpy carries no pressure offset.
+            ! All four accumulations in this file must spell it identically --
+            ! correct_cusp_kface_du recomputes what the sweep accumulated and
+            ! subtracts the two, so a different association leaves a last-bit
+            ! residue on the seam planes.
+            pm4 = 0.25e0*(cons(i,j,k,5)+P(i,j,k))*g1 + 0.25e0*(cons(i,j+1,k,5)+P(i,j+1,k))*g2 &
+                + 0.25e0*(cons(i,j,k+1,5)+P(i,j,k+1))*g3 + 0.25e0*(cons(i,j+1,k+1,5)+P(i,j+1,k+1))*g4
             pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
             pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i,j+1,k)*dp2 &
                 + 0.25e0*r(i,j,k+1)*dp3 + 0.25e0*r(i,j+1,k+1)*dp4
@@ -202,7 +216,7 @@ contains
     end subroutine iface_flow_row
 
 
-    pure subroutine jface_flow_row(ho, P, P_offset, r, &
+    pure subroutine jface_flow_row(P, P_offset, r, &
                                    cons, Omega, dA, &
                                    wall_lo, wall_hi, row, jf, k, ni, nj, nk)
         ! Compute inviscid face flows on the (ni-1) j-faces of face row jf at
@@ -211,7 +225,7 @@ contains
 
         implicit none
         integer, intent(in) :: jf, k, ni, nj, nk
-        real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
+        real, intent(in) :: P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
@@ -295,7 +309,21 @@ contains
                 + 0.25e0*cons(i,j,k+1,3)*g3 + 0.25e0*cons(i+1,j,k+1,3)*g4
             pm3 = 0.25e0*cons(i,j,k,4)*g1 + 0.25e0*cons(i+1,j,k,4)*g2 &
                 + 0.25e0*cons(i,j,k+1,4)*g3 + 0.25e0*cons(i+1,j,k+1,4)*g4
-            pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i+1,j,k) + 0.25e0*ho(i,j,k+1) + 0.25e0*ho(i+1,j,k+1)
+            ! Stagnation enthalpy from the conserved state and the pressure,
+            ! not its own nodal array: h = u + P/rho is the definition of
+            ! enthalpy, so ho = u + P/rho + V^2/2 = e + P/rho = (c5 + P)/c1
+            ! exactly, for any fluid (RealFluid.get_h IS u + P/rho;
+            ! PerfectFluid's gamma*u + R*T_dtm is the same expression once
+            ! P/rho is expanded). The reciprocal is the one already formed
+            ! for the velocity components and P is already loaded for dp, so
+            ! this trades a streamed nodal field for an add and a multiply.
+            ! RAW P, not dp: stagnation enthalpy carries no pressure offset.
+            ! All four accumulations in this file must spell it identically --
+            ! correct_cusp_kface_du recomputes what the sweep accumulated and
+            ! subtracts the two, so a different association leaves a last-bit
+            ! residue on the seam planes.
+            pm4 = 0.25e0*(cons(i,j,k,5)+P(i,j,k))*g1 + 0.25e0*(cons(i+1,j,k,5)+P(i+1,j,k))*g2 &
+                + 0.25e0*(cons(i,j,k+1,5)+P(i,j,k+1))*g3 + 0.25e0*(cons(i+1,j,k+1,5)+P(i+1,j,k+1))*g4
             pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
             pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i+1,j,k)*dp2 &
                 + 0.25e0*r(i,j,k+1)*dp3 + 0.25e0*r(i+1,j,k+1)*dp4
@@ -311,7 +339,7 @@ contains
     end subroutine jface_flow_row
 
 
-    pure subroutine kface_flow_plane(ho, P, P_offset, r, &
+    pure subroutine kface_flow_plane(P, P_offset, r, &
                                      cons, Omega, dA, &
                                      wall_lo, wall_hi, plane, kf, j0, j1, njp, &
                                      ni, nj, nk)
@@ -325,7 +353,7 @@ contains
 
         implicit none
         integer, intent(in) :: kf, j0, j1, njp, ni, nj, nk
-        real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
+        real, intent(in) :: P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
@@ -415,7 +443,21 @@ contains
                 + 0.25e0*cons(i,j+1,k,3)*g3 + 0.25e0*cons(i+1,j+1,k,3)*g4
             pm3 = 0.25e0*cons(i,j,k,4)*g1 + 0.25e0*cons(i+1,j,k,4)*g2 &
                 + 0.25e0*cons(i,j+1,k,4)*g3 + 0.25e0*cons(i+1,j+1,k,4)*g4
-            pm4 = 0.25e0*ho(i,j,k) + 0.25e0*ho(i+1,j,k) + 0.25e0*ho(i,j+1,k) + 0.25e0*ho(i+1,j+1,k)
+            ! Stagnation enthalpy from the conserved state and the pressure,
+            ! not its own nodal array: h = u + P/rho is the definition of
+            ! enthalpy, so ho = u + P/rho + V^2/2 = e + P/rho = (c5 + P)/c1
+            ! exactly, for any fluid (RealFluid.get_h IS u + P/rho;
+            ! PerfectFluid's gamma*u + R*T_dtm is the same expression once
+            ! P/rho is expanded). The reciprocal is the one already formed
+            ! for the velocity components and P is already loaded for dp, so
+            ! this trades a streamed nodal field for an add and a multiply.
+            ! RAW P, not dp: stagnation enthalpy carries no pressure offset.
+            ! All four accumulations in this file must spell it identically --
+            ! correct_cusp_kface_du recomputes what the sweep accumulated and
+            ! subtracts the two, so a different association leaves a last-bit
+            ! residue on the seam planes.
+            pm4 = 0.25e0*(cons(i,j,k,5)+P(i,j,k))*g1 + 0.25e0*(cons(i+1,j,k,5)+P(i+1,j,k))*g2 &
+                + 0.25e0*(cons(i,j+1,k,5)+P(i,j+1,k))*g3 + 0.25e0*(cons(i+1,j+1,k,5)+P(i+1,j+1,k))*g4
             pm5 = 0.25e0*dp1 + 0.25e0*dp2 + 0.25e0*dp3 + 0.25e0*dp4
             pm6 = 0.25e0*r(i,j,k)*dp1 + 0.25e0*r(i+1,j,k)*dp2 &
                 + 0.25e0*r(i,j+1,k)*dp3 + 0.25e0*r(i+1,j+1,k)*dp4
@@ -431,7 +473,7 @@ contains
     end subroutine kface_flow_plane
 
 
-    subroutine correct_cusp_kface_du(ho, P, P_offset, r, &
+    subroutine correct_cusp_kface_du(P, P_offset, r, &
                                      cons, Omega, dAk, &
                                      wall_lo, wall_hi, dU, &
                                      i_cusp_start, i_cusp_end, ni, nj, nk)
@@ -456,7 +498,7 @@ contains
 
         implicit none
         integer, intent(in) :: ni, nj, nk
-        real, intent(in) :: ho(ni, nj, nk), P(ni, nj, nk), r(ni, nj, nk)
+        real, intent(in) :: P(ni, nj, nk), r(ni, nj, nk)
         real, intent(in) :: P_offset
         real, intent(in) :: cons(ni, nj, nk, 5)
         real, intent(in) :: Omega
@@ -582,7 +624,8 @@ contains
             pm(1) = pm(1) + 0.25e0*cons(i,j,k,2)*g
             pm(2) = pm(2) + 0.25e0*cons(i,j,k,3)*g
             pm(3) = pm(3) + 0.25e0*cons(i,j,k,4)*g
-            pm(4) = pm(4) + 0.25e0*ho(i,j,k)
+            ! Same spelling as the sweep's accum_corners (see there).
+            pm(4) = pm(4) + 0.25e0*(cons(i,j,k,5)+P(i,j,k))*g
             pm(5) = pm(5) + 0.25e0*dp
             pm(6) = pm(6) + 0.25e0*r(i,j,k)*dp
             w = 0.25e0*wfac
@@ -1021,7 +1064,6 @@ subroutine set_residual( &
     r, Omega, dAi, dAj, dAk, &
     f_body, &
     dU, &
-    ho, &
     planes, rows, &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
@@ -1043,7 +1085,6 @@ subroutine set_residual( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: f_body(ni-1, nj-1, nk-1, 5)
-    real, intent(in) :: ho(ni, nj, nk)
     real, intent(in) :: walli1(nj-1, nk-1)
     real, intent(in) :: wallni(nj-1, nk-1)
     real, intent(in) :: wallj1(ni-1, nk-1)
@@ -1117,7 +1158,7 @@ subroutine set_residual( &
     ! Prime the rolling k-face plane with face k=1 before the slab sweep
     ! (the fused loop below always has plane k in slot pa on entry to cell
     ! k, needing only face k+1 freshly computed into pb).
-    call kface_flow_plane(ho, P, P_offset, r, cons, &
+    call kface_flow_plane(P, P_offset, r, cons, &
                           Omega, dAk, wallk1, wallnk, planes(:,:,:,pa), &
                           1, jp0, jp1, njp, ni, nj, nk)
 
@@ -1140,20 +1181,20 @@ subroutine set_residual( &
         ja = 2
         jb = 3
         ! Prime the rolling j-face pair with the panel's lowest j face.
-        call jface_flow_row(ho, P, P_offset, r, cons, &
+        call jface_flow_row(P, P_offset, r, cons, &
                             Omega, dAj, wallj1, wallnj, rows(:,:,ja), &
                             jp0, k, ni, nj, nk)
         ! Advance the rolling k-face pair: pa already holds face k (primed
         ! before the sweep, or carried from the previous k iteration); pb
         ! gets face k+1 computed fresh.
-        call kface_flow_plane(ho, P, P_offset, r, cons, &
+        call kface_flow_plane(P, P_offset, r, cons, &
                               Omega, dAk, wallk1, wallnk, planes(:,:,:,pb), &
                               k+1, jp0, jp1, njp, ni, nj, nk)
         do j = jp0, jp1
-            call iface_flow_row(ho, P, P_offset, r, cons, &
+            call iface_flow_row(P, P_offset, r, cons, &
                                 Omega, dAi, walli1(j,k), wallni(j,k), &
                                 rows(:,:,1), j, k, ni, nj, nk)
-            call jface_flow_row(ho, P, P_offset, r, cons, &
+            call jface_flow_row(P, P_offset, r, cons, &
                                 Omega, dAj, wallj1, wallnj, rows(:,:,jb), &
                                 j+1, k, ni, nj, nk)
             do m = 1, 5
@@ -1184,7 +1225,7 @@ subroutine set_residual( &
     ! a deferred O(surface) correction to dU after the sweep. nk=2 (the two
     ! seam cells coincide) is not supported.
     if (i_cusp_start > 0 .and. nk > 2) then
-        call correct_cusp_kface_du(ho, P, P_offset, r, cons, &
+        call correct_cusp_kface_du(P, P_offset, r, cons, &
                                    Omega, dAk, wallk1, wallnk, dU, &
                                    i_cusp_start, i_cusp_end, ni, nj, nk)
     end if
