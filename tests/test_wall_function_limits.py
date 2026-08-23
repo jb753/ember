@@ -336,9 +336,6 @@ def _wall_yplus_with(block, mu):
         omega_block=block.Omega_nd,
         r=block.r_nd,
         mu=mu,
-        vx=block.Vx_nd,
-        vr=block.Vr_nd,
-        vt=block.Vt_rel_nd,
         **block.ijk_wall_visc,
         **block.Omega_wall_nd,
     )

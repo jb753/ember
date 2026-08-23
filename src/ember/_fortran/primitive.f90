@@ -19,7 +19,7 @@
 
 subroutine set_primitive_kinematic( &
     cons, r, &
-    vxrt, u, halfvsq, &
+    u, halfvsq, &
     ni, nj, nk &
     )
 
@@ -29,17 +29,21 @@ subroutine set_primitive_kinematic( &
     ! Conserved: rho, rho*Vx, rho*Vr, rho*r*Vt, rho*e.
     real, intent (in)    :: cons(ni, nj, nk, 5)
     real, intent (in)    :: r(ni, nj, nk)
-    real, intent (inout) :: vxrt(ni, nj, nk, 3)
     real, intent (inout) :: u(ni, nj, nk)
     real, intent (inout) :: halfvsq(ni, nj, nk)
 
     integer :: i, j, k
     real :: rho, Vx, Vr, Vt, hv
 
-    ! Divisions written out rather than hoisted into a reciprocal: this mirrors
-    ! the numpy path (block.py `_Vxrt_nd_uninit`, which divides by rho and then
-    ! by r), and -freciprocal-math lets the compiler make that transformation
-    ! itself if it pays.
+    ! The velocities are formed and then discarded: only halfvsq and u leave
+    ! this loop. Nothing caches them any more -- every consumer that wanted a
+    ! nodal velocity volume now derives it from cons where it walks (see
+    ! viscous.f90's vel_at) -- so writing them out was 12 MB a step at
+    ! 273x65x57 for a buffer nobody read.
+    !
+    ! Divisions written out rather than hoisted into a reciprocal, matching
+    ! what the viscous kernels do at their own corners; -freciprocal-math
+    ! lets the compiler make that transformation itself if it pays.
     do k = 1, nk
     do j = 1, nj
     do i = 1, ni
@@ -50,9 +54,6 @@ subroutine set_primitive_kinematic( &
         ! avoid materialising a rho*r temporary.
         Vt = cons(i, j, k, 4) / rho / r(i, j, k)
         hv = 0.5e0 * (Vx * Vx + Vr * Vr + Vt * Vt)
-        vxrt(i, j, k, 1) = Vx
-        vxrt(i, j, k, 2) = Vr
-        vxrt(i, j, k, 3) = Vt
         halfvsq(i, j, k) = hv
         u(i, j, k) = cons(i, j, k, 5) / rho - hv
     end do

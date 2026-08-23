@@ -1220,9 +1220,11 @@ class Block(ember._struct.StructuredData):
     def _halfVsq_nd_uninit(self, out):
         """Nondimensional half velocity squared [-], tolerating uninitialised data.
 
-        Sums the squared components of the cached nondimensional velocity
+        Sums the squared components of the derived nondimensional velocity
         :attr:`_Vxrt_nd_uninit` into its own cached buffer, so the returned
-        array is stable across other computations (no shared scratch).
+        array is stable across other computations (no shared scratch). This one
+        stays cached: unlike the velocity it is built from, it has no kernel
+        that re-derives it, and the solver reads it every step.
         """
         Vxrt_nd = self._Vxrt_nd_uninit
         out = util.allocate_or_reuse(out, self.shape)
@@ -1324,8 +1326,8 @@ class Block(ember._struct.StructuredData):
         """Nondimensional relative tangential velocity [-]."""
         return self._Vt_rel_nd_uninit
 
-    @cached_array("rho", "rhoVr", "rhorVt", "r", "Omega", "fluid")
-    def _Vt_rel_nd_uninit(self, out):
+    @property
+    def _Vt_rel_nd_uninit(self):
         r"""Nondimensional relative tangential velocity [-], own contiguous buffer.
 
         :math:`V_\theta^\mathrm{rel} = V_\theta - \Omega r`, formed in the
@@ -1335,23 +1337,46 @@ class Block(ember._struct.StructuredData):
         :attr:`r_nd` and :attr:`Omega_nd` (blade speed ``U* = r* Omega*``).
         Public access is via :attr:`Vt_rel_nd`, which guards the momenta first.
         """
-        out = util.allocate_or_reuse(out, self.shape)
-        # Form blade speed U* = r* Omega* in-place in the cache buffer, then
+        out = util.empty(self.shape)
+        # Form blade speed U* = r* Omega* in-place in the fresh buffer, then
         # Vt_rel = Vt - U* (subtract aliases its second input safely), avoiding
         # a separate r_nd * Omega_nd temporary.
         np.multiply(self.r_nd, self.Omega_nd, out=out)
-        np.subtract(self._Vxrt_nd_uninit[..., 2], out, out=out)
+        np.subtract(self._vel_nd_uninit("rhorVt"), out, out=out)
         return out
 
-    @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "r")
-    def _Vxrt_nd_uninit(self, out):
+    def _vel_nd_uninit(self, key):
+        """One nondimensional velocity component, derived from its momentum.
+
+        The per-component counterpart to :attr:`_Vxrt_nd_uninit`, so an
+        accessor that wants one component allocates one array rather than a
+        three-component stack it immediately slices. Same tolerance of
+        uninitialised data, and the same division order.
+        """
+        rho = self._get_data_by_keys(("rho",), raise_uninit=False)
+        mom = self._get_data_by_keys((key,), raise_uninit=False)
+        out = np.divide(mom, rho)
+        if key == "rhorVt":
+            out /= self._get_data_by_keys(("r",), raise_uninit=False)
+        return out
+
+    @property
+    def _Vxrt_nd_uninit(self):
         """Nondimensional polar velocity (Vx, Vr, Vt) stacked on the last axis.
 
-        Single source of truth for velocity derived from the conserved
-        momenta. Tolerates uninitialised data (does not raise), so it is safe
-        to call on a partially built block. Public access is via
-        :attr:`Vxrt_nd` and the per-component :attr:`Vx_nd`, :attr:`Vr_nd`,
-        :attr:`Vt_nd`, which guard against uninitialised momenta first.
+        Single source of truth for velocity on the PYTHON side, and derived
+        rather than cached: every solver kernel that wanted a nodal velocity
+        volume now forms it from ``cons`` at the corners it walks (see
+        ``vel_at`` in _fortran/viscous.f90), so caching this held 12.14 MB per
+        block at 273x65x57 -- and ``Vt_rel`` another 4.05 MB -- for consumers
+        that are all O(surface): the boundary conditions, the mixing planes and
+        post-processing. Each access allocates; do not put one in a per-node
+        loop over a full block.
+
+        Tolerates uninitialised data (does not raise), so it is safe to call on
+        a partially built block. Public access is via :attr:`Vxrt_nd` and the
+        per-component :attr:`Vx_nd`, :attr:`Vr_nd`, :attr:`Vt_nd`, which guard
+        against uninitialised momenta first.
 
         Vt = rhorVt / (r * rho) is split into two sequential divisions to
         avoid allocating the r*rho temporary array.
@@ -1361,7 +1386,7 @@ class Block(ember._struct.StructuredData):
         rhoVr = self._get_data_by_keys(("rhoVr",), raise_uninit=False)
         rhorVt = self._get_data_by_keys(("rhorVt",), raise_uninit=False)
         r = self._get_data_by_keys(("r",), raise_uninit=False)
-        out = util.allocate_or_reuse(out, self.shape + (3,))
+        out = util.empty(self.shape + (3,))
         np.divide(rhoVx, rho, out=out[..., 0])
         np.divide(rhoVr, rho, out=out[..., 1])
         np.divide(rhorVt, rho, out=out[..., 2])  # Vt = rhorVt/rho ...
@@ -2416,6 +2441,10 @@ class Block(ember._struct.StructuredData):
         may save time when done in the solver hot loop. Lazily accessing any of
         those properties afterwards is a fast cache hit.
 
+        Velocity is formed inside the kinematic pass and discarded: nothing
+        caches it, because the kernels that need it derive it from ``cons``
+        themselves (see :attr:`_Vxrt_nd_uninit`).
+
         Returns early when the caches are already current, so calling it
         more often than necessary costs a handful of dict lookups.
 
@@ -2430,7 +2459,6 @@ class Block(ember._struct.StructuredData):
         ver_r = self._get_version(("rho", "rhoVx", "rhoVr", "rhorVt", "r"))
         ver_e = self._get_version(("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"))
         stamps = (
-            ("_Vxrt_nd_uninit", ver_r),
             ("_halfVsq_nd_uninit", ver_r),
             ("_u_nd_uninit", ver_e),
             ("P_nd", ver_e),
@@ -2441,7 +2469,6 @@ class Block(ember._struct.StructuredData):
             return
 
         shape = self.shape
-        vxrt = self._primitive_buffer("_Vxrt_nd_uninit", shape + (3,))
         halfvsq = self._primitive_buffer("_halfVsq_nd_uninit", shape)
         u = self._primitive_buffer("_u_nd_uninit", shape)
         P = self._primitive_buffer("P_nd", shape)
@@ -2451,14 +2478,14 @@ class Block(ember._struct.StructuredData):
         # Pass 1: kinematics, fluid-agnostic (velocity is defined by the
         # conserved variables for any fluid).
         ember.fortran.set_primitive_kinematic(
-            cons=self.conserved_nd, r=self.r_nd, vxrt=vxrt, u=u, halfvsq=halfvsq
+            cons=self.conserved_nd, r=self.r_nd, u=u, halfvsq=halfvsq
         )
         # Pass 2: thermodynamics, behind the Fluid interface. `ho` receives the
         # STATIC enthalpy here and becomes stagnation on the next line.
         self.fluid.get_P_h_T(self._rho_nd_uninit, u, P, ho, T)
         ho += halfvsq
 
-        for (cache_key, versions), arr in zip(stamps, (vxrt, halfvsq, u, P, ho, T)):
+        for (cache_key, versions), arr in zip(stamps, (halfvsq, u, P, ho, T)):
             arr.flags.writeable = False
             self._store[cache_key] = (versions, arr)
 
@@ -3627,7 +3654,7 @@ class Block(ember._struct.StructuredData):
 
         """
         self._get_data_by_keys(("rhoVr",))  # raise if velocity uninitialised
-        return self._Vxrt_nd_uninit[..., 1]
+        return self._vel_nd_uninit("rhoVr")
 
     @derived_array
     def Vt(self):
@@ -3635,7 +3662,7 @@ class Block(ember._struct.StructuredData):
         # Guard rhorVt but tolerate uninitialised r, so velocities may be read
         # before coordinates are set (matching Vx and Vr).
         self._get_data_by_keys(("rhorVt",))
-        return self._Vxrt_nd_uninit[..., 2] * self._V_ref
+        return self._vel_nd_uninit("rhorVt") * self._V_ref
 
     @derived_array
     def Vt_nd(self):
@@ -3643,7 +3670,7 @@ class Block(ember._struct.StructuredData):
         # Guard rhorVt before r so uninitialised velocity surfaces as rhorVt.
         self._get_data_by_keys(("rhorVt",))
         self._get_data_by_keys(("r",))
-        return self._Vxrt_nd_uninit[..., 2]
+        return self._vel_nd_uninit("rhorVt")
 
     @derived_array
     def Vt_rel(self):
@@ -3672,7 +3699,7 @@ class Block(ember._struct.StructuredData):
     def Vx_nd(self):
         r"""Non-dimensional axial velocity :math:`V_x/V_\mathrm{ref}` [-], nodal array."""
         self._get_data_by_keys(("rhoVx",))  # raise if velocity uninitialised
-        return self._Vxrt_nd_uninit[..., 0]
+        return self._vel_nd_uninit("rhoVx")
 
     @derived_array
     def Vxrt(self):
