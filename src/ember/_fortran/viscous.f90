@@ -9,6 +9,7 @@ module viscous_helpers
     implicit none
     private
     public :: iface, jface, kface
+    public :: vel_at, iface_vel, jface_vel, kface_vel
     public :: wall_core, wall_func, wall_yplus
     public :: wall_func_iface, wall_func_jface, wall_func_kface
     public :: wall_yplus_iface, wall_yplus_jface, wall_yplus_kface
@@ -70,6 +71,107 @@ contains
         real :: sum4
         sum4 = x(i,j,k) + x(i+1,j,k) + x(i,j+1,k) + x(i+1,j+1,k)
     end function kface
+
+    ! ------------------------------------------------------------------
+    ! Velocity from the conserved state.
+    !
+    ! cons = (rho, rho*Vx, rho*Vr, rho*r*Vt, rho*e), so Vx = c2/c1 is the
+    ! velocity's definition rather than an approximation of it, and the
+    ! nodal velocity volumes this kernel used to stream are redundant with
+    ! cons. Recomputed at every use and never gathered into a buffer -- a
+    ! buffer would write more than it saves, which is the trade
+    ! bench/README.md records for the same change in set_residual.
+    !
+    ! DIVIDE PER COMPONENT. Do not "optimise" these into one reciprocal per
+    ! corner reused across the three components, which is how set_residual
+    ! spells it and what bench/README.md's entry describes. Both reasons are
+    ! measured, on a 1M-cell RK4/IRS/MG duct at 8-rank socket contention,
+    ! 6 paired launches:
+    !
+    !   * it is SLOWER here -- the shared-reciprocal form came out +0.13%
+    !     against this one's -0.72% at the same point in the work. That trade
+    !     was measured on set_residual's short stage-1 body; these bodies hold
+    !     eight reciprocals live across three components, and the register
+    !     pressure costs more than the divisions save.
+    !   * it MISCOMPILES. With -Ofast the shared-reciprocal form puts NaN
+    !     through set_visc_force's interior on a rotated duct (a case with
+    !     radial through-flow), while set_tau_q_faces' identical stage 1 stays
+    !     clean. It is not this source being wrong: -O0 -fcheck=all is clean
+    !     and bounds-clean, -fno-tree-vectorize is clean, and the derived
+    !     velocities are bitwise equal to the arrays they replaced.
+    !     Vectorisation is the trigger and the mechanism is not yet known.
+    !
+    ! Vt is BLOCK-RELATIVE, which is what every consumer here wants (see
+    ! wall_core: "Vt is relative to block frame"). This subroutine is the one
+    ! spelling of all four; the vectorised loops below inline it verbatim
+    ! rather than call it, because a call in those loops costs them their
+    ! vectorisation, but the text must stay identical to this.
+    ! ------------------------------------------------------------------
+    pure subroutine vel_at(cons, r, Omega, i, j, k, Vx, Vr, Vt)
+        implicit none
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:)
+        real, intent(in) :: Omega
+        integer, intent(in) :: i, j, k
+        real, intent(out) :: Vx, Vr, Vt
+        real :: g
+        g = 1.0e0/cons(i,j,k,1)
+        Vx = cons(i,j,k,2)*g
+        Vr = cons(i,j,k,3)*g
+        Vt = cons(i,j,k,4)*g/r(i,j,k) - Omega*r(i,j,k)
+    end subroutine vel_at
+
+    ! Face averages of (Vx, Vr, Vt_rel, rho) over the four nodes of a face,
+    ! in the same node order as iface/jface/kface sum theirs.
+    pure subroutine iface_vel(cons, r, Omega, i, j, k, Vxf, Vrf, Vtf, rhof)
+        implicit none
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:)
+        real, intent(in) :: Omega
+        integer, intent(in) :: i, j, k
+        real, intent(out) :: Vxf, Vrf, Vtf, rhof
+        real :: x1, x2, x3, x4, r1, r2, r3, r4, t1, t2, t3, t4
+        call vel_at(cons, r, Omega, i, j,   k,   x1, r1, t1)
+        call vel_at(cons, r, Omega, i, j+1, k,   x2, r2, t2)
+        call vel_at(cons, r, Omega, i, j,   k+1, x3, r3, t3)
+        call vel_at(cons, r, Omega, i, j+1, k+1, x4, r4, t4)
+        Vxf = (x1 + x2 + x3 + x4) * 0.25e0
+        Vrf = (r1 + r2 + r3 + r4) * 0.25e0
+        Vtf = (t1 + t2 + t3 + t4) * 0.25e0
+        rhof = iface(cons(:,:,:,1), i, j, k) * 0.25e0
+    end subroutine iface_vel
+
+    pure subroutine jface_vel(cons, r, Omega, i, j, k, Vxf, Vrf, Vtf, rhof)
+        implicit none
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:)
+        real, intent(in) :: Omega
+        integer, intent(in) :: i, j, k
+        real, intent(out) :: Vxf, Vrf, Vtf, rhof
+        real :: x1, x2, x3, x4, r1, r2, r3, r4, t1, t2, t3, t4
+        call vel_at(cons, r, Omega, i,   j, k,   x1, r1, t1)
+        call vel_at(cons, r, Omega, i+1, j, k,   x2, r2, t2)
+        call vel_at(cons, r, Omega, i,   j, k+1, x3, r3, t3)
+        call vel_at(cons, r, Omega, i+1, j, k+1, x4, r4, t4)
+        Vxf = (x1 + x2 + x3 + x4) * 0.25e0
+        Vrf = (r1 + r2 + r3 + r4) * 0.25e0
+        Vtf = (t1 + t2 + t3 + t4) * 0.25e0
+        rhof = jface(cons(:,:,:,1), i, j, k) * 0.25e0
+    end subroutine jface_vel
+
+    pure subroutine kface_vel(cons, r, Omega, i, j, k, Vxf, Vrf, Vtf, rhof)
+        implicit none
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:)
+        real, intent(in) :: Omega
+        integer, intent(in) :: i, j, k
+        real, intent(out) :: Vxf, Vrf, Vtf, rhof
+        real :: x1, x2, x3, x4, r1, r2, r3, r4, t1, t2, t3, t4
+        call vel_at(cons, r, Omega, i,   j,   k, x1, r1, t1)
+        call vel_at(cons, r, Omega, i+1, j,   k, x2, r2, t2)
+        call vel_at(cons, r, Omega, i,   j+1, k, x3, r3, t3)
+        call vel_at(cons, r, Omega, i+1, j+1, k, x4, r4, t4)
+        Vxf = (x1 + x2 + x3 + x4) * 0.25e0
+        Vrf = (r1 + r2 + r3 + r4) * 0.25e0
+        Vtf = (t1 + t2 + t3 + t4) * 0.25e0
+        rhof = kface(cons(:,:,:,1), i, j, k) * 0.25e0
+    end subroutine kface_vel
 
     ! Shared core of wall_func/wall_yplus: the local wall-friction physics --
     ! slip velocity, Reynolds number on the cell-thickness scale
@@ -138,54 +240,45 @@ contains
         yplus = Re * sqrt(cf * 0.5e0)
     end subroutine wall_yplus
 
-    pure subroutine wall_func_iface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, di, flow)
+    pure subroutine wall_func_iface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, di, flow)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, di
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: flow(4)
-        Vxf  = iface(Vx,  i+di, j, k) * 0.25e0
-        Vrf  = iface(Vr,  i+di, j, k) * 0.25e0
-        Vtf  = iface(Vt,  i+di, j, k) * 0.25e0
-        rhof = iface(rho, i+di, j, k) * 0.25e0
+        call iface_vel(cons, r, Omega_block, i+di, j, k, Vxf, Vrf, Vtf, rhof)
         muf  = iface(mu,  i+di, j, k) * 0.25e0
         rf   = iface(r, i, j, k) * 0.25e0
         call wall_func(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * di
     end subroutine wall_func_iface
 
-    pure subroutine wall_func_jface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dj, flow)
+    pure subroutine wall_func_jface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, dj, flow)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, dj
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: flow(4)
-        Vxf  = jface(Vx,  i, j+dj, k) * 0.25e0
-        Vrf  = jface(Vr,  i, j+dj, k) * 0.25e0
-        Vtf  = jface(Vt,  i, j+dj, k) * 0.25e0
-        rhof = jface(rho, i, j+dj, k) * 0.25e0
+        call jface_vel(cons, r, Omega_block, i, j+dj, k, Vxf, Vrf, Vtf, rhof)
         muf  = jface(mu,  i, j+dj, k) * 0.25e0
         rf   = jface(r, i, j, k) * 0.25e0
         call  wall_func(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * dj
     end subroutine wall_func_jface
 
-    pure subroutine wall_func_kface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dk, flow)
+    pure subroutine wall_func_kface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, dk, flow)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, dk
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: flow(4)
-        Vxf  = kface(Vx,  i, j, k+dk) * 0.25e0
-        Vrf  = kface(Vr,  i, j, k+dk) * 0.25e0
-        Vtf  = kface(Vt,  i, j, k+dk) * 0.25e0
-        rhof = kface(rho, i, j, k+dk) * 0.25e0
+        call kface_vel(cons, r, Omega_block, i, j, k+dk, Vxf, Vrf, Vtf, rhof)
         muf  = kface(mu,  i, j, k+dk) * 0.25e0
         rf   = kface(r, i, j, k) * 0.25e0
         call wall_func(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
@@ -230,12 +323,11 @@ contains
     ! allocated per call (nor may a `block` construct appear in this tree --
     ! it silently drops unrelated subroutines from the f2py build).
     ! ------------------------------------------------------------------
-    pure subroutine wall_row_kface(ni, nj, nk, r, dAk, vol, Omega_block, Omega_wall, &
-        mu, rho, Vx, Vr, Vt, wall, planes, j, k, dk, pslot)
+    pure subroutine wall_row_kface(ni, nj, nk, cons, r, dAk, vol, Omega_block, Omega_wall, &
+        mu, wall, planes, j, k, dk, pslot)
         implicit none
         integer, intent(in) :: ni, nj, nk, j, k, dk, pslot
-        real, intent(in) :: r(ni,nj,nk), mu(ni,nj,nk), rho(ni,nj,nk)
-        real, intent(in) :: Vx(ni,nj,nk), Vr(ni,nj,nk), Vt(ni,nj,nk)
+        real, intent(in) :: r(ni,nj,nk), mu(ni,nj,nk), cons(ni,nj,nk,5)
         real, intent(in) :: dAk(3,ni-1,nj-1,nk), vol(ni-1,nj-1,nk-1)
         real, intent(in) :: Omega_block, Omega_wall(ni-1), wall(ni-1)
         real, intent(inout) :: planes(ni,nj,4,2)
@@ -244,6 +336,7 @@ contains
         real :: rhof(WALL_TW), muf(WALL_TW), dAm(WALL_TW), Vm(WALL_TW)
         real :: Rew(WALL_TW), cf(WALL_TW)
         real :: tau, vec1, vec2, vec3, wfac, w, d, lnRew
+        real :: q1, q2, q3, q4
         kv = k + dk
         kc = k + (dk - 1) / 2
         do i0 = 1, ni-1, WALL_TW
@@ -251,10 +344,23 @@ contains
             ! --- A: face averages, areas, Reynolds number ---
             do t = 1, m
                 i = i0 + t - 1
-                Vxf(t)  = (Vx(i,j,kv) + Vx(i+1,j,kv) + Vx(i,j+1,kv) + Vx(i+1,j+1,kv)) * 0.25e0
-                Vrf(t)  = (Vr(i,j,kv) + Vr(i+1,j,kv) + Vr(i,j+1,kv) + Vr(i+1,j+1,kv)) * 0.25e0
-                Vsf(t)  = (Vt(i,j,kv) + Vt(i+1,j,kv) + Vt(i,j+1,kv) + Vt(i+1,j+1,kv)) * 0.25e0
-                rhof(t) = (rho(i,j,kv) + rho(i+1,j,kv) + rho(i,j+1,kv) + rho(i+1,j+1,kv)) * 0.25e0
+                ! vel_at inlined, not called: this tile loop is vectorised
+                ! and a call would cost it that. The four corners in the node
+                ! order kface sums them, with one reciprocal each.
+                q1 = 1.0e0/cons(i,j,kv,1)
+                q2 = 1.0e0/cons(i+1,j,kv,1)
+                q3 = 1.0e0/cons(i,j+1,kv,1)
+                q4 = 1.0e0/cons(i+1,j+1,kv,1)
+                Vxf(t)  = (cons(i,j,kv,2)*q1 + cons(i+1,j,kv,2)*q2 &
+                         + cons(i,j+1,kv,2)*q3 + cons(i+1,j+1,kv,2)*q4) * 0.25e0
+                Vrf(t)  = (cons(i,j,kv,3)*q1 + cons(i+1,j,kv,3)*q2 &
+                         + cons(i,j+1,kv,3)*q3 + cons(i+1,j+1,kv,3)*q4) * 0.25e0
+                Vsf(t)  = ((cons(i,j,kv,4)*q1/r(i,j,kv) - Omega_block*r(i,j,kv)) &
+                         + (cons(i+1,j,kv,4)*q2/r(i+1,j,kv) - Omega_block*r(i+1,j,kv)) &
+                         + (cons(i,j+1,kv,4)*q3/r(i,j+1,kv) - Omega_block*r(i,j+1,kv)) &
+                         + (cons(i+1,j+1,kv,4)*q4/r(i+1,j+1,kv) - Omega_block*r(i+1,j+1,kv))) * 0.25e0
+                rhof(t) = (cons(i,j,kv,1) + cons(i+1,j,kv,1) &
+                         + cons(i,j+1,kv,1) + cons(i+1,j+1,kv,1)) * 0.25e0
                 muf(t)  = (mu(i,j,kv) + mu(i+1,j,kv) + mu(i,j+1,kv) + mu(i+1,j+1,kv)) * 0.25e0
                 rf(t)   = (r(i,j,k) + r(i+1,j,k) + r(i,j+1,k) + r(i+1,j+1,k)) * 0.25e0
                 Vsf(t)  = Vsf(t) - (Omega_wall(i) - Omega_block) * rf(t)
@@ -290,12 +396,11 @@ contains
         end do
     end subroutine wall_row_kface
 
-    pure subroutine wall_row_jface(ni, nj, nk, r, dAj, vol, Omega_block, Omega_wall, &
-        mu, rho, Vx, Vr, Vt, wall, rows, j, kc, dj, sslot)
+    pure subroutine wall_row_jface(ni, nj, nk, cons, r, dAj, vol, Omega_block, Omega_wall, &
+        mu, wall, rows, j, kc, dj, sslot)
         implicit none
         integer, intent(in) :: ni, nj, nk, j, kc, dj, sslot
-        real, intent(in) :: r(ni,nj,nk), mu(ni,nj,nk), rho(ni,nj,nk)
-        real, intent(in) :: Vx(ni,nj,nk), Vr(ni,nj,nk), Vt(ni,nj,nk)
+        real, intent(in) :: r(ni,nj,nk), mu(ni,nj,nk), cons(ni,nj,nk,5)
         real, intent(in) :: dAj(3,ni-1,nj,nk-1), vol(ni-1,nj-1,nk-1)
         real, intent(in) :: Omega_block, Omega_wall(ni-1), wall(ni-1)
         real, intent(inout) :: rows(ni,4,3)
@@ -304,16 +409,29 @@ contains
         real :: rhof(WALL_TW), muf(WALL_TW), dAm(WALL_TW), Vm(WALL_TW)
         real :: Rew(WALL_TW), cf(WALL_TW)
         real :: tau, vec1, vec2, vec3, wfac, w, d, lnRew
+        real :: q1, q2, q3, q4
         jv = j + dj
         jc = j + (dj - 1) / 2
         do i0 = 1, ni-1, WALL_TW
             m = min(WALL_TW, ni - i0)
             do t = 1, m
                 i = i0 + t - 1
-                Vxf(t)  = (Vx(i,jv,kc) + Vx(i+1,jv,kc) + Vx(i,jv,kc+1) + Vx(i+1,jv,kc+1)) * 0.25e0
-                Vrf(t)  = (Vr(i,jv,kc) + Vr(i+1,jv,kc) + Vr(i,jv,kc+1) + Vr(i+1,jv,kc+1)) * 0.25e0
-                Vsf(t)  = (Vt(i,jv,kc) + Vt(i+1,jv,kc) + Vt(i,jv,kc+1) + Vt(i+1,jv,kc+1)) * 0.25e0
-                rhof(t) = (rho(i,jv,kc) + rho(i+1,jv,kc) + rho(i,jv,kc+1) + rho(i+1,jv,kc+1)) * 0.25e0
+                ! vel_at inlined, as wall_row_kface does and for the same
+                ! reason: the four corners in the node order jface sums them.
+                q1 = 1.0e0/cons(i,jv,kc,1)
+                q2 = 1.0e0/cons(i+1,jv,kc,1)
+                q3 = 1.0e0/cons(i,jv,kc+1,1)
+                q4 = 1.0e0/cons(i+1,jv,kc+1,1)
+                Vxf(t)  = (cons(i,jv,kc,2)*q1 + cons(i+1,jv,kc,2)*q2 &
+                         + cons(i,jv,kc+1,2)*q3 + cons(i+1,jv,kc+1,2)*q4) * 0.25e0
+                Vrf(t)  = (cons(i,jv,kc,3)*q1 + cons(i+1,jv,kc,3)*q2 &
+                         + cons(i,jv,kc+1,3)*q3 + cons(i+1,jv,kc+1,3)*q4) * 0.25e0
+                Vsf(t)  = ((cons(i,jv,kc,4)*q1/r(i,jv,kc) - Omega_block*r(i,jv,kc)) &
+                         + (cons(i+1,jv,kc,4)*q2/r(i+1,jv,kc) - Omega_block*r(i+1,jv,kc)) &
+                         + (cons(i,jv,kc+1,4)*q3/r(i,jv,kc+1) - Omega_block*r(i,jv,kc+1)) &
+                         + (cons(i+1,jv,kc+1,4)*q4/r(i+1,jv,kc+1) - Omega_block*r(i+1,jv,kc+1))) * 0.25e0
+                rhof(t) = (cons(i,jv,kc,1) + cons(i+1,jv,kc,1) &
+                         + cons(i,jv,kc+1,1) + cons(i+1,jv,kc+1,1)) * 0.25e0
                 muf(t)  = (mu(i,jv,kc) + mu(i+1,jv,kc) + mu(i,jv,kc+1) + mu(i+1,jv,kc+1)) * 0.25e0
                 rf(t)   = (r(i,j,kc) + r(i+1,j,kc) + r(i,j,kc+1) + r(i+1,j,kc+1)) * 0.25e0
                 Vsf(t)  = Vsf(t) - (Omega_wall(i) - Omega_block) * rf(t)
@@ -351,52 +469,43 @@ contains
     ! face-averaging, mu included, calling wall_yplus instead of wall_func.
     ! No `* di/dj/dk` sign multiply: y+ has no direction, unlike a flux vector. Used only by
     ! wall_yplus_field (post-processing), never set_visc_force.
-    pure subroutine wall_yplus_iface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, di, yplus)
+    pure subroutine wall_yplus_iface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, di, yplus)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, di
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: yplus
-        Vxf  = iface(Vx,  i+di, j, k) * 0.25e0
-        Vrf  = iface(Vr,  i+di, j, k) * 0.25e0
-        Vtf  = iface(Vt,  i+di, j, k) * 0.25e0
-        rhof = iface(rho, i+di, j, k) * 0.25e0
+        call iface_vel(cons, r, Omega_block, i+di, j, k, Vxf, Vrf, Vtf, rhof)
         muf  = iface(mu,  i+di, j, k) * 0.25e0
         rf   = iface(r, i, j, k) * 0.25e0
         call wall_yplus(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_iface
 
-    pure subroutine wall_yplus_jface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dj, yplus)
+    pure subroutine wall_yplus_jface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, dj, yplus)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, dj
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: yplus
-        Vxf  = jface(Vx,  i, j+dj, k) * 0.25e0
-        Vrf  = jface(Vr,  i, j+dj, k) * 0.25e0
-        Vtf  = jface(Vt,  i, j+dj, k) * 0.25e0
-        rhof = jface(rho, i, j+dj, k) * 0.25e0
+        call jface_vel(cons, r, Omega_block, i, j+dj, k, Vxf, Vrf, Vtf, rhof)
         muf  = jface(mu,  i, j+dj, k) * 0.25e0
         rf   = jface(r, i, j, k) * 0.25e0
         call wall_yplus(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_jface
 
-    pure subroutine wall_yplus_kface(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, i, j, k, dk, yplus)
+    pure subroutine wall_yplus_kface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, dk, yplus)
         implicit none
-        real, intent(in), contiguous :: r(:,:,:), rho(:,:,:), mu(:,:,:), Vx(:,:,:), Vr(:,:,:), Vt(:,:,:)
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
         integer, intent(in) :: i, j, k, dk
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: yplus
-        Vxf  = kface(Vx,  i, j, k+dk) * 0.25e0
-        Vrf  = kface(Vr,  i, j, k+dk) * 0.25e0
-        Vtf  = kface(Vt,  i, j, k+dk) * 0.25e0
-        rhof = kface(rho, i, j, k+dk) * 0.25e0
+        call kface_vel(cons, r, Omega_block, i, j, k+dk, Vxf, Vrf, Vtf, rhof)
         muf  = kface(mu,  i, j, k+dk) * 0.25e0
         rf   = kface(r, i, j, k) * 0.25e0
         call wall_yplus(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
@@ -503,7 +612,7 @@ contains
     ! cell by cell and calls this. They are ~8% of the shell, so the per-cell
     ! call costs little; the other four faces keep the row form.
     pure subroutine tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, wdist, &
-        vol, dAi, dAj, dAk, r, Vx, Vr, Vt, i, j, k, ni, nj, nk, tq)
+        vol, dAi, dAj, dAk, r, Omega_block, i, j, k, ni, nj, nk, tq)
         implicit none
         integer, intent(in) :: i, j, k, ni, nj, nk
         real, intent(in) :: cons(ni, nj, nk, 5)
@@ -515,7 +624,7 @@ contains
         real, intent(in) :: dAj(3, ni-1, nj, nk-1)
         real, intent(in) :: dAk(3, ni-1, nj-1, nk)
         real, intent(in) :: r(ni, nj, nk)
-        real, intent(in) :: Vx(ni, nj, nk), Vr(ni, nj, nk), Vt(ni, nj, nk)
+        real, intent(in) :: Omega_block
         real, intent(out) :: tq(9)
 
         real :: ivr, rcr, rhoc, cpc, muc, kac, vct
@@ -523,6 +632,7 @@ contains
         real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
         real :: t1, t2, t3, t4, t5, t6, w1, w2, w3
         real :: vm, mut, fac, lambda, visc_lim, wsum, xl
+        real :: v1, v2, v3, v4, v5, v6, v7, v8
 
         ivr = 0.25e0 / vol(i,j,k)
         rcr = 0.125e0 * (r(i,j,k)   + r(i+1,j,k)   + r(i,j+1,k)   + r(i+1,j+1,k) &
@@ -536,12 +646,24 @@ contains
         kac = 0.125e0 * (kappa(i,j,k)   + kappa(i+1,j,k)   + kappa(i,j+1,k)   + kappa(i+1,j+1,k) &
                        + kappa(i,j,k+1) + kappa(i+1,j,k+1) + kappa(i,j+1,k+1) + kappa(i+1,j+1,k+1))
         ! --- Vx ---
-        f1 = Vx(i,j,k)+Vx(i,j+1,k)+Vx(i,j,k+1)+Vx(i,j+1,k+1)
-        f2 = Vx(i+1,j,k)+Vx(i+1,j+1,k)+Vx(i+1,j,k+1)+Vx(i+1,j+1,k+1)
-        f3 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j,k+1)+Vx(i+1,j,k+1)
-        f4 = Vx(i,j+1,k)+Vx(i+1,j+1,k)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
-        f5 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j+1,k)+Vx(i+1,j+1,k)
-        f6 = Vx(i,j,k+1)+Vx(i+1,j,k+1)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
+        ! Velocity from the conserved state: vel_at inlined rather than
+        ! called, because a call here costs this loop its vectorisation.
+        ! Divided per component, not through a shared corner reciprocal:
+        ! see the rule above vel_at, which this must keep matching.
+        v1 = cons(i,j,k,2)/cons(i,j,k,1)
+        v2 = cons(i+1,j,k,2)/cons(i+1,j,k,1)
+        v3 = cons(i,j+1,k,2)/cons(i,j+1,k,1)
+        v4 = cons(i+1,j+1,k,2)/cons(i+1,j+1,k,1)
+        v5 = cons(i,j,k+1,2)/cons(i,j,k+1,1)
+        v6 = cons(i+1,j,k+1,2)/cons(i+1,j,k+1,1)
+        v7 = cons(i,j+1,k+1,2)/cons(i,j+1,k+1,1)
+        v8 = cons(i+1,j+1,k+1,2)/cons(i+1,j+1,k+1,1)
+        f1 = v1+v3+v5+v7
+        f2 = v2+v4+v6+v8
+        f3 = v1+v2+v5+v6
+        f4 = v3+v4+v7+v8
+        f5 = v1+v2+v3+v4
+        f6 = v5+v6+v7+v8
         g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
         g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
         g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
@@ -549,12 +671,20 @@ contains
         gVx3 = g3*ivr
         gVx2 = g2*ivr - 0.125e0*(f1+f2)/rcr
         ! --- Vr ---
-        f1 = Vr(i,j,k)+Vr(i,j+1,k)+Vr(i,j,k+1)+Vr(i,j+1,k+1)
-        f2 = Vr(i+1,j,k)+Vr(i+1,j+1,k)+Vr(i+1,j,k+1)+Vr(i+1,j+1,k+1)
-        f3 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j,k+1)+Vr(i+1,j,k+1)
-        f4 = Vr(i,j+1,k)+Vr(i+1,j+1,k)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
-        f5 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j+1,k)+Vr(i+1,j+1,k)
-        f6 = Vr(i,j,k+1)+Vr(i+1,j,k+1)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
+        v1 = cons(i,j,k,3)/cons(i,j,k,1)
+        v2 = cons(i+1,j,k,3)/cons(i+1,j,k,1)
+        v3 = cons(i,j+1,k,3)/cons(i,j+1,k,1)
+        v4 = cons(i+1,j+1,k,3)/cons(i+1,j+1,k,1)
+        v5 = cons(i,j,k+1,3)/cons(i,j,k+1,1)
+        v6 = cons(i+1,j,k+1,3)/cons(i+1,j,k+1,1)
+        v7 = cons(i,j+1,k+1,3)/cons(i,j+1,k+1,1)
+        v8 = cons(i+1,j+1,k+1,3)/cons(i+1,j+1,k+1,1)
+        f1 = v1+v3+v5+v7
+        f2 = v2+v4+v6+v8
+        f3 = v1+v2+v5+v6
+        f4 = v3+v4+v7+v8
+        f5 = v1+v2+v3+v4
+        f6 = v5+v6+v7+v8
         g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
         g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
         g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
@@ -562,12 +692,20 @@ contains
         gVr3 = g3*ivr
         gVr2 = g2*ivr - 0.125e0*(f1+f2)/rcr
         ! --- Vt ---
-        f1 = Vt(i,j,k)+Vt(i,j+1,k)+Vt(i,j,k+1)+Vt(i,j+1,k+1)
-        f2 = Vt(i+1,j,k)+Vt(i+1,j+1,k)+Vt(i+1,j,k+1)+Vt(i+1,j+1,k+1)
-        f3 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j,k+1)+Vt(i+1,j,k+1)
-        f4 = Vt(i,j+1,k)+Vt(i+1,j+1,k)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
-        f5 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j+1,k)+Vt(i+1,j+1,k)
-        f6 = Vt(i,j,k+1)+Vt(i+1,j,k+1)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
+        v1 = cons(i,j,k,4)/cons(i,j,k,1)/r(i,j,k) - Omega_block*r(i,j,k)
+        v2 = cons(i+1,j,k,4)/cons(i+1,j,k,1)/r(i+1,j,k) - Omega_block*r(i+1,j,k)
+        v3 = cons(i,j+1,k,4)/cons(i,j+1,k,1)/r(i,j+1,k) - Omega_block*r(i,j+1,k)
+        v4 = cons(i+1,j+1,k,4)/cons(i+1,j+1,k,1)/r(i+1,j+1,k) - Omega_block*r(i+1,j+1,k)
+        v5 = cons(i,j,k+1,4)/cons(i,j,k+1,1)/r(i,j,k+1) - Omega_block*r(i,j,k+1)
+        v6 = cons(i+1,j,k+1,4)/cons(i+1,j,k+1,1)/r(i+1,j,k+1) - Omega_block*r(i+1,j,k+1)
+        v7 = cons(i,j+1,k+1,4)/cons(i,j+1,k+1,1)/r(i,j+1,k+1) - Omega_block*r(i,j+1,k+1)
+        v8 = cons(i+1,j+1,k+1,4)/cons(i+1,j+1,k+1,1)/r(i+1,j+1,k+1) - Omega_block*r(i+1,j+1,k+1)
+        f1 = v1+v3+v5+v7
+        f2 = v2+v4+v6+v8
+        f3 = v1+v2+v5+v6
+        f4 = v3+v4+v7+v8
+        f5 = v1+v2+v3+v4
+        f6 = v5+v6+v7+v8
         vct = (f1+f2)*0.125e0
         g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
         g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
@@ -633,15 +771,15 @@ contains
     ! The arithmetic below is production's kface_flow, statement for statement.
     ! tests/test_viscous_cusp_seam.py gates the sign against an independent
     ! Python evaluation of the same face flux.
-    pure subroutine kface_flow_tq(tqlo, tqhi, Vx, Vr, Vt, r, dAk, Omega_block, i, j, k, flow)
+    pure subroutine kface_flow_tq(tqlo, tqhi, cons, r, dAk, Omega_block, i, j, k, flow)
         implicit none
         real, intent(in) :: tqlo(9), tqhi(9)
-        real, intent(in), contiguous :: Vx(:,:,:), Vr(:,:,:), Vt(:,:,:), r(:,:,:)
+        real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:)
         real, intent(in), contiguous :: dAk(:,:,:,:)
         real, intent(in) :: Omega_block
         integer, intent(in) :: i, j, k
         real, intent(out) :: flow(4)
-        real :: tauf(6), qf(3), Vf(3), rf, Vabs, wvisc(3)
+        real :: tauf(6), qf(3), Vf(3), rf, Vabs, wvisc(3), rhof
         tauf(1) = (tqlo(1) + tqhi(1)) * 0.5e0
         tauf(2) = (tqlo(2) + tqhi(2)) * 0.5e0
         tauf(3) = (tqlo(3) + tqhi(3)) * 0.5e0
@@ -651,9 +789,7 @@ contains
         qf(1)   = (tqlo(7) + tqhi(7)) * 0.5e0
         qf(2)   = (tqlo(8) + tqhi(8)) * 0.5e0
         qf(3)   = (tqlo(9) + tqhi(9)) * 0.5e0
-        Vf(1) = (Vx(i,j,k) + Vx(i+1,j,k) + Vx(i,j+1,k) + Vx(i+1,j+1,k)) * 0.25e0
-        Vf(2) = (Vr(i,j,k) + Vr(i+1,j,k) + Vr(i,j+1,k) + Vr(i+1,j+1,k)) * 0.25e0
-        Vf(3) = (Vt(i,j,k) + Vt(i+1,j,k) + Vt(i,j+1,k) + Vt(i+1,j+1,k)) * 0.25e0
+        call kface_vel(cons, r, Omega_block, i, j, k, Vf(1), Vf(2), Vf(3), rhof)
         rf     = (r(i,j,k)  + r(i+1,j,k)  + r(i,j+1,k)  + r(i+1,j+1,k))  * 0.25e0
         Vabs = Vf(3) + Omega_block * rf
         flow(1) = tauf(1)*dAk(1,i,j,k) + tauf(4)*dAk(2,i,j,k) + tauf(5)*dAk(3,i,j,k)
@@ -817,7 +953,7 @@ end module viscous_helpers
 ! mean carrying a "which faces own this cell" test into every loop.
 subroutine set_tau_q_faces( &
     cons, T, mu, cp, kappa, Pr_turb, wdist, vol, dAi, dAj, dAk, &
-    r, Vx, Vr, Vt, &
+    r, Omega_block, &
     f_i1, f_ini, f_j1, f_jnj, f_k1, f_knk, &
     walli1, wallni, wallj1, wallnj, wallk1, wallnk, &
     ni, nj, nk)
@@ -838,7 +974,7 @@ subroutine set_tau_q_faces( &
     real, intent(in) :: dAj(3, ni-1, nj, nk-1)
     real, intent(in) :: dAk(3, ni-1, nj-1, nk)
     real, intent(in) :: r(ni, nj, nk)
-    real, intent(in) :: Vx(ni, nj, nk), Vr(ni, nj, nk), Vt(ni, nj, nk)
+    real, intent(in) :: Omega_block
     ! Component axis second so that, at a fixed trailing spatial index, the
     ! (edge, component) block is contiguous -- the order the consumers walk it.
     real, intent(inout) :: f_i1(nj-1, 9, nk-1, 2), f_ini(nj-1, 9, nk-1, 2)
@@ -865,18 +1001,20 @@ subroutine set_tau_q_faces( &
     real :: tqr(ni-1, 9)
     real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
     real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac, lambda, wsum
+    ! Per-component corner velocities for the stage-1 gathers.
+    real :: v1, v2, v3, v4, v5, v6, v7, v8
 
     ! --- i faces: the two that pin the axis the row body vectorises over ---
     do k = 1, nk-1
     do j = 1, nj-1
         call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, wdist, vol, &
-            dAi, dAj, dAk, r, Vx, Vr, Vt, 1, j, k, ni, nj, nk, tq)
+            dAi, dAj, dAk, r, Omega_block, 1, j, k, ni, nj, nk, tq)
         do c = 1, 9
             f_i1(j,c,k,1) = tq(c)
             f_i1(j,c,k,2) = tq(c) * (2.0e0*walli1(j,k) - 1.0e0)
         end do
         call tau_q_at_cell(cons, T, mu, cp, kappa, Pr_turb, wdist, vol, &
-            dAi, dAj, dAk, r, Vx, Vr, Vt, ni-1, j, k, ni, nj, nk, tq)
+            dAi, dAj, dAk, r, Omega_block, ni-1, j, k, ni, nj, nk, tq)
         do c = 1, 9
             f_ini(j,c,k,1) = tq(c)
             f_ini(j,c,k,2) = tq(c) * (2.0e0*wallni(j,k) - 1.0e0)
@@ -966,12 +1104,24 @@ subroutine set_tau_q_faces( &
                  + wdist(i,j,k+1) + wdist(i+1,j,k+1) + wdist(i,j+1,k+1) + wdist(i+1,j+1,k+1)
             xlr(i) = XLEN_FAC * wsum * wsum
             ! --- Vx ---
-            f1 = Vx(i,j,k)+Vx(i,j+1,k)+Vx(i,j,k+1)+Vx(i,j+1,k+1)
-            f2 = Vx(i+1,j,k)+Vx(i+1,j+1,k)+Vx(i+1,j,k+1)+Vx(i+1,j+1,k+1)
-            f3 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j,k+1)+Vx(i+1,j,k+1)
-            f4 = Vx(i,j+1,k)+Vx(i+1,j+1,k)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
-            f5 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j+1,k)+Vx(i+1,j+1,k)
-            f6 = Vx(i,j,k+1)+Vx(i+1,j,k+1)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
+            ! Velocity from the conserved state: vel_at inlined rather than
+            ! called, because a call here costs this loop its vectorisation.
+            ! Divided per component, not through a shared corner reciprocal:
+            ! see the rule above vel_at, which this must keep matching.
+            v1 = cons(i,j,k,2)/cons(i,j,k,1)
+            v2 = cons(i+1,j,k,2)/cons(i+1,j,k,1)
+            v3 = cons(i,j+1,k,2)/cons(i,j+1,k,1)
+            v4 = cons(i+1,j+1,k,2)/cons(i+1,j+1,k,1)
+            v5 = cons(i,j,k+1,2)/cons(i,j,k+1,1)
+            v6 = cons(i+1,j,k+1,2)/cons(i+1,j,k+1,1)
+            v7 = cons(i,j+1,k+1,2)/cons(i,j+1,k+1,1)
+            v8 = cons(i+1,j+1,k+1,2)/cons(i+1,j+1,k+1,1)
+            f1 = v1+v3+v5+v7
+            f2 = v2+v4+v6+v8
+            f3 = v1+v2+v5+v6
+            f4 = v3+v4+v7+v8
+            f5 = v1+v2+v3+v4
+            f6 = v5+v6+v7+v8
             g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
             g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
             g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
@@ -979,12 +1129,20 @@ subroutine set_tau_q_faces( &
             gVx(i,3) = g3*ivr(i)
             gVx(i,2) = g2*ivr(i) - 0.125e0*(f1+f2)/rcr(i)
             ! --- Vr ---
-            f1 = Vr(i,j,k)+Vr(i,j+1,k)+Vr(i,j,k+1)+Vr(i,j+1,k+1)
-            f2 = Vr(i+1,j,k)+Vr(i+1,j+1,k)+Vr(i+1,j,k+1)+Vr(i+1,j+1,k+1)
-            f3 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j,k+1)+Vr(i+1,j,k+1)
-            f4 = Vr(i,j+1,k)+Vr(i+1,j+1,k)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
-            f5 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j+1,k)+Vr(i+1,j+1,k)
-            f6 = Vr(i,j,k+1)+Vr(i+1,j,k+1)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
+            v1 = cons(i,j,k,3)/cons(i,j,k,1)
+            v2 = cons(i+1,j,k,3)/cons(i+1,j,k,1)
+            v3 = cons(i,j+1,k,3)/cons(i,j+1,k,1)
+            v4 = cons(i+1,j+1,k,3)/cons(i+1,j+1,k,1)
+            v5 = cons(i,j,k+1,3)/cons(i,j,k+1,1)
+            v6 = cons(i+1,j,k+1,3)/cons(i+1,j,k+1,1)
+            v7 = cons(i,j+1,k+1,3)/cons(i,j+1,k+1,1)
+            v8 = cons(i+1,j+1,k+1,3)/cons(i+1,j+1,k+1,1)
+            f1 = v1+v3+v5+v7
+            f2 = v2+v4+v6+v8
+            f3 = v1+v2+v5+v6
+            f4 = v3+v4+v7+v8
+            f5 = v1+v2+v3+v4
+            f6 = v5+v6+v7+v8
             g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
             g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
             g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
@@ -992,12 +1150,20 @@ subroutine set_tau_q_faces( &
             gVr(i,3) = g3*ivr(i)
             gVr(i,2) = g2*ivr(i) - 0.125e0*(f1+f2)/rcr(i)
             ! --- Vt ---
-            f1 = Vt(i,j,k)+Vt(i,j+1,k)+Vt(i,j,k+1)+Vt(i,j+1,k+1)
-            f2 = Vt(i+1,j,k)+Vt(i+1,j+1,k)+Vt(i+1,j,k+1)+Vt(i+1,j+1,k+1)
-            f3 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j,k+1)+Vt(i+1,j,k+1)
-            f4 = Vt(i,j+1,k)+Vt(i+1,j+1,k)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
-            f5 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j+1,k)+Vt(i+1,j+1,k)
-            f6 = Vt(i,j,k+1)+Vt(i+1,j,k+1)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
+            v1 = cons(i,j,k,4)/cons(i,j,k,1)/r(i,j,k) - Omega_block*r(i,j,k)
+            v2 = cons(i+1,j,k,4)/cons(i+1,j,k,1)/r(i+1,j,k) - Omega_block*r(i+1,j,k)
+            v3 = cons(i,j+1,k,4)/cons(i,j+1,k,1)/r(i,j+1,k) - Omega_block*r(i,j+1,k)
+            v4 = cons(i+1,j+1,k,4)/cons(i+1,j+1,k,1)/r(i+1,j+1,k) - Omega_block*r(i+1,j+1,k)
+            v5 = cons(i,j,k+1,4)/cons(i,j,k+1,1)/r(i,j,k+1) - Omega_block*r(i,j,k+1)
+            v6 = cons(i+1,j,k+1,4)/cons(i+1,j,k+1,1)/r(i+1,j,k+1) - Omega_block*r(i+1,j,k+1)
+            v7 = cons(i,j+1,k+1,4)/cons(i,j+1,k+1,1)/r(i,j+1,k+1) - Omega_block*r(i,j+1,k+1)
+            v8 = cons(i+1,j+1,k+1,4)/cons(i+1,j+1,k+1,1)/r(i+1,j+1,k+1) - Omega_block*r(i+1,j+1,k+1)
+            f1 = v1+v3+v5+v7
+            f2 = v2+v4+v6+v8
+            f3 = v1+v2+v5+v6
+            f4 = v3+v4+v7+v8
+            f5 = v1+v2+v3+v4
+            f6 = v5+v6+v7+v8
             vct(i) = (f1+f2)*0.125e0
             g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
             g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
@@ -1145,7 +1311,6 @@ subroutine set_visc_force( &
     cons, vol, dAi, dAj, dAk, &
     Omega_block, r, mu, P, P_offset, &
     fvisc, &
-    Vx, Vr, Vt, &
     T, cp, kappa, Pr_turb, wdist, &
     mu_turb, &
     f_i1, f_ini, f_j1, f_jnj, f_k1, f_knk, &
@@ -1179,9 +1344,6 @@ subroutine set_visc_force( &
     real, intent(in) :: P(ni, nj, nk)
     real, intent(in) :: P_offset
     real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
-    real, intent(in) :: Vx(ni, nj, nk)
-    real, intent(in) :: Vr(ni, nj, nk)
-    real, intent(in) :: Vt(ni, nj, nk)
     real, intent(in) :: T(ni, nj, nk)
     real, intent(in) :: cp(ni, nj, nk)
     real, intent(in) :: kappa(ni, nj, nk)
@@ -1254,6 +1416,10 @@ subroutine set_visc_force( &
     real :: prhoc, prhorVtc, prc, pPc, pVtc
     real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
     real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac, wsum
+    ! Per-component corner velocities for the stage-1 gathers; ga..gd are the
+    ! corner reciprocals of the four-corner face averages below.
+    real :: v1, v2, v3, v4, v5, v6, v7, v8
+    real :: ga, gb, gc, gd
 
     ! There is no k-slab depth here: the fused schedule subsumes k-slab
     ! blocking, because each tau/q cell plane is consumed by all three face
@@ -1324,12 +1490,24 @@ subroutine set_visc_force( &
             kac(i) = 0.125e0 * (kappa(i,j,k)   + kappa(i+1,j,k)   + kappa(i,j+1,k)   + kappa(i+1,j+1,k) &
                               + kappa(i,j,k+1) + kappa(i+1,j,k+1) + kappa(i,j+1,k+1) + kappa(i+1,j+1,k+1))
             ! --- Vx ---
-            f1 = Vx(i,j,k)+Vx(i,j+1,k)+Vx(i,j,k+1)+Vx(i,j+1,k+1)
-            f2 = Vx(i+1,j,k)+Vx(i+1,j+1,k)+Vx(i+1,j,k+1)+Vx(i+1,j+1,k+1)
-            f3 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j,k+1)+Vx(i+1,j,k+1)
-            f4 = Vx(i,j+1,k)+Vx(i+1,j+1,k)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
-            f5 = Vx(i,j,k)+Vx(i+1,j,k)+Vx(i,j+1,k)+Vx(i+1,j+1,k)
-            f6 = Vx(i,j,k+1)+Vx(i+1,j,k+1)+Vx(i,j+1,k+1)+Vx(i+1,j+1,k+1)
+            ! Velocity from the conserved state: vel_at inlined rather than
+            ! called, because a call here costs this loop its vectorisation.
+            ! Divided per component, not through a shared corner reciprocal:
+            ! see the rule above vel_at, which this must keep matching.
+            v1 = cons(i,j,k,2)/cons(i,j,k,1)
+            v2 = cons(i+1,j,k,2)/cons(i+1,j,k,1)
+            v3 = cons(i,j+1,k,2)/cons(i,j+1,k,1)
+            v4 = cons(i+1,j+1,k,2)/cons(i+1,j+1,k,1)
+            v5 = cons(i,j,k+1,2)/cons(i,j,k+1,1)
+            v6 = cons(i+1,j,k+1,2)/cons(i+1,j,k+1,1)
+            v7 = cons(i,j+1,k+1,2)/cons(i,j+1,k+1,1)
+            v8 = cons(i+1,j+1,k+1,2)/cons(i+1,j+1,k+1,1)
+            f1 = v1+v3+v5+v7
+            f2 = v2+v4+v6+v8
+            f3 = v1+v2+v5+v6
+            f4 = v3+v4+v7+v8
+            f5 = v1+v2+v3+v4
+            f6 = v5+v6+v7+v8
             g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
             g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
             g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
@@ -1337,12 +1515,20 @@ subroutine set_visc_force( &
             gVx(i,3) = g3*ivr(i)
             gVx(i,2) = g2*ivr(i) - 0.125e0*(f1+f2)/rcr(i)
             ! --- Vr ---
-            f1 = Vr(i,j,k)+Vr(i,j+1,k)+Vr(i,j,k+1)+Vr(i,j+1,k+1)
-            f2 = Vr(i+1,j,k)+Vr(i+1,j+1,k)+Vr(i+1,j,k+1)+Vr(i+1,j+1,k+1)
-            f3 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j,k+1)+Vr(i+1,j,k+1)
-            f4 = Vr(i,j+1,k)+Vr(i+1,j+1,k)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
-            f5 = Vr(i,j,k)+Vr(i+1,j,k)+Vr(i,j+1,k)+Vr(i+1,j+1,k)
-            f6 = Vr(i,j,k+1)+Vr(i+1,j,k+1)+Vr(i,j+1,k+1)+Vr(i+1,j+1,k+1)
+            v1 = cons(i,j,k,3)/cons(i,j,k,1)
+            v2 = cons(i+1,j,k,3)/cons(i+1,j,k,1)
+            v3 = cons(i,j+1,k,3)/cons(i,j+1,k,1)
+            v4 = cons(i+1,j+1,k,3)/cons(i+1,j+1,k,1)
+            v5 = cons(i,j,k+1,3)/cons(i,j,k+1,1)
+            v6 = cons(i+1,j,k+1,3)/cons(i+1,j,k+1,1)
+            v7 = cons(i,j+1,k+1,3)/cons(i,j+1,k+1,1)
+            v8 = cons(i+1,j+1,k+1,3)/cons(i+1,j+1,k+1,1)
+            f1 = v1+v3+v5+v7
+            f2 = v2+v4+v6+v8
+            f3 = v1+v2+v5+v6
+            f4 = v3+v4+v7+v8
+            f5 = v1+v2+v3+v4
+            f6 = v5+v6+v7+v8
             g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
             g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
             g3 = -(f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k)-f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1))
@@ -1350,12 +1536,20 @@ subroutine set_visc_force( &
             gVr(i,3) = g3*ivr(i)
             gVr(i,2) = g2*ivr(i) - 0.125e0*(f1+f2)/rcr(i)
             ! --- Vt ---
-            f1 = Vt(i,j,k)+Vt(i,j+1,k)+Vt(i,j,k+1)+Vt(i,j+1,k+1)
-            f2 = Vt(i+1,j,k)+Vt(i+1,j+1,k)+Vt(i+1,j,k+1)+Vt(i+1,j+1,k+1)
-            f3 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j,k+1)+Vt(i+1,j,k+1)
-            f4 = Vt(i,j+1,k)+Vt(i+1,j+1,k)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
-            f5 = Vt(i,j,k)+Vt(i+1,j,k)+Vt(i,j+1,k)+Vt(i+1,j+1,k)
-            f6 = Vt(i,j,k+1)+Vt(i+1,j,k+1)+Vt(i,j+1,k+1)+Vt(i+1,j+1,k+1)
+            v1 = cons(i,j,k,4)/cons(i,j,k,1)/r(i,j,k) - Omega_block*r(i,j,k)
+            v2 = cons(i+1,j,k,4)/cons(i+1,j,k,1)/r(i+1,j,k) - Omega_block*r(i+1,j,k)
+            v3 = cons(i,j+1,k,4)/cons(i,j+1,k,1)/r(i,j+1,k) - Omega_block*r(i,j+1,k)
+            v4 = cons(i+1,j+1,k,4)/cons(i+1,j+1,k,1)/r(i+1,j+1,k) - Omega_block*r(i+1,j+1,k)
+            v5 = cons(i,j,k+1,4)/cons(i,j,k+1,1)/r(i,j,k+1) - Omega_block*r(i,j,k+1)
+            v6 = cons(i+1,j,k+1,4)/cons(i+1,j,k+1,1)/r(i+1,j,k+1) - Omega_block*r(i+1,j,k+1)
+            v7 = cons(i,j+1,k+1,4)/cons(i,j+1,k+1,1)/r(i,j+1,k+1) - Omega_block*r(i,j+1,k+1)
+            v8 = cons(i+1,j+1,k+1,4)/cons(i+1,j+1,k+1,1)/r(i+1,j+1,k+1) - Omega_block*r(i+1,j+1,k+1)
+            f1 = v1+v3+v5+v7
+            f2 = v2+v4+v6+v8
+            f3 = v1+v2+v5+v6
+            f4 = v3+v4+v7+v8
+            f5 = v1+v2+v3+v4
+            f6 = v5+v6+v7+v8
             vct(i) = (f1+f2)*0.125e0
             g1 = -(f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k)-f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1))
             g2 = -(f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k)-f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))
@@ -1426,9 +1620,18 @@ subroutine set_visc_force( &
         qf(1)   = (tq(i+1, j+1, 7, ta) + tq(i+1, j+1, 7, tb)) * 0.5e0
         qf(2)   = (tq(i+1, j+1, 8, ta) + tq(i+1, j+1, 8, tb)) * 0.5e0
         qf(3)   = (tq(i+1, j+1, 9, ta) + tq(i+1, j+1, 9, tb)) * 0.5e0
-        Vf(1) = (Vx(i,j,k) + Vx(i+1,j,k) + Vx(i,j+1,k) + Vx(i+1,j+1,k)) * 0.25e0
-        Vf(2) = (Vr(i,j,k) + Vr(i+1,j,k) + Vr(i,j+1,k) + Vr(i+1,j+1,k)) * 0.25e0
-        Vf(3) = (Vt(i,j,k) + Vt(i+1,j,k) + Vt(i,j+1,k) + Vt(i+1,j+1,k)) * 0.25e0
+        ! Face velocity from cons; vel_at inlined (see stage 1).
+        ga = 1.0e0/cons(i,j,k,1)
+        gb = 1.0e0/cons(i+1,j,k,1)
+        gc = 1.0e0/cons(i,j+1,k,1)
+        gd = 1.0e0/cons(i+1,j+1,k,1)
+        Vf(1) = (cons(i,j,k,2)*ga + cons(i+1,j,k,2)*gb + cons(i,j+1,k,2)*gc + cons(i+1,j+1,k,2)*gd) * 0.25e0
+        Vf(2) = (cons(i,j,k,3)*ga + cons(i+1,j,k,3)*gb + cons(i,j+1,k,3)*gc + cons(i+1,j+1,k,3)*gd) * 0.25e0
+        Vf(3) = ( &
+                   (cons(i,j,k,4)*ga/r(i,j,k) - Omega_block*r(i,j,k)) &
+                 + (cons(i+1,j,k,4)*gb/r(i+1,j,k) - Omega_block*r(i+1,j,k)) &
+                 + (cons(i,j+1,k,4)*gc/r(i,j+1,k) - Omega_block*r(i,j+1,k)) &
+                 + (cons(i+1,j+1,k,4)*gd/r(i+1,j+1,k) - Omega_block*r(i+1,j+1,k))) * 0.25e0
         rf     = (r(i,j,k)  + r(i+1,j,k)  + r(i,j+1,k)  + r(i+1,j+1,k))  * 0.25e0
         Vabs = Vf(3) + Omega_block * rf
         planes(i,j,1,pb) = tauf(1)*dAk(1,i,j,k) + tauf(4)*dAk(2,i,j,k) + tauf(5)*dAk(3,i,j,k)
@@ -1446,7 +1649,7 @@ subroutine set_visc_force( &
         do j = jp0, jp1
         do i = 1, ni-1
             wfac = 1.0e0 - wallk1(i,j)
-            call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, 1, 1, wf)
+            call wall_func_kface(cons, r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, i, j, 1, 1, wf)
             planes(i,j,1,pb) = wallk1(i,j)*planes(i,j,1,pb) + wfac*wf(1)
             planes(i,j,2,pb) = wallk1(i,j)*planes(i,j,2,pb) + wfac*wf(2)
             planes(i,j,3,pb) = wallk1(i,j)*planes(i,j,3,pb) + wfac*wf(3)
@@ -1458,7 +1661,7 @@ subroutine set_visc_force( &
         do j = jp0, jp1
         do i = 1, ni-1
             wfac = 1.0e0 - wallnk(i,j)
-            call wall_func_kface(r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, cons(:,:,:,1), Vx, Vr, Vt, i, j, nk, -1, wf)
+            call wall_func_kface(cons, r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, i, j, nk, -1, wf)
             planes(i,j,1,pb) = wallnk(i,j)*planes(i,j,1,pb) + wfac*wf(1)
             planes(i,j,2,pb) = wallnk(i,j)*planes(i,j,2,pb) + wfac*wf(2)
             planes(i,j,3,pb) = wallnk(i,j)*planes(i,j,3,pb) + wfac*wf(3)
@@ -1484,9 +1687,18 @@ subroutine set_visc_force( &
                 qf(1)   = (tq(i+1, j, 7, ta) + tq(i+1, j+1, 7, ta)) * 0.5e0
                 qf(2)   = (tq(i+1, j, 8, ta) + tq(i+1, j+1, 8, ta)) * 0.5e0
                 qf(3)   = (tq(i+1, j, 9, ta) + tq(i+1, j+1, 9, ta)) * 0.5e0
-                Vf(1) = (Vx(i,j,kc) + Vx(i+1,j,kc) + Vx(i,j,kc+1) + Vx(i+1,j,kc+1)) * 0.25e0
-                Vf(2) = (Vr(i,j,kc) + Vr(i+1,j,kc) + Vr(i,j,kc+1) + Vr(i+1,j,kc+1)) * 0.25e0
-                Vf(3) = (Vt(i,j,kc) + Vt(i+1,j,kc) + Vt(i,j,kc+1) + Vt(i+1,j,kc+1)) * 0.25e0
+                ! Face velocity from cons; vel_at inlined (see stage 1).
+                ga = 1.0e0/cons(i,j,kc,1)
+                gb = 1.0e0/cons(i+1,j,kc,1)
+                gc = 1.0e0/cons(i,j,kc+1,1)
+                gd = 1.0e0/cons(i+1,j,kc+1,1)
+                Vf(1) = (cons(i,j,kc,2)*ga + cons(i+1,j,kc,2)*gb + cons(i,j,kc+1,2)*gc + cons(i+1,j,kc+1,2)*gd) * 0.25e0
+                Vf(2) = (cons(i,j,kc,3)*ga + cons(i+1,j,kc,3)*gb + cons(i,j,kc+1,3)*gc + cons(i+1,j,kc+1,3)*gd) * 0.25e0
+                Vf(3) = ( &
+                           (cons(i,j,kc,4)*ga/r(i,j,kc) - Omega_block*r(i,j,kc)) &
+                         + (cons(i+1,j,kc,4)*gb/r(i+1,j,kc) - Omega_block*r(i+1,j,kc)) &
+                         + (cons(i,j,kc+1,4)*gc/r(i,j,kc+1) - Omega_block*r(i,j,kc+1)) &
+                         + (cons(i+1,j,kc+1,4)*gd/r(i+1,j,kc+1) - Omega_block*r(i+1,j,kc+1))) * 0.25e0
                 rf     = (r(i,j,kc)  + r(i+1,j,kc)  + r(i,j,kc+1)  + r(i+1,j,kc+1))  * 0.25e0
                 Vabs = Vf(3) + Omega_block * rf
                 rows(i,1,sb) = tauf(1)*dAj(1,i,j,kc) + tauf(4)*dAj(2,i,j,kc) + tauf(5)*dAj(3,i,j,kc)
@@ -1502,8 +1714,8 @@ subroutine set_visc_force( &
             if (j == 2) then
                 do i = 1, ni-1
                     wfac = 1.0e0 - wallj1(i,kc)
-                    call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallj1_nd(i,kc), &
-                        mu, cons(:,:,:,1), Vx, Vr, Vt, i, 1, kc, 1, wf)
+                    call wall_func_jface(cons, r, dAj, vol, Omega_block, Omega_wallj1_nd(i,kc), &
+                        mu, i, 1, kc, 1, wf)
                     rows(i,1,sb) = wallj1(i,kc)*rows(i,1,sb) + wfac*wf(1)
                     rows(i,2,sb) = wallj1(i,kc)*rows(i,2,sb) + wfac*wf(2)
                     rows(i,3,sb) = wallj1(i,kc)*rows(i,3,sb) + wfac*wf(3)
@@ -1513,8 +1725,8 @@ subroutine set_visc_force( &
             if (j == nj-1) then
                 do i = 1, ni-1
                     wfac = 1.0e0 - wallnj(i,kc)
-                    call wall_func_jface(r, dAj, vol, Omega_block, Omega_wallnj_nd(i,kc), &
-                        mu, cons(:,:,:,1), Vx, Vr, Vt, i, nj, kc, -1, wf)
+                    call wall_func_jface(cons, r, dAj, vol, Omega_block, Omega_wallnj_nd(i,kc), &
+                        mu, i, nj, kc, -1, wf)
                     rows(i,1,sb) = wallnj(i,kc)*rows(i,1,sb) + wfac*wf(1)
                     rows(i,2,sb) = wallnj(i,kc)*rows(i,2,sb) + wfac*wf(2)
                     rows(i,3,sb) = wallnj(i,kc)*rows(i,3,sb) + wfac*wf(3)
@@ -1534,9 +1746,18 @@ subroutine set_visc_force( &
                     qf(1)   = (tq(i, jc+1, 7, ta) + tq(i+1, jc+1, 7, ta)) * 0.5e0
                     qf(2)   = (tq(i, jc+1, 8, ta) + tq(i+1, jc+1, 8, ta)) * 0.5e0
                     qf(3)   = (tq(i, jc+1, 9, ta) + tq(i+1, jc+1, 9, ta)) * 0.5e0
-                    Vf(1) = (Vx(i,jc,kc) + Vx(i,jc+1,kc) + Vx(i,jc,kc+1) + Vx(i,jc+1,kc+1)) * 0.25e0
-                    Vf(2) = (Vr(i,jc,kc) + Vr(i,jc+1,kc) + Vr(i,jc,kc+1) + Vr(i,jc+1,kc+1)) * 0.25e0
-                    Vf(3) = (Vt(i,jc,kc) + Vt(i,jc+1,kc) + Vt(i,jc,kc+1) + Vt(i,jc+1,kc+1)) * 0.25e0
+                    ! Face velocity from cons; vel_at inlined (see stage 1).
+                    ga = 1.0e0/cons(i,jc,kc,1)
+                    gb = 1.0e0/cons(i,jc+1,kc,1)
+                    gc = 1.0e0/cons(i,jc,kc+1,1)
+                    gd = 1.0e0/cons(i,jc+1,kc+1,1)
+                    Vf(1) = (cons(i,jc,kc,2)*ga + cons(i,jc+1,kc,2)*gb + cons(i,jc,kc+1,2)*gc + cons(i,jc+1,kc+1,2)*gd) * 0.25e0
+                    Vf(2) = (cons(i,jc,kc,3)*ga + cons(i,jc+1,kc,3)*gb + cons(i,jc,kc+1,3)*gc + cons(i,jc+1,kc+1,3)*gd) * 0.25e0
+                    Vf(3) = ( &
+                               (cons(i,jc,kc,4)*ga/r(i,jc,kc) - Omega_block*r(i,jc,kc)) &
+                             + (cons(i,jc+1,kc,4)*gb/r(i,jc+1,kc) - Omega_block*r(i,jc+1,kc)) &
+                             + (cons(i,jc,kc+1,4)*gc/r(i,jc,kc+1) - Omega_block*r(i,jc,kc+1)) &
+                             + (cons(i,jc+1,kc+1,4)*gd/r(i,jc+1,kc+1) - Omega_block*r(i,jc+1,kc+1))) * 0.25e0
                     rf     = (r(i,jc,kc)  + r(i,jc+1,kc)  + r(i,jc,kc+1)  + r(i,jc+1,kc+1))  * 0.25e0
                     Vabs = Vf(3) + Omega_block * rf
                     rows(i,1,1) = tauf(1)*dAi(1,i,jc,kc) + tauf(4)*dAi(2,i,jc,kc) + tauf(5)*dAi(3,i,jc,kc)
@@ -1550,15 +1771,15 @@ subroutine set_visc_force( &
                                 + (wvisc(3)-qf(3))*dAi(3,i,jc,kc)
                 end do
                 wfac = 1.0e0 - walli1(jc,kc)
-                call wall_func_iface(r, dAi, vol, Omega_block, Omega_walli1_nd(jc,kc), &
-                    mu, cons(:,:,:,1), Vx, Vr, Vt, 1, jc, kc, 1, wf)
+                call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_walli1_nd(jc,kc), &
+                    mu, 1, jc, kc, 1, wf)
                 rows(2,1,1) = walli1(jc,kc)*rows(2,1,1) + wfac*wf(1)
                 rows(2,2,1) = walli1(jc,kc)*rows(2,2,1) + wfac*wf(2)
                 rows(2,3,1) = walli1(jc,kc)*rows(2,3,1) + wfac*wf(3)
                 rows(2,4,1) = walli1(jc,kc)*rows(2,4,1) + wfac*wf(4)
                 wfac = 1.0e0 - wallni(jc,kc)
-                call wall_func_iface(r, dAi, vol, Omega_block, Omega_wallni_nd(jc,kc), &
-                    mu, cons(:,:,:,1), Vx, Vr, Vt, ni, jc, kc, -1, wf)
+                call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_wallni_nd(jc,kc), &
+                    mu, ni, jc, kc, -1, wf)
                 rows(ni-1,1,1) = wallni(jc,kc)*rows(ni-1,1,1) + wfac*wf(1)
                 rows(ni-1,2,1) = wallni(jc,kc)*rows(ni-1,2,1) + wfac*wf(2)
                 rows(ni-1,3,1) = wallni(jc,kc)*rows(ni-1,3,1) + wfac*wf(3)
@@ -1665,8 +1886,8 @@ subroutine set_visc_force( &
                 tqnlo(c) = f_knk(i,c,j,1)
                 tqnhi(c) = f_knk(i,c,j,2)
             end do
-            call kface_flow_tq(tq1lo, tq1hi, Vx, Vr, Vt, r, dAk, Omega_block, i, j, 1, flow1)
-            call kface_flow_tq(tqnlo, tqnhi, Vx, Vr, Vt, r, dAk, Omega_block, i, j, nk, flownk)
+            call kface_flow_tq(tq1lo, tq1hi, cons, r, dAk, Omega_block, i, j, 1, flow1)
+            call kface_flow_tq(tqnlo, tqnhi, cons, r, dAk, Omega_block, i, j, nk, flownk)
             fcorr(1) = 0.5e0 * (flow1(1) - flownk(1))
             fcorr(2) = 0.5e0 * (flow1(2) - flownk(2))
             fcorr(3) = 0.5e0 * (flow1(3) - flownk(3))
@@ -1803,7 +2024,6 @@ end subroutine set_visc_force
 subroutine wall_yplus_field( &
     cons, vol, dAi, dAj, dAk, &
     Omega_block, r, mu, &
-    Vx, Vr, Vt, &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
     Omega_walli1_nd, Omega_wallj1_nd, Omega_wallk1_nd, &
@@ -1824,7 +2044,6 @@ subroutine wall_yplus_field( &
     real, intent(in) :: r(ni, nj, nk)
     real, intent(in) :: Omega_block
     real, intent(in) :: mu(ni, nj, nk)
-    real, intent(in) :: Vx(ni, nj, nk), Vr(ni, nj, nk), Vt(ni, nj, nk)
     real, intent(in) :: walli1(nj-1, nk-1), wallni(nj-1, nk-1)
     real, intent(in) :: wallj1(ni-1, nk-1), wallnj(ni-1, nk-1)
     real, intent(in) :: wallk1(ni-1, nj-1), wallnk(ni-1, nj-1)
@@ -1845,13 +2064,13 @@ subroutine wall_yplus_field( &
     do j = 1, nj-1
     do i = 1, ni-1
         if (wallk1(i,j) == 0.0e0) then
-            call wall_yplus_kface(r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, &
-                                   cons(:,:,:,1), Vx, Vr, Vt, i, j, 1, 1, yp)
+            call wall_yplus_kface(cons, r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, &
+                                   i, j, 1, 1, yp)
             yplus_k1(i,j) = yp
         end if
         if (wallnk(i,j) == 0.0e0) then
-            call wall_yplus_kface(r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, &
-                                   cons(:,:,:,1), Vx, Vr, Vt, i, j, nk, -1, yp)
+            call wall_yplus_kface(cons, r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, &
+                                   i, j, nk, -1, yp)
             yplus_nk(i,j) = yp
         end if
     end do
@@ -1860,13 +2079,13 @@ subroutine wall_yplus_field( &
     do k = 1, nk-1
     do i = 1, ni-1
         if (wallj1(i,k) == 0.0e0) then
-            call wall_yplus_jface(r, dAj, vol, Omega_block, Omega_wallj1_nd(i,k), mu, &
-                                   cons(:,:,:,1), Vx, Vr, Vt, i, 1, k, 1, yp)
+            call wall_yplus_jface(cons, r, dAj, vol, Omega_block, Omega_wallj1_nd(i,k), mu, &
+                                   i, 1, k, 1, yp)
             yplus_j1(i,k) = yp
         end if
         if (wallnj(i,k) == 0.0e0) then
-            call wall_yplus_jface(r, dAj, vol, Omega_block, Omega_wallnj_nd(i,k), mu, &
-                                   cons(:,:,:,1), Vx, Vr, Vt, i, nj, k, -1, yp)
+            call wall_yplus_jface(cons, r, dAj, vol, Omega_block, Omega_wallnj_nd(i,k), mu, &
+                                   i, nj, k, -1, yp)
             yplus_nj(i,k) = yp
         end if
     end do
@@ -1875,13 +2094,13 @@ subroutine wall_yplus_field( &
     do k = 1, nk-1
     do j = 1, nj-1
         if (walli1(j,k) == 0.0e0) then
-            call wall_yplus_iface(r, dAi, vol, Omega_block, Omega_walli1_nd(j,k), mu, &
-                                   cons(:,:,:,1), Vx, Vr, Vt, 1, j, k, 1, yp)
+            call wall_yplus_iface(cons, r, dAi, vol, Omega_block, Omega_walli1_nd(j,k), mu, &
+                                   1, j, k, 1, yp)
             yplus_i1(j,k) = yp
         end if
         if (wallni(j,k) == 0.0e0) then
-            call wall_yplus_iface(r, dAi, vol, Omega_block, Omega_wallni_nd(j,k), mu, &
-                                   cons(:,:,:,1), Vx, Vr, Vt, ni, j, k, -1, yp)
+            call wall_yplus_iface(cons, r, dAi, vol, Omega_block, Omega_wallni_nd(j,k), mu, &
+                                   ni, j, k, -1, yp)
             yplus_ni(j,k) = yp
         end if
     end do

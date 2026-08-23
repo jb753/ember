@@ -10,6 +10,35 @@ without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* **Breaking:** the nodal velocity is no longer cached. ``Block.Vx_nd``,
+  ``Vr_nd``, ``Vt_nd``, ``Vxrt_nd`` and ``Vt_rel_nd`` are still there and still
+  return the same values, but each access now derives them from the conserved
+  momenta and allocates; they are no longer views on a per-block buffer, so a
+  caller that holds one across a step gets a snapshot rather than a live view,
+  and one inside a per-node loop over a full block will allocate per iteration.
+  All the remaining readers are O(surface) -- boundary conditions, mixing
+  planes, post-processing -- where an allocation per access is cheaper than the
+  buffer it replaces.
+
+  What paid for it is the solver side: every kernel that wanted a nodal
+  velocity now forms it from ``cons`` at the corners it walks, since
+  ``cons = (rho, rho*Vx, rho*Vr, rho*r*Vt, rho*e)`` makes the velocity arrays
+  redundant with a division. ``set_visc_force``, ``set_tau_q_faces`` and the
+  wall-function rows take ``cons`` and ``Omega_block`` in place of the three
+  velocity arguments, sharing one ``vel_at`` spelling of the block-relative
+  velocity, and ``set_primitive_kinematic`` stops writing the velocity out at
+  all -- it forms it, uses it for the kinetic energy, and discards it. Per-block
+  derived-array store falls by exactly the four nodal volumes that go away:
+  4.80 MB at 81x65x57, 16.19 MB at 273x65x57.
+
+  Two things about the arithmetic are load bearing and are recorded at
+  ``vel_at`` in the source. The three eight-corner bodies divide per component
+  rather than sharing one reciprocal per corner across the three: the shared
+  form is slower there (register pressure, eight reciprocals live) and, under
+  ``-Ofast``, miscompiles ``set_visc_force``'s interior to NaN on a rotated
+  duct. And the vectorised bodies inline ``vel_at`` rather than calling it,
+  because a call in those loops costs them their vectorisation.
+
 * **Breaking:** ``Block.xlen_sq_nd`` is gone. The squared mixing length was a
   cell-shaped array cached against the ``wdist`` data row, so a block stored
   the same quantity twice; both viscous kernels now take the nodal wall

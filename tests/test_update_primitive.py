@@ -1,11 +1,16 @@
 """Eager fused evaluation of the primitive cache, ``Block.update_primitive``.
 
-The six primitives ``_Vxrt_nd_uninit``, ``_halfVsq_nd_uninit``,
-``_u_nd_uninit``, ``P_nd``, ``ho_nd`` and ``T_nd`` are normally pulled lazily
-by ``@cached_array``, one numpy pass at a time. ``update_primitive`` fills all
-six in two fused passes -- a Fortran kinematic kernel and the fluid's batched
-``get_P_h_T`` -- and publishes them into the same ``_store`` entries with the
-same data-key versions.
+The five primitives ``_halfVsq_nd_uninit``, ``_u_nd_uninit``, ``P_nd``,
+``ho_nd`` and ``T_nd`` are normally pulled lazily by ``@cached_array``, one
+numpy pass at a time. ``update_primitive`` fills all five in two fused passes
+-- a Fortran kinematic kernel and the fluid's batched ``get_P_h_T`` -- and
+publishes them into the same ``_store`` entries with the same data-key
+versions.
+
+Velocity is NOT among them. The kinematic kernel still forms it, to build
+``halfvsq`` and ``u``, but nothing stores it: the kernels that want a nodal
+velocity derive it from ``cons`` where they walk, so ``_Vxrt_nd_uninit`` is a
+plain derived property and has no cache entry to publish into.
 
 Two properties matter and are pinned here:
 
@@ -36,7 +41,7 @@ SHAPE = (9, 7, 5)
 # means something. (Same trap as the bench harness's swirl(): ask what the test
 # state actually exercises before trusting a gate.)
 TOL_ULP = dict.fromkeys(
-    ("P_nd", "ho_nd", "T_nd", "_Vxrt_nd_uninit", "_halfVsq_nd_uninit", "_u_nd_uninit"),
+    ("P_nd", "ho_nd", "T_nd", "_halfVsq_nd_uninit", "_u_nd_uninit"),
     8.0,
 )
 
