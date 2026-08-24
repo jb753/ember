@@ -1242,9 +1242,19 @@ class Grid(_LabelledList):
             untouched so the invalid field can be inspected.
         """
         for iblock, block in enumerate(self):
-            nan_mask = np.isnan(block.conserved_nd[..., 0])
-            if not nan_mask.any():
+            rho = block.conserved_nd[..., 0]
+            # Scalar screen first: max propagates NaN, so this is exactly
+            # isnan(rho).any() without materialising the full boolean mask --
+            # a 1 MB temporary per step at 1M cells, on a path that passes
+            # every time. Infinities are deliberately not caught, matching the
+            # mask form it replaces. sum() would screen too, but is slower than
+            # the mask it saves (pairwise float32 summation does not vectorise
+            # as well as maximum.reduce) and warns on the NaN it is looking for.
+            # The mask is built below only once it is known to be non-empty,
+            # where the bounding box needs it anyway.
+            if not np.isnan(rho.max()):
                 continue
+            nan_mask = np.isnan(rho)
             ni, nj, nk = block.ni, block.nj, block.nk
             ii, jj, kk = np.nonzero(nan_mask)
             box = (

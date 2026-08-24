@@ -252,6 +252,47 @@ def test_set_data_by_key_accepts_scalar_and_broadcastable_arrays_and_rejects_bad
         orig._set_data_by_keys(("c",), np.ones((4,), dtype=np.float32))
 
 
+def test_bad_shape_names_the_key_and_both_shapes():
+    """The message has to say what was being set, and to what shape.
+
+    A caller several layers up -- a mean-line design, a boundary condition --
+    sees only its own call, so a message in terms of numpy's remapped shapes
+    leaves it guessing which property went wrong.
+    """
+    obj = ThreeVarData(shape=(2, 3))
+
+    with pytest.raises(ValueError) as excinfo:
+        obj._set_data_by_keys(("c",), np.ones((4,), dtype=np.float32))
+
+    msg = str(excinfo.value)
+    assert "'c'" in msg
+    assert "(4,)" in msg
+    assert "(2, 3)" in msg
+
+
+def test_bad_shape_of_the_right_size_suggests_a_reshape():
+    """A missing axis is the common mistake, and it is worth naming."""
+    obj = ThreeVarData(shape=(2, 1))
+
+    with pytest.raises(ValueError, match="reshap"):
+        obj._set_data_by_keys(("c",), np.ones((2,), dtype=np.float32))
+
+
+def test_bad_shape_does_not_chain_the_numpy_cause():
+    """The numpy error says the same thing under ten frames of internals.
+
+    Chaining it doubles the traceback a user reads, and the half they need --
+    their own call -- is the half printed second.
+    """
+    obj = ThreeVarData(shape=(2, 3))
+
+    with pytest.raises(ValueError) as excinfo:
+        obj._set_data_by_keys(("c",), np.ones((4,), dtype=np.float32))
+
+    assert excinfo.value.__cause__ is None
+    assert excinfo.value.__suppress_context__
+
+
 def test_metadata_type_enforcement_accepts_int_and_np_floating():
     obj = ThreeVarData(shape=(1, 1))
     # Accept integer
@@ -423,7 +464,7 @@ def test_set_data_by_key_scalar_target_rejects_incompatible():
     obj = OneVarData(shape=())
     # (2, 3) cannot squeeze to scalar
     val = np.ones((2, 3), dtype=np.float32)
-    with pytest.raises(ValueError, match="Cannot broadcast"):
+    with pytest.raises(ValueError, match="does not broadcast"):
         obj._set_data_by_keys(("q",), val)
 
 
