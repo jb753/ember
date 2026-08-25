@@ -97,6 +97,7 @@ def build_kwargs(b):
         common,
         vol=b.vol_nd,
         fmgrid=FAC_MGRID,
+        fbnd=1.0,
         expon_mgrid=EXPON_MGRID,
         n_levels=N_LEVELS,
         rbuf=rbuf,

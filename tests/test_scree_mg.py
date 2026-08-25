@@ -88,6 +88,7 @@ def _run_mg(
     expon_mgrid=2.0,
     sf_irs=0.0,
     kernel=None,
+    fbnd=1.0,
 ):
     """Call a scree multigrid kernel with freshly zeroed scratch (the size args
     are inferred by f2py from the array shapes, exactly as ember.solver does).
@@ -117,6 +118,7 @@ def _run_mg(
         vol=vol,
         cfl=CFL,
         fmgrid=fmgrid,
+        fbnd=fbnd,
         expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
@@ -629,6 +631,137 @@ def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
     for name in ("i_step", "err_mdot", "zeta"):
         assert np.isfinite(np.asarray(getattr(hist, name), dtype=float)).all(), name
     assert np.isfinite(np.asarray(hist.residual, dtype=float)).all()
+
+
+def _face_mask(ni, nj, nk):
+    """True at nodes on any of the six block boundary faces."""
+    mask = np.zeros((ni, nj, nk), dtype=bool)
+    mask[[0, -1], :, :] = True
+    mask[:, [0, -1], :] = True
+    mask[:, :, [0, -1]] = True
+    return mask
+
+
+def test_fbnd_one_leaves_interior_and_faces_alone():
+    """fbnd=1 must be the uniform correction, byte for byte.
+
+    The boundary weight enters as a delta on top of the uniform node
+    expression -- (fbnd-1)*coarse -- so at fbnd=1 it adds an exact zero. That
+    is what makes the default (Solver.fac_mgrid_bnd=None) free of any
+    numerical drift, so assert exact equality against the scree_plain-relative
+    contract the rest of this module already pins, not a tolerance.
+    """
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=11)
+    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
+    cons_one, store_one = _run_mg(*args, fbnd=1.0)
+    # Same call with the argument left at its default: the kernel is the only
+    # thing that sees fbnd, so this pins the default rather than the wiring.
+    cons_default, store_default = _run_mg(*args)
+    np.testing.assert_array_equal(cons_one, cons_default)
+    np.testing.assert_array_equal(store_one, store_default)
+
+
+def test_fbnd_zero_drops_the_coarse_push_on_the_faces_only():
+    """fbnd=0 must leave the interior untouched and the faces fine-term only."""
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=12)
+    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
+    cons_one, _ = _run_mg(*args, fbnd=1.0)
+    cons_zero, store_zero = _run_mg(*args, fbnd=0.0)
+    cons_plain, store_plain = _run_plain(residual, dt_vol, store, cons, NI, NJ, NK)
+
+    face = _face_mask(NI, NJ, NK)
+    # Interior nodes never see the boundary weight at all.
+    np.testing.assert_array_equal(cons_one[~face], cons_zero[~face])
+    # Face nodes lose the whole coarse push, landing on the multigrid-off
+    # march. Not byte-identical to scree_plain: the kernel forms
+    # (fine + coarse) and subtracts the coarse average back off, so the two
+    # differ by float32 rounding of a cancelled term.
+    np.testing.assert_allclose(
+        cons_zero[face], cons_plain[face], rtol=1e-5, atol=1e-5
+    )
+    assert not np.array_equal(cons_one[face], cons_zero[face])
+    # The Denton history roll is untouched by the boundary weight.
+    np.testing.assert_array_equal(store_zero, store_plain)
+
+
+def test_fbnd_scales_the_face_correction_linearly():
+    """Every coarse coefficient is linear in fac_mgrid, so the face nodes must
+    be linear in the ratio: fbnd=0.5 sits exactly halfway between 0 and 1."""
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=13)
+    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
+    cons_one, _ = _run_mg(*args, fbnd=1.0)
+    cons_zero, _ = _run_mg(*args, fbnd=0.0)
+    cons_half, _ = _run_mg(*args, fbnd=0.5)
+    face = _face_mask(NI, NJ, NK)
+    np.testing.assert_array_equal(cons_half[~face], cons_one[~face])
+    np.testing.assert_allclose(
+        cons_half[face],
+        0.5 * (cons_one[face] + cons_zero[face]),
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    # A halved correction on a doubled one: fbnd=2 must overshoot fbnd=1 by
+    # exactly the amount fbnd=0 undershoots it.
+    cons_two, _ = _run_mg(*args, fbnd=2.0)
+    np.testing.assert_allclose(
+        cons_two[face] - cons_one[face],
+        cons_one[face] - cons_zero[face],
+        rtol=1e-5,
+        atol=1e-5,
+    )
+
+
+def test_scree_step_fac_mgrid_bnd_wiring():
+    """ember.solver.scree_step turns fac_mgrid_bnd into the kernel's ratio.
+
+    None and an explicit fac_mgrid must give the same march byte for byte
+    (both are a ratio of 1); a different value must move the boundary faces
+    and nothing else.
+    """
+    ni, nj, nk = 17, 17, 17
+    n_levels = 2
+    rng = np.random.default_rng(41)
+    residual_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
+    dt_vol_data = 0.5 + rng.random((ni - 1, nj - 1, nk - 1))
+
+    def _build():
+        block = _make_block((ni, nj, nk))
+        block.residual_nd.flags.writeable = True
+        block.residual_nd[...] = residual_data
+        block.residual_nd.flags.writeable = False
+        block.dt_vol_nd.flags.writeable = True
+        block.dt_vol_nd[...] = dt_vol_data
+        block.dt_vol_nd.flags.writeable = False
+        return ember.grid.Grid([block])
+
+    grid_default = _build()
+    ember.solver.scree_step(
+        grid_default, cfl=CFL, fac_mgrid=FAC_MGRID, n_levels=n_levels
+    )
+    cons_default = grid_default[0].conserved_nd.copy()
+
+    grid_same = _build()
+    ember.solver.scree_step(
+        grid_same,
+        cfl=CFL,
+        fac_mgrid=FAC_MGRID,
+        n_levels=n_levels,
+        fac_mgrid_bnd=FAC_MGRID,
+    )
+    np.testing.assert_array_equal(cons_default, grid_same[0].conserved_nd)
+
+    grid_weak = _build()
+    ember.solver.scree_step(
+        grid_weak,
+        cfl=CFL,
+        fac_mgrid=FAC_MGRID,
+        n_levels=n_levels,
+        fac_mgrid_bnd=0.0,
+    )
+    cons_weak = grid_weak[0].conserved_nd
+    face = _face_mask(ni, nj, nk)
+    np.testing.assert_array_equal(cons_default[~face], cons_weak[~face])
+    assert not np.array_equal(cons_default[face], cons_weak[face])
 
 
 if __name__ == "__main__":

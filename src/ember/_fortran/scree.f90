@@ -229,6 +229,19 @@ end subroutine mg_prolong2x_acc
 ! plane kc (as the k-upper plane) and, at the ends, the two k-boundary node
 ! planes.
 !
+! `fbnd` is fac_mgrid_bnd/fac_mgrid: the weight the COARSE part of the
+! increment carries at nodes on the six block boundary faces (i = 1/ni,
+! j = 1/nj, k = 1/nk), leaving the fine term alone. Every coarse level's
+! coefficient is linear in fmgrid, so scaling the assembled coarse increment
+! by that ratio is exactly the same as having run the whole hierarchy at
+! fac_mgrid_bnd for those nodes. It is added as a DELTA -- the existing node
+! expression, plus (fbnd-1)*<coarse average> -- so fbnd = 1 adds an exact zero
+! and reproduces the uniform correction bit for bit. The face nodes are
+! already the peeled-out cases here: the whole of emit_kbnd (both k faces) and
+! emit_kint's i/j strips and corners, so the interior triple loop is untouched
+! and pays nothing. A node on two or three faces is written once, so it picks
+! the weight up once.
+!
 ! `base` is what the scatter adds onto. RK passes its sub-stage snapshot, an
 ! array distinct from `cons`. scree scatters IN PLACE and passes `cons` itself
 ! for both, the same aliased call cell_to_node makes into cell_to_node_generic:
@@ -236,11 +249,15 @@ end subroutine mg_prolong2x_acc
 ! aliasing is benign. scree then rolls its Denton history separately
 ! (scree_roll), which needs no increment buffer.
 subroutine mg_prolong2x_fine_scatter(src, nci, ncj, nck, base, cons, &
-        scale, dt_vol, q, ni, nj, nk, np, aplane, bb, rbuf, nc1j, nc1k)
+        scale, fbnd, dt_vol, q, ni, nj, nk, np, aplane, bb, rbuf, nc1j, nc1k)
     implicit none
     integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np, nc1j, nc1k
     real, intent(in)    :: src(nci, ncj, nck, np)
     real, intent(in)    :: scale
+    ! Ratio fac_mgrid_bnd/fac_mgrid: the extra weight the coarse correction
+    ! carries at nodes on the six block boundary faces. 1 leaves the uniform
+    ! correction untouched (see the header comment).
+    real, intent(in)    :: fbnd
     real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
     real, intent(in)    :: q(ni-1, nj-1, nk-1, np)
     real, intent(in)    :: base(ni, nj, nk, np)
@@ -250,7 +267,10 @@ subroutine mg_prolong2x_fine_scatter(src, nci, ncj, nck, base, cons, &
     real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
     integer :: i, j, ip, jc, kc, cur, prev, sw
     integer :: jlo, jhi, klo, khi
-    real    :: wj, wk
+    ! The k-bracket of the PREVIOUS cell plane, which stays live because
+    ! emit_kint reads coarse values from both its cell planes.
+    integer :: klo_p, khi_p
+    real    :: wj, wk, wk_p, fbm1
 
     ! Phase A: build bb, the k-interpolation source planes (i then j interp).
     do ip = 1, np
@@ -269,9 +289,18 @@ subroutine mg_prolong2x_fine_scatter(src, nci, ncj, nck, base, cons, &
     end do
 
     ! Phase B: rolling k-plane increment + immediate node-plane scatter.
+    fbm1 = fbnd - 1e0
     cur  = 1
     prev = 2
+    ! Seeded so the kc=1 pass has defined values to roll into the previous
+    ! bracket; emit_kint, the only reader of it, does not run until kc=2.
+    klo = 1
+    khi = 1
+    wk  = 0e0
     do kc = 1, nk-1
+        klo_p = klo
+        khi_p = khi
+        wk_p  = wk
         call mg_bracket2x(kc, nck, klo, khi, wk)
         do ip = 1, np
             do j = 1, nj-1
@@ -309,27 +338,39 @@ contains
             do j = 2, nj-1
                 cons(1,j,kk,ip) = base(1,j,kk,ip) + ( &
                     rbuf(1,j-1,ip,bp) + rbuf(1,j,ip,bp) &
-                  + rbuf(1,j-1,ip,bc) + rbuf(1,j,ip,bc))*0.25e0
+                  + rbuf(1,j-1,ip,bc) + rbuf(1,j,ip,bc))*0.25e0 &
+                  + fbm1*(cprev(1,j-1,ip) + cprev(1,j,ip) &
+                        + ccur(1,j-1,ip)  + ccur(1,j,ip))*0.25e0
                 cons(ni,j,kk,ip) = base(ni,j,kk,ip) + ( &
                     rbuf(ni-1,j-1,ip,bp) + rbuf(ni-1,j,ip,bp) &
-                  + rbuf(ni-1,j-1,ip,bc) + rbuf(ni-1,j,ip,bc))*0.25e0
+                  + rbuf(ni-1,j-1,ip,bc) + rbuf(ni-1,j,ip,bc))*0.25e0 &
+                  + fbm1*(cprev(ni-1,j-1,ip) + cprev(ni-1,j,ip) &
+                        + ccur(ni-1,j-1,ip)  + ccur(ni-1,j,ip))*0.25e0
             end do
             do i = 2, ni-1
                 cons(i,1,kk,ip) = base(i,1,kk,ip) + ( &
                     rbuf(i-1,1,ip,bp) + rbuf(i,1,ip,bp) &
-                  + rbuf(i-1,1,ip,bc) + rbuf(i,1,ip,bc))*0.25e0
+                  + rbuf(i-1,1,ip,bc) + rbuf(i,1,ip,bc))*0.25e0 &
+                  + fbm1*(cprev(i-1,1,ip) + cprev(i,1,ip) &
+                        + ccur(i-1,1,ip)  + ccur(i,1,ip))*0.25e0
                 cons(i,nj,kk,ip) = base(i,nj,kk,ip) + ( &
                     rbuf(i-1,nj-1,ip,bp) + rbuf(i,nj-1,ip,bp) &
-                  + rbuf(i-1,nj-1,ip,bc) + rbuf(i,nj-1,ip,bc))*0.25e0
+                  + rbuf(i-1,nj-1,ip,bc) + rbuf(i,nj-1,ip,bc))*0.25e0 &
+                  + fbm1*(cprev(i-1,nj-1,ip) + cprev(i,nj-1,ip) &
+                        + ccur(i-1,nj-1,ip)  + ccur(i,nj-1,ip))*0.25e0
             end do
             cons(1,1,kk,ip) = base(1,1,kk,ip) &
-                + (rbuf(1,1,ip,bp) + rbuf(1,1,ip,bc))*0.5e0
+                + (rbuf(1,1,ip,bp) + rbuf(1,1,ip,bc))*0.5e0 &
+                + fbm1*(cprev(1,1,ip) + ccur(1,1,ip))*0.5e0
             cons(1,nj,kk,ip) = base(1,nj,kk,ip) &
-                + (rbuf(1,nj-1,ip,bp) + rbuf(1,nj-1,ip,bc))*0.5e0
+                + (rbuf(1,nj-1,ip,bp) + rbuf(1,nj-1,ip,bc))*0.5e0 &
+                + fbm1*(cprev(1,nj-1,ip) + ccur(1,nj-1,ip))*0.5e0
             cons(ni,nj,kk,ip) = base(ni,nj,kk,ip) &
-                + (rbuf(ni-1,nj-1,ip,bp) + rbuf(ni-1,nj-1,ip,bc))*0.5e0
+                + (rbuf(ni-1,nj-1,ip,bp) + rbuf(ni-1,nj-1,ip,bc))*0.5e0 &
+                + fbm1*(cprev(ni-1,nj-1,ip) + ccur(ni-1,nj-1,ip))*0.5e0
             cons(ni,1,kk,ip) = base(ni,1,kk,ip) &
-                + (rbuf(ni-1,1,ip,bp) + rbuf(ni-1,1,ip,bc))*0.5e0
+                + (rbuf(ni-1,1,ip,bp) + rbuf(ni-1,1,ip,bc))*0.5e0 &
+                + fbm1*(cprev(ni-1,1,ip) + ccur(ni-1,1,ip))*0.5e0
         end do
     end subroutine emit_kint
 
@@ -343,27 +384,53 @@ contains
                 do i = 2, ni-1
                     cons(i,j,kk,ip) = base(i,j,kk,ip) + ( &
                         rbuf(i-1,j-1,ip,bc) + rbuf(i,j-1,ip,bc) &
-                      + rbuf(i-1,j,ip,bc)   + rbuf(i,j,ip,bc))*0.25e0
+                      + rbuf(i-1,j,ip,bc)   + rbuf(i,j,ip,bc))*0.25e0 &
+                      + fbm1*(ccur(i-1,j-1,ip) + ccur(i,j-1,ip) &
+                            + ccur(i-1,j,ip)   + ccur(i,j,ip))*0.25e0
                 end do
             end do
             do j = 2, nj-1
                 cons(1,j,kk,ip) = base(1,j,kk,ip) &
-                    + (rbuf(1,j-1,ip,bc) + rbuf(1,j,ip,bc))*0.5e0
+                    + (rbuf(1,j-1,ip,bc) + rbuf(1,j,ip,bc))*0.5e0 &
+                    + fbm1*(ccur(1,j-1,ip) + ccur(1,j,ip))*0.5e0
                 cons(ni,j,kk,ip) = base(ni,j,kk,ip) &
-                    + (rbuf(ni-1,j-1,ip,bc) + rbuf(ni-1,j,ip,bc))*0.5e0
+                    + (rbuf(ni-1,j-1,ip,bc) + rbuf(ni-1,j,ip,bc))*0.5e0 &
+                    + fbm1*(ccur(ni-1,j-1,ip) + ccur(ni-1,j,ip))*0.5e0
             end do
             do i = 2, ni-1
                 cons(i,1,kk,ip) = base(i,1,kk,ip) &
-                    + (rbuf(i-1,1,ip,bc) + rbuf(i,1,ip,bc))*0.5e0
+                    + (rbuf(i-1,1,ip,bc) + rbuf(i,1,ip,bc))*0.5e0 &
+                    + fbm1*(ccur(i-1,1,ip) + ccur(i,1,ip))*0.5e0
                 cons(i,nj,kk,ip) = base(i,nj,kk,ip) &
-                    + (rbuf(i-1,nj-1,ip,bc) + rbuf(i,nj-1,ip,bc))*0.5e0
+                    + (rbuf(i-1,nj-1,ip,bc) + rbuf(i,nj-1,ip,bc))*0.5e0 &
+                    + fbm1*(ccur(i-1,nj-1,ip) + ccur(i,nj-1,ip))*0.5e0
             end do
-            cons(1,1,kk,ip)   = base(1,1,kk,ip)   + rbuf(1,1,ip,bc)
-            cons(1,nj,kk,ip)  = base(1,nj,kk,ip)  + rbuf(1,nj-1,ip,bc)
-            cons(ni,nj,kk,ip) = base(ni,nj,kk,ip) + rbuf(ni-1,nj-1,ip,bc)
-            cons(ni,1,kk,ip)  = base(ni,1,kk,ip)  + rbuf(ni-1,1,ip,bc)
+            cons(1,1,kk,ip)   = base(1,1,kk,ip)   + rbuf(1,1,ip,bc) &
+                + fbm1*ccur(1,1,ip)
+            cons(1,nj,kk,ip)  = base(1,nj,kk,ip)  + rbuf(1,nj-1,ip,bc) &
+                + fbm1*ccur(1,nj-1,ip)
+            cons(ni,nj,kk,ip) = base(ni,nj,kk,ip) + rbuf(ni-1,nj-1,ip,bc) &
+                + fbm1*ccur(ni-1,nj-1,ip)
+            cons(ni,1,kk,ip)  = base(ni,1,kk,ip)  + rbuf(ni-1,1,ip,bc) &
+                + fbm1*ccur(ni-1,1,ip)
         end do
     end subroutine emit_kbnd
+
+    ! The coarse-only part of the cell increment, k-interpolated from bb --
+    ! the second and third terms of the rbuf expression above, without the
+    ! fine term. bb lives to the end of the routine, so the boundary-face
+    ! nodes recompute this (O(surface) work) instead of the scatter carrying a
+    ! second, volume-scale rolling buffer for it. ccur is the current cell
+    ! plane, cprev the one below it, which only emit_kint reads.
+    real function ccur(i, j, ip)
+        integer, intent(in) :: i, j, ip
+        ccur = bb(i,j,klo,ip)*(1e0-wk) + bb(i,j,khi,ip)*wk
+    end function ccur
+
+    real function cprev(i, j, ip)
+        integer, intent(in) :: i, j, ip
+        cprev = bb(i,j,klo_p,ip)*(1e0-wk_p) + bb(i,j,khi_p,ip)*wk_p
+    end function cprev
 
 end subroutine mg_prolong2x_fine_scatter
 
@@ -746,7 +813,7 @@ end subroutine scree_plain
 
 ! scree, multigrid on, coarse-level IRS.
 subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
-        fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        fmgrid, fbnd, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -755,7 +822,7 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
+    real,    intent(in) :: cfl, fmgrid, fbnd, expon_mgrid, sf_irs
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
     real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
@@ -778,7 +845,7 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
                        corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
-                           cfl, dt_vol, store, ni, nj, nk, np, &
+                           cfl, fbnd, dt_vol, store, ni, nj, nk, np, &
                            aplane, bb, rbuf, nc1j, nc1k)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_irs
@@ -786,7 +853,7 @@ end subroutine scree_mg_irs
 
 ! scree, multigrid on, no smoothing.
 subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
-        fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        fmgrid, fbnd, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -795,7 +862,7 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
+    real,    intent(in) :: cfl, fmgrid, fbnd, expon_mgrid, sf_irs
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
     real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
@@ -818,7 +885,7 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
                        corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
-                           cfl, dt_vol, store, ni, nj, nk, np, &
+                           cfl, fbnd, dt_vol, store, ni, nj, nk, np, &
                            aplane, bb, rbuf, nc1j, nc1k)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_noirs
@@ -844,7 +911,7 @@ end subroutine rk_plain
 
 ! RK stage, multigrid on, coarse-level IRS. q = residual (passed directly).
 subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
+        alpha, cfl, fmgrid, fbnd, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
         rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -853,7 +920,7 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: alpha, cfl, fmgrid, expon_mgrid, sf_irs
+    real,    intent(in) :: alpha, cfl, fmgrid, fbnd, expon_mgrid, sf_irs
     real,    intent(in) :: snapshot(ni, nj, nk, np)
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
@@ -875,14 +942,14 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
                        corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, snapshot, cons, &
-                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, &
+                       alpha*cfl, fbnd, dt_vol, residual, ni, nj, nk, np, &
                        aplane, bb, rbuf, nc1j, nc1k)
 end subroutine rk_mg_irs
 
 
 ! RK stage, multigrid on, no smoothing. q = residual (passed directly).
 subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
+        alpha, cfl, fmgrid, fbnd, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
         rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
@@ -891,7 +958,7 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
     real,    intent(in) :: vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: alpha, cfl, fmgrid, expon_mgrid, sf_irs
+    real,    intent(in) :: alpha, cfl, fmgrid, fbnd, expon_mgrid, sf_irs
     real,    intent(in) :: snapshot(ni, nj, nk, np)
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
@@ -913,6 +980,6 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
                        corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, snapshot, cons, &
-                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, &
+                       alpha*cfl, fbnd, dt_vol, residual, ni, nj, nk, np, &
                        aplane, bb, rbuf, nc1j, nc1k)
 end subroutine rk_mg_noirs

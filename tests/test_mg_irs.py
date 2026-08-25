@@ -54,6 +54,7 @@ def _run(
     kernel=None,
     fmgrid=0.2,
     expon_mgrid=2.0,
+    fbnd=1.0,
 ):
     """Call the RK MG kernel with freshly zeroed scratch (the size args are
     inferred by f2py from the array shapes, exactly as ember.solver does).
@@ -81,6 +82,7 @@ def _run(
         alpha=1.0,
         cfl=0.4,
         fmgrid=fmgrid,
+        fbnd=fbnd,
         expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
@@ -324,6 +326,65 @@ def test_advance_rk_stage_mg_fac_mgrid_zero_skips_coarse():
         grid_zero_irs, alpha=1.0, cfl=0.4, fac_mgrid=0.0, n_levels=n_levels, sf_irs=0.6
     )
     np.testing.assert_array_equal(cons_off, grid_zero_irs[0].conserved_nd)
+
+
+def test_advance_rk_stage_mg_fac_mgrid_bnd_scales_the_faces_only():
+    """fac_mgrid_bnd replaces fac_mgrid at the six block boundary faces.
+
+    None and an explicit fac_mgrid are the same march byte for byte (the
+    kernel takes the ratio, 1 in both cases, and adds it as a delta on the
+    uniform expression). A different value must move the face nodes, leave
+    every interior node bit-identical, and scale the face correction linearly:
+    the coarse coefficients are all linear in fac_mgrid, so halving the
+    boundary value must land halfway between dropping the push and keeping it.
+    """
+    ni, nj, nk = 17, 17, 17
+    n_levels = 2
+    fac_mgrid = 0.2
+    rng = np.random.default_rng(53)
+    residual_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
+    dt_vol_data = 0.5 + rng.random((ni - 1, nj - 1, nk - 1))
+
+    def _march(fac_mgrid_bnd):
+        block = _make_block((ni, nj, nk))
+        block.residual_nd.flags.writeable = True
+        block.residual_nd[...] = residual_data
+        block.residual_nd.flags.writeable = False
+        block.dt_vol_nd.flags.writeable = True
+        block.dt_vol_nd[...] = dt_vol_data
+        block.dt_vol_nd.flags.writeable = False
+        block.store[...] = block.conserved_nd
+        grid = ember.grid.Grid([block])
+        ember.solver.advance_rk_stage_mg(
+            grid,
+            alpha=1.0,
+            cfl=0.4,
+            fac_mgrid=fac_mgrid,
+            n_levels=n_levels,
+            fac_mgrid_bnd=fac_mgrid_bnd,
+        )
+        return grid[0].conserved_nd.copy()
+
+    cons_default = _march(None)
+    np.testing.assert_array_equal(cons_default, _march(fac_mgrid))
+
+    cons_off = _march(0.0)
+    cons_half = _march(0.5 * fac_mgrid)
+
+    face = np.zeros((ni, nj, nk), dtype=bool)
+    face[[0, -1], :, :] = True
+    face[:, [0, -1], :] = True
+    face[:, :, [0, -1]] = True
+
+    np.testing.assert_array_equal(cons_default[~face], cons_off[~face])
+    np.testing.assert_array_equal(cons_default[~face], cons_half[~face])
+    assert not np.array_equal(cons_default[face], cons_off[face])
+    np.testing.assert_allclose(
+        cons_half[face],
+        0.5 * (cons_default[face] + cons_off[face]),
+        rtol=1e-5,
+        atol=1e-5,
+    )
 
 
 if __name__ == "__main__":

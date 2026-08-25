@@ -173,6 +173,10 @@ two knobs:
   marching.
 - :attr:`~Solver.fac_mgrid` -- scaling on the coarse correction, with
   successively coarser levels damped further; 0 also disables multigrid.
+- :attr:`~Solver.fac_mgrid_bnd` -- the same scaling for nodes on the six block
+  boundary faces, where the coarse block sums straddle the face and the
+  boundary conditions have to absorb whatever the coarse push leaves behind.
+  None (the default) uses :attr:`~Solver.fac_mgrid` there too.
 
 :attr:`~Solver.sf_resid` additionally drives implicit residual smoothing
 (Jameson IRS) on the fine-grid residual via
@@ -387,6 +391,13 @@ class Solver(BaseSolver):
     """Scaling factor on multigrid corrections. Honored by both integrators
     (:func:`scree_step` and :func:`rk_step`)."""
 
+    fac_mgrid_bnd: float | None = None
+    """Scaling factor on multigrid corrections at nodes lying on the six block
+    boundary faces, in place of :attr:`fac_mgrid`. None (the default) uses
+    :attr:`fac_mgrid` there too, i.e. a uniform correction. Inert when
+    multigrid is off (:attr:`n_levels` 0 or :attr:`fac_mgrid` 0). Honored by
+    both integrators (:func:`scree_step` and :func:`rk_step`)."""
+
     expon_mgrid: float = 1.414
     """Base of the per-level multigrid decay, ``coef_l ~ expon_mgrid**-(l-1)``.
     Honored by both integrators (:func:`scree_step` and :func:`rk_step`)."""
@@ -501,8 +512,16 @@ class Solver(BaseSolver):
         return _run_fmg(grid, self)
 
 
-def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0):
-    """Advance every block one Denton scree step in place."""
+def scree_step(
+    grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0,
+    fac_mgrid_bnd=None,
+):
+    """Advance every block one Denton scree step in place.
+
+    ``fac_mgrid_bnd`` replaces ``fac_mgrid`` at nodes on the six block boundary
+    faces; None uses ``fac_mgrid`` there too. See
+    :func:`advance_rk_stage_mg`, which applies it through the same scatter.
+    """
     # Preconditions: dt_vol_nd populated and cached P/T consistent with
     # conserved_nd on entry. The caller invalidates caches and applies boundary
     # conditions between steps, and smooths once on the post-step state
@@ -512,6 +531,11 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
     # collapse to the plain no-MG dispatch (which also makes sf_irs inert)
     # rather than paying restrict/prolong per level for a guaranteed-zero push.
     n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
+    # The kernels take the boundary weight as a ratio to fac_mgrid, every
+    # coarse coefficient being linear in it; None (no separate boundary
+    # treatment) is therefore a ratio of 1. Safe to divide: fac_mgrid > 0 is
+    # what put us on the multigrid path at all.
+    fbnd = 1.0 if fac_mgrid_bnd is None else fac_mgrid_bnd / fac_mgrid
 
     for block in grid:
         ni, nj, nk = block.shape
@@ -571,6 +595,7 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 vol=block.vol_nd,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
+                fbnd=fbnd,
                 expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
@@ -654,7 +679,8 @@ def mg_coarse_shapes(ni, nj, nk, n_levels):
 
 
 def advance_rk_stage_mg(
-    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0
+    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0,
+    fac_mgrid_bnd=None,
 ):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
@@ -726,6 +752,15 @@ def advance_rk_stage_mg(
     pre-pass costs under 1.15 fine-cell passes of two multiply-adds per level,
     against a full residual evaluation already paid every stage.
 
+    ``fac_mgrid_bnd`` replaces ``fac_mgrid`` at nodes on the six block boundary
+    faces (``i = 1/ni``, ``j = 1/nj``, ``k = 1/nk``), leaving the fine term and
+    the interior alone; None uses ``fac_mgrid`` everywhere. Every level's
+    coefficient is linear in ``fac_mgrid``, so the kernels take it as the ratio
+    ``fac_mgrid_bnd/fac_mgrid`` applied to the assembled coarse increment at
+    those nodes -- identical to having run the whole hierarchy at
+    ``fac_mgrid_bnd`` there -- and it is added as a delta on top of the uniform
+    expression, so the default reproduces a uniform correction bit for bit.
+
     No boundary masking is applied here: ``grid.apply_bconds`` re-imposes the
     inlet/outlet/mixing/cusp targets between stages and at the next step top, so
     the coarse push cannot leave a BC-controlled node inconsistent -- exactly as
@@ -755,6 +790,8 @@ def advance_rk_stage_mg(
     """
     # fac_mgrid == 0 makes the coarse loop a no-op; collapse to no-MG dispatch.
     n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
+    # Boundary weight as a ratio to fac_mgrid; see scree_step.
+    fbnd = 1.0 if fac_mgrid_bnd is None else fac_mgrid_bnd / fac_mgrid
     for block in grid:
         ni, nj, nk = block.shape
         if n_levels_eff > 0:
@@ -787,6 +824,7 @@ def advance_rk_stage_mg(
                 alpha=alpha,
                 cfl=cfl,
                 fmgrid=fac_mgrid,
+                fbnd=fbnd,
                 expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
@@ -835,6 +873,7 @@ def rk_step(grid, conf):
             conf.n_levels,
             expon_mgrid=conf.expon_mgrid,
             sf_irs=conf.sf_resid,
+            fac_mgrid_bnd=conf.fac_mgrid_bnd,
         )
         grid.update_cached_conserved()
         grid.apply_bconds()
@@ -1037,6 +1076,7 @@ def _run(grid, conf):
                 expon_mgrid=conf.expon_mgrid,
                 n_levels=conf.n_levels,
                 sf_irs=conf.sf_resid,
+                fac_mgrid_bnd=conf.fac_mgrid_bnd,
             )
         else:
             rk_step(grid, conf)
