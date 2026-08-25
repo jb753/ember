@@ -108,6 +108,44 @@ class MixingPatch(NonReflectingPatch):
 
     _desc = "non-reflecting mixing plane"
 
+    reflective = False
+    r"""Impose the mixed-out state directly instead of the characteristic exchange.
+
+    The plain plane is the whole of :cite:t:`Saxer1993`: the cross-plane
+    mismatch is split by direction of propagation, relaxed onto a target, and
+    the target drives only the mean mode of a boundary condition that stays
+    non-reflecting to the harmonics. This flag replaces all of that with the
+    simplest thing that couples two rows -- at every span station the conserved
+    variables of both faces are set to the average of the two sides'
+    circumferential means, and the whole face is reset to it on every
+    :meth:`apply` -- and it is worth being clear about what is given up and what
+    is not.
+
+    What is given up is accuracy at the plane. Every pitchwise harmonic
+    reaching either face is annihilated at the boundary node rather than
+    absorbed, so the plane reflects; the state imposed is the *area* average of
+    the conserved variables, which preserves the row's mass flow exactly (the
+    face mass flux is linear in the conserved vector, and
+    :attr:`~ember.patch.RevolutionPatch.weight_pitch` is the same trapezoidal
+    quadrature the face quads use) but not the momentum or energy flux, so it
+    is not the flux-conserving mixed-out state a loss audit would want; and
+    there is no under-relaxation anywhere, so the two rows are yanked onto
+    their common mean every stage.
+
+    What is *not* given up is conservation. The inviscid face flow is built
+    from the four boundary nodes of each face quad and the face area vector
+    alone, so two faces carrying the same pitch-uniform state pass identical
+    mass, meridional momentum, angular momentum and energy per unit annulus --
+    whatever their blade counts and pitchwise resolutions, and whatever their
+    rotational speeds, since the frame terms enter only through the
+    circumferential component of the face area, which vanishes on a surface of
+    revolution.
+
+    Both sides of a plane must agree on the flag: :meth:`check_match` will not
+    pair a reflective face with a Saxer one, since the exchange has to know
+    which of the two it is carrying out.
+    """
+
     # Either side of the plane. The geometry gives a provisional answer at
     # attach time and the flow settles it on the first step; see
     # _enter_resolved.
@@ -170,6 +208,17 @@ class MixingPatch(NonReflectingPatch):
         # first exchange has run, so attach-time and pre-exchange solves fall
         # back to this patch's own local reading.
         self._entering_shared = None
+        # Reflective mode: see the class attribute of the same name. Set in
+        # _setup as well as on the class so that a patch pickled before the
+        # flag existed unpickles with it, rather than falling through to a
+        # class attribute a future edit might move.
+        self.reflective = False
+        # The pitch-uniform conserved state a reflective plane imposes, one
+        # five-vector per span station in the target's broadcast shape, and
+        # whether anything has filled it yet. Allocated on attach; see
+        # set_uniform. Unused, and left at zero, on the default plane.
+        self._uniform = None
+        self._uniform_set = False
         # Whether the frame axis has been settled against a flow; see
         # _enter_resolved. False means the provisional geometric frame the base
         # class built at attach is still in force.
@@ -202,6 +251,7 @@ class MixingPatch(NonReflectingPatch):
         super()._copy(c)
         c.rf_exchange = self.rf_exchange
         c.lead_exchange = self.lead_exchange
+        c.reflective = self.reflective
         # _sign_settled is deliberately not carried: the copy re-settles
         # against its own block's flow, as _ref and the splits are rebuilt.
 
@@ -272,13 +322,27 @@ class MixingPatch(NonReflectingPatch):
             self._prim_prev[..., 1:3] = -self._prim_prev[..., 1:3]
 
     def set_block_avg(self):
-        """Pitch-average the face in interface coordinates.
+        r"""Pitch-average the face, in interface coordinates unless :attr:`reflective`.
 
         Overridden only to hold the rotation: the communicator calls this from
         outside any of the boundary condition's own entry points, and the
         cross-plane average it builds has to be in the same frame on both
         sides. See :meth:`set_flux_avg`.
+
+        A reflective plane takes the average in ``(x, r)`` instead, and wants
+        to. Its conserved variables are the absolute-frame
+        :math:`[\rho, \rho V_x, \rho V_r, \rho r V_\theta, \rho e]`, which
+        the two sides can compare directly: they share a meridional geometry and
+        a radius, so nothing has to be resolved into a common frame first. The
+        rotation would in fact be actively wrong before the frame has settled,
+        since until then the two sides' provisional axes are antiparallel and
+        their normal components carry opposite signs; and the frame never does
+        settle on a reflective plane, because settling happens inside the very
+        window this skips.
         """
+        if self.reflective:
+            super().set_block_avg()
+            return
         with self._resolved():
             super().set_block_avg()
 
@@ -334,6 +398,30 @@ class MixingPatch(NonReflectingPatch):
             self._target[...] = target.reshape(self._target_shape())
             self._target_set[:] = True
 
+    def set_uniform(self, cons=None):
+        """Set the pitch-uniform conserved state a reflective plane imposes.
+
+        Called by
+        :class:`~ember.mixing_communicator.MixingCommunicator`
+        after each exchange, with the average of the two sides' circumferential
+        means. Omitting ``cons`` seeds from this side's own circumferential mean
+        instead, which is how a face that has not yet been exchanged has
+        something physical to impose; :meth:`apply` does that for itself rather
+        than imposing zeros.
+
+        Parameters
+        ----------
+        cons : array of shape ``(nspan, 5)``, optional
+            Nondimensional conserved variables, in ``(x, r)`` components and
+            in this patch's own span order.
+        """
+        self._check_attached()
+        if cons is None:
+            self.set_block_avg()
+            cons = self.block_avg.conserved_nd
+        self._uniform[...] = np.asarray(cons).reshape(self._target_shape())
+        self._uniform_set = True
+
     def get_target(self):
         """Return the exchanged target, a nondimensional ``(nspan, 5)`` array.
 
@@ -346,6 +434,47 @@ class MixingPatch(NonReflectingPatch):
         self._check_attached()
         self._seed_target()
         return self._target.squeeze()
+
+    def get_uniform(self):
+        """Return the reflective plane's imposed state, nondimensional ``(nspan, 5)``.
+
+        Seeded from this side's own circumferential mean if nothing has been
+        exchanged onto it yet, for the same reason :meth:`get_target` seeds.
+        """
+        self._check_attached()
+        if not self._uniform_set:
+            self.set_uniform()
+        return self._uniform.squeeze()
+
+    def advance(self):
+        """Take the boundary condition's step; a no-op on a reflective plane.
+
+        A reflective plane has no state of its own between exchanges: what it
+        imposes is settled entirely by the communicator, and :meth:`apply`
+        imposes it outright.
+        """
+        if self.reflective:
+            return
+        super().advance()
+
+    def apply(self):
+        """Impose the condition on the face.
+
+        The plain plane runs the non-reflecting condition of
+        :meth:`~ember.patch.NonReflectingPatch.apply`. A reflective one
+        overwrites the whole face with the pitch-uniform state the last exchange
+        left, span station by span station and every stage, hub and casing
+        nodes included -- there is no characteristic content to preserve and no
+        relaxation to take, so there is nothing here to be gradual about.
+        """
+        if not self.reflective:
+            super().apply()
+            return
+        if not self._uniform_set:
+            self.set_uniform()
+        b = self.block_view
+        b.conserved_nd[...] = self._uniform
+        b.update_cached_conserved()
 
     def attach_to_block(self, block):
         """Attach to a block, validate the plane, and allocate the flux average.
@@ -364,15 +493,23 @@ class MixingPatch(NonReflectingPatch):
         nspan = self._block_view.shape[self.span_dim]
         self._flux_avg = util.zeros((nspan, 5))
 
+        # Re-seeded rather than carried across a re-attach: the new block's
+        # span count may differ -- this is how a patch follows its block onto a
+        # coarser multigrid level -- and a stale state of the old length would
+        # be imposed on the wrong stations.
+        self._uniform = util.zeros(self._target_shape())
+        self._uniform_set = False
+
     def check_match(self, other, rtol=1e-5):
         """Check whether this patch pairs with another across a mixing plane.
 
-        Pairs only with the opposite side of a non-reflecting mixing plane,
-        which ``NonReflectingPatch._sign_interior``
-        identifies: the two sides of one plane face each other, so their
-        interiors lie on opposite sides of it. Matching is then on meridional
-        geometry alone, so the two sides may differ in pitchwise resolution and
-        blade count but not in spanwise resolution.
+        Pairs only with the opposite side of a mixing plane running the same
+        treatment, which ``NonReflectingPatch._sign_interior`` and
+        :attr:`reflective` identify between them: the two sides of one plane
+        face each other, so their interiors lie on opposite sides of it.
+        Matching is then on meridional geometry alone, so the two sides may
+        differ in pitchwise resolution and blade count but not in spanwise
+        resolution.
 
         Parameters
         ----------
@@ -392,6 +529,12 @@ class MixingPatch(NonReflectingPatch):
         if not isinstance(other, MixingPatch):
             return None
 
+        # The exchange is one thing or the other, so the pair has to be too:
+        # a reflective face opposite a Saxer one leaves the communicator with
+        # no answer to which of the two it is carrying out.
+        if other.reflective != self.reflective:
+            return None
+
         if other._sign_interior == self._sign_interior:
             return None
 
@@ -399,6 +542,16 @@ class MixingPatch(NonReflectingPatch):
             return None
 
         return self._check_match_xr(other, rtol)
+
+    def update_soln(self):
+        """Refresh the frozen reference state; a no-op on a reflective plane.
+
+        Nothing on a reflective plane is linearised about a mean state, so
+        there is no reference to freeze.
+        """
+        if self.reflective:
+            return
+        super().update_soln()
 
     @property
     def flux_avg_nd(self):

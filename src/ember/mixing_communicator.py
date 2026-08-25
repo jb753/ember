@@ -6,6 +6,11 @@ and carries out the exchange itself: it takes the cross-plane *flux* mismatch,
 splits it by direction of propagation after :cite:t:`Saxer1993`, and writes the
 result in the mix variables :math:`[h_0, s, V_r, V_\\theta, p]` its patches
 take their pitchwise-mean residuals against.
+
+A plane whose two sides are
+:attr:`~ember.mixing.MixingPatch.reflective` bypasses all of that for the
+average of the two circumferential means; see
+:meth:`MixingCommunicator._mix_uniform`.
 """
 
 from ember import perturbation, util
@@ -230,6 +235,9 @@ class MixingCommunicator:
         """
         for bid, pid in self.pairs:
             patch1, patch2 = self._get_pair(bid, pid)
+            if patch1.reflective:
+                # No exchange to relax; see MixingCommunicator._mix_uniform.
+                continue
             if patch1.rf_exchange != patch2.rf_exchange:
                 raise ValueError(
                     f"Mixing plane sides disagree on rf_exchange: "
@@ -294,8 +302,53 @@ class MixingCommunicator:
         """
         patch1, patch2 = self._get_pair(bid, pid)
 
+        if patch1.reflective:
+            self._mix_uniform(patch1, patch2, flip)
+            return
+
         b_avg, nspan = self._prepare_pair(patch1, patch2, flip, mdot_target, gain)
         self._write_targets(patch1, patch2, flip, b_avg, nspan, (bid, pid))
+
+    def _mix_uniform(self, patch1, patch2, flip):
+        r"""Hand both sides of a reflective plane their common mixed-out state.
+
+        The whole of the exchange for a plane whose two sides carry
+        :attr:`~ember.mixing.MixingPatch.reflective`: circumferentially average
+        each face, average the two, and give the result to both. No
+        characteristic split, no Jacobians, no relaxation and no mass flow
+        forcing -- see the flag's own documentation for what that costs and
+        what it does not.
+
+        Worked in ``(x, r)`` components rather than in the interface frame, and
+        on the conserved variables rather than on the fluxes, which is what
+        makes it this short: the two sides share a meridional geometry and a
+        radius, so their absolute-frame
+        :math:`[\rho, \rho V_x, \rho V_r, \rho r V_\theta, \rho e]` are
+        directly comparable with nothing resolved first.
+        :meth:`~ember.mixing.MixingPatch.set_block_avg` holds no rotation in
+        this mode for that reason.
+
+        The mean is written to both sides on the spot rather than accumulated
+        onto anything, so it is the *current* mixed-out state that each face
+        will impose until the next exchange, one outer timestep later.
+        """
+        patch1.set_block_avg()
+        patch2.set_block_avg()
+
+        cons1 = patch1.block_avg.conserved_nd
+        cons2 = patch2.block_avg.conserved_nd
+        if flip:
+            cons2 = cons2[::-1]
+
+        nspan = cons1.shape[0]
+        self._ensure_buffers(nspan)
+        mean = self._vec1[:nspan]
+        mean[:] = cons1
+        mean += cons2
+        mean *= 0.5
+
+        patch1.set_uniform(mean)
+        patch2.set_uniform(mean[::-1] if flip else mean)
 
     def _prepare_pair(self, patch1, patch2, flip, mdot_target=None, gain=0.0):
         """Symmetrise the cross-plane average and reduce the flux mismatch to chic space.
@@ -814,6 +867,10 @@ class MixingCommunicator:
 
     def exchange(self, mdot_target=None, gain=0.0):
         """Compute and write targets for all pairs (no apply step).
+
+        A pair whose sides are
+        :attr:`~ember.mixing.MixingPatch.reflective` takes neither argument and
+        goes through :meth:`_mix_uniform` instead.
 
         Parameters
         ----------
