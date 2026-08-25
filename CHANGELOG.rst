@@ -21,6 +21,18 @@ public API without a deprecation period.
   re-prescribe to hold one: ``set_P(patch.P_throttle)`` before
   ``set_throttle(None)``, since clearing a throttle reverts to the pressure
   that was prescribed rather than freezing the one it reached.
+* Add Holmes (2008) mass flow control at mixing planes, as an offset to the
+  flux mismatch the cross-plane exchange already drives to zero. ``Solver``
+  gains ``gain_mdot`` (0 is plain flux balance, 1 is exactly Holmes, default
+  0.5) and ``lead_exchange``, a phase lead on the exchange relaxation held per
+  patch as ``MixingPatch.lead_exchange``. The offset ramps itself out as the
+  mass flow error closes, so the converged answer is unchanged and only the
+  path to it differs.
+* Add ``ember.cases.build_stage_grid``, two annular rows either side of a
+  mixing plane with mismatched blade counts and pitchwise node counts, each
+  started at its own off-design mass flow.
+* Add ``ember.perturbation.mdot_to_flux``, the flux response to a scalar normal
+  mass flux at fixed stagnation enthalpy, entropy and velocity direction.
 * Delete ``Block.xlen_sq_nd`` and ``Block.conserved_cell_nd``, calculate them
   inline in the Fortran kernels instead.
 * Add ``RealFluid`` real-gas equation of state and fitting module, following

@@ -478,6 +478,66 @@ class Grid(_LabelledList):
 
         raise ValueError("No valid coordinate transformation found within tolerance")
 
+    def _calc_mdot_target(self):
+        r"""Mass flow the mixing planes are forced toward, or None.
+
+        The mean of what the machine is swallowing and what it is passing,
+
+        .. math::
+
+            \dot m_\mathrm{target} =
+                \tfrac{1}{2}\left(\dot m_\mathrm{in} + \dot m_\mathrm{out}\right)
+
+        one number for the whole grid, recomputed every step. This is the target
+        of :cite:t:`Holmes2008`'s mass flow control, derived rather than
+        prescribed: he frames it as a quantity a user specifies, but his own
+        motivation is convergence speed and robustness rather than running to a
+        particular flow, and taking the machine's own mean means the forcing
+        needs no input and applies to an unthrottled run.
+
+        Taking it from the two *ends* matters, and so does comparing it against
+        one side of a plane rather than the plane's own mean. On a two-row grid
+        with each row carrying a roughly uniform flow, the mean of a plane's two
+        sides equals the mean of the two ends identically, so a forcing built on
+        that comparison reads zero error however far apart the two sides of the
+        plane have drifted. The ends are the only stations whose mass flow is
+        set by physical boundary conditions; what the planes are compared to
+        them is settled in
+        :meth:`~ember.mixing_communicator.MixingCommunicator._apply_mdot_offset`.
+
+        At convergence the two ends agree, so the target equals every plane's
+        own total and the forcing has nothing to do; the deadband of
+        :attr:`~ember.mixing_communicator.MixingCommunicator.eps_deadband`
+        switches it off before that point in any case.
+
+        Stations come from :attr:`row_station_bid_pid` -- the first row's
+        upstream face and the last row's downstream face -- and are measured by
+        :meth:`_station_stats`, so the whole convergence history and the forcing
+        agree on what a station mass flow is.
+
+        Returns
+        -------
+        float or None
+            Annulus mass flow, nondimensional on ``rhoV_ref * L_ref**2``. None
+            for a grid with no mixing plane to force, or one whose ends are not
+            yet passing a measurable flow -- a grid initialised at rest, where
+            :meth:`_station_stats` divides by its own zero mass flow.
+        """
+        stations = self.row_station_bid_pid
+        if len(stations) < 2:
+            return None
+
+        inlet_idx, outlet_idx = stations[0][0], stations[-1][1]
+        if not (inlet_idx and outlet_idx):
+            return None
+
+        mdot_in = self._station_stats(inlet_idx)[0]
+        mdot_out = self._station_stats(outlet_idx)[0]
+        target = 0.5 * (mdot_in + mdot_out)
+        if not np.isfinite(target) or target <= 0.0:
+            return None
+        return float(target)
+
     def _station_stats(self, indices):
         """Mass flow and mass-averaged ho/s over one through-flow station.
 
@@ -1376,7 +1436,7 @@ class Grid(_LabelledList):
             )
 
     @util.profile
-    def update_bconds(self, freeze=False, cfl=1.0):
+    def update_bconds(self, freeze=False, cfl=1.0, gain_mdot=0.0):
         """Refresh boundary-condition targets across the grid once.
 
         Advances the slowly-varying BC state that the per-substep
@@ -1398,9 +1458,16 @@ class Grid(_LabelledList):
         the number the march is running at; the default of 1 integrates per
         call, for a grid stepped by hand.
 
+        ``gain_mdot`` is handed down the same way, to the mixing-plane mass flow
+        forcing of
+        :meth:`~ember.mixing_communicator.MixingCommunicator._apply_mdot_offset`.
+        The default of 0 is no forcing, which is all a grid stepped by hand can
+        mean; :attr:`ember.solver.Solver.gain_mdot` is what a march passes.
+
         """
         if not freeze:
-            self.connectivity.mixing.exchange()
+            mdot_target = self._calc_mdot_target() if gain_mdot else None
+            self.connectivity.mixing.exchange(mdot_target, gain_mdot)
 
         # Every characteristic patch takes update_soln to refresh the frozen
         # mean state its Jacobians and characteristic split are built on, then
@@ -2280,9 +2347,14 @@ class GridConnectivity:
         self._pairs_computed = False
         self._communicator = None
 
-    def exchange(self):
-        """Exchange in/out flux state across mixing-plane patches."""
-        return self._get_communicator().exchange()
+    def exchange(self, mdot_target=None, gain=0.0):
+        """Exchange in/out flux state across mixing-plane patches.
+
+        Arguments are forwarded to
+        :meth:`~ember.mixing_communicator.MixingCommunicator.exchange`; the
+        defaults are that communicator's own, meaning no mass flow forcing.
+        """
+        return self._get_communicator().exchange(mdot_target, gain)
 
     def exchange_faces(self):
         """Exchange boundary tau/q across periodic patches, face-buffer form."""
