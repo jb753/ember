@@ -200,7 +200,11 @@ def build_kwargs(b):
         daj=b.dAj_nd,
         dak=b.dAk_nd,
         f_body=b.F_body_nd,
-        ho=b.ho_nd,
+        # `ho` was dropped from this dict when production stopped taking a
+        # cached nodal stagnation enthalpy (it derives it now). Arms under
+        # bench/subroutines/ that still take one should add it to their own
+        # private entry below when they are next built and run -- passing it
+        # here reaches `prod` too, and f2py rejects the extra keyword.
         dt_vol=b.dt_vol_nd,
         **b.ijk_wall_conv,
         i_cusp_start=i_cusp_start,

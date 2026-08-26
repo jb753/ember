@@ -342,6 +342,32 @@ the headline number, and where it lives.
 
 ### Adopted (shipped in production today)
 
+- **`!GCC$ IVDEP` on `set_residual`'s seven face-flow row loops**
+  (`residual.f90`). They already carried `!DIR$ IVDEP` -- ifort's spelling,
+  which gfortran ignores -- so the production gfortran build received no
+  aliasing assertion and GCC versioned all seven: a runtime overlap test plus
+  a full scalar clone of each body, because it cannot see that `row` (rolling
+  face-flow scratch) and `dA`/`P`/`cons` (persistent fields) come from
+  different storage. Both spellings now appear on every one; each is
+  load-bearing on its own compiler. The clones go away: `set_residual`'s call
+  closure falls **20331 -> 16911 instructions (-16.8%)** with its vector op
+  count unchanged (2727 -> 2733) and `vdivss` 118 -> 74, and the result is
+  **bitwise identical** -- the vector body was always what ran.
+
+  **-1.3% serial**, -0.4 to -1.2% at 8-rank contention, decaying with block
+  size as the kernel goes memory-bound (`results/ivdep_{c8,s1}_*.jsonl`; the
+  2M contended point, -0.35%, is inside the +-0.4% launch-to-launch noise
+  floor and is not leaned on). **This is a gfortran-only win** -- ifort was
+  already honouring `!DIR$`, so it is worth nothing on the production
+  compiler. Taken because it is free and bitwise, not because it moves
+  production.
+
+  28 alias-versioned loops remain (3 in `residual.f90`, 6 in `scree.f90`, 19
+  in `viscous.f90`). They are a different proposition: none carries an
+  existing IVDEP, so silencing them means making a NEW aliasing assertion per
+  loop, and several write into `Block.scratch`-carved buffers where an
+  overlap is possible in principle. That is a correctness review, not a
+  mechanical edit -- do not sweep it.
 - **Vectorized wall-function row forms**, `set_visc_force`
   (`wall_row_kface`/`wall_row_jface` in `viscous.f90`). The scalar
   `wall_func_kface`/`_jface` were not being inlined in the production build

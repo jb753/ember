@@ -124,6 +124,23 @@ contains
         ! the rewrite is kept at _fortran/residual_cand.f90.
         !   pm = (Vx, Vr, r*Vt_abs, ho, P-P_offset, r*(P-P_offset))
         !   mf = (rho*Vx, rho*Vr, rho*Vt_rel)
+        !
+        ! BOTH spellings of IVDEP appear on every one of these row loops, and
+        ! both are load-bearing on their own compiler: `!DIR$` is ifort's and
+        ! gfortran ignores it, `!GCC$` is gfortran's and ifort ignores it. The
+        ! `!DIR$` lines stood alone here for a long time, so the production
+        ! gfortran build got no assertion at all and GCC versioned all seven
+        ! loops -- emitting a runtime overlap test and a full scalar clone of
+        ! each body, since it cannot see that `row` (rolling face-flow scratch)
+        ! and dA/P/cons (persistent fields) come from different storage.
+        ! Adding `!GCC$` deletes the clones: set_residual's call closure falls
+        ! 20331 -> 16911 instructions (-16.8%) with its vector op count
+        ! unchanged (2727 -> 2733), and the result is BITWISE identical, which
+        ! is the point -- the vector body was always what ran.
+        !
+        ! Worth -1.3% serial and -0.4 to -1.2% at 8-rank contention, decaying
+        ! with block size as the kernel goes memory-bound (bench/README.md).
+        ! It is a gfortran-only win: ifort already honoured `!DIR$`.
 
         ! Low boundary i=1
         call accum_corners(1, j, k, wall_lo, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
@@ -136,6 +153,7 @@ contains
 
         ! Interior i=2..ni-1
         !DIR$ IVDEP
+        !GCC$ IVDEP
         do i = 2, ni-1
             call accum_corners(i, j, k, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
             mdot = mf1*dA(1,i,j,k) + mf2*dA(2,i,j,k) + mf3*dA(3,i,j,k)
@@ -243,6 +261,7 @@ contains
         if (jf == 1) then
             ! Low boundary j=1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, 1, k, wall_lo(i,k), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
@@ -255,6 +274,7 @@ contains
         else if (jf == nj) then
             ! High boundary j=nj
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, nj, k, wall_hi(i,k), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
@@ -267,6 +287,7 @@ contains
         else
             ! Interior 2 <= jf <= nj-1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, jf, k, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
@@ -372,6 +393,7 @@ contains
             ! Low boundary k=1
             do j = j0, j1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, j, 1, wall_lo(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
@@ -386,6 +408,7 @@ contains
             ! High boundary k=nk
             do j = j0, j1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, j, nk, wall_hi(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
@@ -400,6 +423,7 @@ contains
             ! Interior 2 <= kf <= nk-1
             do j = j0, j1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, j, kf, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
