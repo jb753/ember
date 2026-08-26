@@ -88,7 +88,6 @@ def _run_mg(
     expon_mgrid=2.0,
     sf_irs=0.0,
     kernel=None,
-    fbnd=1.0,
 ):
     """Call a scree multigrid kernel with freshly zeroed scratch (the size args
     are inferred by f2py from the array shapes, exactly as ember.solver does).
@@ -118,7 +117,6 @@ def _run_mg(
         vol=vol,
         cfl=CFL,
         fmgrid=fmgrid,
-        fbnd=fbnd,
         expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
@@ -631,144 +629,6 @@ def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
     for name in ("i_step", "err_mdot", "zeta"):
         assert np.isfinite(np.asarray(getattr(hist, name), dtype=float)).all(), name
     assert np.isfinite(np.asarray(hist.residual, dtype=float)).all()
-
-
-def test_fbnd_one_leaves_the_march_alone():
-    """fbnd=1 must be the uniform correction, byte for byte.
-
-    The boundary weight is a multiplier on each level's coefficient for its
-    shell of blocks, so at fbnd=1 it is an exact multiply by one. That is what
-    makes the default (Solver.fac_mgrid_bnd=None) free of any numerical drift,
-    so assert exact equality, not a tolerance.
-    """
-    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=11)
-    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
-    cons_one, store_one = _run_mg(*args, fbnd=1.0)
-    # Same call with the argument left at its default: the kernel is the only
-    # thing that sees fbnd, so this pins the default rather than the wiring.
-    cons_default, store_default = _run_mg(*args)
-    np.testing.assert_array_equal(cons_one, cons_default)
-    np.testing.assert_array_equal(store_one, store_default)
-
-
-def test_fbnd_leaves_the_history_roll_alone():
-    """The boundary weight touches the coarse correction only; the Denton
-    history roll (store <- residual) is the same whatever it is set to."""
-    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=12)
-    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
-    _, store_zero = _run_mg(*args, fbnd=0.0)
-    _, store_plain = _run_plain(residual, dt_vol, store, cons, NI, NJ, NK)
-    np.testing.assert_array_equal(store_zero, store_plain)
-
-
-def test_fbnd_scales_the_correction_linearly():
-    """Every coarse coefficient is linear in fac_mgrid, and the shell weight is
-    applied to that coefficient, so the whole march is linear in the ratio:
-    fbnd=0.5 sits exactly halfway between 0 and 1, everywhere."""
-    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=13)
-    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
-    cons_one, _ = _run_mg(*args, fbnd=1.0)
-    cons_zero, _ = _run_mg(*args, fbnd=0.0)
-    cons_half, _ = _run_mg(*args, fbnd=0.5)
-    np.testing.assert_allclose(
-        cons_half, 0.5 * (cons_one + cons_zero), rtol=1e-5, atol=1e-5
-    )
-    # A halved correction on a doubled one: fbnd=2 must overshoot fbnd=1 by
-    # exactly the amount fbnd=0 undershoots it.
-    cons_two, _ = _run_mg(*args, fbnd=2.0)
-    np.testing.assert_allclose(
-        cons_two - cons_one, cons_one - cons_zero, rtol=1e-5, atol=1e-5
-    )
-
-
-def test_fbnd_weakens_a_layer_not_a_node_plane():
-    """The weight belongs to the boundary CELLS of each level, so it reaches
-    2**lvl fine cells in from the face, not one node plane.
-
-    Assert the second and third node planes in from every face move too --
-    they lie inside the level-1 boundary blocks (2 fine cells deep) and well
-    inside the coarser ones.
-    """
-    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=14)
-    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
-    cons_one, _ = _run_mg(*args, fbnd=1.0)
-    cons_weak, _ = _run_mg(*args, fbnd=0.25)
-    moved = cons_one != cons_weak
-    for axis in range(3):
-        for plane in (1, 2, -2, -3):
-            assert moved.take(plane, axis=axis).any(), (axis, plane)
-
-
-def test_fbnd_leaves_the_deep_interior_alone():
-    """Blocks away from the boundary keep the uniform correction bit for bit.
-
-    Run one level, so the reach is easy to pin down: the shell is the coarse
-    cells ib = 1 and nib, each b = 2 fine cells wide, and mg_bracket2x's
-    clamped linear interpolation spreads a coarse cell over at most 2b fine
-    cells. The cell->node scatter adds one more node, so nodes at least
-    2*b + 1 = 5 in from every face cannot see the weight.
-    """
-    n_levels = 1
-    margin = 2 * 2**n_levels + 1
-    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=15)
-    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels)
-    cons_one, _ = _run_mg(*args, fbnd=1.0)
-    cons_weak, _ = _run_mg(*args, fbnd=0.0)
-    deep = (slice(margin, -margin),) * 3
-    np.testing.assert_array_equal(cons_one[deep], cons_weak[deep])
-    # And the boundary layer itself really did move, so the slice above is not
-    # passing by virtue of a no-op march.
-    assert not np.array_equal(cons_one, cons_weak)
-
-
-def test_scree_step_fac_mgrid_bnd_wiring():
-    """ember.solver.scree_step turns fac_mgrid_bnd into the kernel's ratio.
-
-    None and an explicit fac_mgrid must give the same march byte for byte
-    (both are a ratio of 1); a different value must move the march. Which
-    nodes move is the kernel's contract, pinned above.
-    """
-    ni, nj, nk = 17, 17, 17
-    n_levels = 2
-    rng = np.random.default_rng(41)
-    residual_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
-    dt_vol_data = 0.5 + rng.random((ni - 1, nj - 1, nk - 1))
-
-    def _build():
-        block = _make_block((ni, nj, nk))
-        block.residual_nd.flags.writeable = True
-        block.residual_nd[...] = residual_data
-        block.residual_nd.flags.writeable = False
-        block.dt_vol_nd.flags.writeable = True
-        block.dt_vol_nd[...] = dt_vol_data
-        block.dt_vol_nd.flags.writeable = False
-        return ember.grid.Grid([block])
-
-    grid_default = _build()
-    ember.solver.scree_step(
-        grid_default, cfl=CFL, fac_mgrid=FAC_MGRID, n_levels=n_levels
-    )
-    cons_default = grid_default[0].conserved_nd.copy()
-
-    grid_same = _build()
-    ember.solver.scree_step(
-        grid_same,
-        cfl=CFL,
-        fac_mgrid=FAC_MGRID,
-        n_levels=n_levels,
-        fac_mgrid_bnd=FAC_MGRID,
-    )
-    np.testing.assert_array_equal(cons_default, grid_same[0].conserved_nd)
-
-    grid_weak = _build()
-    ember.solver.scree_step(
-        grid_weak,
-        cfl=CFL,
-        fac_mgrid=FAC_MGRID,
-        n_levels=n_levels,
-        fac_mgrid_bnd=0.0,
-    )
-    assert not np.array_equal(cons_default, grid_weak[0].conserved_nd)
 
 
 if __name__ == "__main__":

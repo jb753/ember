@@ -54,7 +54,6 @@ def _run(
     kernel=None,
     fmgrid=0.2,
     expon_mgrid=2.0,
-    fbnd=1.0,
 ):
     """Call the RK MG kernel with freshly zeroed scratch (the size args are
     inferred by f2py from the array shapes, exactly as ember.solver does).
@@ -82,7 +81,6 @@ def _run(
         alpha=1.0,
         cfl=0.4,
         fmgrid=fmgrid,
-        fbnd=fbnd,
         expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
@@ -326,69 +324,6 @@ def test_advance_rk_stage_mg_fac_mgrid_zero_skips_coarse():
         grid_zero_irs, alpha=1.0, cfl=0.4, fac_mgrid=0.0, n_levels=n_levels, sf_irs=0.6
     )
     np.testing.assert_array_equal(cons_off, grid_zero_irs[0].conserved_nd)
-
-
-def test_advance_rk_stage_mg_fac_mgrid_bnd_weakens_the_boundary_blocks():
-    """fac_mgrid_bnd replaces fac_mgrid on each level's boundary shell of
-    coarse cells.
-
-    None and an explicit fac_mgrid are the same march byte for byte (the
-    kernel takes the ratio, 1 in both cases, an exact multiply by one). A
-    different value must move the march and scale it linearly: the coarse
-    coefficients are all linear in fac_mgrid, so halving the boundary value
-    must land halfway between dropping the shell's push and keeping it. With
-    one level the reach is pinnable -- the shell is 2 fine cells wide and the
-    clamped prolongation spreads a coarse cell over at most twice its width,
-    plus one node from the cell->node scatter -- so nodes 5 in from every face
-    keep the uniform correction bit for bit.
-    """
-    ni, nj, nk = 17, 17, 17
-    n_levels = 1
-    fac_mgrid = 0.2
-    rng = np.random.default_rng(53)
-    residual_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
-    dt_vol_data = 0.5 + rng.random((ni - 1, nj - 1, nk - 1))
-
-    def _march(fac_mgrid_bnd):
-        block = _make_block((ni, nj, nk))
-        block.residual_nd.flags.writeable = True
-        block.residual_nd[...] = residual_data
-        block.residual_nd.flags.writeable = False
-        block.dt_vol_nd.flags.writeable = True
-        block.dt_vol_nd[...] = dt_vol_data
-        block.dt_vol_nd.flags.writeable = False
-        block.store[...] = block.conserved_nd
-        grid = ember.grid.Grid([block])
-        ember.solver.advance_rk_stage_mg(
-            grid,
-            alpha=1.0,
-            cfl=0.4,
-            fac_mgrid=fac_mgrid,
-            n_levels=n_levels,
-            fac_mgrid_bnd=fac_mgrid_bnd,
-        )
-        return grid[0].conserved_nd.copy()
-
-    cons_default = _march(None)
-    np.testing.assert_array_equal(cons_default, _march(fac_mgrid))
-
-    cons_off = _march(0.0)
-    cons_half = _march(0.5 * fac_mgrid)
-
-    assert not np.array_equal(cons_default, cons_off)
-    np.testing.assert_allclose(
-        cons_half, 0.5 * (cons_default + cons_off), rtol=1e-5, atol=1e-5
-    )
-
-    margin = 2 * 2**n_levels + 1
-    deep = (slice(margin, -margin),) * 3
-    np.testing.assert_array_equal(cons_default[deep], cons_off[deep])
-    # The layer the weight owns is thicker than one node plane: the second and
-    # third planes in from each face move too.
-    moved = cons_default != cons_off
-    for axis in range(3):
-        for plane in (1, 2, -2, -3):
-            assert moved.take(plane, axis=axis).any(), (axis, plane)
 
 
 if __name__ == "__main__":
