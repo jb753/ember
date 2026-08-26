@@ -358,6 +358,44 @@ the headline number, and where it lives.
   injection writes the SECOND face plane, not the first). The deviation is
   `vrcpps`+Newton vector reciprocals under `-Ofast`, not reassociation --
   `-fno-associative-math -ffp-contract=off` does not collapse it.
+
+  **Re-wired and re-measured (Aug 2026), after being silently unwired.** The
+  fused-pair rewrite (`b184209`) rebuilt these four call sites and brought
+  them back as the per-cell form; the row subroutines stayed `public`, stayed
+  compiled, were kept current by a later change -- and were called from
+  nowhere for four commits, while this entry claimed they shipped. The link-
+  stage opt report is what caught it: `missed: couldn't vectorize loop` on
+  all four i-loops, with `wall_func_kface.constprop` still a real outcall
+  rebuilding its argument descriptors per iteration. Check a claim like this
+  one against `grep`, not against the entry.
+
+  Re-measured on the current fused kernel with `run_so_ab.sh`, 10 launches
+  x 30 reps, paired within launch, candidate faster in **10/10 launches at
+  every size** (`results/wallrow_{c8,s1,d8}_*.jsonl`):
+
+  | ni (nj=65, nk=57) | 8-rank contended | serial |
+  | --- | --- | --- |
+  | 25 | -1.4% | -3.4% |
+  | 81 | -8.8% | -8.9% |
+  | 273 | -6.2% | -7.6% |
+  | 537 | -6.3% | -6.8% |
+
+  Two things differ from the 2026-08-22 measurement above, both expected.
+  It is **smaller**, because `set_visc_force` absorbed `set_tau_q_soa`'s
+  per-cell work in the fusion, so the same wall work is a smaller share of a
+  bigger kernel. And it is **not** masked by contention -- serial and
+  contended agree to within a couple of points, where the original entry
+  found the contended win much the weaker. Do not carry the original entry's
+  "much less contended" caveat forward.
+
+  The `ni=25` point is the one anomaly, and it was densified rather than
+  explained (Rule 7): the win goes -1.4% at `ni-1=24` to -8.5% at `ni-1=40`
+  and stays there, with **no** feature at `ni-1 = WALL_TW = 64`, so it is not
+  a tile-fill effect. Two candidates were not separated -- rows too short to
+  amortise the three phase loops, and the untouched i-face wall calls
+  (`wall_func_iface`, still per-cell) being 55% of all wall-face cells at
+  that shape against 10% at `ni=273`. Either way it is below any production
+  shape; a `wall_row_iface` is where that point would be recovered.
 - **j-panel tiling of `set_visc_force`'s k walk** (`VISC_JAREA`). The fused
   walk carries a rolling `planes(ni,nj,4,2)` pair plus a tau/q plane across
   each k step; at 273x65x57 that is 568 KB and 639 KB, both past the 256 KB
