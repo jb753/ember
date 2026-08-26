@@ -428,25 +428,6 @@ class Solver(BaseSolver):
     As :attr:`rf_inlet`, the default is imposed and None leaves each plane's own
     value alone."""
 
-    lead_exchange: float | None = 0.0
-    r"""Phase lead on the cross-plane exchange, in steps.
-
-    The exchange integrates a mismatch the blade rows answer only after a wave
-    has crossed them. That delay, not a want of damping, is what limits
-    :attr:`rf_exchange`: it costs phase, and past a critical loop gain the plane
-    and the rows' mass storage oscillate and grow. A term in the rate of change
-    of the mismatch puts the phase back, so a larger :attr:`rf_exchange` holds.
-
-    Measured in steps, and wants to be of order the oscillation period divided
-    by :math:`2\pi` to be worth anything, since the mismatch moves very little
-    between one exchange and the next -- so the useful values are tens, not
-    fractions. Against that, it differences a signal one step apart and
-    multiplies the result by that same large number, so it amplifies any
-    step-to-step jitter in the mismatch by the same factor.
-
-    Zero, the default, is the plain integrator. As :attr:`rf_inlet`, None leaves
-    each plane's own value alone."""
-
     mix_reflective: bool | None = False
     r"""Run every mixing plane as a reflective one, imposing the mixed-out
     state directly instead of the characteristic exchange.
@@ -470,9 +451,8 @@ class Solver(BaseSolver):
     quadrature the face quads use) but not the momentum or energy flux, so it
     is not the flux-conserving mixed-out state a loss audit would want; and
     there is no under-relaxation anywhere, so the two rows are yanked onto
-    their common mean every stage. :attr:`rf_mix`, :attr:`rf_exchange`,
-    :attr:`lead_exchange` and :attr:`gain_mdot` all address machinery this
-    switches off, and so do nothing while it is set.
+    their common mean every stage. :attr:`rf_mix` and :attr:`rf_exchange` both
+    address machinery this switches off, and so do nothing while it is set.
 
     What is *not* given up is conservation. The inviscid face flow is built
     from the four boundary nodes of each face quad and the face area vector
@@ -488,33 +468,6 @@ class Solver(BaseSolver):
     with, and both sides of every plane necessarily agree; pass None to leave
     each plane as it is. A grid with no mixing plane is unaffected whatever
     this is set to."""
-
-    gain_mdot: float = 0.5
-    r"""Fraction of :cite:t:`Holmes2008`'s mass flow control offset to apply at
-    each mixing plane.
-
-    The planes are pushed toward the machine's own mean mass flow,
-    :meth:`~ember.grid.Grid._calc_mdot_target`, which closes the gap between
-    what the inlet is swallowing and what the outlet is passing without waiting
-    for it to convect out row by row. A grid with no mixing plane is unaffected
-    whatever this is set to.
-
-    **1 is exactly Holmes and 0 is the plain flux balance.** The scale is not
-    arbitrary and not a relaxation factor: the offset it multiplies is his
-    Eq. 22, and the two ends of the range are the two schemes. What the values
-    between them mean is worth being clear about, because the mass row of the
-    interface error runs from ``m_dn - m_up`` at zero to ``m_up*eps`` at one --
-    so the gain trades the interface's direct drive on the mass *balance* for a
-    drive on the mass *flow*, and at 1 the balance term is gone entirely. That
-    is Holmes' design, not a degradation, but a value below 1 keeps some
-    restoring action on the imbalance as well.
-
-    On by default, which is safe because the offset ramps itself out: below
-    :attr:`~ember.mixing_communicator.MixingCommunicator.eps_deadband` it is
-    identically zero, so the converged answer is the one the exchange would
-    have reached anyway and only the path to it differs. It needs no stability
-    margin of its own, since the offset passes through :attr:`rf_exchange` with
-    the rest of the mismatch."""
 
     def __post_init__(self):
         """Reject averaging windows the march cannot honour.
@@ -960,15 +913,11 @@ def _apply_bcond_relaxation(grid, conf):
             for patch in patches:
                 patch.sigma = sigma
 
-    # The communicator reads both of these from the patches at every exchange,
-    # so a cached communicator picks them up without being rebuilt.
+    # The communicator reads this from the patches at every exchange, so a
+    # cached communicator picks it up without being rebuilt.
     if conf.rf_exchange is not None:
         for patch in grid.patches.mixing:
             patch.rf_exchange = conf.rf_exchange
-
-    if conf.lead_exchange is not None:
-        for patch in grid.patches.mixing:
-            patch.lead_exchange = conf.lead_exchange
 
     # Read by the patch itself (set_block_avg, step, apply, _calc_reference)
     # as well as by the communicator, none of which see a Solver -- hence the
@@ -1089,7 +1038,7 @@ def _run(grid, conf):
         grid.update_cached_conserved()
 
         # Throttle/radial equilibrium targets, and the mixing-plane exchange
-        grid.update_bconds(cfl=conf.cfl, gain_mdot=conf.gain_mdot)
+        grid.update_bconds(cfl=conf.cfl)
         grid.apply_bconds()
 
         try:

@@ -50,17 +50,6 @@ class MixingCommunicator:
     side's boundary condition and leave the harmonics to the non-reflecting
     relations of the patches themselves.
 
-    On top of that sits :cite:t:`Holmes2008`'s **mass flow control**, his
-    Eq. 20-22, which holds the interface mass flux near the flow the machine is
-    actually passing while the two are still far apart. It is not a second
-    controller: it is an offset added to the flux difference the exchange
-    already drives to zero, so it passes through the same transformation chain,
-    the same characteristic selection and the same ``rf_exchange`` as everything
-    else. It is also ramped to zero as the mass flow error closes, so the
-    converged fixed point is exact flux balance whether it is switched on or
-    not. See :meth:`_apply_mdot_offset`, and :meth:`exchange` for how the
-    target reaches it.
-
     See Also
     --------
     ember.mixing : The patch class this pairs
@@ -103,9 +92,7 @@ class MixingCommunicator:
     :func:`~ember.perturbation.flux_to_primitive`, which divides by the axial
     velocity, away from zero.
 
-    See :attr:`Ma_clip_max` for the other end of the same band, and
-    :attr:`Ma_mdot_max` for the separate gate on the *absolute* Mach number that
-    the mass flow forcing needs.
+    See :attr:`Ma_clip_max` for the other end of the same band.
     """
 
     Ma_clip_max = 0.9
@@ -120,67 +107,6 @@ class MixingCommunicator:
     with the wrong number of incoming characteristics rather than merely
     inaccurately. Clipping keeps such a station inside the theory until the flow
     brings it back.
-    """
-
-    Ma_mdot_max = 0.9
-    r"""Absolute Mach number above which a span station takes no mass flow
-    forcing.
-
-    Not the same quantity as :attr:`Ma_clip` and :attr:`Ma_clip_max`, which
-    bound the Mach number *normal* to the plane. The mass flux sensitivity
-    :func:`~ember.perturbation.mdot_to_flux` divides by
-    :math:`\rho - V^2/\Theta`, which for a perfect gas is
-    :math:`\rho\,(1 - \mathit{Ma}^2)` in the **absolute** Mach number -- so a
-    strongly swirling station can approach the singularity with a perfectly
-    modest normal component, and clipping :math:`\mathit{Ma}_x` would not catch
-    it. Above this the forcing is simply dropped at that station, which costs
-    nothing: it is a convergence accelerator, not part of the condition.
-    """
-
-    eps_deadband = 1e-2
-    r"""Fractional mass flow error below which the forcing is off entirely.
-
-    The forcing exists to remove a transient, not to change an answer, so it is
-    ramped out before the answer is reached. Below this the correction is
-    identically zero, which makes the converged fixed point of the exchange
-    exactly what it is without the forcing -- exact flux balance -- rather than
-    something that has to be argued to be close to it.
-
-    **This has to sit above the mass flow error the exchange settles at on its
-    own, and that is what sets it.** The correction feeds an integrator, so a
-    steady target needs the flux mismatch and the correction to cancel rather
-    than each to vanish; a forcing still acting at the fixed point therefore
-    moves that fixed point instead of merely arriving at it sooner. The
-    deadband is what prevents this, and it can only do so if the forcing has
-    switched off by the time the march gets there. One percent is chosen
-    against a two-row duct that settles at about 0.85%, which is not a wide
-    margin: a case whose planes settle at a larger standing imbalance wants
-    this raised, and a run whose two ends still disagree by more than this at
-    convergence is being forced the whole way, which the mass flow trace will
-    show.
-
-    It also disposes of a measurement question. The target is measured at the
-    domain inlet and outlet by :meth:`~ember.grid.Grid._calc_mdot_target`, using
-    :func:`~ember.average.flow_mass` over the whole face, while a plane's own
-    total is the pitch mean of its flux average against its span areas. Those
-    two quadratures agree closely on a surface of revolution but not exactly,
-    and the difference does not shrink as the solution converges. The deadband
-    is far above that bias, so it can never be what is driving the forcing.
-    """
-
-    eps_full = 5e-2
-    r"""Fractional mass flow error at and above which the forcing acts in full.
-
-    Between here and :attr:`eps_deadband` the gain ramps linearly. A hard switch
-    at the deadband would do, except that the correction feeds an integrator
-    (see the class docstring), and a step change in what is being integrated
-    shows up as a kink in the target that the patches' own relaxation then has
-    to chase. A station hovering at the threshold would chatter across it.
-
-    Five percent puts the whole of a realistic starting transient at full gain
-    -- two rows started 25% apart in mass flow open at an error five times this
-    -- and confines the ramp to the final approach, which is the only place the
-    smoothing is needed.
     """
 
     def __init__(
@@ -216,7 +142,6 @@ class MixingCommunicator:
         self._vec1 = None
         self._vec2 = None
         self._jac_buf = None
-        self._mdot_buf = None
 
         # Previous entering flag per (bid, pid, side), the hysteresis state for
         # _calc_shared_entering. Keyed per side because the two patches of a
@@ -268,12 +193,6 @@ class MixingCommunicator:
             self._pair_state[key] = {
                 # Relaxation increment in target space, kept for get_stats.
                 "du": np.zeros((nspan, 5), dtype=np.float32),
-                # Previous exchange's target-space mismatch, for the phase lead
-                # of MixingPatch.lead_exchange. Not a diagnostic: the lead is
-                # part of the relaxation. False until one exchange has run, so
-                # the first takes no lead rather than differencing against zero.
-                "e_prev": np.zeros((nspan, 5), dtype=np.float32),
-                "has_prev": False,
             }
         return self._pair_state[key]
 
@@ -290,10 +209,9 @@ class MixingCommunicator:
             self._vec1 = util.empty((nspan, 5))
             self._vec2 = util.empty((nspan, 5))
             self._jac_buf = util.empty((nspan, 5, 5))
-            self._mdot_buf = util.empty((nspan, 5))
 
     @profile
-    def _exchange_pair(self, bid, pid, flip, mdot_target, gain):
+    def _exchange_pair(self, bid, pid, flip):
         """Compute cross-plane targets and write absolute values into each patch.
 
         Performs inter-patch communication only; does not apply the targets to
@@ -305,7 +223,7 @@ class MixingCommunicator:
             self._mix_uniform(patch1, patch2, flip)
             return
 
-        b_avg, nspan = self._prepare_pair(patch1, patch2, flip, mdot_target, gain)
+        b_avg, nspan = self._prepare_pair(patch1, patch2, flip)
         self._write_targets(patch1, patch2, flip, b_avg, nspan, (bid, pid))
 
     def _mix_uniform(self, patch1, patch2, flip):
@@ -349,7 +267,7 @@ class MixingCommunicator:
         patch1.set_uniform(mean)
         patch2.set_uniform(mean[::-1] if flip else mean)
 
-    def _prepare_pair(self, patch1, patch2, flip, mdot_target=None, gain=0.0):
+    def _prepare_pair(self, patch1, patch2, flip):
         """Symmetrise the cross-plane average and reduce the flux mismatch to chic space.
 
         Leaves the characteristic mismatch ``dchic`` in the shared scratch
@@ -439,14 +357,6 @@ class MixingCommunicator:
             )
             b_avg.update_cached_conserved()
 
-        # Holmes' mass flow control: an offset to the flux difference, applied
-        # here so that it goes through the transformation chain and the
-        # characteristic selection below along with everything else, which is
-        # where his Eq. 20 puts it.
-        self._apply_mdot_offset(
-            patch1, patch2, b_avg, v1, flux1, flux2, flip, mdot_target, gain
-        )
-
         # Convert flux difference to chic difference using sequential Jacobians
         perturbation.flux_to_primitive(b_avg, out=J)
         util.matvec(J, v1, out=v1)  # v1 = dprim
@@ -464,150 +374,6 @@ class MixingCommunicator:
         patch2._entering_shared = self._calc_shared_entering(patch2, (*key, 2))
 
         return b_avg, nspan
-
-    def _apply_mdot_offset(
-        self, patch1, patch2, b_avg, v1, flux1, flux2, flip, mdot_target, gain
-    ):
-        r"""Add Holmes' mass flow control offset to the cross-plane flux difference.
-
-        :cite:t:`Holmes2008` Eq. 20-22. He replaces the flux difference the
-        interface drives to zero,
-
-        .. math::
-
-            \Delta F = F^{(1)} - F^{(2)} + \overline{\Delta F},
-
-        where side 1 is the upstream one and the offset's mass row is
-        :math:`F^{(2)}_{\dot m} - \overline{F}^{(1)}_{\dot m}`, so that at the
-        fixed point the upstream mass flux sits on its target rather than merely
-        matching the other side. The remaining four rows of the offset are not
-        free: they are the flux perturbation consistent with that change of mass
-        flux at constant :math:`h_0`, entropy and flow angle, which is his
-        Appendix B and here is :func:`~ember.perturbation.mdot_to_flux`.
-
-        Applied to ``v1`` in flux space and in place, before the transformation
-        chain, so the offset passes through the characteristic selection with
-        the rest of the mismatch exactly as his Eq. 15 has it. An earlier
-        version of this added the correction in mix space after the split
-        instead; that skipped the selection, which is the part of the scheme
-        that makes the interface non-reflecting.
-
-        Two departures from the paper remain, both deliberate. His target is
-        prescribed by the user; this one is the machine's own mean mass flow,
-        handed down by :meth:`~ember.grid.Grid.update_bconds`, so it needs no
-        input and applies to an unthrottled run. And his invariant relative flow
-        angle is replaced by the absolute one; see
-        :func:`~ember.perturbation.mdot_to_flux`.
-
-        ``gain`` scales the offset, so 1 is exactly Holmes and 0 is the plain
-        flux balance this had before. Note what the intermediate values mean:
-        the mass row of the error runs from ``m_dn - m_up`` at zero gain to
-        ``m_up*eps`` at unit gain, so the gain trades the interface's direct
-        drive on the mass *balance* for a drive on the mass *flow*. At gain 1
-        the balance term is gone entirely, which is his design.
-
-        Which side is upstream is Holmes' one irreducible asymmetry and it is
-        load-bearing. The correction's only real lever is the pressure, which
-        the side the flow leaves imposes, so the flow whose error it can act on
-        is that side's -- his "we elect to try to control the mass flow on the
-        upstream (i.e. the exit) side". Driving the mean of the two sides
-        instead, which would need no side at all, is degenerate: on a two-row
-        grid the plane's own mean equals the mean of the two ends identically
-        whenever each row carries a uniform flow, so it would read zero error
-        however far apart the two sides had drifted.
-
-        Nothing is declared, though, and nothing depends on labelling. The
-        upstream side is the one whose ``_sign_interior`` the flow itself
-        settled in :meth:`~ember.mixing.MixingPatch._enter_resolved`, so the
-        result is the same whichever patch of the pair happened to sort first in
-        :meth:`_prune_pairs`, and a plane whose frame has not settled yet simply
-        goes unforced for another step.
-
-        The apportionment is Holmes' (his closing paragraph): the target at each
-        span station is that station's current mass flux scaled by one ratio for
-        the whole span. Spreading ``eps`` flat across the span instead would be
-        a small fractional change mid-span and an enormous one at the endwalls,
-        where the mass flux is small, and would reshape the spanwise profile
-        rather than scale it.
-
-        Does nothing where there is nothing to apply -- no target, no gain, an
-        unsettled frame, inside the deadband, or a plane whose net flow has
-        reversed or is not measurable.
-
-        Parameters
-        ----------
-        patch1, patch2 : MixingPatch
-            The two sides, read for their settled frame, span areas and blade
-            counts.
-        b_avg : Block
-            The symmetrised mean state, already Mach-clipped, that the
-            sensitivity is evaluated on.
-        v1 : array
-            The cross-plane flux difference, shape ``(nspan, 5)``, modified in
-            place.
-        flux1, flux2 : array
-            The two sides' pitch-averaged fluxes, ``flux2`` already in
-            ``patch1``'s span order.
-        flip : bool
-            Whether ``patch2``'s span runs opposite to ``patch1``'s.
-        mdot_target : float or None
-            Target annulus mass flow, nondimensional on
-            ``rhoV_ref * L_ref**2``. None disables the offset.
-        gain : float
-            Fraction of Holmes' offset to apply; zero disables it.
-        """
-        if not gain or mdot_target is None:
-            return
-        if not (patch1._sign_settled and patch2._sign_settled):
-            return
-
-        # The side the flow leaves through. Read from the frame the flow
-        # settled, not from geometry or class. Its flux is already in patch1's
-        # span order, as is b_avg, so the profile lines up with the sensitivity
-        # without further flipping. ``sign`` carries ember's flux difference
-        # convention, v1 = flux2 - flux1, back to Holmes' F(1) - F(2).
-        if patch1._sign_interior < 0:
-            sign, patch_up, m_up, dA_up = 1.0, patch1, flux1[:, 0], patch1._dA_node
-        else:
-            dA2 = patch2._dA_node[::-1] if flip else patch2._dA_node
-            sign, patch_up, m_up, dA_up = -1.0, patch2, flux2[:, 0], dA2
-
-        # Per unit area and per passage; only the total needs Nb, and the two
-        # sides may carry different blade counts.
-        blk_up = patch_up.block
-        mdot_up = float(np.sum(m_up * dA_up)) * blk_up.Nb / blk_up.L_ref**2
-
-        # A plane whose net flow has reversed has no forward mass flow to scale,
-        # and the ratio below would be a large negative number rather than a
-        # small error. Left alone; the characteristic split carries it.
-        if not np.isfinite(mdot_up) or mdot_up <= 0.0:
-            return
-
-        eps = mdot_target / mdot_up - 1.0
-        ramp = np.clip(
-            (abs(eps) - self.eps_deadband) / (self.eps_full - self.eps_deadband),
-            0.0,
-            1.0,
-        )
-        if ramp <= 0.0:
-            return
-
-        # The mass row of the offset, Holmes Eq. 22, in ember's sign. His
-        # F(2) - F_bar(1) is the current cross-plane mass flux difference less
-        # the apportioned target increment; v1[:, 0] already holds the former
-        # (up to ``sign``), so it is not measured again here.
-        #
-        # Gated on the ABSOLUTE Mach number, not the normal one the clip above
-        # bounds: mdot_to_flux divides by rho*(1 - Ma^2) in the absolute Mach,
-        # so a strongly swirling station can approach the singularity with a
-        # modest normal component. Written to catch NaN as well.
-        scale = v1[:, 0] - sign * m_up * eps
-        Ma = np.asarray(b_avg.Ma).reshape(-1)
-        scale = np.where(Ma < self.Ma_mdot_max, scale, 0.0)
-
-        nspan = flux1.shape[0]
-        col = perturbation.mdot_to_flux(b_avg, out=self._mdot_buf[:nspan])
-        v1 -= (gain * ramp) * scale[:, None] * col
 
     def _calc_shared_entering(self, patch, state_key):
         """One patch's entering flag from the shared symmetrised interface state.
@@ -716,36 +482,10 @@ class MixingCommunicator:
         # For some reason need a -ve sign on dtarget_dn here!
         v1 -= v2
 
-        # v1 holds the error e_n = dtarget. Before it is scaled, take the phase
-        # lead of MixingPatch.lead_exchange:
-        #
-        #   du = rf_exchange * (e_n + lead_exchange * (e_n - e_{n-1}))
-        #
-        # The exchange integrates a mismatch the rows answer only after a wave
-        # has crossed them, and that delay -- not the damping -- is what limits
-        # rf_exchange: it costs phase, and past a critical loop gain the plane
-        # and the rows' mass storage oscillate and grow. A term in the rate of
-        # change of the mismatch puts the phase back, so a larger rf_exchange
-        # holds. lead_exchange is in steps, and wants to be of order the
-        # oscillation period over 2*pi to be worth anything, since e_n moves
-        # very little between exchanges.
-        #
-        # The stored error is the raw e_n, not the led one, or the lead would
-        # compound on itself.
+        # v1 holds the error e_n = dtarget. The increment is
+        # du = rf_exchange * e_n, recorded for get_stats before it is added
+        # onto the target below.
         state = self._ensure_pair_state(key, nspan)
-        lead = patch1.lead_exchange
-        if lead and state["has_prev"]:
-            e_prev = state["e_prev"]
-            v2[:] = v1
-            v2 -= e_prev
-            e_prev[:] = v1
-            v1 += lead * v2
-        else:
-            state["e_prev"][:] = v1
-        state["has_prev"] = True
-
-        # The increment is du = rf_exchange * e_n, recorded for get_stats before
-        # it is added onto the target below.
         v1 *= patch1.rf_exchange  # v1 = du
         state["du"][:] = v1
 
@@ -864,31 +604,12 @@ class MixingCommunicator:
             return None
         return {"du": state["du"].copy()}
 
-    def exchange(self, mdot_target=None, gain=0.0):
+    def exchange(self):
         """Compute and write targets for all pairs (no apply step).
 
-        Under :attr:`~ember.solver.Solver.mix_reflective` a pair takes
-        neither argument and goes through :meth:`_mix_uniform` instead.
-
-        Parameters
-        ----------
-        mdot_target : float or None, optional
-            Mass flow the planes are forced toward, for the whole annulus and
-            nondimensional on ``rhoV_ref * L_ref**2``, as
-            :meth:`~ember.grid.Grid._calc_mdot_target` returns it. Default None,
-            which is no forcing at all -- the exchange is then exactly
-            :cite:t:`Saxer1993`'s, as it was before the forcing existed.
-        gain : float, optional
-            Gain on the forcing; zero, the default, also disables it. Passed
-            per call rather than held here, as
-            :meth:`~ember.patch.OutletPatch.update_target` takes its ``cfl``,
-            so it is always the value the march is running at and nothing
-            survives on a communicator that the grid's pickle drops.
-
-        See Also
-        --------
-        MixingCommunicator._apply_mdot_offset : What the forcing does
+        Under :attr:`~ember.solver.Solver.mix_reflective` a pair goes through
+        :meth:`_mix_uniform` instead.
         """
         for bid, pid in self.pairs.keys():
             _, flip = self.pairs[(bid, pid)]
-            self._exchange_pair(bid, pid, flip, mdot_target, gain)
+            self._exchange_pair(bid, pid, flip)

@@ -170,15 +170,6 @@ class MixingPatch(NonReflectingPatch):
         # feedback, and the integrating form of the relaxation has a tighter
         # stability limit than a proportional one would.
         self.rf_exchange = 0.02
-        # Phase lead on that relaxation, in steps: the exchange integrates a
-        # mismatch the rows answer only after a wave has crossed them, and a
-        # delayed integrator is what sets the stability limit on rf_exchange
-        # (see :class:`~ember.mixing_communicator.MixingCommunicator`). A
-        # positive value adds a term in the rate of change of the mismatch,
-        # buying phase margin so a larger rf_exchange holds. Zero is the plain
-        # integrator. Held here rather than on the communicator for the same
-        # reasons as rf_exchange, and both sides of a plane must agree on it.
-        self.lead_exchange = 0.0
         # Per-station entering flag the communicator computed from the shared
         # symmetrised interface state, stamped here by
         # :class:`~ember.mixing_communicator.MixingCommunicator`
@@ -246,7 +237,6 @@ class MixingPatch(NonReflectingPatch):
         # there.
         super()._copy(c)
         c.rf_exchange = self.rf_exchange
-        c.lead_exchange = self.lead_exchange
         c._reflective = self._reflective
         # _sign_settled is deliberately not carried: the copy re-settles
         # against its own block's flow, as _ref and the splits are rebuilt.

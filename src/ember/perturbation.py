@@ -74,13 +74,6 @@ All Jacobians are evaluated in the nondimensional space the block stores its
 state in, using :attr:`~ember.block.Block.conserved_nd`,
 :attr:`~ember.block.Block.r_nd` and the fluid's ``_nd`` thermodynamic
 derivative properties.
-
-One function here is not square and not between two of the six sets:
-:func:`mdot_to_flux` differentiates the flux vector with respect to the single
-scalar normal mass flux, along a path on which the stagnation enthalpy, the
-entropy and the velocity direction are all held. It returns a ``(..., 5)``
-column rather than a ``(..., 5, 5)`` matrix, and unlike everything above it
-depends on the path as well as the state.
 """
 
 import numpy as np
@@ -955,104 +948,6 @@ def chic_to_mix(block, out=None):
         shape=b.shape,
         out=out,
     )
-
-
-def mdot_to_flux(block, out=None):
-    r"""Derivative of the x-direction advective flux with respect to normal mass flux.
-
-    The odd one out in this module: a column, shape ``(..., 5)``, not a square
-    Jacobian, because there is no five-component variable set on the other end.
-    The independent variable is the single scalar :math:`\rho V_x`, the mass
-    flux normal to the plane, and the derivative is taken **along a particular
-    path** rather than at fixed everything-else -- the path of
-    :cite:t:`Holmes2008`'s Appendix B, on which
-
-    * the stagnation enthalpy :math:`h_0` is constant,
-    * the entropy :math:`s` is constant,
-    * the velocity direction is fixed.
-
-    This is his :math:`[A]\,[S]^{-1}` of Eq. B7 applied to a unit mass flux
-    perturbation, and it is what populates the four flux offsets his mass flow
-    control cannot write down directly. Only the first column of
-    :math:`[S]^{-1}` is ever needed, and it has the closed form below, so no
-    5x5 system is solved per span station; the return trip through :math:`[A]`
-    is :func:`primitive_to_flux`, composed at call time as the module docstring
-    allows for a Jacobian that is not on a hot path.
-
-    Row 0 of the result is identically 1: a unit perturbation of the mass flux
-    perturbs the mass flux by one. That is a useful check on the algebra and on
-    the state it is evaluated at.
-
-    Holmes' third invariant is the *relative* flow angle, fixed by the trailing
-    edge metal angle of the row upstream of the plane. This uses the absolute
-    angle instead. The two differ only on a rotor exit, and the price is a
-    slightly worse search direction there and nothing at all to the converged
-    answer, since the offset this feeds is ramped to zero before convergence;
-    what is bought is that the column does not need :math:`\Omega`, and with it
-    the whole question of whose blade speed a shared interface state should
-    carry.
-
-    With :math:`V_x` the interface-normal velocity, :math:`V` the total speed
-    and
-
-    .. math::
-        \Theta = \left.\frac{\partial h}{\partial\rho}\right|_p
-               + a^2 \left.\frac{\partial h}{\partial p}\right|_\rho
-
-    constant entropy gives :math:`\delta p = a^2\,\delta\rho`, the fixed
-    direction gives :math:`\delta V_r/V_r = \delta V_\theta/V_\theta =
-    \delta V_x/V_x`, and constant :math:`h_0` closes the system as
-    :math:`\Theta\,\delta\rho + V^2\,\delta V_x/V_x = 0`, leaving
-
-    .. math::
-        \frac{\partial V_x}{\partial(\rho V_x)}
-            = \frac{1}{\rho - V^2/\Theta}
-
-    whose denominator is :math:`\rho\,(1 - \mathit{Ma}^2)` for a perfect gas,
-    with :math:`\mathit{Ma}` the **absolute** Mach number and not the normal
-    one. It therefore changes sign through sonic and is singular at it; the
-    caller is responsible for not evaluating this where that matters. See
-    :attr:`~ember.mixing_communicator.MixingCommunicator.Ma_mdot_max`, which is
-    the gate ember uses, and note that it is a different quantity from
-    :attr:`~ember.mixing_communicator.MixingCommunicator.Ma_clip`.
-
-    Parameters
-    ----------
-    block : Block
-        Block whose current state the derivative is evaluated at, in interface
-        coordinates, so that ``Vx`` is the velocity normal to the plane.
-    out : ndarray, optional
-        Pre-allocated output array, shape ``(*block.shape, 5)``.
-
-    Returns
-    -------
-    col : ndarray, shape (..., 5)
-        :math:`\partial\mathcal{F}/\partial(\rho V_x)` along the path above,
-        stacked on the trailing axis. Row 0 is 1.
-
-    See Also
-    --------
-    ember.mixing_communicator.MixingCommunicator : Where this is applied
-    """
-    b = block
-
-    q = b.conserved_nd
-    r = b.r_nd
-    rho = q[..., 0]
-    Vx = q[..., 1] / rho
-    Vr = q[..., 2] / rho
-    Vt = q[..., 3] / (rho * r)
-    asq = b.a_nd**2
-    Vsq = b.V_nd**2
-
-    Theta = b.dhdrho_P_nd + asq * b.dhdP_rho_nd
-    dVx = 1.0 / (rho - Vsq / Theta)
-    drho = -(Vsq / (Vx * Theta)) * dVx
-
-    dprim = np.stack(
-        (drho, dVx, (Vr / Vx) * dVx, (Vt / Vx) * dVx, asq * drho), axis=-1
-    )
-    return util.matvec(primitive_to_flux(b), dprim, out=out)
 
 
 def flux_to_conserved(block):
