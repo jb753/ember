@@ -385,6 +385,12 @@ class Solver(BaseSolver):
     """Number of coarse multigrid levels; 0 disables multigrid. Honored by
     both integrators (:func:`scree_step` and :func:`rk_step`)."""
 
+    mg_roll: bool = False
+    """Apply one coarse multigrid level per step, cycling through the levels,
+    instead of summing every level's correction onto the same base state from
+    the same fine residual. Experimental: isolates whether the levels
+    destabilise each other. Inert when multigrid is off."""
+
     fac_mgrid: float = 0.2
     """Scaling factor on multigrid corrections. Honored by both integrators
     (:func:`scree_step` and :func:`rk_step`)."""
@@ -498,7 +504,8 @@ class Solver(BaseSolver):
         return _run_fmg(grid, self)
 
 
-def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0):
+def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0,
+               lvl_only=0, fscale_mult=1.0):
     """Advance every block one Denton scree step in place."""
     # Preconditions: dt_vol_nd populated and cached P/T consistent with
     # conserved_nd on entry. The caller invalidates caches and applies boundary
@@ -571,6 +578,8 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
+                lvl_only=lvl_only,
+                fscale=cfl * fscale_mult,
                 rbuf=rbuf,
                 **mg_scratch,
             )
@@ -651,7 +660,8 @@ def mg_coarse_shapes(ni, nj, nk, n_levels):
 
 
 def advance_rk_stage_mg(
-    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0
+    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0,
+    lvl_only=0, fscale_mult=1.0,
 ):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
@@ -787,6 +797,8 @@ def advance_rk_stage_mg(
                 expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
+                lvl_only=lvl_only,
+                fscale=alpha * cfl * fscale_mult,
                 rbuf=rbuf,
                 **mg_scratch,
             )
@@ -805,14 +817,40 @@ def advance_rk_stage_mg(
 
 
 @util.profile
-def rk_step(grid, conf):
-    """Advance every block one Jameson multi-stage RK step in place."""
+def _mg_roll_phase(conf, i_step):
+    """This step's place in the rolling cycle, as ``(lvl_only, fscale)``.
+
+    Without ``Solver.mg_roll`` every step is the additive scheme -- the fine
+    term and all ``n_levels`` corrections summed onto one base state from one
+    fine residual -- which is ``(0, 1.0)``.
+
+    With it, the cycle is ``n_levels + 1`` steps long and the FINE level is in
+    it: one step of the plain fine march, then one step per coarse level
+    carrying that correction alone. At ``n_levels=2`` that is F C1 C2 F C1 C2.
+    Each level then acts on a state its predecessor has already updated, off a
+    residual re-evaluated since -- multiplicative rather than additive.
+
+    ``fscale`` multiplies the fine term alone; ``lvl_only`` picks the single
+    coarse level, 0 for all of them, negative for none.
+    """
+    if not getattr(conf, "mg_roll", False) or conf.n_levels <= 0:
+        return 0, 1.0
+    phase = i_step % (conf.n_levels + 1)
+    return (-1, 1.0) if phase == 0 else (phase, 0.0)
+
+
+def rk_step(grid, conf, i_step=0):
+    """Advance every block one Jameson multi-stage RK step in place.
+
+    ``i_step`` drives ``Solver.mg_roll``: see :func:`_mg_lvl_only`.
+    """
     # Snapshot the bconds-consistent step-top state U_n into block.store (the
     # caller's residual build did not touch conserved_nd); every stage marches
     # off this frozen snapshot. Smoothing is not applied here -- Grid.smooth runs
     # once on the post-step state, shared with the scree path.
     for block in grid:
         block.store[...] = block.conserved_nd
+    lvl_only, fscale = _mg_roll_phase(conf, i_step)
     for i_stage in range(conf.n_stage):
         # Stage coefficient alpha_k = 1/(n_stage - k); the final stage takes the
         # full step. advance_rk_stage_mg marches off the snapshot and folds in the
@@ -830,6 +868,8 @@ def rk_step(grid, conf):
             conf.cfl,
             conf.fac_mgrid,
             conf.n_levels,
+            lvl_only=lvl_only,
+            fscale_mult=fscale,
             expon_mgrid=conf.expon_mgrid,
             sf_irs=conf.sf_resid,
         )
@@ -1041,9 +1081,11 @@ def _run(grid, conf):
                 expon_mgrid=conf.expon_mgrid,
                 n_levels=conf.n_levels,
                 sf_irs=conf.sf_resid,
+                lvl_only=_mg_roll_phase(conf, i_step)[0],
+                fscale_mult=_mg_roll_phase(conf, i_step)[1],
             )
         else:
-            rk_step(grid, conf)
+            rk_step(grid, conf, i_step)
 
         _log_rss("step %d after integrator", i_step)
 
