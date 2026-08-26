@@ -1,20 +1,20 @@
-"""Gate Grid.update_residual's post-processing order: smooth, then damp.
+"""Gate Grid.update_residual's post-processing order: damp, then smooth.
 
-Historically (commits 0384c83..495b415) the change limiter was fused into
-``set_residual``/the IRS i-solve for a performance win, which as a side
-effect reordered the post-processing to damp-before-IRS -- a genuine
-numerics change (see those commits' messages: the two orderings differ by
-~19% of the field scale at production defaults). ``update_residual`` has
-since been rewired back to the original order -- IRS then the limiter --
-by calling the same kernels unfused: ``set_residual`` with ``dampin=0``,
-then ``smooth_residual_scale_tri`` with ``dampin=0`` (IRS only) when
-``sf > 0``, then ``damp_residual`` as a separate pass when ``dampin`` is
-set.
+The change limiter runs BEFORE the IRS smoother, fused into whichever kernel
+is already traversing the volume -- ``set_residual``'s own trailing scaling
+pass when IRS is off, and ``smooth_residual_scale_tri``'s i-solve gather when
+it is on. Both fusions must be BITWISE equal to the unfused sequence: the
+arithmetic is unchanged and only the traversal differs, so any deviation is a
+bug rather than a tolerance to widen.
 
-This test gates that wiring: the reference calls those three kernels
-directly, independent of ``Grid.update_residual``, so a future edit to the
-method's call order (e.g. reintroducing a fusion that changes the
-composition) is caught rather than silently accepted.
+The reference here is that unfused sequence, called kernel-by-kernel and
+independent of ``update_residual``'s own wiring: full ``set_residual``
+including its ``scale_du``, then the standalone ``smooth_residual_tri_tiled``
+that ``scree.f90``'s coarse-MG path still uses. All four (``dampin``, ``sf``)
+combinations are checked, since the two flags select different paths through
+the kernels, plus a guard that the composition really is damp-before-IRS --
+the opposite order (in place between commits 9ff054e and this one) is a
+genuine numerics difference, ~19% of the field scale at production defaults.
 """
 
 import numpy as np
@@ -56,19 +56,19 @@ def _case(ncell=100_000):
     return grid, b
 
 
-def _reference(grid, b, dampin, sf):
-    """set_residual, then IRS (if sf > 0), then damp_residual (if dampin is
-    set) -- called kernel-by-kernel, independent of update_residual's own
-    wiring."""
+def _set_residual(b, dampin):
+    """set_residual on block ``b``, with its own scaling pass when dampin > 0.
+
+    Leaves ``residual_nd`` writeable for the smoother that follows.
+    """
     b.update_primitive()
     ni, nj, nk = b.shape
     i_cusp_start, i_cusp_end = b.i_cusp
     kb = min(ember.grid._KB_SLAB, nk - 1)
     njp = nj + 1 if (ni * nj) % 1024 == 0 else nj
     planes, rows = util.carve_view(b.scratch, (ni, njp, 5, 2), (ni, 5, 3))
-    du = b.residual_nd
-    du.flags.writeable = True
-    ember.fortran.set_residual(
+    b.residual_nd.flags.writeable = True
+    return ember.fortran.set_residual(
         cons=b.conserved_nd,
         p=b.P_nd,
         p_offset=b.P_offset_nd,
@@ -77,7 +77,7 @@ def _reference(grid, b, dampin, sf):
         dai=b.dAi_nd,
         daj=b.dAj_nd,
         dak=b.dAk_nd,
-        du=du,
+        du=b.residual_nd,
         f_body=b.F_body_nd,
         planes=planes,
         rows=rows,
@@ -90,26 +90,23 @@ def _reference(grid, b, dampin, sf):
         nj=nj,
         nk=nk,
         dt_vol=b.dt_vol_nd,
-        dampin=0.0,
+        dampin=0.0 if dampin is None else dampin,
     )
+
+
+def _reference(grid, b, dampin, sf):
+    """The unfused sequence: set_residual with its own scaling, then the
+    standalone three-direction smoother -- neither of which knows about the
+    other, so this composition is independent of update_residual's wiring."""
+    ni, nj, nk = b.shape
+    _set_residual(b, dampin)
+    du = b.residual_nd
     if sf > 0.0:
         nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
-        ember.fortran.smooth_residual_scale_tri(
+        ember.fortran.smooth_residual_tri_tiled(
             du=du,
-            dt_vol=b.dt_vol_nd,
-            ravg=np.zeros(5, dtype=du.dtype),
-            dampin=0.0,
             sf=sf,
             work=util.carve_view(b.scratch, (nwork,)),
-            ni=ni,
-            nj=nj,
-            nk=nk,
-        )
-    if dampin is not None:
-        ember.fortran.damp_residual(
-            du=du,
-            dt_vol=b.dt_vol_nd,
-            dampin=dampin,
             ni=ni,
             nj=nj,
             nk=nk,
@@ -121,11 +118,11 @@ def _reference(grid, b, dampin, sf):
 @pytest.mark.parametrize("dampin", [None, DAMPIN])
 @pytest.mark.parametrize("sf", [0.0, SF])
 def test_update_residual_matches_unfused_kernels(dampin, sf):
-    """update_residual(dampin, sf) == set_residual, IRS, damp -- byte for byte."""
+    """update_residual(dampin, sf) == scale-then-smooth, byte for byte."""
     grid, b = _case()
     want = _reference(grid, b, dampin, sf)
 
-    # Rebuild the same state so update_residual starts from identical inputs.
+    # Rebuild the same state so the fused path starts from identical inputs.
     grid2, b2 = _case()
     grid2.update_residual(dampin=dampin, sf=sf)
     got = np.array(b2.residual_nd, copy=True)
@@ -157,37 +154,34 @@ def test_limiter_and_irs_both_actually_act():
     assert not np.array_equal(plain, smoothed), "IRS had no effect"
 
 
-def test_damp_runs_after_irs_not_before():
-    """The order is smooth-then-damp: damping the already-smoothed residual
-    must differ from smoothing an already-damped one, confirming
-    update_residual takes the former path (the pre-0384c83 order)."""
+def test_damp_runs_before_irs_not_after():
+    """The order is damp-then-smooth: smoothing an already-damped residual
+    must differ from damping an already-smoothed one, confirming
+    update_residual takes the former path."""
     grid, b = _case()
     grid.update_residual(dampin=DAMPIN, sf=SF)
-    smooth_then_damp = np.array(b.residual_nd, copy=True)
+    damp_then_smooth = np.array(b.residual_nd, copy=True)
 
-    ni, nj, nk = b.shape
     grid2, b2 = _case()
+    ni, nj, nk = b2.shape
+    _set_residual(b2, None)
     du = b2.residual_nd
-    du.flags.writeable = True
-    ember.fortran.damp_residual(
-        du=du, dt_vol=b2.dt_vol_nd, dampin=DAMPIN, ni=ni, nj=nj, nk=nk
-    )
     nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
-    ember.fortran.smooth_residual_scale_tri(
+    ember.fortran.smooth_residual_tri_tiled(
         du=du,
-        dt_vol=b2.dt_vol_nd,
-        ravg=np.zeros(5, dtype=du.dtype),
-        dampin=0.0,
         sf=SF,
         work=util.carve_view(b2.scratch, (nwork,)),
         ni=ni,
         nj=nj,
         nk=nk,
     )
+    ember.fortran.damp_residual(
+        du=du, dt_vol=b2.dt_vol_nd, dampin=DAMPIN, ni=ni, nj=nj, nk=nk
+    )
     du.flags.writeable = False
-    damp_then_smooth = np.array(du, copy=True)
+    smooth_then_damp = np.array(du, copy=True)
 
-    assert not np.array_equal(smooth_then_damp, damp_then_smooth), (
-        "update_residual's output matches damp-before-IRS: the order "
-        "reverted to the fused (0384c83) sequence"
+    assert not np.array_equal(damp_then_smooth, smooth_then_damp), (
+        "update_residual's output matches smooth-before-damp: the order "
+        "reverted to the unfused (9ff054e) sequence"
     )

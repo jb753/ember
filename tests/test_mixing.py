@@ -1013,8 +1013,6 @@ def test_chain_stats_are_kept_per_plane():
 def test_solver_run_stays_finite(reflective):
     """A two-block run across the plane completes without NaN or non-physical values."""
     grid, patch_up, patch_dn = make_pair(npitch_up=9, npitch_dn=9, ni=9, nspan=9)
-    patch_up.reflective = reflective
-    patch_dn.reflective = reflective
     grid[0].patches.append(InletPatch(i=0))
     grid[1].patches.append(OutletPatch(i=-1))
     for block in grid:
@@ -1031,7 +1029,13 @@ def test_solver_run_stays_finite(reflective):
     grid.connectivity.periodic.pair()
     grid.connectivity.mixing.pair()
 
-    ember.solver.Solver(n_step=20, n_step_avg=1, n_step_log=20, n_stage=4).run(grid)
+    ember.solver.Solver(
+        n_step=20,
+        n_step_avg=1,
+        n_step_log=20,
+        n_stage=4,
+        mix_reflective=reflective,
+    ).run(grid)
 
     for block in grid:
         assert np.all(np.isfinite(block.conserved)), "Non-finite conserved variables"
@@ -1046,11 +1050,14 @@ def test_solver_run_stays_finite(reflective):
 def reflective_pair(**kwargs):
     """A paired plane whose two sides impose the mixed-out state directly.
 
-    The flag is set before anything pairs, since check_match reads it.
+    The flag is set before anything pairs, since check_match reads it. These
+    are unit tests on the patches and the communicator, with no march to stamp
+    Solver.mix_reflective onto them, so they set the private attribute the
+    solver would; test_solver_sets_reflective_on_every_plane covers that path.
     """
     grid, patch_up, patch_dn = make_pair(**kwargs)
     for patch in (patch_up, patch_dn):
-        patch.reflective = True
+        patch._reflective = True
     comm = MixingCommunicator(grid, grid.connectivity.mixing.pair())
     return grid, patch_up, patch_dn, comm
 
@@ -1089,12 +1096,12 @@ def annulus_mass(patch):
 def test_reflective_does_not_pair_with_the_default_plane():
     """The exchange is one thing or the other, so a pair cannot be half of each."""
     grid, patch_up, patch_dn = make_pair()
-    patch_up.reflective = True
+    patch_up._reflective = True
     assert patch_up.check_match(patch_dn) is None
     assert patch_dn.check_match(patch_up) is None
 
     # And with both sides agreeing it pairs exactly as before.
-    patch_dn.reflective = True
+    patch_dn._reflective = True
     assert grid.connectivity.mixing.pair() == {
         (0, 0): ((1, 0), False),
         (1, 0): ((0, 0), False),
@@ -1179,7 +1186,7 @@ def test_reflective_uniformising_keeps_the_mass_flow_of_the_face():
     the state imposed is not a flux-conserving mixed-out state.
     """
     grid, patch_up, patch_dn = make_pair()
-    patch_up.reflective = True
+    patch_up._reflective = True
     ripple(patch_up, amp=0.2)
     before = annulus_mass(patch_up)
 
@@ -1195,7 +1202,7 @@ def test_reflective_apply_seeds_from_its_own_mean_before_any_exchange():
     left imposing the zeros it was allocated with.
     """
     grid, patch_up, patch_dn = make_pair()
-    patch_up.reflective = True
+    patch_up._reflective = True
     ripple(patch_up)
 
     expect = pitch_mean_cons(patch_up)
@@ -1232,22 +1239,62 @@ def test_reflective_flag_survives_copy_and_pickle():
     """
     grid, patch_up, patch_dn, comm = reflective_pair()
     clone = patch_up.copy()
-    assert clone.reflective
+    assert clone._reflective
 
     # Unattached, as the round trip in test_rf_exchange_survives_a_pickle_round_trip:
     # a patch holds a weak reference to its block, and the grid's own pickle
     # drops and re-attaches it.
     loose = MixingPatch(i=-1)
-    loose.reflective = True
-    assert pickle.loads(pickle.dumps(loose)).reflective
+    loose._reflective = True
+    assert pickle.loads(pickle.dumps(loose))._reflective
 
 
 def test_reflective_flag_back_fills_on_a_patch_pickled_without_it():
     """A patch from before the flag existed reloads as the default plane."""
     _, patch_up, _ = make_pair()
     state = patch_up.__getstate__()
-    del state["reflective"]
+    del state["_reflective"]
 
     revived = MixingPatch(i=-1)
     revived.__setstate__(state)
-    assert not revived.reflective
+    assert not revived._reflective
+
+
+def test_reflective_flag_migrates_from_the_public_name():
+    """A patch pickled while the flag was public reloads as a reflective plane.
+
+    Nothing reads the public name now, so without the migration the plane
+    would come back as a Saxer one and only the answer would say so.
+    """
+    _, patch_up, _ = make_pair()
+    state = patch_up.__getstate__()
+    del state["_reflective"]
+    state["reflective"] = True
+
+    revived = MixingPatch(i=-1)
+    revived.__setstate__(state)
+    assert revived._reflective
+
+
+def test_solver_sets_reflective_on_every_plane():
+    """Solver.mix_reflective is imposed on both sides, and overrides the patches.
+
+    The stamp is what makes the setting solver-wide: the patch and the
+    communicator read the flag from places that never see a Solver, and both
+    sides of a plane have to agree for check_match to pair them.
+    """
+    grid, patch_up, patch_dn = make_pair()
+
+    conf = ember.solver.Solver(n_step=1, mix_reflective=True)
+    ember.solver._apply_bcond_relaxation(grid, conf)
+    assert patch_up._reflective and patch_dn._reflective
+
+    # The default is imposed, not merely offered, as for rf_inlet.
+    ember.solver._apply_bcond_relaxation(grid, ember.solver.Solver(n_step=1))
+    assert not patch_up._reflective and not patch_dn._reflective
+
+    # None leaves whatever the patches carry.
+    patch_up._reflective = patch_dn._reflective = True
+    conf = ember.solver.Solver(n_step=1, mix_reflective=None)
+    ember.solver._apply_bcond_relaxation(grid, conf)
+    assert patch_up._reflective and patch_dn._reflective

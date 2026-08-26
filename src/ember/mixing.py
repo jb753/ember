@@ -108,43 +108,21 @@ class MixingPatch(NonReflectingPatch):
 
     _desc = "non-reflecting mixing plane"
 
-    reflective = False
-    r"""Impose the mixed-out state directly instead of the characteristic exchange.
-
-    The plain plane is the whole of :cite:t:`Saxer1993`: the cross-plane
-    mismatch is split by direction of propagation, relaxed onto a target, and
-    the target drives only the mean mode of a boundary condition that stays
-    non-reflecting to the harmonics. This flag replaces all of that with the
-    simplest thing that couples two rows -- at every span station the conserved
-    variables of both faces are set to the average of the two sides'
-    circumferential means, and the whole face is reset to it on every
-    :meth:`apply` -- and it is worth being clear about what is given up and what
-    is not.
-
-    What is given up is accuracy at the plane. Every pitchwise harmonic
-    reaching either face is annihilated at the boundary node rather than
-    absorbed, so the plane reflects; the state imposed is the *area* average of
-    the conserved variables, which preserves the row's mass flow exactly (the
-    face mass flux is linear in the conserved vector, and
-    :attr:`~ember.patch.RevolutionPatch.weight_pitch` is the same trapezoidal
-    quadrature the face quads use) but not the momentum or energy flux, so it
-    is not the flux-conserving mixed-out state a loss audit would want; and
-    there is no under-relaxation anywhere, so the two rows are yanked onto
-    their common mean every stage.
-
-    What is *not* given up is conservation. The inviscid face flow is built
-    from the four boundary nodes of each face quad and the face area vector
-    alone, so two faces carrying the same pitch-uniform state pass identical
-    mass, meridional momentum, angular momentum and energy per unit annulus --
-    whatever their blade counts and pitchwise resolutions, and whatever their
-    rotational speeds, since the frame terms enter only through the
-    circumferential component of the face area, which vanishes on a surface of
-    revolution.
-
-    Both sides of a plane must agree on the flag: :meth:`check_match` will not
-    pair a reflective face with a Saxer one, since the exchange has to know
-    which of the two it is carrying out.
-    """
+    # Impose the mixed-out state directly instead of the characteristic
+    # exchange. The mechanism of :attr:`ember.solver.Solver.mix_reflective`,
+    # which is where what this does -- and what it gives up -- is written down,
+    # and which is the only supported way to set it: a march stamps every
+    # mixing patch of every level from its configuration, so a plane cannot
+    # differ from its run, and the two sides of a plane cannot differ from each
+    # other. Read in five places here (set_block_avg, step, apply,
+    # _calc_reference, check_match) and by
+    # :class:`~ember.mixing_communicator.MixingCommunicator`, none of which can
+    # see a Solver, which is why it lives on the patch at all.
+    #
+    # Both sides of a plane must agree: :meth:`check_match` will not pair a
+    # reflective face with a Saxer one, since the exchange has to know which of
+    # the two it is carrying out.
+    _reflective = False
 
     # Either side of the plane. The geometry gives a provisional answer at
     # attach time and the flow settles it on the first step; see
@@ -208,11 +186,12 @@ class MixingPatch(NonReflectingPatch):
         # first exchange has run, so attach-time and pre-exchange solves fall
         # back to this patch's own local reading.
         self._entering_shared = None
-        # Reflective mode: see the class attribute of the same name. Set in
-        # _setup as well as on the class so that a patch pickled before the
-        # flag existed unpickles with it, rather than falling through to a
+        # Reflective mode: see the class attribute of the same name, and
+        # :attr:`ember.solver.Solver.mix_reflective`, which is what sets it.
+        # Set in _setup as well as on the class so that a patch pickled before
+        # the flag existed unpickles with it, rather than falling through to a
         # class attribute a future edit might move.
-        self.reflective = False
+        self._reflective = False
         # The pitch-uniform conserved state a reflective plane imposes, one
         # five-vector per span station in the target's broadcast shape, and
         # whether anything has filled it yet. Allocated on attach; see
@@ -223,6 +202,23 @@ class MixingPatch(NonReflectingPatch):
         # _enter_resolved. False means the provisional geometric frame the base
         # class built at attach is still in force.
         self._sign_settled = False
+
+    def __setstate__(self, state):
+        """Restore pickled state, carrying a public ``reflective`` over.
+
+        The flag was briefly a public attribute (commits 46d9b79..cb98404)
+        before :attr:`ember.solver.Solver.mix_reflective` took ownership of
+        it. An EMB written in that window carries ``reflective`` in its state
+        and nothing else would read it, so a reflective plane would come back
+        as a Saxer one -- quietly, and only visibly in the answer. Map it onto
+        the private name instead. A patch from before the flag existed carries
+        neither, and takes ``_setup``'s default.
+        """
+        state = dict(state)
+        legacy = state.pop("reflective", None)
+        if legacy is not None:
+            state.setdefault("_reflective", legacy)
+        super().__setstate__(state)
 
     def _calc_entering(self, avg):
         """Span stations the mean flow enters through, from the shared direction.
@@ -251,7 +247,7 @@ class MixingPatch(NonReflectingPatch):
         super()._copy(c)
         c.rf_exchange = self.rf_exchange
         c.lead_exchange = self.lead_exchange
-        c.reflective = self.reflective
+        c._reflective = self._reflective
         # _sign_settled is deliberately not carried: the copy re-settles
         # against its own block's flow, as _ref and the splits are rebuilt.
 
@@ -322,7 +318,7 @@ class MixingPatch(NonReflectingPatch):
             self._prim_prev[..., 1:3] = -self._prim_prev[..., 1:3]
 
     def set_block_avg(self):
-        r"""Pitch-average the face, in interface coordinates unless :attr:`reflective`.
+        r"""Pitch-average the face, in interface coordinates unless the plane is reflective.
 
         Overridden only to hold the rotation: the communicator calls this from
         outside any of the boundary condition's own entry points, and the
@@ -340,7 +336,7 @@ class MixingPatch(NonReflectingPatch):
         settle on a reflective plane, because settling happens inside the very
         window this skips.
         """
-        if self.reflective:
+        if self._reflective:
             super().set_block_avg()
             return
         with self._resolved():
@@ -453,7 +449,7 @@ class MixingPatch(NonReflectingPatch):
         imposes is settled entirely by the communicator, and :meth:`apply`
         imposes it outright.
         """
-        if self.reflective:
+        if self._reflective:
             return
         super().advance()
 
@@ -467,7 +463,7 @@ class MixingPatch(NonReflectingPatch):
         nodes included -- there is no characteristic content to preserve and no
         relaxation to take, so there is nothing here to be gradual about.
         """
-        if not self.reflective:
+        if not self._reflective:
             super().apply()
             return
         if not self._uniform_set:
@@ -504,8 +500,8 @@ class MixingPatch(NonReflectingPatch):
         """Check whether this patch pairs with another across a mixing plane.
 
         Pairs only with the opposite side of a mixing plane running the same
-        treatment, which ``NonReflectingPatch._sign_interior`` and
-        :attr:`reflective` identify between them: the two sides of one plane
+        treatment, which ``NonReflectingPatch._sign_interior`` and the
+        reflective flag identify between them: the two sides of one plane
         face each other, so their interiors lie on opposite sides of it.
         Matching is then on meridional geometry alone, so the two sides may
         differ in pitchwise resolution and blade count but not in spanwise
@@ -532,7 +528,7 @@ class MixingPatch(NonReflectingPatch):
         # The exchange is one thing or the other, so the pair has to be too:
         # a reflective face opposite a Saxer one leaves the communicator with
         # no answer to which of the two it is carrying out.
-        if other.reflective != self.reflective:
+        if other._reflective != self._reflective:
             return None
 
         if other._sign_interior == self._sign_interior:
@@ -549,7 +545,7 @@ class MixingPatch(NonReflectingPatch):
         Nothing on a reflective plane is linearised about a mean state, so
         there is no reference to freeze.
         """
-        if self.reflective:
+        if self._reflective:
             return
         super().update_soln()
 

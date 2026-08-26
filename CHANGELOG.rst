@@ -27,6 +27,13 @@ public API without a deprecation period.
   re-prescribe to hold one: ``set_P(patch.P_throttle)`` before
   ``set_throttle(None)``, since clearing a throttle reverts to the pressure
   that was prescribed rather than freezing the one it reached.
+* Add ``Solver.mix_reflective``, running every mixing plane as a reflective
+  one: at each span station both faces are set to the average of the two sides'
+  circumferential means, in place of the characteristic exchange. Imposed on
+  every plane of every level like ``rf_inlet``, so a run's treatment follows
+  from its configuration; None leaves each plane alone. It reflects every
+  pitchwise harmonic and conserves mass but not the momentum or energy flux,
+  so it is a robustness tool rather than a substitute for the default plane.
 * Add Holmes (2008) mass flow control at mixing planes, as an offset to the
   flux mismatch the cross-plane exchange already drives to zero. ``Solver``
   gains ``gain_mdot`` (0 is plain flux balance, 1 is exactly Holmes, default
@@ -52,6 +59,13 @@ public API without a deprecation period.
   real gases carry a ``scale_visc`` factor that multiplies the true fitted viscosity.
 * Exchange viscous/thermal halos via six face arrays instead of a full volume
   array.
+* Run the change limiter (``Solver.dampin``) before implicit residual
+  smoothing (``Solver.sf_resid``) rather than after, fused into the kernel
+  already traversing the volume. IRS is linear and the limiter is nonlinear in
+  a global block mean, so the two orderings do not commute: at the default
+  ``sf_resid=1.0, dampin=25`` the residual differs by ~19% of the field scale,
+  growing with ``sf_resid``. The converged answer is unchanged, only the path
+  to it, and the fusion is worth -6% serial and -11% at 100-rank saturation.
 * ``Block.scratch`` is now the sole scratch array, and all transient
   workspace for the Fortan kernels is carved out of it.
 * Various performance improvements to reduce memory footprint.

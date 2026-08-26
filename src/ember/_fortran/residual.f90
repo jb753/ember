@@ -1048,12 +1048,12 @@ end module residual_helpers
 ! run IRS then damp; folding damp in here necessarily makes it damp then
 ! IRS. IRS is linear and the limiter is nonlinear with a global mean, so
 ! the composed operator is genuinely different -- at sf_resid = 1.0,
-! dampin = 25 (run.py defaults) the two orderings differ by ~19% of the
+! dampin = 25 (the Solver defaults) the two orderings differ by ~19% of the
 ! field scale, and the difference grows monotonically with sf (zero at
-! sf = 0). This is a deliberate numerics change, not a rounding artifact,
-! and it is NOT covered by the test suite: no test drives update_residual
-! with dampin set and sf > 0 together. Convergence must be verified
-! separately.
+! sf = 0). This is a deliberate numerics change, not a rounding artifact.
+! tests/test_irs_fused_damp.py gates all four (dampin, sf) combinations of
+! update_residual bitwise against the unfused kernel sequence, and that the
+! composition really is damp-before-IRS.
 !
 ! Second known inexactness: the reduction is accumulated before
 ! correct_cusp_kface_du modifies dU on the two seam planes, so on a cusped

@@ -7,9 +7,8 @@ splits it by direction of propagation after :cite:t:`Saxer1993`, and writes the
 result in the mix variables :math:`[h_0, s, V_r, V_\\theta, p]` its patches
 take their pitchwise-mean residuals against.
 
-A plane whose two sides are
-:attr:`~ember.mixing.MixingPatch.reflective` bypasses all of that for the
-average of the two circumferential means; see
+A run with :attr:`~ember.solver.Solver.mix_reflective` set bypasses all of
+that for the average of the two circumferential means; see
 :meth:`MixingCommunicator._mix_uniform`.
 """
 
@@ -235,7 +234,7 @@ class MixingCommunicator:
         """
         for bid, pid in self.pairs:
             patch1, patch2 = self._get_pair(bid, pid)
-            if patch1.reflective:
+            if patch1._reflective:
                 # No exchange to relax; see MixingCommunicator._mix_uniform.
                 continue
             if patch1.rf_exchange != patch2.rf_exchange:
@@ -302,7 +301,7 @@ class MixingCommunicator:
         """
         patch1, patch2 = self._get_pair(bid, pid)
 
-        if patch1.reflective:
+        if patch1._reflective:
             self._mix_uniform(patch1, patch2, flip)
             return
 
@@ -312,11 +311,11 @@ class MixingCommunicator:
     def _mix_uniform(self, patch1, patch2, flip):
         r"""Hand both sides of a reflective plane their common mixed-out state.
 
-        The whole of the exchange for a plane whose two sides carry
-        :attr:`~ember.mixing.MixingPatch.reflective`: circumferentially average
+        The whole of the exchange under
+        :attr:`~ember.solver.Solver.mix_reflective`: circumferentially average
         each face, average the two, and give the result to both. No
         characteristic split, no Jacobians, no relaxation and no mass flow
-        forcing -- see the flag's own documentation for what that costs and
+        forcing -- see that setting's own documentation for what that costs and
         what it does not.
 
         Worked in ``(x, r)`` components rather than in the interface frame, and
@@ -868,9 +867,8 @@ class MixingCommunicator:
     def exchange(self, mdot_target=None, gain=0.0):
         """Compute and write targets for all pairs (no apply step).
 
-        A pair whose sides are
-        :attr:`~ember.mixing.MixingPatch.reflective` takes neither argument and
-        goes through :meth:`_mix_uniform` instead.
+        Under :attr:`~ember.solver.Solver.mix_reflective` a pair takes
+        neither argument and goes through :meth:`_mix_uniform` instead.
 
         Parameters
         ----------

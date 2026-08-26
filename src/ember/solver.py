@@ -240,6 +240,8 @@ solver-wide setting:
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
   mixing-plane target exchanged between adjacent blocks with the patches'
   ``rf_exchange``, separately from either side's own step.
+  :attr:`~ember.solver.Solver.mix_reflective` replaces that whole exchange,
+  and both sides' characteristic steps, with a direct mixed-out state.
 - :class:`~ember.patch.OutletPatch` relaxes its spanwise radial-equilibrium
   profile separately, via ``set_adjustment(rf=...)``, and damps its mass-flow
   throttle separately again, via the dimensionless gains of
@@ -444,6 +446,48 @@ class Solver(BaseSolver):
 
     Zero, the default, is the plain integrator. As :attr:`rf_inlet`, None leaves
     each plane's own value alone."""
+
+    mix_reflective: bool | None = False
+    r"""Run every mixing plane as a reflective one, imposing the mixed-out
+    state directly instead of the characteristic exchange.
+
+    The default plane is the whole of :cite:t:`Saxer1993`: the cross-plane
+    mismatch is split by direction of propagation, relaxed onto a target with
+    :attr:`rf_exchange`, and the target drives only the mean mode of a boundary
+    condition that stays non-reflecting to the harmonics. This replaces all of
+    that with the simplest thing that couples two rows -- at every span station
+    the conserved variables of both faces are set to the average of the two
+    sides' circumferential means, and the whole face is reset to it on every
+    application -- and it is worth being clear about what is given up and what
+    is not.
+
+    What is given up is accuracy at the plane. Every pitchwise harmonic
+    reaching either face is annihilated at the boundary node rather than
+    absorbed, so the plane reflects; the state imposed is the *area* average of
+    the conserved variables, which preserves each row's mass flow exactly (the
+    face mass flux is linear in the conserved vector, and
+    :attr:`~ember.patch.RevolutionPatch.weight_pitch` is the same trapezoidal
+    quadrature the face quads use) but not the momentum or energy flux, so it
+    is not the flux-conserving mixed-out state a loss audit would want; and
+    there is no under-relaxation anywhere, so the two rows are yanked onto
+    their common mean every stage. :attr:`rf_mix`, :attr:`rf_exchange`,
+    :attr:`lead_exchange` and :attr:`gain_mdot` all address machinery this
+    switches off, and so do nothing while it is set.
+
+    What is *not* given up is conservation. The inviscid face flow is built
+    from the four boundary nodes of each face quad and the face area vector
+    alone, so two faces carrying the same pitch-uniform state pass identical
+    mass, meridional momentum, angular momentum and energy per unit annulus --
+    whatever their blade counts and pitchwise resolutions, and whatever their
+    rotational speeds, since the frame terms enter only through the
+    circumferential component of the face area, which vanishes on a surface of
+    revolution.
+
+    As :attr:`rf_inlet`, this is imposed on every mixing patch of every level at
+    the start of the run, so the default overrides whatever a grid was pickled
+    with, and both sides of every plane necessarily agree; pass None to leave
+    each plane as it is. A grid with no mixing plane is unaffected whatever
+    this is set to."""
 
     gain_mdot: float = 0.5
     r"""Fraction of :cite:t:`Holmes2008`'s mass flow control offset to apply at
@@ -892,14 +936,17 @@ def rk_step(grid, conf):
 
 
 def _apply_bcond_relaxation(grid, conf):
-    """Push the configured boundary relaxation factors onto the grid's patches.
+    """Push the configured boundary settings onto the grid's patches.
 
-    Every one of these lives on the patch rather than on the solver, so that it
-    survives a restart and so that two planes of a multi-row grid can be damped
-    differently. The solver still has the last word: a configured value is
-    imposed on every patch it names, so a run's damping follows from its own
-    configuration rather than from whatever a setup script left behind. Pass
-    None to opt out of that for one setting and keep what the patches carry.
+    The relaxation factors live on the patch rather than on the solver, so that
+    they survive a restart and so that two planes of a multi-row grid can be
+    damped differently; :attr:`~ember.solver.Solver.mix_reflective` is here for
+    a different reason -- the patch and the communicator read it from places
+    that never see a Solver. Either way the solver has the last word: a
+    configured value is imposed on every patch it names, so a run follows from
+    its own configuration rather than from whatever a setup script left behind.
+    Pass None to opt out of that for one setting and keep what the patches
+    carry.
 
     Called per level from :func:`_run`, so the full-multigrid chain configures
     each of its separately resampled grids.
@@ -922,6 +969,14 @@ def _apply_bcond_relaxation(grid, conf):
     if conf.lead_exchange is not None:
         for patch in grid.patches.mixing:
             patch.lead_exchange = conf.lead_exchange
+
+    # Read by the patch itself (set_block_avg, step, apply, _calc_reference)
+    # as well as by the communicator, none of which see a Solver -- hence the
+    # stamp here rather than an argument. Imposed on both sides of every plane
+    # from one value, which is what check_match's agreement requirement needs.
+    if conf.mix_reflective is not None:
+        for patch in grid.patches.mixing:
+            patch._reflective = conf.mix_reflective
 
 
 def _validate_mg(grid, n_levels):
