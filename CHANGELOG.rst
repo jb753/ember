@@ -10,12 +10,12 @@ public API without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
-* Add ``Solver.fac_mgrid_bnd``, the multigrid correction scaling used at nodes
-  on the six block boundary faces in place of ``fac_mgrid``. The default None
-  uses ``fac_mgrid`` there too and reproduces the uniform correction exactly,
-  so existing runs are unchanged; a smaller value weakens the coarse push where
-  the block sums straddle the face and the boundary conditions have to absorb
-  it. Honored by both integrators.
+* Add ``Solver.fac_mgrid_bnd``, the multigrid correction scaling used, in
+  place of ``fac_mgrid``, on the coarse cells that touch a block boundary, at
+  every level. The default None uses ``fac_mgrid`` there too and reproduces the
+  uniform correction exactly, so existing runs are unchanged; a smaller value
+  weakens the coarse push where the block sums straddle the face and the
+  boundary conditions have to absorb it. Honored by both integrators.
 * Rename the throttle pressure correction from ``P_throttle`` to
   ``dP_throttle``, in ``OutletPatch.get_throttle_stats``, ``ConvergenceStep``
   and the ``ConvergenceHistory`` column. Breaking, the last of these being a

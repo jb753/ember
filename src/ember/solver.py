@@ -173,10 +173,10 @@ two knobs:
   marching.
 - :attr:`~Solver.fac_mgrid` -- scaling on the coarse correction, with
   successively coarser levels damped further; 0 also disables multigrid.
-- :attr:`~Solver.fac_mgrid_bnd` -- the same scaling for nodes on the six block
-  boundary faces, where the coarse block sums straddle the face and the
-  boundary conditions have to absorb whatever the coarse push leaves behind.
-  None (the default) uses :attr:`~Solver.fac_mgrid` there too.
+- :attr:`~Solver.fac_mgrid_bnd` -- the same scaling for the coarse cells that
+  touch a block boundary, on every level, where the block sums straddle the
+  face and the boundary conditions have to absorb whatever the coarse push
+  leaves behind. None (the default) uses :attr:`~Solver.fac_mgrid` there too.
 
 :attr:`~Solver.sf_resid` additionally drives implicit residual smoothing
 (Jameson IRS) on the fine-grid residual via
@@ -392,11 +392,11 @@ class Solver(BaseSolver):
     (:func:`scree_step` and :func:`rk_step`)."""
 
     fac_mgrid_bnd: float | None = None
-    """Scaling factor on multigrid corrections at nodes lying on the six block
-    boundary faces, in place of :attr:`fac_mgrid`. None (the default) uses
-    :attr:`fac_mgrid` there too, i.e. a uniform correction. Inert when
-    multigrid is off (:attr:`n_levels` 0 or :attr:`fac_mgrid` 0). Honored by
-    both integrators (:func:`scree_step` and :func:`rk_step`)."""
+    """Scaling factor on the multigrid correction of the coarse cells touching
+    a block boundary, on every level, in place of :attr:`fac_mgrid`. None (the
+    default) uses :attr:`fac_mgrid` there too, i.e. a uniform correction. Inert
+    when multigrid is off (:attr:`n_levels` 0 or :attr:`fac_mgrid` 0). Honored
+    by both integrators (:func:`scree_step` and :func:`rk_step`)."""
 
     expon_mgrid: float = 1.414
     """Base of the per-level multigrid decay, ``coef_l ~ expon_mgrid**-(l-1)``.
@@ -518,9 +518,9 @@ def scree_step(
 ):
     """Advance every block one Denton scree step in place.
 
-    ``fac_mgrid_bnd`` replaces ``fac_mgrid`` at nodes on the six block boundary
-    faces; None uses ``fac_mgrid`` there too. See
-    :func:`advance_rk_stage_mg`, which applies it through the same scatter.
+    ``fac_mgrid_bnd`` replaces ``fac_mgrid`` on each level's boundary shell of
+    coarse cells; None uses ``fac_mgrid`` there too. See
+    :func:`advance_rk_stage_mg`, which applies it through the same engine.
     """
     # Preconditions: dt_vol_nd populated and cached P/T consistent with
     # conserved_nd on entry. The caller invalidates caches and applies boundary
@@ -752,14 +752,19 @@ def advance_rk_stage_mg(
     pre-pass costs under 1.15 fine-cell passes of two multiply-adds per level,
     against a full residual evaluation already paid every stage.
 
-    ``fac_mgrid_bnd`` replaces ``fac_mgrid`` at nodes on the six block boundary
-    faces (``i = 1/ni``, ``j = 1/nj``, ``k = 1/nk``), leaving the fine term and
-    the interior alone; None uses ``fac_mgrid`` everywhere. Every level's
-    coefficient is linear in ``fac_mgrid``, so the kernels take it as the ratio
-    ``fac_mgrid_bnd/fac_mgrid`` applied to the assembled coarse increment at
-    those nodes -- identical to having run the whole hierarchy at
-    ``fac_mgrid_bnd`` there -- and it is added as a delta on top of the uniform
-    expression, so the default reproduces a uniform correction bit for bit.
+    ``fac_mgrid_bnd`` replaces ``fac_mgrid`` on the outer shell of coarse cells
+    at every level -- the blocks with a face on the block boundary, whose sum
+    straddles it, reaches ``2**lvl`` fine cells deep and sees nothing across it
+    -- leaving the fine term and the coarse interior alone; None uses
+    ``fac_mgrid`` everywhere. Every level's coefficient is linear in
+    ``fac_mgrid``, so the kernels take it as the ratio
+    ``fac_mgrid_bnd/fac_mgrid`` applied to that level's shell as its correction
+    is formed (``mg_scale_corr``, after any smoothing) -- identical to having
+    run the level at ``fac_mgrid_bnd`` for those blocks. A ratio of 1 is an
+    exact multiply by one, so the default reproduces a uniform correction bit
+    for bit. Note the weakened region is ``2**lvl`` fine cells thick at level
+    ``lvl``, then spread further by the cascade's interpolation; it is not a
+    single node plane.
 
     No boundary masking is applied here: ``grid.apply_bconds`` re-imposes the
     inlet/outlet/mixing/cusp targets between stages and at the next step top, so

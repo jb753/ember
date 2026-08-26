@@ -328,18 +328,22 @@ def test_advance_rk_stage_mg_fac_mgrid_zero_skips_coarse():
     np.testing.assert_array_equal(cons_off, grid_zero_irs[0].conserved_nd)
 
 
-def test_advance_rk_stage_mg_fac_mgrid_bnd_scales_the_faces_only():
-    """fac_mgrid_bnd replaces fac_mgrid at the six block boundary faces.
+def test_advance_rk_stage_mg_fac_mgrid_bnd_weakens_the_boundary_blocks():
+    """fac_mgrid_bnd replaces fac_mgrid on each level's boundary shell of
+    coarse cells.
 
     None and an explicit fac_mgrid are the same march byte for byte (the
-    kernel takes the ratio, 1 in both cases, and adds it as a delta on the
-    uniform expression). A different value must move the face nodes, leave
-    every interior node bit-identical, and scale the face correction linearly:
-    the coarse coefficients are all linear in fac_mgrid, so halving the
-    boundary value must land halfway between dropping the push and keeping it.
+    kernel takes the ratio, 1 in both cases, an exact multiply by one). A
+    different value must move the march and scale it linearly: the coarse
+    coefficients are all linear in fac_mgrid, so halving the boundary value
+    must land halfway between dropping the shell's push and keeping it. With
+    one level the reach is pinnable -- the shell is 2 fine cells wide and the
+    clamped prolongation spreads a coarse cell over at most twice its width,
+    plus one node from the cell->node scatter -- so nodes 5 in from every face
+    keep the uniform correction bit for bit.
     """
     ni, nj, nk = 17, 17, 17
-    n_levels = 2
+    n_levels = 1
     fac_mgrid = 0.2
     rng = np.random.default_rng(53)
     residual_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
@@ -371,20 +375,20 @@ def test_advance_rk_stage_mg_fac_mgrid_bnd_scales_the_faces_only():
     cons_off = _march(0.0)
     cons_half = _march(0.5 * fac_mgrid)
 
-    face = np.zeros((ni, nj, nk), dtype=bool)
-    face[[0, -1], :, :] = True
-    face[:, [0, -1], :] = True
-    face[:, :, [0, -1]] = True
-
-    np.testing.assert_array_equal(cons_default[~face], cons_off[~face])
-    np.testing.assert_array_equal(cons_default[~face], cons_half[~face])
-    assert not np.array_equal(cons_default[face], cons_off[face])
+    assert not np.array_equal(cons_default, cons_off)
     np.testing.assert_allclose(
-        cons_half[face],
-        0.5 * (cons_default[face] + cons_off[face]),
-        rtol=1e-5,
-        atol=1e-5,
+        cons_half, 0.5 * (cons_default + cons_off), rtol=1e-5, atol=1e-5
     )
+
+    margin = 2 * 2**n_levels + 1
+    deep = (slice(margin, -margin),) * 3
+    np.testing.assert_array_equal(cons_default[deep], cons_off[deep])
+    # The layer the weight owns is thicker than one node plane: the second and
+    # third planes in from each face move too.
+    moved = cons_default != cons_off
+    for axis in range(3):
+        for plane in (1, 2, -2, -3):
+            assert moved.take(plane, axis=axis).any(), (axis, plane)
 
 
 if __name__ == "__main__":

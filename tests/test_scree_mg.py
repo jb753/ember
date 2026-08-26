@@ -633,23 +633,13 @@ def test_run_returns_trimmed_history_on_divergence(duct_grid_builder):
     assert np.isfinite(np.asarray(hist.residual, dtype=float)).all()
 
 
-def _face_mask(ni, nj, nk):
-    """True at nodes on any of the six block boundary faces."""
-    mask = np.zeros((ni, nj, nk), dtype=bool)
-    mask[[0, -1], :, :] = True
-    mask[:, [0, -1], :] = True
-    mask[:, :, [0, -1]] = True
-    return mask
-
-
-def test_fbnd_one_leaves_interior_and_faces_alone():
+def test_fbnd_one_leaves_the_march_alone():
     """fbnd=1 must be the uniform correction, byte for byte.
 
-    The boundary weight enters as a delta on top of the uniform node
-    expression -- (fbnd-1)*coarse -- so at fbnd=1 it adds an exact zero. That
-    is what makes the default (Solver.fac_mgrid_bnd=None) free of any
-    numerical drift, so assert exact equality against the scree_plain-relative
-    contract the rest of this module already pins, not a tolerance.
+    The boundary weight is a multiplier on each level's coefficient for its
+    shell of blocks, so at fbnd=1 it is an exact multiply by one. That is what
+    makes the default (Solver.fac_mgrid_bnd=None) free of any numerical drift,
+    so assert exact equality, not a tolerance.
     """
     residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=11)
     args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
@@ -661,62 +651,82 @@ def test_fbnd_one_leaves_interior_and_faces_alone():
     np.testing.assert_array_equal(store_one, store_default)
 
 
-def test_fbnd_zero_drops_the_coarse_push_on_the_faces_only():
-    """fbnd=0 must leave the interior untouched and the faces fine-term only."""
+def test_fbnd_leaves_the_history_roll_alone():
+    """The boundary weight touches the coarse correction only; the Denton
+    history roll (store <- residual) is the same whatever it is set to."""
     residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=12)
     args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
-    cons_one, _ = _run_mg(*args, fbnd=1.0)
-    cons_zero, store_zero = _run_mg(*args, fbnd=0.0)
-    cons_plain, store_plain = _run_plain(residual, dt_vol, store, cons, NI, NJ, NK)
-
-    face = _face_mask(NI, NJ, NK)
-    # Interior nodes never see the boundary weight at all.
-    np.testing.assert_array_equal(cons_one[~face], cons_zero[~face])
-    # Face nodes lose the whole coarse push, landing on the multigrid-off
-    # march. Not byte-identical to scree_plain: the kernel forms
-    # (fine + coarse) and subtracts the coarse average back off, so the two
-    # differ by float32 rounding of a cancelled term.
-    np.testing.assert_allclose(
-        cons_zero[face], cons_plain[face], rtol=1e-5, atol=1e-5
-    )
-    assert not np.array_equal(cons_one[face], cons_zero[face])
-    # The Denton history roll is untouched by the boundary weight.
+    _, store_zero = _run_mg(*args, fbnd=0.0)
+    _, store_plain = _run_plain(residual, dt_vol, store, cons, NI, NJ, NK)
     np.testing.assert_array_equal(store_zero, store_plain)
 
 
-def test_fbnd_scales_the_face_correction_linearly():
-    """Every coarse coefficient is linear in fac_mgrid, so the face nodes must
-    be linear in the ratio: fbnd=0.5 sits exactly halfway between 0 and 1."""
+def test_fbnd_scales_the_correction_linearly():
+    """Every coarse coefficient is linear in fac_mgrid, and the shell weight is
+    applied to that coefficient, so the whole march is linear in the ratio:
+    fbnd=0.5 sits exactly halfway between 0 and 1, everywhere."""
     residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=13)
     args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
     cons_one, _ = _run_mg(*args, fbnd=1.0)
     cons_zero, _ = _run_mg(*args, fbnd=0.0)
     cons_half, _ = _run_mg(*args, fbnd=0.5)
-    face = _face_mask(NI, NJ, NK)
-    np.testing.assert_array_equal(cons_half[~face], cons_one[~face])
     np.testing.assert_allclose(
-        cons_half[face],
-        0.5 * (cons_one[face] + cons_zero[face]),
-        rtol=1e-5,
-        atol=1e-5,
+        cons_half, 0.5 * (cons_one + cons_zero), rtol=1e-5, atol=1e-5
     )
     # A halved correction on a doubled one: fbnd=2 must overshoot fbnd=1 by
     # exactly the amount fbnd=0 undershoots it.
     cons_two, _ = _run_mg(*args, fbnd=2.0)
     np.testing.assert_allclose(
-        cons_two[face] - cons_one[face],
-        cons_one[face] - cons_zero[face],
-        rtol=1e-5,
-        atol=1e-5,
+        cons_two - cons_one, cons_one - cons_zero, rtol=1e-5, atol=1e-5
     )
+
+
+def test_fbnd_weakens_a_layer_not_a_node_plane():
+    """The weight belongs to the boundary CELLS of each level, so it reaches
+    2**lvl fine cells in from the face, not one node plane.
+
+    Assert the second and third node planes in from every face move too --
+    they lie inside the level-1 boundary blocks (2 fine cells deep) and well
+    inside the coarser ones.
+    """
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=14)
+    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, N_LEVELS)
+    cons_one, _ = _run_mg(*args, fbnd=1.0)
+    cons_weak, _ = _run_mg(*args, fbnd=0.25)
+    moved = cons_one != cons_weak
+    for axis in range(3):
+        for plane in (1, 2, -2, -3):
+            assert moved.take(plane, axis=axis).any(), (axis, plane)
+
+
+def test_fbnd_leaves_the_deep_interior_alone():
+    """Blocks away from the boundary keep the uniform correction bit for bit.
+
+    Run one level, so the reach is easy to pin down: the shell is the coarse
+    cells ib = 1 and nib, each b = 2 fine cells wide, and mg_bracket2x's
+    clamped linear interpolation spreads a coarse cell over at most 2b fine
+    cells. The cell->node scatter adds one more node, so nodes at least
+    2*b + 1 = 5 in from every face cannot see the weight.
+    """
+    n_levels = 1
+    margin = 2 * 2**n_levels + 1
+    residual, dt_vol, vol, store, cons = _make_inputs(NI, NJ, NK, seed=15)
+    args = (residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels)
+    cons_one, _ = _run_mg(*args, fbnd=1.0)
+    cons_weak, _ = _run_mg(*args, fbnd=0.0)
+    deep = (slice(margin, -margin),) * 3
+    np.testing.assert_array_equal(cons_one[deep], cons_weak[deep])
+    # And the boundary layer itself really did move, so the slice above is not
+    # passing by virtue of a no-op march.
+    assert not np.array_equal(cons_one, cons_weak)
 
 
 def test_scree_step_fac_mgrid_bnd_wiring():
     """ember.solver.scree_step turns fac_mgrid_bnd into the kernel's ratio.
 
     None and an explicit fac_mgrid must give the same march byte for byte
-    (both are a ratio of 1); a different value must move the boundary faces
-    and nothing else.
+    (both are a ratio of 1); a different value must move the march. Which
+    nodes move is the kernel's contract, pinned above.
     """
     ni, nj, nk = 17, 17, 17
     n_levels = 2
@@ -758,10 +768,7 @@ def test_scree_step_fac_mgrid_bnd_wiring():
         n_levels=n_levels,
         fac_mgrid_bnd=0.0,
     )
-    cons_weak = grid_weak[0].conserved_nd
-    face = _face_mask(ni, nj, nk)
-    np.testing.assert_array_equal(cons_default[~face], cons_weak[~face])
-    assert not np.array_equal(cons_default[face], cons_weak[face])
+    assert not np.array_equal(cons_default, grid_weak[0].conserved_nd)
 
 
 if __name__ == "__main__":
