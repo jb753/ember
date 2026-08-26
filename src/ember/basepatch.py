@@ -460,6 +460,23 @@ class Patch(ABC):
 
         return ijk_node
 
+    def attach_to_block_resampled(self, block, src):
+        """Attach to a resampled ``block``, carrying ``src``'s span-varying state.
+
+        ``src`` is this patch's still-attached original on the grid ``block``
+        was resampled from, and is the only place the source span stations can
+        be read from once the copy has been re-attached. The base
+        implementation is a plain :meth:`attach_to_block`: patch state that is
+        one number, or none at all, follows a block onto any node count without
+        help. Patch types holding a value per span station override this to
+        interpolate it onto the new stations.
+
+        Used by :func:`~ember.block_util.resample`, which is what puts a
+        configured patch on a coarser grid -- the multigrid hierarchy of
+        :meth:`ember.solver.Solver.run_fmg`, among others.
+        """
+        self.attach_to_block(block)
+
     def attach_to_block(self, block):
         """Attach this patch to a block and validate limits against block shape.
 
