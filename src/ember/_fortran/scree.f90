@@ -490,18 +490,13 @@ end subroutine scree_roll_and_scatter
 ! trilinear interpolations are not equal to it.
 ! ============================================================================
 subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
-        sf_irs, n_levels, lvl_only, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        sf_irs, n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, smoother, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
 
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
     integer, intent(in) :: n_corr, n_res, n_tri
-    ! Which coarse level to apply: >0 selects that one alone, 0 applies
-    ! them all (the additive scheme), <0 applies none. Rolling it through
-    ! the levels on successive steps tests whether the levels destabilise
-    ! each other by correcting the same residual simultaneously.
-    integer, intent(in) :: lvl_only
     ! Coarse-residual smoother, chosen by the caller (no IRS branch in here):
     ! smooth_residual_tri_tiled for the IRS kernels, mg_smooth_noop for the plain ones.
     external :: smoother
@@ -560,7 +555,6 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     njb = (nj-1)/b
     nkb = (nk-1)/b
     coef = scale * fmgrid / real(b*b) * expon_mgrid**(-(lvl-1))
-    if (lvl_only /= 0 .and. lvl /= lvl_only) coef = 0e0
     slot = n_levels - lvl + 1
     cnt  = nib*njb*nkb*np
 
@@ -626,7 +620,6 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
         njb = (nj-1)/b
         nkb = (nk-1)/b
         coef = scale * fmgrid / real(b*b) * expon_mgrid**(-(lvl-1))
-        if (lvl_only /= 0 .and. lvl /= lvl_only) coef = 0e0
         slot = n_levels - lvl + 1
         cnt  = nib*njb*nkb*np
 
@@ -753,17 +746,11 @@ end subroutine scree_plain
 
 ! scree, multigrid on, coarse-level IRS.
 subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
-        fmgrid, expon_mgrid, sf_irs, n_levels, lvl_only, fscale, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
-    ! Single-level selector, passed straight to mg_coarse_correction.
-    integer, intent(in) :: lvl_only
-    ! Multiplier on the FINE term only, so a step can carry the coarse
-    ! correction alone (0) or the plain fine march. The coarse coefficient
-    ! keeps its own scale, which is why this cannot ride on cfl.
-    real, intent(in) :: fscale
     integer, intent(in) :: n_corr, n_res, n_tri
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
@@ -786,12 +773,12 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     external :: smooth_residual_tri_tiled
 
     call scree_form_q(store, residual, ni, nj, nk, np)
-    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, lvl_only, &
+    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, &
                        dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
-                           fscale, dt_vol, store, ni, nj, nk, np, &
+                           cfl, dt_vol, store, ni, nj, nk, np, &
                            aplane, bb, rbuf, nc1j, nc1k)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_irs
@@ -799,17 +786,11 @@ end subroutine scree_mg_irs
 
 ! scree, multigrid on, no smoothing.
 subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
-        fmgrid, expon_mgrid, sf_irs, n_levels, lvl_only, fscale, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
+        fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
-    ! Single-level selector, passed straight to mg_coarse_correction.
-    integer, intent(in) :: lvl_only
-    ! Multiplier on the FINE term only, so a step can carry the coarse
-    ! correction alone (0) or the plain fine march. The coarse coefficient
-    ! keeps its own scale, which is why this cannot ride on cfl.
-    real, intent(in) :: fscale
     integer, intent(in) :: n_corr, n_res, n_tri
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
@@ -832,12 +813,12 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     external :: mg_smooth_noop
 
     call scree_form_q(store, residual, ni, nj, nk, np)
-    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, lvl_only, &
+    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, &
                        dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
-                           fscale, dt_vol, store, ni, nj, nk, np, &
+                           cfl, dt_vol, store, ni, nj, nk, np, &
                            aplane, bb, rbuf, nc1j, nc1k)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_noirs
@@ -863,17 +844,11 @@ end subroutine rk_plain
 
 ! RK stage, multigrid on, coarse-level IRS. q = residual (passed directly).
 subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, lvl_only, fscale, rbuf, dtblk, aplane, bb, &
+        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
         rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
-    ! Single-level selector, passed straight to mg_coarse_correction.
-    integer, intent(in) :: lvl_only
-    ! Multiplier on the FINE term only, so a step can carry the coarse
-    ! correction alone (0) or the plain fine march. The coarse coefficient
-    ! keeps its own scale, which is why this cannot ride on cfl.
-    real, intent(in) :: fscale
     integer, intent(in) :: n_corr, n_res, n_tri
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
@@ -896,28 +871,22 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     external :: smooth_residual_tri_tiled
 
     call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, sf_irs, &
-                       n_levels, lvl_only, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, snapshot, cons, &
-                       fscale, dt_vol, residual, ni, nj, nk, np, &
+                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, &
                        aplane, bb, rbuf, nc1j, nc1k)
 end subroutine rk_mg_irs
 
 
 ! RK stage, multigrid on, no smoothing. q = residual (passed directly).
 subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
-        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, lvl_only, fscale, rbuf, dtblk, aplane, bb, &
+        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
         rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
-    ! Single-level selector, passed straight to mg_coarse_correction.
-    integer, intent(in) :: lvl_only
-    ! Multiplier on the FINE term only, so a step can carry the coarse
-    ! correction alone (0) or the plain fine march. The coarse coefficient
-    ! keeps its own scale, which is why this cannot ride on cfl.
-    real, intent(in) :: fscale
     integer, intent(in) :: n_corr, n_res, n_tri
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
@@ -940,10 +909,10 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     external :: mg_smooth_noop
 
     call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, sf_irs, &
-                       n_levels, lvl_only, dtblk, aplane, bb, rawbuf, sdt, sv, &
+                       n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
                        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, snapshot, cons, &
-                       fscale, dt_vol, residual, ni, nj, nk, np, &
+                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, &
                        aplane, bb, rbuf, nc1j, nc1k)
 end subroutine rk_mg_noirs
