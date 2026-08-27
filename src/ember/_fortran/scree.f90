@@ -19,9 +19,16 @@
 ! the scree scatter is an in-place +=.
 
 
-! Bracketing coarse-cell index pair and upper weight for ONE fine cell of a
-! factor-2 prolongation. n_coarse coarse cells; weight clamped to [0,1] with
-! flat extrapolation past the outer coarse-cell centres.
+! Bracketing coarse-cell index pair for ONE fine cell of a factor-2
+! prolongation, over n_coarse coarse cells. The two ends clamp onto a single
+! coarse cell (lo == hi), which is the flat extrapolation past the outer
+! coarse-cell centres.
+!
+! The bracket is index arithmetic and stays so: every fine cell does lie
+! between the two coarse centroids its index picks, because the clamp never
+! engages in the interior. The interpolation WEIGHT is not computed here --
+! it is geometry, read from the fields the caller supplies (see
+! mg_weight_offsets below and ember.block.Block.weight_mgrid).
 !
 ! This used to be a loop that filled lo/hi/w arrays the length of the fine
 ! direction, one set per direction per call. Those were automatic arrays --
@@ -31,13 +38,12 @@
 ! closed form in the fine index, so the j and k directions now evaluate it
 ! per outer-loop iteration (this routine), and the contiguous i direction
 ! bypasses it entirely (mg_interp_i2x below).
-pure subroutine mg_bracket2x(i, n_coarse, lo, hi, w)
+pure subroutine mg_bracket2x(i, n_coarse, lo, hi)
 
     implicit none
 
     integer, intent(in)  :: i, n_coarse
     integer, intent(out) :: lo, hi
-    real,    intent(out) :: w
 
     integer :: icl
     real    :: t
@@ -47,15 +53,12 @@ pure subroutine mg_bracket2x(i, n_coarse, lo, hi, w)
     if (icl < 1) then
         lo = 1
         hi = 1
-        w  = 0e0
     else if (icl >= n_coarse) then
         lo = n_coarse
         hi = n_coarse
-        w  = 0e0
     else
         lo = icl
         hi = icl + 1
-        w  = t - real(icl)
     end if
 
 end subroutine mg_bracket2x
@@ -66,37 +69,82 @@ end subroutine mg_bracket2x
 !
 ! Driven by the coarse index rather than the fine one, which is what removes
 ! the index arrays here rather than merely shrinking them. Every interior
-! fine cell brackets one coarse pair, and the weight alternates 1/4, 3/4 by
-! parity, so one coarse pair emits both of its fine cells: contiguous reads,
-! no gather, no per-call geometry. Bitwise identical to the general form --
-! (1 - w) is exactly 0.75 or 0.25 in binary, and the two products are summed
-! in the same order.
+! fine cell brackets one coarse pair, so one coarse pair emits both of its
+! fine cells: contiguous reads, no gather, no index arithmetic per cell.
+!
+! The weight pair used to be the literals 1/4, 3/4, which is where the fine
+! cell sits between its coarse neighbours only on a mesh uniform in physical
+! space. It now arrives in `w`, one entry per fine cell, taken from the real
+! cell centroids. Fed those same literals this reproduces the old output bit
+! for bit: (1 - w) is exact for 0.75 and 0.25 in binary and the two products
+! are summed in the same order.
 !
 ! The first and last fine cells clamp to the end coarse values, exactly as
 ! mg_bracket2x does. nfi == 2*nci for every hop the multigrid takes
 ! (ember.solver._validate_mg requires exact division at every level); the
 ! trailing loop is what a longer fine direction would need and normally runs
 ! once, for the clamped last cell.
-pure subroutine mg_interp_i2x(cin, nci, cout, nfi)
+pure subroutine mg_interp_i2x(cin, nci, cout, nfi, w)
 
     implicit none
 
     integer, intent(in)    :: nci, nfi
     real,    intent(in)    :: cin(nci)
     real,    intent(inout) :: cout(nfi)
+    real,    intent(in)    :: w(nfi)
 
     integer :: m, i
 
+    ! cout(1) clamps onto cin(1) (lo == hi there), so its weight cannot matter.
     cout(1) = cin(1)
     do m = 1, nci-1
-        cout(2*m)   = cin(m)*0.75e0 + cin(m+1)*0.25e0
-        cout(2*m+1) = cin(m)*0.25e0 + cin(m+1)*0.75e0
+        cout(2*m)   = cin(m)*(1e0-w(2*m))   + cin(m+1)*w(2*m)
+        cout(2*m+1) = cin(m)*(1e0-w(2*m+1)) + cin(m+1)*w(2*m+1)
     end do
     do i = 2*nci, nfi
         cout(i) = cin(nci)
     end do
 
 end subroutine mg_interp_i2x
+
+
+! Packed-array offsets for the per-hop prolongation weights, and the single
+! source of truth for a layout Python has to reproduce exactly (see
+! ember.block._mg_weight_lengths). Hop m prolongs onto a target of
+! ((ni-1),(nj-1),(nk-1))/2**(m-1), so m = 1 is the final hop onto the fine grid
+! (the one the caller fuses with the scatter) and m grows towards the coarse
+! end. Indexing from the fine grid DOWN is what makes the layout independent of
+! n_levels, so one cached array on the block serves every level count.
+!
+! The three directions pack separately because the three passes resolve i, then
+! j, then k, so each carries a different mix of fine and coarse extents:
+!   wi(tfi, tfj/2, tfk/2)   wj(tfi, tfj, tfk/2)   wk(tfi, tfj, tfk)
+subroutine mg_weight_offsets(ni, nj, nk, n_hops, offwi, offwj, offwk)
+
+    implicit none
+
+    integer, intent(in)  :: ni, nj, nk, n_hops
+    integer, intent(out) :: offwi(n_hops), offwj(n_hops), offwk(n_hops)
+
+    integer :: m, d, tfi, tfj, tfk, oi, oj, ok
+
+    oi = 0
+    oj = 0
+    ok = 0
+    do m = 1, n_hops
+        d   = 2**(m - 1)
+        tfi = (ni-1)/d
+        tfj = (nj-1)/d
+        tfk = (nk-1)/d
+        offwi(m) = oi
+        offwj(m) = oj
+        offwk(m) = ok
+        oi = oi + tfi*(tfj/2)*(tfk/2)
+        oj = oj + tfi*tfj*(tfk/2)
+        ok = ok + tfi*tfj*tfk
+    end do
+
+end subroutine mg_weight_offsets
 
 
 ! Copy n contiguous reals (sequence-associated cascade plumbing).
@@ -176,37 +224,43 @@ end subroutine mg_scale_corr
 ! prefilled with that level's correction). aplane/bb are the shared prolong
 ! scratch (full-fine leading dims ni1,nj1; third dim nkpad >= nck).
 subroutine mg_prolong2x_acc(src, nci, ncj, nck, out, nfi, nfj, nfk, np, &
-        aplane, bb, ni1, nj1, nkpad)
+        aplane, bb, ni1, nj1, nkpad, wi, wj, wk)
     implicit none
     integer, intent(in) :: nci, ncj, nck, nfi, nfj, nfk, np, ni1, nj1, nkpad
     real, intent(in)    :: src(nci, ncj, nck, np)
     real, intent(inout) :: out(nfi, nfj, nfk, np)
     real, intent(inout) :: aplane(ni1, *)
     real, intent(inout) :: bb(ni1, nj1, nkpad, np)
+    ! This hop's slice of the block's packed weights. Shaped to the three
+    ! passes: i is resolved while j,k are still coarse, then j while k is
+    ! coarse, then k.
+    real, intent(in)    :: wi(nfi, ncj, nck)
+    real, intent(in)    :: wj(nfi, nfj, nck)
+    real, intent(in)    :: wk(nfi, nfj, nfk)
     integer :: i, j, k, ip, jc, kc
     integer :: jlo, jhi, klo, khi
-    real    :: wj, wk
 
     do ip = 1, np
         do kc = 1, nck
             do jc = 1, ncj
-                call mg_interp_i2x(src(1,jc,kc,ip), nci, aplane(1,jc), nfi)
+                call mg_interp_i2x(src(1,jc,kc,ip), nci, aplane(1,jc), nfi, &
+                                   wi(1,jc,kc))
             end do
             do j = 1, nfj
-                call mg_bracket2x(j, ncj, jlo, jhi, wj)
+                call mg_bracket2x(j, ncj, jlo, jhi)
                 do i = 1, nfi
-                    bb(i,j,kc,ip) = aplane(i,jlo)*(1e0-wj) &
-                                  + aplane(i,jhi)*wj
+                    bb(i,j,kc,ip) = aplane(i,jlo)*(1e0-wj(i,j,kc)) &
+                                  + aplane(i,jhi)*wj(i,j,kc)
                 end do
             end do
         end do
         do k = 1, nfk
-            call mg_bracket2x(k, nck, klo, khi, wk)
+            call mg_bracket2x(k, nck, klo, khi)
             do j = 1, nfj
                 do i = 1, nfi
                     out(i,j,k,ip) = out(i,j,k,ip) &
-                                  + bb(i,j,klo,ip)*(1e0-wk) &
-                                  + bb(i,j,khi,ip)*wk
+                                  + bb(i,j,klo,ip)*(1e0-wk(i,j,k)) &
+                                  + bb(i,j,khi,ip)*wk(i,j,k)
                 end do
             end do
         end do
@@ -236,7 +290,8 @@ end subroutine mg_prolong2x_acc
 ! aliasing is benign. scree then rolls its Denton history separately
 ! (scree_roll), which needs no increment buffer.
 subroutine mg_prolong2x_fine_scatter(src, nci, ncj, nck, base, cons, &
-        scale, dt_vol, q, ni, nj, nk, np, aplane, bb, rbuf, nc1j, nc1k)
+        scale, dt_vol, q, ni, nj, nk, np, aplane, bb, rbuf, nc1j, nc1k, &
+        wi, wj, wk)
     implicit none
     integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np, nc1j, nc1k
     real, intent(in)    :: src(nci, ncj, nck, np)
@@ -248,21 +303,26 @@ subroutine mg_prolong2x_fine_scatter(src, nci, ncj, nck, base, cons, &
     real, intent(inout) :: aplane(ni-1, nc1j)
     real, intent(inout) :: bb(ni-1, nj-1, nc1k, np)
     real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    ! The final hop's slice of the block's packed weights (see
+    ! mg_prolong2x_acc for the shapes).
+    real, intent(in)    :: wi(ni-1, ncj, nck)
+    real, intent(in)    :: wj(ni-1, nj-1, nck)
+    real, intent(in)    :: wk(ni-1, nj-1, nk-1)
     integer :: i, j, ip, jc, kc, cur, prev, sw
     integer :: jlo, jhi, klo, khi
-    real    :: wj, wk
 
     ! Phase A: build bb, the k-interpolation source planes (i then j interp).
     do ip = 1, np
         do kc = 1, nck
             do jc = 1, ncj
-                call mg_interp_i2x(src(1,jc,kc,ip), nci, aplane(1,jc), ni-1)
+                call mg_interp_i2x(src(1,jc,kc,ip), nci, aplane(1,jc), ni-1, &
+                                   wi(1,jc,kc))
             end do
             do j = 1, nj-1
-                call mg_bracket2x(j, ncj, jlo, jhi, wj)
+                call mg_bracket2x(j, ncj, jlo, jhi)
                 do i = 1, ni-1
-                    bb(i,j,kc,ip) = aplane(i,jlo)*(1e0-wj) &
-                                  + aplane(i,jhi)*wj
+                    bb(i,j,kc,ip) = aplane(i,jlo)*(1e0-wj(i,j,kc)) &
+                                  + aplane(i,jhi)*wj(i,j,kc)
                 end do
             end do
         end do
@@ -272,13 +332,13 @@ subroutine mg_prolong2x_fine_scatter(src, nci, ncj, nck, base, cons, &
     cur  = 1
     prev = 2
     do kc = 1, nk-1
-        call mg_bracket2x(kc, nck, klo, khi, wk)
+        call mg_bracket2x(kc, nck, klo, khi)
         do ip = 1, np
             do j = 1, nj-1
                 do i = 1, ni-1
                     rbuf(i,j,ip,cur) = scale*dt_vol(i,j,kc)*q(i,j,kc,ip) &
-                                     + bb(i,j,klo,ip)*(1e0-wk) &
-                                     + bb(i,j,khi,ip)*wk
+                                     + bb(i,j,klo,ip)*(1e0-wk(i,j,kc)) &
+                                     + bb(i,j,khi,ip)*wk(i,j,kc)
                 end do
             end do
         end do
@@ -492,7 +552,8 @@ end subroutine scree_roll_and_scatter
 subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
         sf_irs, n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, smoother, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+        pwi, pwj, pwk, n_wi, n_wj, n_wk)
 
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -515,6 +576,11 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
     real, intent(inout) :: cres(n_res)
     real, intent(inout) :: triw(n_tri)
+    ! The block's packed prolongation weights, every hop of them. Static
+    ! geometry, so they are NOT arena scratch: ember.block.Block.weight_mgrid
+    ! caches them keyed on x/r/t, and this reads the hops it needs.
+    integer, intent(in) :: n_wi, n_wj, n_wk
+    real,    intent(in) :: pwi(n_wi), pwj(n_wj), pwk(n_wk)
 
     integer :: ip, lvl, b, nib, njb, nkb, ib, jb, kb
     integer :: ii, jj, kk, slot, cnt
@@ -529,6 +595,7 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     integer, parameter :: MG_LEVELS_MAX = 3
     integer :: dib(MG_LEVELS_MAX), djb(MG_LEVELS_MAX), dkb(MG_LEVELS_MAX)
     integer :: offc(MG_LEVELS_MAX)
+    integer :: offwi(MG_LEVELS_MAX), offwj(MG_LEVELS_MAX), offwk(MG_LEVELS_MAX)
     integer :: nci, ncj, nck, cur_i, cur_j, cur_k, o
     logical :: in0
 
@@ -536,6 +603,12 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     ! means the two bounds have drifted apart; say so rather than writing
     ! past the tables.
     if (n_levels > MG_LEVELS_MAX) stop 'mg_coarse_correction: n_levels > MG_LEVELS_MAX'
+
+    ! Weight hops are numbered from the fine grid down (hop 1 targets the fine
+    ! grid), so the cascade hop onto level lvl -- whose target is
+    ! (ni-1)/2**(n_levels-lvl+1) -- is hop n_levels-lvl+2. Hop 1 is the final
+    ! hop, and the caller makes that one.
+    call mg_weight_offsets(ni, nj, nk, n_levels, offwi, offwj, offwk)
 
     ! Coarsest-first packed geometry for corr_all (cascade seeds at slot 1).
     o = 0
@@ -702,12 +775,18 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
             call mg_copy(corr_all(offc(lvl)+1), acc1, dib(lvl)*djb(lvl)*dkb(lvl)*np)
             call mg_prolong2x_acc(acc0, nci, ncj, nck, acc1, &
                                   dib(lvl), djb(lvl), dkb(lvl), np, &
-                                  aplane, bb, ni-1, nj-1, nc1k)
+                                  aplane, bb, ni-1, nj-1, nc1k, &
+                                  pwi(offwi(n_levels-lvl+2)+1), &
+                                  pwj(offwj(n_levels-lvl+2)+1), &
+                                  pwk(offwk(n_levels-lvl+2)+1))
         else
             call mg_copy(corr_all(offc(lvl)+1), acc0, dib(lvl)*djb(lvl)*dkb(lvl)*np)
             call mg_prolong2x_acc(acc1, nci, ncj, nck, acc0, &
                                   dib(lvl), djb(lvl), dkb(lvl), np, &
-                                  aplane, bb, ni-1, nj-1, nc1k)
+                                  aplane, bb, ni-1, nj-1, nc1k, &
+                                  pwi(offwi(n_levels-lvl+2)+1), &
+                                  pwj(offwj(n_levels-lvl+2)+1), &
+                                  pwk(offwk(n_levels-lvl+2)+1))
         end if
         in0 = .not. in0
         cur_i = dib(lvl)
@@ -748,7 +827,8 @@ end subroutine scree_plain
 subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
         fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+        pwi, pwj, pwk, n_wi, n_wj, n_wk)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
     integer, intent(in) :: n_corr, n_res, n_tri
@@ -770,16 +850,20 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
     real, intent(inout) :: cres(n_res)
     real, intent(inout) :: triw(n_tri)
+    integer, intent(in) :: n_wi, n_wj, n_wk
+    real,    intent(in) :: pwi(n_wi), pwj(n_wj), pwk(n_wk)
     external :: smooth_residual_tri_tiled
 
     call scree_form_q(store, residual, ni, nj, nk, np)
     call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, &
                        dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+                       pwi, pwj, pwk, n_wi, n_wj, n_wk)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
                            cfl, dt_vol, store, ni, nj, nk, np, &
-                           aplane, bb, rbuf, nc1j, nc1k)
+                           aplane, bb, rbuf, nc1j, nc1k, &
+                           pwi, pwj, pwk)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_irs
 
@@ -788,7 +872,8 @@ end subroutine scree_mg_irs
 subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
         fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, rawbuf, sdt, sv, &
         corr_all, acc0, acc1, cres, triw, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+        pwi, pwj, pwk, n_wi, n_wj, n_wk)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
     integer, intent(in) :: n_corr, n_res, n_tri
@@ -810,16 +895,20 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
     real, intent(inout) :: cres(n_res)
     real, intent(inout) :: triw(n_tri)
+    integer, intent(in) :: n_wi, n_wj, n_wk
+    real,    intent(in) :: pwi(n_wi), pwj(n_wj), pwk(n_wk)
     external :: mg_smooth_noop
 
     call scree_form_q(store, residual, ni, nj, nk, np)
     call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, &
                        dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+                       pwi, pwj, pwk, n_wi, n_wj, n_wk)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
                            cfl, dt_vol, store, ni, nj, nk, np, &
-                           aplane, bb, rbuf, nc1j, nc1k)
+                           aplane, bb, rbuf, nc1j, nc1k, &
+                           pwi, pwj, pwk)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_noirs
 
@@ -846,7 +935,8 @@ end subroutine rk_plain
 subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
         alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
         rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+        pwi, pwj, pwk, n_wi, n_wj, n_wk)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
     integer, intent(in) :: n_corr, n_res, n_tri
@@ -868,15 +958,19 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
     real, intent(inout) :: cres(n_res)
     real, intent(inout) :: triw(n_tri)
+    integer, intent(in) :: n_wi, n_wj, n_wk
+    real,    intent(in) :: pwi(n_wi), pwj(n_wj), pwk(n_wk)
     external :: smooth_residual_tri_tiled
 
     call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, sf_irs, &
                        n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+                       pwi, pwj, pwk, n_wi, n_wj, n_wk)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, snapshot, cons, &
                        alpha*cfl, dt_vol, residual, ni, nj, nk, np, &
-                       aplane, bb, rbuf, nc1j, nc1k)
+                       aplane, bb, rbuf, nc1j, nc1k, &
+                       pwi, pwj, pwk)
 end subroutine rk_mg_irs
 
 
@@ -884,7 +978,8 @@ end subroutine rk_mg_irs
 subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
         alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, aplane, bb, &
         rawbuf, sdt, sv, corr_all, acc0, acc1, cres, triw, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+        pwi, pwj, pwk, n_wi, n_wj, n_wk)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
     integer, intent(in) :: n_corr, n_res, n_tri
@@ -906,13 +1001,17 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
     real, intent(inout) :: cres(n_res)
     real, intent(inout) :: triw(n_tri)
+    integer, intent(in) :: n_wi, n_wj, n_wk
+    real,    intent(in) :: pwi(n_wi), pwj(n_wj), pwk(n_wk)
     external :: mg_smooth_noop
 
     call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, sf_irs, &
                        n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
                        corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+                       pwi, pwj, pwk, n_wi, n_wj, n_wk)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, snapshot, cons, &
                        alpha*cfl, dt_vol, residual, ni, nj, nk, np, &
-                       aplane, bb, rbuf, nc1j, nc1k)
+                       aplane, bb, rbuf, nc1j, nc1k, &
+                       pwi, pwj, pwk)
 end subroutine rk_mg_noirs

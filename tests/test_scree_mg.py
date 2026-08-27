@@ -132,8 +132,39 @@ def _run_mg(
         acc1=Z(acc_sz),
         cres=Z(n_res),
         triw=Z(n_tri),
+        **dict(zip(("pwi", "pwj", "pwk"), _index_weights(ni, nj, nk, n_levels))),
     )
     return cons_out, store_out
+
+
+def _index_weights(ni, nj, nk, n_levels):
+    """Packed prolongation weights reproducing the old index-space behaviour.
+
+    These are wiring tests on synthetic arrays with no meaningful geometry, so
+    they supply the index weights the kernel used to compute for itself. Layout
+    must match mg_weight_offsets / ember.block.Block.weight_mgrid: hops run
+    finest first, hop m targeting (cells)/2**(m-1).
+    """
+    parts = ([], [], [])
+    for m in range(1, n_levels + 1):
+        d = 2 ** (m - 1)
+        tfi, tfj, tfk = (ni - 1) // d, (nj - 1) // d, (nk - 1) // d
+
+        def w1(nf):
+            i = np.arange(1, nf + 1)
+            t = (i - 0.5) / 2.0 + 0.5
+            icl = np.floor(t).astype(int)
+            nc = nf // 2
+            return np.where((icl < 1) | (icl >= nc), 0.0, t - icl)
+
+        trio = (
+            np.broadcast_to(w1(tfi)[:, None, None], (tfi, tfj // 2, tfk // 2)),
+            np.broadcast_to(w1(tfj)[None, :, None], (tfi, tfj, tfk // 2)),
+            np.broadcast_to(w1(tfk)[None, None, :], (tfi, tfj, tfk)),
+        )
+        for buf, w in zip(parts, trio):
+            buf.append(np.asarray(w, np.float32).ravel(order="F"))
+    return tuple(np.asfortranarray(np.concatenate(b)) for b in parts)
 
 
 def test_fac_mgrid_zero_matches_plain():

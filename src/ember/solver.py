@@ -555,6 +555,10 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 *mg_coarse_shapes(ni, nj, nk, n_levels_eff),
             )
             mg_scratch = dict(zip(MG_COARSE_NAMES, mg_bufs))
+            # The prolongation weights are NOT arena scratch: they are static
+            # geometry that has to survive the step, cached on the block, where
+            # anything carved from block.scratch is overwritten within it.
+            pwi, pwj, pwk = block.weight_mgrid
             kernel = (
                 ember.fortran.scree_mg_irs
                 if sf_irs > 0.0
@@ -572,6 +576,9 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 rbuf=rbuf,
+                pwi=pwi,
+                pwj=pwj,
+                pwk=pwk,
                 **mg_scratch,
             )
         else:
@@ -772,6 +779,10 @@ def advance_rk_stage_mg(
                 *mg_coarse_shapes(ni, nj, nk, max(n_levels_eff, 0)),
             )
             mg_scratch = dict(zip(MG_COARSE_NAMES, mg_bufs))
+            # The prolongation weights are NOT arena scratch: they are static
+            # geometry that has to survive the step, cached on the block, where
+            # anything carved from block.scratch is overwritten within it.
+            pwi, pwj, pwk = block.weight_mgrid
             kernel = (
                 ember.fortran.rk_mg_irs if sf_irs > 0.0 else ember.fortran.rk_mg_noirs
             )
@@ -788,6 +799,9 @@ def advance_rk_stage_mg(
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 rbuf=rbuf,
+                pwi=pwi,
+                pwj=pwj,
+                pwk=pwk,
                 **mg_scratch,
             )
         else:
