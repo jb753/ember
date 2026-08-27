@@ -119,7 +119,7 @@ def build_duct_grid(
     xrt = np.stack((xm, rm, tm), axis=-1).astype(np.float32)
 
     fluid = ember.fluid.PerfectFluid(
-        cp=1005.0, gamma=1.4, mu=1.0e-3, Pr=0.72, T_dtm=400.0
+        cp=1005.0, gamma=1.4, mu=2.0e-5, Pr=0.72, T_dtm=400.0
     )
 
     block = ember.block.Block(shape=(ni, nj, nk))
