@@ -33,8 +33,7 @@ Overview of one time step
    :attr:``ember.block.Block.block.dt_vol_nd``.
 5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
    unintegrated net-flow residual, with optional implicit residual smoothing
-   , :attr:`~Solver.sf_resid`, or negative feedback limiter
-   , :attr:`~Solver.dampin`.
+   , :attr:`~Solver.sf_resid`.
 6. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
    :meth:`~ember.convergence_history.ConvergenceHistory.record_convergence`
    and :meth:`~ember.convergence_history.ConvergenceHistory.format_message`
@@ -353,9 +352,6 @@ class Solver(BaseSolver):
 
     sf2: float = 0.002
     """Second-order smoothing factor."""
-
-    dampin: float | None = 25
-    """Negative-feedback damping factor on integrated residual."""
 
     inviscid: bool = False
     """Skip viscous terms in the sources evaluation."""
@@ -855,7 +851,7 @@ def rk_step(grid, conf):
         # not, and the pre-march update_residual recomputes it first), so skip
         # the redundant final rebuild.
         if i_stage < conf.n_stage - 1:
-            grid.update_residual(dampin=conf.dampin, sf=conf.sf_resid)
+            grid.update_residual(sf=conf.sf_resid)
 
 
 def _apply_bcond_relaxation(grid, conf):
@@ -1033,7 +1029,7 @@ def _run(grid, conf):
         grid.update_timestep(rf=0.2, fac_visc=conf.fac_visc)
 
         # Prepare the residual
-        grid.update_residual(dampin=conf.dampin, sf=conf.sf_resid)
+        grid.update_residual(sf=conf.sf_resid)
         _log_rss("step %d after update_residual", i_step)
 
         # Convergence logging of the pre-march state

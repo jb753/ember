@@ -51,8 +51,6 @@ def _run_residual(block, i_cusp):
         ni=ni,
         nj=nj,
         nk=nk,
-        dt_vol=block.dt_vol_nd,
-        dampin=0.0,
     )
     du.flags.writeable = False
     return np.array(du)

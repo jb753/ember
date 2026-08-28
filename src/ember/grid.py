@@ -1479,48 +1479,34 @@ class Grid(_LabelledList):
             cons_filt.flags.writeable = False
 
     @util.profile
-    def update_residual(self, dampin=None, sf=0.0):
+    def update_residual(self, sf=0.0):
         """Rebuild the unintegrated net-flow residual on every block.
 
         Fans the fused ``set_residual`` kernel across the grid, writing each
         block's ``residual_nd`` from its frozen P/T cache, face areas, and body
         force. Purely per-block (no inter-block exchange), so it simply loops.
 
-        Optional post-processing runs in place on each block's residual, in
-        order: the change limiter (``dampin``), then implicit residual
-        smoothing (``sf``).
+        Optional post-processing runs in place on each block's residual:
+        implicit residual smoothing (``sf``).
 
         .. note::
-           The limiter runs BEFORE the smoother, and is fused into whichever
-           kernel is already traversing the volume: into ``set_residual``'s
-           own trailing scaling pass when IRS is off, and into
-           ``smooth_residual_scale_tri``'s i-solve gather when it is on
-           (``set_residual`` then returns the block means it accumulates
-           anyway, and skips its own scaling). Both fusions are bitwise
-           equal to the unfused sequence, and buy -6% serial / -11% at
-           100-rank saturation / -5% on set_residual + IRS.
-
-           The opposite order -- smooth, then damp as a separate
-           ``damp_residual`` pass -- was in place between commits 9ff054e
-           and this one. The two are a genuine numerics difference: IRS is
-           linear and the limiter is nonlinear in a global block mean, so
-           the composed operator differs, by ~19% of the field scale at
-           ``sf=1.0, dampin=25`` and growing with ``sf``. Those are the
-           shipped ``Solver`` defaults, so this affects every default run;
-           it does not affect the converged answer, which both the limiter
-           and IRS leave alone as the residual vanishes.
+           A negative-feedback change limiter (multall's ``DAMP``) used to run
+           here, ahead of the smoother, soft-clipping cells whose per-step
+           change was a large outlier against the per-variable block mean. It
+           was removed: normalising by the running mean made it a
+           solution-dependent per-cell gain that never switched off, and
+           applying it to the residual broke the telescoping the multigrid
+           box-sum restriction relies on. Measured on the clustered duct at
+           ``cfl=3.0``, ``fac_mgrid=0.4``, ``n_levels=3``: the same case
+           converged 2.59 decades undamped, converged 2.57 decades damped with
+           multigrid OFF, and diverged within 25 convergence records with both
+           on. It also roughly doubled the time to settle where it did work
+           (step 1975 against 975). Reduce ``cfl`` or ``fac_mgrid`` for
+           robustness instead -- both are uniform scalars, so neither creates
+           a gain field nor disturbs the restriction.
 
         Parameters
         ----------
-        dampin : float, optional
-            Negative-feedback change limiter (multall's ``DAMP``). When given,
-            each block's residual is passed through the limiter, which
-            soft-clips cells whose per-step change ``residual * dt_vol`` is a
-            large outlier relative to the per-variable block mean, shrinking
-            them by ``1/(1 + fdamp/dampin)`` with ``fdamp = |change|/mean``.
-            Large outliers saturate towards ``dampin * mean``. ``None`` (the
-            default) disables it. multall recommends ``2..100``. Requires
-            ``dt_vol_nd`` to have been populated by :meth:`update_timestep`.
         sf : float, optional
             Implicit residual-smoothing (IRS) coefficient (epsilon). ``0`` (the
             default) disables IRS; ``> 0`` applies the exact factored-tridiagonal
@@ -1557,17 +1543,7 @@ class Grid(_LabelledList):
             # two are never live together.
             planes, rows = util.carve_view(block.scratch, (ni, njp, 5, 2), (ni, 5, 3))
             block.residual_nd.flags.writeable = True
-            # When IRS is on, the limiter's SCALING pass is deferred to the
-            # smoother, which applies it inside its i-solve gather instead of
-            # paying a full-volume traversal of its own (-1R-1W). set_residual
-            # still accumulates the block means during its dU sweep either
-            # way, and returns them as ravg; passing dampin=0 here suppresses
-            # only the scaling, not the reduction. The composed operation is
-            # bitwise identical, and the order -- limiter BEFORE IRS -- is the
-            # same on both paths.
-            fuse_damp = sf > 0.0
-            dampin_kernel = 0.0 if (dampin is None or fuse_damp) else dampin
-            ravg = ember.fortran.set_residual(
+            ember.fortran.set_residual(
                 cons=block.conserved_nd,
                 p=block.P_nd,
                 p_offset=block.P_offset_nd,
@@ -1588,28 +1564,17 @@ class Grid(_LabelledList):
                 ni=ni,
                 nj=nj,
                 nk=nk,
-                # The change limiter is folded into set_residual: its block-mean
-                # reduction is accumulated during the dU write, removing a
-                # full-volume dU read. dampin=0 disables the scaling (either
-                # because the limiter is off, or because the smoother below is
-                # applying it). See the kernel header in residual.f90.
-                dt_vol=block.dt_vol_nd,
-                dampin=dampin_kernel,
             )
             if sf > 0.0:
-                # Exact factored-tridiagonal IRS (Jameson ADI): a direct solve,
-                # with the limiter's scaling fused into its i-solve gather.
-                # Scratch is just the Thomas coefficients, 2*(nci+ncj+nck)
+                # Exact factored-tridiagonal IRS (Jameson ADI): a direct
+                # solve. Scratch is just the Thomas coefficients, 2*(nci+ncj+nck)
                 # floats; carve a 1D leading view of block.scratch (nodal
                 # (ni,nj,nk,5), vastly oversized). Free here: set_residual
                 # does not touch it and the march reuses it only after this
                 # returns.
                 nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
-                ember.fortran.smooth_residual_scale_tri(
+                ember.fortran.smooth_residual_tri_tiled(
                     du=block.residual_nd,
-                    dt_vol=block.dt_vol_nd,
-                    ravg=ravg,
-                    dampin=0.0 if dampin is None else dampin,
                     sf=sf,
                     work=util.carve_view(block.scratch, (nwork,)),
                     ni=ni,
