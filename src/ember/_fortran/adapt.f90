@@ -2,8 +2,10 @@
 !
 ! Adds the SFD forcing gain_filt * (cons_filt - cons_cell) * vol onto F_body_nd
 ! for all five conserved equations, where cons_filt is the temporally
-! low-pass-filtered conserved state maintained by adapt_cfl. Called from
-! Grid.update_F_body in the pre-step so the force drives the RK integration.
+! low-pass-filtered conserved state maintained by update_filter (Fortran) and
+! Grid.update_filter (Python). Called from Grid.update_sources in the pre-step
+! so the force drives the RK integration, one step behind the filter update
+! that Solver.run runs after the timestep refresh.
 !
 subroutine apply_sfd_force( &
         f_body, &

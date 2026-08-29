@@ -31,22 +31,28 @@ Overview of one time step
 4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes
    the time step and stores it pre-divided by cell volume in
    :attr:``ember.block.Block.block.dt_vol_nd``.
-5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
+5. **Filter**: when :attr:`~Solver.gain_filt` is nonzero,
+   :meth:`~ember.grid.Grid.update_filter` advances the
+   selective-frequency-damping low-pass filter one step using that time step,
+   every step regardless of the source cadence above. The SFD body force of
+   stage 3 reads what this leaves behind on the following step. Skipped
+   entirely at the default zero gain.
+6. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
    unintegrated net-flow residual, with optional implicit residual smoothing
    , :attr:`~Solver.sf_resid`.
-6. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
+7. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
    :meth:`~ember.convergence_history.ConvergenceHistory.record_convergence`
    and :meth:`~ember.convergence_history.ConvergenceHistory.format_message`
    record and print a :class:`~ember.convergence_history.ConvergenceHistory`
    row using the current residual.
-7. **March**: advance the solution with the selected integrator -- Denton's
+8. **March**: advance the solution with the selected integrator -- Denton's
    scree march, :func:`scree_step`, or Jameson multi-stage Runge--Kutta,
    :func:`rk_step` -- optionally accelerated by multigrid.
-8. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a
+9. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a
    constant-coefficient blended second- and fourth-order filter to the
    post-march :attr:`ember.block.Block.conserved_nd` field, to provide artificial dissipation and
    suppress odd-even decoupling.
-9. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`
+10. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`
     steps, :meth:`~ember.grid.Grid.accumulate_avg` accumulates the conserved
     state into a running average, which
     :meth:`~ember.grid.Grid.finalise_average` uses to replace the
@@ -1037,10 +1043,21 @@ def _run(grid, conf):
         # stability limit during a cold start, and the timestep refresh is cheap.
         n_step_source = 5 if conf.n_stage == 0 else 1
         if i_step % n_step_source == 0:
-            # grid.update_filter(conf.delta_filt)
             grid.update_sources(conf.inviscid, conf.gain_filt)
             _log_rss("step %d after update_sources", i_step)
         grid.update_timestep(rf=0.2, fac_visc=conf.fac_visc)
+
+        # Advance the SFD low-pass filter the body force above reads. It needs
+        # the dt_vol just computed, so it runs here rather than alongside the
+        # sources, and it runs every step regardless of the source cadence:
+        # its dt is a per-step increment, so advancing it only on the scree
+        # march's every-fifth-step refresh would stretch the effective time
+        # constant fivefold. update_sources therefore picks up the state left
+        # here on the following step, the usual explicit SFD coupling. Skipped
+        # entirely at the default zero gain, where nothing reads the filter and
+        # the buffer is never allocated.
+        if conf.gain_filt != 0.0:
+            grid.update_filter(conf.cfl, conf.delta_filt)
 
         # Prepare the residual
         grid.update_residual(sf=conf.sf_resid)

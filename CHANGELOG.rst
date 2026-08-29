@@ -10,6 +10,19 @@ public API without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* Put selective frequency damping back into the march. ``Solver.gain_filt``
+  applied its body force every step, but nothing ever advanced the low-pass
+  filter that force is built from -- the ``Grid.update_filter`` call in
+  ``Solver.run`` was commented out, with a signature predating the split of the
+  filter update out of ``adapt_cfl`` -- so ``conserved_filt_nd`` stayed at the
+  state it seeds itself to on first access, and a nonzero gain pulled the
+  solution back towards its own initial condition instead of towards a running
+  low-pass of it. The filter now advances once per step, after the timestep
+  refresh (it needs the current ``dt_vol``) and outside the scree march's
+  every-fifth-step source cadence (its ``dt`` is a per-step increment, so
+  sharing that cadence would have stretched ``delta_filt`` fivefold). No change
+  at the default ``gain_filt = 0.0``, where the update is skipped and the
+  filter buffer is never allocated.
 * Take the multigrid coarse timestep as the volume-weighted **harmonic** mean
   of ``dt_vol`` over each block, ``sum(vol)/sum(vol/dt_vol)``, in place of the
   arithmetic mean ``sum(dt_vol*vol)/sum(vol)``. The block needs the reciprocal
