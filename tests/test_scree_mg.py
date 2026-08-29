@@ -232,9 +232,11 @@ def test_uniform_dt_vol_is_independent_of_vol():
     give back that constant whatever the volume distribution.
 
     This is the invariant that makes the block-average a no-op on a uniform
-    mesh, where multall's PERPMIN/VOLB reduces to dt_vol/b**2 exactly.
+    mesh, where multall's PERPMIN/VOLB reduces to dt_vol/b**2 exactly. It holds
+    for the harmonic mean exactly as it did for the arithmetic one: every mean
+    of a constant is that constant.
 
-    Not bit-exact: sum(c*vol)/sum(vol) recovers c only up to float32
+    Not bit-exact: sum(vol)/sum(vol/c) recovers c only up to float32
     accumulation error, which grows with block size (~2 ULP over the 512-cell
     sum of the coarsest level, b=8).
     """
@@ -253,7 +255,7 @@ def test_uniform_dt_vol_is_independent_of_vol():
 
 
 def test_coarse_dt_is_scale_invariant_in_vol():
-    """sum(dt_vol*vol)/sum(vol) normalises, so scaling vol must not move the result.
+    """sum(vol)/sum(vol/dt_vol) normalises, so scaling vol must not move the result.
 
     Tolerance as for test_uniform_dt_vol_is_independent_of_vol: the scaled sums
     round differently in float32.
@@ -288,6 +290,53 @@ def test_vol_weighting_affects_nonuniform_dt_vol():
     )
 
     assert not np.array_equal(cons_weighted, cons_unweighted)
+
+
+def test_coarse_dt_is_the_harmonic_mean_not_the_arithmetic():
+    """The coarse timestep is sum(vol)/sum(vol/dt_vol), not sum(dt_vol*vol)/sum(vol).
+
+    The block needs the reciprocal of the block's spectral radius, and dt_vol
+    is 1/Lambda per cell, so the mean that belongs here is the harmonic one.
+    The two disagree whenever dt_vol varies over a block, and the arithmetic
+    mean is always the larger (Jensen), which over-drives the block's smallest
+    cells on a stretched mesh.
+
+    Constructed so the two means disagree by a third: a checkerboard of 2/3 and
+    2 puts four of each in every 2x2x2 block at uniform vol, giving a harmonic
+    mean of 1.0 (2*(2/3)*2/((2/3)+2)) against an arithmetic mean of 4/3. A
+    kernel using the harmonic mean therefore cannot tell the checkerboard from
+    a uniform dt_vol of 1.0, and one using the arithmetic mean cannot miss it.
+
+    dt_vol also scales the FINE term, which differs between the two fields, so
+    each run is differenced against its own fac_mgrid=0 companion to isolate
+    the coarse contribution -- the scatter is linear, so the subtraction is
+    exact.
+    """
+    residual, _, _, store, cons = _make_inputs(NI, NJ, NK, seed=11)
+    vol = np.asfortranarray(np.ones((NI - 1, NJ - 1, NK - 1), dtype=np.float32))
+
+    ii, jj, kk = np.indices((NI - 1, NJ - 1, NK - 1))
+    checker = np.where((ii + jj + kk) % 2 == 0, 2.0 / 3.0, 2.0)
+    dt_checker = np.asfortranarray(checker.astype(np.float32))
+    dt_uniform = np.asfortranarray(np.ones((NI - 1, NJ - 1, NK - 1), dtype=np.float32))
+
+    def coarse_only(dt_vol):
+        with_mg, _ = _run_mg(
+            residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=1
+        )
+        without, _ = _run_mg(
+            residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=1, fmgrid=0.0
+        )
+        return with_mg - without
+
+    # Tolerance as for the sibling invariants: float32 again, and summing
+    # reciprocals of 2/3 and 2 rounds differently from summing ones. Measured
+    # agreement is 9.5e-07 absolute against a coarse contribution of 0.486, so
+    # the margin here is wide; the arithmetic mean this replaced would differ
+    # by a third, five orders above the bar.
+    np.testing.assert_allclose(
+        coarse_only(dt_checker), coarse_only(dt_uniform), rtol=1e-4, atol=1e-5
+    )
 
 
 def test_irs_positive_changes_result():

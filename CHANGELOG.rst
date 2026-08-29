@@ -10,6 +10,14 @@ public API without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* Take the multigrid coarse timestep as the volume-weighted **harmonic** mean
+  of ``dt_vol`` over each block, ``sum(vol)/sum(vol/dt_vol)``, in place of the
+  arithmetic mean ``sum(dt_vol*vol)/sum(vol)``. The block needs the reciprocal
+  of its own mean spectral radius and ``dt_vol`` is ``1/Lambda`` per cell, so
+  the harmonic mean is the consistent one; by Jensen the arithmetic mean was
+  the larger of the two whenever ``Lambda`` varied over a block, overstating
+  the coarse timestep on a stretched mesh by up to 2x for the smallest cells.
+  Behaviour change on stretched meshes; identical on uniform ones.
 * Add ``ember.cases.er_for_duct_yplus``, which solves the duct grid's
   clustering expansion ratio for a target wall ``y+`` rather than having it
   picked by hand: a uniform probe grid supplies the mean flow and geometry, a

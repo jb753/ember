@@ -728,6 +728,8 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     real, intent(inout) :: aplane(ni, nc1j)
     real, intent(inout) :: bb(ni, nj, nc1k, np)
     real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    ! sdt accumulates sum(vol/dt_vol) and sv accumulates sum(vol), so that
+    ! dtblk = sv/sdt is the volume-weighted harmonic mean of dt_vol.
     real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
     real, intent(inout) :: sv (nc1i, nc1j, nc1k)
     real, intent(inout) :: corr_all(n_corr)
@@ -790,7 +792,16 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     slot = n_levels - lvl + 1
     cnt  = nib*njb*nkb*np
 
-    ! dt restriction (volume-weighted mean) from the fine grid. ifort declines
+    ! dt restriction (volume-weighted HARMONIC mean) from the fine grid. The
+    ! block needs the reciprocal of the block's spectral radius, 1/<Lambda>,
+    ! and dt_vol is 1/Lambda per cell, so the mean that belongs here is
+    ! sum(vol) / sum(vol/dt_vol), NOT sum(dt_vol*vol)/sum(vol). By Jensen the
+    ! arithmetic mean is the larger of the two whenever Lambda varies over the
+    ! block, so it overstates the coarse timestep on a stretched mesh and
+    ! over-drives the smallest cells in the block -- measured at up to 2.0x
+    ! their own dt_vol on the clustered duct, against 1.01x on a uniform mesh.
+    ! sdt therefore accumulates vol/dt_vol; sv still accumulates vol, and the
+    ! coarser levels reduce both accumulators exactly as before. ifort declines
     ! to auto-vectorize the ib loop (remark #15541: "consider using SIMD
     ! directive") because its body is a manual 8-corner scalar reduction with
     ! stride-2 reads -- not an aliasing hazard (ib writes are all disjoint), so
@@ -805,14 +816,14 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
                 do kk = 2*kb-1, 2*kb
                     do jj = 2*jb-1, 2*jb
                         do ii = 2*ib-1, 2*ib
-                            s_dt = s_dt + dt_vol(ii,jj,kk)*vol(ii,jj,kk)
+                            s_dt = s_dt + vol(ii,jj,kk)/dt_vol(ii,jj,kk)
                             s_v  = s_v  + vol(ii,jj,kk)
                         end do
                     end do
                 end do
                 sdt(ib,jb,kb)   = s_dt
                 sv (ib,jb,kb)   = s_v
-                dtblk(ib,jb,kb) = s_dt / s_v
+                dtblk(ib,jb,kb) = s_v / s_dt
             end do
         end do
     end do
@@ -871,7 +882,7 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
                     end do
                     sdt(ib,jb,kb)   = s_dt
                     sv (ib,jb,kb)   = s_v
-                    dtblk(ib,jb,kb) = s_dt / s_v
+                    dtblk(ib,jb,kb) = s_v / s_dt
                 end do
             end do
         end do

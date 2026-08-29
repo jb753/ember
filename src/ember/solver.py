@@ -530,8 +530,8 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
             # level l = 1..n_levels (block size b = 2**l) the correction scales by
             # coef_l = cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1) (advance_rk_stage_mg's
             # formula at alpha=1, since scree takes one full-weight step), with
-            # the coarse timestep the volume-weighted mean of dt_vol over the
-            # block. The wrapper's final factor-2 hop lands straight on the
+            # the coarse timestep the volume-weighted harmonic mean of
+            # dt_vol over the block, sum(vol)/sum(vol/dt_vol). The wrapper's final factor-2 hop lands straight on the
             # NODES and is fused with the fine term's cell->node scatter, so
             # like the RK path it takes a rolling two-plane buffer rather than
             # a full-volume increment. ONE carve
@@ -685,9 +685,14 @@ def advance_rk_stage_mg(
     (the default ``expon_mgrid=2.0`` reproduces the original fixed factor-2
     decay).
 
-    ``dt_coarse_l`` is the volume-weighted mean of ``dt_vol`` over the coarse
-    block, ``sum(dt_vol*vol)/sum(vol)``, which is why the kernels take
-    ``block.vol_nd``. This mirrors multall's ``STEP1 =
+    ``dt_coarse_l`` is the volume-weighted HARMONIC mean of ``dt_vol`` over the
+    coarse block, ``sum(vol)/sum(vol/dt_vol)``, which is why the kernels take
+    ``block.vol_nd``. Harmonic because the block needs the reciprocal of the
+    block's spectral radius, ``1/<Lambda>``, and ``dt_vol`` is ``1/Lambda`` per
+    cell; by Jensen the arithmetic mean ``sum(dt_vol*vol)/sum(vol)`` that this
+    used to take is the larger of the two whenever ``Lambda`` varies over the
+    block, so it overstated the coarse timestep on a stretched mesh and
+    over-drove the block's smallest cells. This mirrors multall's ``STEP1 =
     CFL*FBLK*PERPMIN/VSOUND/VOLB``: our ``dt_vol*vol`` is the per-cell
     ``perp/(a+V)`` that multall sums into ``PERPMIN``, and the ``1/b**2`` stays
     in ``coef_l``. Sampling ``dt_vol`` at the block's centre cell instead --

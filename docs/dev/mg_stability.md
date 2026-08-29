@@ -802,6 +802,42 @@ Predictions for either change:
 
 Both are a departure from the multall STEP1 lineage the docstring cites.
 
+### Claim 1 implemented, and its stability prediction falsified
+
+The harmonic mean is now what the kernel computes: sdt accumulates
+sum(vol/dt_vol), sv accumulates sum(vol), and dtblk = sv/sdt (scree.f90, the
+shared mg_coarse_correction engine; the coarser levels reduce the two
+accumulators unchanged). tests/test_scree_mg.py pins it with a checkerboard of
+2/3 and 2, whose harmonic mean over every 2x2x2 block is exactly 1.0 against an
+arithmetic mean of 4/3, so the kernel cannot tell that field from a uniform
+dt_vol of 1.0 -- measured agreement 9.5e-07 against a coarse contribution of
+0.486, where the arithmetic mean would differ by a third.
+
+The predicted stability gain did NOT appear:
+
+    case                 before (arithmetic)        after (harmonic)      predicted
+    fmg = 0.4, nl = 3    stable 3.5, unstable 3.75  stable 3.625,         ~4.2 to 4.4
+                                                    unstable 3.75
+    level-3-only         unstable 5.0 (growth 18.5) unstable 5.0          ~5.5 to 6.0
+                                                    (growth 23.0)
+
+The upper bound is identical in both cases; any gain is smaller than the 0.125
+bracket resolution, against a predicted move of 0.6 or more. (The cfl = 3.625
+point was never run under the arithmetic mean, so even the narrow gain is
+unproven; an A/B needs a revert, a rebuild and one run.)
+
+So the dt_blk tail is NOT the source of the clustered mesh's extra penalty,
+despite the 1.35x-versus-1.01x measurement that suggested it. That was
+correlation: the tail is real and the penalty is real, but removing the tail
+does not remove the penalty. What remains, per section 1b, is the
+geometry-aware prolongation -- the other clustering-only difference between
+model and kernel, and the one the model represents with a plain hat P_b.
+
+The change stands or falls on its own correctness argument now, not on any
+stability benefit: sum(vol)/sum(vol/dt_vol) is the reciprocal of the block's
+mean spectral radius, which is what the coarse update needs, and the previous
+arithmetic mean was larger by Jensen whenever Lambda varied over the block.
+
 
 ## 8. Reproducing
 
