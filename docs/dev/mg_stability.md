@@ -826,17 +826,138 @@ bracket resolution, against a predicted move of 0.6 or more. (The cfl = 3.625
 point was never run under the arithmetic mean, so even the narrow gain is
 unproven; an A/B needs a revert, a rebuild and one run.)
 
-So the dt_blk tail is NOT the source of the clustered mesh's extra penalty,
-despite the 1.35x-versus-1.01x measurement that suggested it. That was
-correlation: the tail is real and the penalty is real, but removing the tail
-does not remove the penalty. What remains, per section 1b, is the
-geometry-aware prolongation -- the other clustering-only difference between
-model and kernel, and the one the model represents with a plain hat P_b.
+That null result is UNDERPOWERED, not a falsification -- a distinction worth
+being careful about, because it was first written up here as the latter. The
+harmonic mean removes only part of the tail:
 
-The change stands or falls on its own correctness argument now, not on any
-stability benefit: sum(vol)/sum(vol/dt_vol) is the reciprocal of the block's
-mean spectral radius, which is what the coarse update needs, and the previous
-arithmetic mean was larger by Jensen whenever Lambda varied over the block.
+    rule                     G mean   G max   local excess
+    arithmetic (before)       3.397   4.592     1.352x
+    harmonic (now)            3.336   4.378     1.312x
+    block minimum (untested)  --      --        1.000x by construction
+
+The excess falls from 1.352 to 1.312, i.e. 11 per cent of it. If the penalty
+scales with the excess, the expected CFL shift is about 3 per cent, or 0.11 --
+right at the 0.125 bracket resolution of these probes. The experiment could not
+have seen it. The decisive test of the tail hypothesis is the block MINIMUM
+(claim 2), which removes the excess entirely and should move the limit by about
+0.6 if the hypothesis is right.
+
+The change stands on its own correctness argument regardless of that:
+sum(vol)/sum(vol/dt_vol) is the reciprocal of the block's mean spectral radius,
+which is what the coarse update needs, and the previous arithmetic mean was
+larger by Jensen whenever Lambda varied over the block.
+
+### The fine and coarse terms do not reach the nodes the same way
+
+The prolongation cascade runs coarse cell -> coarse cell for hops 2 and up, and
+its FINAL hop goes from level-1 coarse cell centroids straight onto the fine
+NODES. The fine term does not: it is a cell quantity and reaches the nodes
+through cell_to_node, a plain 1/8 average of the eight adjacent cells (pure
+index arithmetic, no geometry -- distribute.f90).
+
+So the two terms have different transfers onto the nodal state, and the model
+wrote the composite as 1 + G_coarse when it should be C(theta) + G_coarse with
+C = prod_d cos(theta_d/2), the cell_to_node transfer. At the critical mode
+C = 0.952, so the fine term is attenuated about 5 per cent relative to the
+coarse one and the model overstated the fine term by that much.
+
+    model form                          no MG    fmg 0.2   fmg 0.4   critical
+    1 + G_coarse (as written)           6.325     0.883     0.760    11.7 c/w
+    C + G_coarse (corrected)            6.852     0.853     0.717    12.6 c/w
+    measured                              --      0.800*    0.656*   12.6 c/w
+    (* clustered mesh; uniform mesh measures 0.76 at fmg 0.4)
+
+The correction earns its place on the critical wavenumber: it predicts 12.6
+cells/wave, which is exactly what E1 measured on the first differences. But it
+costs the claim that mattered most elsewhere in this document -- that the model
+is EXACT on a uniform mesh. That agreement (0.760 predicted, 0.76 measured) was
+partly luck, resting on this omission. Corrected, the model gives 0.717 on both
+meshes: pessimistic against the uniform 0.76, still optimistic against the
+clustered 0.656. Sections 4, 6 and 7d should be read with that in mind.
+
+The geometric part of the same asymmetry is negligible and can be set aside:
+cell_to_node evaluates at the mean of the eight surrounding centroids, which on
+this mesh sits 2.7 per cent of a cell from the node, worth 0.017 rad of phase
+and 0.01 per cent of amplitude at the critical mode.
+
+Note also that C is index-based, hence identical on both meshes, so it does not
+explain the clustered/uniform gap either. That gap remains open.
+
+
+### Claim 2 implemented, measured, and reverted
+
+The block-minimum clamp was implemented (sdt carries a running minimum, the
+coarser levels reduce it as a min of minima) and measured. Two things fell out.
+
+First, a design consequence the compiler found immediately: under a minimum,
+vol does not enter the coarse timestep at all, so vol and the sv accumulator
+become dead arguments through the engine, its four wrappers, the Python carve
+and the tests. The build enforces -Werror=unused-dummy-argument, so keeping
+this rule means deleting them properly. Two tests also become false by
+construction: test_vol_weighting_affects_nonuniform_dt_vol (vol no longer
+matters) and the harmonic test (a checkerboard of 2/3 and 2 has minimum 2/3,
+not 1.0).
+
+Second, the measurement, with the control that the earlier claim-1 test lacked.
+The clamp weakens the mean correction by 32 per cent, and weaker multigrid is
+trivially more stable, so the comparison has to be made at matched
+acceleration: fac_mgrid = 0.476 restores mean G(0) to the 3.336 the harmonic
+rule gives at 0.400.
+
+    rule                                   bracket           local excess
+    arithmetic,   fac = 0.400              (3.50, 3.75)         1.352x
+    harmonic,     fac = 0.400              (3.625, 3.75)        1.312x
+    min-clamp,    fac = 0.400              (3.75, 4.00)         1.147x
+    min-clamp,    fac = 0.476 (matched)    (3.50, 3.625)        1.156x
+
+At its own fac the clamp looks like a 5 per cent gain. At MATCHED acceleration
+it is one bracket step WORSE than the harmonic rule. The apparent gain was
+entirely the weaker correction, not the removal of the over-drive.
+
+So the dt_blk tail hypothesis is now properly falsified, with the control the
+first attempt was missing: bounding dtblk/dt_vol by 1 for every cell, which is
+the strongest form of the fix, does not improve the limit and slightly hurts
+it. Claim 2 is reverted; claim 1 stays on its correctness argument.
+
+What this leaves: the clustered mesh's extra multigrid penalty is explained by
+neither of the two candidates. Not the coarse timestep (claim 2 removed the
+tail entirely, to no effect) and not the prolongation (measured below, within 2
+per cent of the uniform mesh at every wavenumber). By elimination it is on the
+FINE side of the composite operator -- the spatial eigenvalue and the IRS
+transfer on a stretched mesh, neither of which this model represents, and both
+of which it assumes take their uniform-mesh form. That is where a next attempt
+should look, and it is a modelling question rather than a kernel one.
+
+
+### The prolongation is NOT the explanation (measured)
+
+The other candidate from section 1b is now ruled out directly. Driving the
+kernel with a single Fourier mode along j (uniform in i and k, dt_vol set to 1
+so the timestep weighting drops out) and differencing the fac_mgrid = 0.4 and
+fac_mgrid = 0 calls gives the true composite restrict -> smooth -> prolong
+transfer on the real grid:
+
+    cells/wave   uniform   clustered   model (hat)   leakage
+         8        0.637     0.631        0.854        ~2%
+        12        1.159     1.148        1.248        ~3%
+        16        1.321     1.318        1.560          0%
+        24        1.863     1.826        1.939         <1%
+        72        2.354     2.351        2.340          0%
+
+Clustering moves the transfer by under 2 per cent at every wavenumber, and mode
+leakage is negligible except at 6 cells/wave (23 per cent, equally on both
+meshes). G(0) calibrates at 2.35 against the predicted 2.34. So the
+geometry-aware weights behave the same on a stretched mesh as on a uniform one.
+
+Note also that the measured transfer sits BELOW the hat model through the
+critical band (0.63 against 0.85 at 8 cells/wave, 1.32 against 1.56 at 16). A
+smaller G means a smaller amplification, hence a HIGHER predicted cfl* -- so
+feeding the measured transfer into the model widens the gap with the measured
+clustered limit rather than closing it. Whatever costs the clustered mesh its
+extra penalty is therefore on the FINE side of the composite operator (the
+spatial eigenvalue and the IRS transfer on a stretched mesh, neither of which
+this model represents), or in the dt_blk tail, which remains untested at the
+only setting that would settle it.
 
 
 ## 8. Reproducing
