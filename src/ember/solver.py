@@ -531,9 +531,10 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
             # coef_l = cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1) (advance_rk_stage_mg's
             # formula at alpha=1, since scree takes one full-weight step), with
             # the coarse timestep the volume-weighted mean of dt_vol over the
-            # block. The wrapper's final factor-2 hop is fused with the
-            # cell->node scatter, so like the RK path it takes a rolling
-            # two-plane buffer rather than a full-volume increment. ONE carve
+            # block. The wrapper's final factor-2 hop lands straight on the
+            # NODES and is fused with the fine term's cell->node scatter, so
+            # like the RK path it takes a rolling two-plane buffer rather than
+            # a full-volume increment. ONE carve
             # for everything the kernel gets from the arena: rbuf and the
             # multigrid scratch are live in the same call, so carving them
             # together is what makes them disjoint -- util.carve_view packs the
@@ -619,13 +620,13 @@ def _mg_coarse_scratch_sizes(ni, nj, nk, n_levels, np=5):
 # The hier2 kernels' scratch arguments, in the order _mg_coarse_shapes returns
 # their shapes. Kept together so the two cannot drift apart.
 MG_COARSE_NAMES = (
-    "aplane", "bb", "dtblk", "rawbuf", "sdt", "sv",
+    "cbuf", "aplane", "bb", "dtblk", "rawbuf", "sdt", "sv",
     "corr_all", "acc0", "acc1", "cres", "triw",
 )
 
 
 def mg_coarse_shapes(ni, nj, nk, n_levels):
-    """Shapes of the hier2 kernels' eleven scratch buffers, in MG_COARSE_NAMES order.
+    """Shapes of the hier2 kernels' twelve scratch buffers, in MG_COARSE_NAMES order.
 
     Separated from the carve so a CALLER can fold these into the single
     ``util.carve_view`` that also carves its own buffers. That matters because
@@ -639,8 +640,12 @@ def mg_coarse_shapes(ni, nj, nk, n_levels):
     n_corr, n_res, n_tri = _mg_coarse_scratch_sizes(ni, nj, nk, n_levels)
     acc_sz = nc1i * nc1j * nc1k * 5
     return (
-        (ni - 1, nc1j),
-        (ni - 1, nj - 1, nc1k, 5),
+        # The final prolongation hop targets the NODES, so its three passes and
+        # the plane they hand to the scatter all carry node extents; the
+        # coarse->coarse hops reuse the same storage at the smaller cell dims.
+        (ni, nj, 5),
+        (ni, nc1j),
+        (ni, nj, nc1k, 5),
         (nc1i, nc1j, nc1k),
         (nc1i, nc1j, nc1k, 5),
         (nc1i, nc1j, nc1k),
@@ -692,7 +697,10 @@ def advance_rk_stage_mg(
     consistent; the final stage (``alpha=1``) therefore lands the full-weight
     coarse correction, matching Denton, while earlier stages damp it like the
     fine residual. Prolongation is **trilinear interpolation**, cascaded coarsest
-    -> finest through factor-2 hops (inlined into the fused kernel below).
+    -> finest through factor-2 hops (inlined into the fused kernel below). The
+    coarse->coarse hops target cell centres; the final hop targets the fine
+    NODES directly, so the correction is never averaged through a cell. Only
+    the fine term, a cell quantity, goes through ``cell_to_node``.
 
     The whole per-block body -- fine term, all coarse levels, and the final
     scatter -- runs in one fused Fortran kernel (``rk_mg_irs``/``rk_mg_noirs``,
@@ -764,9 +772,10 @@ def advance_rk_stage_mg(
             # (the two share the engine and differ only in the smoother passed --
             # no Fortran-side IRS branch). Coarse scratch is carved from
             # the arena, dead outside the viscous pass. The engine leaves the
-            # coarse correction in acc0; the wrapper's final factor-2 hop is
-            # fused with the cell->node scatter, so instead of a full-volume
-            # increment it takes a rolling two-plane buffer carved from scratch.
+            # coarse correction in acc0; the wrapper's final factor-2 hop lands
+            # it on the nodes and is fused with the fine term's cell->node
+            # scatter, so instead of a full-volume increment it takes a rolling
+            # two-plane buffer carved from scratch.
             # One carve, same reason as scree_step above: rbuf and the
             # multigrid scratch reach the same kernel call.
             rbuf, *mg_bufs = util.carve_view(

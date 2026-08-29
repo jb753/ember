@@ -121,9 +121,10 @@ def _run_mg(
         sf_irs=sf_irs,
         n_levels=n_levels,
         rbuf=Z(ni - 1, nj - 1, NP, 2),
+        cbuf=Z(ni, nj, NP),
         dtblk=Z(nc1i, nc1j, nc1k),
-        aplane=Z(ni - 1, nc1j),
-        bb=Z(ni - 1, nj - 1, nc1k, NP),
+        aplane=Z(ni, nc1j),
+        bb=Z(ni, nj, nc1k, NP),
         rawbuf=Z(nc1i, nc1j, nc1k, NP),
         sdt=Z(nc1i, nc1j, nc1k),
         sv=Z(nc1i, nc1j, nc1k),
@@ -138,12 +139,13 @@ def _run_mg(
 
 
 def _index_weights(ni, nj, nk, n_levels):
-    """Packed prolongation weights reproducing the old index-space behaviour.
+    """Packed prolongation weights reproducing the uniform-mesh behaviour.
 
     These are wiring tests on synthetic arrays with no meaningful geometry, so
-    they supply the index weights the kernel used to compute for itself. Layout
+    they supply the weights a mesh uniform in physical space would give. Layout
     must match mg_weight_offsets / ember.block.Block.weight_mgrid: hops run
-    finest first, hop m targeting (cells)/2**(m-1).
+    finest first, and hop 1 -- the final hop -- targets the NODES, so it is
+    (ni, nj, nk)-shaped while hops 2 and up target (cells)/2**(m-1).
     """
     parts = ([], [], [])
     for m in range(1, n_levels + 1):
@@ -151,17 +153,33 @@ def _index_weights(ni, nj, nk, n_levels):
         tfi, tfj, tfk = (ni - 1) // d, (nj - 1) // d, (nk - 1) // d
 
         def w1(nf):
+            """Cell-targeted: the 1/4, 3/4 blend, ends clamped."""
             i = np.arange(1, nf + 1)
             t = (i - 0.5) / 2.0 + 0.5
             icl = np.floor(t).astype(int)
             nc = nf // 2
             return np.where((icl < 1) | (icl >= nc), 0.0, t - icl)
 
-        trio = (
-            np.broadcast_to(w1(tfi)[:, None, None], (tfi, tfj // 2, tfk // 2)),
-            np.broadcast_to(w1(tfj)[None, :, None], (tfi, tfj, tfk // 2)),
-            np.broadcast_to(w1(tfk)[None, None, :], (tfi, tfj, tfk)),
-        )
+        def w1n(nn, nc):
+            """Node-targeted: injection at coarse centres, midpoint between."""
+            i = np.arange(1, nn + 1)
+            lo = np.clip(i // 2, 1, max(nc - 1, 1))
+            return np.clip((i - 2 * lo) / 2.0, 0.0, 1.0)
+
+        if m == 1:
+            trio = (
+                np.broadcast_to(
+                    w1n(ni, tfi // 2)[:, None, None], (ni, tfj // 2, tfk // 2)
+                ),
+                np.broadcast_to(w1n(nj, tfj // 2)[None, :, None], (ni, nj, tfk // 2)),
+                np.broadcast_to(w1n(nk, tfk // 2)[None, None, :], (ni, nj, nk)),
+            )
+        else:
+            trio = (
+                np.broadcast_to(w1(tfi)[:, None, None], (tfi, tfj // 2, tfk // 2)),
+                np.broadcast_to(w1(tfj)[None, :, None], (tfi, tfj, tfk // 2)),
+                np.broadcast_to(w1(tfk)[None, None, :], (tfi, tfj, tfk)),
+            )
         for buf, w in zip(parts, trio):
             buf.append(np.asarray(w, np.float32).ravel(order="F"))
     return tuple(np.asfortranarray(np.concatenate(b)) for b in parts)

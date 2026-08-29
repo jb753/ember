@@ -933,20 +933,30 @@ def _mg_weight_lengths(shape, n_hops):
     """Element count of each direction's packed prolongation weights.
 
     Mirrors ``mg_weight_offsets`` in ``scree.f90``, which is the source of truth
-    for the layout: hops run finest first (hop 1 targets the fine grid), and the
-    three directions pack separately because the three interpolation passes
-    resolve i, then j, then k, and so carry different mixes of fine and coarse
-    extents -- ``wi(tfi, tfj/2, tfk/2)``, ``wj(tfi, tfj, tfk/2)``,
-    ``wk(tfi, tfj, tfk)``. Keep the two in step.
+    for the layout: hops run finest first, and the three directions pack
+    separately because the three interpolation passes resolve i, then j, then k,
+    and so carry different mixes of fine and coarse extents --
+    ``wi(tfi, tfj/2, tfk/2)``, ``wj(tfi, tfj, tfk/2)``, ``wk(tfi, tfj, tfk)``.
+    Keep the two in step.
+
+    Hop 1 is the exception: it is the final hop and targets the fine NODES, so
+    its three target extents are ``(ni, nj, nk)`` rather than the cell counts,
+    over the same coarse extents. Hops 2 and up are coarse->coarse and stay
+    cell-shaped.
     """
     ni, nj, nk = shape
     li = lj = lk = 0
     for m in range(n_hops):
         d = 2**m
         tfi, tfj, tfk = (ni - 1) // d, (nj - 1) // d, (nk - 1) // d
-        li += tfi * (tfj // 2) * (tfk // 2)
-        lj += tfi * tfj * (tfk // 2)
-        lk += tfi * tfj * tfk
+        if m == 0:
+            li += ni * ((nj - 1) // 2) * ((nk - 1) // 2)
+            lj += ni * nj * ((nk - 1) // 2)
+            lk += ni * nj * nk
+        else:
+            li += tfi * (tfj // 2) * (tfk // 2)
+            lj += tfi * tfj * (tfk // 2)
+            lk += tfi * tfj * tfk
     return li, lj, lk
 
 
@@ -960,17 +970,48 @@ def _mg_index_bracket(n_fine, n_coarse):
     return lo - 1, hi - 1
 
 
-def _mg_project(Pf, Plo, Phi):
-    """Fractional position of ``Pf`` along ``Plo``->``Phi``, clamped to [0, 1].
+def _mg_index_bracket_node(n_node, n_coarse):
+    """``lo``/``hi`` exactly as ``mg_bracket2x_node`` computes them, 0-based.
+
+    The final hop's bracket. Unlike the cell one this pair does NOT always
+    contain the node it serves: the coarse centroid is the volume-weighted mean
+    of its two children, so it sits off the node between them, on whichever side
+    the local stretching puts it. :func:`_mg_project` is what accommodates that,
+    by declining to clamp in the interior.
+    """
+    i = np.arange(1, n_node + 1)
+    lo = np.clip(i // 2, 1, max(n_coarse - 1, 1))
+    return lo - 1, np.minimum(lo + 1, n_coarse) - 1
+
+
+def _mg_project(Pf, Plo, Phi, clamp_lo=None, clamp_hi=None):
+    """Fractional position of ``Pf`` along ``Plo``->``Phi``.
 
     Exact whenever the coarse cell is a parallelepiped, which covers every
     separable mesh; an approximation to the inverse trilinear map otherwise.
+
+    Clamped to [0, 1] only where ``clamp_lo``/``clamp_hi`` say the bracket is at
+    the end of the coarse direction, which is the flat extrapolation past the
+    outer coarse centroids. Elsewhere the weight passes through unclamped, so a
+    target lying just outside its fixed bracket -- which every second fine NODE
+    does on a stretched mesh -- is extrapolated the few percent of a coarse cell
+    it needs rather than flattened onto the near centroid. The excursion is
+    bounded by the clustering: on a geometrically stretched line it reaches only
+    about -0.04 at expansion ratio 1.2 and -0.06 at 1.5, so the blend
+    coefficients stay inside roughly [0, 1.07].
+
+    Passing neither mask clamps everywhere, which is what the cell-targeted hops
+    want: their bracket provably contains every fine cell centroid, so a weight
+    outside [0, 1] there could only be a degenerate cell.
     """
     e = Phi - Plo
     den = (e * e).sum(axis=-1)
     num = ((Pf - Plo) * e).sum(axis=-1)
     w = np.where(den > 0.0, num / np.where(den > 0.0, den, 1.0), 0.0)
-    return np.clip(w, 0.0, 1.0)
+    if clamp_lo is None:
+        return np.clip(w, 0.0, 1.0)
+    w = np.where(clamp_lo, np.maximum(w, 0.0), w)
+    return np.where(clamp_hi, np.minimum(w, 1.0), w)
 
 
 def _mg_hop_weights(Pc, Pf):
@@ -998,16 +1039,73 @@ def _mg_hop_weights(Pc, Pf):
     return wi, wj, wk
 
 
-def _mg_centroid_ladder(xrt_nd, vol_nd, n_hops):
-    """Cell centroids of the fine grid and of each coarser block level.
+def _mg_hop_weights_node(Pc, Pn):
+    """The final hop's weights: coarse cell centroids onto the fine NODES.
 
-    Cartesian, so that a projection along a coarse cell edge means what it says
-    in an annulus. Coarse levels take the VOLUME-weighted centroid of their
-    eight children, which is the position the block-sum residual is balanced
-    about.
+    Same three-pass structure as :func:`_mg_hop_weights` -- pass I resolves
+    ``i`` while ``j``/``k`` are still coarse, and so on -- but each pass now
+    lands on node positions, so the target extents are ``(ni, nj, nk)``.
+
+    Two differences from the cell version follow from the bracket
+    (:func:`_mg_index_bracket_node`). The representative coarse index for a
+    direction already resolved is that bracket's ``lo``, which is what the
+    kernel actually reads out of ``aplane``/``bb``; and the clamp is applied
+    only at the ends of each coarse direction, because a node is not guaranteed
+    to lie inside the pair its index picks.
+    """
+    nni, nnj, nnk = Pn.shape[:3]
+    nci, ncj, nck = Pc.shape[:3]
+    il, ih = _mg_index_bracket_node(nni, nci)
+    jl, jh = _mg_index_bracket_node(nnj, ncj)
+    kl, kh = _mg_index_bracket_node(nnk, nck)
+    # Representative node for each coarse index, in a direction not yet
+    # resolved: the node at that coarse cell's centre. Coarse cell m spans fine
+    # cells 2m-1 and 2m, so that node is 1-based 2m, i.e. 0-based 2m-1.
+    jmid = np.minimum(np.arange(1, ncj + 1) * 2 - 1, nnj - 1)
+    kmid = np.minimum(np.arange(1, nck + 1) * 2 - 1, nnk - 1)
+
+    def ends(lo, hi, nc):
+        """Where the pair sits at an end of the coarse direction."""
+        return lo == 0, hi == nc - 1
+
+    ilo, ihi = ends(il, ih, nci)
+    wi = _mg_project(
+        Pn[:, jmid][:, :, kmid],
+        Pc[il],
+        Pc[ih],
+        ilo[:, None, None],
+        ihi[:, None, None],
+    )
+    Pci = Pc[il]
+    jlo, jhi = ends(jl, jh, ncj)
+    wj = _mg_project(
+        Pn[:, :, kmid],
+        Pci[:, jl],
+        Pci[:, jh],
+        jlo[None, :, None],
+        jhi[None, :, None],
+    )
+    Pcij = Pci[:, jl]
+    klo, khi = ends(kl, kh, nck)
+    wk = _mg_project(
+        Pn, Pcij[:, :, kl], Pcij[:, :, kh], klo[None, None, :], khi[None, None, :]
+    )
+    return wi, wj, wk
+
+
+def _mg_centroid_ladder(xrt_nd, vol_nd, n_hops):
+    """Nodes, cell centroids of the fine grid, and each coarser block level.
+
+    Returns ``(nodes, levels)``. Cartesian, so that a projection along a coarse
+    cell edge means what it says in an annulus. Coarse levels take the
+    VOLUME-weighted centroid of their eight children, which is the position the
+    block-sum residual is balanced about. The node positions are what the final
+    prolongation hop interpolates onto, and they fall out of the same stack the
+    fine centroids are averaged from.
     """
     x, r, t = (np.asarray(xrt_nd[..., i], dtype=np.float64) for i in range(3))
-    P = np.stack([x, r * np.cos(t), r * np.sin(t)], axis=-1)
+    nodes = np.stack([x, r * np.cos(t), r * np.sin(t)], axis=-1)
+    P = nodes
     c = P[:-1, :-1, :-1] + P[1:, :-1, :-1] + P[:-1, 1:, :-1] + P[:-1, :-1, 1:]
     c = c + P[1:, 1:, :-1] + P[1:, :-1, 1:] + P[:-1, 1:, 1:] + P[1:, 1:, 1:]
     P = c / 8.0
@@ -1030,7 +1128,7 @@ def _mg_centroid_ladder(xrt_nd, vol_nd, n_hops):
             rP.mean(axis=(1, 3, 5)),
         )
         levels.append(P)
-    return levels
+    return nodes, levels
 
 
 def _viscous_face_shapes(ni, nj, nk):
@@ -1065,9 +1163,9 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
                        alongside either's other buffers
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
-      scree / RK, MG   the eleven multigrid coarse buffers + the caller's
+      scree / RK, MG   the twelve multigrid coarse buffers + the caller's
                        rolling two-plane increment (both schemes fuse the
-                       final prolong with the cell->node scatter)
+                       final prolong with the fine term's cell->node scatter)
       scree / RK, no MG  the caller's full-volume cell-shaped increment, which
                        the multigrid-off kernels still materialise
 
@@ -3926,15 +4024,22 @@ class Block(ember._struct.StructuredData):
 
         The multigrid coarse correction is carried back to the fine grid by a
         separable factor-2 linear interpolation. Which pair of coarse cells a
-        fine cell falls between is index arithmetic (``mg_bracket2x``) and stays
-        so, but where it sits BETWEEN them is geometry: the fractional position
-        of the fine cell centroid along the edge joining the two coarse
-        centroids, taken volume-weighted so it is the point the block-sum
-        residual is balanced about. Placing every fine cell at
-        ``(i - 0.5)/2 + 0.5`` instead, as this used to, is linear interpolation
-        only on a mesh uniform in physical space; on one clustered towards a
-        wall it is not, and that is the mesh on which the block-sum correction
-        goes unstable.
+        target falls between is index arithmetic (``mg_bracket2x``, or
+        ``mg_bracket2x_node`` for the final hop) and stays so, but where it sits
+        BETWEEN them is geometry: the fractional position of the target along
+        the edge joining the two coarse centroids, taken volume-weighted so it
+        is the point the block-sum residual is balanced about. Placing every
+        target at ``(i - 0.5)/2 + 0.5`` instead, as this used to, is linear
+        interpolation only on a mesh uniform in physical space; on one clustered
+        towards a wall it is not, and that is the mesh on which the block-sum
+        correction goes unstable.
+
+        The final hop's target is the fine NODES, not the fine cell centres:
+        that is where the correction is applied, and interpolating onto the
+        centres and averaging back out would evaluate the interpolant at the
+        mean of the eight surrounding centroids, a point offset from the node by
+        ``(h_next - h_prev)/4`` on a stretched mesh. Hops 2 and up are
+        coarse->coarse and stay cell-targeted.
 
         Returns the ``(wi, wj, wk)`` the kernels take, one flat array per
         direction -- the three interpolation passes resolve i, then j, then k,
@@ -3948,17 +4053,24 @@ class Block(ember._struct.StructuredData):
         does -- :meth:`ember.grid.Grid.resample` returns new blocks rather than
         moving an existing one -- and :meth:`clear_cache` is the way out if
         something ever does. Emphatically not solver scratch either way: unlike
-        :attr:`scratch` this has to survive the step. Costs about 8 bytes per
-        fine cell, and being lazy it is never built by a run with multigrid off.
+        :attr:`scratch` this has to survive the step. Costs about 14 bytes per
+        fine cell -- hop 1's ``wk`` alone is one float per node -- and being lazy
+        it is never built by a run with multigrid off.
         """
         n_hops = _mg_n_hops(self.shape)
         if not n_hops:
             return tuple(np.zeros(0, dtype=np.float32) for _ in range(3))
-        levels = _mg_centroid_ladder(self._xrt_nd, self.vol_nd, n_hops)
+        nodes, levels = _mg_centroid_ladder(self._xrt_nd, self.vol_nd, n_hops)
         parts = ([], [], [])
         for m in range(1, n_hops + 1):
-            # Hop m interpolates the coarser level m onto level m-1.
-            for buf, w in zip(parts, _mg_hop_weights(levels[m], levels[m - 1])):
+            # Hop m interpolates the coarser level m onto level m-1, except hop
+            # 1, the final one, which lands on the nodes rather than level 0.
+            trio = (
+                _mg_hop_weights_node(levels[1], nodes)
+                if m == 1
+                else _mg_hop_weights(levels[m], levels[m - 1])
+            )
+            for buf, w in zip(parts, trio):
                 buf.append(np.asarray(w, dtype=np.float32).ravel(order="F"))
         return tuple(np.asfortranarray(np.concatenate(b)) for b in parts)
 

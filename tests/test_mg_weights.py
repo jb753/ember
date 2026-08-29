@@ -1,9 +1,14 @@
 """Tests for the geometry-aware multigrid prolongation weights.
 
 The multigrid coarse correction is carried back to the fine grid by a separable
-factor-2 linear interpolation. Which pair of coarse cells a fine cell falls
-between is index arithmetic (``mg_bracket2x``); where it sits BETWEEN them is
-geometry, and that is what :attr:`ember.block.Block.weight_mgrid` supplies.
+factor-2 linear interpolation. Which pair of coarse cells a target falls between
+is index arithmetic (``mg_bracket2x``, or ``mg_bracket2x_node`` for the final
+hop); where it sits BETWEEN them is geometry, and that is what
+:attr:`ember.block.Block.weight_mgrid` supplies.
+
+The final hop targets the fine NODES, so hop 1 is node-shaped while the
+coarse->coarse hops stay cell-shaped. Its bracket is the one that does not
+always contain its target, which is why its weights may leave [0, 1].
 
 Covered here:
 
@@ -11,9 +16,12 @@ Covered here:
   in ``scree.f90`` expects, which is the only thing keeping the two in step
 - on a mesh uniform in physical space the weights collapse onto the index
   weights the kernel used to compute for itself
-- on a stretched mesh they do not, and they reproduce the fine cell's true
+- on a stretched mesh they do not, and they reproduce the fine node's true
   position between the coarse centroids -- the property the whole change buys
-- ``mg_interp_i2x`` fed the index weights reproduces its old hardcoded blend
+- the interior excursion outside [0, 1] is real but small, and the ends stay
+  clamped so the flat extrapolation survives
+- ``mg_interp_i2x``/``mg_interp_i2x_node`` fed the index weights reproduce their
+  hardcoded blends
 """
 
 import numpy as np
@@ -21,7 +29,7 @@ import pytest
 
 import ember
 from ember import fortran, util
-from ember.block import _mg_index_bracket, _mg_n_hops, _mg_weight_lengths
+from ember.block import _mg_index_bracket_node, _mg_n_hops, _mg_weight_lengths
 
 SHAPE = (17, 17, 17)  # 16 cells a side, so three factor-2 hops exist
 LENGTH = 0.05
@@ -62,11 +70,23 @@ def _index_w1(nf):
     return np.where((icl < 1) | (icl >= nc), 0.0, t - icl)
 
 
+def _index_w1_node(nn, nc):
+    """The uniform-mesh weight for a node direction: injection, then midpoint.
+
+    Node 2m sits at coarse cell m's centre and node 2m+1 at the interface, so on
+    a mesh uniform in physical space the weights are 0 and 0.5 alternating, with
+    the two ends clamped by the flat extrapolation.
+    """
+    i = np.arange(1, nn + 1)
+    lo = np.clip(i // 2, 1, max(nc - 1, 1))
+    return np.clip((i - 2 * lo) / 2.0, 0.0, 1.0)
+
+
 def _hop1_wi(block):
-    """The i-direction weights of hop 1 (the final hop onto the fine grid)."""
+    """The i-direction weights of hop 1 (the final hop onto the fine nodes)."""
     ni, nj, nk = block.shape
     pwi = block.weight_mgrid[0]
-    shape = (ni - 1, (nj - 1) // 2, (nk - 1) // 2)
+    shape = (ni, (nj - 1) // 2, (nk - 1) // 2)
     return pwi[: np.prod(shape)].reshape(shape, order="F")
 
 
@@ -107,13 +127,16 @@ def test_hops_stop_where_the_cells_stop_dividing():
 def test_uniform_mesh_gives_back_the_index_weights():
     """Uniform in physical space is the one case the old index weights got right.
 
+    For the node-targeted final hop those weights alternate 0 (the node at a
+    coarse cell centre, so injection) and 1/2 (the node on a coarse interface).
+
     Not exactly zero difference: cell volume in an annulus goes as r, so a
     block's volume-weighted centroid sits slightly outboard of its arithmetic
     midpoint. That is the residual seen here, and it is three orders below the
     error clustering introduces (see the test below).
     """
     wi = _hop1_wi(_block())
-    expected = _index_w1(SHAPE[0] - 1)[:, None, None]
+    expected = _index_w1_node(SHAPE[0], (SHAPE[0] - 1) // 2)[:, None, None]
 
     np.testing.assert_allclose(wi, np.broadcast_to(expected, wi.shape), atol=1e-6)
 
@@ -121,19 +144,40 @@ def test_uniform_mesh_gives_back_the_index_weights():
 def test_stretched_mesh_departs_from_the_index_weights():
     """On a clustered mesh the index weight is simply the wrong place."""
     wi = _hop1_wi(_block(_stretched_x(SHAPE[0])))
-    index = np.broadcast_to(_index_w1(SHAPE[0] - 1)[:, None, None], wi.shape)
+    index = np.broadcast_to(
+        _index_w1_node(SHAPE[0], (SHAPE[0] - 1) // 2)[:, None, None], wi.shape
+    )
 
-    assert np.abs(wi - index).max() > 0.05
-    assert wi.min() >= 0.0 and wi.max() <= 1.0
+    assert np.abs(wi - index).max() > 0.02
 
 
-def test_weights_place_the_fine_cell_where_it_really_is():
-    """The weight must reproduce the fine centroid from the coarse pair.
+def test_interior_weights_leave_the_unit_interval_but_barely():
+    """The node bracket does not always contain its node, and must not pretend to.
+
+    A coarse centroid is the volume-weighted mean of its two children, so on a
+    stretched mesh it sits off the node between them and the node falls just
+    outside the pair its index picks. Clamping there -- which is what the
+    cell-targeted hops do -- would flatten the correction at every second node,
+    so the interior weight is left to extrapolate. The excursion is bounded by
+    the clustering and stays far inside a well-conditioned blend.
+    """
+    wi = _hop1_wi(_block(_stretched_x(SHAPE[0])))[:, 0, 0]
+
+    assert wi.min() < 0.0  # the excursion is real
+    assert wi.min() > -0.1  # and small: coefficients stay inside about [0, 1.1]
+    assert wi.max() <= 1.0
+    # The ends stay clamped, which is what keeps the flat extrapolation past the
+    # outer coarse centroids.
+    assert wi[0] == 0.0 and wi[-1] == 1.0
+
+
+def test_weights_place_the_fine_node_where_it_really_is():
+    """The weight must reproduce the fine NODE position from the coarse pair.
 
     This is the property the change buys, stated directly: interpolating the
-    coarse cell POSITION with (lo, hi, w) has to give back the fine cell
-    position. With the index weights it does not, on any mesh that is not
-    uniform -- which is what the assertion at the end pins.
+    coarse cell POSITION with (lo, hi, w) has to give back the node position.
+    With the index weights it does not, on any mesh that is not uniform -- which
+    is what the assertion at the end pins.
     """
     ni = SHAPE[0]
     block = _block(_stretched_x(ni))
@@ -142,23 +186,25 @@ def test_weights_place_the_fine_cell_where_it_really_is():
     # Fine cell centroids in x, and their volume-weighted coarse blocks, built
     # the way the ladder does. x is separable here, so one column says it all.
     x = np.asarray(block.x, dtype=np.float64)
-    xc = 0.5 * (x[:-1, 0, 0] + x[1:, 0, 0])
+    xn = x[:, 0, 0]
+    xc = 0.5 * (xn[:-1] + xn[1:])
     vol = np.asarray(block.vol, dtype=np.float64).sum(axis=(1, 2))
     pair = slice(None, None, 2), slice(1, None, 2)
     wsum = vol[pair[0]] + vol[pair[1]]
     xcoarse = (xc[pair[0]] * vol[pair[0]] + xc[pair[1]] * vol[pair[1]]) / wsum
 
-    lo, hi = _mg_index_bracket(ni - 1, (ni - 1) // 2)
+    lo, hi = _mg_index_bracket_node(ni, (ni - 1) // 2)
     got = xcoarse[lo] * (1.0 - wi) + xcoarse[hi] * wi
 
-    # The two end cells clamp onto a single coarse centroid (lo == hi), so they
-    # cannot reproduce anything but that centroid; the interior is the claim.
-    np.testing.assert_allclose(got[1:-1], xc[1:-1], rtol=1e-5)
+    # Only the nodes outside the outer coarse centroids are clamped, and on this
+    # mesh that is one node at each end; everything else is the claim.
+    inner = (xn > xcoarse[0]) & (xn < xcoarse[-1])
+    np.testing.assert_allclose(got[inner], xn[inner], rtol=1e-5)
 
-    index = _index_w1(ni - 1)
+    index = _index_w1_node(ni, (ni - 1) // 2)
     with pytest.raises(AssertionError):
         got_index = xcoarse[lo] * (1.0 - index) + xcoarse[hi] * index
-        np.testing.assert_allclose(got_index[1:-1], xc[1:-1], rtol=1e-5)
+        np.testing.assert_allclose(got_index[inner], xn[inner], rtol=1e-5)
 
 
 def test_interp_i2x_reproduces_its_old_blend():
@@ -186,3 +232,98 @@ def test_interp_i2x_reproduces_its_old_blend():
     want[nfi - 1] = cin[nci - 1]
 
     np.testing.assert_allclose(got, want, rtol=1e-6)
+
+
+def test_interp_i2x_node_blends_its_pair():
+    """The node interpolator must use the pair (m, m+1) for nodes 2m and 2m+1.
+
+    Fed the uniform-mesh weights it is injection at the coarse centres and the
+    midpoint on the interfaces, with both ends flat -- which is the vertex
+    prolongation the fused final hop is supposed to be.
+    """
+    nci, nfi = 8, 17
+    rng = np.random.default_rng(0)
+    cin = np.asfortranarray(rng.standard_normal(nci), dtype=np.float32)
+    w = np.asfortranarray(_index_w1_node(nfi, nci), dtype=np.float32)
+
+    got = np.zeros(nfi, dtype=np.float32, order="F")
+    fortran.mg_interp_i2x_node(cin, got, w)
+
+    want = np.empty(nfi, dtype=np.float32)
+    want[0] = cin[0]
+    for m in range(1, nci):
+        want[2 * m - 1] = cin[m - 1]  # node at coarse centre m: injection
+        want[2 * m] = cin[m - 1] * np.float32(0.5) + cin[m] * np.float32(0.5)
+    want[nfi - 2] = cin[nci - 1]  # last coarse centre, still injection
+    want[nfi - 1] = cin[nci - 1]  # past it, flat
+
+    np.testing.assert_allclose(got, want, rtol=1e-6)
+
+
+def _prolong_only(block, coarse):
+    """Run the fused final hop with the fine term switched off.
+
+    ``scale = 0`` kills ``scale*dt_vol*q``, so what lands on ``cons`` is the
+    prolonged coarse correction and nothing else.
+    """
+    ni, nj, nk = block.shape
+    ncj, nck = (nj - 1) // 2, (nk - 1) // 2
+
+    def Z(*shape):
+        return np.asfortranarray(np.zeros(shape, dtype=np.float32))
+
+    cons = Z(ni, nj, nk, 5)
+    pwi, pwj, pwk = block.weight_mgrid
+    shapes = ((ni, ncj, nck), (ni, nj, nck), (ni, nj, nk))
+    wi, wj, wk = (
+        np.asfortranarray(p[: np.prod(sh)].reshape(sh, order="F"))
+        for p, sh in zip((pwi, pwj, pwk), shapes)
+    )
+    fortran.mg_prolong2x_fine_scatter(
+        src=np.asfortranarray(
+            np.repeat(coarse[..., None], 5, axis=-1), dtype=np.float32
+        ),
+        base=Z(ni, nj, nk, 5),
+        cons=cons,
+        scale=0.0,
+        dt_vol=Z(ni - 1, nj - 1, nk - 1),
+        q=Z(ni - 1, nj - 1, nk - 1, 5),
+        aplane=Z(ni, ncj),
+        bb=Z(ni, nj, nck, 5),
+        cbuf=Z(ni, nj, 5),
+        rbuf=Z(ni - 1, nj - 1, 5, 2),
+        wi=wi,
+        wj=wj,
+        wk=wk,
+    )
+    return cons[..., 0]
+
+
+@pytest.mark.parametrize("ER", [1.0, 1.2, 1.35])
+def test_prolonged_linear_correction_lands_on_the_nodes(ER):
+    """A correction linear in space must arrive at the nodes unchanged.
+
+    The whole point of targeting the nodes: linear interpolation reproduces a
+    linear field exactly, and it does so at the node only if that is where the
+    interpolant is evaluated. Interpolating onto the fine cell centres and
+    averaging back out -- what this used to do -- evaluates it at the mean of
+    the eight surrounding centroids instead, which a stretched mesh moves off
+    the node by ``(h_next - h_prev)/4``.
+
+    The gradient is along x alone, the one direction this annular mesh makes
+    exactly separable, so the residual here is float32 and nothing else; a
+    gradient with radial and tangential parts also picks up the annulus
+    curvature that :func:`test_uniform_mesh_gives_back_the_index_weights`
+    already documents.
+    """
+    block = _block(_stretched_x(SHAPE[0], ER) if ER > 1.0 else None)
+    nodes, levels = ember.block._mg_centroid_ladder(
+        block._xrt_nd, block.vol_nd, _mg_n_hops(SHAPE)
+    )
+    origin = nodes.reshape(-1, 3).mean(axis=0)
+    got = _prolong_only(block, (levels[1] - origin)[..., 0].astype(np.float32))
+    want = (nodes - origin)[..., 0]
+
+    # The outer half coarse cell is deliberately flat, so compare the interior.
+    inner = (slice(2, -2),) * 3
+    assert np.abs(got[inner] - want[inner]).max() / np.ptp(want) < 1e-6
