@@ -10,6 +10,13 @@ public API without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* Add ``ember.cases.er_for_duct_yplus``, which solves the duct grid's
+  clustering expansion ratio for a target wall ``y+`` rather than having it
+  picked by hand: a uniform probe grid supplies the mean flow and geometry, a
+  flat-plate skin-friction correlation (White or Prandtl) sets the friction
+  velocity, and ``cluster_symmetric``'s first spacing is bisected onto the
+  resulting wall height. Raises if the target is coarser than the uniform mesh
+  already gives, which no amount of clustering can reach.
 * Rename the throttle pressure correction from ``P_throttle`` to
   ``dP_throttle``, in ``OutletPatch.get_throttle_stats``, ``ConvergenceStep``
   and the ``ConvergenceHistory`` column. Breaking, the last of these being a

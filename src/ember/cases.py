@@ -217,3 +217,98 @@ def build_duct_grid(
     block.set_Vx(Vx * ramp[:, None, None])
 
     return grid
+
+
+def er_for_duct_yplus(yplus=30.0, *, correlation="white", x_ref_frac=1.0, **kwargs):
+    """Solve :func:`build_duct_grid`'s ``ER`` for a wall cell at ``yplus``.
+
+    Clustering picked by eye is how a duct ends up with its first cell deep
+    inside the viscous sublayer, where the wall function changes branch, on a
+    mesh whose wall cells are tens of times longer than they are tall. Here the
+    expansion ratio is solved for instead: a first pass builds the duct
+    UNIFORMLY (``cluster=False``) purely to read back the mean flow and the
+    geometry, since ``build_duct_grid`` fixes ``rho``, ``U`` and ``mu`` from
+    ``Ma_bulk``, ``Po`` and ``To``, so none of them is known until a grid
+    exists. A flat-plate skin-friction correlation evaluated at
+    ``x_ref_frac`` of the duct length then sets the friction velocity, hence
+    the wall spacing that puts the first node at ``yplus``, and
+    :func:`~ember.util.cluster_symmetric`'s first spacing is bisected onto it.
+
+    The correlation is used as a spacing SCALE, not as a prediction of the
+    duct's actual wall shear.
+
+    Parameters
+    ----------
+    yplus : float
+        Target wall distance, in wall units, of the first node off the wall.
+    correlation : {"white", "prandtl"}
+        Local skin-friction correlation for a smooth flat plate at
+        Reynolds number ``Re_x = rho*U*x/mu``. ``"white"`` is
+        ``cf = 0.455 / ln(0.06*Re_x)**2`` (White, *Viscous Fluid Flow*, 3rd
+        ed., eq. 6-73), a log-law fit over roughly ``1e5 < Re_x < 1e9`` and so
+        the default; ``"prandtl"`` is the 1/7-power result
+        ``cf = 0.0592 * Re_x**-0.2`` quoted in Schlichting, *Boundary-Layer
+        Theory*, stated for ``5e5 < Re_x < 1e7``.
+    x_ref_frac : float
+        Fraction of the duct length at which the correlation is evaluated.
+    **kwargs
+        Passed to :func:`build_duct_grid` for the probe build, so the ER comes
+        out for the grid actually wanted. ``cluster`` is forced off.
+
+    Returns
+    -------
+    float
+        Expansion ratio to pass back to :func:`build_duct_grid` as ``ER``.
+
+    Raises
+    ------
+    ValueError
+        If the target needs a wall cell COARSER than the uniform mesh already
+        gives, which no amount of clustering can reach: clustering only
+        refines.
+    """
+    probe = build_duct_grid(**{**kwargs, "cluster": False})[0]
+    i0, j0, k0 = probe.ni // 2, probe.nj // 2, probe.nk // 2
+    rho = float(probe.rho[i0, j0, k0])
+    mu = float(probe.mu[i0, j0, k0])
+    U = float(
+        np.sqrt(
+            probe.Vx[i0, j0, k0] ** 2
+            + probe.Vr[i0, j0, k0] ** 2
+            + probe.Vt[i0, j0, k0] ** 2
+        )
+    )
+    length = float(probe.x.max() - probe.x.min())
+    side = float(probe.r.max() - probe.r.min())
+    nj = probe.nj
+
+    Re_x = rho * U * x_ref_frac * length / mu
+    if correlation == "white":
+        cf = 0.455 / np.log(0.06 * Re_x) ** 2
+    elif correlation == "prandtl":
+        cf = 0.0592 * Re_x**-0.2
+    else:
+        raise ValueError(f"unknown correlation {correlation!r}")
+    u_tau = np.sqrt(cf * 0.5 * U**2)
+    d_target = yplus * mu / (rho * u_tau)
+
+    # cluster_symmetric lays a pure geometric series on each half-width, so the
+    # first spacing falls monotonically with ER and a bisection is enough.
+    def first(ER):
+        return side * float(np.diff(util.cluster_symmetric(nj, ER))[0])
+
+    lo, hi = 1.0 + 1e-7, 3.0
+    if first(lo) < d_target:
+        raise ValueError(
+            f"yplus={yplus} needs a wall cell of {d_target:.4e}, which is "
+            f"COARSER than the uniform mesh already gives ({first(lo):.4e}). "
+            "Clustering can only refine the wall, so this target is "
+            f"unreachable at nj={nj}."
+        )
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if first(mid) > d_target:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
