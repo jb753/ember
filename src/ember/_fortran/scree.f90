@@ -125,8 +125,13 @@ end subroutine mg_interp_i2x
 ! fall just outside the pair (m, m+1). That is why the weights this pair is fed
 ! are allowed slightly outside [0, 1] in the interior (ember.block._mg_project):
 ! the bracket stays fixed and the blend extrapolates by the few percent of a
-! coarse cell the clustering asks for. Clamping the weight instead would flatten
+! coarse cell the clustering asks for. Clamping to [0, 1] instead would flatten
 ! the correction at every even node, which is the bug this pair exists to avoid.
+!
+! Slightly outside, and no further: Python bounds them at
+! ember.block.MG_W_LO/MG_W_HI, so whatever the mesh does this stays a blend and
+! the three passes cannot amplify the coarse correction they carry to the node.
+! Nothing here checks that -- the kernel takes the weights as given.
 pure subroutine mg_bracket2x_node(i, n_coarse, lo, hi)
 
     implicit none

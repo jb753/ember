@@ -10,6 +10,23 @@ public API without a deprecation period.
 0.3.0 (unreleased)
 ------------------
 
+* Fix the node-targeted multigrid prolongation weights, which on a sheared mesh
+  clustered to a wall could reach -25 and so turn the final hop into an
+  amplifier of the coarse correction rather than a blend of it. Two parts. Each
+  of the hop's three passes is now anchored on the positions the previous pass
+  produced -- the j pass blends two values the i pass placed at a fine node, so
+  its weight has to measure along the segment joining those, not between the
+  coarse centroids of the bracket's own i index, which leaves the target
+  displaced by up to half a coarse i cell and projects that displacement onto a
+  coarse j edge an order of magnitude shorter. And the weights are bounded at
+  ``block.MG_W_LO``/``MG_W_HI`` = -0.25/1.25, which the cell-targeted hops'
+  ``[0, 1]`` clamp had been supplying until the node hop stopped clamping in the
+  interior. On the LISA 1.5-stage rotor the composed worst-case gain of the
+  three passes falls from 1030 to 3.3 and the prolongation's linear-reproduction
+  error from 6.5% to 2.2% of field range; the case diverged in ten steps at
+  ``fac_mgrid=0.2`` and no longer does. Behaviour change on skewed or clustered
+  meshes, and the accuracy of the weights is unchanged where the projection was
+  already well conditioned.
 * Put selective frequency damping back into the march. ``Solver.gain_filt``
   applied its body force every step, but nothing ever advanced the low-pass
   filter that force is built from -- the ``Grid.update_filter`` call in

@@ -20,6 +20,10 @@ Covered here:
   position between the coarse centroids -- the property the whole change buys
 - the interior excursion outside [0, 1] is real but small, and the ends stay
   clamped so the flat extrapolation survives
+- every weight stays a bounded blend, on a sheared mesh clustered off the
+  direction being resolved -- the shape that made the LISA rotor diverge
+- each pass is anchored where the last one landed, so the interpolant is
+  evaluated at the node it claims to be
 - ``mg_interp_i2x``/``mg_interp_i2x_node`` fed the index weights reproduce their
   hardcoded blends
 """
@@ -29,36 +33,61 @@ import pytest
 
 import ember
 from ember import fortran, util
-from ember.block import _mg_index_bracket_node, _mg_n_hops, _mg_weight_lengths
+from ember.block import (
+    MG_W_HI,
+    MG_W_LO,
+    _mg_centroid_ladder,
+    _mg_index_bracket_node,
+    _mg_n_hops,
+    _mg_project,
+    _mg_weight_lengths,
+)
 
 SHAPE = (17, 17, 17)  # 16 cells a side, so three factor-2 hops exist
 LENGTH = 0.05
 NB = 157
 
 
-def _block(xv=None):
+def _block(xv=None, ER_r=1.0, shear=0.0):
     """Single block on a duct-like annular mesh.
 
     ``xv`` overrides the axial node distribution, which is the one direction
     whose cell centroids are exactly the mean of their nodes however the
     annulus curves -- so a stretch there is a clean test of the projection.
+
+    ``ER_r`` clusters the RADIAL nodes towards the hub and ``shear`` tilts the
+    j lines in x by ``shear*(r - r_hub)``. Both default off, leaving the mesh
+    every other test here is written against. The pair together is what makes a
+    coarse j edge short AND gives it an axial component, which is the only mesh
+    on which the j-pass projection is ill-conditioned -- see
+    :func:`test_weights_are_a_bounded_blend`.
     """
     pitch = 2.0 * np.pi / NB
     xrt = util.linmesh3([0.0, LENGTH], [1.0, 1.0 + LENGTH], [0.0, pitch], SHAPE)
-    block = ember.block.Block(shape=SHAPE)
+    r = xrt[..., 1]
+    if ER_r > 1.0:
+        rv = 1.0 + _stretch(SHAPE[1], ER_r) * LENGTH
+        r = np.broadcast_to(rv[None, :, None], SHAPE).astype(np.float32)
     x = xrt[..., 0] if xv is None else np.broadcast_to(xv[:, None, None], SHAPE)
+    x = x + shear * (r - 1.0)
+    block = ember.block.Block(shape=SHAPE)
     block.set_x(np.ascontiguousarray(x, dtype=np.float32))
-    block.set_r(xrt[..., 1])
+    block.set_r(np.ascontiguousarray(r, dtype=np.float32))
     block.set_t(xrt[..., 2])
     block.set_Nb(NB)
     return block
 
 
-def _stretched_x(n, ER=1.2):
-    """Geometrically stretched node positions on [0, LENGTH]."""
+def _stretch(n, ER):
+    """Geometrically stretched node positions on [0, 1]."""
     d = ER ** np.arange(n - 1, dtype=np.float64)
     x = np.concatenate([[0.0], np.cumsum(d)])
-    return (LENGTH * x / x[-1]).astype(np.float32)
+    return x / x[-1]
+
+
+def _stretched_x(n, ER=1.2):
+    """Geometrically stretched node positions on [0, LENGTH]."""
+    return (LENGTH * _stretch(n, ER)).astype(np.float32)
 
 
 def _index_w1(nf):
@@ -84,10 +113,33 @@ def _index_w1_node(nn, nc):
 
 def _hop1_wi(block):
     """The i-direction weights of hop 1 (the final hop onto the fine nodes)."""
+    return _hop1_weights(block)[0]
+
+
+def _hop1_weights(block):
+    """All three directions of hop 1, unpacked to the shapes the kernel reads.
+
+    Hop 1 is packed first in each direction's array, so its slice is the first
+    ``_mg_weight_lengths(shape, 1)`` entries.
+    """
     ni, nj, nk = block.shape
-    pwi = block.weight_mgrid[0]
-    shape = (ni, (nj - 1) // 2, (nk - 1) // 2)
-    return pwi[: np.prod(shape)].reshape(shape, order="F")
+    ncj, nck = (nj - 1) // 2, (nk - 1) // 2
+    shapes = ((ni, ncj, nck), (ni, nj, nck), (ni, nj, nk))
+    return tuple(
+        w[: np.prod(sh)].reshape(sh, order="F").astype(np.float64)
+        for w, sh in zip(block.weight_mgrid, shapes)
+    )
+
+
+def _pass_gain(w):
+    """Worst-case gain of one blend pass, ``max(|1-w| + |w|)``.
+
+    A blend ``(1-w)*a + w*b`` cannot amplify its two inputs by more than this,
+    and it is exactly 1 while w stays in [0, 1]. The three passes compose, so
+    the product is what the final hop can do to a coarse correction before it
+    is added to a node at full weight.
+    """
+    return float((np.abs(1.0 - w) + np.abs(w)).max())
 
 
 def test_packed_layout_matches_the_kernel():
@@ -207,6 +259,160 @@ def test_weights_place_the_fine_node_where_it_really_is():
         np.testing.assert_allclose(got_index[inner], xn[inner], rtol=1e-5)
 
 
+# A sheared mesh clustered in r is the one that breaks the j pass, and neither
+# ingredient does it alone: the clustering is what makes a coarse j edge short,
+# the shear is what gives it an axial component for an i-offset to project
+# onto. Measured gains in j on this block, before the anchoring fix:
+#
+#   ER_r=1.0 shear=0.0 -> 1.0     ER_r=1.3 shear=2.0 -> 10.3
+#   ER_r=1.3 shear=0.0 -> 1.1     ER_r=1.4 shear=4.0 -> 13.1
+#   ER_r=1.0 shear=2.0 -> 1.4
+#
+# Every other test in this file stretches x alone, on a mesh that is otherwise
+# separable -- and there the coarse j edge is purely radial while the i-offset
+# is purely axial, so the bad projection is identically zero. That is why this
+# went unseen until the LISA rotor diverged on it.
+SKEWED = [(1.0, 0.0), (1.3, 0.0), (1.3, 2.0), (1.4, 4.0)]
+
+
+@pytest.mark.parametrize("ER_r,shear", SKEWED)
+def test_weights_are_a_bounded_blend(ER_r, shear):
+    """No mesh may turn the final hop into an amplifier.
+
+    The correction this hop produces is added to the node at full weight, so
+    the gain of the three passes composed is the factor by which a coarse
+    correction can arrive larger than it left. A blend is only a blend while
+    its coefficient is bounded; past that it is an extrapolation of arbitrary
+    reach, and on the LISA rotor it reached -25.
+
+    The projection cannot be trusted to stay bounded on its own -- it divides
+    by the square of a coarse edge that wall clustering makes arbitrarily
+    short -- so ``_mg_project`` clamps it, and this is the assertion that the
+    clamp is load-bearing rather than decorative.
+    """
+    ws = _hop1_weights(_block(_stretched_x(SHAPE[0]), ER_r=ER_r, shear=shear))
+
+    for w in ws:
+        assert w.min() >= MG_W_LO
+        assert w.max() <= MG_W_HI
+
+    # Which bounds the composed gain, the number that actually matters.
+    cap = (1.0 + 2.0 * max(-MG_W_LO, MG_W_HI - 1.0)) ** 3
+    assert np.prod([_pass_gain(w) for w in ws]) <= cap
+
+
+@pytest.mark.parametrize("ER_r,shear", SKEWED)
+def test_each_pass_is_anchored_where_the_last_one_landed(ER_r, shear):
+    """Pushing the coarse POSITIONS through the three passes must give the nodes.
+
+    The three-dimensional statement of what
+    :func:`test_weights_place_the_fine_node_where_it_really_is` pins in i
+    alone. Pass J blends two values pass I has already placed at node ``i``, so
+    its weight has to measure along the segment joining THOSE positions. Anchor
+    it at the coarse centroids of some representative i index instead and the
+    target sits off its own segment by up to half a coarse i cell, which on a
+    sheared mesh projects onto the j edge and divides by its length.
+
+    Interpolating position rather than field is the direct test: linear
+    interpolation of a linear quantity is exact, and position is the most
+    linear quantity there is, so what comes out is where the interpolant is
+    actually being evaluated.
+    """
+    block = _block(_stretched_x(SHAPE[0]), ER_r=ER_r, shear=shear)
+    nodes, levels = _mg_centroid_ladder(block._xrt_nd, block.vol_nd, _mg_n_hops(SHAPE))
+    Pc = levels[1]
+    got = _prolong_positions(Pc, nodes.shape[:3], *_hop1_weights(block))
+
+    assert _misplacement(got, nodes, Pc) < ANCHOR_TOL
+
+
+def test_anchoring_at_the_bracket_index_misplaces_the_interpolant():
+    """The counter-case: what the test above rules out, ruled out by name.
+
+    On the sheared mesh the old anchoring puts the interpolant an eighth of a
+    coarse cell from the node it claims to evaluate at -- five times the bar,
+    and on the LISA rotor enough to make the blend coefficient -25.
+    """
+    block = _block(_stretched_x(SHAPE[0]), ER_r=1.3, shear=2.0)
+    nodes, levels = _mg_centroid_ladder(block._xrt_nd, block.vol_nd, _mg_n_hops(SHAPE))
+    Pc = levels[1]
+    old = _prolong_positions(Pc, nodes.shape[:3], *_hop1_weights_old(block, Pc))
+
+    assert _misplacement(old, nodes, Pc) > 2.0 * ANCHOR_TOL
+
+
+# How far the interpolant may sit from the node it is evaluated at, as a
+# fraction of a coarse cell. The anchored weights reach 2.5% on the worst mesh
+# here, the old ones 12.6%: a whole coarse cell is what a mis-anchored pass is
+# wrong by, so the scale is right and the margin is real.
+ANCHOR_TOL = 0.05
+
+
+def _misplacement(got, nodes, Pc):
+    """Node-position error of a prolongation, in coarse cells.
+
+    The outer two node planes are excluded: past the outer coarse centroids the
+    weights are deliberately flat, so the interpolant is meant to sit off the
+    node there.
+    """
+    inner = (slice(2, -2),) * 3
+    cell = max(np.abs(np.diff(Pc, axis=ax)).max() for ax in (0, 1, 2))
+    return np.abs(got[inner] - nodes[inner]).max() / cell
+
+
+def _prolong_positions(Pc, node_shape, wi, wj, wk):
+    """Run the final hop's three passes on the coarse centroid POSITIONS."""
+    ni, nj, nk = node_shape
+    nci, ncj, nck = Pc.shape[:3]
+    il, ih = _mg_index_bracket_node(ni, nci)
+    jl, jh = _mg_index_bracket_node(nj, ncj)
+    kl, kh = _mg_index_bracket_node(nk, nck)
+    a = Pc[il] * (1.0 - wi[..., None]) + Pc[ih] * wi[..., None]
+    a[0] = Pc[0]  # the kernel's hardcoded cout(1) = cin(1)
+    b = a[:, jl] * (1.0 - wj[..., None]) + a[:, jh] * wj[..., None]
+    return b[:, :, kl] * (1.0 - wk[..., None]) + b[:, :, kh] * wk[..., None]
+
+
+def _hop1_weights_old(block, Pc):
+    """Hop 1's weights as they were built before the anchoring fix.
+
+    Kept here, and nowhere else, so the counter-case above is a statement about
+    a specific alternative rather than about nothing in particular: every pass
+    anchored at ``Pc[il]``, the coarse centroids of the bracket's own index.
+    """
+    nodes, _ = _mg_centroid_ladder(block._xrt_nd, block.vol_nd, _mg_n_hops(SHAPE))
+    ni, nj, nk = nodes.shape[:3]
+    nci, ncj, nck = Pc.shape[:3]
+    il, ih = _mg_index_bracket_node(ni, nci)
+    jl, jh = _mg_index_bracket_node(nj, ncj)
+    kl, kh = _mg_index_bracket_node(nk, nck)
+    jmid = np.minimum(np.arange(1, ncj + 1) * 2 - 1, nj - 1)
+    kmid = np.minimum(np.arange(1, nck + 1) * 2 - 1, nk - 1)
+
+    def ends(lo, hi, nc):
+        return lo == 0, hi == nc - 1
+
+    ilo, ihi = ends(il, ih, nci)
+    wi = _mg_project(
+        nodes[:, jmid][:, :, kmid], Pc[il], Pc[ih], ilo[:, None, None], ihi[:, None, None]
+    )
+    Pci = Pc[il]
+    jlo, jhi = ends(jl, jh, ncj)
+    wj = _mg_project(
+        nodes[:, :, kmid],
+        Pci[:, jl],
+        Pci[:, jh],
+        jlo[None, :, None],
+        jhi[None, :, None],
+    )
+    Pcij = Pci[:, jl]
+    klo, khi = ends(kl, kh, nck)
+    wk = _mg_project(
+        nodes, Pcij[:, :, kl], Pcij[:, :, kh], klo[None, None, :], khi[None, None, :]
+    )
+    return wi, wj, wk
+
+
 def test_interp_i2x_reproduces_its_old_blend():
     """Fed the index weights the kernel must emit what it hardcoded before.
 
@@ -260,11 +466,13 @@ def test_interp_i2x_node_blends_its_pair():
     np.testing.assert_allclose(got, want, rtol=1e-6)
 
 
-def _prolong_only(block, coarse):
+def _prolong_only(block, coarse, weights=None):
     """Run the fused final hop with the fine term switched off.
 
     ``scale = 0`` kills ``scale*dt_vol*q``, so what lands on ``cons`` is the
-    prolonged coarse correction and nothing else.
+    prolonged coarse correction and nothing else. ``weights`` overrides the
+    block's own, which is how an alternative set can be put through the real
+    kernel rather than a numpy restatement of it.
     """
     ni, nj, nk = block.shape
     ncj, nck = (nj - 1) // 2, (nk - 1) // 2
@@ -273,11 +481,9 @@ def _prolong_only(block, coarse):
         return np.asfortranarray(np.zeros(shape, dtype=np.float32))
 
     cons = Z(ni, nj, nk, 5)
-    pwi, pwj, pwk = block.weight_mgrid
-    shapes = ((ni, ncj, nck), (ni, nj, nck), (ni, nj, nk))
     wi, wj, wk = (
-        np.asfortranarray(p[: np.prod(sh)].reshape(sh, order="F"))
-        for p, sh in zip((pwi, pwj, pwk), shapes)
+        np.asfortranarray(w, dtype=np.float32)
+        for w in (weights if weights is not None else _hop1_weights(block))
     )
     fortran.mg_prolong2x_fine_scatter(
         src=np.asfortranarray(
@@ -327,3 +533,32 @@ def test_prolonged_linear_correction_lands_on_the_nodes(ER):
     # The outer half coarse cell is deliberately flat, so compare the interior.
     inner = (slice(2, -2),) * 3
     assert np.abs(got[inner] - want[inner]).max() / np.ptp(want) < 1e-6
+
+
+@pytest.mark.parametrize("ER_r,shear", SKEWED)
+def test_prolonged_linear_correction_survives_shear(ER_r, shear):
+    """The same claim on the mesh that broke it, against the anchoring it replaced.
+
+    The test above takes its gradient along x, which this annular mesh makes
+    exactly separable -- so it can demand round-off and does. Shear costs the
+    separability: each pass then measures along a segment the next one tilts,
+    and a three-component gradient picks up the annulus curvature too, so what
+    is left is a real error rather than float32 noise. Bounding it is still
+    worth doing, because a mis-anchored pass shows up here as multiples of it:
+    the anchoring this replaced reaches 2.8% on the ER_r=1.3, shear=2 mesh
+    against 0.6% here, which is what the bar below is set to separate.
+    """
+    block = _block(_stretched_x(SHAPE[0]), ER_r=ER_r, shear=shear)
+    nodes, levels = ember.block._mg_centroid_ladder(
+        block._xrt_nd, block.vol_nd, _mg_n_hops(SHAPE)
+    )
+    Pc = levels[1]
+    origin = nodes.reshape(-1, 3).mean(axis=0)
+    grad = np.array([0.3, 1.0, -0.7])  # nothing lines up with a mesh direction
+    coarse = ((Pc - origin) @ grad).astype(np.float32)
+    want = (nodes - origin) @ grad
+
+    inner = (slice(2, -2),) * 3
+    got = _prolong_only(block, coarse)
+
+    assert np.abs(got[inner] - want[inner]).max() / np.ptp(want) < 0.015

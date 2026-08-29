@@ -911,6 +911,16 @@ class _MaskedBlock:
 # cannot ask for a coarser hierarchy than the arena was built to hold.
 MAX_MG_LEVELS = 3
 
+# Bounds on the node-targeted prolongation weights, which unlike the
+# cell-targeted ones are allowed outside [0, 1] (see _mg_project). A blend
+# coefficient outside these is not the genuine excursion the node bracket exists
+# to permit -- that reaches about -0.06 at expansion ratio 1.5 -- but an
+# ill-conditioned projection onto a coarse edge much shorter than the target's
+# offset from it, which a skewed mesh clustered to a wall can produce. Bounding
+# it caps each pass's gain |1-w| + |w| at 1.5, so the three composed cannot
+# amplify a coarse correction by more than 3.4 whatever the mesh does.
+MG_W_LO, MG_W_HI = -0.25, 1.25
+
 
 def _mg_n_hops(shape, n_max=MAX_MG_LEVELS):
     """Factor-2 prolongation hops the cell counts of `shape` actually admit.
@@ -992,17 +1002,26 @@ def _mg_project(Pf, Plo, Phi, clamp_lo=None, clamp_hi=None):
 
     Clamped to [0, 1] only where ``clamp_lo``/``clamp_hi`` say the bracket is at
     the end of the coarse direction, which is the flat extrapolation past the
-    outer coarse centroids. Elsewhere the weight passes through unclamped, so a
-    target lying just outside its fixed bracket -- which every second fine NODE
-    does on a stretched mesh -- is extrapolated the few percent of a coarse cell
-    it needs rather than flattened onto the near centroid. The excursion is
+    outer coarse centroids. Elsewhere the weight passes through, so a target
+    lying just outside its fixed bracket -- which every second fine NODE does on
+    a stretched mesh -- is extrapolated the few percent of a coarse cell it
+    needs rather than flattened onto the near centroid. That excursion is
     bounded by the clustering: on a geometrically stretched line it reaches only
-    about -0.04 at expansion ratio 1.2 and -0.06 at 1.5, so the blend
-    coefficients stay inside roughly [0, 1.07].
+    about -0.04 at expansion ratio 1.2 and -0.06 at 1.5.
 
-    Passing neither mask clamps everywhere, which is what the cell-targeted hops
-    want: their bracket provably contains every fine cell centroid, so a weight
-    outside [0, 1] there could only be a degenerate cell.
+    Only bounded by it, though, not guaranteed by it. The projection divides by
+    ``|Phi - Plo|**2``, so a target displaced from its bracket by much more than
+    the bracket is long returns a blend coefficient of any size at all -- and a
+    coarse edge IS that short wherever the mesh is clustered to a wall. The
+    caller is what keeps the displacement small (:func:`_mg_hop_weights_node`
+    anchors each pass where the last one landed), and ``MG_W_LO``/``MG_W_HI``
+    are the backstop, enforcing what the paragraph above can otherwise only
+    assert. They sit about four times outside the genuine excursion, so they
+    engage on the ill-conditioned projection and nothing else.
+
+    Passing neither mask clamps to [0, 1] everywhere, which is what the
+    cell-targeted hops want: their bracket provably contains every fine cell
+    centroid, so a weight outside [0, 1] there could only be a degenerate cell.
     """
     e = Phi - Plo
     den = (e * e).sum(axis=-1)
@@ -1011,7 +1030,8 @@ def _mg_project(Pf, Plo, Phi, clamp_lo=None, clamp_hi=None):
     if clamp_lo is None:
         return np.clip(w, 0.0, 1.0)
     w = np.where(clamp_lo, np.maximum(w, 0.0), w)
-    return np.where(clamp_hi, np.minimum(w, 1.0), w)
+    w = np.where(clamp_hi, np.minimum(w, 1.0), w)
+    return np.clip(w, MG_W_LO, MG_W_HI)
 
 
 def _mg_hop_weights(Pc, Pf):
@@ -1046,12 +1066,21 @@ def _mg_hop_weights_node(Pc, Pn):
     ``i`` while ``j``/``k`` are still coarse, and so on -- but each pass now
     lands on node positions, so the target extents are ``(ni, nj, nk)``.
 
-    Two differences from the cell version follow from the bracket
-    (:func:`_mg_index_bracket_node`). The representative coarse index for a
-    direction already resolved is that bracket's ``lo``, which is what the
-    kernel actually reads out of ``aplane``/``bb``; and the clamp is applied
-    only at the ends of each coarse direction, because a node is not guaranteed
-    to lie inside the pair its index picks.
+    Each pass is anchored where the LAST one landed. Pass J blends two values
+    that pass I has already placed at node ``i``, so the segment its weight
+    measures along runs between those two positions -- the coarse centroids
+    interpolated in i with the very ``wi`` the values were -- and not between
+    the coarse centroids at some representative i index. Taking the bracket's
+    ``lo`` for that index instead, which is what this used to do, leaves the
+    target displaced from its own segment by up to half a coarse i cell; that
+    displacement is then projected onto the coarse j edge, and where the mesh is
+    clustered to a wall the edge is the shorter of the two by an order of
+    magnitude. On the LISA rotor it produced blend coefficients of -25 at the
+    casing, which the fine grid then applied to the coarse correction at full
+    weight. Pass K is anchored on pass J's output for the same reason.
+
+    The clamp, meanwhile, is applied only at the ends of each coarse direction,
+    because a node is not guaranteed to lie inside the pair its index picks.
     """
     nni, nnj, nnk = Pn.shape[:3]
     nci, ncj, nck = Pc.shape[:3]
@@ -1076,7 +1105,12 @@ def _mg_hop_weights_node(Pc, Pn):
         ilo[:, None, None],
         ihi[:, None, None],
     )
-    Pci = Pc[il]
+    # Where pass I leaves its values: the coarse centroids carried through the
+    # same blend the kernel applies to the field. Node 1 is the exception the
+    # kernel hardcodes (mg_interp_i2x_node's `cout(1) = cin(1)`), so its
+    # position is the first coarse centroid whatever wi holds there.
+    Pci = Pc[il] * (1.0 - wi[..., None]) + Pc[ih] * wi[..., None]
+    Pci[0] = Pc[0]
     jlo, jhi = ends(jl, jh, ncj)
     wj = _mg_project(
         Pn[:, :, kmid],
@@ -1085,7 +1119,7 @@ def _mg_hop_weights_node(Pc, Pn):
         jlo[None, :, None],
         jhi[None, :, None],
     )
-    Pcij = Pci[:, jl]
+    Pcij = Pci[:, jl] * (1.0 - wj[..., None]) + Pci[:, jh] * wj[..., None]
     klo, khi = ends(kl, kh, nck)
     wk = _mg_project(
         Pn, Pcij[:, :, kl], Pcij[:, :, kh], klo[None, None, :], khi[None, None, :]
@@ -4043,6 +4077,12 @@ class Block(ember._struct.StructuredData):
         mean of the eight surrounding centroids, a point offset from the node by
         ``(h_next - h_prev)/4`` on a stretched mesh. Hops 2 and up are
         coarse->coarse and stay cell-targeted.
+
+        That hop's three passes are each anchored on the positions the previous
+        one produced, and its weights are bounded (``MG_W_LO``/``MG_W_HI``).
+        Both matter on a sheared mesh clustered to a wall, where the projection
+        is otherwise ill-conditioned enough to turn the prolongation into an
+        amplifier -- see :func:`_mg_hop_weights_node` and :func:`_mg_project`.
 
         Returns the ``(wi, wj, wk)`` the kernels take, one flat array per
         direction -- the three interpolation passes resolve i, then j, then k,
