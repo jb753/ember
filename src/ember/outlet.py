@@ -472,10 +472,22 @@ class OutletPatch(NonReflectingPatch):
             Target mass flow :math:`\dot m_\mathrm{target}` [kg/s], through one
             passage rather than the whole annulus, matching what
             :func:`ember.average.flow_mass` returns for this patch. Must be
-            positive and finite. Pass None to clear the throttle and leave the
-            prescribed pressure standing wherever the controller last put it,
-            which is how a run throttles to find an operating point and then
-            holds it.
+            positive and finite. Pass None to clear the throttle, which
+            **reverts** the boundary to the pressure :meth:`set_P` prescribed:
+            the controller's correction is derived from the gains and the error
+            sum, so clearing those puts it back at zero on the next
+            :meth:`update_target`. Clearing is therefore the inverse of setting,
+            and does not depend on the order it is done in relative to
+            :meth:`set_P`.
+
+            To keep the operating point the controller found rather than
+            revert to the one that was asked for, re-prescribe it first::
+
+                patch.set_P(patch.P_throttle)
+                patch.set_throttle(None)
+
+            which is what a run does when it throttles to find an operating
+            point and then holds it. See :attr:`P_throttle`.
         Kp : float, optional
             Proportional gain, dimensionless. Default 0.5, half the Newton step
             of 1 above.
@@ -531,7 +543,7 @@ class OutletPatch(NonReflectingPatch):
         -------
         dict
             ``mdot_target`` the setpoint [kg/s]; ``mdot_throttle`` the mass flow
-            last measured at the patch [kg/s]; ``P_throttle`` the total
+            last measured at the patch [kg/s]; ``dP_throttle`` the total
             correction :math:`\Delta p_\mathrm{throttle}` [Pa]; ``dP_P`` and
             ``dP_I`` its proportional and integral parts [Pa]; ``dP_D`` always
             zero, the controller being PI. The derivative column is retained so
@@ -541,7 +553,7 @@ class OutletPatch(NonReflectingPatch):
             return dict(
                 mdot_target=0.0,
                 mdot_throttle=0.0,
-                P_throttle=0.0,
+                dP_throttle=0.0,
                 dP_P=0.0,
                 dP_I=0.0,
                 dP_D=0.0,
@@ -554,7 +566,7 @@ class OutletPatch(NonReflectingPatch):
         return dict(
             mdot_target=self._mdot_target,
             mdot_throttle=self._mdot,
-            P_throttle=dP_P + dP_I,
+            dP_throttle=dP_P + dP_I,
             dP_P=dP_P,
             dP_I=dP_I,
             dP_D=0.0,
@@ -685,11 +697,60 @@ class OutletPatch(NonReflectingPatch):
 
     @property
     def P(self):
-        """Prescribed outlet static pressure [Pa]. Inverse of :meth:`set_P`.
+        """Outlet static pressure field as imposed [Pa], shaped like the patch.
 
-        Reads back the level actually imposed, :attr:`P_nd`, so with
-        :meth:`set_throttle` or :meth:`set_adjustment` configured this is the
-        current throttled level or spanwise profile, not the value last
-        passed to :meth:`set_P`.
+        The whole prescription, node by node, read back from :attr:`P_nd`. Not
+        the inverse of :meth:`set_P` and not a level: a scalar passed to
+        :meth:`set_P` comes back broadcast over the face, :meth:`set_throttle`
+        moves what is here away from what was passed, and
+        :meth:`set_adjustment` shapes it along the span about a level that is
+        then the hub value rather than any average of this.
+
+        For the single number the boundary is holding at, which is what a
+        caller recording an operating point wants, see :attr:`P_throttle`.
         """
         return self.P_nd * self.block.fluid.P_ref
+
+    @property
+    def P_throttle(self):
+        r"""Static pressure level the throttle has arrived at [Pa].
+
+        The inverse of :meth:`set_P`, moved by whatever the controller has done
+        to it:
+
+        .. math::
+
+            p_\mathrm{throttle} = p_\mathrm{out} + \Delta p_\mathrm{throttle}
+
+        so with no throttle set this is simply the prescribed pressure, and
+        with one it is the operating point the controller has reached. Scalar
+        whenever a throttle is set, :meth:`set_throttle` having refused a
+        non-scalar prescription; otherwise whatever shape :meth:`set_P` was
+        given.
+
+        This is the number to record when a run throttles to an operating point
+        and something else has to reproduce it later, and the number to
+        re-prescribe to hold that point:
+
+        .. code-block:: python
+
+            patch.set_P(patch.P_throttle)   # keep what the controller found
+            patch.set_throttle(None)
+
+        Held apart from :attr:`P` because that is the imposed field rather than
+        its level, and the two differ under :meth:`set_adjustment` --- see
+        :func:`calc_radial_equilibrium`, whose profile is anchored at the hub,
+        so the level is the hub value and not the mean of :attr:`P`.
+
+        See Also
+        --------
+        ember.patch.OutletPatch.get_throttle_stats : The correction alone, with
+            the rest of the controller state
+        """
+        if self._P_raw is None:
+            raise ValueError(
+                f"No pressure has been prescribed on this {self._desc}; call "
+                "set_P before reading P_throttle."
+            )
+
+        return self._P_raw + self.get_throttle_stats()["dP_throttle"]

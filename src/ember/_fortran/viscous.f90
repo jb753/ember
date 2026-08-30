@@ -1663,28 +1663,24 @@ subroutine set_visc_force( &
                          + (wvisc(3)-qf(3))*dAk(3,i,j,k)
     end do
     end do
+    ! The wall blend takes the ROW form. The per-cell wall_func_kface leaves a
+    ! real call in the i loop -- GCC does not inline it, and the opt report
+    ! shows the argument descriptors being rebuilt per iteration -- so the loop
+    ! keeps four scalar divides and two scalar sqrt per wall face cell. That is
+    ! what wall_row_kface's header exists to explain; it was written for this
+    ! call site, and the fused rewrite of this kernel left it unwired.
+    ! Omega_wallk1_nd(1,j) / wallk1(1,j) are contiguous i-columns passed by
+    ! sequence association, so the (ni-1) dummies bind with no array temporary.
     if (k == 2) then
         do j = jp0, jp1
-        do i = 1, ni-1
-            wfac = 1.0e0 - wallk1(i,j)
-            call wall_func_kface(cons, r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, i, j, 1, 1, wf)
-            planes(i,j,1,pb) = wallk1(i,j)*planes(i,j,1,pb) + wfac*wf(1)
-            planes(i,j,2,pb) = wallk1(i,j)*planes(i,j,2,pb) + wfac*wf(2)
-            planes(i,j,3,pb) = wallk1(i,j)*planes(i,j,3,pb) + wfac*wf(3)
-            planes(i,j,4,pb) = wallk1(i,j)*planes(i,j,4,pb) + wfac*wf(4)
-        end do
+            call wall_row_kface(ni, nj, nk, cons, r, dAk, vol, Omega_block, &
+                Omega_wallk1_nd(1,j), mu, wallk1(1,j), planes, j, 1, 1, pb)
         end do
     end if
     if (k == nk-1) then
         do j = jp0, jp1
-        do i = 1, ni-1
-            wfac = 1.0e0 - wallnk(i,j)
-            call wall_func_kface(cons, r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, i, j, nk, -1, wf)
-            planes(i,j,1,pb) = wallnk(i,j)*planes(i,j,1,pb) + wfac*wf(1)
-            planes(i,j,2,pb) = wallnk(i,j)*planes(i,j,2,pb) + wfac*wf(2)
-            planes(i,j,3,pb) = wallnk(i,j)*planes(i,j,3,pb) + wfac*wf(3)
-            planes(i,j,4,pb) = wallnk(i,j)*planes(i,j,4,pb) + wfac*wf(4)
-        end do
+            call wall_row_kface(ni, nj, nk, cons, r, dAk, vol, Omega_block, &
+                Omega_wallnk_nd(1,j), mu, wallnk(1,j), planes, j, nk, -1, pb)
         end do
     end if
 
@@ -1729,27 +1725,14 @@ subroutine set_visc_force( &
                              + (wvisc(2)-qf(2))*dAj(2,i,j,kc) &
                              + (wvisc(3)-qf(3))*dAj(3,i,j,kc)
             end do
+            ! Row form, for the reason given at the k-face blend above.
             if (j == 2) then
-                do i = 1, ni-1
-                    wfac = 1.0e0 - wallj1(i,kc)
-                    call wall_func_jface(cons, r, dAj, vol, Omega_block, Omega_wallj1_nd(i,kc), &
-                        mu, i, 1, kc, 1, wf)
-                    rows(i,1,sb) = wallj1(i,kc)*rows(i,1,sb) + wfac*wf(1)
-                    rows(i,2,sb) = wallj1(i,kc)*rows(i,2,sb) + wfac*wf(2)
-                    rows(i,3,sb) = wallj1(i,kc)*rows(i,3,sb) + wfac*wf(3)
-                    rows(i,4,sb) = wallj1(i,kc)*rows(i,4,sb) + wfac*wf(4)
-                end do
+                call wall_row_jface(ni, nj, nk, cons, r, dAj, vol, Omega_block, &
+                    Omega_wallj1_nd(1,kc), mu, wallj1(1,kc), rows, 1, kc, 1, sb)
             end if
             if (j == nj-1) then
-                do i = 1, ni-1
-                    wfac = 1.0e0 - wallnj(i,kc)
-                    call wall_func_jface(cons, r, dAj, vol, Omega_block, Omega_wallnj_nd(i,kc), &
-                        mu, i, nj, kc, -1, wf)
-                    rows(i,1,sb) = wallnj(i,kc)*rows(i,1,sb) + wfac*wf(1)
-                    rows(i,2,sb) = wallnj(i,kc)*rows(i,2,sb) + wfac*wf(2)
-                    rows(i,3,sb) = wallnj(i,kc)*rows(i,3,sb) + wfac*wf(3)
-                    rows(i,4,sb) = wallnj(i,kc)*rows(i,4,sb) + wfac*wf(4)
-                end do
+                call wall_row_jface(ni, nj, nk, cons, r, dAj, vol, Omega_block, &
+                    Omega_wallnj_nd(1,kc), mu, wallnj(1,kc), rows, nj, kc, -1, sb)
             end if
             if (j > jp0) then
                 jc = j - 1

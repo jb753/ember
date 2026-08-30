@@ -31,23 +31,28 @@ Overview of one time step
 4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes
    the time step and stores it pre-divided by cell volume in
    :attr:``ember.block.Block.block.dt_vol_nd``.
-5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
+5. **Filter**: when :attr:`~Solver.gain_filt` is nonzero,
+   :meth:`~ember.grid.Grid.update_filter` advances the
+   selective-frequency-damping low-pass filter one step using that time step,
+   every step regardless of the source cadence above. The SFD body force of
+   stage 3 reads what this leaves behind on the following step. Skipped
+   entirely at the default zero gain.
+6. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
    unintegrated net-flow residual, with optional implicit residual smoothing
-   , :attr:`~Solver.sf_resid`, or negative feedback limiter
-   , :attr:`~Solver.dampin`.
-6. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
+   , :attr:`~Solver.sf_resid`.
+7. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
    :meth:`~ember.convergence_history.ConvergenceHistory.record_convergence`
    and :meth:`~ember.convergence_history.ConvergenceHistory.format_message`
    record and print a :class:`~ember.convergence_history.ConvergenceHistory`
    row using the current residual.
-7. **March**: advance the solution with the selected integrator -- Denton's
+8. **March**: advance the solution with the selected integrator -- Denton's
    scree march, :func:`scree_step`, or Jameson multi-stage Runge--Kutta,
    :func:`rk_step` -- optionally accelerated by multigrid.
-8. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a
+9. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a
    constant-coefficient blended second- and fourth-order filter to the
    post-march :attr:`ember.block.Block.conserved_nd` field, to provide artificial dissipation and
    suppress odd-even decoupling.
-9. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`
+10. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`
     steps, :meth:`~ember.grid.Grid.accumulate_avg` accumulates the conserved
     state into a running average, which
     :meth:`~ember.grid.Grid.finalise_average` uses to replace the
@@ -236,6 +241,8 @@ solver-wide setting:
 - :class:`~ember.mixing_communicator.MixingCommunicator` relaxes the
   mixing-plane target exchanged between adjacent blocks with the patches'
   ``rf_exchange``, separately from either side's own step.
+  :attr:`~ember.solver.Solver.mix_reflective` replaces that whole exchange,
+  and both sides' characteristic steps, with a direct mixed-out state.
 - :class:`~ember.patch.OutletPatch` relaxes its spanwise radial-equilibrium
   profile separately, via ``set_adjustment(rf=...)``, and damps its mass-flow
   throttle separately again, via the dimensionless gains of
@@ -352,9 +359,6 @@ class Solver(BaseSolver):
     sf2: float = 0.002
     """Second-order smoothing factor."""
 
-    dampin: float | None = 25
-    """Negative-feedback damping factor on integrated residual."""
-
     inviscid: bool = False
     """Skip viscous terms in the sources evaluation."""
 
@@ -414,6 +418,47 @@ class Solver(BaseSolver):
     :class:`~ember.mixing_communicator.MixingCommunicator` at each exchange.
     As :attr:`rf_inlet`, the default is imposed and None leaves each plane's own
     value alone."""
+
+    mix_reflective: bool | None = False
+    r"""Run every mixing plane as a reflective one, imposing the mixed-out
+    state directly instead of the characteristic exchange.
+
+    The default plane is the whole of :cite:t:`Saxer1993`: the cross-plane
+    mismatch is split by direction of propagation, relaxed onto a target with
+    :attr:`rf_exchange`, and the target drives only the mean mode of a boundary
+    condition that stays non-reflecting to the harmonics. This replaces all of
+    that with the simplest thing that couples two rows -- at every span station
+    the conserved variables of both faces are set to the average of the two
+    sides' circumferential means, and the whole face is reset to it on every
+    application -- and it is worth being clear about what is given up and what
+    is not.
+
+    What is given up is accuracy at the plane. Every pitchwise harmonic
+    reaching either face is annihilated at the boundary node rather than
+    absorbed, so the plane reflects; the state imposed is the *area* average of
+    the conserved variables, which preserves each row's mass flow exactly (the
+    face mass flux is linear in the conserved vector, and
+    :attr:`~ember.patch.RevolutionPatch.weight_pitch` is the same trapezoidal
+    quadrature the face quads use) but not the momentum or energy flux, so it
+    is not the flux-conserving mixed-out state a loss audit would want; and
+    there is no under-relaxation anywhere, so the two rows are yanked onto
+    their common mean every stage. :attr:`rf_mix` and :attr:`rf_exchange` both
+    address machinery this switches off, and so do nothing while it is set.
+
+    What is *not* given up is conservation. The inviscid face flow is built
+    from the four boundary nodes of each face quad and the face area vector
+    alone, so two faces carrying the same pitch-uniform state pass identical
+    mass, meridional momentum, angular momentum and energy per unit annulus --
+    whatever their blade counts and pitchwise resolutions, and whatever their
+    rotational speeds, since the frame terms enter only through the
+    circumferential component of the face area, which vanishes on a surface of
+    revolution.
+
+    As :attr:`rf_inlet`, this is imposed on every mixing patch of every level at
+    the start of the run, so the default overrides whatever a grid was pickled
+    with, and both sides of every plane necessarily agree; pass None to leave
+    each plane as it is. A grid with no mixing plane is unaffected whatever
+    this is set to."""
 
     def __post_init__(self):
         """Reject averaging windows the march cannot honour.
@@ -491,10 +536,11 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
             # level l = 1..n_levels (block size b = 2**l) the correction scales by
             # coef_l = cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1) (advance_rk_stage_mg's
             # formula at alpha=1, since scree takes one full-weight step), with
-            # the coarse timestep the volume-weighted mean of dt_vol over the
-            # block. The wrapper's final factor-2 hop is fused with the
-            # cell->node scatter, so like the RK path it takes a rolling
-            # two-plane buffer rather than a full-volume increment. ONE carve
+            # the coarse timestep the volume-weighted harmonic mean of
+            # dt_vol over the block, sum(vol)/sum(vol/dt_vol). The wrapper's final factor-2 hop lands straight on the
+            # NODES and is fused with the fine term's cell->node scatter, so
+            # like the RK path it takes a rolling two-plane buffer rather than
+            # a full-volume increment. ONE carve
             # for everything the kernel gets from the arena: rbuf and the
             # multigrid scratch are live in the same call, so carving them
             # together is what makes them disjoint -- util.carve_view packs the
@@ -512,6 +558,10 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 *mg_coarse_shapes(ni, nj, nk, n_levels_eff),
             )
             mg_scratch = dict(zip(MG_COARSE_NAMES, mg_bufs))
+            # The prolongation weights are NOT arena scratch: they are static
+            # geometry that has to survive the step, cached on the block, where
+            # anything carved from block.scratch is overwritten within it.
+            pwi, pwj, pwk = block.weight_mgrid
             kernel = (
                 ember.fortran.scree_mg_irs
                 if sf_irs > 0.0
@@ -529,6 +579,9 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 rbuf=rbuf,
+                pwi=pwi,
+                pwj=pwj,
+                pwk=pwk,
                 **mg_scratch,
             )
         else:
@@ -573,13 +626,13 @@ def _mg_coarse_scratch_sizes(ni, nj, nk, n_levels, np=5):
 # The hier2 kernels' scratch arguments, in the order _mg_coarse_shapes returns
 # their shapes. Kept together so the two cannot drift apart.
 MG_COARSE_NAMES = (
-    "aplane", "bb", "dtblk", "rawbuf", "sdt", "sv",
+    "cbuf", "aplane", "bb", "dtblk", "rawbuf", "sdt", "sv",
     "corr_all", "acc0", "acc1", "cres", "triw",
 )
 
 
 def mg_coarse_shapes(ni, nj, nk, n_levels):
-    """Shapes of the hier2 kernels' eleven scratch buffers, in MG_COARSE_NAMES order.
+    """Shapes of the hier2 kernels' twelve scratch buffers, in MG_COARSE_NAMES order.
 
     Separated from the carve so a CALLER can fold these into the single
     ``util.carve_view`` that also carves its own buffers. That matters because
@@ -593,8 +646,12 @@ def mg_coarse_shapes(ni, nj, nk, n_levels):
     n_corr, n_res, n_tri = _mg_coarse_scratch_sizes(ni, nj, nk, n_levels)
     acc_sz = nc1i * nc1j * nc1k * 5
     return (
-        (ni - 1, nc1j),
-        (ni - 1, nj - 1, nc1k, 5),
+        # The final prolongation hop targets the NODES, so its three passes and
+        # the plane they hand to the scatter all carry node extents; the
+        # coarse->coarse hops reuse the same storage at the smaller cell dims.
+        (ni, nj, 5),
+        (ni, nc1j),
+        (ni, nj, nc1k, 5),
         (nc1i, nc1j, nc1k),
         (nc1i, nc1j, nc1k, 5),
         (nc1i, nc1j, nc1k),
@@ -634,9 +691,14 @@ def advance_rk_stage_mg(
     (the default ``expon_mgrid=2.0`` reproduces the original fixed factor-2
     decay).
 
-    ``dt_coarse_l`` is the volume-weighted mean of ``dt_vol`` over the coarse
-    block, ``sum(dt_vol*vol)/sum(vol)``, which is why the kernels take
-    ``block.vol_nd``. This mirrors multall's ``STEP1 =
+    ``dt_coarse_l`` is the volume-weighted HARMONIC mean of ``dt_vol`` over the
+    coarse block, ``sum(vol)/sum(vol/dt_vol)``, which is why the kernels take
+    ``block.vol_nd``. Harmonic because the block needs the reciprocal of the
+    block's spectral radius, ``1/<Lambda>``, and ``dt_vol`` is ``1/Lambda`` per
+    cell; by Jensen the arithmetic mean ``sum(dt_vol*vol)/sum(vol)`` that this
+    used to take is the larger of the two whenever ``Lambda`` varies over the
+    block, so it overstated the coarse timestep on a stretched mesh and
+    over-drove the block's smallest cells. This mirrors multall's ``STEP1 =
     CFL*FBLK*PERPMIN/VSOUND/VOLB``: our ``dt_vol*vol`` is the per-cell
     ``perp/(a+V)`` that multall sums into ``PERPMIN``, and the ``1/b**2`` stays
     in ``coef_l``. Sampling ``dt_vol`` at the block's centre cell instead --
@@ -646,7 +708,10 @@ def advance_rk_stage_mg(
     consistent; the final stage (``alpha=1``) therefore lands the full-weight
     coarse correction, matching Denton, while earlier stages damp it like the
     fine residual. Prolongation is **trilinear interpolation**, cascaded coarsest
-    -> finest through factor-2 hops (inlined into the fused kernel below).
+    -> finest through factor-2 hops (inlined into the fused kernel below). The
+    coarse->coarse hops target cell centres; the final hop targets the fine
+    NODES directly, so the correction is never averaged through a cell. Only
+    the fine term, a cell quantity, goes through ``cell_to_node``.
 
     The whole per-block body -- fine term, all coarse levels, and the final
     scatter -- runs in one fused Fortran kernel (``rk_mg_irs``/``rk_mg_noirs``,
@@ -718,9 +783,10 @@ def advance_rk_stage_mg(
             # (the two share the engine and differ only in the smoother passed --
             # no Fortran-side IRS branch). Coarse scratch is carved from
             # the arena, dead outside the viscous pass. The engine leaves the
-            # coarse correction in acc0; the wrapper's final factor-2 hop is
-            # fused with the cell->node scatter, so instead of a full-volume
-            # increment it takes a rolling two-plane buffer carved from scratch.
+            # coarse correction in acc0; the wrapper's final factor-2 hop lands
+            # it on the nodes and is fused with the fine term's cell->node
+            # scatter, so instead of a full-volume increment it takes a rolling
+            # two-plane buffer carved from scratch.
             # One carve, same reason as scree_step above: rbuf and the
             # multigrid scratch reach the same kernel call.
             rbuf, *mg_bufs = util.carve_view(
@@ -729,6 +795,10 @@ def advance_rk_stage_mg(
                 *mg_coarse_shapes(ni, nj, nk, max(n_levels_eff, 0)),
             )
             mg_scratch = dict(zip(MG_COARSE_NAMES, mg_bufs))
+            # The prolongation weights are NOT arena scratch: they are static
+            # geometry that has to survive the step, cached on the block, where
+            # anything carved from block.scratch is overwritten within it.
+            pwi, pwj, pwk = block.weight_mgrid
             kernel = (
                 ember.fortran.rk_mg_irs if sf_irs > 0.0 else ember.fortran.rk_mg_noirs
             )
@@ -745,6 +815,9 @@ def advance_rk_stage_mg(
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 rbuf=rbuf,
+                pwi=pwi,
+                pwj=pwj,
+                pwk=pwk,
                 **mg_scratch,
             )
         else:
@@ -798,18 +871,21 @@ def rk_step(grid, conf):
         # not, and the pre-march update_residual recomputes it first), so skip
         # the redundant final rebuild.
         if i_stage < conf.n_stage - 1:
-            grid.update_residual(dampin=conf.dampin, sf=conf.sf_resid)
+            grid.update_residual(sf=conf.sf_resid)
 
 
 def _apply_bcond_relaxation(grid, conf):
-    """Push the configured boundary relaxation factors onto the grid's patches.
+    """Push the configured boundary settings onto the grid's patches.
 
-    Every one of these lives on the patch rather than on the solver, so that it
-    survives a restart and so that two planes of a multi-row grid can be damped
-    differently. The solver still has the last word: a configured value is
-    imposed on every patch it names, so a run's damping follows from its own
-    configuration rather than from whatever a setup script left behind. Pass
-    None to opt out of that for one setting and keep what the patches carry.
+    The relaxation factors live on the patch rather than on the solver, so that
+    they survive a restart and so that two planes of a multi-row grid can be
+    damped differently; :attr:`~ember.solver.Solver.mix_reflective` is here for
+    a different reason -- the patch and the communicator read it from places
+    that never see a Solver. Either way the solver has the last word: a
+    configured value is imposed on every patch it names, so a run follows from
+    its own configuration rather than from whatever a setup script left behind.
+    Pass None to opt out of that for one setting and keep what the patches
+    carry.
 
     Called per level from :func:`_run`, so the full-multigrid chain configures
     each of its separately resampled grids.
@@ -823,12 +899,19 @@ def _apply_bcond_relaxation(grid, conf):
             for patch in patches:
                 patch.sigma = sigma
 
+    # The communicator reads this from the patches at every exchange, so a
+    # cached communicator picks it up without being rebuilt.
     if conf.rf_exchange is not None:
-        # The communicator reads rf_exchange from the patches at every
-        # exchange, so a cached communicator picks this up without being
-        # rebuilt.
         for patch in grid.patches.mixing:
             patch.rf_exchange = conf.rf_exchange
+
+    # Read by the patch itself (set_block_avg, step, apply, _calc_reference)
+    # as well as by the communicator, none of which see a Solver -- hence the
+    # stamp here rather than an argument. Imposed on both sides of every plane
+    # from one value, which is what check_match's agreement requirement needs.
+    if conf.mix_reflective is not None:
+        for patch in grid.patches.mixing:
+            patch._reflective = conf.mix_reflective
 
 
 def _validate_mg(grid, n_levels):
@@ -940,7 +1023,8 @@ def _run(grid, conf):
         # So flush the cache to recalculate P and T
         grid.update_cached_conserved()
 
-        grid.update_bconds(cfl=conf.cfl)  # Throttle/radial equilibrium targets
+        # Throttle/radial equilibrium targets, and the mixing-plane exchange
+        grid.update_bconds(cfl=conf.cfl)
         grid.apply_bconds()
 
         try:
@@ -959,13 +1043,24 @@ def _run(grid, conf):
         # stability limit during a cold start, and the timestep refresh is cheap.
         n_step_source = 5 if conf.n_stage == 0 else 1
         if i_step % n_step_source == 0:
-            # grid.update_filter(conf.delta_filt)
             grid.update_sources(conf.inviscid, conf.gain_filt)
             _log_rss("step %d after update_sources", i_step)
         grid.update_timestep(rf=0.2, fac_visc=conf.fac_visc)
 
+        # Advance the SFD low-pass filter the body force above reads. It needs
+        # the dt_vol just computed, so it runs here rather than alongside the
+        # sources, and it runs every step regardless of the source cadence:
+        # its dt is a per-step increment, so advancing it only on the scree
+        # march's every-fifth-step refresh would stretch the effective time
+        # constant fivefold. update_sources therefore picks up the state left
+        # here on the following step, the usual explicit SFD coupling. Skipped
+        # entirely at the default zero gain, where nothing reads the filter and
+        # the buffer is never allocated.
+        if conf.gain_filt != 0.0:
+            grid.update_filter(conf.cfl, conf.delta_filt)
+
         # Prepare the residual
-        grid.update_residual(dampin=conf.dampin, sf=conf.sf_resid)
+        grid.update_residual(sf=conf.sf_resid)
         _log_rss("step %d after update_residual", i_step)
 
         # Convergence logging of the pre-march state

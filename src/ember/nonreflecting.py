@@ -1196,6 +1196,36 @@ class NonReflectingPatch(RevolutionPatch):
         mask[list(split[0])] = False
         return mask
 
+    def _interp_profile(self, value, src, spf_src):
+        """Re-express one recorded setter argument on this patch's span stations.
+
+        Returns ``value`` unchanged unless it is a spanwise profile on ``src``:
+        either bare, of shape ``(nspan_src,)``, or on ``src``'s own patch axes
+        with its span axis that long -- the two shapes
+        :meth:`_set_target_row` accepts. Anything else is a scalar, or a value
+        that setter will reject on its own terms, and is not this method's to
+        reinterpret.
+        """
+        arr = np.asarray(value)
+        if arr.size == 1 or not np.issubdtype(arr.dtype, np.number):
+            return value
+        nspan_src = len(spf_src)
+        if arr.shape == (nspan_src,):
+            profile = arr
+        elif arr.ndim == 3 and arr.shape[src.span_dim] == nspan_src:
+            # Patch-axes form, so the other two axes are length 1 (a
+            # pitchwise-varying value never made it past the setter).
+            profile = np.moveaxis(arr, src.span_dim, 0).reshape(nspan_src)
+        else:
+            return value
+        interp = np.interp(self.spf, spf_src, profile)
+        # Back onto this patch's own axes rather than left bare: the two spell
+        # the same prescription, and this way a patch whose span axis moved in
+        # the resample still reads as spanwise.
+        shape = [1, 1, 1]
+        shape[self.span_dim] = len(interp)
+        return interp.reshape(shape)
+
     def _pitch_mean(self, field):
         """Weighted pitchwise mean of a patch-shaped field, keeping dimensions."""
         return (field * self.weight_pitch).sum(axis=self.pitch_dim, keepdims=True)
@@ -1549,11 +1579,13 @@ class NonReflectingPatch(RevolutionPatch):
         Safe to call repeatedly; a target of the right shape survives
         re-attachment, and one of the wrong shape is rebuilt at the new shape
         rather than silently misread -- every prescribed row by re-running the
-        setter that filled it, the rest by re-seeding. That is what lets a
-        configured patch follow its block onto a coarser grid, as the multigrid
-        hierarchy and :func:`~ember.block_util.resample` do it; a prescribed
-        profile that cannot broadcast to the new shape says so, from the setter
-        that took it.
+        setter that filled it, the rest by re-seeding. Replay is at the
+        original arguments, so a prescribed spanwise profile reaches the setter
+        at the length it was set on and is refused if the span station count
+        has moved. Going onto a coarser grid, as the multigrid hierarchy and
+        :func:`~ember.block_util.resample` do it, therefore goes through
+        :meth:`attach_to_block_resampled`, which interpolates those profiles
+        onto the new stations first.
         """
         super().attach_to_block(block)
 
@@ -1587,6 +1619,40 @@ class NonReflectingPatch(RevolutionPatch):
         ):
             self._recombine_dchic = util.zeros(recombine_shape)
             self._recombine_prim = util.zeros(recombine_shape)
+
+    def attach_to_block_resampled(self, block, src):
+        """Attach to a resampled ``block``, interpolating prescribed profiles.
+
+        A prescribed row is recorded as the setter call that filled it (see
+        :func:`replayable`), arguments as the caller gave them -- which for a
+        spanwise profile is one number per span station of the grid the patch
+        was configured on. Replaying that call against a block with a different
+        number of stations, as :meth:`attach_to_block` does on its own, hands
+        the setter a profile of the wrong length and it refuses it. So the
+        replay is deferred and every profile argument re-expressed on this
+        patch's own stations first, interpolated against span fraction
+        (:attr:`~ember.basepatch.RevolutionPatch.spf`, meridional arc-length)
+        rather than node index, so a prescription follows the geometry it was
+        written against and not the mesh spacing.
+
+        Scalar arguments pass through untouched, which is what makes this
+        agree with plain re-attachment wherever plain re-attachment worked.
+        """
+        # Cleared before attaching so the replay inside attach_to_block finds
+        # nothing to do; the interpolated calls below refill both the target
+        # rows and the record, in the order the caller originally set them.
+        calls, self._target_calls = self._target_calls, {}
+        self.attach_to_block(block)
+        if not calls:
+            return
+        spf_src = src.spf
+        for name, (args, kwargs) in calls.items():
+            args = tuple(self._interp_profile(arg, src, spf_src) for arg in args)
+            kwargs = {
+                key: self._interp_profile(arg, src, spf_src)
+                for key, arg in kwargs.items()
+            }
+            getattr(self, name)(*args, **kwargs)
 
     def update_ref_scales(self):
         """Re-derive the prescribed target against the block's current fluid.

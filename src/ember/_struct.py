@@ -370,10 +370,25 @@ class StructuredData:
         # Check broadcasting compatibility
         try:
             np.broadcast_to(val_squeezed[..., 0], self.shape)
-        except ValueError as e:
-            raise ValueError(
-                f"Cannot broadcast value with shape {val.shape[:-1]} to data shape {self.shape}"
-            ) from e
+        except ValueError:
+            names = ", ".join(repr(k) for k in keys)
+            msg = (
+                f"Cannot set {names} from a value of shape {val.shape[:-1]}, "
+                f"which does not broadcast to the data shape {self.shape}."
+            )
+            # A value of the right size but the wrong shape is a missing axis
+            # almost every time -- a (n,) built for a block that is (n, 1) --
+            # and saying so turns a shape mismatch into an instruction.
+            if val_squeezed[..., 0].size == self.size:
+                msg += (
+                    f" It holds the right number of elements, so it probably "
+                    f"needs reshaping to {self.shape}."
+                )
+            # `from None`, because the numpy error being replaced says the
+            # same thing in terms of remapped shapes, and chaining it prints
+            # ten frames of numpy internals above the frame the caller is
+            # looking for.
+            raise ValueError(msg) from None
 
         # Create slice object and set the data
         slice_obj = slice(inds[0], inds[-1] + 1)

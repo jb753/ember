@@ -369,6 +369,7 @@ Miscellaneous:
    Block.scratch
    Block.store
    Block.tau_q_faces
+   Block.weight_mgrid
 
 Nondimensional:
 
@@ -910,6 +911,259 @@ class _MaskedBlock:
 # cannot ask for a coarser hierarchy than the arena was built to hold.
 MAX_MG_LEVELS = 3
 
+# Bounds on the node-targeted prolongation weights, which unlike the
+# cell-targeted ones are allowed outside [0, 1] (see _mg_project). A blend
+# coefficient outside these is not the genuine excursion the node bracket exists
+# to permit -- that reaches about -0.06 at expansion ratio 1.5 -- but an
+# ill-conditioned projection onto a coarse edge much shorter than the target's
+# offset from it, which a skewed mesh clustered to a wall can produce. Bounding
+# it caps each pass's gain |1-w| + |w| at 1.5, so the three composed cannot
+# amplify a coarse correction by more than 3.4 whatever the mesh does.
+MG_W_LO, MG_W_HI = -0.25, 1.25
+
+
+def _mg_n_hops(shape, n_max=MAX_MG_LEVELS):
+    """Factor-2 prolongation hops the cell counts of `shape` actually admit.
+
+    Hop ``m`` interpolates onto a target of ``(cells)/2**(m-1)`` from a source
+    half that size, so it exists only while the target extent is still even in
+    every direction. :func:`ember.solver._validate_mg` guarantees at least
+    ``n_levels`` of them; this counts what the geometry supports, so a grid that
+    divides twice is never asked for a third hop.
+    """
+    nc = [n - 1 for n in shape]
+    hops = 0
+    while hops < n_max and all(n >= 2 and n % 2 == 0 for n in nc):
+        hops += 1
+        nc = [n // 2 for n in nc]
+    return hops
+
+
+def _mg_weight_lengths(shape, n_hops):
+    """Element count of each direction's packed prolongation weights.
+
+    Mirrors ``mg_weight_offsets`` in ``scree.f90``, which is the source of truth
+    for the layout: hops run finest first, and the three directions pack
+    separately because the three interpolation passes resolve i, then j, then k,
+    and so carry different mixes of fine and coarse extents --
+    ``wi(tfi, tfj/2, tfk/2)``, ``wj(tfi, tfj, tfk/2)``, ``wk(tfi, tfj, tfk)``.
+    Keep the two in step.
+
+    Hop 1 is the exception: it is the final hop and targets the fine NODES, so
+    its three target extents are ``(ni, nj, nk)`` rather than the cell counts,
+    over the same coarse extents. Hops 2 and up are coarse->coarse and stay
+    cell-shaped.
+    """
+    ni, nj, nk = shape
+    li = lj = lk = 0
+    for m in range(n_hops):
+        d = 2**m
+        tfi, tfj, tfk = (ni - 1) // d, (nj - 1) // d, (nk - 1) // d
+        if m == 0:
+            li += ni * ((nj - 1) // 2) * ((nk - 1) // 2)
+            lj += ni * nj * ((nk - 1) // 2)
+            lk += ni * nj * nk
+        else:
+            li += tfi * (tfj // 2) * (tfk // 2)
+            lj += tfi * tfj * (tfk // 2)
+            lk += tfi * tfj * tfk
+    return li, lj, lk
+
+
+def _mg_index_bracket(n_fine, n_coarse):
+    """``lo``/``hi`` exactly as ``mg_bracket2x`` computes them, 0-based."""
+    i = np.arange(1, n_fine + 1)
+    t = (i - 0.5) / 2.0 + 0.5
+    icl = np.floor(t).astype(int)
+    lo = np.where(icl < 1, 1, np.where(icl >= n_coarse, n_coarse, icl))
+    hi = np.where(icl < 1, 1, np.where(icl >= n_coarse, n_coarse, icl + 1))
+    return lo - 1, hi - 1
+
+
+def _mg_index_bracket_node(n_node, n_coarse):
+    """``lo``/``hi`` exactly as ``mg_bracket2x_node`` computes them, 0-based.
+
+    The final hop's bracket. Unlike the cell one this pair does NOT always
+    contain the node it serves: the coarse centroid is the volume-weighted mean
+    of its two children, so it sits off the node between them, on whichever side
+    the local stretching puts it. :func:`_mg_project` is what accommodates that,
+    by declining to clamp in the interior.
+    """
+    i = np.arange(1, n_node + 1)
+    lo = np.clip(i // 2, 1, max(n_coarse - 1, 1))
+    return lo - 1, np.minimum(lo + 1, n_coarse) - 1
+
+
+def _mg_project(Pf, Plo, Phi, clamp_lo=None, clamp_hi=None):
+    """Fractional position of ``Pf`` along ``Plo``->``Phi``.
+
+    Exact whenever the coarse cell is a parallelepiped, which covers every
+    separable mesh; an approximation to the inverse trilinear map otherwise.
+
+    Clamped to [0, 1] only where ``clamp_lo``/``clamp_hi`` say the bracket is at
+    the end of the coarse direction, which is the flat extrapolation past the
+    outer coarse centroids. Elsewhere the weight passes through, so a target
+    lying just outside its fixed bracket -- which every second fine NODE does on
+    a stretched mesh -- is extrapolated the few percent of a coarse cell it
+    needs rather than flattened onto the near centroid. That excursion is
+    bounded by the clustering: on a geometrically stretched line it reaches only
+    about -0.04 at expansion ratio 1.2 and -0.06 at 1.5.
+
+    Only bounded by it, though, not guaranteed by it. The projection divides by
+    ``|Phi - Plo|**2``, so a target displaced from its bracket by much more than
+    the bracket is long returns a blend coefficient of any size at all -- and a
+    coarse edge IS that short wherever the mesh is clustered to a wall. The
+    caller is what keeps the displacement small (:func:`_mg_hop_weights_node`
+    anchors each pass where the last one landed), and ``MG_W_LO``/``MG_W_HI``
+    are the backstop, enforcing what the paragraph above can otherwise only
+    assert. They sit about four times outside the genuine excursion, so they
+    engage on the ill-conditioned projection and nothing else.
+
+    Passing neither mask clamps to [0, 1] everywhere, which is what the
+    cell-targeted hops want: their bracket provably contains every fine cell
+    centroid, so a weight outside [0, 1] there could only be a degenerate cell.
+    """
+    e = Phi - Plo
+    den = (e * e).sum(axis=-1)
+    num = ((Pf - Plo) * e).sum(axis=-1)
+    w = np.where(den > 0.0, num / np.where(den > 0.0, den, 1.0), 0.0)
+    if clamp_lo is None:
+        return np.clip(w, 0.0, 1.0)
+    w = np.where(clamp_lo, np.maximum(w, 0.0), w)
+    w = np.where(clamp_hi, np.minimum(w, 1.0), w)
+    return np.clip(w, MG_W_LO, MG_W_HI)
+
+
+def _mg_hop_weights(Pc, Pf):
+    """One factor-2 hop's weights, matching the kernel's three-pass structure.
+
+    Pass I resolves ``i`` while ``j``/``k`` are still coarse, pass J resolves
+    ``j`` while ``k`` is coarse, pass K resolves ``k`` -- so each pass carries a
+    different mix of fine and coarse extents and the weights follow suit.
+    """
+    nfi, nfj, nfk = Pf.shape[:3]
+    nci, ncj, nck = Pc.shape[:3]
+    il, ih = _mg_index_bracket(nfi, nci)
+    jl, jh = _mg_index_bracket(nfj, ncj)
+    kl, kh = _mg_index_bracket(nfk, nck)
+    jmid = np.arange(ncj) * 2
+    kmid = np.arange(nck) * 2
+    ic = np.minimum(np.arange(nfi) // 2, nci - 1)
+    jc = np.minimum(np.arange(nfj) // 2, ncj - 1)
+
+    wi = _mg_project(Pf[:, jmid][:, :, kmid], Pc[il], Pc[ih])
+    Pci = Pc[ic]
+    wj = _mg_project(Pf[:, :, kmid], Pci[:, jl], Pci[:, jh])
+    Pcij = Pci[:, jc]
+    wk = _mg_project(Pf, Pcij[:, :, kl], Pcij[:, :, kh])
+    return wi, wj, wk
+
+
+def _mg_hop_weights_node(Pc, Pn):
+    """The final hop's weights: coarse cell centroids onto the fine NODES.
+
+    Same three-pass structure as :func:`_mg_hop_weights` -- pass I resolves
+    ``i`` while ``j``/``k`` are still coarse, and so on -- but each pass now
+    lands on node positions, so the target extents are ``(ni, nj, nk)``.
+
+    Each pass is anchored where the LAST one landed. Pass J blends two values
+    that pass I has already placed at node ``i``, so the segment its weight
+    measures along runs between those two positions -- the coarse centroids
+    interpolated in i with the very ``wi`` the values were -- and not between
+    the coarse centroids at some representative i index. Taking the bracket's
+    ``lo`` for that index instead, which is what this used to do, leaves the
+    target displaced from its own segment by up to half a coarse i cell; that
+    displacement is then projected onto the coarse j edge, and where the mesh is
+    clustered to a wall the edge is the shorter of the two by an order of
+    magnitude. On the LISA rotor it produced blend coefficients of -25 at the
+    casing, which the fine grid then applied to the coarse correction at full
+    weight. Pass K is anchored on pass J's output for the same reason.
+
+    The clamp, meanwhile, is applied only at the ends of each coarse direction,
+    because a node is not guaranteed to lie inside the pair its index picks.
+    """
+    nni, nnj, nnk = Pn.shape[:3]
+    nci, ncj, nck = Pc.shape[:3]
+    il, ih = _mg_index_bracket_node(nni, nci)
+    jl, jh = _mg_index_bracket_node(nnj, ncj)
+    kl, kh = _mg_index_bracket_node(nnk, nck)
+    # Representative node for each coarse index, in a direction not yet
+    # resolved: the node at that coarse cell's centre. Coarse cell m spans fine
+    # cells 2m-1 and 2m, so that node is 1-based 2m, i.e. 0-based 2m-1.
+    jmid = np.minimum(np.arange(1, ncj + 1) * 2 - 1, nnj - 1)
+    kmid = np.minimum(np.arange(1, nck + 1) * 2 - 1, nnk - 1)
+
+    def ends(lo, hi, nc):
+        """Where the pair sits at an end of the coarse direction."""
+        return lo == 0, hi == nc - 1
+
+    ilo, ihi = ends(il, ih, nci)
+    wi = _mg_project(
+        Pn[:, jmid][:, :, kmid],
+        Pc[il],
+        Pc[ih],
+        ilo[:, None, None],
+        ihi[:, None, None],
+    )
+    # Where pass I leaves its values: the coarse centroids carried through the
+    # same blend the kernel applies to the field. Node 1 is the exception the
+    # kernel hardcodes (mg_interp_i2x_node's `cout(1) = cin(1)`), so its
+    # position is the first coarse centroid whatever wi holds there.
+    Pci = Pc[il] * (1.0 - wi[..., None]) + Pc[ih] * wi[..., None]
+    Pci[0] = Pc[0]
+    jlo, jhi = ends(jl, jh, ncj)
+    wj = _mg_project(
+        Pn[:, :, kmid],
+        Pci[:, jl],
+        Pci[:, jh],
+        jlo[None, :, None],
+        jhi[None, :, None],
+    )
+    Pcij = Pci[:, jl] * (1.0 - wj[..., None]) + Pci[:, jh] * wj[..., None]
+    klo, khi = ends(kl, kh, nck)
+    wk = _mg_project(
+        Pn, Pcij[:, :, kl], Pcij[:, :, kh], klo[None, None, :], khi[None, None, :]
+    )
+    return wi, wj, wk
+
+
+def _mg_centroid_ladder(xrt_nd, vol_nd, n_hops):
+    """Nodes, cell centroids of the fine grid, and each coarser block level.
+
+    Returns ``(nodes, levels)``. Cartesian, so that a projection along a coarse
+    cell edge means what it says in an annulus. Coarse levels take the
+    VOLUME-weighted centroid of their eight children, which is the position the
+    block-sum residual is balanced about. The node positions are what the final
+    prolongation hop interpolates onto, and they fall out of the same stack the
+    fine centroids are averaged from.
+    """
+    x, r, t = (np.asarray(xrt_nd[..., i], dtype=np.float64) for i in range(3))
+    nodes = np.stack([x, r * np.cos(t), r * np.sin(t)], axis=-1)
+    P = nodes
+    c = P[:-1, :-1, :-1] + P[1:, :-1, :-1] + P[:-1, 1:, :-1] + P[:-1, :-1, 1:]
+    c = c + P[1:, 1:, :-1] + P[1:, :-1, 1:] + P[:-1, 1:, 1:] + P[1:, 1:, 1:]
+    P = c / 8.0
+    V = np.asarray(vol_nd, dtype=np.float64)
+
+    levels = [P]
+    for _ in range(n_hops):
+        sh = P.shape
+        rP = P.reshape(sh[0] // 2, 2, sh[1] // 2, 2, sh[2] // 2, 2, 3)
+        sv = V.shape
+        rV = V.reshape(sv[0] // 2, 2, sv[1] // 2, 2, sv[2] // 2, 2)
+        V = rV.sum(axis=(1, 3, 5))
+        # Degenerate blocks (any zero-volume child, as in the wiring-only test
+        # grids) leave the volume weights undefined; fall back to the plain mean
+        # of the child centroids there rather than dividing by zero.
+        ok = V[..., None] > 0.0
+        P = np.where(
+            ok,
+            (rP * rV[..., None]).sum(axis=(1, 3, 5)) / np.where(ok, V[..., None], 1.0),
+            rP.mean(axis=(1, 3, 5)),
+        )
+        levels.append(P)
+    return nodes, levels
+
 
 def _viscous_face_shapes(ni, nj, nk):
     """Shapes of the six boundary tau/q face buffers, in tau_q_faces order."""
@@ -943,9 +1197,9 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
                        alongside either's other buffers
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
-      scree / RK, MG   the eleven multigrid coarse buffers + the caller's
+      scree / RK, MG   the twelve multigrid coarse buffers + the caller's
                        rolling two-plane increment (both schemes fuse the
-                       final prolong with the cell->node scatter)
+                       final prolong with the fine term's cell->node scatter)
       scree / RK, no MG  the caller's full-volume cell-shaped increment, which
                        the multigrid-off kernels still materialise
 
@@ -2631,10 +2885,13 @@ class Block(ember._struct.StructuredData):
 
         Stateful selective-frequency-damping scratch: seeded to the current
         cell-averaged conserved state on first access, then evolved each step by
-        ``adapt_cfl`` and read by the SFD body force. The no-key
-        ``cached_array`` allocates it once and never invalidates it; read-only
-        to consumers, and its one writer (``set_cfl``) toggles
-        ``flags.writeable`` around its writes.
+        :meth:`ember.grid.Grid.update_filter` and read by the SFD body force in
+        :meth:`ember.grid.Grid.update_sources`. Only allocated when
+        ``Solver.gain_filt`` is nonzero, since nothing else touches it. The
+        no-key ``cached_array`` allocates it once and never invalidates it;
+        read-only to consumers, and its one writer
+        (:meth:`~ember.grid.Grid.update_filter`) toggles ``flags.writeable``
+        around its writes.
         """
         out = util.allocate_or_reuse(out, self.shape_cell + (5,))
         ember.fortran.node_to_cell(self.conserved_nd, out)
@@ -3797,6 +4054,68 @@ class Block(ember._struct.StructuredData):
     def wdist_nd(self):
         r"""Nondimensional distance to nearest wall :math:`w/L_\mathrm{ref}` [-], nodal array."""
         return self._get_data_by_keys(("wdist",))
+
+    @cached_object
+    def weight_mgrid(self):
+        r"""Multigrid prolongation interpolation weights :math:`w` [-], per direction.
+
+        The multigrid coarse correction is carried back to the fine grid by a
+        separable factor-2 linear interpolation. Which pair of coarse cells a
+        target falls between is index arithmetic (``mg_bracket2x``, or
+        ``mg_bracket2x_node`` for the final hop) and stays so, but where it sits
+        BETWEEN them is geometry: the fractional position of the target along
+        the edge joining the two coarse centroids, taken volume-weighted so it
+        is the point the block-sum residual is balanced about. Placing every
+        target at ``(i - 0.5)/2 + 0.5`` instead, as this used to, is linear
+        interpolation only on a mesh uniform in physical space; on one clustered
+        towards a wall it is not, and that is the mesh on which the block-sum
+        correction goes unstable.
+
+        The final hop's target is the fine NODES, not the fine cell centres:
+        that is where the correction is applied, and interpolating onto the
+        centres and averaging back out would evaluate the interpolant at the
+        mean of the eight surrounding centroids, a point offset from the node by
+        ``(h_next - h_prev)/4`` on a stretched mesh. Hops 2 and up are
+        coarse->coarse and stay cell-targeted.
+
+        That hop's three passes are each anchored on the positions the previous
+        one produced, and its weights are bounded (``MG_W_LO``/``MG_W_HI``).
+        Both matter on a sheared mesh clustered to a wall, where the projection
+        is otherwise ill-conditioned enough to turn the prolongation into an
+        amplifier -- see :func:`_mg_hop_weights_node` and :func:`_mg_project`.
+
+        Returns the ``(wi, wj, wk)`` the kernels take, one flat array per
+        direction -- the three interpolation passes resolve i, then j, then k,
+        so each carries a different mix of fine and coarse extents. Within each
+        array the hops run finest first, matching ``mg_weight_offsets`` in
+        ``scree.f90``; indexing hops from the fine grid down is what keeps the
+        layout independent of ``n_levels``, so one cache serves any level count.
+
+        Cached and never invalidated, as :attr:`ijk_wall_conv` is: the
+        coordinates must not be modified after first access. Nothing in a march
+        does -- :meth:`ember.grid.Grid.resample` returns new blocks rather than
+        moving an existing one -- and :meth:`clear_cache` is the way out if
+        something ever does. Emphatically not solver scratch either way: unlike
+        :attr:`scratch` this has to survive the step. Costs about 14 bytes per
+        fine cell -- hop 1's ``wk`` alone is one float per node -- and being lazy
+        it is never built by a run with multigrid off.
+        """
+        n_hops = _mg_n_hops(self.shape)
+        if not n_hops:
+            return tuple(np.zeros(0, dtype=np.float32) for _ in range(3))
+        nodes, levels = _mg_centroid_ladder(self._xrt_nd, self.vol_nd, n_hops)
+        parts = ([], [], [])
+        for m in range(1, n_hops + 1):
+            # Hop m interpolates the coarser level m onto level m-1, except hop
+            # 1, the final one, which lands on the nodes rather than level 0.
+            trio = (
+                _mg_hop_weights_node(levels[1], nodes)
+                if m == 1
+                else _mg_hop_weights(levels[m], levels[m - 1])
+            )
+            for buf, w in zip(parts, trio):
+                buf.append(np.asarray(w, dtype=np.float32).ravel(order="F"))
+        return tuple(np.asfortranarray(np.concatenate(b)) for b in parts)
 
     @cached_array("x")
     def x(self, out):

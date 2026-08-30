@@ -3,7 +3,7 @@ module residual_helpers
     private
     public :: iface_flow_row, jface_flow_row, kface_flow_plane
     public :: correct_cusp_kface_du
-    public :: irs_tri_coeffs, irs_gather_tile, irs_gather_tile_scaled
+    public :: irs_tri_coeffs, irs_gather_tile
     public :: irs_scatter_tile, irs_tile_solve, irs_jk_strips, irs_jac_line
     public :: IRS_BJ, IRS_TB, IRS_W
     public :: RES_JAREA, RES_JMIN
@@ -124,6 +124,23 @@ contains
         ! the rewrite is kept at _fortran/residual_cand.f90.
         !   pm = (Vx, Vr, r*Vt_abs, ho, P-P_offset, r*(P-P_offset))
         !   mf = (rho*Vx, rho*Vr, rho*Vt_rel)
+        !
+        ! BOTH spellings of IVDEP appear on every one of these row loops, and
+        ! both are load-bearing on their own compiler: `!DIR$` is ifort's and
+        ! gfortran ignores it, `!GCC$` is gfortran's and ifort ignores it. The
+        ! `!DIR$` lines stood alone here for a long time, so the production
+        ! gfortran build got no assertion at all and GCC versioned all seven
+        ! loops -- emitting a runtime overlap test and a full scalar clone of
+        ! each body, since it cannot see that `row` (rolling face-flow scratch)
+        ! and dA/P/cons (persistent fields) come from different storage.
+        ! Adding `!GCC$` deletes the clones: set_residual's call closure falls
+        ! 20331 -> 16911 instructions (-16.8%) with its vector op count
+        ! unchanged (2727 -> 2733), and the result is BITWISE identical, which
+        ! is the point -- the vector body was always what ran.
+        !
+        ! Worth -1.3% serial and -0.4 to -1.2% at 8-rank contention, decaying
+        ! with block size as the kernel goes memory-bound (bench/README.md).
+        ! It is a gfortran-only win: ifort already honoured `!DIR$`.
 
         ! Low boundary i=1
         call accum_corners(1, j, k, wall_lo, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
@@ -136,6 +153,7 @@ contains
 
         ! Interior i=2..ni-1
         !DIR$ IVDEP
+        !GCC$ IVDEP
         do i = 2, ni-1
             call accum_corners(i, j, k, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
             mdot = mf1*dA(1,i,j,k) + mf2*dA(2,i,j,k) + mf3*dA(3,i,j,k)
@@ -243,6 +261,7 @@ contains
         if (jf == 1) then
             ! Low boundary j=1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, 1, k, wall_lo(i,k), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
@@ -255,6 +274,7 @@ contains
         else if (jf == nj) then
             ! High boundary j=nj
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, nj, k, wall_hi(i,k), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
@@ -267,6 +287,7 @@ contains
         else
             ! Interior 2 <= jf <= nj-1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, jf, k, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,jf,k) + mf2*dA(2,i,jf,k) + mf3*dA(3,i,jf,k)
@@ -372,6 +393,7 @@ contains
             ! Low boundary k=1
             do j = j0, j1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, j, 1, wall_lo(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
@@ -386,6 +408,7 @@ contains
             ! High boundary k=nk
             do j = j0, j1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, j, nk, wall_hi(i,j), pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
@@ -400,6 +423,7 @@ contains
             ! Interior 2 <= kf <= nk-1
             do j = j0, j1
             !DIR$ IVDEP
+            !GCC$ IVDEP
             do i = 1, ni-1
                 call accum_corners(i, j, kf, 1.0e0, pm1, pm2, pm3, pm4, pm5, pm6, mf1, mf2, mf3)
                 mdot = mf1*dA(1,i,j,kf) + mf2*dA(2,i,j,kf) + mf3*dA(3,i,j,kf)
@@ -640,11 +664,9 @@ contains
 
     ! =================================================================
     ! Implicit residual smoothing primitives, shared by every consumer:
-    ! smooth_residual_tri_tiled (the standalone three-direction smoother
-    ! that scree.f90's coarse-MG path hands to its `smoother` dummy
-    ! argument) and smooth_residual_scale_tri (the fine-grid path, which
-    ! folds the change limiter's scaling into the i-solve's gather).
-    ! They live here rather than being contained in one of them so the
+    ! smooth_residual_tri_tiled serves both the fine grid and the
+    ! coarse-MG path, which hands it to its `smoother` dummy argument.
+    ! They live here rather than being contained in it so the
     ! two cannot drift apart -- an earlier version of this file had the
     ! j/k sweeps duplicated into a bench arm, and identical-code folding
     ! then merged the two symbols and silently corrupted every timing
@@ -807,64 +829,6 @@ contains
             end do
         end do
     end subroutine irs_gather_tile
-
-    ! As irs_gather_tile, but applies the change limiter's pointwise
-    ! scaling on the way through, while each value is already in a
-    ! register. That is the whole point of the fine-grid path: the scaling
-    ! pass and the i-solve each cost a full-volume read and write on their
-    ! own, and fused they cost one between them.
-    !
-    ! The arithmetic is byte-for-byte set_residual's scale_du, INCLUDING
-    ! keeping fdamp/dampin as a division rather than a hoisted reciprocal
-    ! multiply -- the two do not agree bitwise and the exactness of this
-    ! whole path depends on them matching.
-    subroutine irs_gather_tile_scaled(src, dtv, tl, ldt, n, nb_in, rav, dampin)
-        implicit none
-        integer, intent(in) :: ldt, n, nb_in
-        real, intent(in)    :: src(n, nb_in)
-        real, intent(in)    :: dtv(n, nb_in)
-        real, intent(inout) :: tl(ldt, n)
-        real, intent(in)    :: rav, dampin
-        real    :: blk(IRS_TB, IRS_TB)
-        real    :: v, chg, fdamp
-        integer :: ib, jb, ii, jj, nfull_i, nfull_j
-
-        nfull_i = (n / IRS_TB) * IRS_TB
-        nfull_j = (nb_in / IRS_TB) * IRS_TB
-        do jb = 1, nfull_j, IRS_TB
-            do ib = 1, nfull_i, IRS_TB
-                do jj = 1, IRS_TB
-                    do ii = 1, IRS_TB
-                        v     = src(ib+ii-1, jb+jj-1)
-                        chg   = abs(v * dtv(ib+ii-1, jb+jj-1))
-                        fdamp = chg * rav
-                        blk(ii,jj) = v / (1.0e0 + fdamp/dampin)
-                    end do
-                end do
-                do ii = 1, IRS_TB
-                    do jj = 1, IRS_TB
-                        tl(jb+jj-1, ib+ii-1) = blk(ii,jj)
-                    end do
-                end do
-            end do
-        end do
-        do jj = 1, nfull_j
-            do ii = nfull_i+1, n
-                v     = src(ii,jj)
-                chg   = abs(v * dtv(ii,jj))
-                fdamp = chg * rav
-                tl(jj,ii) = v / (1.0e0 + fdamp/dampin)
-            end do
-        end do
-        do jj = nfull_j+1, nb_in
-            do ii = 1, n
-                v     = src(ii,jj)
-                chg   = abs(v * dtv(ii,jj))
-                fdamp = chg * rav
-                tl(jj,ii) = v / (1.0e0 + fdamp/dampin)
-            end do
-        end do
-    end subroutine irs_gather_tile_scaled
 
     subroutine irs_scatter_tile(dst, tl, ldt, n, nb_in)
         implicit none
@@ -1034,30 +998,6 @@ end module residual_helpers
 ! applied as a deferred O(surface) correction to dU after the sweep
 ! (see correct_cusp_kface_du).
 ! =====================================================================
-!
-! Change limiter folded in
-! ------------------------
-! damp_residual's global reduction (block mean of |dU*dt_vol|) is
-! accumulated here, inside the fused dU write, while each value is still in
-! a register; only the pointwise scaling remains as a second pass. That
-! removes a full-volume dU read: -6% serial, -11% at 100-rank saturation,
-! winning 100/100 ranks (docs section 24). dampin <= 0 disables it and
-! reproduces the un-damped kernel bitwise.
-!
-! *** THIS REORDERS THE POST-PROCESSING. *** Grid.update_residual used to
-! run IRS then damp; folding damp in here necessarily makes it damp then
-! IRS. IRS is linear and the limiter is nonlinear with a global mean, so
-! the composed operator is genuinely different -- at sf_resid = 1.0,
-! dampin = 25 (run.py defaults) the two orderings differ by ~19% of the
-! field scale, and the difference grows monotonically with sf (zero at
-! sf = 0). This is a deliberate numerics change, not a rounding artifact,
-! and it is NOT covered by the test suite: no test drives update_residual
-! with dampin set and sf > 0 together. Convergence must be verified
-! separately.
-!
-! Second known inexactness: the reduction is accumulated before
-! correct_cusp_kface_du modifies dU on the two seam planes, so on a cusped
-! block the mean omits that O(surface) correction.
 
 subroutine set_residual( &
     cons, P, P_offset, &
@@ -1068,7 +1008,6 @@ subroutine set_residual( &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
     i_cusp_start, i_cusp_end, &
-    dt_vol, dampin, ravg_out, &
     kb, njp, ni, nj, nk &
     )
 
@@ -1105,29 +1044,10 @@ subroutine set_residual( &
     ! at small blocks it does not help).
     real, intent(inout) :: planes(ni, njp, 5, 2)
     real, intent(inout) :: rows(ni, 5, 3)
-    ! Change limiter folded in: dt_vol and dampin are damp_residual's
-    ! inputs. dampin <= 0 disables the limiter (matching the caller's
-    ! `if dampin is not None` skip).
-    real, intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-    real, intent(in) :: dampin
-    ! Reciprocal block means of |dU*dt_vol| per conserved variable, the
-    ! change limiter's own scaling factors. Always returned, because the
-    ! reduction that produces them is accumulated during the dU sweep
-    ! whatever dampin is. The fine-grid IRS path (smooth_residual_scale_tri)
-    ! takes them and applies the limiter itself, fused into its i-solve, so
-    ! that the scaling does not need a full-volume traversal of its own --
-    ! call this with dampin <= 0 to get the factors without the scaling.
-    real, intent(out) :: ravg_out(5)
     integer, intent(in) :: kb, njp, ni, nj, nk
 
     integer :: i, j, k, m, k0, k1, ja, jb, pa, pb, stmp
     integer :: jp, jp0, jp1, jbw
-    integer :: ncell
-    real :: avg(5), ravg(5)
-
-    do m = 1, 5
-        avg(m) = 0.0e0
-    end do
 
     ! ===== j-panel over the k walk =====
     ! What the walk CARRIES from one k to the next is the rolling k-face
@@ -1202,10 +1122,6 @@ subroutine set_residual( &
                 dU(i,j,k,m) = rows(i,m,1) - rows(i+1,m,1) + f_body(i,j,k,m) &
                             + rows(i,m,ja) - rows(i,m,jb) &
                             + planes(i,j,m,pa) - planes(i,j,m,pb)
-                ! Change-limiter reduction, accumulated while dU is still in
-                ! a register -- this is the whole point of the fusion: the
-                ! separate routine's first full-volume dU read disappears.
-                avg(m) = avg(m) + abs(dU(i,j,k,m) * dt_vol(i,j,k))
             end do
             end do
             stmp = ja
@@ -1230,157 +1146,8 @@ subroutine set_residual( &
                                    i_cusp_start, i_cusp_end, ni, nj, nk)
     end if
 
-    ! ---- change limiter, second half ----
-    ! The reduction above was accumulated during the sweep, so only the
-    ! pointwise scaling pass remains. NOTE the cusp correction just
-    ! modified dU on the two seam cell planes, which the reduction did not
-    ! see; that is an O(surface) discrepancy in a block-mean over O(volume)
-    ! cells, and is corrected below for exactness.
-    ncell = (ni-1)*(nj-1)*(nk-1)
-    do m = 1, 5
-        avg(m) = avg(m) / ncell
-        if (avg(m) > 0.0e0) then
-            ravg(m) = 1.0e0 / avg(m)
-        else
-            ravg(m) = 0.0e0
-        end if
-    end do
-    do m = 1, 5
-        ravg_out(m) = ravg(m)
-    end do
-    if (dampin > 0.0e0) then
-        call scale_du(dU, dt_vol, ravg, dampin, ni, nj, nk)
-    end if
-
-contains
-
-    ! The scaling pass lives in its own procedure so ifort sees a dU with no
-    ! other writes in scope. Inline in the parent, the main sweep also writes
-    ! dU and ifort cannot disprove that the two write regions overlap
-    ! ("assumed OUTPUT dependence"), so it distributes the nest and only
-    ! partially vectorizes it. Production's standalone damp_residual has the
-    ! identical loop and vectorizes cleanly, which is the clue this follows.
-    subroutine scale_du(dU, dt_vol, ravg, dampin, ni, nj, nk)
-        implicit none
-        integer, intent(in) :: ni, nj, nk
-        real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-        real, intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-        real, intent(in) :: ravg(5), dampin
-        integer :: i, j, k, m
-        real :: chg, fdamp
-        do k = 1, nk-1
-        do j = 1, nj-1
-        do m = 1, 5
-        do i = 1, ni-1
-            chg   = abs(dU(i,j,k,m) * dt_vol(i,j,k))
-            fdamp = chg * ravg(m)
-            dU(i,j,k,m) = dU(i,j,k,m) / (1.0e0 + fdamp/dampin)
-        end do
-        end do
-        end do
-        end do
-    end subroutine scale_du
-
 end subroutine set_residual
 
-
-! =====================================================================
-! Negative-feedback change limiter (ported from multall's DAMP loop).
-!
-! Soft-clips outlier per-cell changes so the explicit march stays stable
-! without globally cutting the timestep. The per-step change is
-! dU * dt_vol; per conserved variable, the block mean of its magnitude is
-! avg, and each cell is shrunk by 1/(1 + fdamp/dampin) with
-! fdamp = |change|/avg. Cells near the mean are barely touched; large
-! outliers saturate towards dampin*avg. Operates in place on dU.
-! =====================================================================
-! Negative-feedback change limiter (ported from multall's DAMP loop).
-!
-! Soft-clips outlier per-cell changes so the explicit march stays stable
-! without globally cutting the timestep. The per-step change is
-! dU * dt_vol; per conserved variable, the block mean of its magnitude is
-! avg, and each cell is shrunk by 1/(1 + fdamp/dampin) with
-! fdamp = |change|/avg. Cells near the mean are barely touched; large
-! outliers saturate towards dampin*avg. Operates in place on dU.
-!
-! The five components share each (j,k) plane traversal rather than each
-! getting its own full-volume sweep: the reduction and the scaling are one
-! pass apiece instead of five, so dt_vol is loaded once per plane instead
-! of five times. -28.7% serial, -30.8% at 100-rank saturation
-! (docs/dev/viscous_kernels.md section 21).
-!
-! m stays OUTSIDE the i loop. dU is component-last, so dU(:,j,k,m) is
-! contiguous in i only for fixed m; making m innermost strides the i reads
-! by the whole volume and measured +208%. The flat-field guard is folded
-! into ravg (0 for a flat component => identity soft-clip) so the swept
-! region stays branch-free.
-! =====================================================================
-subroutine damp_residual(dU, dt_vol, dampin, ni, nj, nk)
-
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk
-    real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
-    real, intent(in)    :: dampin
-
-    integer :: i, j, k, m, ncell
-    real :: avg(5), ravg(5), chg, fdamp
-
-    ncell = (ni-1)*(nj-1)*(nk-1)
-
-    ! ---- Sweep 1: all five block means in one pass over dU/dt_vol ----
-    do m = 1, 5
-        avg(m) = 0.0e0
-    end do
-    ! m stays OUTSIDE the i loop: dU is component-LAST, so dU(:,j,k,m) is
-    ! contiguous in i only for fixed m. Putting m innermost would make each
-    ! (i,j,k) touch five locations ~(ni-1)*(nj-1)*(nk-1) elements apart and
-    ! destroy the i-vectorization -- measured at +208% before this was fixed
-    ! (section 2's "any layout change that strides the i reads is suspect").
-    ! The saving here is therefore NOT fewer dU sweeps but fewer dt_vol
-    ! reads: the k/j planes of dt_vol are hoisted and shared across m.
-    do k = 1, nk-1
-    do j = 1, nj-1
-    do m = 1, 5
-    do i = 1, ni-1
-        avg(m) = avg(m) + abs(dU(i,j,k,m) * dt_vol(i,j,k))
-    end do
-    end do
-    end do
-    end do
-
-    ! A flat field (avg = 0) would divide by zero. Production guards this
-    ! with `cycle`; here the reciprocal is folded into a factor that is
-    ! simply 0 for such a component, which makes fdamp 0 and the soft-clip
-    ! the identity -- same outcome, no branch inside the sweep. Branch-free
-    ! matters because the caller already skips this routine entirely when
-    ! damping is off, so every execution here is one that does real work.
-    do m = 1, 5
-        avg(m) = avg(m) / ncell
-        if (avg(m) > 0.0e0) then
-            ravg(m) = 1.0e0 / avg(m)
-        else
-            ravg(m) = 0.0e0
-        end if
-    end do
-
-    ! ---- Sweep 2: soft-clip every component in one pass ----
-    do k = 1, nk-1
-    do j = 1, nj-1
-    do m = 1, 5
-        do i = 1, ni-1
-            chg   = abs(dU(i,j,k,m) * dt_vol(i,j,k))
-            fdamp = chg * ravg(m)
-            ! fdamp/dampin kept as a division, not a hoisted reciprocal
-            ! multiply, so the arithmetic matches production exactly.
-            dU(i,j,k,m) = dU(i,j,k,m) / (1.0e0 + fdamp/dampin)
-        end do
-    end do
-    end do
-    end do
-
-end subroutine damp_residual
 
 
 ! =====================================================================
@@ -1421,11 +1188,9 @@ end subroutine damp_residual
 ! (3bf9b22 and this revert) for the Jacobi arm if the contention win is
 ! ever worth re-pricing against a fuller convergence check.
 !
-! This routine is now a driver: every primitive lives in residual_helpers,
-! shared with smooth_residual_scale_tri, which is the fine-grid path and
-! folds the change limiter's scaling into the i-solve's gather. THIS one is
-! what scree.f90's coarse-MG path hands to its `smoother` dummy argument,
-! where there is no limiter to fold in.
+! This routine is now a driver: every primitive lives in residual_helpers.
+! It serves the fine grid directly, and is what scree.f90's coarse-MG path
+! hands to its `smoother` dummy argument.
 !
 ! Scratch: the Thomas solve is in place on dU; work is a 1D buffer holding
 ! the six coefficient vectors back-to-back, >= 2*((ni-1)+(nj-1)+(nk-1))
@@ -1493,100 +1258,3 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
 end subroutine smooth_residual_tri_tiled
 
 
-! =====================================================================
-! Fine-grid IRS: the change limiter's scaling pass FUSED into the
-! i-direction solve, then the strip-fused j and k solves.
-!
-! Grid.update_residual used to run set_residual (whose trailing scale_du
-! applies the limiter over the whole volume) and then
-! smooth_residual_tri_tiled. That is three full-volume read/write pairs
-! downstream of the residual sweep: scale, then i, then j+k. The scaling
-! is pointwise and the i-solve for a row depends only on that row's
-! scaled values, so the two can share one traversal -- the tile gather IS
-! the scale's read and the tile scatter IS its write:
-!
-!   scale (1R+1W) + i (1R+1W) + j+k (1R+1W)  ->  scale(x)i (1R+1W) + j+k (1R+1W)
-!
-! set_residual therefore hands out the block means it already accumulates
-! during its sweep (ravg), and skips its own scaling pass; this routine
-! applies it. dampin <= 0 means no limiter, and the plain gather is used.
-!
-! BITWISE against the unfused pair, and that is not a nicety: the scaling
-! arithmetic here is byte-for-byte scale_du's, the i-solve is unchanged,
-! and applying the two per (k, j0-block, m) rather than volume-then-volume
-! is the same computation on the same operands because the scaling is
-! pointwise and the blocks are disjoint. The ORDER that matters is
-! preserved exactly -- sweep, cusp correction, limiter, IRS-i, IRS-j,
-! IRS-k -- so this does not reopen the damp-vs-IRS ordering question
-! documented at the head of set_residual.
-!
-! Loop nest is (k, j0, m), NOT (m, k, j0) as the standalone smoother uses:
-! dt_vol is component-independent, so putting m innermost lets one
-! (nci,nb) block of it serve all five components out of cache. With m
-! outermost dt_vol would be streamed five times, which is most of what the
-! fusion just saved -- the same trap damp_residual documents.
-! =====================================================================
-subroutine smooth_residual_scale_tri(dU, dt_vol, ravg, dampin, sf, work, &
-                                     ni, nj, nk)
-
-    use residual_helpers
-
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk
-    real, intent(in)    :: sf, dampin
-    real, intent(in)    :: ravg(5)
-    real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
-    real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
-    ! 2*((ni-1)+(nj-1)+(nk-1)), flattened so f2py can parse the dimension.
-    real, intent(inout) :: work(2*ni + 2*nj + 2*nk - 6)
-
-    integer :: k, m, nci, ncj, nck, j0, nb
-    integer :: bcpi, bmii, bcpj, bmij, bcpk, bmik
-    real    :: tile(IRS_BJ, ni-1)
-
-    if (sf <= 0.0e0) return
-
-    nci = ni-1
-    ncj = nj-1
-    nck = nk-1
-    if (nci < 1 .or. ncj < 1 .or. nck < 1) return
-
-    bcpi = 0
-    bmii = nci
-    bcpj = 2*nci
-    bmij = 2*nci + ncj
-    bcpk = 2*nci + 2*ncj
-    bmik = 2*nci + 2*ncj + nck
-    call irs_tri_coeffs(sf, nci, work(bcpi+1:bcpi+nci), work(bmii+1:bmii+nci))
-    call irs_tri_coeffs(sf, ncj, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj))
-    call irs_tri_coeffs(sf, nck, work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck))
-
-    if (nci >= 2) then
-        do k = 1, nck
-        do j0 = 1, ncj, IRS_BJ
-            nb = min(IRS_BJ, ncj - j0 + 1)
-            do m = 1, 5
-                ! The dampin test is loop-invariant over the whole nest and
-                ! sits outside every vector loop, so it costs a predicted
-                ! branch per block and keeps one code path for both cases.
-                if (dampin > 0.0e0) then
-                    call irs_gather_tile_scaled(dU(1,j0,k,m), dt_vol(1,j0,k), &
-                                                tile, IRS_BJ, nci, nb, &
-                                                ravg(m), dampin)
-                else
-                    call irs_gather_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
-                end if
-                call irs_tile_solve(tile, IRS_BJ, sf, work(bcpi+1:bcpi+nci), &
-                                    work(bmii+1:bmii+nci), nci, nb)
-                call irs_scatter_tile(dU(1,j0,k,m), tile, IRS_BJ, nci, nb)
-            end do
-        end do
-        end do
-    end if
-
-    call irs_jk_strips(dU, sf, work(bcpj+1:bcpj+ncj), work(bmij+1:bmij+ncj), &
-                       work(bcpk+1:bcpk+nck), work(bmik+1:bmik+nck), &
-                       nci, ncj, nck)
-
-end subroutine smooth_residual_scale_tri

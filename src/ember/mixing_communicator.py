@@ -6,6 +6,10 @@ and carries out the exchange itself: it takes the cross-plane *flux* mismatch,
 splits it by direction of propagation after :cite:t:`Saxer1993`, and writes the
 result in the mix variables :math:`[h_0, s, V_r, V_\\theta, p]` its patches
 take their pitchwise-mean residuals against.
+
+A run with :attr:`~ember.solver.Solver.mix_reflective` set bypasses all of
+that for the average of the two circumferential means; see
+:meth:`MixingCommunicator._mix_uniform`.
 """
 
 from ember import perturbation, util
@@ -87,6 +91,22 @@ class MixingCommunicator:
     -- is his remedy and this is ember's form of it. It also keeps
     :func:`~ember.perturbation.flux_to_primitive`, which divides by the axial
     velocity, away from zero.
+
+    See :attr:`Ma_clip_max` for the other end of the same band.
+    """
+
+    Ma_clip_max = 0.9
+    r"""Ceiling on :math:`\lvert \mathit{Ma}_x \rvert` of that same state, the
+    other end of :attr:`Ma_clip`'s band.
+
+    Holmes bounds the normal velocity only from below, because that is where his
+    eigenvalues blow up. The upper end matters here for a different reason: the
+    plane's whole characteristic treatment is derived for a mean state subsonic
+    normal to it (see :class:`~ember.mixing.MixingPatch`), and a station that
+    briefly runs past sonic during a transient would otherwise be linearised
+    with the wrong number of incoming characteristics rather than merely
+    inaccurately. Clipping keeps such a station inside the theory until the flow
+    brings it back.
     """
 
     def __init__(
@@ -139,6 +159,9 @@ class MixingCommunicator:
         """
         for bid, pid in self.pairs:
             patch1, patch2 = self._get_pair(bid, pid)
+            if patch1._reflective:
+                # No exchange to relax; see MixingCommunicator._mix_uniform.
+                continue
             if patch1.rf_exchange != patch2.rf_exchange:
                 raise ValueError(
                     f"Mixing plane sides disagree on rf_exchange: "
@@ -164,7 +187,7 @@ class MixingCommunicator:
                 seen_pairs.add(pair_key)
 
     def _ensure_pair_state(self, key, nspan):
-        """Allocate or resize the per-pair diagnostic state for the given pair."""
+        """Allocate or resize the per-pair state for the given pair."""
         state = self._pair_state.get(key)
         if state is None or state["du"].shape[0] != nspan:
             self._pair_state[key] = {
@@ -196,8 +219,53 @@ class MixingCommunicator:
         """
         patch1, patch2 = self._get_pair(bid, pid)
 
+        if patch1._reflective:
+            self._mix_uniform(patch1, patch2, flip)
+            return
+
         b_avg, nspan = self._prepare_pair(patch1, patch2, flip)
         self._write_targets(patch1, patch2, flip, b_avg, nspan, (bid, pid))
+
+    def _mix_uniform(self, patch1, patch2, flip):
+        r"""Hand both sides of a reflective plane their common mixed-out state.
+
+        The whole of the exchange under
+        :attr:`~ember.solver.Solver.mix_reflective`: circumferentially average
+        each face, average the two, and give the result to both. No
+        characteristic split, no Jacobians, no relaxation and no mass flow
+        forcing -- see that setting's own documentation for what that costs and
+        what it does not.
+
+        Worked in ``(x, r)`` components rather than in the interface frame, and
+        on the conserved variables rather than on the fluxes, which is what
+        makes it this short: the two sides share a meridional geometry and a
+        radius, so their absolute-frame
+        :math:`[\rho, \rho V_x, \rho V_r, \rho r V_\theta, \rho e]` are
+        directly comparable with nothing resolved first.
+        :meth:`~ember.mixing.MixingPatch.set_block_avg` holds no rotation in
+        this mode for that reason.
+
+        The mean is written to both sides on the spot rather than accumulated
+        onto anything, so it is the *current* mixed-out state that each face
+        will impose until the next exchange, one outer timestep later.
+        """
+        patch1.set_block_avg()
+        patch2.set_block_avg()
+
+        cons1 = patch1.block_avg.conserved_nd
+        cons2 = patch2.block_avg.conserved_nd
+        if flip:
+            cons2 = cons2[::-1]
+
+        nspan = cons1.shape[0]
+        self._ensure_buffers(nspan)
+        mean = self._vec1[:nspan]
+        mean[:] = cons1
+        mean += cons2
+        mean *= 0.5
+
+        patch1.set_uniform(mean)
+        patch2.set_uniform(mean[::-1] if flip else mean)
 
     def _prepare_pair(self, patch1, patch2, flip):
         """Symmetrise the cross-plane average and reduce the flux mismatch to chic space.
@@ -270,20 +338,22 @@ class MixingCommunicator:
         v1[:] = flux2
         v1 -= flux1
 
-        # Clip b_avg axial Mach to Ma_clip before evaluating Jacobians.
-        # np.sign is not usable for the direction: it returns 0 at Max == 0, so
-        # a stalled station would be clipped to exactly zero axial momentum --
-        # the one value the clip exists to keep out of flux_to_primitive, which
-        # divides by it two lines below. A station with no direction of its own
-        # takes the downstream one.
+        # Clip b_avg axial Mach into [Ma_clip, Ma_clip_max] before evaluating
+        # Jacobians. np.sign is not usable for the direction: it returns 0 at
+        # Max == 0, so a stalled station would be clipped to exactly zero axial
+        # momentum -- the one value the clip exists to keep out of
+        # flux_to_primitive, which divides by it two lines below. A station with
+        # no direction of its own takes the downstream one.
         b_avg = patch1.block_avg
         Max = b_avg.Max
-        too_low = np.abs(Max) < self.Ma_clip
-        if too_low.any():
+        Max_abs = np.abs(Max)
+        outside = (Max_abs < self.Ma_clip) | (Max_abs > self.Ma_clip_max)
+        if outside.any():
             sign = np.where(Max >= 0.0, 1.0, -1.0)
-            rhoVx_clip = sign * self.Ma_clip * b_avg.rho_nd * b_avg.a_nd
+            Ma_lim = np.clip(Max_abs, self.Ma_clip, self.Ma_clip_max)
+            rhoVx_clip = sign * Ma_lim * b_avg.rho_nd * b_avg.a_nd
             b_avg.conserved_nd[..., 1] = np.where(
-                too_low, rhoVx_clip, b_avg.conserved_nd[..., 1]
+                outside, rhoVx_clip, b_avg.conserved_nd[..., 1]
             )
             b_avg.update_cached_conserved()
 
@@ -412,10 +482,11 @@ class MixingCommunicator:
         # For some reason need a -ve sign on dtarget_dn here!
         v1 -= v2
 
-        # v1 holds the error e_n = dtarget; the increment is du = rf_exchange *
-        # e_n, recorded for get_stats before it is added onto the target below.
-        v1 *= patch1.rf_exchange  # v1 = du
+        # v1 holds the error e_n = dtarget. The increment is
+        # du = rf_exchange * e_n, recorded for get_stats before it is added
+        # onto the target below.
         state = self._ensure_pair_state(key, nspan)
+        v1 *= patch1.rf_exchange  # v1 = du
         state["du"][:] = v1
 
         # Integrate the target-space mismatch onto the previous target, not the
@@ -534,7 +605,11 @@ class MixingCommunicator:
         return {"du": state["du"].copy()}
 
     def exchange(self):
-        """Compute and write targets for all pairs (no apply step)."""
+        """Compute and write targets for all pairs (no apply step).
+
+        Under :attr:`~ember.solver.Solver.mix_reflective` a pair goes through
+        :meth:`_mix_uniform` instead.
+        """
         for bid, pid in self.pairs.keys():
             _, flip = self.pairs[(bid, pid)]
             self._exchange_pair(bid, pid, flip)

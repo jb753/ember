@@ -342,6 +342,32 @@ the headline number, and where it lives.
 
 ### Adopted (shipped in production today)
 
+- **`!GCC$ IVDEP` on `set_residual`'s seven face-flow row loops**
+  (`residual.f90`). They already carried `!DIR$ IVDEP` -- ifort's spelling,
+  which gfortran ignores -- so the production gfortran build received no
+  aliasing assertion and GCC versioned all seven: a runtime overlap test plus
+  a full scalar clone of each body, because it cannot see that `row` (rolling
+  face-flow scratch) and `dA`/`P`/`cons` (persistent fields) come from
+  different storage. Both spellings now appear on every one; each is
+  load-bearing on its own compiler. The clones go away: `set_residual`'s call
+  closure falls **20331 -> 16911 instructions (-16.8%)** with its vector op
+  count unchanged (2727 -> 2733) and `vdivss` 118 -> 74, and the result is
+  **bitwise identical** -- the vector body was always what ran.
+
+  **-1.3% serial**, -0.4 to -1.2% at 8-rank contention, decaying with block
+  size as the kernel goes memory-bound (`results/ivdep_{c8,s1}_*.jsonl`; the
+  2M contended point, -0.35%, is inside the +-0.4% launch-to-launch noise
+  floor and is not leaned on). **This is a gfortran-only win** -- ifort was
+  already honouring `!DIR$`, so it is worth nothing on the production
+  compiler. Taken because it is free and bitwise, not because it moves
+  production.
+
+  28 alias-versioned loops remain (3 in `residual.f90`, 6 in `scree.f90`, 19
+  in `viscous.f90`). They are a different proposition: none carries an
+  existing IVDEP, so silencing them means making a NEW aliasing assertion per
+  loop, and several write into `Block.scratch`-carved buffers where an
+  overlap is possible in principle. That is a correctness review, not a
+  mechanical edit -- do not sweep it.
 - **Vectorized wall-function row forms**, `set_visc_force`
   (`wall_row_kface`/`wall_row_jface` in `viscous.f90`). The scalar
   `wall_func_kface`/`_jface` were not being inlined in the production build
@@ -358,6 +384,44 @@ the headline number, and where it lives.
   injection writes the SECOND face plane, not the first). The deviation is
   `vrcpps`+Newton vector reciprocals under `-Ofast`, not reassociation --
   `-fno-associative-math -ffp-contract=off` does not collapse it.
+
+  **Re-wired and re-measured (Aug 2026), after being silently unwired.** The
+  fused-pair rewrite (`b184209`) rebuilt these four call sites and brought
+  them back as the per-cell form; the row subroutines stayed `public`, stayed
+  compiled, were kept current by a later change -- and were called from
+  nowhere for four commits, while this entry claimed they shipped. The link-
+  stage opt report is what caught it: `missed: couldn't vectorize loop` on
+  all four i-loops, with `wall_func_kface.constprop` still a real outcall
+  rebuilding its argument descriptors per iteration. Check a claim like this
+  one against `grep`, not against the entry.
+
+  Re-measured on the current fused kernel with `run_so_ab.sh`, 10 launches
+  x 30 reps, paired within launch, candidate faster in **10/10 launches at
+  every size** (`results/wallrow_{c8,s1,d8}_*.jsonl`):
+
+  | ni (nj=65, nk=57) | 8-rank contended | serial |
+  | --- | --- | --- |
+  | 25 | -1.4% | -3.4% |
+  | 81 | -8.8% | -8.9% |
+  | 273 | -6.2% | -7.6% |
+  | 537 | -6.3% | -6.8% |
+
+  Two things differ from the 2026-08-22 measurement above, both expected.
+  It is **smaller**, because `set_visc_force` absorbed `set_tau_q_soa`'s
+  per-cell work in the fusion, so the same wall work is a smaller share of a
+  bigger kernel. And it is **not** masked by contention -- serial and
+  contended agree to within a couple of points, where the original entry
+  found the contended win much the weaker. Do not carry the original entry's
+  "much less contended" caveat forward.
+
+  The `ni=25` point is the one anomaly, and it was densified rather than
+  explained (Rule 7): the win goes -1.4% at `ni-1=24` to -8.5% at `ni-1=40`
+  and stays there, with **no** feature at `ni-1 = WALL_TW = 64`, so it is not
+  a tile-fill effect. Two candidates were not separated -- rows too short to
+  amortise the three phase loops, and the untouched i-face wall calls
+  (`wall_func_iface`, still per-cell) being 55% of all wall-face cells at
+  that shape against 10% at `ni=273`. Either way it is below any production
+  shape; a `wall_row_iface` is where that point would be recovered.
 - **j-panel tiling of `set_visc_force`'s k walk** (`VISC_JAREA`). The fused
   walk carries a rolling `planes(ni,nj,4,2)` pair plus a tau/q plane across
   each k step; at 273x65x57 that is 568 KB and 639 KB, both past the 256 KB

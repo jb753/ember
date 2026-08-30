@@ -22,6 +22,8 @@ Test cases:
   magnitude without turning a reversed station round
 - Chains: several planes in one grid stay independent of one another, with a
   middle block carrying an inflow side and an outflow side at once
+- Reflective mode: the flag pairs only with itself, both faces end up holding
+  one common pitch-uniform state, and mass crosses the plane exactly
 """
 
 import pickle
@@ -1007,7 +1009,8 @@ def test_chain_stats_are_kept_per_plane():
     assert not np.allclose(du[0], du[1])
 
 
-def test_solver_run_stays_finite():
+@pytest.mark.parametrize("reflective", [False, True])
+def test_solver_run_stays_finite(reflective):
     """A two-block run across the plane completes without NaN or non-physical values."""
     grid, patch_up, patch_dn = make_pair(npitch_up=9, npitch_dn=9, ni=9, nspan=9)
     grid[0].patches.append(InletPatch(i=0))
@@ -1026,10 +1029,272 @@ def test_solver_run_stays_finite():
     grid.connectivity.periodic.pair()
     grid.connectivity.mixing.pair()
 
-    ember.solver.Solver(n_step=20, n_step_avg=1, n_step_log=20, n_stage=4).run(grid)
+    ember.solver.Solver(
+        n_step=20,
+        n_step_avg=1,
+        n_step_log=20,
+        n_stage=4,
+        mix_reflective=reflective,
+    ).run(grid)
 
     for block in grid:
         assert np.all(np.isfinite(block.conserved)), "Non-finite conserved variables"
         assert np.all(block.rho > 0), "Non-positive density"
         assert np.all(block.P > 0), "Non-positive pressure"
         assert np.all(block.T > 0), "Non-positive temperature"
+
+
+# Reflective mode
+
+
+def reflective_pair(**kwargs):
+    """A paired plane whose two sides impose the mixed-out state directly.
+
+    The flag is set before anything pairs, since check_match reads it. These
+    are unit tests on the patches and the communicator, with no march to stamp
+    Solver.mix_reflective onto them, so they set the private attribute the
+    solver would; test_solver_sets_reflective_on_every_plane covers that path.
+    """
+    grid, patch_up, patch_dn = make_pair(**kwargs)
+    for patch in (patch_up, patch_dn):
+        patch._reflective = True
+    comm = MixingCommunicator(grid, grid.connectivity.mixing.pair())
+    return grid, patch_up, patch_dn, comm
+
+
+def ripple(patch, amp=0.05):
+    """Scale the face by a pitchwise sinusoid, so its mean is not the whole story.
+
+    Every conserved variable is scaled together, which is a pure density
+    ripple: the state stays physical at any amplitude and the velocities are
+    untouched, while the mass flux the face carries now varies around the pitch.
+    """
+    b = patch.block_view
+    t = np.asarray(b.t)
+    fac = 1.0 + amp * np.sin(2.0 * np.pi * (t - t.min()) / patch.block.pitch)
+    b.conserved_nd[...] *= fac[..., None]
+    b.update_cached_conserved()
+
+
+def pitch_mean_cons(patch):
+    """Circumferential mean of the face's conserved variables, ``(nspan, 5)``.
+
+    Written out here rather than taken from set_block_avg, which is the call
+    the code under test makes.
+    """
+    cons = np.asarray(patch.block_view.conserved_nd)
+    w = np.asarray(patch.weight_pitch)[..., None]
+    return (cons * w).sum(axis=patch.pitch_dim).squeeze()
+
+
+def annulus_mass(patch):
+    """Mass flow through the whole annulus at this face, as rho V.dA."""
+    passage = float(average.flow_mass(patch.block_view.squeeze()))
+    return abs(passage) * patch.block.Nb
+
+
+def test_reflective_does_not_pair_with_the_default_plane():
+    """The exchange is one thing or the other, so a pair cannot be half of each."""
+    grid, patch_up, patch_dn = make_pair()
+    patch_up._reflective = True
+    assert patch_up.check_match(patch_dn) is None
+    assert patch_dn.check_match(patch_up) is None
+
+    # And with both sides agreeing it pairs exactly as before.
+    patch_dn._reflective = True
+    assert grid.connectivity.mixing.pair() == {
+        (0, 0): ((1, 0), False),
+        (1, 0): ((0, 0), False),
+    }
+
+
+def test_reflective_faces_hold_one_common_uniform_state():
+    """Both faces come out of apply() pitch-uniform, equal, and hub to casing.
+
+    Nothing is extrapolated at the ends and nothing is relaxed: every node of
+    both faces holds the span station's mixed-out state outright.
+    """
+    grid, patch_up, patch_dn, comm = reflective_pair(
+        up={"P": 1.05e5, "Vx": 105.0}, dn={"P": 0.95e5, "Vx": 95.0}
+    )
+    ripple(patch_up)
+    ripple(patch_dn, amp=-0.03)
+
+    comm.exchange()
+    patch_up.apply()
+    patch_dn.apply()
+
+    cons_up = patch_up.block_view.conserved_nd
+    cons_dn = patch_dn.block_view.conserved_nd
+    for patch, cons in ((patch_up, cons_up), (patch_dn, cons_dn)):
+        first = np.take(cons, [0], axis=patch.pitch_dim)
+        assert np.allclose(cons, first, rtol=0.0, atol=0.0), "face is not pitch-uniform"
+
+    # The two sides carry different pitchwise resolutions, so compare the one
+    # value per span station each of them now holds -- ends included.
+    span_up = patch_up.get_uniform()
+    span_dn = patch_dn.get_uniform()
+    assert span_up.shape == (patch_up.shape[patch_up.span_dim], 5)
+    assert np.allclose(span_up, span_dn, rtol=1e-6)
+
+
+def test_reflective_state_is_the_mean_of_the_two_circumferential_means():
+    """The imposed state is exactly the average of the two sides' pitch means."""
+    grid, patch_up, patch_dn, comm = reflective_pair(
+        up={"P": 1.05e5, "Vx": 105.0}, dn={"P": 0.95e5, "Vx": 95.0}
+    )
+    ripple(patch_up)
+
+    mean_up = pitch_mean_cons(patch_up)
+    mean_dn = pitch_mean_cons(patch_dn)
+    comm.exchange()
+
+    assert np.allclose(patch_up.get_uniform(), 0.5 * (mean_up + mean_dn), rtol=1e-6)
+
+
+def test_reflective_plane_conserves_mass_across_it():
+    """Both faces pass the same annulus mass flow, to round-off, in one exchange.
+
+    Not a convergence statement, unlike the same test on the default plane: the
+    face flow is built from the boundary nodes and the face areas alone, so two
+    faces holding the same pitch-uniform state pass the same flow immediately
+    and identically.
+    """
+    grid, patch_up, patch_dn, comm = reflective_pair(
+        up={"P": 1.05e5, "Vx": 105.0}, dn={"P": 0.95e5, "Vx": 95.0}
+    )
+    ripple(patch_up)
+    assert abs(_mdot_gap(patch_up, patch_dn)) > 1e-2
+
+    comm.exchange()
+    patch_up.apply()
+    patch_dn.apply()
+
+    mdot_up = annulus_mass(patch_up)
+    mdot_dn = annulus_mass(patch_dn)
+    assert abs(mdot_dn - mdot_up) / mdot_up < 1e-6, f"{mdot_up} vs {mdot_dn}"
+
+
+def test_reflective_uniformising_keeps_the_mass_flow_of_the_face():
+    """Area-averaging the conserved variables leaves the face's own mass flow alone.
+
+    The face mass flux is linear in the conserved vector and the pitch weights
+    are the quadrature the face quads use, so the mixed-out state carries the
+    mass flow the pitchwise-varying one did. That is what makes the plane safe
+    to hard-reset onto: it does not move the row's mass flow by uniformising
+    it. The momentum and energy fluxes are quadratic and do move, which is why
+    the state imposed is not a flux-conserving mixed-out state.
+    """
+    grid, patch_up, patch_dn = make_pair()
+    patch_up._reflective = True
+    ripple(patch_up, amp=0.2)
+    before = annulus_mass(patch_up)
+
+    patch_up.apply()  # seeds from its own pitch mean and imposes it
+    assert abs(annulus_mass(patch_up) - before) / before < 1e-6
+
+
+def test_reflective_apply_seeds_from_its_own_mean_before_any_exchange():
+    """A face applied before the first exchange imposes its own mixed-out state.
+
+    apply() runs every stage and the exchange only once a step, and a frozen
+    averaging window skips the exchange entirely, so the face must never be
+    left imposing the zeros it was allocated with.
+    """
+    grid, patch_up, patch_dn = make_pair()
+    patch_up._reflective = True
+    ripple(patch_up)
+
+    expect = pitch_mean_cons(patch_up)
+    patch_up.apply()
+    assert np.allclose(patch_up.get_uniform(), expect, rtol=1e-6)
+
+
+def test_reflective_plane_freezes_no_reference_state():
+    """None of the characteristic machinery is built or stepped in this mode.
+
+    update_soln and advance are the two per-timestep entry points that build
+    and step the frozen reference the non-reflecting condition works from; a
+    reflective plane has no such state, and running them would freeze a
+    reference and settle a frame that nothing then reads.
+    """
+    grid, patch_up, patch_dn, comm = reflective_pair()
+    comm.exchange()
+    for patch in (patch_up, patch_dn):
+        patch.update_soln()
+        patch.advance()
+        patch.apply()
+        assert patch._ref is None
+        assert not patch._sign_settled
+        # The side is still known from the geometry, which is what pairing and
+        # the row stations read.
+        assert patch._sign_interior in (-1, 1)
+
+
+def test_reflective_flag_survives_copy_and_pickle():
+    """A copied or reloaded patch keeps its treatment.
+
+    Both matter: the multigrid hierarchy copies patches onto each coarse grid,
+    and a run restarted from an EMB file unpickles them.
+    """
+    grid, patch_up, patch_dn, comm = reflective_pair()
+    clone = patch_up.copy()
+    assert clone._reflective
+
+    # Unattached, as the round trip in test_rf_exchange_survives_a_pickle_round_trip:
+    # a patch holds a weak reference to its block, and the grid's own pickle
+    # drops and re-attaches it.
+    loose = MixingPatch(i=-1)
+    loose._reflective = True
+    assert pickle.loads(pickle.dumps(loose))._reflective
+
+
+def test_reflective_flag_back_fills_on_a_patch_pickled_without_it():
+    """A patch from before the flag existed reloads as the default plane."""
+    _, patch_up, _ = make_pair()
+    state = patch_up.__getstate__()
+    del state["_reflective"]
+
+    revived = MixingPatch(i=-1)
+    revived.__setstate__(state)
+    assert not revived._reflective
+
+
+def test_reflective_flag_migrates_from_the_public_name():
+    """A patch pickled while the flag was public reloads as a reflective plane.
+
+    Nothing reads the public name now, so without the migration the plane
+    would come back as a Saxer one and only the answer would say so.
+    """
+    _, patch_up, _ = make_pair()
+    state = patch_up.__getstate__()
+    del state["_reflective"]
+    state["reflective"] = True
+
+    revived = MixingPatch(i=-1)
+    revived.__setstate__(state)
+    assert revived._reflective
+
+
+def test_solver_sets_reflective_on_every_plane():
+    """Solver.mix_reflective is imposed on both sides, and overrides the patches.
+
+    The stamp is what makes the setting solver-wide: the patch and the
+    communicator read the flag from places that never see a Solver, and both
+    sides of a plane have to agree for check_match to pair them.
+    """
+    grid, patch_up, patch_dn = make_pair()
+
+    conf = ember.solver.Solver(n_step=1, mix_reflective=True)
+    ember.solver._apply_bcond_relaxation(grid, conf)
+    assert patch_up._reflective and patch_dn._reflective
+
+    # The default is imposed, not merely offered, as for rf_inlet.
+    ember.solver._apply_bcond_relaxation(grid, ember.solver.Solver(n_step=1))
+    assert not patch_up._reflective and not patch_dn._reflective
+
+    # None leaves whatever the patches carry.
+    patch_up._reflective = patch_dn._reflective = True
+    conf = ember.solver.Solver(n_step=1, mix_reflective=None)
+    ember.solver._apply_bcond_relaxation(grid, conf)
+    assert patch_up._reflective and patch_dn._reflective

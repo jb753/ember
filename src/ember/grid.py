@@ -1242,9 +1242,19 @@ class Grid(_LabelledList):
             untouched so the invalid field can be inspected.
         """
         for iblock, block in enumerate(self):
-            nan_mask = np.isnan(block.conserved_nd[..., 0])
-            if not nan_mask.any():
+            rho = block.conserved_nd[..., 0]
+            # Scalar screen first: max propagates NaN, so this is exactly
+            # isnan(rho).any() without materialising the full boolean mask --
+            # a 1 MB temporary per step at 1M cells, on a path that passes
+            # every time. Infinities are deliberately not caught, matching the
+            # mask form it replaces. sum() would screen too, but is slower than
+            # the mask it saves (pairwise float32 summation does not vectorise
+            # as well as maximum.reduce) and warns on the NaN it is looking for.
+            # The mask is built below only once it is known to be non-empty,
+            # where the bounding box needs it anyway.
+            if not np.isnan(rho.max()):
                 continue
+            nan_mask = np.isnan(rho)
             ni, nj, nk = block.ni, block.nj, block.nk
             ii, jj, kk = np.nonzero(nan_mask)
             box = (
@@ -1469,44 +1479,34 @@ class Grid(_LabelledList):
             cons_filt.flags.writeable = False
 
     @util.profile
-    def update_residual(self, dampin=None, sf=0.0):
+    def update_residual(self, sf=0.0):
         """Rebuild the unintegrated net-flow residual on every block.
 
         Fans the fused ``set_residual`` kernel across the grid, writing each
         block's ``residual_nd`` from its frozen P/T cache, face areas, and body
         force. Purely per-block (no inter-block exchange), so it simply loops.
 
-        Optional post-processing runs in place on each block's residual, in
-        order: implicit residual smoothing (``sf``), then the change limiter
-        (``dampin``).
+        Optional post-processing runs in place on each block's residual:
+        implicit residual smoothing (``sf``).
 
         .. note::
-           Between commits 0384c83 and 495b415, this ran the limiter before
-           the smoother instead (folded into ``set_residual``/the IRS
-           i-solve, for a fusion win). That reordering was a genuine
-           numerics change -- IRS is linear and the limiter is nonlinear in
-           a global block mean, so the composed operator differs: at
-           ``sf=1.0, dampin=25`` the two orderings differ by ~19% of the
-           field scale, growing with ``sf``. This restores the original
-           smooth-then-damp order by calling the same kernels unfused
-           (``set_residual``/``smooth_residual_scale_tri`` with
-           ``dampin=0``, then ``damp_residual`` as a separate pass), which
-           gives back the fusion's performance win (-6% serial / -11% at
-           100-rank saturation / -5% on set_residual + IRS) in exchange for
-           the original ordering. See git history for the fused version if
-           that trade is ever worth revisiting.
+           A negative-feedback change limiter (multall's ``DAMP``) used to run
+           here, ahead of the smoother, soft-clipping cells whose per-step
+           change was a large outlier against the per-variable block mean. It
+           was removed: normalising by the running mean made it a
+           solution-dependent per-cell gain that never switched off, and
+           applying it to the residual broke the telescoping the multigrid
+           box-sum restriction relies on. Measured on the clustered duct at
+           ``cfl=3.0``, ``fac_mgrid=0.4``, ``n_levels=3``: the same case
+           converged 2.59 decades undamped, converged 2.57 decades damped with
+           multigrid OFF, and diverged within 25 convergence records with both
+           on. It also roughly doubled the time to settle where it did work
+           (step 1975 against 975). Reduce ``cfl`` or ``fac_mgrid`` for
+           robustness instead -- both are uniform scalars, so neither creates
+           a gain field nor disturbs the restriction.
 
         Parameters
         ----------
-        dampin : float, optional
-            Negative-feedback change limiter (multall's ``DAMP``). When given,
-            each block's residual is passed through ``damp_residual``, which
-            soft-clips cells whose per-step change ``residual * dt_vol`` is a
-            large outlier relative to the per-variable block mean, shrinking
-            them by ``1/(1 + fdamp/dampin)`` with ``fdamp = |change|/mean``.
-            Large outliers saturate towards ``dampin * mean``. ``None`` (the
-            default) disables it. multall recommends ``2..100``. Requires
-            ``dt_vol_nd`` to have been populated by :meth:`update_timestep`.
         sf : float, optional
             Implicit residual-smoothing (IRS) coefficient (epsilon). ``0`` (the
             default) disables IRS; ``> 0`` applies the exact factored-tridiagonal
@@ -1541,15 +1541,9 @@ class Grid(_LabelledList):
             # viscous pass, so it reuses the same span the tau/q volume had --
             # which is the point of the arena, and is safe only because the
             # two are never live together.
-            planes, rows = util.carve_view(
-                block.scratch, (ni, njp, 5, 2), (ni, 5, 3)
-            )
+            planes, rows = util.carve_view(block.scratch, (ni, njp, 5, 2), (ni, 5, 3))
             block.residual_nd.flags.writeable = True
-            # dampin=0 here disables set_residual's fused limiter entirely:
-            # the limiter is applied as a separate damp_residual pass below,
-            # AFTER IRS, to restore the original smooth-then-damp order (see
-            # the docstring note). ravg is unused in this configuration.
-            ravg = ember.fortran.set_residual(
+            ember.fortran.set_residual(
                 cons=block.conserved_nd,
                 p=block.P_nd,
                 p_offset=block.P_offset_nd,
@@ -1570,41 +1564,19 @@ class Grid(_LabelledList):
                 ni=ni,
                 nj=nj,
                 nk=nk,
-                # Limiter left off here (see note above): dt_vol is still a
-                # required argument of the fused kernel, but dampin=0 means
-                # it contributes nothing beyond the (unused) ravg reduction.
-                dt_vol=block.dt_vol_nd,
-                dampin=0.0,
             )
             if sf > 0.0:
                 # Exact factored-tridiagonal IRS (Jameson ADI): a direct
-                # solve. dampin=0 here means smooth_residual_scale_tri's
-                # plain-gather branch -- IRS only, no limiter fused in.
-                # Scratch is just the Thomas coefficients,
-                # 2*(nci+ncj+nck) floats; carve a 1D leading view of
-                # block.scratch (nodal (ni,nj,nk,5), vastly oversized).
-                # Free here: set_residual does not touch it and the march
-                # reuses it only after this returns.
+                # solve. Scratch is just the Thomas coefficients, 2*(nci+ncj+nck)
+                # floats; carve a 1D leading view of block.scratch (nodal
+                # (ni,nj,nk,5), vastly oversized). Free here: set_residual
+                # does not touch it and the march reuses it only after this
+                # returns.
                 nwork = 2 * ((ni - 1) + (nj - 1) + (nk - 1))
-                ember.fortran.smooth_residual_scale_tri(
+                ember.fortran.smooth_residual_tri_tiled(
                     du=block.residual_nd,
-                    dt_vol=block.dt_vol_nd,
-                    ravg=ravg,
-                    dampin=0.0,
                     sf=sf,
                     work=util.carve_view(block.scratch, (nwork,)),
-                    ni=ni,
-                    nj=nj,
-                    nk=nk,
-                )
-            if dampin is not None:
-                # Change limiter, applied AFTER IRS (the restored, original
-                # order): a separate full-volume pass over the smoothed
-                # residual, unchanged since before commit 0384c83.
-                ember.fortran.damp_residual(
-                    du=block.residual_nd,
-                    dt_vol=block.dt_vol_nd,
-                    dampin=dampin,
                     ni=ni,
                     nj=nj,
                     nk=nk,
@@ -1714,8 +1686,8 @@ class Grid(_LabelledList):
                 # them disjoint.
                 # The transport trio comes back out of the same carve that
                 # the boundary phase filled it through.
-                faces, tq, planes, rows, (mu, kappa, cp) = (
-                    ember.block._carve_viscous(block)
+                faces, tq, planes, rows, (mu, kappa, cp) = ember.block._carve_viscous(
+                    block
                 )
                 # mu_turb is a data-row field the public property serves
                 # read-only; grab a writeable view so the kernel can leave the
@@ -1789,9 +1761,7 @@ class Grid(_LabelledList):
                 # sub-phase -- the viscous loop above has finished with the
                 # arena by now -- and the buffer is exactly the size of the
                 # multigrid-off march's, so it never binds (see _scratch_len).
-                cons_cell = util.carve_view(
-                    block.scratch, block.shape_cell + (5,)
-                )
+                cons_cell = util.carve_view(block.scratch, block.shape_cell + (5,))
                 ember.fortran.node_to_cell(block.conserved_nd, cons_cell)
                 ember.fortran.apply_sfd_force(
                     f_body=block.F_body_nd,
@@ -2491,17 +2461,17 @@ class ConvergenceStep:
     mdot_throttle: float = 0.0
     """Mass flow measured at the outlet patch on its last target update [kg/s]."""
 
-    P_throttle: float = 0.0
+    dP_throttle: float = 0.0
     """Total throttle pressure correction applied at the outlet [Pa]."""
 
     dP_P: float = 0.0
-    """Proportional contribution to :attr:`P_throttle` [Pa]."""
+    """Proportional contribution to :attr:`dP_throttle` [Pa]."""
 
     dP_I: float = 0.0
-    """Integral contribution to :attr:`P_throttle` [Pa]."""
+    """Integral contribution to :attr:`dP_throttle` [Pa]."""
 
     dP_D: float = 0.0
-    """Derivative contribution to :attr:`P_throttle` [Pa]. Always zero: the
+    """Derivative contribution to :attr:`dP_throttle` [Pa]. Always zero: the
     throttle is a PI controller. The column is retained so the pickled
     ConvergenceHistory (.cnv) layout reads in both directions."""
 

@@ -121,9 +121,10 @@ def _run_mg(
         sf_irs=sf_irs,
         n_levels=n_levels,
         rbuf=Z(ni - 1, nj - 1, NP, 2),
+        cbuf=Z(ni, nj, NP),
         dtblk=Z(nc1i, nc1j, nc1k),
-        aplane=Z(ni - 1, nc1j),
-        bb=Z(ni - 1, nj - 1, nc1k, NP),
+        aplane=Z(ni, nc1j),
+        bb=Z(ni, nj, nc1k, NP),
         rawbuf=Z(nc1i, nc1j, nc1k, NP),
         sdt=Z(nc1i, nc1j, nc1k),
         sv=Z(nc1i, nc1j, nc1k),
@@ -132,8 +133,56 @@ def _run_mg(
         acc1=Z(acc_sz),
         cres=Z(n_res),
         triw=Z(n_tri),
+        **dict(zip(("pwi", "pwj", "pwk"), _index_weights(ni, nj, nk, n_levels))),
     )
     return cons_out, store_out
+
+
+def _index_weights(ni, nj, nk, n_levels):
+    """Packed prolongation weights reproducing the uniform-mesh behaviour.
+
+    These are wiring tests on synthetic arrays with no meaningful geometry, so
+    they supply the weights a mesh uniform in physical space would give. Layout
+    must match mg_weight_offsets / ember.block.Block.weight_mgrid: hops run
+    finest first, and hop 1 -- the final hop -- targets the NODES, so it is
+    (ni, nj, nk)-shaped while hops 2 and up target (cells)/2**(m-1).
+    """
+    parts = ([], [], [])
+    for m in range(1, n_levels + 1):
+        d = 2 ** (m - 1)
+        tfi, tfj, tfk = (ni - 1) // d, (nj - 1) // d, (nk - 1) // d
+
+        def w1(nf):
+            """Cell-targeted: the 1/4, 3/4 blend, ends clamped."""
+            i = np.arange(1, nf + 1)
+            t = (i - 0.5) / 2.0 + 0.5
+            icl = np.floor(t).astype(int)
+            nc = nf // 2
+            return np.where((icl < 1) | (icl >= nc), 0.0, t - icl)
+
+        def w1n(nn, nc):
+            """Node-targeted: injection at coarse centres, midpoint between."""
+            i = np.arange(1, nn + 1)
+            lo = np.clip(i // 2, 1, max(nc - 1, 1))
+            return np.clip((i - 2 * lo) / 2.0, 0.0, 1.0)
+
+        if m == 1:
+            trio = (
+                np.broadcast_to(
+                    w1n(ni, tfi // 2)[:, None, None], (ni, tfj // 2, tfk // 2)
+                ),
+                np.broadcast_to(w1n(nj, tfj // 2)[None, :, None], (ni, nj, tfk // 2)),
+                np.broadcast_to(w1n(nk, tfk // 2)[None, None, :], (ni, nj, nk)),
+            )
+        else:
+            trio = (
+                np.broadcast_to(w1(tfi)[:, None, None], (tfi, tfj // 2, tfk // 2)),
+                np.broadcast_to(w1(tfj)[None, :, None], (tfi, tfj, tfk // 2)),
+                np.broadcast_to(w1(tfk)[None, None, :], (tfi, tfj, tfk)),
+            )
+        for buf, w in zip(parts, trio):
+            buf.append(np.asarray(w, np.float32).ravel(order="F"))
+    return tuple(np.asfortranarray(np.concatenate(b)) for b in parts)
 
 
 def test_fac_mgrid_zero_matches_plain():
@@ -183,9 +232,11 @@ def test_uniform_dt_vol_is_independent_of_vol():
     give back that constant whatever the volume distribution.
 
     This is the invariant that makes the block-average a no-op on a uniform
-    mesh, where multall's PERPMIN/VOLB reduces to dt_vol/b**2 exactly.
+    mesh, where multall's PERPMIN/VOLB reduces to dt_vol/b**2 exactly. It holds
+    for the harmonic mean exactly as it did for the arithmetic one: every mean
+    of a constant is that constant.
 
-    Not bit-exact: sum(c*vol)/sum(vol) recovers c only up to float32
+    Not bit-exact: sum(vol)/sum(vol/c) recovers c only up to float32
     accumulation error, which grows with block size (~2 ULP over the 512-cell
     sum of the coarsest level, b=8).
     """
@@ -204,7 +255,7 @@ def test_uniform_dt_vol_is_independent_of_vol():
 
 
 def test_coarse_dt_is_scale_invariant_in_vol():
-    """sum(dt_vol*vol)/sum(vol) normalises, so scaling vol must not move the result.
+    """sum(vol)/sum(vol/dt_vol) normalises, so scaling vol must not move the result.
 
     Tolerance as for test_uniform_dt_vol_is_independent_of_vol: the scaled sums
     round differently in float32.
@@ -239,6 +290,53 @@ def test_vol_weighting_affects_nonuniform_dt_vol():
     )
 
     assert not np.array_equal(cons_weighted, cons_unweighted)
+
+
+def test_coarse_dt_is_the_harmonic_mean_not_the_arithmetic():
+    """The coarse timestep is sum(vol)/sum(vol/dt_vol), not sum(dt_vol*vol)/sum(vol).
+
+    The block needs the reciprocal of the block's spectral radius, and dt_vol
+    is 1/Lambda per cell, so the mean that belongs here is the harmonic one.
+    The two disagree whenever dt_vol varies over a block, and the arithmetic
+    mean is always the larger (Jensen), which over-drives the block's smallest
+    cells on a stretched mesh.
+
+    Constructed so the two means disagree by a third: a checkerboard of 2/3 and
+    2 puts four of each in every 2x2x2 block at uniform vol, giving a harmonic
+    mean of 1.0 (2*(2/3)*2/((2/3)+2)) against an arithmetic mean of 4/3. A
+    kernel using the harmonic mean therefore cannot tell the checkerboard from
+    a uniform dt_vol of 1.0, and one using the arithmetic mean cannot miss it.
+
+    dt_vol also scales the FINE term, which differs between the two fields, so
+    each run is differenced against its own fac_mgrid=0 companion to isolate
+    the coarse contribution -- the scatter is linear, so the subtraction is
+    exact.
+    """
+    residual, _, _, store, cons = _make_inputs(NI, NJ, NK, seed=11)
+    vol = np.asfortranarray(np.ones((NI - 1, NJ - 1, NK - 1), dtype=np.float32))
+
+    ii, jj, kk = np.indices((NI - 1, NJ - 1, NK - 1))
+    checker = np.where((ii + jj + kk) % 2 == 0, 2.0 / 3.0, 2.0)
+    dt_checker = np.asfortranarray(checker.astype(np.float32))
+    dt_uniform = np.asfortranarray(np.ones((NI - 1, NJ - 1, NK - 1), dtype=np.float32))
+
+    def coarse_only(dt_vol):
+        with_mg, _ = _run_mg(
+            residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=1
+        )
+        without, _ = _run_mg(
+            residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=1, fmgrid=0.0
+        )
+        return with_mg - without
+
+    # Tolerance as for the sibling invariants: float32 again, and summing
+    # reciprocals of 2/3 and 2 rounds differently from summing ones. Measured
+    # agreement is 9.5e-07 absolute against a coarse contribution of 0.486, so
+    # the margin here is wide; the arithmetic mean this replaced would differ
+    # by a third, five orders above the bar.
+    np.testing.assert_allclose(
+        coarse_only(dt_checker), coarse_only(dt_uniform), rtol=1e-4, atol=1e-5
+    )
 
 
 def test_irs_positive_changes_result():

@@ -462,7 +462,9 @@ def resample(block, factors):
     new_block._set_metadata_by_key("patches", new_patch_collection)
 
     # 5. Update all patch indices using absolute limits and mapping
-    for old_limits, new_patch in zip(old_patch_limits, new_block.patches):
+    for old_patch, old_limits, new_patch in zip(
+        block.patches, old_patch_limits, new_block.patches
+    ):
         new_limits = [
             tuple(
                 [
@@ -475,7 +477,13 @@ def resample(block, factors):
         new_patch.set_i_lim(new_limits[0])
         new_patch.set_j_lim(new_limits[1])
         new_patch.set_k_lim(new_limits[2])
-        new_patch.attach_to_block(new_block)  # Re-validate with new block
+        # Re-validate with new block, and carry across any boundary condition
+        # the old patch holds per span station -- a prescribed spanwise profile
+        # is written for the node count it was set on, so it is interpolated
+        # onto the new one rather than replayed at the old length. The original
+        # patch is still attached and is where the source span stations come
+        # from, so this has to happen before `block` goes anywhere.
+        new_patch.attach_to_block_resampled(new_block, old_patch)
 
     return new_block
 
