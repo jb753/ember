@@ -66,8 +66,18 @@ Screened in numpy, 250 steps, `cfl=3`, `n_levels=3`, `expon_mgrid=2`,
 | trilinear + adjoint transfers | +1.37 | +1.48 |
 | **piecewise-constant + block sum** | **+1.70** | **+1.65** |
 
-Partial `fac_mgrid` sweep, clustered: 0.05 -> +1.44, 0.1 -> +1.54, 0.2 -> +1.65,
-0.4 -> DIVERGED.
+`fac_mgrid` sweep, clustered duct, same settings -- injection against the
+trilinear cascade of `plan_stagewise_mg_correction.md`:
+
+| `fac_mgrid` | 0.05 | 0.1 | 0.15 | 0.2 | 0.3 | 0.4 |
+|---|---|---|---|---|---|---|
+| piecewise-constant | +1.44 | +1.54 | +1.58 | +1.65 | **+1.74** | DIVERGED |
+| trilinear cascade | -- | +1.44 | -- | +1.48 | -- | +0.99 |
+
+Monotone up to a cliff: the optimum sits at `fac_mgrid = 0.3`, immediately
+before divergence at 0.4. That is +1.74 against master's best MEASURED +1.51,
+so about +0.23 decades -- but see caveat 4. The uniform-mesh sweep was stopped
+partway (0.05 -> +1.42, 0.1 -> +1.50) once the clustered result was clear.
 
 **Three caveats, all load-bearing.**
 
@@ -83,6 +93,11 @@ Partial `fac_mgrid` sweep, clustered: 0.05 -> +1.44, 0.1 -> +1.54, 0.2 -> +1.65,
 3. The duct is a case where master already works, so the best any alternative
    can score is a modest margin. It scored one, which is more than anything else
    has, but it is still a 250-step duct run and not the turbine.
+4. **The comparison is not yet like for like.** Injection has six sweep points
+   and master's direct injection only two (0.2 and 0.4), so "+0.23 decades over
+   master's best" is six samples against two and flatters injection by however
+   much master's own optimum sits above +1.51. Closing master's sweep is the
+   first thing section 5.1 does, and the margin should be re-read afterwards.
 
 ---
 
