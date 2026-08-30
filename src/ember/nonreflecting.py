@@ -53,9 +53,8 @@ the upstream-running pressure wave, propagates upstream. A characteristic is
 *outgoing* -- owned by the interior march, read from the boundary node exactly
 as the scheme left it and never overwritten, so a wave reaching the boundary
 passes through -- when its wave speed carries it out of the domain,
-:math:`\lambda\,n < 0` for the inward face normal
-:attr:`~NonReflectingPatch._sign_interior`. The rest are *incoming*: discarded
-rather than taken from the march, and rebuilt once a timestep from the
+:math:`\lambda\,n < 0` for the inward face normal. The rest are *incoming*:
+discarded rather than taken from the march, and rebuilt once a timestep from the
 prescribed mean state and the non-reflecting relations, under-relaxed by
 :attr:`~NonReflectingPatch.sigma`.
 
@@ -83,8 +82,7 @@ needing a guard: it is the other row of the table, and every face carries it at
 every span station.
 
 Whatever a condition prescribes, it prescribes as one nondimensional five-vector
-per span station, :attr:`~NonReflectingPatch._target`, in the space
-:attr:`~NonReflectingPatch._chic_to_target` maps characteristics into. Rows 0, 1
+per span station, in the space the patch maps characteristics into. Rows 0, 1
 and 4 are stagnation enthalpy, entropy and static pressure in every such space;
 only rows 2 and 3 distinguish them, the mix variables
 :math:`(V_s, V_\theta)` of :func:`~ember.perturbation.chic_to_mix` from the
@@ -97,9 +95,9 @@ and convert, so :math:`\tan\beta = V_r/V_x` still means what it says
 converted -- a meridional velocity, which needs the normal component to resolve
 and that is what the solve derives -- is not offered as a setter at all
 (:class:`~ember.outlet.OutletPatch`). One span station rather than one node
-loses nothing: every target is read only through
-:meth:`~NonReflectingPatch._pitch_mean` of its own residual, which is linear, so
-the pitch mean of a prescribed profile is all that was ever imposed.
+loses nothing: every target is read only through the pitch mean of its own
+residual, which is linear, so the pitch mean of a prescribed profile is all
+that was ever imposed.
 
 The harmonic relations are the one place the two directions genuinely differ,
 and each patch needs only one of them. Giles and Saxer derive them for mean flow
@@ -147,10 +145,9 @@ _NULL_CONTEXT = contextlib.nullcontext()
 class UnsupportedMeanStateWarning(UserWarning):
     """A characteristic boundary's mean state has left the implemented envelope.
 
-    Issued by :meth:`NonReflectingPatch._calc_reference` when the frozen mean
-    state at the boundary goes supersonic, where the steady non-reflecting
-    theory these conditions implement does not hold and what they compute is
-    meaningless.
+    Issued when the frozen mean state at the boundary goes supersonic, where
+    the steady non-reflecting theory these conditions implement does not hold
+    and what they compute is meaningless.
 
     A warning rather than an error because the usual way to get here is a march
     already diverging, which the solver detects and reports for itself through
@@ -1631,7 +1628,7 @@ class NonReflectingPatch(RevolutionPatch):
         the setter a profile of the wrong length and it refuses it. So the
         replay is deferred and every profile argument re-expressed on this
         patch's own stations first, interpolated against span fraction
-        (:attr:`~ember.basepatch.RevolutionPatch.spf`, meridional arc-length)
+        (:attr:`~ember.patch.RevolutionPatch.spf`, meridional arc-length)
         rather than node index, so a prescription follows the geometry it was
         written against and not the mesh spacing.
 

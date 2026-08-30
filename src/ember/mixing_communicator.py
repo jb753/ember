@@ -8,8 +8,7 @@ result in the mix variables :math:`[h_0, s, V_r, V_\\theta, p]` its patches
 take their pitchwise-mean residuals against.
 
 A run with :attr:`~ember.solver.Solver.mix_reflective` set bypasses all of
-that for the average of the two circumferential means; see
-:meth:`MixingCommunicator._mix_uniform`.
+that, exchanging the plain average of the two circumferential means instead.
 """
 
 from ember import perturbation, util
@@ -607,8 +606,8 @@ class MixingCommunicator:
     def exchange(self):
         """Compute and write targets for all pairs (no apply step).
 
-        Under :attr:`~ember.solver.Solver.mix_reflective` a pair goes through
-        :meth:`_mix_uniform` instead.
+        Under :attr:`~ember.solver.Solver.mix_reflective` a pair is instead
+        given the plain average of the two circumferential means.
         """
         for bid, pid in self.pairs.keys():
             _, flip = self.pairs[(bid, pid)]

@@ -1,8 +1,8 @@
 """Collection classes for managing groups of objects with labels and type-based access.
 
 This module provides specialized collection classes that extend Python's standard list
-functionality with support for label-based indexing and type-filtered access. The internal
-``_LabelledList`` abstract base class enables collections where items can be accessed both by numeric index and
+functionality with support for label-based indexing and type-filtered access. An internal
+abstract base class enables collections where items can be accessed both by numeric index and
 by unique string labels, with automatic validation of label uniqueness. The PatchList subclass
 adds type-based filtering allowing easy access to subsets of patches by their class (e.g., all
 InletPatch objects or all PeriodicPatch objects). These collections provide convenient,

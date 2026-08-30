@@ -24,7 +24,7 @@ pairing across the plane, flux averaging, and acceptance of the exchanged
 target.
 
 One class serves both sides. Which side a patch is on is the inward face normal
-:attr:`~ember.patch.NonReflectingPatch._sign_interior`, which is not taken from
+the inward face normal, which is not taken from
 the class -- both sides are this class -- but settled by the patch itself, so
 there is nothing for the caller to get right. The upstream side then prescribes
 static pressure and the downstream side the four inflow quantities -- not
@@ -34,7 +34,7 @@ out to.
 Settling it takes two stages, because the answer is not in the mesh. The
 geometry gives a provisional side at attach time, which is all the pairing in
 :meth:`MixingPatch.check_match` needs and is enough for an axial plane; then
-:meth:`MixingPatch._enter_resolved` orients the interface frame along the mean
+the patch orients the interface frame along the mean
 mass flux the first time there is one, and freezes it. Which way the frame
 points is what decides whether the plane absorbs the harmonics reaching it or
 zeroes them (see :class:`~ember.patch.NonReflectingPatch`), and on a
@@ -98,7 +98,7 @@ class MixingPatch(NonReflectingPatch):
     on the *symmetrised cross-plane* average, so both sides linearise the
     interface jump about the same state; each patch's own frozen reference
     state stays its *local* pitchwise mean, because
-    ``NonReflectingPatch._calc_reference`` calls
+    the reference-state calculation calls
     :meth:`~ember.patch.RevolutionPatch.set_block_avg` itself and so
     re-derives it after the exchange has overwritten
     :attr:`~ember.patch.RevolutionPatch.block_avg`. The split is deliberate
@@ -203,7 +203,7 @@ class MixingPatch(NonReflectingPatch):
         and nothing else would read it, so a reflective plane would come back
         as a Saxer one -- quietly, and only visibly in the answer. Map it onto
         the private name instead. A patch from before the flag existed carries
-        neither, and takes ``_setup``'s default.
+        neither, and takes the default applied at construction.
         """
         state = dict(state)
         legacy = state.pop("reflective", None)
@@ -490,7 +490,7 @@ class MixingPatch(NonReflectingPatch):
         """Check whether this patch pairs with another across a mixing plane.
 
         Pairs only with the opposite side of a mixing plane running the same
-        treatment, which ``NonReflectingPatch._sign_interior`` and the
+        treatment, which the inward face normal and the
         reflective flag identify between them: the two sides of one plane
         face each other, so their interiors lie on opposite sides of it.
         Matching is then on meridional geometry alone, so the two sides may

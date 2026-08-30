@@ -213,7 +213,7 @@ def read_yaml(fname):
 def write_yaml(d, fname, mode="w"):
     """Write a dictionary to a YAML file.
 
-    Uses :data:`_Dumper` with the representers registered by this module
+    Uses this module's own dumper, carrying the representers it registers
     for numpy scalars, numpy arrays and :class:`~pathlib.Path` objects;
     see the module docstring. The output is bracketed with ``---``/``...``
     document markers.

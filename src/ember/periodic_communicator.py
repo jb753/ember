@@ -196,7 +196,7 @@ class PeriodicCommunicator:
         so it never reads and writes the same storage and needs no temporary.
 
         TWO CALLS PER PAIR, one each way, because ``self.pairs`` is pruned to a
-        single key per pair by :meth:`_prune_pairs` and a copy cannot move both
+        single key per pair, and a copy cannot move both
         directions at once. A block periodic to itself cannot catch a
         regression here -- both ends are the same block -- which is why the
         gate for this is a two-block case.

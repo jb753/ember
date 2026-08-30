@@ -332,7 +332,7 @@ def resolve_to_interface(block, rot_to):
     nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,
     the same approach as
     :meth:`~ember.patch.RevolutionPatch.resolve_to_interface` on a
-    patch's averaging plane -- see :func:`_rotate_meridional`.
+    patch's averaging plane.
 
     Parameters
     ----------
@@ -373,7 +373,7 @@ def resolve_from_interface(block, rot_from):
     nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,
     the same approach as
     :meth:`~ember.patch.RevolutionPatch.resolve_from_interface` on a
-    patch's averaging plane -- see :func:`_rotate_meridional`.
+    patch's averaging plane.
 
     Parameters
     ----------

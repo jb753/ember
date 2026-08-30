@@ -2712,9 +2712,9 @@ class Block(ember._struct.StructuredData):
         cache hit.
 
         Three things this forms are NOT published, each because a consumer
-        derives it where it walks instead: the velocity (see
-        :attr:`_Vxrt_nd_uninit`), the kinetic energy
-        (:attr:`_halfVsq_nd_uninit`) and the stagnation enthalpy
+        derives it where it walks instead: the velocity and the kinetic energy,
+        which the kernels needing them rebuild from the conserved state as they
+        sweep rather than reading a stored copy, and the stagnation enthalpy
         (:attr:`ho_nd`, which ``set_residual`` builds from ``cons`` and the
         pressure at its own face corners).
 
@@ -3111,9 +3111,12 @@ class Block(ember._struct.StructuredData):
         This copies the metadata dict and but clears patches,
         since 2D spatial patches have no meaning on a 1D flattened layout.
 
-        Points are ordered Fortran-style; see
-        :py:attr:`ember._struct.StructuredData.flat` for the ordering and for
-        when this raises.
+        Points are ordered Fortran-style, with the first axis varying fastest,
+        matching the column-major layout of the backing array. That ordering is
+        what makes the result a view rather than a copy, so anything reshaping
+        the result back must pass ``order="F"``. Raises ``ValueError`` if this
+        instance is a non-contiguous view that cannot be flattened without
+        copying.
 
         Returns
         -------
@@ -3645,7 +3648,7 @@ class Block(ember._struct.StructuredData):
 
     @scratch_array
     def scratch(self, out):
-        """Shared scratch arena, flat, sized by :func:`_scratch_len`.
+        """Shared scratch arena, flat, sized to the most demanding phase of a step.
 
         Pure transient scratch. This is shared, throwaway kernel
         workspace, NOT a cached value. Its contents are meaningless between
@@ -3664,8 +3667,8 @@ class Block(ember._struct.StructuredData):
         trio the viscous kernels read, the nodal acoustic
         speed ``set_timestep_spectral`` reads, ``set_residual``'s
         and ``set_visc_force``'s rolling planes and rows, the IRS work vector,
-        and the multigrid coarse scratch. :func:`_scratch_len` sizes it from
-        the worst phase; the phases are listed there.
+        and the multigrid coarse scratch. The arena is sized from whichever
+        phase needs most, so every phase fits without it being resized.
 
         THE RULE, and it is the whole safety argument. Buffers that reach the
         same kernel call must come from ONE ``util.carve_view``, which packs
@@ -4081,8 +4084,9 @@ class Block(ember._struct.StructuredData):
         That hop's three passes are each anchored on the positions the previous
         one produced, and its weights are bounded (``MG_W_LO``/``MG_W_HI``).
         Both matter on a sheared mesh clustered to a wall, where the projection
-        is otherwise ill-conditioned enough to turn the prolongation into an
-        amplifier -- see :func:`_mg_hop_weights_node` and :func:`_mg_project`.
+        placing each target along the edge between its two coarse centroids is
+        otherwise ill-conditioned enough to turn the prolongation into an
+        amplifier.
 
         Returns the ``(wi, wj, wk)`` the kernels take, one flat array per
         direction -- the three interpolation passes resolve i, then j, then k,

@@ -639,8 +639,8 @@ def mg_coarse_shapes(ni, nj, nk, n_levels):
     the multigrid scratch and the caller's increment buffer are live at the same
     time and now come from the same arena (``Block.scratch``): carving them
     together is what makes them provably disjoint rather than disjoint by
-    convention. It is also what :func:`ember.block._scratch_len` sizes the arena
-    from, so the sizing and the carve cannot disagree.
+    convention. It is also what the arena sizing is computed from, so the
+    sizing and the carve cannot disagree.
     """
     nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
     n_corr, n_res, n_tri = _mg_coarse_scratch_sizes(ni, nj, nk, n_levels)
@@ -733,7 +733,7 @@ def advance_rk_stage_mg(
     increment are all carved from ``block.scratch`` at non-overlapping offsets,
     in ONE ``carve_view`` -- they reach the same kernel call, so carving them
     together is what makes them disjoint. The multigrid phase is what sizes the
-    arena (:func:`ember.block._scratch_len`). The scatter reads the snapshot
+    arena. The scatter reads the snapshot
     from ``block.store`` and writes ``conserved_nd`` directly (frozen pressure,
     bypasses the P/T cache).
 

@@ -124,15 +124,14 @@ class ConvergenceHistory(StructuredData):
         Station ordering and reference scales are documented in the module
         docstring. The station columns (``mdot_st<i>``, ``ho_st<i>``,
         ``s_st<i>``) are sized to ``2 * n_row`` each, one inlet/exit pair per
-        row, rather than a fixed width -- so ``self._data_keys`` is built
-        here, per instance, before delegating to ``StructuredData.__init__``,
-        which reads it to size the backing array.
+        row, rather than a fixed width -- so the column-key list is built here,
+        per instance, before delegating to the base initialiser, which reads it
+        to size the backing array.
 
         Parameters
         ----------
         shape : tuple
-            Shape of a single property array (see
-            :py:meth:`ember._struct.StructuredData.__init__`).
+            Shape of a single property array.
         n_row : int, optional
             Number of blade rows this history tracks (default 1, i.e. 2
             stations: inlet and exit).
@@ -182,11 +181,10 @@ class ConvergenceHistory(StructuredData):
         one rather than needing conversion, and a file written since the rename
         passes through unchanged because it has none of the old names in it.
 
-        `_data_keys` is handled but usually absent. A history is written after
-        being trimmed to the records it actually holds, and the trimmed copy
-        comes through `_bare_copy`, which carries `_data_inds` but not
-        `_data_keys` --- so the maps below, not that tuple, are what a lookup
-        by name actually reads.
+        The column-key tuple is handled but usually absent. A history is
+        written after being trimmed to the records it actually holds, and the
+        trimming carries the name-to-index map but not the key tuple --- so the
+        maps below, not that tuple, are what a lookup by name actually reads.
         """
         super().__setstate__(state)
 

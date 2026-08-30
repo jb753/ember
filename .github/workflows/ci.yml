@@ -60,6 +60,12 @@ jobs:
       - name: Check SPEC 0 compliance
         run: uv run --no-sync python tools/check_spec0.py
 
+      # Runs here rather than in docs.yml because that workflow triggers only
+      # on push to master, so a private cross-reference is invisible until it
+      # has already broken the published docs build.
+      - name: Check public docstrings do not reference private members
+        run: uv run --no-sync python tools/check_private_docstring_refs.py
+
   build-wheels:
     needs: test
     runs-on: ${{ matrix.os }}

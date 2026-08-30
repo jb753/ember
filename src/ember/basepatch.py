@@ -1071,7 +1071,7 @@ class RevolutionPatch(Patch):
             rhoVx -> rhoV_norm =  cosxi * rhoVx + sinxi * rhoVr
             rhoVr -> rhoV_span = -sinxi * rhoVx + cosxi * rhoVr
 
-        Uses the pre-computed rotation matrix ``_rot_to`` broadcast along
+        Uses the pre-computed to-interface rotation matrix, broadcast along
         ``span_dim`` to match the full block shape. A no-op on a face whose
         frame axis already is :math:`x`; see :attr:`chi_node`.
         """

@@ -36,7 +36,7 @@ design guess is the design exit state. :math:`V_s` is the exception: it is
 pinned at zero rather than prescribed or seeded, so backflow enters normal to
 the exit surface whatever that surface's orientation. Reversal confined to nodes within a
 station whose mean still runs forward is handled node by node as a limiter
-instead, by the base class's ``_calc_override``.
+instead, applied by the base class.
 
 See Also
 --------
@@ -279,15 +279,13 @@ class OutletPatch(NonReflectingPatch):
 
         Calling any of the four is optional. Left alone, the rows are seeded
         once from the pitchwise mean of the exit plane at the first timestep and
-        frozen there; see ``NonReflectingPatch._seed_target``.
+        frozen there.
 
         Parameters
         ----------
         ho : float or array
-            Stagnation enthalpy [J/kg]. A scalar or a spanwise profile; see
-            ``NonReflectingPatch._set_target_row`` for
-            the accepted shapes. Only the pitchwise mean at each span station is
-            imposed.
+            Stagnation enthalpy [J/kg]. A scalar or a spanwise profile. Only
+            the pitchwise mean at each span station is imposed.
         s : float or array
             Specific entropy [J/(kg K)].
 
@@ -461,8 +459,8 @@ class OutletPatch(NonReflectingPatch):
         exit velocity moves the loop gain by its square, and is the one case
         where these want retuning.
 
-        Only one outlet patch in a grid may be throttled;
-        ``ember.solver._validate_throttle`` refuses more. Two patches
+        Only one outlet patch in a grid may be throttled; the solver refuses a
+        grid carrying more. Two patches
         driving independent controllers at the same target would each apply the
         full correction for an error they share.
 
@@ -689,9 +687,9 @@ class OutletPatch(NonReflectingPatch):
     def mdot_target(self):
         """Throttle setpoint [kg/s], or None when the patch holds a pressure.
 
-        Read by :meth:`ember.grid.Grid.get_convergence` and
-        ``ember.solver._validate_throttle`` to find the throttled outlet;
-        set through :meth:`set_throttle`.
+        Read by :meth:`ember.grid.Grid.get_convergence`, and by the solver's
+        throttle validation, to find the throttled outlet; set through
+        :meth:`set_throttle`.
         """
         return self._mdot_target
 
