@@ -71,7 +71,6 @@ def run(args):
     print(
         f"CFL={args.cfl}, n_stage={args.n_stage}, n_levels={args.n_levels}, "
         f"fac_mgrid={args.fac_mgrid}, expon_mgrid={args.expon_mgrid}, "
-        f"mgrid_pwc={args.mgrid_pwc}, "
         f"sf_resid={args.sf_resid}, sigma={args.sigma}, n_step={args.n_step}"
     )
 
@@ -84,7 +83,6 @@ def run(args):
         n_levels=args.n_levels,
         fac_mgrid=args.fac_mgrid,
         expon_mgrid=args.expon_mgrid,
-        mgrid_pwc=args.mgrid_pwc,
         sf_resid=args.sf_resid,
         sf4=args.sf4,
         sf2=args.sf2,
@@ -185,15 +183,6 @@ def main():
         help="Per-level MG decay base (coef_l ~ expon_mgrid**-(l-1)); the "
         "factor-2 per level the duct multigrid results were established at, "
         "not Solver's own default of 1.414",
-    )
-    p.add_argument(
-        "--mgrid-pwc",
-        action="store_true",
-        help="Prolong the coarse correction by plain injection (piecewise "
-        "constant over each coarse block) instead of the cascaded trilinear "
-        "interpolation. Not comparable to the cascade at matched --fac-mgrid: "
-        "injection does not attenuate the mid-band, so its optimum sits lower "
-        "-- sweep each and compare the best of the two curves",
     )
     p.add_argument(
         "--sf-resid", type=float, default=1.0, help="IRS residual smoothing factor"

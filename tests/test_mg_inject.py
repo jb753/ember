@@ -1,10 +1,10 @@
-"""Tests for the piecewise-constant multigrid prolongation (``Solver.mgrid_pwc``).
+"""Tests for the multigrid prolongation, which is plain INJECTION.
 
-The scheme replaces the cascaded trilinear prolongation with plain injection:
-every fine cell under a coarse block takes that block's correction unaltered,
-and the correction -- now a cell quantity like the fine term -- rides the same
-``cell_to_node`` scatter. Restriction, the coarse timestep and ``coef_l`` are
-untouched; Phase 1 is literally the same call (``mg_restrict_levels``).
+Every fine cell under a coarse block takes that block's correction unaltered,
+and the correction -- a cell quantity like the fine term -- rides the same
+``cell_to_node`` scatter. This replaced a cascaded trilinear prolongation whose
+final hop targeted the fine nodes through geometry-derived weights; see
+``docs/dev/plan_piecewise_constant_mgrid.md``.
 
 What these pin, in the order the design document
 (``docs/dev/plan_piecewise_constant_mgrid.md`` section 3) states them:
@@ -15,9 +15,8 @@ What these pin, in the order the design document
 2. the block-sum restriction is exactly the transpose of the injection, with no
    scaling, on any mesh -- of the CELL-TO-CELL pair, which is not the operator
    the solver applies (that one has the scatter composed onto it);
-3. a constant residual gives the same total correction as the cascade does, so
-   the two agree at DC and any difference between them lies above it;
-5. ``mgrid_pwc=False`` changes nothing at all.
+3. the DC gain is ``fac_mgrid * sum_l b_l * expon_mgrid**-(l-1)`` fine terms,
+   in closed form.
 
 Point 4 of that list -- the correction vanishes with the residual, so the steady
 state is unchanged -- is structural: ``corr_all`` is linear in ``q`` and every
@@ -48,7 +47,7 @@ N_LEVELS = 3
 # and no clamp to fall back on).
 SHAPE = (17, 17, 17)
 
-GOLDEN_FILE = Path(__file__).parent / "data" / "mg_pwc_golden.npz"
+GOLDEN_FILE = Path(__file__).parent / "data" / "mg_inject_golden.npz"
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +87,7 @@ def _seed(block, residual, dt_vol):
     block.dt_vol_nd.flags.writeable = False
 
 
-def _rk_increment(shape, residual, dt_vol, *, fac_mgrid, mgrid_pwc, cluster=False):
+def _rk_increment(shape, residual, dt_vol, *, fac_mgrid, cluster=False):
     """One RK stage's node increment ``cons - snapshot``."""
     block = _make_block(shape, cluster=cluster)
     _seed(block, residual, dt_vol)
@@ -103,7 +102,6 @@ def _rk_increment(shape, residual, dt_vol, *, fac_mgrid, mgrid_pwc, cluster=Fals
         N_LEVELS,
         expon_mgrid=EXPON_MGRID,
         sf_irs=0.0,
-        mgrid_pwc=mgrid_pwc,
     )
     return np.array(block.conserved_nd, dtype=np.float64) - snapshot, block
 
@@ -185,10 +183,10 @@ def test_the_increment_is_uniform_over_a_coarse_block(synthetic):
     """
     residual, dt_vol = synthetic
     got, block = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, mgrid_pwc=True, cluster=True
+        SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, cluster=True
     )
     off, _ = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=0.0, mgrid_pwc=True, cluster=True
+        SHAPE, residual, dt_vol, fac_mgrid=0.0, cluster=True
     )
     corr = got - off
 
@@ -220,29 +218,6 @@ def test_the_increment_is_uniform_over_a_coarse_block(synthetic):
     )
 
 
-def test_the_trilinear_path_is_not_block_uniform(synthetic):
-    """The discriminating half of 4.1: the cascade fails the same measurement.
-
-    Without this the test above would pass on data too smooth to tell the two
-    prolongations apart.
-    """
-    residual, dt_vol = synthetic
-    got, block = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, mgrid_pwc=False, cluster=True
-    )
-    off, _ = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=0.0, mgrid_pwc=False, cluster=True
-    )
-    corr = got - off
-
-    cells = _reference_correction_cells(
-        residual, dt_vol, block.vol_nd, ALPHA * CFL, FAC_MGRID, N_LEVELS
-    )
-    want = _scatter_to_nodes(cells)
-    scale = np.abs(want).max()
-    assert not np.allclose(corr, want, rtol=1e-2, atol=1e-2 * scale)
-
-
 # ---------------------------------------------------------------------------
 # 4.2  Restriction is the transpose of injection
 # ---------------------------------------------------------------------------
@@ -264,7 +239,7 @@ def _dense_injection(nc, np_):
 def _dense_restriction(nc, np_):
     """The block-sum matrix R as (n_coarse, n_fine), from the production kernel.
 
-    Driven through ``rk_mgpwc_noirs`` rather than ``mg_restrict_levels``, whose
+    Driven through ``rk_mg_noirs`` rather than ``mg_restrict_levels``, whose
     dummy-procedure smoother f2py exposes as a Python callback. ``dt_vol`` and
     ``vol`` are 1 and ``fmgrid`` is chosen so that ``coef_1 * dtblk_1 == 1``,
     which leaves ``corr_all`` holding the bare block sum: the transfer, with
@@ -281,11 +256,11 @@ def _dense_restriction(nc, np_):
         def Z(*shape):
             return np.asfortranarray(np.zeros(shape, dtype=np.float32))
 
-        n_corr, n_res, n_tri = ember.solver._mg_coarse_scratch_sizes(
+        n_corr, n_tri = ember.solver._mg_coarse_scratch_sizes(
             ni, nj, nk, 1, np=np_
         )
         corr_all = Z(n_corr)
-        ember.fortran.rk_mgpwc_noirs(
+        ember.fortran.rk_mg_noirs(
             cons=Z(ni, nj, nk, np_),
             snapshot=Z(ni, nj, nk, np_),
             residual=residual,
@@ -303,8 +278,7 @@ def _dense_restriction(nc, np_):
             sdt=Z(nc, nc, nc),
             sv=Z(nc, nc, nc),
             corr_all=corr_all,
-            cres=Z(n_res),
-            triw=Z(n_tri),
+                triw=Z(n_tri),
         )
         rows.append(corr_all.reshape(nc, nc, nc, np_, order="F")[..., 0].ravel("F"))
     return np.stack(rows, axis=1)
@@ -364,15 +338,12 @@ def test_the_applied_transfer_is_not_the_adjoint_pair():
 
 
 def test_a_constant_residual_gives_the_calibrated_gain():
-    """The DC gain, in closed form, and equal to the cascade's.
+    """The DC gain, in closed form.
 
-    ``dt_vol`` is held CONSTANT, and that is load-bearing rather than
-    convenient. The coarse timestep is the volume-weighted harmonic mean
-    ``sum(vol)/sum(vol/dt_vol)``, which for constant ``dt_vol`` collapses to
-    ``dt_vol`` exactly on any mesh -- so the level correction is uniform and the
-    two prolongations must agree. Let ``dt_vol`` vary and they genuinely do not:
-    ``dtblk`` then differs block to block, the cascade smears that variation
-    across blocks and injection does not.
+    ``dt_vol`` is held CONSTANT so the closed form is exact: the coarse
+    timestep is the volume-weighted harmonic mean ``sum(vol)/sum(vol/dt_vol)``,
+    which for constant ``dt_vol`` collapses to ``dt_vol`` on any mesh whatever
+    the volumes are, leaving the level correction uniform.
 
     The closed form is ``fac_mgrid * sum_l b_l * expon_mgrid**-(l-1)`` fine
     terms, which at ``expon_mgrid=2, n_levels=3`` is ``2+2+2 = 6`` -- the three
@@ -383,67 +354,19 @@ def test_a_constant_residual_gives_the_calibrated_gain():
     residual = np.full((ni - 1, nj - 1, nk - 1, NP), r_const)
     dt_vol = np.full((ni - 1, nj - 1, nk - 1), dt_const)
 
-    off, _ = _rk_increment(SHAPE, residual, dt_vol, fac_mgrid=0.0, mgrid_pwc=True)
-    pwc, _ = _rk_increment(SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, mgrid_pwc=True)
-    cascade, _ = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, mgrid_pwc=False
-    )
+    off, _ = _rk_increment(SHAPE, residual, dt_vol, fac_mgrid=0.0)
+    on, _ = _rk_increment(SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID)
 
     levels = sum(2**lvl * EXPON_MGRID ** -(lvl - 1) for lvl in range(1, N_LEVELS + 1))
     assert levels == pytest.approx(6.0)
     want = ALPHA * CFL * FAC_MGRID * dt_const * r_const * levels
 
-    np.testing.assert_allclose(pwc - off, want, rtol=1e-5)
-    np.testing.assert_allclose(cascade - off, want, rtol=1e-5)
-    np.testing.assert_allclose(pwc, cascade, rtol=1e-5)
+    np.testing.assert_allclose(on - off, want, rtol=1e-5)
 
 
 # ---------------------------------------------------------------------------
 # 4.4  Off is off
 # ---------------------------------------------------------------------------
-
-
-def test_off_is_byte_identical(synthetic):
-    """``mgrid_pwc=False`` is the default and changes nothing, bit for bit.
-
-    The cascade's own arithmetic across the Phase 1 / Phase 2 split is pinned by
-    tests/test_mg_irs.py and tests/test_scree_mg.py, which the split left
-    passing unchanged; what is left to pin here is that the flag's default
-    reaches neither new kernel.
-    """
-    residual, dt_vol = synthetic
-
-    def rk(**kwargs):
-        block = _make_block(SHAPE)
-        _seed(block, residual, dt_vol)
-        grid = ember.grid.Grid([block])
-        block.store[...] = block.conserved_nd
-        ember.solver.advance_rk_stage_mg(
-            grid, ALPHA, CFL, FAC_MGRID, N_LEVELS, expon_mgrid=EXPON_MGRID, **kwargs
-        )
-        return np.array(block.conserved_nd)
-
-    np.testing.assert_array_equal(rk(), rk(mgrid_pwc=False))
-
-    def scree(**kwargs):
-        block = _make_block(SHAPE)
-        _seed(block, residual, dt_vol)
-        grid = ember.grid.Grid([block])
-        ember.solver.scree_step(
-            grid,
-            CFL,
-            fac_mgrid=FAC_MGRID,
-            expon_mgrid=EXPON_MGRID,
-            n_levels=N_LEVELS,
-            **kwargs,
-        )
-        return np.array(block.conserved_nd)
-
-    np.testing.assert_array_equal(scree(), scree(mgrid_pwc=False))
-
-
-def test_solver_default_is_off():
-    assert ember.solver.Solver(n_step=1).mgrid_pwc is False
 
 
 # ---------------------------------------------------------------------------
@@ -468,7 +391,6 @@ def test_the_correction_reaches_conserved_rk(synthetic, sf_irs):
             N_LEVELS,
             expon_mgrid=EXPON_MGRID,
             sf_irs=sf_irs,
-            mgrid_pwc=True,
         )
         return np.array(block.conserved_nd, dtype=np.float64)
 
@@ -491,7 +413,6 @@ def test_the_correction_reaches_conserved_scree(synthetic, sf_irs):
             expon_mgrid=EXPON_MGRID,
             n_levels=N_LEVELS,
             sf_irs=sf_irs,
-            mgrid_pwc=True,
         )
         return np.array(block.conserved_nd, dtype=np.float64)
 
@@ -522,7 +443,6 @@ def test_the_two_integrators_agree_on_the_correction(synthetic):
             fac_mgrid,
             N_LEVELS,
             expon_mgrid=EXPON_MGRID,
-            mgrid_pwc=True,
         )
         return np.array(block.conserved_nd, dtype=np.float64)
 
@@ -538,7 +458,6 @@ def test_the_two_integrators_agree_on_the_correction(synthetic):
             fac_mgrid=fac_mgrid,
             expon_mgrid=EXPON_MGRID,
             n_levels=N_LEVELS,
-            mgrid_pwc=True,
         )
         return np.array(block.conserved_nd, dtype=np.float64)
 
@@ -563,10 +482,10 @@ def _golden_increment():
     residual = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
     dt_vol = 0.2 + 1.6 * rng.random((ni - 1, nj - 1, nk - 1))
     on, _ = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, mgrid_pwc=True, cluster=True
+        SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, cluster=True
     )
     off, _ = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=0.0, mgrid_pwc=True, cluster=True
+        SHAPE, residual, dt_vol, fac_mgrid=0.0, cluster=True
     )
     return (on - off).astype(np.float32)
 
@@ -577,41 +496,32 @@ def test_golden_coarse_increment():
 
     Regenerate after an intentional change:
 
-        uv run python tests/test_mg_pwc.py
+        uv run python tests/test_mg_inject.py
     """
     want = np.load(GOLDEN_FILE)["increment"]
     np.testing.assert_allclose(_golden_increment(), want, rtol=1e-6, atol=1e-12)
 
 
-def test_the_pwc_buffer_list_is_a_subset_of_the_cascade():
-    """Which is what lets the arena stay sized by the cascade while both exist.
+def test_the_buffer_list_matches_the_shapes():
+    """MG_COARSE_NAMES and mg_coarse_shapes must not drift apart.
 
-    ``Block.scratch`` is allocated once from ``_scratch_len``, which cannot see
-    ``Solver.mgrid_pwc``; the piecewise-constant path is safe in that arena
-    only because it needs a strict subset of the cascade's buffers at exactly
-    the same shapes. None of the saving is realised until the cascade goes.
+    They are zipped together at the carve, so a name added to one and not the
+    other silently mislabels every buffer after it.
     """
-    cascade = dict(
-        zip(
-            ember.solver.MG_COARSE_NAMES,
-            ember.solver.mg_coarse_shapes(*SHAPE, N_LEVELS),
-        )
-    )
-    pwc = dict(
-        zip(ember.solver.MG_PWC_NAMES, ember.solver.mg_pwc_shapes(*SHAPE, N_LEVELS))
-    )
-    assert set(pwc) < set(cascade)
-    for name, shape in pwc.items():
-        assert cascade[name] == shape, name
-    assert set(cascade) - set(pwc) == {"cbuf", "aplane", "bb", "acc0", "acc1"}
+    names = ember.solver.MG_COARSE_NAMES
+    shapes = ember.solver.mg_coarse_shapes(*SHAPE, N_LEVELS)
+    assert len(names) == len(shapes) == 6
+    assert set(names) == {
+        "dtblk", "rawbuf", "sdt", "sv", "corr_all", "triw",
+    }
 
 
-def test_the_pwc_carve_fits_the_arena():
-    """The pwc phase, increment buffer included, fits what the block allocates."""
+def test_the_multigrid_carve_fits_the_arena():
+    """The multigrid phase, increment buffer included, fits what the block allocates."""
     ni, nj, nk = SHAPE
     block = _make_block(SHAPE)
     need = (ni - 1) * (nj - 1) * NP * 2 + sum(
-        int(np.prod(s)) for s in ember.solver.mg_pwc_shapes(ni, nj, nk, N_LEVELS)
+        int(np.prod(s)) for s in ember.solver.mg_coarse_shapes(ni, nj, nk, N_LEVELS)
     )
     assert need <= block.scratch.size
 

@@ -1,10 +1,12 @@
 # Plan: piecewise-constant multigrid, and nothing else
 
-> **Status: kernel and tests built behind `mgrid_pwc`; validation part-run.**
-> Sections 1-4 and 7 steps 1-2 are done. Of section 5: the duct has a first
-> matched-gain point (5.2) and the turbine arm is mid-flight with a
-> preliminary POSITIVE result (5.7). The screen's duct margin did not
-> reproduce; the turbine stability difference did. See 5.2 and 5.7.
+> **Status: DONE. Injection is the only prolongation; the cascade is deleted.**
+> Sections 1-4 and all of section 7 are complete. Section 5 is part-run and its
+> gate was **deliberately overridden**: step 6 was taken with 5.2 showing
+> injection slightly BEHIND on the clustered duct and the turbine arm still
+> mid-flight. That was a call made with the evidence in view, not an oversight
+> -- see 5.2 and 5.7a for exactly what was and was not established first. The
+> cascade is recoverable only from git history (last present at `bc31c35`).
 >
 > The whole change: **replace the cascaded trilinear prolongation with plain
 > injection.** Every fine cell under a coarse block takes that block's
@@ -278,31 +280,47 @@ alive until section 5 has run. Listed so the size of the prize is visible:
   is added.
 - `tests/test_mg_weights.py` (564 lines) covers only the deleted weights.
 
-**What that is worth, measured rather than estimated.** Element counts from
-`mg_coarse_shapes`, float32, at the two shapes `_scratch_len`'s docstring
-already quotes:
+**What that was worth, MEASURED after the fact.** Element counts from
+`mg_coarse_shapes`, float32:
 
-| phase | 273x65x57 master | 273x65x57 pwc | 49^3 master | 49^3 pwc |
+| phase | 273x65x57 before | after | 49^3 before | after |
 |---|---|---|---|---|
-| multigrid | 25.02 MB | **9.82 MB** | 2.89 MB | **1.11 MB** |
+| multigrid | 25.02 MB | **6.68 MB** | 2.89 MB | **0.76 MB** |
 | update_residual | 20.96 | 20.96 | 2.45 | 2.45 |
 | update_sources | 19.24 | 19.24 | 2.67 | 2.67 |
 | scree/RK, no MG | 19.50 | 19.50 | 2.21 | 2.21 |
 | **arena** | **25.02** | **20.96** | **2.89** | **2.67** |
 
-So the multigrid phase falls by 61 per cent, but **`_scratch_len` falls by only
-16 per cent** (7.6 per cent on the cube), because the multigrid phase stops
-being the binding one: `update_residual` binds at 273x65x57 and
-`update_sources` at 49^3. Two knock-ons that belong to step 6, not to this
-paragraph's headline:
+The multigrid phase fell by 73 per cent -- better than the 61 per cent this
+section predicted, because dropping the cascade exposed a further saving noted
+below -- but **`_scratch_len` fell by only 16 per cent** (7.6 per cent on the
+cube), because the multigrid phase stopped being the binding one:
+`update_residual` binds at 273x65x57 and `update_sources` at 49^3. Beyond that
+point, shrinking multigrid buys nothing at all.
 
-- `_scratch_len`'s docstring says "The MULTIGRID phase binds, at every shape
-  tried". That becomes false and has to be rewritten.
-- The same docstring justifies borrowing the nodal transport trio into the arena
-  as taking "space in an arena the multigrid phase was already sizing". After
-  the deletion it is `update_sources` -- the trio's own phase -- that sets the
-  arena on a cube. The trade is still favourable (2.67 against 2.89) but the
-  recorded reasoning no longer holds and should be restated.
+**The extra saving: `cres` was a copy earning nothing.** With the cascade gone
+it is plain that `corr_all`'s per-level slots are compact and exactly the size
+the coarse-residual smoother wants, so the restriction can gather straight into
+the slot, smooth it there and scale it in place. That deletes the level-1-sized
+coarse-residual buffer (609,280 elements, 2.44 MB at 273x65x57) and one full
+copy of the coarse residual per level. Strictly this was available before the
+cascade went -- the slots were always compact -- so it is a saving the
+simplification revealed rather than unlocked. It is **not** bit-identical: it
+moves the conserved state by about one ulp through float32 reassociation, and
+both old and new sit at the same distance (8.9e-07 of scale) from a float64
+reference, so neither is more accurate. The committed golden was regenerated.
+
+Two knock-ons of the arena change:
+
+- `_scratch_len`'s docstring said "The MULTIGRID phase binds, at every shape
+  tried". Now false, and rewritten.
+- The same docstring justified borrowing the nodal transport trio into the arena
+  as taking "space in an arena the multigrid phase was already sizing". It is
+  now `update_sources` -- the trio's own phase -- that sets the arena on a cube,
+  so the trio is no longer free there. The trade is still favourable (2.67
+  against the 2.89 the old multigrid phase demanded) but it is a trade again,
+  and shrinking the viscous phase is now the way to shrink the arena. Restated
+  in the docstring.
 
 ### 2.6 Config
 
@@ -541,7 +559,9 @@ identical to the cascade arm. **The run is mid-flight; these are the first
 | 2000 | 5.200e-08 | 5.055e-08 | 4.860e-08 |
 | 2500 | 5.083e-08 | 5.757e-08 | 4.850e-08 |
 | 2750 | 5.053e-08 | **6.770e-08** (+37%) | 4.850e-08 |
-| 10000 | 5.024e-08 | DIVERGED at ~4010 | -- |
+| 4010 | 5.027e-08 | **DIVERGED** | 4.850e-08 |
+| 4410 | 5.026e-08 | -- | 4.850e-08 |
+| 10000 | 5.024e-08 | -- | (running) |
 
 Three things, in decreasing order of confidence.
 
@@ -552,11 +572,12 @@ Three things, in decreasing order of confidence.
    (4.947, 4.948, 4.949, 4.948, 4.949, 4.950, ...); injection was not. This is
    the first measurement in the whole line of work that discriminates the two
    prolongations, and it discriminates them on the axis that matters.
-2. **Injection has plateaued, not turned.** Minimum 4.850e-08 at step ~2140 and
-   flat to three significant figures for ~850 steps since. Flat is not the same
-   as stable: the cascade took ~2600 steps to go from its turn to the blow-up,
-   so a longer fuse is not yet excluded. The full-precision history only exists
-   once the run writes its `.cnv`.
+2. **Injection cleared step 4010, where the cascade blew up**, still at
+   4.850e-08 and growth 1.0000x. It has plateaued rather than turned: minimum at
+   step ~2140, flat to three significant figures for the ~2300 steps since. Flat
+   is not the same as converging, and a longer fuse is not excluded until 10000,
+   but the specific failure the cascade suffers is now behind it. The
+   full-precision history only exists once the run writes its `.cnv`.
 3. **The convergence margin over doing nothing is small.** The multigrid-off arm
    ends at 5.024e-08 and is still falling. If injection holds its plateau the
    final margin is about 3.3%, or **0.014 decades** -- real, but not an
@@ -635,6 +656,22 @@ the flag, the four pwc wrappers and the three new blocks.
 4. 5.3, then 5.4 and 5.5.
 5. **5.7, the turbine**, its pre-check first. This is the answer the whole
    exercise is for and it should not be deferred behind the deletion.
-6. Only then, if 5.2 and 5.7 both hold: delete everything in 2.5, drop the flag,
-   make injection the only path, let the arena fall, and rewrite the two
-   `_scratch_len` docstring claims that 2.5 lists as casualties.
+6. **DONE, with the gate overridden.** Everything in 2.5 is deleted, the flag
+   is gone, injection is the only path, and both `_scratch_len` docstring claims
+   are rewritten. The `*_mgpwc_*` kernels took the canonical `*_mg_*` names,
+   `mg_collapse_pwc` became `mg_collapse_levels` and `mg_pwc_fine_scatter`
+   became `mg_fine_scatter`; `tests/test_mg_pwc.py` became
+   `tests/test_mg_inject.py` and lost the tests that existed only to compare
+   against the cascade.
+
+   Taken with 5.2 showing injection 0.07 decades BEHIND on the clustered duct
+   and the turbine arm unfinished. What justified it was 5.7a rather than 5.2:
+   the cascade blows up on the case the work exists for and injection does not.
+   What did NOT justify it is any duct convergence margin -- there is none, and
+   1.3's +0.23 decades did not survive contact with the in-stage path. Anyone
+   reading this later should take the scheme as chosen for **stability and
+   simplicity**, not speed.
+
+   Verification that the deletion was arithmetically inert: the golden committed
+   before it still matched after, bit for bit. The `cres` removal that followed
+   is a separate, deliberate 1-ulp change, described in 2.5.
