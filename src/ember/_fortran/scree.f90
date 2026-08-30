@@ -684,15 +684,25 @@ end subroutine scree_roll_and_scatter
 ! IRS is the `smoother` dummy-procedure argument: smooth_residual_tri_tiled
 ! (Jameson IRS) or mg_smooth_noop (none) -- no `if (sf_irs)` anywhere in here.
 !
-! The six production kernels, all branch-free straight-line compositions:
-!   scree_plain     rk_plain      fine_term + scatter          (multigrid off)
-!   scree_mg_noirs  rk_mg_noirs   engine(mg_smooth_noop) + scatter
-!   scree_mg_irs    rk_mg_irs     engine(smooth_residual_tri_tiled) + scatter
+! The ten production kernels, all branch-free straight-line compositions:
+!   scree_plain      rk_plain       fine_term + scatter         (multigrid off)
+!   scree_mg_noirs   rk_mg_noirs    engine(mg_smooth_noop) + cascade scatter
+!   scree_mg_irs     rk_mg_irs      engine(smooth_residual_tri_tiled) + ditto
+!   scree_mgpwc_noirs rk_mgpwc_noirs restrict(noop) + collapse + pwc scatter
+!   scree_mgpwc_irs  rk_mgpwc_irs   restrict(tri_tiled) + collapse + ditto
 ! scree wrappers form q in store (scree_form_q) and roll the history
-! (scree_roll); rk wrappers pass residual as q. Both multigrid-on wrappers
-! scatter through the fused mg_prolong2x_fine_scatter, scree frozen-in-place
-! (base = cons) and rk off the sub-stage snapshot (base = snapshot); the
-! multigrid-off pair still materialises a full-volume increment.
+! (scree_roll); rk wrappers pass residual as q. The cascade wrappers scatter
+! through the fused mg_prolong2x_fine_scatter and the piecewise-constant ones
+! through mg_pwc_fine_scatter, scree frozen-in-place (base = cons) and rk off
+! the sub-stage snapshot (base = snapshot); the multigrid-off pair still
+! materialises a full-volume increment.
+!
+! Phase 1 -- the hierarchical restriction and the coarse timestep -- is shared
+! by both prolongations and lives in mg_restrict_levels. The two differ only in
+! what they then do with corr_all: mg_coarse_correction cascades it through
+! factor-2 trilinear hops into acc0, and mg_collapse_pwc sums it in place onto
+! its own finest slot for a plain injection read. See
+! docs/dev/plan_piecewise_constant_mgrid.md.
 !
 ! Restriction is HIERARCHICAL: a level-l block-sum equals eight level-(l-1)
 ! block-sums (the block-sum is associative), so only level 1 reads the fine grid;
@@ -713,11 +723,10 @@ end subroutine scree_roll_and_scatter
 ! hop therefore carries node-shaped weights, which is the one place
 ! mg_weight_offsets departs from the plain cell formula.
 ! ============================================================================
-subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
-        sf_irs, n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
-        corr_all, acc0, acc1, cres, triw, smoother, &
-        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
-        pwi, pwj, pwk, n_wi, n_wj, n_wk)
+subroutine mg_restrict_levels(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
+        sf_irs, n_levels, dtblk, rawbuf, sdt, sv, &
+        corr_all, cres, triw, smoother, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
 
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -730,61 +739,40 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     real, intent(in)    :: vol(ni-1, nj-1, nk-1)
     real, intent(in)    :: scale, fmgrid, expon_mgrid, sf_irs
     real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
-    real, intent(inout) :: aplane(ni, nc1j)
-    real, intent(inout) :: bb(ni, nj, nc1k, np)
     real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
     ! sdt accumulates sum(vol/dt_vol) and sv accumulates sum(vol), so that
     ! dtblk = sv/sdt is the volume-weighted harmonic mean of dt_vol.
     real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
     real, intent(inout) :: sv (nc1i, nc1j, nc1k)
     real, intent(inout) :: corr_all(n_corr)
-    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
-    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
     real, intent(inout) :: cres(n_res)
     real, intent(inout) :: triw(n_tri)
-    ! The block's packed prolongation weights, every hop of them. Static
-    ! geometry, so they are NOT arena scratch: ember.block.Block.weight_mgrid
-    ! caches them keyed on x/r/t, and this reads the hops it needs.
-    integer, intent(in) :: n_wi, n_wj, n_wk
-    real,    intent(in) :: pwi(n_wi), pwj(n_wj), pwk(n_wk)
 
     integer :: ip, lvl, b, nib, njb, nkb, ib, jb, kb
-    integer :: ii, jj, kk, slot, cnt
+    integer :: ii, jj, kk, slot, cnt, o
     real    :: coef, s, s_dt, s_v
-    ! Level tables. Sized by a PARAMETER, not by n_levels: a runtime-sized
-    ! local is an alloca on every call, and GCC's opt report shows the four
-    ! of them costing a stack_save/alloca/stack_restore trio that also
-    ! clobbers memory across the whole body. There is a compile-time bound
-    ! available -- ember.block.MAX_MG_LEVELS, which ember.solver._validate_mg
-    ! already enforces because Block.scratch is one arena sized for it -- so
-    ! the tables can simply be that long. Keep the two in step.
+    ! Level table. Sized by a PARAMETER, not by n_levels: a runtime-sized
+    ! local is an alloca on every call, and GCC's opt report shows such tables
+    ! costing a stack_save/alloca/stack_restore trio that also clobbers memory
+    ! across the whole body. There is a compile-time bound available --
+    ! ember.block.MAX_MG_LEVELS, which ember.solver._validate_mg already
+    ! enforces because Block.scratch is one arena sized for it -- so the table
+    ! can simply be that long. Keep the two in step.
     integer, parameter :: MG_LEVELS_MAX = 3
-    integer :: dib(MG_LEVELS_MAX), djb(MG_LEVELS_MAX), dkb(MG_LEVELS_MAX)
     integer :: offc(MG_LEVELS_MAX)
-    integer :: offwi(MG_LEVELS_MAX), offwj(MG_LEVELS_MAX), offwk(MG_LEVELS_MAX)
-    integer :: nci, ncj, nck, cur_i, cur_j, cur_k, o
-    logical :: in0
 
     ! The caller validates this (ember.solver._validate_mg), so reaching it
     ! means the two bounds have drifted apart; say so rather than writing
-    ! past the tables.
-    if (n_levels > MG_LEVELS_MAX) stop 'mg_coarse_correction: n_levels > MG_LEVELS_MAX'
+    ! past the table.
+    if (n_levels > MG_LEVELS_MAX) stop 'mg_restrict_levels: n_levels > MG_LEVELS_MAX'
 
-    ! Weight hops are numbered from the fine grid down (hop 1 targets the fine
-    ! grid's nodes), so the cascade hop onto level lvl -- whose target is
-    ! (ni-1)/2**(n_levels-lvl+1) -- is hop n_levels-lvl+2. Hop 1 is the final
-    ! hop, and the caller makes that one.
-    call mg_weight_offsets(ni, nj, nk, n_levels, offwi, offwj, offwk)
-
-    ! Coarsest-first packed geometry for corr_all (cascade seeds at slot 1).
+    ! Coarsest-first packed geometry for corr_all (the cascade seeds at slot 1,
+    ! and mg_collapse_pwc accumulates in the same direction).
     o = 0
     do lvl = 1, n_levels
         b = 2**(n_levels - lvl + 1)
-        dib(lvl) = (ni-1)/b
-        djb(lvl) = (nj-1)/b
-        dkb(lvl) = (nk-1)/b
         offc(lvl) = o
-        o = o + dib(lvl)*djb(lvl)*dkb(lvl)*np
+        o = o + ((ni-1)/b)*((nj-1)/b)*((nk-1)/b)*np
     end do
 
     ! ---- Phase 1, level 1 (peeled): the only level that reads the fine grid ----
@@ -918,6 +906,63 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
                            nc1i, nc1j, nc1k, nib, njb, nkb, np)
     end do
 
+end subroutine mg_restrict_levels
+
+
+! ============================================================================
+! Phase 2, cascaded: the trilinear prolongation, unchanged in arithmetic from
+! when it shared a body with Phase 1. It is a separate block for two reasons.
+! It is the half the piecewise-constant path replaces, so the split is the
+! seam the two schemes meet at; and f2py cannot forward a dummy PROCEDURE
+! through a second call level -- it infers a callback's signature from the
+! `call smoother(...)` it can see, so an intermediate that only passes the
+! smoother on generates a broken wrapper. The smoother therefore reaches
+! mg_restrict_levels from the production kernel directly.
+! ============================================================================
+subroutine mg_cascade_prolong(corr_all, acc0, acc1, aplane, bb, n_levels, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, &
+        pwi, pwj, pwk, n_wi, n_wj, n_wk)
+
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k, n_corr
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: acc0(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: acc1(nc1i*nc1j*nc1k*np)
+    real, intent(inout) :: aplane(ni, nc1j)
+    real, intent(inout) :: bb(ni, nj, nc1k, np)
+    ! The block's packed prolongation weights, every hop of them. Static
+    ! geometry, so they are NOT arena scratch: ember.block.Block.weight_mgrid
+    ! caches them keyed on x/r/t, and this reads the hops it needs.
+    integer, intent(in) :: n_wi, n_wj, n_wk
+    real,    intent(in) :: pwi(n_wi), pwj(n_wj), pwk(n_wk)
+
+    integer :: lvl, b, o
+    integer, parameter :: MG_LEVELS_MAX = 3
+    integer :: dib(MG_LEVELS_MAX), djb(MG_LEVELS_MAX), dkb(MG_LEVELS_MAX)
+    integer :: offc(MG_LEVELS_MAX)
+    integer :: offwi(MG_LEVELS_MAX), offwj(MG_LEVELS_MAX), offwk(MG_LEVELS_MAX)
+    integer :: nci, ncj, nck, cur_i, cur_j, cur_k
+    logical :: in0
+
+    if (n_levels > MG_LEVELS_MAX) stop 'mg_cascade_prolong: n_levels > MG_LEVELS_MAX'
+
+    ! Weight hops are numbered from the fine grid down (hop 1 targets the fine
+    ! grid's nodes), so the cascade hop onto level lvl -- whose target is
+    ! (ni-1)/2**(n_levels-lvl+1) -- is hop n_levels-lvl+2. Hop 1 is the final
+    ! hop, and the caller makes that one.
+    call mg_weight_offsets(ni, nj, nk, n_levels, offwi, offwj, offwk)
+
+    ! Coarsest-first packed geometry for corr_all, as mg_restrict_levels built it.
+    o = 0
+    do lvl = 1, n_levels
+        b = 2**(n_levels - lvl + 1)
+        dib(lvl) = (ni-1)/b
+        djb(lvl) = (nj-1)/b
+        dkb(lvl) = (nk-1)/b
+        offc(lvl) = o
+        o = o + dib(lvl)*djb(lvl)*dkb(lvl)*np
+    end do
+
     ! Phase 2: cascaded coarsest->fine prolongation.
     !
     ! Each hop seeds the NEXT buffer with that level's own correction and
@@ -972,11 +1017,226 @@ subroutine mg_coarse_correction(q, dt_vol, vol, scale, fmgrid, expon_mgrid, &
     ! factor-2 hop is done by the caller so that both schemes can fuse it with
     ! the fine term's cell->node scatter (mg_prolong2x_fine_scatter); that hop
     ! lands straight on the nodes, so it never visits a fine cell centre.
-end subroutine mg_coarse_correction
+end subroutine mg_cascade_prolong
+
+
+! Accumulate a coarse field onto the next finer coarse level by INJECTION:
+! every one of the eight fine cells under a coarse cell takes that cell's value,
+! unaltered. The whole of the piecewise-constant prolongation is this and the
+! identical read in mg_pwc_fine_scatter.
+!
+! No bracket and no clamp, unlike mg_prolong2x_acc: (i+1)/2 is exact only
+! because ember.solver._validate_mg forces every cell dimension to be a multiple
+! of 2**n_levels, so nfi == 2*nci in every direction. Relax that check and this
+! reads past the end of src.
+subroutine mg_inject_acc(src, nci, ncj, nck, out, nfi, nfj, nfk, np)
+    implicit none
+    integer, intent(in) :: nci, ncj, nck, nfi, nfj, nfk, np
+    real, intent(in)    :: src(nci, ncj, nck, np)
+    real, intent(inout) :: out(nfi, nfj, nfk, np)
+    integer :: i, j, k, ip, jc, kc
+    do ip = 1, np
+        do k = 1, nfk
+            kc = (k+1)/2
+            do j = 1, nfj
+                jc = (j+1)/2
+                do i = 1, nfi
+                    out(i,j,k,ip) = out(i,j,k,ip) + src((i+1)/2, jc, kc, ip)
+                end do
+            end do
+        end do
+    end do
+end subroutine mg_inject_acc
+
+
+! Phase 2, piecewise-constant: collapse every coarse level onto the FINEST
+! coarse level (level 1), in place inside corr_all.
+!
+! corr_all already holds each level's scaled correction in its own compact,
+! disjoint slot, packed coarsest first, so no accumulator is needed at all --
+! the cascade's acc0/acc1 ping-pong has no counterpart here. Working coarsest
+! first, each slot gains the injected total of the one above it, so the last
+! slot ends holding sum_l inject_l(corr_l) and the fine grid reads that.
+!
+! Cost is 1 + 1/8 + 1/64 = 1.14 traversals of the level-1 grid, about 0.14
+! fine-cell-equivalents, against the cascade's full-size hops.
+!
+! The two slots handed to each mg_inject_acc call are non-overlapping sections
+! of one array (offc is strictly increasing and slots are exactly their own
+! size), and every target element is written once, so the aliasing is only
+! apparent.
+subroutine mg_collapse_pwc(corr_all, n_levels, ni, nj, nk, np, n_corr)
+    implicit none
+    integer, intent(in) :: n_levels, ni, nj, nk, np, n_corr
+    real, intent(inout) :: corr_all(n_corr)
+    integer, parameter :: MG_LEVELS_MAX = 3
+    integer :: dib(MG_LEVELS_MAX), djb(MG_LEVELS_MAX), dkb(MG_LEVELS_MAX)
+    integer :: offc(MG_LEVELS_MAX)
+    integer :: lvl, b, o
+
+    if (n_levels > MG_LEVELS_MAX) stop 'mg_collapse_pwc: n_levels > MG_LEVELS_MAX'
+
+    o = 0
+    do lvl = 1, n_levels
+        b = 2**(n_levels - lvl + 1)
+        dib(lvl) = (ni-1)/b
+        djb(lvl) = (nj-1)/b
+        dkb(lvl) = (nk-1)/b
+        offc(lvl) = o
+        o = o + dib(lvl)*djb(lvl)*dkb(lvl)*np
+    end do
+
+    do lvl = 2, n_levels
+        call mg_inject_acc(corr_all(offc(lvl-1)+1), &
+                           dib(lvl-1), djb(lvl-1), dkb(lvl-1), &
+                           corr_all(offc(lvl)+1), &
+                           dib(lvl), djb(lvl), dkb(lvl), np)
+    end do
+end subroutine mg_collapse_pwc
+
+
+! Fused fine term + injected coarse correction + cell->node scatter: the
+! piecewise-constant counterpart of mg_prolong2x_fine_scatter, and the only
+! place the fine grid is touched by the correction.
+!
+! Under injection the correction is a CELL quantity, so unlike the cascade
+! there are not two halves landing at the nodes by different routes. The
+! correction is added into the fine cell increment alongside the fine term and
+! both ride the one scatter, which is why aplane/bb/cbuf and the node-targeted
+! weights have no counterpart here.
+!
+! Cell-averaging the correction costs nothing, which is the whole argument for
+! doing it: within a coarse block the correction is constant, so the scatter --
+! a partition of unity everywhere, interior 1/8 of 8 cells through to corners
+! 1 of 1 -- reproduces it exactly. The two differ only at block faces, where
+! the node takes the mean of the two adjoining blocks' corrections. That is a
+! one-cell smoothing of the staircase applied exactly where the staircase is,
+! not the first-order clustering error that made the cascade target nodes.
+!
+! The rolling two-plane rbuf and the emit stencils are carried over unchanged
+! (term for term and in the same summation order as cell_to_node_generic), so
+! the increment is still never materialised full-volume.
+!
+! src((i+1)/2, ...) repeats each coarse value across two fine cells. It reads
+! from an array an eighth the size, resident in cache, so even scalarised it is
+! cheap against the dt_vol and q streams it is added to.
+subroutine mg_pwc_fine_scatter(src, nci, ncj, nck, base, cons, &
+        scale, dt_vol, q, ni, nj, nk, np, rbuf)
+    implicit none
+    integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np
+    real, intent(in)    :: src(nci, ncj, nck, np)
+    real, intent(in)    :: scale
+    real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
+    real, intent(in)    :: q(ni-1, nj-1, nk-1, np)
+    real, intent(in)    :: base(ni, nj, nk, np)
+    ! As in mg_prolong2x_fine_scatter: RK passes a snapshot distinct from cons,
+    ! scree passes cons itself and the aliasing is benign (every node is read
+    ! and written at its own index within one statement).
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    integer :: i, j, ip, kc, kb, jb, cur, prev, sw
+
+    cur  = 1
+    prev = 2
+    do kc = 1, nk-1
+        kb = (kc+1)/2
+        do ip = 1, np
+            do j = 1, nj-1
+                jb = (j+1)/2
+                do i = 1, ni-1
+                    rbuf(i,j,ip,cur) = scale*dt_vol(i,j,kc)*q(i,j,kc,ip) &
+                                     + src((i+1)/2, jb, kb, ip)
+                end do
+            end do
+        end do
+        ! Both ends emit two node planes in one pass.
+        if (kc == 1)    call emit_kbnd(cur, 1)
+        if (kc >= 2)    call emit_kint(prev, cur, kc)
+        if (kc == nk-1) call emit_kbnd(cur, nk)
+        sw = cur; cur = prev; prev = sw
+    end do
+
+contains
+
+    ! Interior-k node plane kk (2..nk-1): 8 surrounding cells, planes kk-1
+    ! (buffer bp) and kk (buffer bc).
+    subroutine emit_kint(bp, bc, kk)
+        integer, intent(in) :: bp, bc, kk
+        integer :: i, j, ip
+        do ip = 1, np
+            do j = 2, nj-1
+                do i = 2, ni-1
+                    cons(i,j,kk,ip) = base(i,j,kk,ip) + ( &
+                        rbuf(i-1,j-1,ip,bp) + rbuf(i,j-1,ip,bp) &
+                      + rbuf(i,j,ip,bp)     + rbuf(i-1,j,ip,bp) &
+                      + rbuf(i-1,j-1,ip,bc) + rbuf(i,j-1,ip,bc) &
+                      + rbuf(i,j,ip,bc)     + rbuf(i-1,j,ip,bc))*0.125e0
+                end do
+            end do
+            do j = 2, nj-1
+                cons(1,j,kk,ip) = base(1,j,kk,ip) + ( &
+                    rbuf(1,j-1,ip,bp) + rbuf(1,j,ip,bp) &
+                  + rbuf(1,j-1,ip,bc) + rbuf(1,j,ip,bc))*0.25e0
+                cons(ni,j,kk,ip) = base(ni,j,kk,ip) + ( &
+                    rbuf(ni-1,j-1,ip,bp) + rbuf(ni-1,j,ip,bp) &
+                  + rbuf(ni-1,j-1,ip,bc) + rbuf(ni-1,j,ip,bc))*0.25e0
+            end do
+            do i = 2, ni-1
+                cons(i,1,kk,ip) = base(i,1,kk,ip) + ( &
+                    rbuf(i-1,1,ip,bp) + rbuf(i,1,ip,bp) &
+                  + rbuf(i-1,1,ip,bc) + rbuf(i,1,ip,bc))*0.25e0
+                cons(i,nj,kk,ip) = base(i,nj,kk,ip) + ( &
+                    rbuf(i-1,nj-1,ip,bp) + rbuf(i,nj-1,ip,bp) &
+                  + rbuf(i-1,nj-1,ip,bc) + rbuf(i,nj-1,ip,bc))*0.25e0
+            end do
+            cons(1,1,kk,ip) = base(1,1,kk,ip) &
+                + (rbuf(1,1,ip,bp) + rbuf(1,1,ip,bc))*0.5e0
+            cons(1,nj,kk,ip) = base(1,nj,kk,ip) &
+                + (rbuf(1,nj-1,ip,bp) + rbuf(1,nj-1,ip,bc))*0.5e0
+            cons(ni,nj,kk,ip) = base(ni,nj,kk,ip) &
+                + (rbuf(ni-1,nj-1,ip,bp) + rbuf(ni-1,nj-1,ip,bc))*0.5e0
+            cons(ni,1,kk,ip) = base(ni,1,kk,ip) &
+                + (rbuf(ni-1,1,ip,bp) + rbuf(ni-1,1,ip,bc))*0.5e0
+        end do
+    end subroutine emit_kint
+
+    ! k-boundary node plane kk (1 or nk): single adjacent cell plane (buffer
+    ! bc). Interior 1/4 of 4 cells, i/j faces 1/2 of 2, corners the one cell.
+    subroutine emit_kbnd(bc, kk)
+        integer, intent(in) :: bc, kk
+        integer :: i, j, ip
+        do ip = 1, np
+            do j = 2, nj-1
+                do i = 2, ni-1
+                    cons(i,j,kk,ip) = base(i,j,kk,ip) + ( &
+                        rbuf(i-1,j-1,ip,bc) + rbuf(i,j-1,ip,bc) &
+                      + rbuf(i-1,j,ip,bc)   + rbuf(i,j,ip,bc))*0.25e0
+                end do
+            end do
+            do j = 2, nj-1
+                cons(1,j,kk,ip) = base(1,j,kk,ip) &
+                    + (rbuf(1,j-1,ip,bc) + rbuf(1,j,ip,bc))*0.5e0
+                cons(ni,j,kk,ip) = base(ni,j,kk,ip) &
+                    + (rbuf(ni-1,j-1,ip,bc) + rbuf(ni-1,j,ip,bc))*0.5e0
+            end do
+            do i = 2, ni-1
+                cons(i,1,kk,ip) = base(i,1,kk,ip) &
+                    + (rbuf(i-1,1,ip,bc) + rbuf(i,1,ip,bc))*0.5e0
+                cons(i,nj,kk,ip) = base(i,nj,kk,ip) &
+                    + (rbuf(i-1,nj-1,ip,bc) + rbuf(i,nj-1,ip,bc))*0.5e0
+            end do
+            cons(1,1,kk,ip)   = base(1,1,kk,ip)   + rbuf(1,1,ip,bc)
+            cons(1,nj,kk,ip)  = base(1,nj,kk,ip)  + rbuf(1,nj-1,ip,bc)
+            cons(ni,nj,kk,ip) = base(ni,nj,kk,ip) + rbuf(ni-1,nj-1,ip,bc)
+            cons(ni,1,kk,ip)  = base(ni,1,kk,ip)  + rbuf(ni-1,1,ip,bc)
+        end do
+    end subroutine emit_kbnd
+
+end subroutine mg_pwc_fine_scatter
 
 
 ! ============================================================================
-! The six production kernels. Each is a branch-free straight-line composition of
+! The ten production kernels. Each is a branch-free straight-line composition of
 ! the blocks above; configuration is resolved by which blocks are called and
 ! which smoother is passed, never by a runtime `if`.
 ! ============================================================================
@@ -1032,10 +1292,11 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     external :: smooth_residual_tri_tiled
 
     call scree_form_q(store, residual, ni, nj, nk, np)
-    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, &
-                       dtblk, aplane, bb, rawbuf, sdt, sv, &
-                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+    call mg_restrict_levels(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, &
+                       n_levels, dtblk, rawbuf, sdt, sv, corr_all, cres, triw, smooth_residual_tri_tiled, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call mg_cascade_prolong(corr_all, acc0, acc1, aplane, bb, n_levels, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, &
                        pwi, pwj, pwk, n_wi, n_wj, n_wk)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
                            cfl, dt_vol, store, ni, nj, nk, np, &
@@ -1078,10 +1339,11 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     external :: mg_smooth_noop
 
     call scree_form_q(store, residual, ni, nj, nk, np)
-    call mg_coarse_correction(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, &
-                       dtblk, aplane, bb, rawbuf, sdt, sv, &
-                       corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+    call mg_restrict_levels(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, &
+                       n_levels, dtblk, rawbuf, sdt, sv, corr_all, cres, triw, mg_smooth_noop, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call mg_cascade_prolong(corr_all, acc0, acc1, aplane, bb, n_levels, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, &
                        pwi, pwj, pwk, n_wi, n_wj, n_wk)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, cons, cons, &
                            cfl, dt_vol, store, ni, nj, nk, np, &
@@ -1141,10 +1403,12 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     real,    intent(in) :: pwi(n_wi), pwj(n_wj), pwk(n_wk)
     external :: smooth_residual_tri_tiled
 
-    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, sf_irs, &
-                       n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
-                       corr_all, acc0, acc1, cres, triw, smooth_residual_tri_tiled, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+    call mg_restrict_levels(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, &
+                       sf_irs, n_levels, dtblk, rawbuf, sdt, sv, corr_all, cres, triw, &
+                       smooth_residual_tri_tiled, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call mg_cascade_prolong(corr_all, acc0, acc1, aplane, bb, n_levels, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, &
                        pwi, pwj, pwk, n_wi, n_wj, n_wk)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, snapshot, cons, &
                        alpha*cfl, dt_vol, residual, ni, nj, nk, np, &
@@ -1185,13 +1449,177 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     real,    intent(in) :: pwi(n_wi), pwj(n_wj), pwk(n_wk)
     external :: mg_smooth_noop
 
-    call mg_coarse_correction(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, sf_irs, &
-                       n_levels, dtblk, aplane, bb, rawbuf, sdt, sv, &
-                       corr_all, acc0, acc1, cres, triw, mg_smooth_noop, &
-                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri, &
+    call mg_restrict_levels(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, &
+                       sf_irs, n_levels, dtblk, rawbuf, sdt, sv, corr_all, cres, triw, &
+                       mg_smooth_noop, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call mg_cascade_prolong(corr_all, acc0, acc1, aplane, bb, n_levels, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, &
                        pwi, pwj, pwk, n_wi, n_wj, n_wk)
     call mg_prolong2x_fine_scatter(acc0, nc1i, nc1j, nc1k, snapshot, cons, &
                        alpha*cfl, dt_vol, residual, ni, nj, nk, np, &
                        aplane, bb, cbuf, rbuf, nc1j, nc1k, &
                        pwi, pwj, pwk)
 end subroutine rk_mg_noirs
+
+
+! ============================================================================
+! The four piecewise-constant wrappers. Same four configurations as the cascade
+! pair above (scree/rk x IRS/no-IRS), selected by ember.solver from
+! Solver.mgrid_pwc, and each a three-call straight line:
+!
+!   mg_restrict_levels  ->  mg_collapse_pwc  ->  mg_pwc_fine_scatter
+!
+! Phase 1 is shared with the cascade verbatim. What differs is everything
+! after it: no aplane/bb/cbuf, no acc0/acc1 ping-pong, and no prolongation
+! weights at all, so these take seven arena buffers where the cascade takes
+! twelve and never touch ember.block.Block.weight_mgrid.
+!
+! mg_restrict_levels packs corr_all coarsest-first, so the finest coarse level
+! -- the one mg_collapse_pwc leaves the total in, and the one the fine grid
+! reads -- is the LAST slot, at offset n_corr - nc1i*nc1j*nc1k*np.
+! ============================================================================
+
+
+! scree, piecewise-constant multigrid, coarse-level IRS.
+subroutine scree_mgpwc_irs(cons, residual, store, dt_vol, vol, cfl, &
+        fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, rawbuf, sdt, sv, &
+        corr_all, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
+    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: smooth_residual_tri_tiled
+
+    call scree_form_q(store, residual, ni, nj, nk, np)
+    call mg_restrict_levels(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, &
+                       n_levels, dtblk, rawbuf, sdt, sv, corr_all, cres, triw, &
+                       smooth_residual_tri_tiled, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call mg_collapse_pwc(corr_all, n_levels, ni, nj, nk, np, n_corr)
+    call mg_pwc_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
+                       nc1i, nc1j, nc1k, cons, cons, &
+                       cfl, dt_vol, store, ni, nj, nk, np, rbuf)
+    call scree_roll(residual, store, ni, nj, nk, np)
+end subroutine scree_mgpwc_irs
+
+
+! scree, piecewise-constant multigrid, no smoothing.
+subroutine scree_mgpwc_noirs(cons, residual, store, dt_vol, vol, cfl, &
+        fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, rawbuf, sdt, sv, &
+        corr_all, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
+    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: mg_smooth_noop
+
+    call scree_form_q(store, residual, ni, nj, nk, np)
+    call mg_restrict_levels(store, dt_vol, vol, cfl, fmgrid, expon_mgrid, sf_irs, &
+                       n_levels, dtblk, rawbuf, sdt, sv, corr_all, cres, triw, &
+                       mg_smooth_noop, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call mg_collapse_pwc(corr_all, n_levels, ni, nj, nk, np, n_corr)
+    call mg_pwc_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
+                       nc1i, nc1j, nc1k, cons, cons, &
+                       cfl, dt_vol, store, ni, nj, nk, np, rbuf)
+    call scree_roll(residual, store, ni, nj, nk, np)
+end subroutine scree_mgpwc_noirs
+
+
+! RK stage, piecewise-constant multigrid, coarse-level IRS. q = residual.
+subroutine rk_mgpwc_irs(cons, snapshot, residual, dt_vol, vol, &
+        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, &
+        rawbuf, sdt, sv, corr_all, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: alpha, cfl, fmgrid, expon_mgrid, sf_irs
+    real,    intent(in) :: snapshot(ni, nj, nk, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: smooth_residual_tri_tiled
+
+    call mg_restrict_levels(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, &
+                       sf_irs, n_levels, dtblk, rawbuf, sdt, sv, corr_all, cres, triw, &
+                       smooth_residual_tri_tiled, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call mg_collapse_pwc(corr_all, n_levels, ni, nj, nk, np, n_corr)
+    call mg_pwc_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
+                       nc1i, nc1j, nc1k, snapshot, cons, &
+                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, rbuf)
+end subroutine rk_mgpwc_irs
+
+
+! RK stage, piecewise-constant multigrid, no smoothing. q = residual.
+subroutine rk_mgpwc_noirs(cons, snapshot, residual, dt_vol, vol, &
+        alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, &
+        rawbuf, sdt, sv, corr_all, cres, triw, &
+        ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
+    integer, intent(in) :: n_corr, n_res, n_tri
+    real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
+    real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: vol(ni-1, nj-1, nk-1)
+    real,    intent(in) :: alpha, cfl, fmgrid, expon_mgrid, sf_irs
+    real,    intent(in) :: snapshot(ni, nj, nk, np)
+    real, intent(inout) :: cons(ni, nj, nk, np)
+    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
+    real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
+    real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
+    real, intent(inout) :: sv (nc1i, nc1j, nc1k)
+    real, intent(inout) :: corr_all(n_corr)
+    real, intent(inout) :: cres(n_res)
+    real, intent(inout) :: triw(n_tri)
+    external :: mg_smooth_noop
+
+    call mg_restrict_levels(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, &
+                       sf_irs, n_levels, dtblk, rawbuf, sdt, sv, corr_all, cres, triw, &
+                       mg_smooth_noop, &
+                       ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_res, n_tri)
+    call mg_collapse_pwc(corr_all, n_levels, ni, nj, nk, np, n_corr)
+    call mg_pwc_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
+                       nc1i, nc1j, nc1k, snapshot, cons, &
+                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, rbuf)
+end subroutine rk_mgpwc_noirs

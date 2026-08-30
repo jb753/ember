@@ -1199,7 +1199,12 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
                        vector
       scree / RK, MG   the twelve multigrid coarse buffers + the caller's
                        rolling two-plane increment (both schemes fuse the
-                       final prolong with the fine term's cell->node scatter)
+                       final prolong with the fine term's cell->node scatter).
+                       ``Solver.mgrid_pwc`` selects a piecewise-constant
+                       prolongation whose buffer list (``MG_PWC_NAMES``) is a
+                       strict SUBSET of those twelve -- no separable-prolong
+                       scratch, no cascade accumulators -- so the cascade sizes
+                       this phase for both while the flag is selectable
       scree / RK, no MG  the caller's full-volume cell-shaped increment, which
                        the multigrid-off kernels still materialise
 

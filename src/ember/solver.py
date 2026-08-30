@@ -401,6 +401,21 @@ class Solver(BaseSolver):
     """Base of the per-level multigrid decay, ``coef_l ~ expon_mgrid**-(l-1)``.
     Honored by both integrators (:func:`scree_step` and :func:`rk_step`)."""
 
+    mgrid_pwc: bool = False
+    """Prolong the coarse correction by plain INJECTION instead of the cascaded
+    trilinear interpolation.
+
+    Every fine cell under a coarse block then takes that block's correction
+    unaltered, which is what a real coarse solve gives and is exactly adjoint to
+    the block-sum restriction with no weights and no geometry. Restriction, the
+    coarse timestep and ``coef_l`` are unchanged, so this changes only how the
+    correction reaches the fine grid. Honored by both integrators.
+
+    Off by default: the cascade is what every result so far was run with, and
+    the two are not comparable at matched :attr:`fac_mgrid` (injection does not
+    attenuate the mid-band, so it delivers more effective gain per unit and its
+    optimum sits lower). See ``docs/dev/plan_piecewise_constant_mgrid.md``."""
+
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
     (:attr:`~ember.patch.NonReflectingPatch.sigma`) on every
@@ -506,7 +521,15 @@ class Solver(BaseSolver):
         return _run_fmg(grid, self)
 
 
-def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0):
+def scree_step(
+    grid,
+    cfl,
+    fac_mgrid=0.0,
+    expon_mgrid=2.0,
+    n_levels=0,
+    sf_irs=0.0,
+    mgrid_pwc=False,
+):
     """Advance every block one Denton scree step in place."""
     # Preconditions: dt_vol_nd populated and cached P/T consistent with
     # conserved_nd on entry. The caller invalidates caches and applies boundary
@@ -558,6 +581,39 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
             # already carries the residual the caller's update_residual smoothed.
             # Coarse scratch is carved from the arena, dead outside the viscous
             # pass (already completed and consumed before this call).
+            #
+            # mgrid_pwc selects the piecewise-constant family instead: the same
+            # Phase 1 (mg_restrict_levels), then mg_collapse_pwc and a plain
+            # injection read on the fine grid. It carves seven buffers rather
+            # than twelve and needs no prolongation weights at all, so
+            # block.weight_mgrid -- and the geometry ladder that builds it -- is
+            # never touched.
+            if mgrid_pwc:
+                rbuf, *mg_bufs = util.carve_view(
+                    block.scratch,
+                    (ni - 1, nj - 1, 5, 2),
+                    *mg_pwc_shapes(ni, nj, nk, n_levels_eff),
+                )
+                kernel = (
+                    ember.fortran.scree_mgpwc_irs
+                    if sf_irs > 0.0
+                    else ember.fortran.scree_mgpwc_noirs
+                )
+                kernel(
+                    cons=block.conserved_nd,
+                    residual=block.residual_nd,
+                    store=store_cell,
+                    dt_vol=block.dt_vol_nd,
+                    vol=block.vol_nd,
+                    cfl=cfl,
+                    fmgrid=fac_mgrid,
+                    expon_mgrid=expon_mgrid,
+                    sf_irs=sf_irs,
+                    n_levels=n_levels_eff,
+                    rbuf=rbuf,
+                    **dict(zip(MG_PWC_NAMES, mg_bufs)),
+                )
+                continue
             rbuf, *mg_bufs = util.carve_view(
                 block.scratch,
                 (ni - 1, nj - 1, 5, 2),
@@ -680,8 +736,47 @@ def mg_coarse_shapes(ni, nj, nk, n_levels):
     )
 
 
+# The piecewise-constant kernels' scratch arguments, in the order
+# mg_pwc_shapes returns their shapes. A strict SUBSET of MG_COARSE_NAMES:
+# injection needs no separable-prolong scratch (``aplane``, ``bb``), no node
+# plane for the final hop (``cbuf``) and no cascade accumulators
+# (``acc0``/``acc1``), because mg_collapse_pwc runs in place inside
+# ``corr_all``. Being a subset is also what lets ``ember.block._scratch_len``
+# stay sized by the cascade while both paths are selectable -- see
+# docs/dev/plan_piecewise_constant_mgrid.md section 2.6.
+MG_PWC_NAMES = ("dtblk", "rawbuf", "sdt", "sv", "corr_all", "cres", "triw")
+
+
+def mg_pwc_shapes(ni, nj, nk, n_levels):
+    """Shapes of the piecewise-constant kernels' seven scratch buffers.
+
+    In MG_PWC_NAMES order, and separated from the carve for the same reason
+    :func:`mg_coarse_shapes` is: the caller folds them into the one
+    ``util.carve_view`` that also carves its rolling increment, which is what
+    makes the two provably disjoint rather than disjoint by convention.
+    """
+    nc1i, nc1j, nc1k = (ni - 1) // 2, (nj - 1) // 2, (nk - 1) // 2
+    n_corr, n_res, n_tri = _mg_coarse_scratch_sizes(ni, nj, nk, n_levels)
+    return (
+        (nc1i, nc1j, nc1k),
+        (nc1i, nc1j, nc1k, 5),
+        (nc1i, nc1j, nc1k),
+        (nc1i, nc1j, nc1k),
+        (n_corr,),
+        (n_res,),
+        (n_tri,),
+    )
+
+
 def advance_rk_stage_mg(
-    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0
+    grid,
+    alpha,
+    cfl,
+    fac_mgrid,
+    n_levels,
+    expon_mgrid=2.0,
+    sf_irs=0.0,
+    mgrid_pwc=False,
 ):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
@@ -728,6 +823,21 @@ def advance_rk_stage_mg(
     coarse->coarse hops target cell centres; the final hop targets the fine
     NODES directly, so the correction is never averaged through a cell. Only
     the fine term, a cell quantity, goes through ``cell_to_node``.
+
+    ``mgrid_pwc`` (:attr:`Solver.mgrid_pwc`, off by default) replaces that
+    prolongation with plain **injection**: every fine cell under a coarse block
+    takes that block's correction unaltered, so ``inject_l`` in the increment
+    above is a lookup rather than a cascade of interpolations. Restriction,
+    ``dt_coarse_l`` and ``coef_l`` are untouched -- Phase 1 is literally the
+    same call (``mg_restrict_levels``) -- and what changes is only what happens
+    to ``corr_all`` afterwards: ``mg_collapse_pwc`` sums the levels in place
+    onto the finest coarse slot and ``mg_pwc_fine_scatter`` reads it. The
+    correction is then a cell quantity like the fine term and rides the same
+    ``cell_to_node`` scatter, which within a block reproduces it exactly (the
+    scatter is a partition of unity) and at block faces takes the mean of the
+    two adjoining blocks. Injection is exactly adjoint to the block-sum
+    restriction with no weights and no geometry, and needs neither the cascade
+    accumulators nor ``block.weight_mgrid``.
 
     The whole per-block body -- fine term, all coarse levels, and the final
     scatter -- runs in one fused Fortran kernel (``rk_mg_irs``/``rk_mg_noirs``,
@@ -805,6 +915,38 @@ def advance_rk_stage_mg(
             # two-plane buffer carved from scratch.
             # One carve, same reason as scree_step above: rbuf and the
             # multigrid scratch reach the same kernel call.
+            #
+            # mgrid_pwc selects the piecewise-constant family: same Phase 1,
+            # then mg_collapse_pwc and a plain injection read on the fine grid.
+            # Seven buffers instead of twelve and no prolongation weights, so
+            # block.weight_mgrid is never built.
+            if mgrid_pwc:
+                rbuf, *mg_bufs = util.carve_view(
+                    block.scratch,
+                    (ni - 1, nj - 1, 5, 2),
+                    *mg_pwc_shapes(ni, nj, nk, max(n_levels_eff, 0)),
+                )
+                kernel = (
+                    ember.fortran.rk_mgpwc_irs
+                    if sf_irs > 0.0
+                    else ember.fortran.rk_mgpwc_noirs
+                )
+                kernel(
+                    cons=block.conserved_nd,
+                    snapshot=block.store,
+                    residual=block.residual_nd,
+                    dt_vol=block.dt_vol_nd,
+                    vol=block.vol_nd,
+                    alpha=alpha,
+                    cfl=cfl,
+                    fmgrid=fac_mgrid,
+                    expon_mgrid=expon_mgrid,
+                    sf_irs=sf_irs,
+                    n_levels=n_levels_eff,
+                    rbuf=rbuf,
+                    **dict(zip(MG_PWC_NAMES, mg_bufs)),
+                )
+                continue
             rbuf, *mg_bufs = util.carve_view(
                 block.scratch,
                 (ni - 1, nj - 1, 5, 2),
@@ -878,6 +1020,7 @@ def rk_step(grid, conf):
             conf.n_levels,
             expon_mgrid=conf.expon_mgrid,
             sf_irs=conf.sf_resid,
+            mgrid_pwc=conf.mgrid_pwc,
         )
         grid.update_cached_conserved()
         grid.apply_bconds()
@@ -1101,6 +1244,7 @@ def _run(grid, conf):
                 expon_mgrid=conf.expon_mgrid,
                 n_levels=conf.n_levels,
                 sf_irs=conf.sf_resid,
+                mgrid_pwc=conf.mgrid_pwc,
             )
         else:
             rk_step(grid, conf)
