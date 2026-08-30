@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Grid &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>Grid &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../_static/documentation_options.js?v=798078b6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -190,7 +190,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.s"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.s</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.mdot_target"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.mdot_target</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.mdot_throttle"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.mdot_throttle</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.P_throttle"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.P_throttle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.dP_throttle"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_throttle</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.dP_P"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_P</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.dP_I"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_I</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.ConvergenceStep.dP_D"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_D</span></code></a></li>
@@ -441,7 +441,7 @@ has blown up.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_filter" title="ember.grid.Grid.update_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_filter</span></code></a>(cfl, delta_filt)</p></td>
 <td><p>Evolve the SFD low-pass filter one step on every block.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_residual</span></code></a>([dampin, sf])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_residual</span></code></a>([sf])</p></td>
 <td><p>Rebuild the unintegrated net-flow residual on every block.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_sources</span></code></a>(inviscid, gain_filt)</p></td>
@@ -928,43 +928,33 @@ owns the <code class="docutils literal notranslate"><span class="pre">flags.writ
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.grid.Grid.update_residual">
-<span class="sig-name descname"><span class="pre">update_residual</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dampin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_residual"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_residual" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">update_residual</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_residual"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_residual" title="Link to this definition">¶</a></dt>
 <dd><p>Rebuild the unintegrated net-flow residual on every block.</p>
 <p>Fans the fused <code class="docutils literal notranslate"><span class="pre">set_residual</span></code> kernel across the grid, writing each
 block’s <code class="docutils literal notranslate"><span class="pre">residual_nd</span></code> from its frozen P/T cache, face areas, and body
 force. Purely per-block (no inter-block exchange), so it simply loops.</p>
-<p>Optional post-processing runs in place on each block’s residual, in
-order: implicit residual smoothing (<code class="docutils literal notranslate"><span class="pre">sf</span></code>), then the change limiter
-(<code class="docutils literal notranslate"><span class="pre">dampin</span></code>).</p>
+<p>Optional post-processing runs in place on each block’s residual:
+implicit residual smoothing (<code class="docutils literal notranslate"><span class="pre">sf</span></code>).</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Between commits 0384c83 and 495b415, this ran the limiter before
-the smoother instead (folded into <code class="docutils literal notranslate"><span class="pre">set_residual</span></code>/the IRS
-i-solve, for a fusion win). That reordering was a genuine
-numerics change – IRS is linear and the limiter is nonlinear in
-a global block mean, so the composed operator differs: at
-<code class="docutils literal notranslate"><span class="pre">sf=1.0,</span> <span class="pre">dampin=25</span></code> the two orderings differ by ~19% of the
-field scale, growing with <code class="docutils literal notranslate"><span class="pre">sf</span></code>. This restores the original
-smooth-then-damp order by calling the same kernels unfused
-(<code class="docutils literal notranslate"><span class="pre">set_residual</span></code>/<code class="docutils literal notranslate"><span class="pre">smooth_residual_scale_tri</span></code> with
-<code class="docutils literal notranslate"><span class="pre">dampin=0</span></code>, then <code class="docutils literal notranslate"><span class="pre">damp_residual</span></code> as a separate pass), which
-gives back the fusion’s performance win (-6% serial / -11% at
-100-rank saturation / -5% on set_residual + IRS) in exchange for
-the original ordering. See git history for the fused version if
-that trade is ever worth revisiting.</p>
+<p>A negative-feedback change limiter (multall’s <code class="docutils literal notranslate"><span class="pre">DAMP</span></code>) used to run
+here, ahead of the smoother, soft-clipping cells whose per-step
+change was a large outlier against the per-variable block mean. It
+was removed: normalising by the running mean made it a
+solution-dependent per-cell gain that never switched off, and
+applying it to the residual broke the telescoping the multigrid
+box-sum restriction relies on. Measured on the clustered duct at
+<code class="docutils literal notranslate"><span class="pre">cfl=3.0</span></code>, <code class="docutils literal notranslate"><span class="pre">fac_mgrid=0.4</span></code>, <code class="docutils literal notranslate"><span class="pre">n_levels=3</span></code>: the same case
+converged 2.59 decades undamped, converged 2.57 decades damped with
+multigrid OFF, and diverged within 25 convergence records with both
+on. It also roughly doubled the time to settle where it did work
+(step 1975 against 975). Reduce <code class="docutils literal notranslate"><span class="pre">cfl</span></code> or <code class="docutils literal notranslate"><span class="pre">fac_mgrid</span></code> for
+robustness instead – both are uniform scalars, so neither creates
+a gain field nor disturbs the restriction.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>dampin</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Negative-feedback change limiter (multall’s <code class="docutils literal notranslate"><span class="pre">DAMP</span></code>). When given,
-each block’s residual is passed through <code class="docutils literal notranslate"><span class="pre">damp_residual</span></code>, which
-soft-clips cells whose per-step change <code class="docutils literal notranslate"><span class="pre">residual</span> <span class="pre">*</span> <span class="pre">dt_vol</span></code> is a
-large outlier relative to the per-variable block mean, shrinking
-them by <code class="docutils literal notranslate"><span class="pre">1/(1</span> <span class="pre">+</span> <span class="pre">fdamp/dampin)</span></code> with <code class="docutils literal notranslate"><span class="pre">fdamp</span> <span class="pre">=</span> <span class="pre">|change|/mean</span></code>.
-Large outliers saturate towards <code class="docutils literal notranslate"><span class="pre">dampin</span> <span class="pre">*</span> <span class="pre">mean</span></code>. <code class="docutils literal notranslate"><span class="pre">None</span></code> (the
-default) disables it. multall recommends <code class="docutils literal notranslate"><span class="pre">2..100</span></code>. Requires
-<code class="docutils literal notranslate"><span class="pre">dt_vol_nd</span></code> to have been populated by <a class="reference internal" href="#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_timestep()</span></code></a>.</p></li>
-<li><p><strong>sf</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Implicit residual-smoothing (IRS) coefficient (epsilon). <code class="docutils literal notranslate"><span class="pre">0</span></code> (the
+<dd class="field-odd"><p><strong>sf</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Implicit residual-smoothing (IRS) coefficient (epsilon). <code class="docutils literal notranslate"><span class="pre">0</span></code> (the
 default) disables IRS; <code class="docutils literal notranslate"><span class="pre">&gt;</span> <span class="pre">0</span></code> applies the exact factored-tridiagonal
 smoother to each block via <code class="docutils literal notranslate"><span class="pre">smooth_residual_tri_tiled</span></code>. IRS damps
 high-frequency residual content so the explicit march tolerates a
@@ -973,8 +963,7 @@ convergence) it does not change the steady-state solution. Per-block
 only: block/periodic interfaces are treated as zero-gradient. Borrows
 <code class="docutils literal notranslate"><span class="pre">block.scratch</span></code> as its work buffer – free at this point, since
 <code class="docutils literal notranslate"><span class="pre">set_residual</span></code> stages its face flows further into the arena and
-the march reuses the head of <code class="docutils literal notranslate"><span class="pre">scratch</span></code> only afterwards.</p></li>
-</ul>
+the march reuses the head of <code class="docutils literal notranslate"><span class="pre">scratch</span></code> only afterwards.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1448,7 +1437,7 @@ in each pair are included as separate keys.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ember.grid.ConvergenceStep">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">grid.</span></span><span class="sig-name descname"><span class="pre">ConvergenceStep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residual</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mdot</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mdot_target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mdot_throttle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">P_throttle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_P</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_I</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_D</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#ConvergenceStep"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.ConvergenceStep" title="Link to this definition">¶</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">grid.</span></span><span class="sig-name descname"><span class="pre">ConvergenceStep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residual</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mdot</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mdot_target</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mdot_throttle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_throttle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_P</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_I</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dP_D</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#ConvergenceStep"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.ConvergenceStep" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>Grid-wide convergence monitors at a single time step, non-dimensional.</p>
 <p>Produced by <a class="reference internal" href="#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.get_convergence()</span></code></a> and consumed by
@@ -1502,21 +1491,21 @@ throttled. Per passage, not per annulus, unlike <a class="reference internal" hr
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.P_throttle">
-<span class="sig-name descname"><span class="pre">P_throttle</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.P_throttle" title="Link to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="ember.grid.ConvergenceStep.dP_throttle">
+<span class="sig-name descname"><span class="pre">dP_throttle</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.dP_throttle" title="Link to this definition">¶</a></dt>
 <dd><p>Total throttle pressure correction applied at the outlet [Pa].</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="ember.grid.ConvergenceStep.dP_P">
 <span class="sig-name descname"><span class="pre">dP_P</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.dP_P" title="Link to this definition">¶</a></dt>
-<dd><p>Proportional contribution to <a class="reference internal" href="#ember.grid.ConvergenceStep.P_throttle" title="ember.grid.ConvergenceStep.P_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_throttle</span></code></a> [Pa].</p>
+<dd><p>Proportional contribution to <a class="reference internal" href="#ember.grid.ConvergenceStep.dP_throttle" title="ember.grid.ConvergenceStep.dP_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dP_throttle</span></code></a> [Pa].</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="ember.grid.ConvergenceStep.dP_I">
 <span class="sig-name descname"><span class="pre">dP_I</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.grid.ConvergenceStep.dP_I" title="Link to this definition">¶</a></dt>
-<dd><p>Integral contribution to <a class="reference internal" href="#ember.grid.ConvergenceStep.P_throttle" title="ember.grid.ConvergenceStep.P_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_throttle</span></code></a> [Pa].</p>
+<dd><p>Integral contribution to <a class="reference internal" href="#ember.grid.ConvergenceStep.dP_throttle" title="ember.grid.ConvergenceStep.dP_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dP_throttle</span></code></a> [Pa].</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1527,7 +1516,7 @@ throttle is a PI controller. The column is retained so the pickled
 ConvergenceHistory (.cnv) layout reads in both directions.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Derivative contribution to <a class="reference internal" href="#ember.grid.ConvergenceStep.P_throttle" title="ember.grid.ConvergenceStep.P_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_throttle</span></code></a> [Pa]. Always zero</p>
+<dd class="field-odd"><p>Derivative contribution to <a class="reference internal" href="#ember.grid.ConvergenceStep.dP_throttle" title="ember.grid.ConvergenceStep.dP_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dP_throttle</span></code></a> [Pa]. Always zero</p>
 </dd>
 </dl>
 </dd></dl>

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.grid &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>ember.grid &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../../_static/documentation_options.js?v=798078b6"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -1440,9 +1440,19 @@
 <span class="sd">            untouched so the invalid field can be inspected.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">iblock</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-            <span class="n">nan_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">nan_mask</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="n">rho</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="c1"># Scalar screen first: max propagates NaN, so this is exactly</span>
+            <span class="c1"># isnan(rho).any() without materialising the full boolean mask --</span>
+            <span class="c1"># a 1 MB temporary per step at 1M cells, on a path that passes</span>
+            <span class="c1"># every time. Infinities are deliberately not caught, matching the</span>
+            <span class="c1"># mask form it replaces. sum() would screen too, but is slower than</span>
+            <span class="c1"># the mask it saves (pairwise float32 summation does not vectorise</span>
+            <span class="c1"># as well as maximum.reduce) and warns on the NaN it is looking for.</span>
+            <span class="c1"># The mask is built below only once it is known to be non-empty,</span>
+            <span class="c1"># where the bounding box needs it anyway.</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">rho</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
                 <span class="k">continue</span>
+            <span class="n">nan_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">rho</span><span class="p">)</span>
             <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">ni</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">nj</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">nk</span>
             <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">kk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">nan_mask</span><span class="p">)</span>
             <span class="n">box</span> <span class="o">=</span> <span class="p">(</span>
@@ -1697,44 +1707,34 @@
 <div class="viewcode-block" id="Grid.update_residual">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.update_residual">[docs]</a>
     <span class="nd">@util</span><span class="o">.</span><span class="n">profile</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">update_residual</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dampin</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sf</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_residual</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sf</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Rebuild the unintegrated net-flow residual on every block.</span>
 
 <span class="sd">        Fans the fused ``set_residual`` kernel across the grid, writing each</span>
 <span class="sd">        block&#39;s ``residual_nd`` from its frozen P/T cache, face areas, and body</span>
 <span class="sd">        force. Purely per-block (no inter-block exchange), so it simply loops.</span>
 
-<span class="sd">        Optional post-processing runs in place on each block&#39;s residual, in</span>
-<span class="sd">        order: implicit residual smoothing (``sf``), then the change limiter</span>
-<span class="sd">        (``dampin``).</span>
+<span class="sd">        Optional post-processing runs in place on each block&#39;s residual:</span>
+<span class="sd">        implicit residual smoothing (``sf``).</span>
 
 <span class="sd">        .. note::</span>
-<span class="sd">           Between commits 0384c83 and 495b415, this ran the limiter before</span>
-<span class="sd">           the smoother instead (folded into ``set_residual``/the IRS</span>
-<span class="sd">           i-solve, for a fusion win). That reordering was a genuine</span>
-<span class="sd">           numerics change -- IRS is linear and the limiter is nonlinear in</span>
-<span class="sd">           a global block mean, so the composed operator differs: at</span>
-<span class="sd">           ``sf=1.0, dampin=25`` the two orderings differ by ~19% of the</span>
-<span class="sd">           field scale, growing with ``sf``. This restores the original</span>
-<span class="sd">           smooth-then-damp order by calling the same kernels unfused</span>
-<span class="sd">           (``set_residual``/``smooth_residual_scale_tri`` with</span>
-<span class="sd">           ``dampin=0``, then ``damp_residual`` as a separate pass), which</span>
-<span class="sd">           gives back the fusion&#39;s performance win (-6% serial / -11% at</span>
-<span class="sd">           100-rank saturation / -5% on set_residual + IRS) in exchange for</span>
-<span class="sd">           the original ordering. See git history for the fused version if</span>
-<span class="sd">           that trade is ever worth revisiting.</span>
+<span class="sd">           A negative-feedback change limiter (multall&#39;s ``DAMP``) used to run</span>
+<span class="sd">           here, ahead of the smoother, soft-clipping cells whose per-step</span>
+<span class="sd">           change was a large outlier against the per-variable block mean. It</span>
+<span class="sd">           was removed: normalising by the running mean made it a</span>
+<span class="sd">           solution-dependent per-cell gain that never switched off, and</span>
+<span class="sd">           applying it to the residual broke the telescoping the multigrid</span>
+<span class="sd">           box-sum restriction relies on. Measured on the clustered duct at</span>
+<span class="sd">           ``cfl=3.0``, ``fac_mgrid=0.4``, ``n_levels=3``: the same case</span>
+<span class="sd">           converged 2.59 decades undamped, converged 2.57 decades damped with</span>
+<span class="sd">           multigrid OFF, and diverged within 25 convergence records with both</span>
+<span class="sd">           on. It also roughly doubled the time to settle where it did work</span>
+<span class="sd">           (step 1975 against 975). Reduce ``cfl`` or ``fac_mgrid`` for</span>
+<span class="sd">           robustness instead -- both are uniform scalars, so neither creates</span>
+<span class="sd">           a gain field nor disturbs the restriction.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        dampin : float, optional</span>
-<span class="sd">            Negative-feedback change limiter (multall&#39;s ``DAMP``). When given,</span>
-<span class="sd">            each block&#39;s residual is passed through ``damp_residual``, which</span>
-<span class="sd">            soft-clips cells whose per-step change ``residual * dt_vol`` is a</span>
-<span class="sd">            large outlier relative to the per-variable block mean, shrinking</span>
-<span class="sd">            them by ``1/(1 + fdamp/dampin)`` with ``fdamp = |change|/mean``.</span>
-<span class="sd">            Large outliers saturate towards ``dampin * mean``. ``None`` (the</span>
-<span class="sd">            default) disables it. multall recommends ``2..100``. Requires</span>
-<span class="sd">            ``dt_vol_nd`` to have been populated by :meth:`update_timestep`.</span>
 <span class="sd">        sf : float, optional</span>
 <span class="sd">            Implicit residual-smoothing (IRS) coefficient (epsilon). ``0`` (the</span>
 <span class="sd">            default) disables IRS; ``&gt; 0`` applies the exact factored-tridiagonal</span>
@@ -1769,15 +1769,9 @@
             <span class="c1"># viscous pass, so it reuses the same span the tau/q volume had --</span>
             <span class="c1"># which is the point of the arena, and is safe only because the</span>
             <span class="c1"># two are never live together.</span>
-            <span class="n">planes</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
-                <span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">njp</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-            <span class="p">)</span>
+            <span class="n">planes</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">njp</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
             <span class="n">block</span><span class="o">.</span><span class="n">residual_nd</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="c1"># dampin=0 here disables set_residual&#39;s fused limiter entirely:</span>
-            <span class="c1"># the limiter is applied as a separate damp_residual pass below,</span>
-            <span class="c1"># AFTER IRS, to restore the original smooth-then-damp order (see</span>
-            <span class="c1"># the docstring note). ravg is unused in this configuration.</span>
-            <span class="n">ravg</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">set_residual</span><span class="p">(</span>
+            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">set_residual</span><span class="p">(</span>
                 <span class="n">cons</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
                 <span class="n">p</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_nd</span><span class="p">,</span>
                 <span class="n">p_offset</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_offset_nd</span><span class="p">,</span>
@@ -1798,41 +1792,19 @@
                 <span class="n">ni</span><span class="o">=</span><span class="n">ni</span><span class="p">,</span>
                 <span class="n">nj</span><span class="o">=</span><span class="n">nj</span><span class="p">,</span>
                 <span class="n">nk</span><span class="o">=</span><span class="n">nk</span><span class="p">,</span>
-                <span class="c1"># Limiter left off here (see note above): dt_vol is still a</span>
-                <span class="c1"># required argument of the fused kernel, but dampin=0 means</span>
-                <span class="c1"># it contributes nothing beyond the (unused) ravg reduction.</span>
-                <span class="n">dt_vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dt_vol_nd</span><span class="p">,</span>
-                <span class="n">dampin</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="k">if</span> <span class="n">sf</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">:</span>
                 <span class="c1"># Exact factored-tridiagonal IRS (Jameson ADI): a direct</span>
-                <span class="c1"># solve. dampin=0 here means smooth_residual_scale_tri&#39;s</span>
-                <span class="c1"># plain-gather branch -- IRS only, no limiter fused in.</span>
-                <span class="c1"># Scratch is just the Thomas coefficients,</span>
-                <span class="c1"># 2*(nci+ncj+nck) floats; carve a 1D leading view of</span>
-                <span class="c1"># block.scratch (nodal (ni,nj,nk,5), vastly oversized).</span>
-                <span class="c1"># Free here: set_residual does not touch it and the march</span>
-                <span class="c1"># reuses it only after this returns.</span>
+                <span class="c1"># solve. Scratch is just the Thomas coefficients, 2*(nci+ncj+nck)</span>
+                <span class="c1"># floats; carve a 1D leading view of block.scratch (nodal</span>
+                <span class="c1"># (ni,nj,nk,5), vastly oversized). Free here: set_residual</span>
+                <span class="c1"># does not touch it and the march reuses it only after this</span>
+                <span class="c1"># returns.</span>
                 <span class="n">nwork</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="p">((</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
-                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">smooth_residual_scale_tri</span><span class="p">(</span>
+                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">smooth_residual_tri_tiled</span><span class="p">(</span>
                     <span class="n">du</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">residual_nd</span><span class="p">,</span>
-                    <span class="n">dt_vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dt_vol_nd</span><span class="p">,</span>
-                    <span class="n">ravg</span><span class="o">=</span><span class="n">ravg</span><span class="p">,</span>
-                    <span class="n">dampin</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
                     <span class="n">sf</span><span class="o">=</span><span class="n">sf</span><span class="p">,</span>
                     <span class="n">work</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="p">(</span><span class="n">nwork</span><span class="p">,)),</span>
-                    <span class="n">ni</span><span class="o">=</span><span class="n">ni</span><span class="p">,</span>
-                    <span class="n">nj</span><span class="o">=</span><span class="n">nj</span><span class="p">,</span>
-                    <span class="n">nk</span><span class="o">=</span><span class="n">nk</span><span class="p">,</span>
-                <span class="p">)</span>
-            <span class="k">if</span> <span class="n">dampin</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="c1"># Change limiter, applied AFTER IRS (the restored, original</span>
-                <span class="c1"># order): a separate full-volume pass over the smoothed</span>
-                <span class="c1"># residual, unchanged since before commit 0384c83.</span>
-                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">damp_residual</span><span class="p">(</span>
-                    <span class="n">du</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">residual_nd</span><span class="p">,</span>
-                    <span class="n">dt_vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dt_vol_nd</span><span class="p">,</span>
-                    <span class="n">dampin</span><span class="o">=</span><span class="n">dampin</span><span class="p">,</span>
                     <span class="n">ni</span><span class="o">=</span><span class="n">ni</span><span class="p">,</span>
                     <span class="n">nj</span><span class="o">=</span><span class="n">nj</span><span class="p">,</span>
                     <span class="n">nk</span><span class="o">=</span><span class="n">nk</span><span class="p">,</span>
@@ -1945,8 +1917,8 @@
                 <span class="c1"># them disjoint.</span>
                 <span class="c1"># The transport trio comes back out of the same carve that</span>
                 <span class="c1"># the boundary phase filled it through.</span>
-                <span class="n">faces</span><span class="p">,</span> <span class="n">tq</span><span class="p">,</span> <span class="n">planes</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="p">(</span><span class="n">mu</span><span class="p">,</span> <span class="n">kappa</span><span class="p">,</span> <span class="n">cp</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span>
-                    <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">_carve_viscous</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
+                <span class="n">faces</span><span class="p">,</span> <span class="n">tq</span><span class="p">,</span> <span class="n">planes</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="p">(</span><span class="n">mu</span><span class="p">,</span> <span class="n">kappa</span><span class="p">,</span> <span class="n">cp</span><span class="p">)</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">_carve_viscous</span><span class="p">(</span>
+                    <span class="n">block</span>
                 <span class="p">)</span>
                 <span class="c1"># mu_turb is a data-row field the public property serves</span>
                 <span class="c1"># read-only; grab a writeable view so the kernel can leave the</span>
@@ -2020,9 +1992,7 @@
                 <span class="c1"># sub-phase -- the viscous loop above has finished with the</span>
                 <span class="c1"># arena by now -- and the buffer is exactly the size of the</span>
                 <span class="c1"># multigrid-off march&#39;s, so it never binds (see _scratch_len).</span>
-                <span class="n">cons_cell</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
-                    <span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">shape_cell</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,)</span>
-                <span class="p">)</span>
+                <span class="n">cons_cell</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">shape_cell</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,))</span>
                 <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">node_to_cell</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span> <span class="n">cons_cell</span><span class="p">)</span>
                 <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">apply_sfd_force</span><span class="p">(</span>
                     <span class="n">f_body</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">F_body_nd</span><span class="p">,</span>
@@ -2765,17 +2735,17 @@
     <span class="n">mdot_throttle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Mass flow measured at the outlet patch on its last target update [kg/s].&quot;&quot;&quot;</span>
 
-    <span class="n">P_throttle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">dP_throttle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Total throttle pressure correction applied at the outlet [Pa].&quot;&quot;&quot;</span>
 
     <span class="n">dP_P</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Proportional contribution to :attr:`P_throttle` [Pa].&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Proportional contribution to :attr:`dP_throttle` [Pa].&quot;&quot;&quot;</span>
 
     <span class="n">dP_I</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Integral contribution to :attr:`P_throttle` [Pa].&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Integral contribution to :attr:`dP_throttle` [Pa].&quot;&quot;&quot;</span>
 
     <span class="n">dP_D</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Derivative contribution to :attr:`P_throttle` [Pa]. Always zero: the</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Derivative contribution to :attr:`dP_throttle` [Pa]. Always zero: the</span>
 <span class="sd">    throttle is a PI controller. The column is retained so the pickled</span>
 <span class="sd">    ConvergenceHistory (.cnv) layout reads in both directions.&quot;&quot;&quot;</span></div>
 

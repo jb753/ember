@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.basepatch &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>ember.basepatch &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../../_static/documentation_options.js?v=798078b6"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -630,6 +630,26 @@
         <span class="n">ijk_node</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">apply_perm_flip</span><span class="p">(</span><span class="n">ijk_node</span><span class="p">,</span> <span class="n">perm</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">ijk_node</span></div>
+
+
+<div class="viewcode-block" id="Patch.attach_to_block_resampled">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.Patch.attach_to_block_resampled">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">attach_to_block_resampled</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach to a resampled ``block``, carrying ``src``&#39;s span-varying state.</span>
+
+<span class="sd">        ``src`` is this patch&#39;s still-attached original on the grid ``block``</span>
+<span class="sd">        was resampled from, and is the only place the source span stations can</span>
+<span class="sd">        be read from once the copy has been re-attached. The base</span>
+<span class="sd">        implementation is a plain :meth:`attach_to_block`: patch state that is</span>
+<span class="sd">        one number, or none at all, follows a block onto any node count without</span>
+<span class="sd">        help. Patch types holding a value per span station override this to</span>
+<span class="sd">        interpolate it onto the new stations.</span>
+
+<span class="sd">        Used by :func:`~ember.block_util.resample`, which is what puts a</span>
+<span class="sd">        configured patch on a coarser grid -- the multigrid hierarchy of</span>
+<span class="sd">        :meth:`ember.solver.Solver.run_fmg`, among others.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attach_to_block</span><span class="p">(</span><span class="n">block</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Patch.attach_to_block">
@@ -1252,7 +1272,7 @@
 <span class="sd">            rhoVx -&gt; rhoV_norm =  cosxi * rhoVx + sinxi * rhoVr</span>
 <span class="sd">            rhoVr -&gt; rhoV_span = -sinxi * rhoVx + cosxi * rhoVr</span>
 
-<span class="sd">        Uses the pre-computed rotation matrix ``_rot_to`` broadcast along</span>
+<span class="sd">        Uses the pre-computed to-interface rotation matrix, broadcast along</span>
 <span class="sd">        ``span_dim`` to match the full block shape. A no-op on a face whose</span>
 <span class="sd">        frame axis already is :math:`x`; see :attr:`chi_node`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>

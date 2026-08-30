@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.block_util &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>ember.block_util &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../../_static/documentation_options.js?v=798078b6"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -489,7 +489,7 @@
 <span class="sd">    nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,</span>
 <span class="sd">    the same approach as</span>
 <span class="sd">    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface` on a</span>
-<span class="sd">    patch&#39;s averaging plane -- see :func:`_rotate_meridional`.</span>
+<span class="sd">    patch&#39;s averaging plane.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -533,7 +533,7 @@
 <span class="sd">    nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,</span>
 <span class="sd">    the same approach as</span>
 <span class="sd">    :meth:`~ember.patch.RevolutionPatch.resolve_from_interface` on a</span>
-<span class="sd">    patch&#39;s averaging plane -- see :func:`_rotate_meridional`.</span>
+<span class="sd">    patch&#39;s averaging plane.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -625,7 +625,9 @@
     <span class="n">new_block</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;patches&quot;</span><span class="p">,</span> <span class="n">new_patch_collection</span><span class="p">)</span>
 
     <span class="c1"># 5. Update all patch indices using absolute limits and mapping</span>
-    <span class="k">for</span> <span class="n">old_limits</span><span class="p">,</span> <span class="n">new_patch</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">old_patch_limits</span><span class="p">,</span> <span class="n">new_block</span><span class="o">.</span><span class="n">patches</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">old_patch</span><span class="p">,</span> <span class="n">old_limits</span><span class="p">,</span> <span class="n">new_patch</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+        <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">,</span> <span class="n">old_patch_limits</span><span class="p">,</span> <span class="n">new_block</span><span class="o">.</span><span class="n">patches</span>
+    <span class="p">):</span>
         <span class="n">new_limits</span> <span class="o">=</span> <span class="p">[</span>
             <span class="nb">tuple</span><span class="p">(</span>
                 <span class="p">[</span>
@@ -638,7 +640,13 @@
         <span class="n">new_patch</span><span class="o">.</span><span class="n">set_i_lim</span><span class="p">(</span><span class="n">new_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="n">new_patch</span><span class="o">.</span><span class="n">set_j_lim</span><span class="p">(</span><span class="n">new_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
         <span class="n">new_patch</span><span class="o">.</span><span class="n">set_k_lim</span><span class="p">(</span><span class="n">new_limits</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
-        <span class="n">new_patch</span><span class="o">.</span><span class="n">attach_to_block</span><span class="p">(</span><span class="n">new_block</span><span class="p">)</span>  <span class="c1"># Re-validate with new block</span>
+        <span class="c1"># Re-validate with new block, and carry across any boundary condition</span>
+        <span class="c1"># the old patch holds per span station -- a prescribed spanwise profile</span>
+        <span class="c1"># is written for the node count it was set on, so it is interpolated</span>
+        <span class="c1"># onto the new one rather than replayed at the old length. The original</span>
+        <span class="c1"># patch is still attached and is where the source span stations come</span>
+        <span class="c1"># from, so this has to happen before `block` goes anywhere.</span>
+        <span class="n">new_patch</span><span class="o">.</span><span class="n">attach_to_block_resampled</span><span class="p">(</span><span class="n">new_block</span><span class="p">,</span> <span class="n">old_patch</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">new_block</span></div>
 

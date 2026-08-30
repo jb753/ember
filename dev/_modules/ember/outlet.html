@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.outlet &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>ember.outlet &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../../_static/documentation_options.js?v=798078b6"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -188,7 +188,7 @@
 <span class="sd">pinned at zero rather than prescribed or seeded, so backflow enters normal to</span>
 <span class="sd">the exit surface whatever that surface&#39;s orientation. Reversal confined to nodes within a</span>
 <span class="sd">station whose mean still runs forward is handled node by node as a limiter</span>
-<span class="sd">instead, by the base class&#39;s ``_calc_override``.</span>
+<span class="sd">instead, applied by the base class.</span>
 
 <span class="sd">See Also</span>
 <span class="sd">--------</span>
@@ -438,15 +438,13 @@
 
 <span class="sd">        Calling any of the four is optional. Left alone, the rows are seeded</span>
 <span class="sd">        once from the pitchwise mean of the exit plane at the first timestep and</span>
-<span class="sd">        frozen there; see ``NonReflectingPatch._seed_target``.</span>
+<span class="sd">        frozen there.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        ho : float or array</span>
-<span class="sd">            Stagnation enthalpy [J/kg]. A scalar or a spanwise profile; see</span>
-<span class="sd">            ``NonReflectingPatch._set_target_row`` for</span>
-<span class="sd">            the accepted shapes. Only the pitchwise mean at each span station is</span>
-<span class="sd">            imposed.</span>
+<span class="sd">            Stagnation enthalpy [J/kg]. A scalar or a spanwise profile. Only</span>
+<span class="sd">            the pitchwise mean at each span station is imposed.</span>
 <span class="sd">        s : float or array</span>
 <span class="sd">            Specific entropy [J/(kg K)].</span>
 
@@ -632,8 +630,8 @@
 <span class="sd">        exit velocity moves the loop gain by its square, and is the one case</span>
 <span class="sd">        where these want retuning.</span>
 
-<span class="sd">        Only one outlet patch in a grid may be throttled;</span>
-<span class="sd">        ``ember.solver._validate_throttle`` refuses more. Two patches</span>
+<span class="sd">        Only one outlet patch in a grid may be throttled; the solver refuses a</span>
+<span class="sd">        grid carrying more. Two patches</span>
 <span class="sd">        driving independent controllers at the same target would each apply the</span>
 <span class="sd">        full correction for an error they share.</span>
 
@@ -643,10 +641,22 @@
 <span class="sd">            Target mass flow :math:`\dot m_\mathrm{target}` [kg/s], through one</span>
 <span class="sd">            passage rather than the whole annulus, matching what</span>
 <span class="sd">            :func:`ember.average.flow_mass` returns for this patch. Must be</span>
-<span class="sd">            positive and finite. Pass None to clear the throttle and leave the</span>
-<span class="sd">            prescribed pressure standing wherever the controller last put it,</span>
-<span class="sd">            which is how a run throttles to find an operating point and then</span>
-<span class="sd">            holds it.</span>
+<span class="sd">            positive and finite. Pass None to clear the throttle, which</span>
+<span class="sd">            **reverts** the boundary to the pressure :meth:`set_P` prescribed:</span>
+<span class="sd">            the controller&#39;s correction is derived from the gains and the error</span>
+<span class="sd">            sum, so clearing those puts it back at zero on the next</span>
+<span class="sd">            :meth:`update_target`. Clearing is therefore the inverse of setting,</span>
+<span class="sd">            and does not depend on the order it is done in relative to</span>
+<span class="sd">            :meth:`set_P`.</span>
+
+<span class="sd">            To keep the operating point the controller found rather than</span>
+<span class="sd">            revert to the one that was asked for, re-prescribe it first::</span>
+
+<span class="sd">                patch.set_P(patch.P_throttle)</span>
+<span class="sd">                patch.set_throttle(None)</span>
+
+<span class="sd">            which is what a run does when it throttles to find an operating</span>
+<span class="sd">            point and then holds it. See :attr:`P_throttle`.</span>
 <span class="sd">        Kp : float, optional</span>
 <span class="sd">            Proportional gain, dimensionless. Default 0.5, half the Newton step</span>
 <span class="sd">            of 1 above.</span>
@@ -705,7 +715,7 @@
 <span class="sd">        -------</span>
 <span class="sd">        dict</span>
 <span class="sd">            ``mdot_target`` the setpoint [kg/s]; ``mdot_throttle`` the mass flow</span>
-<span class="sd">            last measured at the patch [kg/s]; ``P_throttle`` the total</span>
+<span class="sd">            last measured at the patch [kg/s]; ``dP_throttle`` the total</span>
 <span class="sd">            correction :math:`\Delta p_\mathrm{throttle}` [Pa]; ``dP_P`` and</span>
 <span class="sd">            ``dP_I`` its proportional and integral parts [Pa]; ``dP_D`` always</span>
 <span class="sd">            zero, the controller being PI. The derivative column is retained so</span>
@@ -715,7 +725,7 @@
             <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span>
                 <span class="n">mdot_target</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
                 <span class="n">mdot_throttle</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-                <span class="n">P_throttle</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+                <span class="n">dP_throttle</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
                 <span class="n">dP_P</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
                 <span class="n">dP_I</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
                 <span class="n">dP_D</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
@@ -728,7 +738,7 @@
         <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span>
             <span class="n">mdot_target</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mdot_target</span><span class="p">,</span>
             <span class="n">mdot_throttle</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mdot</span><span class="p">,</span>
-            <span class="n">P_throttle</span><span class="o">=</span><span class="n">dP_P</span> <span class="o">+</span> <span class="n">dP_I</span><span class="p">,</span>
+            <span class="n">dP_throttle</span><span class="o">=</span><span class="n">dP_P</span> <span class="o">+</span> <span class="n">dP_I</span><span class="p">,</span>
             <span class="n">dP_P</span><span class="o">=</span><span class="n">dP_P</span><span class="p">,</span>
             <span class="n">dP_I</span><span class="o">=</span><span class="n">dP_I</span><span class="p">,</span>
             <span class="n">dP_D</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
@@ -861,22 +871,71 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">mdot_target</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Throttle setpoint [kg/s], or None when the patch holds a pressure.</span>
 
-<span class="sd">        Read by :meth:`ember.grid.Grid.get_convergence` and</span>
-<span class="sd">        ``ember.solver._validate_throttle`` to find the throttled outlet;</span>
-<span class="sd">        set through :meth:`set_throttle`.</span>
+<span class="sd">        Read by :meth:`ember.grid.Grid.get_convergence`, and by the solver&#39;s</span>
+<span class="sd">        throttle validation, to find the throttled outlet; set through</span>
+<span class="sd">        :meth:`set_throttle`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mdot_target</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">P</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prescribed outlet static pressure [Pa]. Inverse of :meth:`set_P`.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Outlet static pressure field as imposed [Pa], shaped like the patch.</span>
 
-<span class="sd">        Reads back the level actually imposed, :attr:`P_nd`, so with</span>
-<span class="sd">        :meth:`set_throttle` or :meth:`set_adjustment` configured this is the</span>
-<span class="sd">        current throttled level or spanwise profile, not the value last</span>
-<span class="sd">        passed to :meth:`set_P`.</span>
+<span class="sd">        The whole prescription, node by node, read back from :attr:`P_nd`. Not</span>
+<span class="sd">        the inverse of :meth:`set_P` and not a level: a scalar passed to</span>
+<span class="sd">        :meth:`set_P` comes back broadcast over the face, :meth:`set_throttle`</span>
+<span class="sd">        moves what is here away from what was passed, and</span>
+<span class="sd">        :meth:`set_adjustment` shapes it along the span about a level that is</span>
+<span class="sd">        then the hub value rather than any average of this.</span>
+
+<span class="sd">        For the single number the boundary is holding at, which is what a</span>
+<span class="sd">        caller recording an operating point wants, see :attr:`P_throttle`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">P_nd</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">P_ref</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">P_nd</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">P_ref</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">P_throttle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Static pressure level the throttle has arrived at [Pa].</span>
+
+<span class="sd">        The inverse of :meth:`set_P`, moved by whatever the controller has done</span>
+<span class="sd">        to it:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            p_\mathrm{throttle} = p_\mathrm{out} + \Delta p_\mathrm{throttle}</span>
+
+<span class="sd">        so with no throttle set this is simply the prescribed pressure, and</span>
+<span class="sd">        with one it is the operating point the controller has reached. Scalar</span>
+<span class="sd">        whenever a throttle is set, :meth:`set_throttle` having refused a</span>
+<span class="sd">        non-scalar prescription; otherwise whatever shape :meth:`set_P` was</span>
+<span class="sd">        given.</span>
+
+<span class="sd">        This is the number to record when a run throttles to an operating point</span>
+<span class="sd">        and something else has to reproduce it later, and the number to</span>
+<span class="sd">        re-prescribe to hold that point:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            patch.set_P(patch.P_throttle)   # keep what the controller found</span>
+<span class="sd">            patch.set_throttle(None)</span>
+
+<span class="sd">        Held apart from :attr:`P` because that is the imposed field rather than</span>
+<span class="sd">        its level, and the two differ under :meth:`set_adjustment` --- see</span>
+<span class="sd">        :func:`calc_radial_equilibrium`, whose profile is anchored at the hub,</span>
+<span class="sd">        so the level is the hub value and not the mean of :attr:`P`.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        --------</span>
+<span class="sd">        ember.patch.OutletPatch.get_throttle_stats : The correction alone, with</span>
+<span class="sd">            the rest of the controller state</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_raw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;No pressure has been prescribed on this </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_desc</span><span class="si">}</span><span class="s2">; call &quot;</span>
+                <span class="s2">&quot;set_P before reading P_throttle.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_raw</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_throttle_stats</span><span class="p">()[</span><span class="s2">&quot;dP_throttle&quot;</span><span class="p">]</span></div>
 
 </pre></div>
 

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.mixing_communicator &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>ember.mixing_communicator &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../../_static/documentation_options.js?v=798078b6"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -158,6 +158,9 @@
 <span class="sd">splits it by direction of propagation after :cite:t:`Saxer1993`, and writes the</span>
 <span class="sd">result in the mix variables :math:`[h_0, s, V_r, V_\\theta, p]` its patches</span>
 <span class="sd">take their pitchwise-mean residuals against.</span>
+
+<span class="sd">A run with :attr:`~ember.solver.Solver.mix_reflective` set bypasses all of</span>
+<span class="sd">that, exchanging the plain average of the two circumferential means instead.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">perturbation</span><span class="p">,</span> <span class="n">util</span>
@@ -241,6 +244,22 @@
 <span class="sd">    -- is his remedy and this is ember&#39;s form of it. It also keeps</span>
 <span class="sd">    :func:`~ember.perturbation.flux_to_primitive`, which divides by the axial</span>
 <span class="sd">    velocity, away from zero.</span>
+
+<span class="sd">    See :attr:`Ma_clip_max` for the other end of the same band.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Ma_clip_max</span> <span class="o">=</span> <span class="mf">0.9</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Ceiling on :math:`\lvert \mathit{Ma}_x \rvert` of that same state, the</span>
+<span class="sd">    other end of :attr:`Ma_clip`&#39;s band.</span>
+
+<span class="sd">    Holmes bounds the normal velocity only from below, because that is where his</span>
+<span class="sd">    eigenvalues blow up. The upper end matters here for a different reason: the</span>
+<span class="sd">    plane&#39;s whole characteristic treatment is derived for a mean state subsonic</span>
+<span class="sd">    normal to it (see :class:`~ember.mixing.MixingPatch`), and a station that</span>
+<span class="sd">    briefly runs past sonic during a transient would otherwise be linearised</span>
+<span class="sd">    with the wrong number of incoming characteristics rather than merely</span>
+<span class="sd">    inaccurately. Clipping keeps such a station inside the theory until the flow</span>
+<span class="sd">    brings it back.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
@@ -293,6 +312,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">bid</span><span class="p">,</span> <span class="n">pid</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="p">:</span>
             <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_pair</span><span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">_reflective</span><span class="p">:</span>
+                <span class="c1"># No exchange to relax; see MixingCommunicator._mix_uniform.</span>
+                <span class="k">continue</span>
             <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">rf_exchange</span> <span class="o">!=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">rf_exchange</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Mixing plane sides disagree on rf_exchange: &quot;</span>
@@ -318,7 +340,7 @@
                 <span class="n">seen_pairs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">pair_key</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_ensure_pair_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">nspan</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Allocate or resize the per-pair diagnostic state for the given pair.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Allocate or resize the per-pair state for the given pair.&quot;&quot;&quot;</span>
         <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pair_state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">state</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;du&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">nspan</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_pair_state</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
@@ -350,8 +372,53 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_pair</span><span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)</span>
 
+        <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">_reflective</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_mix_uniform</span><span class="p">(</span><span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
+            <span class="k">return</span>
+
         <span class="n">b_avg</span><span class="p">,</span> <span class="n">nspan</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_pair</span><span class="p">(</span><span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_write_targets</span><span class="p">(</span><span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">,</span> <span class="n">flip</span><span class="p">,</span> <span class="n">b_avg</span><span class="p">,</span> <span class="n">nspan</span><span class="p">,</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_mix_uniform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">,</span> <span class="n">flip</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Hand both sides of a reflective plane their common mixed-out state.</span>
+
+<span class="sd">        The whole of the exchange under</span>
+<span class="sd">        :attr:`~ember.solver.Solver.mix_reflective`: circumferentially average</span>
+<span class="sd">        each face, average the two, and give the result to both. No</span>
+<span class="sd">        characteristic split, no Jacobians, no relaxation and no mass flow</span>
+<span class="sd">        forcing -- see that setting&#39;s own documentation for what that costs and</span>
+<span class="sd">        what it does not.</span>
+
+<span class="sd">        Worked in ``(x, r)`` components rather than in the interface frame, and</span>
+<span class="sd">        on the conserved variables rather than on the fluxes, which is what</span>
+<span class="sd">        makes it this short: the two sides share a meridional geometry and a</span>
+<span class="sd">        radius, so their absolute-frame</span>
+<span class="sd">        :math:`[\rho, \rho V_x, \rho V_r, \rho r V_\theta, \rho e]` are</span>
+<span class="sd">        directly comparable with nothing resolved first.</span>
+<span class="sd">        :meth:`~ember.mixing.MixingPatch.set_block_avg` holds no rotation in</span>
+<span class="sd">        this mode for that reason.</span>
+
+<span class="sd">        The mean is written to both sides on the spot rather than accumulated</span>
+<span class="sd">        onto anything, so it is the *current* mixed-out state that each face</span>
+<span class="sd">        will impose until the next exchange, one outer timestep later.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">patch1</span><span class="o">.</span><span class="n">set_block_avg</span><span class="p">()</span>
+        <span class="n">patch2</span><span class="o">.</span><span class="n">set_block_avg</span><span class="p">()</span>
+
+        <span class="n">cons1</span> <span class="o">=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">conserved_nd</span>
+        <span class="n">cons2</span> <span class="o">=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">block_avg</span><span class="o">.</span><span class="n">conserved_nd</span>
+        <span class="k">if</span> <span class="n">flip</span><span class="p">:</span>
+            <span class="n">cons2</span> <span class="o">=</span> <span class="n">cons2</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">nspan</span> <span class="o">=</span> <span class="n">cons1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_buffers</span><span class="p">(</span><span class="n">nspan</span><span class="p">)</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vec1</span><span class="p">[:</span><span class="n">nspan</span><span class="p">]</span>
+        <span class="n">mean</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">cons1</span>
+        <span class="n">mean</span> <span class="o">+=</span> <span class="n">cons2</span>
+        <span class="n">mean</span> <span class="o">*=</span> <span class="mf">0.5</span>
+
+        <span class="n">patch1</span><span class="o">.</span><span class="n">set_uniform</span><span class="p">(</span><span class="n">mean</span><span class="p">)</span>
+        <span class="n">patch2</span><span class="o">.</span><span class="n">set_uniform</span><span class="p">(</span><span class="n">mean</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">flip</span> <span class="k">else</span> <span class="n">mean</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_prepare_pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">patch1</span><span class="p">,</span> <span class="n">patch2</span><span class="p">,</span> <span class="n">flip</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Symmetrise the cross-plane average and reduce the flux mismatch to chic space.</span>
@@ -424,20 +491,22 @@
         <span class="n">v1</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">flux2</span>
         <span class="n">v1</span> <span class="o">-=</span> <span class="n">flux1</span>
 
-        <span class="c1"># Clip b_avg axial Mach to Ma_clip before evaluating Jacobians.</span>
-        <span class="c1"># np.sign is not usable for the direction: it returns 0 at Max == 0, so</span>
-        <span class="c1"># a stalled station would be clipped to exactly zero axial momentum --</span>
-        <span class="c1"># the one value the clip exists to keep out of flux_to_primitive, which</span>
-        <span class="c1"># divides by it two lines below. A station with no direction of its own</span>
-        <span class="c1"># takes the downstream one.</span>
+        <span class="c1"># Clip b_avg axial Mach into [Ma_clip, Ma_clip_max] before evaluating</span>
+        <span class="c1"># Jacobians. np.sign is not usable for the direction: it returns 0 at</span>
+        <span class="c1"># Max == 0, so a stalled station would be clipped to exactly zero axial</span>
+        <span class="c1"># momentum -- the one value the clip exists to keep out of</span>
+        <span class="c1"># flux_to_primitive, which divides by it two lines below. A station with</span>
+        <span class="c1"># no direction of its own takes the downstream one.</span>
         <span class="n">b_avg</span> <span class="o">=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">block_avg</span>
         <span class="n">Max</span> <span class="o">=</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">Max</span>
-        <span class="n">too_low</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Max</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ma_clip</span>
-        <span class="k">if</span> <span class="n">too_low</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="n">Max_abs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Max</span><span class="p">)</span>
+        <span class="n">outside</span> <span class="o">=</span> <span class="p">(</span><span class="n">Max_abs</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ma_clip</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">Max_abs</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ma_clip_max</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">outside</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
             <span class="n">sign</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">Max</span> <span class="o">&gt;=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">)</span>
-            <span class="n">rhoVx_clip</span> <span class="o">=</span> <span class="n">sign</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ma_clip</span> <span class="o">*</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">rho_nd</span> <span class="o">*</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">a_nd</span>
+            <span class="n">Ma_lim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">Max_abs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ma_clip</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ma_clip_max</span><span class="p">)</span>
+            <span class="n">rhoVx_clip</span> <span class="o">=</span> <span class="n">sign</span> <span class="o">*</span> <span class="n">Ma_lim</span> <span class="o">*</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">rho_nd</span> <span class="o">*</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">a_nd</span>
             <span class="n">b_avg</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
-                <span class="n">too_low</span><span class="p">,</span> <span class="n">rhoVx_clip</span><span class="p">,</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="n">outside</span><span class="p">,</span> <span class="n">rhoVx_clip</span><span class="p">,</span> <span class="n">b_avg</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
             <span class="p">)</span>
             <span class="n">b_avg</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span>
 
@@ -566,10 +635,11 @@
         <span class="c1"># For some reason need a -ve sign on dtarget_dn here!</span>
         <span class="n">v1</span> <span class="o">-=</span> <span class="n">v2</span>
 
-        <span class="c1"># v1 holds the error e_n = dtarget; the increment is du = rf_exchange *</span>
-        <span class="c1"># e_n, recorded for get_stats before it is added onto the target below.</span>
-        <span class="n">v1</span> <span class="o">*=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">rf_exchange</span>  <span class="c1"># v1 = du</span>
+        <span class="c1"># v1 holds the error e_n = dtarget. The increment is</span>
+        <span class="c1"># du = rf_exchange * e_n, recorded for get_stats before it is added</span>
+        <span class="c1"># onto the target below.</span>
         <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_pair_state</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">nspan</span><span class="p">)</span>
+        <span class="n">v1</span> <span class="o">*=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">rf_exchange</span>  <span class="c1"># v1 = du</span>
         <span class="n">state</span><span class="p">[</span><span class="s2">&quot;du&quot;</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">v1</span>
 
         <span class="c1"># Integrate the target-space mismatch onto the previous target, not the</span>
@@ -693,7 +763,11 @@
 <div class="viewcode-block" id="MixingCommunicator.exchange">
 <a class="viewcode-back" href="../../api/communicators.html#ember.mixing_communicator.MixingCommunicator.exchange">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute and write targets for all pairs (no apply step).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute and write targets for all pairs (no apply step).</span>
+
+<span class="sd">        Under :attr:`~ember.solver.Solver.mix_reflective` a pair is instead</span>
+<span class="sd">        given the plain average of the two circumferential means.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">bid</span><span class="p">,</span> <span class="n">pid</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
             <span class="n">_</span><span class="p">,</span> <span class="n">flip</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pairs</span><span class="p">[(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">)]</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_exchange_pair</span><span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="n">flip</span><span class="p">)</span></div>

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.convergence_history &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>ember.convergence_history &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../../_static/documentation_options.js?v=798078b6"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -278,15 +278,14 @@
 <span class="sd">        Station ordering and reference scales are documented in the module</span>
 <span class="sd">        docstring. The station columns (``mdot_st&lt;i&gt;``, ``ho_st&lt;i&gt;``,</span>
 <span class="sd">        ``s_st&lt;i&gt;``) are sized to ``2 * n_row`` each, one inlet/exit pair per</span>
-<span class="sd">        row, rather than a fixed width -- so ``self._data_keys`` is built</span>
-<span class="sd">        here, per instance, before delegating to ``StructuredData.__init__``,</span>
-<span class="sd">        which reads it to size the backing array.</span>
+<span class="sd">        row, rather than a fixed width -- so the column-key list is built here,</span>
+<span class="sd">        per instance, before delegating to the base initialiser, which reads it</span>
+<span class="sd">        to size the backing array.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        shape : tuple</span>
-<span class="sd">            Shape of a single property array (see</span>
-<span class="sd">            :py:meth:`ember._struct.StructuredData.__init__`).</span>
+<span class="sd">            Shape of a single property array.</span>
 <span class="sd">        n_row : int, optional</span>
 <span class="sd">            Number of blade rows this history tracks (default 1, i.e. 2</span>
 <span class="sd">            stations: inlet and exit).</span>
@@ -306,7 +305,7 @@
                 <span class="s2">&quot;time&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;mdot_target&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;mdot_throttle&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;P_throttle&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;dP_throttle&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;dP_P&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;dP_I&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;dP_D&quot;</span><span class="p">,</span>
@@ -320,6 +319,38 @@
         <span class="c1"># Mark all data keys as initialized (we write to slices, not whole arrays)</span>
         <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_keys</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># Column names that have been renamed, old to new. A `.cnv` is a pickle of</span>
+    <span class="c1"># this object and the name-to-column map travels inside it, so a file</span>
+    <span class="c1"># written before a rename comes back labelled the way it was written and</span>
+    <span class="c1"># every lookup by the new name misses.</span>
+    <span class="n">_RENAMED_KEYS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;P_throttle&quot;</span><span class="p">:</span> <span class="s2">&quot;dP_throttle&quot;</span><span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Restore a pickled history, relabelling columns that have been renamed.</span>
+
+<span class="sd">        Positions are untouched: a rename moves a name from one dict key to</span>
+<span class="sd">        another in the maps a lookup goes through, and the data array behind</span>
+<span class="sd">        them is the same array in the same order. So an old file reads as a new</span>
+<span class="sd">        one rather than needing conversion, and a file written since the rename</span>
+<span class="sd">        passes through unchanged because it has none of the old names in it.</span>
+
+<span class="sd">        The column-key tuple is handled but usually absent. A history is</span>
+<span class="sd">        written after being trimmed to the records it actually holds, and the</span>
+<span class="sd">        trimming carries the name-to-index map but not the key tuple --- so the</span>
+<span class="sd">        maps below, not that tuple, are what a lookup by name actually reads.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__setstate__</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">old_key</span><span class="p">,</span> <span class="n">new_key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_RENAMED_KEYS</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">old_key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_inds</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data_inds</span><span class="p">[</span><span class="n">new_key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_inds</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">old_key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">old_key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="p">[</span><span class="n">new_key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">old_key</span><span class="p">)</span>
+
+        <span class="n">keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;_data_keys&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">keys</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data_keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_RENAMED_KEYS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_n_station</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -693,7 +724,7 @@
         <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;s_st</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)),</span> <span class="n">conv</span><span class="o">.</span><span class="n">s</span><span class="p">)</span>
         <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;mdot_target&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">mdot_target</span><span class="p">)</span>
         <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;mdot_throttle&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">mdot_throttle</span><span class="p">)</span>
-        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;P_throttle&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">P_throttle</span><span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_throttle&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">dP_throttle</span><span class="p">)</span>
         <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_P&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">dP_P</span><span class="p">)</span>
         <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_I&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">dP_I</span><span class="p">)</span>
         <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_D&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">dP_D</span><span class="p">)</span></div>
@@ -966,7 +997,7 @@
 <span class="sd">        :math:`\Delta p_\mathrm{throttle}` [Pa], the sum of :attr:`dP_P`,</span>
 <span class="sd">        :attr:`dP_I` and :attr:`dP_D`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;mdot_target&quot;</span><span class="p">,</span> <span class="s2">&quot;mdot_throttle&quot;</span><span class="p">,</span> <span class="s2">&quot;P_throttle&quot;</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;mdot_target&quot;</span><span class="p">,</span> <span class="s2">&quot;mdot_throttle&quot;</span><span class="p">,</span> <span class="s2">&quot;dP_throttle&quot;</span><span class="p">))</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">time</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

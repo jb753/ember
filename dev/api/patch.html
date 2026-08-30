@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Patch &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>Patch &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../_static/documentation_options.js?v=798078b6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -427,6 +427,22 @@ corresponds to (i, j, k).</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="ember.patch.Patch.attach_to_block_resampled">
+<span class="sig-name descname"><span class="pre">attach_to_block_resampled</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/basepatch.html#Patch.attach_to_block_resampled"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.Patch.attach_to_block_resampled" title="Link to this definition">¶</a></dt>
+<dd><p>Attach to a resampled <code class="docutils literal notranslate"><span class="pre">block</span></code>, carrying <code class="docutils literal notranslate"><span class="pre">src</span></code>’s span-varying state.</p>
+<p><code class="docutils literal notranslate"><span class="pre">src</span></code> is this patch’s still-attached original on the grid <code class="docutils literal notranslate"><span class="pre">block</span></code>
+was resampled from, and is the only place the source span stations can
+be read from once the copy has been re-attached. The base
+implementation is a plain <a class="reference internal" href="#ember.patch.Patch.attach_to_block" title="ember.patch.Patch.attach_to_block"><code class="xref py py-meth docutils literal notranslate"><span class="pre">attach_to_block()</span></code></a>: patch state that is
+one number, or none at all, follows a block onto any node count without
+help. Patch types holding a value per span station override this to
+interpolate it onto the new stations.</p>
+<p>Used by <a class="reference internal" href="block_util.html#ember.block_util.resample" title="ember.block_util.resample"><code class="xref py py-func docutils literal notranslate"><span class="pre">resample()</span></code></a>, which is what puts a
+configured patch on a coarser grid – the multigrid hierarchy of
+<a class="reference internal" href="solver.html#ember.solver.Solver.run_fmg" title="ember.solver.Solver.run_fmg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.solver.Solver.run_fmg()</span></code></a>, among others.</p>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="ember.patch.Patch.attach_to_block">
 <span class="sig-name descname"><span class="pre">attach_to_block</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/basepatch.html#Patch.attach_to_block"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.Patch.attach_to_block" title="Link to this definition">¶</a></dt>
 <dd><p>Attach this patch to a block and validate limits against block shape.</p>
@@ -666,7 +682,7 @@ components become the interface-normal and interface-span components:</p>
 <span class="n">rhoVr</span> <span class="o">-&gt;</span> <span class="n">rhoV_span</span> <span class="o">=</span> <span class="o">-</span><span class="n">sinxi</span> <span class="o">*</span> <span class="n">rhoVx</span> <span class="o">+</span> <span class="n">cosxi</span> <span class="o">*</span> <span class="n">rhoVr</span>
 </pre></div>
 </div>
-<p>Uses the pre-computed rotation matrix <code class="docutils literal notranslate"><span class="pre">_rot_to</span></code> broadcast along
+<p>Uses the pre-computed to-interface rotation matrix, broadcast along
 <code class="docutils literal notranslate"><span class="pre">span_dim</span></code> to match the full block shape. A no-op on a face whose
 frame axis already is <span class="math notranslate nohighlight">\(x\)</span>; see <a class="reference internal" href="#ember.patch.RevolutionPatch.chi_node" title="ember.patch.RevolutionPatch.chi_node"><code class="xref py py-attr docutils literal notranslate"><span class="pre">chi_node</span></code></a>.</p>
 </dd></dl>
@@ -971,11 +987,32 @@ the characteristic state it is still solving on.</p>
 <p>Safe to call repeatedly; a target of the right shape survives
 re-attachment, and one of the wrong shape is rebuilt at the new shape
 rather than silently misread – every prescribed row by re-running the
-setter that filled it, the rest by re-seeding. That is what lets a
-configured patch follow its block onto a coarser grid, as the multigrid
-hierarchy and <a class="reference internal" href="block_util.html#ember.block_util.resample" title="ember.block_util.resample"><code class="xref py py-func docutils literal notranslate"><span class="pre">resample()</span></code></a> do it; a prescribed
-profile that cannot broadcast to the new shape says so, from the setter
-that took it.</p>
+setter that filled it, the rest by re-seeding. Replay is at the
+original arguments, so a prescribed spanwise profile reaches the setter
+at the length it was set on and is refused if the span station count
+has moved. Going onto a coarser grid, as the multigrid hierarchy and
+<a class="reference internal" href="block_util.html#ember.block_util.resample" title="ember.block_util.resample"><code class="xref py py-func docutils literal notranslate"><span class="pre">resample()</span></code></a> do it, therefore goes through
+<a class="reference internal" href="#ember.patch.NonReflectingPatch.attach_to_block_resampled" title="ember.patch.NonReflectingPatch.attach_to_block_resampled"><code class="xref py py-meth docutils literal notranslate"><span class="pre">attach_to_block_resampled()</span></code></a>, which interpolates those profiles
+onto the new stations first.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.patch.NonReflectingPatch.attach_to_block_resampled">
+<span class="sig-name descname"><span class="pre">attach_to_block_resampled</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/nonreflecting.html#NonReflectingPatch.attach_to_block_resampled"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.NonReflectingPatch.attach_to_block_resampled" title="Link to this definition">¶</a></dt>
+<dd><p>Attach to a resampled <code class="docutils literal notranslate"><span class="pre">block</span></code>, interpolating prescribed profiles.</p>
+<p>A prescribed row is recorded as the setter call that filled it (see
+<code class="xref py py-func docutils literal notranslate"><span class="pre">replayable()</span></code>), arguments as the caller gave them – which for a
+spanwise profile is one number per span station of the grid the patch
+was configured on. Replaying that call against a block with a different
+number of stations, as <a class="reference internal" href="#ember.patch.NonReflectingPatch.attach_to_block" title="ember.patch.NonReflectingPatch.attach_to_block"><code class="xref py py-meth docutils literal notranslate"><span class="pre">attach_to_block()</span></code></a> does on its own, hands
+the setter a profile of the wrong length and it refuses it. So the
+replay is deferred and every profile argument re-expressed on this
+patch’s own stations first, interpolated against span fraction
+(<a class="reference internal" href="#ember.patch.RevolutionPatch.spf" title="ember.patch.RevolutionPatch.spf"><code class="xref py py-attr docutils literal notranslate"><span class="pre">spf</span></code></a>, meridional arc-length)
+rather than node index, so a prescription follows the geometry it was
+written against and not the mesh spacing.</p>
+<p>Scalar arguments pass through untouched, which is what makes this
+agree with plain re-attachment wherever plain re-attachment worked.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1106,7 +1143,7 @@ state. This is that pressure. The other four rows are not imposed at
 such a station – they are what the outgoing waves carry there.</p>
 <p>Calling this is optional. Left alone, the row is seeded once from the
 pitchwise mean of the inflow plane at the first timestep and frozen
-there; see <code class="docutils literal notranslate"><span class="pre">NonReflectingPatch._seed_target</span></code>. If a large
+there. If a large
 part of the span ends up reversed the inflow is no longer under control
 and the boundary wants moving upstream, rather than this value tuning.</p>
 <dl class="field-list simple">
@@ -1344,14 +1381,12 @@ convention as <a class="reference internal" href="block.html#ember.block.Block.h
 <a class="reference internal" href="block.html#ember.block.Block.s" title="ember.block.Block.s"><code class="xref py py-attr docutils literal notranslate"><span class="pre">s</span></code></a>.</p>
 <p>Calling any of the four is optional. Left alone, the rows are seeded
 once from the pitchwise mean of the exit plane at the first timestep and
-frozen there; see <code class="docutils literal notranslate"><span class="pre">NonReflectingPatch._seed_target</span></code>.</p>
+frozen there.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>ho</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><em>array</em>) – Stagnation enthalpy [J/kg]. A scalar or a spanwise profile; see
-<code class="docutils literal notranslate"><span class="pre">NonReflectingPatch._set_target_row</span></code> for
-the accepted shapes. Only the pitchwise mean at each span station is
-imposed.</p></li>
+<li><p><strong>ho</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><em>array</em>) – Stagnation enthalpy [J/kg]. A scalar or a spanwise profile. Only
+the pitchwise mean at each span station is imposed.</p></li>
 <li><p><strong>s</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><em>array</em>) – Specific entropy [J/(kg K)].</p></li>
 </ul>
 </dd>
@@ -1483,20 +1518,32 @@ the references are representative of the flow, as
 <a class="reference internal" href="cases.html#ember.cases.build_duct_grid" title="ember.cases.build_duct_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cases.build_duct_grid()</span></code></a> sets them. A <code class="docutils literal notranslate"><span class="pre">V_ref</span></code> far from the
 exit velocity moves the loop gain by its square, and is the one case
 where these want retuning.</p>
-<p>Only one outlet patch in a grid may be throttled;
-<code class="docutils literal notranslate"><span class="pre">ember.solver._validate_throttle</span></code> refuses more. Two patches
+<p>Only one outlet patch in a grid may be throttled; the solver refuses a
+grid carrying more. Two patches
 driving independent controllers at the same target would each apply the
 full correction for an error they share.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>mdot_target</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><em>None</em>) – Target mass flow <span class="math notranslate nohighlight">\(\dot m_\mathrm{target}\)</span> [kg/s], through one
+<li><p><strong>mdot_target</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><em>None</em>) – <p>Target mass flow <span class="math notranslate nohighlight">\(\dot m_\mathrm{target}\)</span> [kg/s], through one
 passage rather than the whole annulus, matching what
 <a class="reference internal" href="average.html#ember.average.flow_mass" title="ember.average.flow_mass"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.average.flow_mass()</span></code></a> returns for this patch. Must be
-positive and finite. Pass None to clear the throttle and leave the
-prescribed pressure standing wherever the controller last put it,
-which is how a run throttles to find an operating point and then
-holds it.</p></li>
+positive and finite. Pass None to clear the throttle, which
+<strong>reverts</strong> the boundary to the pressure <a class="reference internal" href="#ember.patch.OutletPatch.set_P" title="ember.patch.OutletPatch.set_P"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P()</span></code></a> prescribed:
+the controller’s correction is derived from the gains and the error
+sum, so clearing those puts it back at zero on the next
+<a class="reference internal" href="#ember.patch.OutletPatch.update_target" title="ember.patch.OutletPatch.update_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_target()</span></code></a>. Clearing is therefore the inverse of setting,
+and does not depend on the order it is done in relative to
+<a class="reference internal" href="#ember.patch.OutletPatch.set_P" title="ember.patch.OutletPatch.set_P"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P()</span></code></a>.</p>
+<p>To keep the operating point the controller found rather than
+revert to the one that was asked for, re-prescribe it first:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">patch</span><span class="o">.</span><span class="n">set_P</span><span class="p">(</span><span class="n">patch</span><span class="o">.</span><span class="n">P_throttle</span><span class="p">)</span>
+<span class="n">patch</span><span class="o">.</span><span class="n">set_throttle</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>which is what a run does when it throttles to find an operating
+point and then holds it. See <a class="reference internal" href="#ember.patch.OutletPatch.P_throttle" title="ember.patch.OutletPatch.P_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_throttle</span></code></a>.</p>
+</p></li>
 <li><p><strong>Kp</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Proportional gain, dimensionless. Default 0.5, half the Newton step
 of 1 above.</p></li>
 <li><p><strong>Ki</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Integral gain, dimensionless. Default 0.002, from a sweep on the
@@ -1533,7 +1580,7 @@ last step the controller actually acted on.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">mdot_target</span></code> the setpoint [kg/s]; <code class="docutils literal notranslate"><span class="pre">mdot_throttle</span></code> the mass flow
-last measured at the patch [kg/s]; <code class="docutils literal notranslate"><span class="pre">P_throttle</span></code> the total
+last measured at the patch [kg/s]; <code class="docutils literal notranslate"><span class="pre">dP_throttle</span></code> the total
 correction <span class="math notranslate nohighlight">\(\Delta p_\mathrm{throttle}\)</span> [Pa]; <code class="docutils literal notranslate"><span class="pre">dP_P</span></code> and
 <code class="docutils literal notranslate"><span class="pre">dP_I</span></code> its proportional and integral parts [Pa]; <code class="docutils literal notranslate"><span class="pre">dP_D</span></code> always
 zero, the controller being PI. The derivative column is retained so
@@ -1619,19 +1666,56 @@ through <a class="reference internal" href="#ember.patch.OutletPatch.set_throttl
 <dt class="sig sig-object py" id="ember.patch.OutletPatch.mdot_target">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mdot_target</span></span><a class="headerlink" href="#ember.patch.OutletPatch.mdot_target" title="Link to this definition">¶</a></dt>
 <dd><p>Throttle setpoint [kg/s], or None when the patch holds a pressure.</p>
-<p>Read by <a class="reference internal" href="grid.html#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.get_convergence()</span></code></a> and
-<code class="docutils literal notranslate"><span class="pre">ember.solver._validate_throttle</span></code> to find the throttled outlet;
-set through <a class="reference internal" href="#ember.patch.OutletPatch.set_throttle" title="ember.patch.OutletPatch.set_throttle"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_throttle()</span></code></a>.</p>
+<p>Read by <a class="reference internal" href="grid.html#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.get_convergence()</span></code></a>, and by the solver’s
+throttle validation, to find the throttled outlet; set through
+<a class="reference internal" href="#ember.patch.OutletPatch.set_throttle" title="ember.patch.OutletPatch.set_throttle"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_throttle()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ember.patch.OutletPatch.P">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">P</span></span><a class="headerlink" href="#ember.patch.OutletPatch.P" title="Link to this definition">¶</a></dt>
-<dd><p>Prescribed outlet static pressure [Pa]. Inverse of <a class="reference internal" href="#ember.patch.OutletPatch.set_P" title="ember.patch.OutletPatch.set_P"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P()</span></code></a>.</p>
-<p>Reads back the level actually imposed, <code class="xref py py-attr docutils literal notranslate"><span class="pre">P_nd</span></code>, so with
-<a class="reference internal" href="#ember.patch.OutletPatch.set_throttle" title="ember.patch.OutletPatch.set_throttle"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_throttle()</span></code></a> or <a class="reference internal" href="#ember.patch.OutletPatch.set_adjustment" title="ember.patch.OutletPatch.set_adjustment"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_adjustment()</span></code></a> configured this is the
-current throttled level or spanwise profile, not the value last
-passed to <a class="reference internal" href="#ember.patch.OutletPatch.set_P" title="ember.patch.OutletPatch.set_P"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P()</span></code></a>.</p>
+<dd><p>Outlet static pressure field as imposed [Pa], shaped like the patch.</p>
+<p>The whole prescription, node by node, read back from <code class="xref py py-attr docutils literal notranslate"><span class="pre">P_nd</span></code>. Not
+the inverse of <a class="reference internal" href="#ember.patch.OutletPatch.set_P" title="ember.patch.OutletPatch.set_P"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P()</span></code></a> and not a level: a scalar passed to
+<a class="reference internal" href="#ember.patch.OutletPatch.set_P" title="ember.patch.OutletPatch.set_P"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P()</span></code></a> comes back broadcast over the face, <a class="reference internal" href="#ember.patch.OutletPatch.set_throttle" title="ember.patch.OutletPatch.set_throttle"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_throttle()</span></code></a>
+moves what is here away from what was passed, and
+<a class="reference internal" href="#ember.patch.OutletPatch.set_adjustment" title="ember.patch.OutletPatch.set_adjustment"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_adjustment()</span></code></a> shapes it along the span about a level that is
+then the hub value rather than any average of this.</p>
+<p>For the single number the boundary is holding at, which is what a
+caller recording an operating point wants, see <a class="reference internal" href="#ember.patch.OutletPatch.P_throttle" title="ember.patch.OutletPatch.P_throttle"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_throttle</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.patch.OutletPatch.P_throttle">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">P_throttle</span></span><a class="headerlink" href="#ember.patch.OutletPatch.P_throttle" title="Link to this definition">¶</a></dt>
+<dd><p>Static pressure level the throttle has arrived at [Pa].</p>
+<p>The inverse of <a class="reference internal" href="#ember.patch.OutletPatch.set_P" title="ember.patch.OutletPatch.set_P"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P()</span></code></a>, moved by whatever the controller has done
+to it:</p>
+<div class="math notranslate nohighlight">
+\[p_\mathrm{throttle} = p_\mathrm{out} + \Delta p_\mathrm{throttle}\]</div>
+<p>so with no throttle set this is simply the prescribed pressure, and
+with one it is the operating point the controller has reached. Scalar
+whenever a throttle is set, <a class="reference internal" href="#ember.patch.OutletPatch.set_throttle" title="ember.patch.OutletPatch.set_throttle"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_throttle()</span></code></a> having refused a
+non-scalar prescription; otherwise whatever shape <a class="reference internal" href="#ember.patch.OutletPatch.set_P" title="ember.patch.OutletPatch.set_P"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P()</span></code></a> was
+given.</p>
+<p>This is the number to record when a run throttles to an operating point
+and something else has to reproduce it later, and the number to
+re-prescribe to hold that point:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">patch</span><span class="o">.</span><span class="n">set_P</span><span class="p">(</span><span class="n">patch</span><span class="o">.</span><span class="n">P_throttle</span><span class="p">)</span>   <span class="c1"># keep what the controller found</span>
+<span class="n">patch</span><span class="o">.</span><span class="n">set_throttle</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Held apart from <a class="reference internal" href="#ember.patch.OutletPatch.P" title="ember.patch.OutletPatch.P"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P</span></code></a> because that is the imposed field rather than
+its level, and the two differ under <a class="reference internal" href="#ember.patch.OutletPatch.set_adjustment" title="ember.patch.OutletPatch.set_adjustment"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_adjustment()</span></code></a> — see
+<code class="xref py py-func docutils literal notranslate"><span class="pre">calc_radial_equilibrium()</span></code>, whose profile is anchored at the hub,
+so the level is the hub value and not the mean of <a class="reference internal" href="#ember.patch.OutletPatch.P" title="ember.patch.OutletPatch.P"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P</span></code></a>.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<dl class="simple">
+<dt><a class="reference internal" href="#ember.patch.OutletPatch.get_throttle_stats" title="ember.patch.OutletPatch.get_throttle_stats"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ember.patch.OutletPatch.get_throttle_stats</span></code></a></dt><dd><p>The correction alone, with the rest of the controller state</p>
+</dd>
+</dl>
+</div>
 </dd></dl>
 
 </dd></dl>
@@ -1650,7 +1734,7 @@ module docstring.</p>
 on the <em>symmetrised cross-plane</em> average, so both sides linearise the
 interface jump about the same state; each patch’s own frozen reference
 state stays its <em>local</em> pitchwise mean, because
-<code class="docutils literal notranslate"><span class="pre">NonReflectingPatch._calc_reference</span></code> calls
+the reference-state calculation calls
 <a class="reference internal" href="#ember.patch.RevolutionPatch.set_block_avg" title="ember.patch.RevolutionPatch.set_block_avg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_block_avg()</span></code></a> itself and so
 re-derives it after the exchange has overwritten
 <a class="reference internal" href="#ember.patch.RevolutionPatch.block_avg" title="ember.patch.RevolutionPatch.block_avg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">block_avg</span></code></a>. The split is deliberate
@@ -1659,11 +1743,21 @@ condition to the boundary.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.patch.MixingPatch.set_block_avg">
 <span class="sig-name descname"><span class="pre">set_block_avg</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing.html#MixingPatch.set_block_avg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.MixingPatch.set_block_avg" title="Link to this definition">¶</a></dt>
-<dd><p>Pitch-average the face in interface coordinates.</p>
+<dd><p>Pitch-average the face, in interface coordinates unless the plane is reflective.</p>
 <p>Overridden only to hold the rotation: the communicator calls this from
 outside any of the boundary condition’s own entry points, and the
 cross-plane average it builds has to be in the same frame on both
 sides. See <a class="reference internal" href="#ember.patch.MixingPatch.set_flux_avg" title="ember.patch.MixingPatch.set_flux_avg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_flux_avg()</span></code></a>.</p>
+<p>A reflective plane takes the average in <code class="docutils literal notranslate"><span class="pre">(x,</span> <span class="pre">r)</span></code> instead, and wants
+to. Its conserved variables are the absolute-frame
+<span class="math notranslate nohighlight">\([\rho, \rho V_x, \rho V_r, \rho r V_\theta, \rho e]\)</span>, which
+the two sides can compare directly: they share a meridional geometry and
+a radius, so nothing has to be resolved into a common frame first. The
+rotation would in fact be actively wrong before the frame has settled,
+since until then the two sides’ provisional axes are antiparallel and
+their normal components carry opposite signs; and the frame never does
+settle on a reflective plane, because settling happens inside the very
+window this skips.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1699,6 +1793,25 @@ not yet been exchanged gets a consistent starting point.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="ember.patch.MixingPatch.set_uniform">
+<span class="sig-name descname"><span class="pre">set_uniform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cons</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing.html#MixingPatch.set_uniform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.MixingPatch.set_uniform" title="Link to this definition">¶</a></dt>
+<dd><p>Set the pitch-uniform conserved state a reflective plane imposes.</p>
+<p>Called by
+<a class="reference internal" href="communicators.html#ember.mixing_communicator.MixingCommunicator" title="ember.mixing_communicator.MixingCommunicator"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingCommunicator</span></code></a>
+after each exchange, with the average of the two sides’ circumferential
+means. Omitting <code class="docutils literal notranslate"><span class="pre">cons</span></code> seeds from this side’s own circumferential mean
+instead, which is how a face that has not yet been exchanged has
+something physical to impose; <a class="reference internal" href="#ember.patch.MixingPatch.apply" title="ember.patch.MixingPatch.apply"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply()</span></code></a> does that for itself rather
+than imposing zeros.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cons</strong> (array of shape <code class="docutils literal notranslate"><span class="pre">(nspan,</span> <span class="pre">5)</span></code>, optional) – Nondimensional conserved variables, in <code class="docutils literal notranslate"><span class="pre">(x,</span> <span class="pre">r)</span></code> components and
+in this patch’s own span order.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="ember.patch.MixingPatch.get_target">
 <span class="sig-name descname"><span class="pre">get_target</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing.html#MixingPatch.get_target"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.MixingPatch.get_target" title="Link to this definition">¶</a></dt>
 <dd><p>Return the exchanged target, a nondimensional <code class="docutils literal notranslate"><span class="pre">(nspan,</span> <span class="pre">5)</span></code> array.</p>
@@ -1707,6 +1820,35 @@ not yet been exchanged gets a consistent starting point.</p>
 form the symmetrised baseline the cross-plane mismatch is relaxed onto,
 which is why a patch that has never been exchanged is seeded here rather
 than left at zero.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.patch.MixingPatch.get_uniform">
+<span class="sig-name descname"><span class="pre">get_uniform</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing.html#MixingPatch.get_uniform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.MixingPatch.get_uniform" title="Link to this definition">¶</a></dt>
+<dd><p>Return the reflective plane’s imposed state, nondimensional <code class="docutils literal notranslate"><span class="pre">(nspan,</span> <span class="pre">5)</span></code>.</p>
+<p>Seeded from this side’s own circumferential mean if nothing has been
+exchanged onto it yet, for the same reason <a class="reference internal" href="#ember.patch.MixingPatch.get_target" title="ember.patch.MixingPatch.get_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_target()</span></code></a> seeds.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.patch.MixingPatch.advance">
+<span class="sig-name descname"><span class="pre">advance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing.html#MixingPatch.advance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.MixingPatch.advance" title="Link to this definition">¶</a></dt>
+<dd><p>Take the boundary condition’s step; a no-op on a reflective plane.</p>
+<p>A reflective plane has no state of its own between exchanges: what it
+imposes is settled entirely by the communicator, and <a class="reference internal" href="#ember.patch.MixingPatch.apply" title="ember.patch.MixingPatch.apply"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply()</span></code></a>
+imposes it outright.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.patch.MixingPatch.apply">
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing.html#MixingPatch.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.MixingPatch.apply" title="Link to this definition">¶</a></dt>
+<dd><p>Impose the condition on the face.</p>
+<p>The plain plane runs the non-reflecting condition of
+<a class="reference internal" href="#ember.patch.NonReflectingPatch.apply" title="ember.patch.NonReflectingPatch.apply"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply()</span></code></a>. A reflective one
+overwrites the whole face with the pitch-uniform state the last exchange
+left, span station by span station and every stage, hub and casing
+nodes included – there is no characteristic content to preserve and no
+relaxation to take, so there is nothing here to be gradual about.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1723,12 +1865,13 @@ run and never let the flow correct it.</p>
 <dt class="sig sig-object py" id="ember.patch.MixingPatch.check_match">
 <span class="sig-name descname"><span class="pre">check_match</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rtol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-05</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing.html#MixingPatch.check_match"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.MixingPatch.check_match" title="Link to this definition">¶</a></dt>
 <dd><p>Check whether this patch pairs with another across a mixing plane.</p>
-<p>Pairs only with the opposite side of a non-reflecting mixing plane,
-which <code class="docutils literal notranslate"><span class="pre">NonReflectingPatch._sign_interior</span></code>
-identifies: the two sides of one plane face each other, so their
-interiors lie on opposite sides of it. Matching is then on meridional
-geometry alone, so the two sides may differ in pitchwise resolution and
-blade count but not in spanwise resolution.</p>
+<p>Pairs only with the opposite side of a mixing plane running the same
+treatment, which the inward face normal and the
+reflective flag identify between them: the two sides of one plane
+face each other, so their interiors lie on opposite sides of it.
+Matching is then on meridional geometry alone, so the two sides may
+differ in pitchwise resolution and blade count but not in spanwise
+resolution.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1746,6 +1889,14 @@ truthiness check since False is a valid match result.</p>
 <dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)">bool</a> or None</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.patch.MixingPatch.update_soln">
+<span class="sig-name descname"><span class="pre">update_soln</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing.html#MixingPatch.update_soln"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.MixingPatch.update_soln" title="Link to this definition">¶</a></dt>
+<dd><p>Refresh the frozen reference state; a no-op on a reflective plane.</p>
+<p>Nothing on a reflective plane is linearised about a mean state, so
+there is no reference to freeze.</p>
 </dd></dl>
 
 <dl class="py property">

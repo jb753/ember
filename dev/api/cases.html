@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Cases &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>Cases &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../_static/documentation_options.js?v=798078b6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -37,7 +37,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -124,6 +124,7 @@
 <li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Cases</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#ember.cases.build_duct_grid"><code class="docutils literal notranslate"><span class="pre">cases.build_duct_grid()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.cases.er_for_duct_yplus"><code class="docutils literal notranslate"><span class="pre">cases.er_for_duct_yplus()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
@@ -158,10 +159,9 @@
   <section id="module-ember.cases">
 <span id="cases"></span><h1>Cases<a class="headerlink" href="#module-ember.cases" title="Link to this heading">¶</a></h1>
 <p>Canonical test cases assembled from the core building blocks.</p>
-<p>This module holds the case-construction scaffolding used by the square-duct
-CLI sweep driver (<code class="docutils literal notranslate"><span class="pre">scripts/run_duct.py</span></code>): a single <a class="reference internal" href="#ember.cases.build_duct_grid" title="ember.cases.build_duct_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_duct_grid()</span></code></a>
-that meshes the duct, sets the mean flow and boundary conditions, and applies
-the initial-condition perturbations.</p>
+<p>This module holds the case-construction scaffolding used by the CLI drivers in
+<code class="docutils literal notranslate"><span class="pre">tools/</span></code>. <a class="reference internal" href="#ember.cases.build_duct_grid" title="ember.cases.build_duct_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_duct_grid()</span></code></a> meshes a single square duct, sets the mean
+flow and boundary conditions, and applies the initial-condition perturbations.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="ember.cases.build_duct_grid">
 <span class="sig-prename descclassname"><span class="pre">cases.</span></span><span class="sig-name descname"><span class="pre">build_duct_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ncell</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000000</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">cluster</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ER</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">perturb_vx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">perturb_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ho_frac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s_frac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vx_ramp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r_mid_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nj</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">65</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nk</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">57</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">periodic_k</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Ma_bulk</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Po</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">To</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/cases.html#build_duct_grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.cases.build_duct_grid" title="Link to this definition">¶</a></dt>
@@ -212,6 +212,53 @@ carries both a periodic and a wall region.</p></li>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid">ember.grid.Grid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.cases.er_for_duct_yplus">
+<span class="sig-prename descclassname"><span class="pre">cases.</span></span><span class="sig-name descname"><span class="pre">er_for_duct_yplus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">yplus</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">correlation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'white'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_ref_frac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/cases.html#er_for_duct_yplus"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.cases.er_for_duct_yplus" title="Link to this definition">¶</a></dt>
+<dd><p>Solve <a class="reference internal" href="#ember.cases.build_duct_grid" title="ember.cases.build_duct_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_duct_grid()</span></code></a>’s <code class="docutils literal notranslate"><span class="pre">ER</span></code> for a wall cell at <code class="docutils literal notranslate"><span class="pre">yplus</span></code>.</p>
+<p>Clustering picked by eye is how a duct ends up with its first cell deep
+inside the viscous sublayer, where the wall function changes branch, on a
+mesh whose wall cells are tens of times longer than they are tall. Here the
+expansion ratio is solved for instead: a first pass builds the duct
+UNIFORMLY (<code class="docutils literal notranslate"><span class="pre">cluster=False</span></code>) purely to read back the mean flow and the
+geometry, since <code class="docutils literal notranslate"><span class="pre">build_duct_grid</span></code> fixes <code class="docutils literal notranslate"><span class="pre">rho</span></code>, <code class="docutils literal notranslate"><span class="pre">U</span></code> and <code class="docutils literal notranslate"><span class="pre">mu</span></code> from
+<code class="docutils literal notranslate"><span class="pre">Ma_bulk</span></code>, <code class="docutils literal notranslate"><span class="pre">Po</span></code> and <code class="docutils literal notranslate"><span class="pre">To</span></code>, so none of them is known until a grid
+exists. A flat-plate skin-friction correlation evaluated at
+<code class="docutils literal notranslate"><span class="pre">x_ref_frac</span></code> of the duct length then sets the friction velocity, hence
+the wall spacing that puts the first node at <code class="docutils literal notranslate"><span class="pre">yplus</span></code>, and
+<a class="reference internal" href="util.html#ember.util.cluster_symmetric" title="ember.util.cluster_symmetric"><code class="xref py py-func docutils literal notranslate"><span class="pre">cluster_symmetric()</span></code></a>’s first spacing is bisected onto it.</p>
+<p>The correlation is used as a spacing SCALE, not as a prediction of the
+duct’s actual wall shear.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>yplus</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Target wall distance, in wall units, of the first node off the wall.</p></li>
+<li><p><strong>correlation</strong> (<em>{&quot;white&quot;</em><em>, </em><em>&quot;prandtl&quot;}</em>) – Local skin-friction correlation for a smooth flat plate at
+Reynolds number <code class="docutils literal notranslate"><span class="pre">Re_x</span> <span class="pre">=</span> <span class="pre">rho*U*x/mu</span></code>. <code class="docutils literal notranslate"><span class="pre">&quot;white&quot;</span></code> is
+<code class="docutils literal notranslate"><span class="pre">cf</span> <span class="pre">=</span> <span class="pre">0.455</span> <span class="pre">/</span> <span class="pre">ln(0.06*Re_x)**2</span></code> (White, <em>Viscous Fluid Flow</em>, 3rd
+ed., eq. 6-73), a log-law fit over roughly <code class="docutils literal notranslate"><span class="pre">1e5</span> <span class="pre">&lt;</span> <span class="pre">Re_x</span> <span class="pre">&lt;</span> <span class="pre">1e9</span></code> and so
+the default; <code class="docutils literal notranslate"><span class="pre">&quot;prandtl&quot;</span></code> is the 1/7-power result
+<code class="docutils literal notranslate"><span class="pre">cf</span> <span class="pre">=</span> <span class="pre">0.0592</span> <span class="pre">*</span> <span class="pre">Re_x**-0.2</span></code> quoted in Schlichting, <em>Boundary-Layer
+Theory</em>, stated for <code class="docutils literal notranslate"><span class="pre">5e5</span> <span class="pre">&lt;</span> <span class="pre">Re_x</span> <span class="pre">&lt;</span> <span class="pre">1e7</span></code>.</p></li>
+<li><p><strong>x_ref_frac</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Fraction of the duct length at which the correlation is evaluated.</p></li>
+<li><p><strong>**kwargs</strong> – Passed to <a class="reference internal" href="#ember.cases.build_duct_grid" title="ember.cases.build_duct_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_duct_grid()</span></code></a> for the probe build, so the ER comes
+out for the grid actually wanted. <code class="docutils literal notranslate"><span class="pre">cluster</span></code> is forced off.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Expansion ratio to pass back to <a class="reference internal" href="#ember.cases.build_duct_grid" title="ember.cases.build_duct_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_duct_grid()</span></code></a> as <code class="docutils literal notranslate"><span class="pre">ER</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the target needs a wall cell COARSER than the uniform mesh already
+    gives, which no amount of clustering can reach: clustering only
+    refines.</p>
 </dd>
 </dl>
 </dd></dl>

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Convergence history &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>Convergence history &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../_static/documentation_options.js?v=798078b6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -289,14 +289,13 @@ unpickles a history written by <a class="reference internal" href="#ember.conver
 <p>Station ordering and reference scales are documented in the module
 docstring. The station columns (<code class="docutils literal notranslate"><span class="pre">mdot_st&lt;i&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">ho_st&lt;i&gt;</span></code>,
 <code class="docutils literal notranslate"><span class="pre">s_st&lt;i&gt;</span></code>) are sized to <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">n_row</span></code> each, one inlet/exit pair per
-row, rather than a fixed width – so <code class="docutils literal notranslate"><span class="pre">self._data_keys</span></code> is built
-here, per instance, before delegating to <code class="docutils literal notranslate"><span class="pre">StructuredData.__init__</span></code>,
-which reads it to size the backing array.</p>
+row, rather than a fixed width – so the column-key list is built here,
+per instance, before delegating to the base initialiser, which reads it
+to size the backing array.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of a single property array (see
-<code class="xref py py-meth docutils literal notranslate"><span class="pre">ember._struct.StructuredData.__init__()</span></code>).</p></li>
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of a single property array.</p></li>
 <li><p><strong>n_row</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Number of blade rows this history tracks (default 1, i.e. 2
 stations: inlet and exit).</p></li>
 </ul>

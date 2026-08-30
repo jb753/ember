@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.cases &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>ember.cases &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../../_static/documentation_options.js?v=798078b6"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -152,10 +152,9 @@
   <h1>Source code for ember.cases</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;Canonical test cases assembled from the core building blocks.</span>
 
-<span class="sd">This module holds the case-construction scaffolding used by the square-duct</span>
-<span class="sd">CLI sweep driver (``scripts/run_duct.py``): a single :func:`build_duct_grid`</span>
-<span class="sd">that meshes the duct, sets the mean flow and boundary conditions, and applies</span>
-<span class="sd">the initial-condition perturbations.</span>
+<span class="sd">This module holds the case-construction scaffolding used by the CLI drivers in</span>
+<span class="sd">``tools/``. :func:`build_duct_grid` meshes a single square duct, sets the mean</span>
+<span class="sd">flow and boundary conditions, and applies the initial-condition perturbations.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
@@ -274,7 +273,7 @@
     <span class="n">xrt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">xm</span><span class="p">,</span> <span class="n">rm</span><span class="p">,</span> <span class="n">tm</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
 
     <span class="n">fluid</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">PerfectFluid</span><span class="p">(</span>
-        <span class="n">cp</span><span class="o">=</span><span class="mf">1005.0</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="mf">1.4</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mf">1.0e-3</span><span class="p">,</span> <span class="n">Pr</span><span class="o">=</span><span class="mf">0.72</span><span class="p">,</span> <span class="n">T_dtm</span><span class="o">=</span><span class="mf">400.0</span>
+        <span class="n">cp</span><span class="o">=</span><span class="mf">1005.0</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="mf">1.4</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mf">2.0e-5</span><span class="p">,</span> <span class="n">Pr</span><span class="o">=</span><span class="mf">0.72</span><span class="p">,</span> <span class="n">T_dtm</span><span class="o">=</span><span class="mf">400.0</span>
     <span class="p">)</span>
 
     <span class="n">block</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">))</span>
@@ -372,6 +371,104 @@
     <span class="n">block</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="n">Vx</span> <span class="o">*</span> <span class="n">ramp</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span>
 
     <span class="k">return</span> <span class="n">grid</span></div>
+
+
+
+<div class="viewcode-block" id="er_for_duct_yplus">
+<a class="viewcode-back" href="../../api/cases.html#ember.cases.er_for_duct_yplus">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">er_for_duct_yplus</span><span class="p">(</span><span class="n">yplus</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">correlation</span><span class="o">=</span><span class="s2">&quot;white&quot;</span><span class="p">,</span> <span class="n">x_ref_frac</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Solve :func:`build_duct_grid`&#39;s ``ER`` for a wall cell at ``yplus``.</span>
+
+<span class="sd">    Clustering picked by eye is how a duct ends up with its first cell deep</span>
+<span class="sd">    inside the viscous sublayer, where the wall function changes branch, on a</span>
+<span class="sd">    mesh whose wall cells are tens of times longer than they are tall. Here the</span>
+<span class="sd">    expansion ratio is solved for instead: a first pass builds the duct</span>
+<span class="sd">    UNIFORMLY (``cluster=False``) purely to read back the mean flow and the</span>
+<span class="sd">    geometry, since ``build_duct_grid`` fixes ``rho``, ``U`` and ``mu`` from</span>
+<span class="sd">    ``Ma_bulk``, ``Po`` and ``To``, so none of them is known until a grid</span>
+<span class="sd">    exists. A flat-plate skin-friction correlation evaluated at</span>
+<span class="sd">    ``x_ref_frac`` of the duct length then sets the friction velocity, hence</span>
+<span class="sd">    the wall spacing that puts the first node at ``yplus``, and</span>
+<span class="sd">    :func:`~ember.util.cluster_symmetric`&#39;s first spacing is bisected onto it.</span>
+
+<span class="sd">    The correlation is used as a spacing SCALE, not as a prediction of the</span>
+<span class="sd">    duct&#39;s actual wall shear.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    yplus : float</span>
+<span class="sd">        Target wall distance, in wall units, of the first node off the wall.</span>
+<span class="sd">    correlation : {&quot;white&quot;, &quot;prandtl&quot;}</span>
+<span class="sd">        Local skin-friction correlation for a smooth flat plate at</span>
+<span class="sd">        Reynolds number ``Re_x = rho*U*x/mu``. ``&quot;white&quot;`` is</span>
+<span class="sd">        ``cf = 0.455 / ln(0.06*Re_x)**2`` (White, *Viscous Fluid Flow*, 3rd</span>
+<span class="sd">        ed., eq. 6-73), a log-law fit over roughly ``1e5 &lt; Re_x &lt; 1e9`` and so</span>
+<span class="sd">        the default; ``&quot;prandtl&quot;`` is the 1/7-power result</span>
+<span class="sd">        ``cf = 0.0592 * Re_x**-0.2`` quoted in Schlichting, *Boundary-Layer</span>
+<span class="sd">        Theory*, stated for ``5e5 &lt; Re_x &lt; 1e7``.</span>
+<span class="sd">    x_ref_frac : float</span>
+<span class="sd">        Fraction of the duct length at which the correlation is evaluated.</span>
+<span class="sd">    **kwargs</span>
+<span class="sd">        Passed to :func:`build_duct_grid` for the probe build, so the ER comes</span>
+<span class="sd">        out for the grid actually wanted. ``cluster`` is forced off.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        Expansion ratio to pass back to :func:`build_duct_grid` as ``ER``.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If the target needs a wall cell COARSER than the uniform mesh already</span>
+<span class="sd">        gives, which no amount of clustering can reach: clustering only</span>
+<span class="sd">        refines.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">probe</span> <span class="o">=</span> <span class="n">build_duct_grid</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="o">**</span><span class="n">kwargs</span><span class="p">,</span> <span class="s2">&quot;cluster&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">i0</span><span class="p">,</span> <span class="n">j0</span><span class="p">,</span> <span class="n">k0</span> <span class="o">=</span> <span class="n">probe</span><span class="o">.</span><span class="n">ni</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="n">probe</span><span class="o">.</span><span class="n">nj</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="n">probe</span><span class="o">.</span><span class="n">nk</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">probe</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="n">i0</span><span class="p">,</span> <span class="n">j0</span><span class="p">,</span> <span class="n">k0</span><span class="p">])</span>
+    <span class="n">mu</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">probe</span><span class="o">.</span><span class="n">mu</span><span class="p">[</span><span class="n">i0</span><span class="p">,</span> <span class="n">j0</span><span class="p">,</span> <span class="n">k0</span><span class="p">])</span>
+    <span class="n">U</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+            <span class="n">probe</span><span class="o">.</span><span class="n">Vx</span><span class="p">[</span><span class="n">i0</span><span class="p">,</span> <span class="n">j0</span><span class="p">,</span> <span class="n">k0</span><span class="p">]</span> <span class="o">**</span> <span class="mi">2</span>
+            <span class="o">+</span> <span class="n">probe</span><span class="o">.</span><span class="n">Vr</span><span class="p">[</span><span class="n">i0</span><span class="p">,</span> <span class="n">j0</span><span class="p">,</span> <span class="n">k0</span><span class="p">]</span> <span class="o">**</span> <span class="mi">2</span>
+            <span class="o">+</span> <span class="n">probe</span><span class="o">.</span><span class="n">Vt</span><span class="p">[</span><span class="n">i0</span><span class="p">,</span> <span class="n">j0</span><span class="p">,</span> <span class="n">k0</span><span class="p">]</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">length</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">probe</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">probe</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">min</span><span class="p">())</span>
+    <span class="n">side</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">probe</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">probe</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">min</span><span class="p">())</span>
+    <span class="n">nj</span> <span class="o">=</span> <span class="n">probe</span><span class="o">.</span><span class="n">nj</span>
+
+    <span class="n">Re_x</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">U</span> <span class="o">*</span> <span class="n">x_ref_frac</span> <span class="o">*</span> <span class="n">length</span> <span class="o">/</span> <span class="n">mu</span>
+    <span class="k">if</span> <span class="n">correlation</span> <span class="o">==</span> <span class="s2">&quot;white&quot;</span><span class="p">:</span>
+        <span class="n">cf</span> <span class="o">=</span> <span class="mf">0.455</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">0.06</span> <span class="o">*</span> <span class="n">Re_x</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+    <span class="k">elif</span> <span class="n">correlation</span> <span class="o">==</span> <span class="s2">&quot;prandtl&quot;</span><span class="p">:</span>
+        <span class="n">cf</span> <span class="o">=</span> <span class="mf">0.0592</span> <span class="o">*</span> <span class="n">Re_x</span><span class="o">**-</span><span class="mf">0.2</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unknown correlation </span><span class="si">{</span><span class="n">correlation</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">u_tau</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">cf</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">U</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">d_target</span> <span class="o">=</span> <span class="n">yplus</span> <span class="o">*</span> <span class="n">mu</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">u_tau</span><span class="p">)</span>
+
+    <span class="c1"># cluster_symmetric lays a pure geometric series on each half-width, so the</span>
+    <span class="c1"># first spacing falls monotonically with ER and a bisection is enough.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">first</span><span class="p">(</span><span class="n">ER</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">side</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">util</span><span class="o">.</span><span class="n">cluster_symmetric</span><span class="p">(</span><span class="n">nj</span><span class="p">,</span> <span class="n">ER</span><span class="p">))[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="mf">1e-7</span><span class="p">,</span> <span class="mf">3.0</span>
+    <span class="k">if</span> <span class="n">first</span><span class="p">(</span><span class="n">lo</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">d_target</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;yplus=</span><span class="si">{</span><span class="n">yplus</span><span class="si">}</span><span class="s2"> needs a wall cell of </span><span class="si">{</span><span class="n">d_target</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2">, which is &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;COARSER than the uniform mesh already gives (</span><span class="si">{</span><span class="n">first</span><span class="p">(</span><span class="n">lo</span><span class="p">)</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2">). &quot;</span>
+            <span class="s2">&quot;Clustering can only refine the wall, so this target is &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;unreachable at nj=</span><span class="si">{</span><span class="n">nj</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">200</span><span class="p">):</span>
+        <span class="n">mid</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">lo</span> <span class="o">+</span> <span class="n">hi</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">first</span><span class="p">(</span><span class="n">mid</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">d_target</span><span class="p">:</span>
+            <span class="n">lo</span> <span class="o">=</span> <span class="n">mid</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">hi</span> <span class="o">=</span> <span class="n">mid</span>
+    <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">lo</span> <span class="o">+</span> <span class="n">hi</span><span class="p">)</span></div>
 
 </pre></div>
 

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.block &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>ember.block &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../../_static/documentation_options.js?v=798078b6"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -521,6 +521,7 @@
 <span class="sd">   Block.scratch</span>
 <span class="sd">   Block.store</span>
 <span class="sd">   Block.tau_q_faces</span>
+<span class="sd">   Block.weight_mgrid</span>
 
 <span class="sd">Nondimensional:</span>
 
@@ -1062,6 +1063,259 @@
 <span class="c1"># cannot ask for a coarser hierarchy than the arena was built to hold.</span>
 <span class="n">MAX_MG_LEVELS</span> <span class="o">=</span> <span class="mi">3</span>
 
+<span class="c1"># Bounds on the node-targeted prolongation weights, which unlike the</span>
+<span class="c1"># cell-targeted ones are allowed outside [0, 1] (see _mg_project). A blend</span>
+<span class="c1"># coefficient outside these is not the genuine excursion the node bracket exists</span>
+<span class="c1"># to permit -- that reaches about -0.06 at expansion ratio 1.5 -- but an</span>
+<span class="c1"># ill-conditioned projection onto a coarse edge much shorter than the target&#39;s</span>
+<span class="c1"># offset from it, which a skewed mesh clustered to a wall can produce. Bounding</span>
+<span class="c1"># it caps each pass&#39;s gain |1-w| + |w| at 1.5, so the three composed cannot</span>
+<span class="c1"># amplify a coarse correction by more than 3.4 whatever the mesh does.</span>
+<span class="n">MG_W_LO</span><span class="p">,</span> <span class="n">MG_W_HI</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">1.25</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mg_n_hops</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">n_max</span><span class="o">=</span><span class="n">MAX_MG_LEVELS</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Factor-2 prolongation hops the cell counts of `shape` actually admit.</span>
+
+<span class="sd">    Hop ``m`` interpolates onto a target of ``(cells)/2**(m-1)`` from a source</span>
+<span class="sd">    half that size, so it exists only while the target extent is still even in</span>
+<span class="sd">    every direction. :func:`ember.solver._validate_mg` guarantees at least</span>
+<span class="sd">    ``n_levels`` of them; this counts what the geometry supports, so a grid that</span>
+<span class="sd">    divides twice is never asked for a third hop.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nc</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]</span>
+    <span class="n">hops</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">hops</span> <span class="o">&lt;</span> <span class="n">n_max</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">n</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">nc</span><span class="p">):</span>
+        <span class="n">hops</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">nc</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="o">//</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">nc</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">hops</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mg_weight_lengths</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">n_hops</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Element count of each direction&#39;s packed prolongation weights.</span>
+
+<span class="sd">    Mirrors ``mg_weight_offsets`` in ``scree.f90``, which is the source of truth</span>
+<span class="sd">    for the layout: hops run finest first, and the three directions pack</span>
+<span class="sd">    separately because the three interpolation passes resolve i, then j, then k,</span>
+<span class="sd">    and so carry different mixes of fine and coarse extents --</span>
+<span class="sd">    ``wi(tfi, tfj/2, tfk/2)``, ``wj(tfi, tfj, tfk/2)``, ``wk(tfi, tfj, tfk)``.</span>
+<span class="sd">    Keep the two in step.</span>
+
+<span class="sd">    Hop 1 is the exception: it is the final hop and targets the fine NODES, so</span>
+<span class="sd">    its three target extents are ``(ni, nj, nk)`` rather than the cell counts,</span>
+<span class="sd">    over the same coarse extents. Hops 2 and up are coarse-&gt;coarse and stay</span>
+<span class="sd">    cell-shaped.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">shape</span>
+    <span class="n">li</span> <span class="o">=</span> <span class="n">lj</span> <span class="o">=</span> <span class="n">lk</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_hops</span><span class="p">):</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="n">m</span>
+        <span class="n">tfi</span><span class="p">,</span> <span class="n">tfj</span><span class="p">,</span> <span class="n">tfk</span> <span class="o">=</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="n">d</span><span class="p">,</span> <span class="p">(</span><span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="n">d</span><span class="p">,</span> <span class="p">(</span><span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="n">d</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">li</span> <span class="o">+=</span> <span class="n">ni</span> <span class="o">*</span> <span class="p">((</span><span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="p">((</span><span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">lj</span> <span class="o">+=</span> <span class="n">ni</span> <span class="o">*</span> <span class="n">nj</span> <span class="o">*</span> <span class="p">((</span><span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">lk</span> <span class="o">+=</span> <span class="n">ni</span> <span class="o">*</span> <span class="n">nj</span> <span class="o">*</span> <span class="n">nk</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">li</span> <span class="o">+=</span> <span class="n">tfi</span> <span class="o">*</span> <span class="p">(</span><span class="n">tfj</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">tfk</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">lj</span> <span class="o">+=</span> <span class="n">tfi</span> <span class="o">*</span> <span class="n">tfj</span> <span class="o">*</span> <span class="p">(</span><span class="n">tfk</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">lk</span> <span class="o">+=</span> <span class="n">tfi</span> <span class="o">*</span> <span class="n">tfj</span> <span class="o">*</span> <span class="n">tfk</span>
+    <span class="k">return</span> <span class="n">li</span><span class="p">,</span> <span class="n">lj</span><span class="p">,</span> <span class="n">lk</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mg_index_bracket</span><span class="p">(</span><span class="n">n_fine</span><span class="p">,</span> <span class="n">n_coarse</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;``lo``/``hi`` exactly as ``mg_bracket2x`` computes them, 0-based.&quot;&quot;&quot;</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_fine</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">+</span> <span class="mf">0.5</span>
+    <span class="n">icl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">lo</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">icl</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">icl</span> <span class="o">&gt;=</span> <span class="n">n_coarse</span><span class="p">,</span> <span class="n">n_coarse</span><span class="p">,</span> <span class="n">icl</span><span class="p">))</span>
+    <span class="n">hi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">icl</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">icl</span> <span class="o">&gt;=</span> <span class="n">n_coarse</span><span class="p">,</span> <span class="n">n_coarse</span><span class="p">,</span> <span class="n">icl</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">lo</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">hi</span> <span class="o">-</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mg_index_bracket_node</span><span class="p">(</span><span class="n">n_node</span><span class="p">,</span> <span class="n">n_coarse</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;``lo``/``hi`` exactly as ``mg_bracket2x_node`` computes them, 0-based.</span>
+
+<span class="sd">    The final hop&#39;s bracket. Unlike the cell one this pair does NOT always</span>
+<span class="sd">    contain the node it serves: the coarse centroid is the volume-weighted mean</span>
+<span class="sd">    of its two children, so it sits off the node between them, on whichever side</span>
+<span class="sd">    the local stretching puts it. :func:`_mg_project` is what accommodates that,</span>
+<span class="sd">    by declining to clamp in the interior.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_node</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">lo</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">i</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">n_coarse</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">lo</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">lo</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n_coarse</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mg_project</span><span class="p">(</span><span class="n">Pf</span><span class="p">,</span> <span class="n">Plo</span><span class="p">,</span> <span class="n">Phi</span><span class="p">,</span> <span class="n">clamp_lo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">clamp_hi</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fractional position of ``Pf`` along ``Plo``-&gt;``Phi``.</span>
+
+<span class="sd">    Exact whenever the coarse cell is a parallelepiped, which covers every</span>
+<span class="sd">    separable mesh; an approximation to the inverse trilinear map otherwise.</span>
+
+<span class="sd">    Clamped to [0, 1] only where ``clamp_lo``/``clamp_hi`` say the bracket is at</span>
+<span class="sd">    the end of the coarse direction, which is the flat extrapolation past the</span>
+<span class="sd">    outer coarse centroids. Elsewhere the weight passes through, so a target</span>
+<span class="sd">    lying just outside its fixed bracket -- which every second fine NODE does on</span>
+<span class="sd">    a stretched mesh -- is extrapolated the few percent of a coarse cell it</span>
+<span class="sd">    needs rather than flattened onto the near centroid. That excursion is</span>
+<span class="sd">    bounded by the clustering: on a geometrically stretched line it reaches only</span>
+<span class="sd">    about -0.04 at expansion ratio 1.2 and -0.06 at 1.5.</span>
+
+<span class="sd">    Only bounded by it, though, not guaranteed by it. The projection divides by</span>
+<span class="sd">    ``|Phi - Plo|**2``, so a target displaced from its bracket by much more than</span>
+<span class="sd">    the bracket is long returns a blend coefficient of any size at all -- and a</span>
+<span class="sd">    coarse edge IS that short wherever the mesh is clustered to a wall. The</span>
+<span class="sd">    caller is what keeps the displacement small (:func:`_mg_hop_weights_node`</span>
+<span class="sd">    anchors each pass where the last one landed), and ``MG_W_LO``/``MG_W_HI``</span>
+<span class="sd">    are the backstop, enforcing what the paragraph above can otherwise only</span>
+<span class="sd">    assert. They sit about four times outside the genuine excursion, so they</span>
+<span class="sd">    engage on the ill-conditioned projection and nothing else.</span>
+
+<span class="sd">    Passing neither mask clamps to [0, 1] everywhere, which is what the</span>
+<span class="sd">    cell-targeted hops want: their bracket provably contains every fine cell</span>
+<span class="sd">    centroid, so a weight outside [0, 1] there could only be a degenerate cell.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Phi</span> <span class="o">-</span> <span class="n">Plo</span>
+    <span class="n">den</span> <span class="o">=</span> <span class="p">(</span><span class="n">e</span> <span class="o">*</span> <span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">num</span> <span class="o">=</span> <span class="p">((</span><span class="n">Pf</span> <span class="o">-</span> <span class="n">Plo</span><span class="p">)</span> <span class="o">*</span> <span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">den</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">num</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">den</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">den</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">clamp_lo</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">clamp_lo</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">w</span><span class="p">)</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">clamp_hi</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="n">w</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">MG_W_LO</span><span class="p">,</span> <span class="n">MG_W_HI</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mg_hop_weights</span><span class="p">(</span><span class="n">Pc</span><span class="p">,</span> <span class="n">Pf</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One factor-2 hop&#39;s weights, matching the kernel&#39;s three-pass structure.</span>
+
+<span class="sd">    Pass I resolves ``i`` while ``j``/``k`` are still coarse, pass J resolves</span>
+<span class="sd">    ``j`` while ``k`` is coarse, pass K resolves ``k`` -- so each pass carries a</span>
+<span class="sd">    different mix of fine and coarse extents and the weights follow suit.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nfi</span><span class="p">,</span> <span class="n">nfj</span><span class="p">,</span> <span class="n">nfk</span> <span class="o">=</span> <span class="n">Pf</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">nci</span><span class="p">,</span> <span class="n">ncj</span><span class="p">,</span> <span class="n">nck</span> <span class="o">=</span> <span class="n">Pc</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">il</span><span class="p">,</span> <span class="n">ih</span> <span class="o">=</span> <span class="n">_mg_index_bracket</span><span class="p">(</span><span class="n">nfi</span><span class="p">,</span> <span class="n">nci</span><span class="p">)</span>
+    <span class="n">jl</span><span class="p">,</span> <span class="n">jh</span> <span class="o">=</span> <span class="n">_mg_index_bracket</span><span class="p">(</span><span class="n">nfj</span><span class="p">,</span> <span class="n">ncj</span><span class="p">)</span>
+    <span class="n">kl</span><span class="p">,</span> <span class="n">kh</span> <span class="o">=</span> <span class="n">_mg_index_bracket</span><span class="p">(</span><span class="n">nfk</span><span class="p">,</span> <span class="n">nck</span><span class="p">)</span>
+    <span class="n">jmid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ncj</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span>
+    <span class="n">kmid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nck</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span>
+    <span class="n">ic</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nfi</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="n">nci</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">jc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nfj</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="n">ncj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">wi</span> <span class="o">=</span> <span class="n">_mg_project</span><span class="p">(</span><span class="n">Pf</span><span class="p">[:,</span> <span class="n">jmid</span><span class="p">][:,</span> <span class="p">:,</span> <span class="n">kmid</span><span class="p">],</span> <span class="n">Pc</span><span class="p">[</span><span class="n">il</span><span class="p">],</span> <span class="n">Pc</span><span class="p">[</span><span class="n">ih</span><span class="p">])</span>
+    <span class="n">Pci</span> <span class="o">=</span> <span class="n">Pc</span><span class="p">[</span><span class="n">ic</span><span class="p">]</span>
+    <span class="n">wj</span> <span class="o">=</span> <span class="n">_mg_project</span><span class="p">(</span><span class="n">Pf</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">kmid</span><span class="p">],</span> <span class="n">Pci</span><span class="p">[:,</span> <span class="n">jl</span><span class="p">],</span> <span class="n">Pci</span><span class="p">[:,</span> <span class="n">jh</span><span class="p">])</span>
+    <span class="n">Pcij</span> <span class="o">=</span> <span class="n">Pci</span><span class="p">[:,</span> <span class="n">jc</span><span class="p">]</span>
+    <span class="n">wk</span> <span class="o">=</span> <span class="n">_mg_project</span><span class="p">(</span><span class="n">Pf</span><span class="p">,</span> <span class="n">Pcij</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">kl</span><span class="p">],</span> <span class="n">Pcij</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">kh</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">wi</span><span class="p">,</span> <span class="n">wj</span><span class="p">,</span> <span class="n">wk</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mg_hop_weights_node</span><span class="p">(</span><span class="n">Pc</span><span class="p">,</span> <span class="n">Pn</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The final hop&#39;s weights: coarse cell centroids onto the fine NODES.</span>
+
+<span class="sd">    Same three-pass structure as :func:`_mg_hop_weights` -- pass I resolves</span>
+<span class="sd">    ``i`` while ``j``/``k`` are still coarse, and so on -- but each pass now</span>
+<span class="sd">    lands on node positions, so the target extents are ``(ni, nj, nk)``.</span>
+
+<span class="sd">    Each pass is anchored where the LAST one landed. Pass J blends two values</span>
+<span class="sd">    that pass I has already placed at node ``i``, so the segment its weight</span>
+<span class="sd">    measures along runs between those two positions -- the coarse centroids</span>
+<span class="sd">    interpolated in i with the very ``wi`` the values were -- and not between</span>
+<span class="sd">    the coarse centroids at some representative i index. Taking the bracket&#39;s</span>
+<span class="sd">    ``lo`` for that index instead, which is what this used to do, leaves the</span>
+<span class="sd">    target displaced from its own segment by up to half a coarse i cell; that</span>
+<span class="sd">    displacement is then projected onto the coarse j edge, and where the mesh is</span>
+<span class="sd">    clustered to a wall the edge is the shorter of the two by an order of</span>
+<span class="sd">    magnitude. On the LISA rotor it produced blend coefficients of -25 at the</span>
+<span class="sd">    casing, which the fine grid then applied to the coarse correction at full</span>
+<span class="sd">    weight. Pass K is anchored on pass J&#39;s output for the same reason.</span>
+
+<span class="sd">    The clamp, meanwhile, is applied only at the ends of each coarse direction,</span>
+<span class="sd">    because a node is not guaranteed to lie inside the pair its index picks.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nni</span><span class="p">,</span> <span class="n">nnj</span><span class="p">,</span> <span class="n">nnk</span> <span class="o">=</span> <span class="n">Pn</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">nci</span><span class="p">,</span> <span class="n">ncj</span><span class="p">,</span> <span class="n">nck</span> <span class="o">=</span> <span class="n">Pc</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">il</span><span class="p">,</span> <span class="n">ih</span> <span class="o">=</span> <span class="n">_mg_index_bracket_node</span><span class="p">(</span><span class="n">nni</span><span class="p">,</span> <span class="n">nci</span><span class="p">)</span>
+    <span class="n">jl</span><span class="p">,</span> <span class="n">jh</span> <span class="o">=</span> <span class="n">_mg_index_bracket_node</span><span class="p">(</span><span class="n">nnj</span><span class="p">,</span> <span class="n">ncj</span><span class="p">)</span>
+    <span class="n">kl</span><span class="p">,</span> <span class="n">kh</span> <span class="o">=</span> <span class="n">_mg_index_bracket_node</span><span class="p">(</span><span class="n">nnk</span><span class="p">,</span> <span class="n">nck</span><span class="p">)</span>
+    <span class="c1"># Representative node for each coarse index, in a direction not yet</span>
+    <span class="c1"># resolved: the node at that coarse cell&#39;s centre. Coarse cell m spans fine</span>
+    <span class="c1"># cells 2m-1 and 2m, so that node is 1-based 2m, i.e. 0-based 2m-1.</span>
+    <span class="n">jmid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ncj</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nnj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">kmid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nck</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nnk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">ends</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">,</span> <span class="n">nc</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Where the pair sits at an end of the coarse direction.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">lo</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">hi</span> <span class="o">==</span> <span class="n">nc</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="n">ilo</span><span class="p">,</span> <span class="n">ihi</span> <span class="o">=</span> <span class="n">ends</span><span class="p">(</span><span class="n">il</span><span class="p">,</span> <span class="n">ih</span><span class="p">,</span> <span class="n">nci</span><span class="p">)</span>
+    <span class="n">wi</span> <span class="o">=</span> <span class="n">_mg_project</span><span class="p">(</span>
+        <span class="n">Pn</span><span class="p">[:,</span> <span class="n">jmid</span><span class="p">][:,</span> <span class="p">:,</span> <span class="n">kmid</span><span class="p">],</span>
+        <span class="n">Pc</span><span class="p">[</span><span class="n">il</span><span class="p">],</span>
+        <span class="n">Pc</span><span class="p">[</span><span class="n">ih</span><span class="p">],</span>
+        <span class="n">ilo</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span>
+        <span class="n">ihi</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="c1"># Where pass I leaves its values: the coarse centroids carried through the</span>
+    <span class="c1"># same blend the kernel applies to the field. Node 1 is the exception the</span>
+    <span class="c1"># kernel hardcodes (mg_interp_i2x_node&#39;s `cout(1) = cin(1)`), so its</span>
+    <span class="c1"># position is the first coarse centroid whatever wi holds there.</span>
+    <span class="n">Pci</span> <span class="o">=</span> <span class="n">Pc</span><span class="p">[</span><span class="n">il</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">wi</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span> <span class="o">+</span> <span class="n">Pc</span><span class="p">[</span><span class="n">ih</span><span class="p">]</span> <span class="o">*</span> <span class="n">wi</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">Pci</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">Pc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">jlo</span><span class="p">,</span> <span class="n">jhi</span> <span class="o">=</span> <span class="n">ends</span><span class="p">(</span><span class="n">jl</span><span class="p">,</span> <span class="n">jh</span><span class="p">,</span> <span class="n">ncj</span><span class="p">)</span>
+    <span class="n">wj</span> <span class="o">=</span> <span class="n">_mg_project</span><span class="p">(</span>
+        <span class="n">Pn</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">kmid</span><span class="p">],</span>
+        <span class="n">Pci</span><span class="p">[:,</span> <span class="n">jl</span><span class="p">],</span>
+        <span class="n">Pci</span><span class="p">[:,</span> <span class="n">jh</span><span class="p">],</span>
+        <span class="n">jlo</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:,</span> <span class="kc">None</span><span class="p">],</span>
+        <span class="n">jhi</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:,</span> <span class="kc">None</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="n">Pcij</span> <span class="o">=</span> <span class="n">Pci</span><span class="p">[:,</span> <span class="n">jl</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">wj</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span> <span class="o">+</span> <span class="n">Pci</span><span class="p">[:,</span> <span class="n">jh</span><span class="p">]</span> <span class="o">*</span> <span class="n">wj</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">klo</span><span class="p">,</span> <span class="n">khi</span> <span class="o">=</span> <span class="n">ends</span><span class="p">(</span><span class="n">kl</span><span class="p">,</span> <span class="n">kh</span><span class="p">,</span> <span class="n">nck</span><span class="p">)</span>
+    <span class="n">wk</span> <span class="o">=</span> <span class="n">_mg_project</span><span class="p">(</span>
+        <span class="n">Pn</span><span class="p">,</span> <span class="n">Pcij</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">kl</span><span class="p">],</span> <span class="n">Pcij</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">kh</span><span class="p">],</span> <span class="n">klo</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:],</span> <span class="n">khi</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">wi</span><span class="p">,</span> <span class="n">wj</span><span class="p">,</span> <span class="n">wk</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mg_centroid_ladder</span><span class="p">(</span><span class="n">xrt_nd</span><span class="p">,</span> <span class="n">vol_nd</span><span class="p">,</span> <span class="n">n_hops</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Nodes, cell centroids of the fine grid, and each coarser block level.</span>
+
+<span class="sd">    Returns ``(nodes, levels)``. Cartesian, so that a projection along a coarse</span>
+<span class="sd">    cell edge means what it says in an annulus. Coarse levels take the</span>
+<span class="sd">    VOLUME-weighted centroid of their eight children, which is the position the</span>
+<span class="sd">    block-sum residual is balanced about. The node positions are what the final</span>
+<span class="sd">    prolongation hop interpolates onto, and they fall out of the same stack the</span>
+<span class="sd">    fine centroids are averaged from.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xrt_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+    <span class="n">nodes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="n">r</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">t</span><span class="p">),</span> <span class="n">r</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">t</span><span class="p">)],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="n">nodes</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">P</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">P</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">P</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">P</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">c</span> <span class="o">+</span> <span class="n">P</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">P</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="n">P</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="n">P</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="n">c</span> <span class="o">/</span> <span class="mf">8.0</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">vol_nd</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="n">levels</span> <span class="o">=</span> <span class="p">[</span><span class="n">P</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_hops</span><span class="p">):</span>
+        <span class="n">sh</span> <span class="o">=</span> <span class="n">P</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">rP</span> <span class="o">=</span> <span class="n">P</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">sh</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">sh</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">sh</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="n">sv</span> <span class="o">=</span> <span class="n">V</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">rV</span> <span class="o">=</span> <span class="n">V</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">sv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">sv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">sv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">V</span> <span class="o">=</span> <span class="n">rV</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+        <span class="c1"># Degenerate blocks (any zero-volume child, as in the wiring-only test</span>
+        <span class="c1"># grids) leave the volume weights undefined; fall back to the plain mean</span>
+        <span class="c1"># of the child centroids there rather than dividing by zero.</span>
+        <span class="n">ok</span> <span class="o">=</span> <span class="n">V</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">0.0</span>
+        <span class="n">P</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">ok</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">rP</span> <span class="o">*</span> <span class="n">rV</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">ok</span><span class="p">,</span> <span class="n">V</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span> <span class="mf">1.0</span><span class="p">),</span>
+            <span class="n">rP</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">)),</span>
+        <span class="p">)</span>
+        <span class="n">levels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">P</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">levels</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_viscous_face_shapes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Shapes of the six boundary tau/q face buffers, in tau_q_faces order.&quot;&quot;&quot;</span>
@@ -1095,9 +1349,9 @@
 <span class="sd">                       alongside either&#39;s other buffers</span>
 <span class="sd">      update_residual  set_residual&#39;s rolling planes and rows + the IRS work</span>
 <span class="sd">                       vector</span>
-<span class="sd">      scree / RK, MG   the eleven multigrid coarse buffers + the caller&#39;s</span>
+<span class="sd">      scree / RK, MG   the twelve multigrid coarse buffers + the caller&#39;s</span>
 <span class="sd">                       rolling two-plane increment (both schemes fuse the</span>
-<span class="sd">                       final prolong with the cell-&gt;node scatter)</span>
+<span class="sd">                       final prolong with the fine term&#39;s cell-&gt;node scatter)</span>
 <span class="sd">      scree / RK, no MG  the caller&#39;s full-volume cell-shaped increment, which</span>
 <span class="sd">                       the multigrid-off kernels still materialise</span>
 
@@ -2716,9 +2970,9 @@
 <span class="sd">        cache hit.</span>
 
 <span class="sd">        Three things this forms are NOT published, each because a consumer</span>
-<span class="sd">        derives it where it walks instead: the velocity (see</span>
-<span class="sd">        :attr:`_Vxrt_nd_uninit`), the kinetic energy</span>
-<span class="sd">        (:attr:`_halfVsq_nd_uninit`) and the stagnation enthalpy</span>
+<span class="sd">        derives it where it walks instead: the velocity and the kinetic energy,</span>
+<span class="sd">        which the kernels needing them rebuild from the conserved state as they</span>
+<span class="sd">        sweep rather than reading a stored copy, and the stagnation enthalpy</span>
 <span class="sd">        (:attr:`ho_nd`, which ``set_residual`` builds from ``cons`` and the</span>
 <span class="sd">        pressure at its own face corners).</span>
 
@@ -2890,10 +3144,13 @@
 
 <span class="sd">        Stateful selective-frequency-damping scratch: seeded to the current</span>
 <span class="sd">        cell-averaged conserved state on first access, then evolved each step by</span>
-<span class="sd">        ``adapt_cfl`` and read by the SFD body force. The no-key</span>
-<span class="sd">        ``cached_array`` allocates it once and never invalidates it; read-only</span>
-<span class="sd">        to consumers, and its one writer (``set_cfl``) toggles</span>
-<span class="sd">        ``flags.writeable`` around its writes.</span>
+<span class="sd">        :meth:`ember.grid.Grid.update_filter` and read by the SFD body force in</span>
+<span class="sd">        :meth:`ember.grid.Grid.update_sources`. Only allocated when</span>
+<span class="sd">        ``Solver.gain_filt`` is nonzero, since nothing else touches it. The</span>
+<span class="sd">        no-key ``cached_array`` allocates it once and never invalidates it;</span>
+<span class="sd">        read-only to consumers, and its one writer</span>
+<span class="sd">        (:meth:`~ember.grid.Grid.update_filter`) toggles ``flags.writeable``</span>
+<span class="sd">        around its writes.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">out</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">allocate_or_reuse</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_cell</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,))</span>
         <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">node_to_cell</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
@@ -3113,9 +3370,12 @@
 <span class="sd">        This copies the metadata dict and but clears patches,</span>
 <span class="sd">        since 2D spatial patches have no meaning on a 1D flattened layout.</span>
 
-<span class="sd">        Points are ordered Fortran-style; see</span>
-<span class="sd">        :py:attr:`ember._struct.StructuredData.flat` for the ordering and for</span>
-<span class="sd">        when this raises.</span>
+<span class="sd">        Points are ordered Fortran-style, with the first axis varying fastest,</span>
+<span class="sd">        matching the column-major layout of the backing array. That ordering is</span>
+<span class="sd">        what makes the result a view rather than a copy, so anything reshaping</span>
+<span class="sd">        the result back must pass ``order=&quot;F&quot;``. Raises ``ValueError`` if this</span>
+<span class="sd">        instance is a non-contiguous view that cannot be flattened without</span>
+<span class="sd">        copying.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
@@ -3647,7 +3907,7 @@
 
     <span class="nd">@scratch_array</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">scratch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Shared scratch arena, flat, sized by :func:`_scratch_len`.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Shared scratch arena, flat, sized to the most demanding phase of a step.</span>
 
 <span class="sd">        Pure transient scratch. This is shared, throwaway kernel</span>
 <span class="sd">        workspace, NOT a cached value. Its contents are meaningless between</span>
@@ -3666,8 +3926,8 @@
 <span class="sd">        trio the viscous kernels read, the nodal acoustic</span>
 <span class="sd">        speed ``set_timestep_spectral`` reads, ``set_residual``&#39;s</span>
 <span class="sd">        and ``set_visc_force``&#39;s rolling planes and rows, the IRS work vector,</span>
-<span class="sd">        and the multigrid coarse scratch. :func:`_scratch_len` sizes it from</span>
-<span class="sd">        the worst phase; the phases are listed there.</span>
+<span class="sd">        and the multigrid coarse scratch. The arena is sized from whichever</span>
+<span class="sd">        phase needs most, so every phase fits without it being resized.</span>
 
 <span class="sd">        THE RULE, and it is the whole safety argument. Buffers that reach the</span>
 <span class="sd">        same kernel call must come from ONE ``util.carve_view``, which packs</span>
@@ -4056,6 +4316,69 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">wdist_nd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Nondimensional distance to nearest wall :math:`w/L_\mathrm{ref}` [-], nodal array.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;wdist&quot;</span><span class="p">,))</span>
+
+    <span class="nd">@cached_object</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">weight_mgrid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Multigrid prolongation interpolation weights :math:`w` [-], per direction.</span>
+
+<span class="sd">        The multigrid coarse correction is carried back to the fine grid by a</span>
+<span class="sd">        separable factor-2 linear interpolation. Which pair of coarse cells a</span>
+<span class="sd">        target falls between is index arithmetic (``mg_bracket2x``, or</span>
+<span class="sd">        ``mg_bracket2x_node`` for the final hop) and stays so, but where it sits</span>
+<span class="sd">        BETWEEN them is geometry: the fractional position of the target along</span>
+<span class="sd">        the edge joining the two coarse centroids, taken volume-weighted so it</span>
+<span class="sd">        is the point the block-sum residual is balanced about. Placing every</span>
+<span class="sd">        target at ``(i - 0.5)/2 + 0.5`` instead, as this used to, is linear</span>
+<span class="sd">        interpolation only on a mesh uniform in physical space; on one clustered</span>
+<span class="sd">        towards a wall it is not, and that is the mesh on which the block-sum</span>
+<span class="sd">        correction goes unstable.</span>
+
+<span class="sd">        The final hop&#39;s target is the fine NODES, not the fine cell centres:</span>
+<span class="sd">        that is where the correction is applied, and interpolating onto the</span>
+<span class="sd">        centres and averaging back out would evaluate the interpolant at the</span>
+<span class="sd">        mean of the eight surrounding centroids, a point offset from the node by</span>
+<span class="sd">        ``(h_next - h_prev)/4`` on a stretched mesh. Hops 2 and up are</span>
+<span class="sd">        coarse-&gt;coarse and stay cell-targeted.</span>
+
+<span class="sd">        That hop&#39;s three passes are each anchored on the positions the previous</span>
+<span class="sd">        one produced, and its weights are bounded (``MG_W_LO``/``MG_W_HI``).</span>
+<span class="sd">        Both matter on a sheared mesh clustered to a wall, where the projection</span>
+<span class="sd">        placing each target along the edge between its two coarse centroids is</span>
+<span class="sd">        otherwise ill-conditioned enough to turn the prolongation into an</span>
+<span class="sd">        amplifier.</span>
+
+<span class="sd">        Returns the ``(wi, wj, wk)`` the kernels take, one flat array per</span>
+<span class="sd">        direction -- the three interpolation passes resolve i, then j, then k,</span>
+<span class="sd">        so each carries a different mix of fine and coarse extents. Within each</span>
+<span class="sd">        array the hops run finest first, matching ``mg_weight_offsets`` in</span>
+<span class="sd">        ``scree.f90``; indexing hops from the fine grid down is what keeps the</span>
+<span class="sd">        layout independent of ``n_levels``, so one cache serves any level count.</span>
+
+<span class="sd">        Cached and never invalidated, as :attr:`ijk_wall_conv` is: the</span>
+<span class="sd">        coordinates must not be modified after first access. Nothing in a march</span>
+<span class="sd">        does -- :meth:`ember.grid.Grid.resample` returns new blocks rather than</span>
+<span class="sd">        moving an existing one -- and :meth:`clear_cache` is the way out if</span>
+<span class="sd">        something ever does. Emphatically not solver scratch either way: unlike</span>
+<span class="sd">        :attr:`scratch` this has to survive the step. Costs about 14 bytes per</span>
+<span class="sd">        fine cell -- hop 1&#39;s ``wk`` alone is one float per node -- and being lazy</span>
+<span class="sd">        it is never built by a run with multigrid off.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n_hops</span> <span class="o">=</span> <span class="n">_mg_n_hops</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">n_hops</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+        <span class="n">nodes</span><span class="p">,</span> <span class="n">levels</span> <span class="o">=</span> <span class="n">_mg_centroid_ladder</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_xrt_nd</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">vol_nd</span><span class="p">,</span> <span class="n">n_hops</span><span class="p">)</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="p">([],</span> <span class="p">[],</span> <span class="p">[])</span>
+        <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_hops</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="c1"># Hop m interpolates the coarser level m onto level m-1, except hop</span>
+            <span class="c1"># 1, the final one, which lands on the nodes rather than level 0.</span>
+            <span class="n">trio</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">_mg_hop_weights_node</span><span class="p">(</span><span class="n">levels</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">nodes</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">m</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="k">else</span> <span class="n">_mg_hop_weights</span><span class="p">(</span><span class="n">levels</span><span class="p">[</span><span class="n">m</span><span class="p">],</span> <span class="n">levels</span><span class="p">[</span><span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">buf</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">parts</span><span class="p">,</span> <span class="n">trio</span><span class="p">):</span>
+                <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">b</span><span class="p">))</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">)</span>
 
     <span class="nd">@cached_array</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">x</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out</span><span class="p">):</span>

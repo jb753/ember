@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Block &#8212; ember 0.2.1.dev68+g18eb15532 documentation</title>
+    <title>Block &#8212; ember 0.2.1.dev94+gfc50b316e documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=b2f063ce"></script>
+    <script src="../_static/documentation_options.js?v=798078b6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev68+g18eb15532</p>
+<p class="blurb">Version 0.2.1.dev94+gfc50b316e</p>
 
 
 
@@ -267,6 +267,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Vz"><code class="docutils literal notranslate"><span class="pre">block.Block.Vz</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.wdist"><code class="docutils literal notranslate"><span class="pre">block.Block.wdist</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.wdist_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.wdist_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.weight_mgrid"><code class="docutils literal notranslate"><span class="pre">block.Block.weight_mgrid</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.x"><code class="docutils literal notranslate"><span class="pre">block.Block.x</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.xr"><code class="docutils literal notranslate"><span class="pre">block.Block.xr</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.xrrt"><code class="docutils literal notranslate"><span class="pre">block.Block.xrrt</span></code></a></li>
@@ -982,13 +983,16 @@ conserved variables themselves.</p>
 <td><p>Per-face wall indicator dict for the viscous kernel.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.scratch" title="ember.block.Block.scratch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.scratch</span></code></a></p></td>
-<td><p>Shared scratch arena, flat, sized by <code class="xref py py-func docutils literal notranslate"><span class="pre">_scratch_len()</span></code>.</p></td>
+<td><p>Shared scratch arena, flat, sized to the most demanding phase of a step.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.store" title="ember.block.Block.store"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.store</span></code></a></p></td>
 <td><p>Persistent cross-step solver buffer, nodal shape (ni, nj, nk, 5).</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.tau_q_faces" title="ember.block.Block.tau_q_faces"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.tau_q_faces</span></code></a></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">(i1,</span> <span class="pre">ini,</span> <span class="pre">j1,</span> <span class="pre">jnj,</span> <span class="pre">k1,</span> <span class="pre">knk)</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.weight_mgrid" title="ember.block.Block.weight_mgrid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.weight_mgrid</span></code></a></p></td>
+<td><p>Multigrid prolongation interpolation weights <span class="math notranslate nohighlight">\(w\)</span> [-], per direction.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1786,9 +1790,9 @@ such as <a class="reference internal" href="#ember.block.Block.vol_nd" title="em
 loop. Lazily accessing any of those properties afterwards is a fast
 cache hit.</p>
 <p>Three things this forms are NOT published, each because a consumer
-derives it where it walks instead: the velocity (see
-<code class="xref py py-attr docutils literal notranslate"><span class="pre">_Vxrt_nd_uninit</span></code>), the kinetic energy
-(<code class="xref py py-attr docutils literal notranslate"><span class="pre">_halfVsq_nd_uninit</span></code>) and the stagnation enthalpy
+derives it where it walks instead: the velocity and the kinetic energy,
+which the kernels needing them rebuild from the conserved state as they
+sweep rather than reading a stored copy, and the stagnation enthalpy
 (<a class="reference internal" href="#ember.block.Block.ho_nd" title="ember.block.Block.ho_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ho_nd</span></code></a>, which <code class="docutils literal notranslate"><span class="pre">set_residual</span></code> builds from <code class="docutils literal notranslate"><span class="pre">cons</span></code> and the
 pressure at its own face corners).</p>
 <p>Returns early when the caches are already current, so calling it
@@ -1886,10 +1890,13 @@ around their in-place writes.</p>
 <dd><p>Low-pass-filtered cell-centred conserved state, shape (ni-1, nj-1, nk-1, 5).</p>
 <p>Stateful selective-frequency-damping scratch: seeded to the current
 cell-averaged conserved state on first access, then evolved each step by
-<code class="docutils literal notranslate"><span class="pre">adapt_cfl</span></code> and read by the SFD body force. The no-key
-<code class="docutils literal notranslate"><span class="pre">cached_array</span></code> allocates it once and never invalidates it; read-only
-to consumers, and its one writer (<code class="docutils literal notranslate"><span class="pre">set_cfl</span></code>) toggles
-<code class="docutils literal notranslate"><span class="pre">flags.writeable</span></code> around its writes.</p>
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_filter" title="ember.grid.Grid.update_filter"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.update_filter()</span></code></a> and read by the SFD body force in
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.update_sources()</span></code></a>. Only allocated when
+<code class="docutils literal notranslate"><span class="pre">Solver.gain_filt</span></code> is nonzero, since nothing else touches it. The
+no-key <code class="docutils literal notranslate"><span class="pre">cached_array</span></code> allocates it once and never invalidates it;
+read-only to consumers, and its one writer
+(<a class="reference internal" href="grid.html#ember.grid.Grid.update_filter" title="ember.grid.Grid.update_filter"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_filter()</span></code></a>) toggles <code class="docutils literal notranslate"><span class="pre">flags.writeable</span></code>
+around its writes.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -2061,9 +2068,12 @@ cell-volume-integrated source terms
 <dd><p>Flatten all axes into a single axis, returning a view rather than a copy.</p>
 <p>This copies the metadata dict and but clears patches,
 since 2D spatial patches have no meaning on a 1D flattened layout.</p>
-<p>Points are ordered Fortran-style; see
-<code class="xref py py-attr docutils literal notranslate"><span class="pre">ember._struct.StructuredData.flat</span></code> for the ordering and for
-when this raises.</p>
+<p>Points are ordered Fortran-style, with the first axis varying fastest,
+matching the column-major layout of the backing array. That ordering is
+what makes the result a view rather than a copy, so anything reshaping
+the result back must pass <code class="docutils literal notranslate"><span class="pre">order=&quot;F&quot;</span></code>. Raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if this
+instance is a non-contiguous view that cannot be flattened without
+copying.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>out</strong> – A new instance with all points in a single dimension and no patches.</p>
@@ -2468,7 +2478,7 @@ meaningful. See <a class="reference internal" href="fluid.html#datum-state"><spa
 <dl class="py property">
 <dt class="sig sig-object py" id="ember.block.Block.scratch">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">scratch</span></span><a class="headerlink" href="#ember.block.Block.scratch" title="Link to this definition">¶</a></dt>
-<dd><p>Shared scratch arena, flat, sized by <code class="xref py py-func docutils literal notranslate"><span class="pre">_scratch_len()</span></code>.</p>
+<dd><p>Shared scratch arena, flat, sized to the most demanding phase of a step.</p>
 <p>Pure transient scratch. This is shared, throwaway kernel
 workspace, NOT a cached value. Its contents are meaningless between
 kernel calls: every consumer overwrites it on entry and nothing may rely
@@ -2484,8 +2494,8 @@ including the six boundary tau/q face buffers (<a class="reference internal" hre
 trio the viscous kernels read, the nodal acoustic
 speed <code class="docutils literal notranslate"><span class="pre">set_timestep_spectral</span></code> reads, <code class="docutils literal notranslate"><span class="pre">set_residual</span></code>’s
 and <code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code>’s rolling planes and rows, the IRS work vector,
-and the multigrid coarse scratch. <code class="xref py py-func docutils literal notranslate"><span class="pre">_scratch_len()</span></code> sizes it from
-the worst phase; the phases are listed there.</p>
+and the multigrid coarse scratch. The arena is sized from whichever
+phase needs most, so every phase fits without it being resized.</p>
 <p>THE RULE, and it is the whole safety argument. Buffers that reach the
 same kernel call must come from ONE <code class="docutils literal notranslate"><span class="pre">util.carve_view</span></code>, which packs
 them end to end and guarantees they alias distinct storage. Buffers in
@@ -2816,6 +2826,49 @@ only required for viscous runs. Usually populated automatically by
 <dt class="sig sig-object py" id="ember.block.Block.wdist_nd">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">wdist_nd</span></span><a class="headerlink" href="#ember.block.Block.wdist_nd" title="Link to this definition">¶</a></dt>
 <dd><p>Nondimensional distance to nearest wall <span class="math notranslate nohighlight">\(w/L_\mathrm{ref}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.block.Block.weight_mgrid">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">weight_mgrid</span></span><a class="headerlink" href="#ember.block.Block.weight_mgrid" title="Link to this definition">¶</a></dt>
+<dd><p>Multigrid prolongation interpolation weights <span class="math notranslate nohighlight">\(w\)</span> [-], per direction.</p>
+<p>The multigrid coarse correction is carried back to the fine grid by a
+separable factor-2 linear interpolation. Which pair of coarse cells a
+target falls between is index arithmetic (<code class="docutils literal notranslate"><span class="pre">mg_bracket2x</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">mg_bracket2x_node</span></code> for the final hop) and stays so, but where it sits
+BETWEEN them is geometry: the fractional position of the target along
+the edge joining the two coarse centroids, taken volume-weighted so it
+is the point the block-sum residual is balanced about. Placing every
+target at <code class="docutils literal notranslate"><span class="pre">(i</span> <span class="pre">-</span> <span class="pre">0.5)/2</span> <span class="pre">+</span> <span class="pre">0.5</span></code> instead, as this used to, is linear
+interpolation only on a mesh uniform in physical space; on one clustered
+towards a wall it is not, and that is the mesh on which the block-sum
+correction goes unstable.</p>
+<p>The final hop’s target is the fine NODES, not the fine cell centres:
+that is where the correction is applied, and interpolating onto the
+centres and averaging back out would evaluate the interpolant at the
+mean of the eight surrounding centroids, a point offset from the node by
+<code class="docutils literal notranslate"><span class="pre">(h_next</span> <span class="pre">-</span> <span class="pre">h_prev)/4</span></code> on a stretched mesh. Hops 2 and up are
+coarse-&gt;coarse and stay cell-targeted.</p>
+<p>That hop’s three passes are each anchored on the positions the previous
+one produced, and its weights are bounded (<code class="docutils literal notranslate"><span class="pre">MG_W_LO</span></code>/<code class="docutils literal notranslate"><span class="pre">MG_W_HI</span></code>).
+Both matter on a sheared mesh clustered to a wall, where the projection
+placing each target along the edge between its two coarse centroids is
+otherwise ill-conditioned enough to turn the prolongation into an
+amplifier.</p>
+<p>Returns the <code class="docutils literal notranslate"><span class="pre">(wi,</span> <span class="pre">wj,</span> <span class="pre">wk)</span></code> the kernels take, one flat array per
+direction – the three interpolation passes resolve i, then j, then k,
+so each carries a different mix of fine and coarse extents. Within each
+array the hops run finest first, matching <code class="docutils literal notranslate"><span class="pre">mg_weight_offsets</span></code> in
+<code class="docutils literal notranslate"><span class="pre">scree.f90</span></code>; indexing hops from the fine grid down is what keeps the
+layout independent of <code class="docutils literal notranslate"><span class="pre">n_levels</span></code>, so one cache serves any level count.</p>
+<p>Cached and never invalidated, as <a class="reference internal" href="#ember.block.Block.ijk_wall_conv" title="ember.block.Block.ijk_wall_conv"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ijk_wall_conv</span></code></a> is: the
+coordinates must not be modified after first access. Nothing in a march
+does – <a class="reference internal" href="grid.html#ember.grid.Grid.resample" title="ember.grid.Grid.resample"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.resample()</span></code></a> returns new blocks rather than
+moving an existing one – and <a class="reference internal" href="#ember.block.Block.clear_cache" title="ember.block.Block.clear_cache"><code class="xref py py-meth docutils literal notranslate"><span class="pre">clear_cache()</span></code></a> is the way out if
+something ever does. Emphatically not solver scratch either way: unlike
+<a class="reference internal" href="#ember.block.Block.scratch" title="ember.block.Block.scratch"><code class="xref py py-attr docutils literal notranslate"><span class="pre">scratch</span></code></a> this has to survive the step. Costs about 14 bytes per
+fine cell – hop 1’s <code class="docutils literal notranslate"><span class="pre">wk</span></code> alone is one float per node – and being lazy
+it is never built by a run with multigrid off.</p>
 </dd></dl>
 
 <dl class="py property">
