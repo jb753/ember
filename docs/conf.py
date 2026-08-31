@@ -98,9 +98,6 @@ nitpick_ignore = [
     # Objects that do not yet have a documentation page. Remove an entry once
     # the corresponding module gains an autodoc page so the link resolves.
     ("py:class", "ember.collections._LabelledList"),
-    # Private base class, so no page of its own; ``:show-inheritance:`` on
-    # PerfectFluid still emits a reference to it from the rendered "Bases:" line.
-    ("py:class", "ember.fluid._Fluid"),
     ("py:meth", "ember._struct.StructuredData.__init__"),
     # Documented on the private base, which has no page of its own; Block.flat
     # points readers at it for the ordering rules.

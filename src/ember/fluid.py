@@ -41,7 +41,7 @@ in :math:`h = u + p/\rho`.
 It is possible to shift the datum state of a fluid instance using
 ``change_datum``, which returns a new instance with the same properties but
 shifted datum. The current datum is accessible via
-:attr:`~PerfectFluid.P_dtm` and :attr:`~PerfectFluid.T_dtm` attributes.
+:attr:`~Fluid.P_dtm` and :attr:`~Fluid.T_dtm` attributes.
 
 
 .. _reference-scales:
@@ -53,24 +53,24 @@ The constructors for fluid instances take optional reference scales for non-dime
 
 The user specifies:
 
-- :math:`\rho_\mathrm{ref}\,`: density [kg/m\ :sup:`3`], :attr:`~PerfectFluid.rho_ref`
-- :math:`V_\mathrm{ref}\,`: velocity [m/s], :attr:`~PerfectFluid.V_ref`
-- :math:`R_\mathrm{ref}\,`: gas constant [J/kg/K], :attr:`~PerfectFluid.Rgas_ref`
+- :math:`\rho_\mathrm{ref}\,`: density [kg/m\ :sup:`3`], :attr:`~Fluid.rho_ref`
+- :math:`V_\mathrm{ref}\,`: velocity [m/s], :attr:`~Fluid.V_ref`
+- :math:`R_\mathrm{ref}\,`: gas constant [J/kg/K], :attr:`~Fluid.Rgas_ref`
 
 and the class forms the following derived reference scales:
 
-- :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\,`: dynamic pressure [Pa], :attr:`~PerfectFluid.P_ref`
-- :math:`u_\mathrm{ref} = V_\mathrm{ref}^2\,`: specific energy [J/kg], :attr:`~PerfectFluid.u_ref`
-- :math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\,`: temperature [K], :attr:`~PerfectFluid.T_ref`
-- :math:`(\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}\,`: mass flux [kg/m\ :sup:`2`/s], :attr:`~PerfectFluid.rhoV_ref`
+- :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\,`: dynamic pressure [Pa], :attr:`~Fluid.P_ref`
+- :math:`u_\mathrm{ref} = V_\mathrm{ref}^2\,`: specific energy [J/kg], :attr:`~Fluid.u_ref`
+- :math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\,`: temperature [K], :attr:`~Fluid.T_ref`
+- :math:`(\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}\,`: mass flux [kg/m\ :sup:`2`/s], :attr:`~Fluid.rhoV_ref`
 
 Equations of state are unchanged when all quantities are scaled consistently. For example, taking the ideal gas law :math:`p = \rho R T` and dividing through by the reference pressure :math:`\rho_\mathrm{ref} V_\mathrm{ref}^2` gives
 
 .. math:: \frac{p}{\rho_\mathrm{ref} V_\mathrm{ref}^2} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{V_\mathrm{ref}^2 / R_\mathrm{ref}} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{T_\mathrm{ref}}
 
-Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters: viscosity is divided by :math:`\rho_\mathrm{ref} V_\mathrm{ref}` and conductivity by :math:`\rho_\mathrm{ref} V_\mathrm{ref} R_\mathrm{ref}`, which are the two scalings that leave the Prandtl number :math:`\mu c_p / \kappa` dimensionless. Scaling the transport properties on their own, to sweep Reynolds number at a fixed flow field, is what :meth:`PerfectFluid.change_visc` is for.
+Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters: viscosity is divided by :math:`\rho_\mathrm{ref} V_\mathrm{ref}` and conductivity by :math:`\rho_\mathrm{ref} V_\mathrm{ref} R_\mathrm{ref}`, which are the two scalings that leave the Prandtl number :math:`\mu c_p / \kappa` dimensionless. Scaling the transport properties on their own, to sweep Reynolds number at a fixed flow field, is what :meth:`Fluid.change_visc` is for.
 
-We can get a new instance with different reference scales using the :meth:`PerfectFluid.change_ref` method.
+We can get a new instance with different reference scales using the :meth:`Fluid.change_ref` method.
 
 """
 
@@ -81,6 +81,8 @@ from abc import ABC, abstractmethod
 from ember import util
 from ember._realgas_poly import entropy_integral
 import ember.fortran
+
+__all__ = ["Fluid", "PerfectFluid", "RealFluid"]
 
 _leg = np.polynomial.legendre
 
@@ -138,7 +140,7 @@ def _plain(value):
     return float(value)
 
 
-class _Fluid(ABC):
+class Fluid(ABC):
     """Interface for converting density and internal energy to and from other thermodynamic properties.
 
     Constructors should cast all input parameters to single-precision floats; the output types of all methods are not explicitly cast, but will be single-precision if all inputs are single-precision.
@@ -187,7 +189,7 @@ class _Fluid(ABC):
     def from_dict(cls, data):
         """Build a fluid from a dict written by :meth:`to_dict`.
 
-        Called on :class:`_Fluid` it dispatches on the ``type`` key, so a saved
+        Called on :class:`Fluid` it dispatches on the ``type`` key, so a saved
         fluid can be read back without the caller knowing which equation of
         state wrote it. Called on a concrete class it checks that ``type``
         names that class, so loading the wrong file is an error rather than a
@@ -200,7 +202,7 @@ class _Fluid(ABC):
 
         Returns
         -------
-        fluid : _Fluid
+        fluid : Fluid
             A new instance of the class named by ``data["type"]``.
         """
         data = dict(data)
@@ -211,7 +213,7 @@ class _Fluid(ABC):
                 f"A fluid dict needs a 'type' key, one of {sorted(_FLUID_TYPES)}."
             )
 
-        if cls is _Fluid:
+        if cls is Fluid:
             if name not in _FLUID_TYPES:
                 raise ValueError(
                     f"Unknown fluid type {name!r}. "
@@ -431,7 +433,7 @@ class _Fluid(ABC):
 
         Returns
         -------
-        fluid_new : _Fluid
+        fluid_new : Fluid
             New fluid instance with scaled viscosity.
         """
         raise NotImplementedError()
@@ -538,7 +540,7 @@ class _Fluid(ABC):
         return self._V_ref
 
 
-class PerfectFluid(_Fluid):
+class PerfectFluid(Fluid):
     def __init__(
         self,
         cp,
@@ -621,7 +623,7 @@ class PerfectFluid(_Fluid):
         self._kappa_nd = self._mu_nd * self._cp_nd / self._Pr
 
     def _kwargs(self):
-        """Constructor arguments reproducing this fluid; see :meth:`_Fluid._kwargs`."""
+        """Constructor arguments reproducing this fluid; see :meth:`Fluid._kwargs`."""
         return {
             "cp": float(self._cp),
             "gamma": float(self._gamma),
@@ -1502,7 +1504,7 @@ class PerfectFluid(_Fluid):
         return self._rebuild(mu=float(self._mu) * float(scale_visc))
 
 
-class RealFluid(_Fluid):
+class RealFluid(Fluid):
     r"""Real gas defined by a fitted entropy surface.
 
     Implements the thermodynamically consistent equation of state of Wheeler
@@ -2241,7 +2243,7 @@ class RealFluid(_Fluid):
         return buf
 
     def _kwargs(self):
-        """Constructor arguments reproducing this fluid; see :meth:`_Fluid._kwargs`."""
+        """Constructor arguments reproducing this fluid; see :meth:`Fluid._kwargs`."""
         return {
             "alpha": self._alpha,
             "beta": self._beta,
@@ -3357,7 +3359,7 @@ class RealFluid(_Fluid):
 
 
 _FLUID_TYPES = {cls.__name__: cls for cls in (PerfectFluid, RealFluid)}
-"""Equations of state :meth:`_Fluid.from_dict` will build, by class name.
+"""Equations of state :meth:`Fluid.from_dict` will build, by class name.
 
 An explicit table rather than a lookup on the module, so that a ``type`` out of
 a file can only ever name one of these two classes.
