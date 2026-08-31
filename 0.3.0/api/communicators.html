@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Communicators &#8212; ember 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Patch" href="patch.html" />
+    <link rel="prev" title="Grid" href="grid.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.3.0</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.3.0";
+    var page = "api/communicators.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Real gas fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Communicators</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.pairs"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.pairs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.ijk_node_flat"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.ijk_node_flat</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.apply"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.apply()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.exchange_faces"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.exchange_faces()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.leak"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.leak</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.Ma_clip</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip_max"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.Ma_clip_max</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.get_stats"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.get_stats()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.exchange"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.exchange()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator.pairs"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator.pairs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator.uv_coords"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator.uv_coords</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator.apply"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator.apply()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="grid.html" title="previous chapter">Grid</a></li>
+      <li>Next: <a href="patch.html" title="next chapter">Patch</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="communicators">
+<h1>Communicators<a class="headerlink" href="#communicators" title="Link to this heading">¶</a></h1>
+<p>A communicator exchanges data across the seam between blocks for one patch
+type. <a class="reference internal" href="grid.html#ember.grid.Grid.connectivity" title="ember.grid.Grid.connectivity"><code class="xref py py-attr docutils literal notranslate"><span class="pre">connectivity</span></code></a> builds and caches one per patch
+type on first use – reached as <code class="docutils literal notranslate"><span class="pre">grid.connectivity.periodic</span></code>, <code class="docutils literal notranslate"><span class="pre">.mixing</span></code>
+and <code class="docutils literal notranslate"><span class="pre">.nonmatch</span></code> – pairing each patch to its partner on a neighbouring
+block the first time it is used. Pairing is therefore automatic, triggered by
+the first exchange, e.g. a call to <a class="reference internal" href="grid.html#ember.grid.Grid.apply_bconds" title="ember.grid.Grid.apply_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply_bconds()</span></code></a>. See
+<a class="reference internal" href="grid.html#grid-connectivity"><span class="std std-ref">Connectivity</span></a> for how the pairing cache is invalidated on a
+topology change.</p>
+<p>The pairings can be inspected directly, by calling say
+<code class="docutils literal notranslate"><span class="pre">grid.connectivity.periodic.pair()</span></code> for periodic patches. It returns a dict
+keyed by the <code class="docutils literal notranslate"><span class="pre">(bid,</span> <span class="pre">pid)</span></code> identifier of each patch, indexing like
+<code class="docutils literal notranslate"><span class="pre">grid[bid].patches[pid]</span></code>. The dict values are the corresponding <code class="docutils literal notranslate"><span class="pre">(bid,</span>
+<span class="pre">pid)</span></code> of the patch it matches and the geometric transform between the two.
+Both halves of a pair appear as keys, so the mapping can be followed from
+either side:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pairs</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">periodic</span><span class="o">.</span><span class="n">pair</span><span class="p">()</span>
+<span class="c1"># block 0 patch 0 is paired with block 1 patch 0, and vice versa</span>
+<span class="n">pairs</span><span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>  <span class="c1"># ((1, 0), transform)</span>
+<span class="n">pairs</span><span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>  <span class="c1"># ((0, 0), transform)</span>
+</pre></div>
+</div>
+<p>Each communicator below is built lazily by
+<a class="reference internal" href="grid.html#ember.grid.GridConnectivity" title="ember.grid.GridConnectivity"><code class="xref py py-class docutils literal notranslate"><span class="pre">GridConnectivity</span></code></a> from the pairing above, and exposes
+<code class="docutils literal notranslate"><span class="pre">apply()</span></code> (write the exchange straight into <code class="docutils literal notranslate"><span class="pre">block.conserved</span></code>) and,
+where the patch type needs it, <code class="docutils literal notranslate"><span class="pre">exchange()</span></code> (compute the cross-plane
+targets without applying them).</p>
+<p id="module-ember.periodic_communicator">Periodic boundary condition communication and data averaging utilities.</p>
+<p>This module provides the PeriodicCommunicator class which manages data exchange and averaging
+between periodic patch pairs in multi-block grids. The communicator takes connectivity
+information from the grid and sets up efficient index mappings that account for arbitrary
+coordinate transformations (permutations and flips) between matching periodic patches. The
+class prunes bidirectional connectivity to create unidirectional pairs, precomputes transformed
+index arrays for fast access, and applies periodic boundary conditions by averaging conserved
+flow variables at corresponding spatial locations using Fortran-accelerated routines. This
+ensures consistency across periodic boundaries in turbomachinery simulations with blade row
+periodicity or other rotationally symmetric configurations.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.periodic_communicator.PeriodicCommunicator">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">periodic_communicator.</span></span><span class="sig-name descname"><span class="pre">PeriodicCommunicator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">periodic_pairs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/periodic_communicator.html#PeriodicCommunicator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.periodic_communicator.PeriodicCommunicator" title="Link to this definition">¶</a></dt>
+<dd><p>Manages data communication between periodic patches.</p>
+<p>Takes the output of grid.connectivity.periodic.pair() and sets up matching
+ijk indices for efficient periodic boundary condition communication.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – The grid containing blocks with periodic patches</p></li>
+<li><p><strong>periodic_pairs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Dictionary from grid.connectivity.periodic.pair() with format:
+{(bid, pid): ((nxbid, nxpid), (perm, flip))}</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.periodic_communicator.PeriodicCommunicator.pairs">
+<span class="sig-name descname"><span class="pre">pairs</span></span><a class="headerlink" href="#ember.periodic_communicator.PeriodicCommunicator.pairs" title="Link to this definition">¶</a></dt>
+<dd><p>Pruned unidirectional pairs: {(bid, pid): ((nxbid, nxpid), (perm, flip))}</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.periodic_communicator.PeriodicCommunicator.ijk_node_flat">
+<span class="sig-name descname"><span class="pre">ijk_node_flat</span></span><a class="headerlink" href="#ember.periodic_communicator.PeriodicCommunicator.ijk_node_flat" title="Link to this definition">¶</a></dt>
+<dd><p>Flattened ijk indices: {(bid, pid): indices.reshape(-1, 3)} for both
+source patches (untransformed) and target patches (transformed)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.periodic_communicator.PeriodicCommunicator.apply">
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/periodic_communicator.html#PeriodicCommunicator.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.periodic_communicator.PeriodicCommunicator.apply" title="Link to this definition">¶</a></dt>
+<dd><p>Apply periodic boundary conditions by averaging conserved variables.</p>
+<p>Loops over all patch pairs and calls Fortran average_by_ijk to average
+the conserved variables at corresponding ijk locations between patches.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.periodic_communicator.PeriodicCommunicator.exchange_faces">
+<span class="sig-name descname"><span class="pre">exchange_faces</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/periodic_communicator.html#PeriodicCommunicator.exchange_faces"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.periodic_communicator.PeriodicCommunicator.exchange_faces" title="Link to this definition">¶</a></dt>
+<dd><p>Fill each block’s face-buffer halo layer from its periodic partner.</p>
+<p>The one seam exchange the viscous pass needs, run between
+<code class="docutils literal notranslate"><span class="pre">set_tau_q_faces</span></code> and <code class="docutils literal notranslate"><span class="pre">set_visc_force</span></code>: it fills the halo layer of
+each block’s <a class="reference internal" href="block.html#ember.block.Block.tau_q_faces" title="ember.block.Block.tau_q_faces"><code class="xref py py-attr docutils literal notranslate"><span class="pre">tau_q_faces</span></code></a> with the adjacent
+block’s owned edge-cell tau/q, so the face flux there averages two real
+cell values instead of the -edge ghost the producer seeded. Reads layer
+0 (the partner’s own edge cells) and writes layer 1 (this side’s halo),
+so it never reads and writes the same storage and needs no temporary.</p>
+<p>TWO CALLS PER PAIR, one each way, because <code class="docutils literal notranslate"><span class="pre">self.pairs</span></code> is pruned to a
+single key per pair, and a copy cannot move both
+directions at once. A block periodic to itself cannot catch a
+regression here – both ends are the same block – which is why the
+gate for this is a two-block case.</p>
+</dd></dl>
+
+</dd></dl>
+
+<p id="module-ember.mixing_communicator">Mixing plane boundary condition communication.</p>
+<p><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator" title="ember.mixing_communicator.MixingCommunicator"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingCommunicator</span></code></a> pairs the two sides of the mixing plane of
+<a class="reference internal" href="patch.html#ember.patch.MixingPatch" title="ember.mixing.MixingPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingPatch</span></code></a>, holds the relaxation factor and the per-pair diagnostics,
+and carries out the exchange itself: it takes the cross-plane <em>flux</em> mismatch,
+splits it by direction of propagation after <span class="bibtex-citation" id="id1">Saxer and Giles [<a class="reference internal" href="../references.html#id9" title="A. P. Saxer and M. B. Giles. &quot;Quasi-Three-Dimensional Nonreflecting Boundary Conditions for Euler Equations Calculations&quot;. J. Propuls. Power, 9(2):263–271, 1993. doi:10.2514/3.23618.">1</a>]</span>, and writes the
+result in the mix variables <span class="math notranslate nohighlight">\([h_0, s, V_r, V_\theta, p]\)</span> its patches
+take their pitchwise-mean residuals against.</p>
+<p>A run with <a class="reference internal" href="solver.html#ember.solver.Solver.mix_reflective" title="ember.solver.Solver.mix_reflective"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mix_reflective</span></code></a> set bypasses all of
+that, exchanging the plain average of the two circumferential means instead.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.mixing_communicator.MixingCommunicator">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mixing_communicator.</span></span><span class="sig-name descname"><span class="pre">MixingCommunicator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mixing_pairs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing_communicator.html#MixingCommunicator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.mixing_communicator.MixingCommunicator" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize with grid and mixing patch pairs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – The grid instance.</p></li>
+<li><p><strong>mixing_pairs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Mapping of mixing patch pair information.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the two sides of a plane disagree on <code class="docutils literal notranslate"><span class="pre">rf_exchange</span></code>.</p>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.mixing_communicator.MixingCommunicator.leak">
+<span class="sig-name descname"><span class="pre">leak</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.mixing_communicator.MixingCommunicator.leak" title="Link to this definition">¶</a></dt>
+<dd><p>Anti-windup leak on the integrating relaxation, as a fraction of
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_exchange</span></code> per exchange.</p>
+<p>The exchange accumulates its correction onto the previous target
+rather than re-anchoring to the live interface baseline every step, so
+that the fixed point is exact flux balance rather than the proportional
+form’s standing offset (<span class="bibtex-citation" id="id2">Holmes [<a class="reference internal" href="../references.html#id8" title="D. G. Holmes. &quot;Mixing Planes Revisited: A Steady Mixing Plane Approach Designed for High Blade Count Ratio Turbomachinery Applications&quot;. In Proceedings of ASME Turbo Expo 2008: Power for Land, Sea and Air. 2008. doi:10.1115/GT2008-50043.">2</a>]</span> Eq. 15, applied to the
+auxiliary cells rather than re-derived each step). A pure integrator can
+wind up while the mismatch has not yet resolved – most a reversed station
+whose own boundary condition has not caught up with a target that has
+already moved past what the flow was ever in. A positive leak bleeds the
+target back toward the live baseline each step, trading a
+<code class="docutils literal notranslate"><span class="pre">leak/rf_exchange</span></code>-scaled residual flux mismatch for a bound on how far
+the target can wander. Zero is exact Holmes; engage only if a station is
+seen to wind up.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.mixing_communicator.MixingCommunicator.Ma_clip">
+<span class="sig-name descname"><span class="pre">Ma_clip</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.05</span></span><a class="headerlink" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip" title="Link to this definition">¶</a></dt>
+<dd><p>Floor on <span class="math notranslate nohighlight">\(\lvert \mathit{Ma}_x \rvert\)</span> of the symmetrised mean
+state the Jacobians are evaluated on.</p>
+<p><span class="bibtex-citation" id="id3">Holmes [<a class="reference internal" href="../references.html#id8" title="D. G. Holmes. &quot;Mixing Planes Revisited: A Steady Mixing Plane Approach Designed for High Blade Count Ratio Turbomachinery Applications&quot;. In Proceedings of ASME Turbo Expo 2008: Power for Land, Sea and Air. 2008. doi:10.1115/GT2008-50043.">2</a>]</span> Eq. 16: as the mean normal velocity tends to zero the
+eigenvalues of the transformation matrices grow, so the interface
+over-controls to make up for the slow advection the small velocity implies.
+Bounding the magnitude – not the direction, which a reversed station keeps
+– is his remedy and this is ember’s form of it. It also keeps
+<a class="reference internal" href="perturbation.html#ember.perturbation.flux_to_primitive" title="ember.perturbation.flux_to_primitive"><code class="xref py py-func docutils literal notranslate"><span class="pre">flux_to_primitive()</span></code></a>, which divides by the axial
+velocity, away from zero.</p>
+<p>See <a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip_max" title="ember.mixing_communicator.MixingCommunicator.Ma_clip_max"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Ma_clip_max</span></code></a> for the other end of the same band.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.mixing_communicator.MixingCommunicator.Ma_clip_max">
+<span class="sig-name descname"><span class="pre">Ma_clip_max</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.9</span></span><a class="headerlink" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip_max" title="Link to this definition">¶</a></dt>
+<dd><p>Ceiling on <span class="math notranslate nohighlight">\(\lvert \mathit{Ma}_x \rvert\)</span> of that same state, the
+other end of <a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip" title="ember.mixing_communicator.MixingCommunicator.Ma_clip"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Ma_clip</span></code></a>’s band.</p>
+<p>Holmes bounds the normal velocity only from below, because that is where his
+eigenvalues blow up. The upper end matters here for a different reason: the
+plane’s whole characteristic treatment is derived for a mean state subsonic
+normal to it (see <a class="reference internal" href="patch.html#ember.patch.MixingPatch" title="ember.mixing.MixingPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingPatch</span></code></a>), and a station that
+briefly runs past sonic during a transient would otherwise be linearised
+with the wrong number of incoming characteristics rather than merely
+inaccurately. Clipping keeps such a station inside the theory until the flow
+brings it back.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.mixing_communicator.MixingCommunicator.get_stats">
+<span class="sig-name descname"><span class="pre">get_stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing_communicator.html#MixingCommunicator.get_stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.mixing_communicator.MixingCommunicator.get_stats" title="Link to this definition">¶</a></dt>
+<dd><p>Return last-step relaxation increment for one pair.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Key <code class="docutils literal notranslate"><span class="pre">du</span></code> (last relaxation increment in the exchanged target’s own
+variables, shape <code class="docutils literal notranslate"><span class="pre">(nspan,</span> <span class="pre">5)</span></code>). Returns <code class="docutils literal notranslate"><span class="pre">None</span></code> if the pair has
+not been exchanged yet.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a> or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.mixing_communicator.MixingCommunicator.exchange">
+<span class="sig-name descname"><span class="pre">exchange</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/mixing_communicator.html#MixingCommunicator.exchange"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.mixing_communicator.MixingCommunicator.exchange" title="Link to this definition">¶</a></dt>
+<dd><p>Compute and write targets for all pairs (no apply step).</p>
+<p>Under <a class="reference internal" href="solver.html#ember.solver.Solver.mix_reflective" title="ember.solver.Solver.mix_reflective"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mix_reflective</span></code></a> a pair is instead
+given the plain average of the two circumferential means.</p>
+</dd></dl>
+
+</dd></dl>
+
+<p id="module-ember.nonmatch_communicator">Non-matching patch boundary condition communication.</p>
+<p>This module provides the NonMatchCommunicator class which manages data exchange
+between non-matching patch pairs in multi-block grids. Unlike periodic patches that
+require identical node distributions, non-matching patches allow arbitrary mesh
+refinement changes across block boundaries.</p>
+<p>The communicator uses parametric interpolation to transfer conserved variables
+between patches with different nodal distributions but identical physical locations.
+It precomputes parametric (u,v) coordinates during initialization and uses bilinear
+interpolation to transfer data at each timestep.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.nonmatch_communicator.NonMatchCommunicator">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">nonmatch_communicator.</span></span><span class="sig-name descname"><span class="pre">NonMatchCommunicator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nonmatch_pairs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/nonmatch_communicator.html#NonMatchCommunicator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.nonmatch_communicator.NonMatchCommunicator" title="Link to this definition">¶</a></dt>
+<dd><p>Manages data communication between non-matching patches.</p>
+<p>Takes the output of grid.connectivity.nonmatch.pair() and sets up parametric
+interpolation for efficient non-matching boundary condition communication.</p>
+<p>Unlike PeriodicCommunicator which averages at matching ijk indices, this
+communicator interpolates between patches with different node distributions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – The grid containing blocks with non-matching patches</p></li>
+<li><p><strong>nonmatch_pairs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Dictionary from grid.connectivity.nonmatch.pair() with format:
+{(bid, pid): ((nxbid, nxpid), (perm, flip))}</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.nonmatch_communicator.NonMatchCommunicator.pairs">
+<span class="sig-name descname"><span class="pre">pairs</span></span><a class="headerlink" href="#ember.nonmatch_communicator.NonMatchCommunicator.pairs" title="Link to this definition">¶</a></dt>
+<dd><p>Pruned unidirectional pairs: {(bid, pid): ((nxbid, nxpid), (perm, flip))}</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.nonmatch_communicator.NonMatchCommunicator.uv_coords">
+<span class="sig-name descname"><span class="pre">uv_coords</span></span><a class="headerlink" href="#ember.nonmatch_communicator.NonMatchCommunicator.uv_coords" title="Link to this definition">¶</a></dt>
+<dd><p>Cached parametric coordinates: {(bid, pid): uv_array}
+where uv_array has shape (…, …, 2) with [u, v] ∈ [0,1]^2</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.nonmatch_communicator.NonMatchCommunicator.apply">
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/nonmatch_communicator.html#NonMatchCommunicator.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.nonmatch_communicator.NonMatchCommunicator.apply" title="Link to this definition">¶</a></dt>
+<dd><p>Apply non-matching boundary conditions via interpolation.</p>
+<p>Loops over all patch pairs and interpolates conserved variables between
+patches with different node distributions. Performs bidirectional
+interpolation and averaging for consistency at the interface.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/communicators.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

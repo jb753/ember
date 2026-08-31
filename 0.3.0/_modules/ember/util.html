@@ -1,0 +1,1773 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.util &#8212; ember 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.3.0</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.3.0";
+    var page = "_modules/ember/util.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Real gas fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Version history</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.util</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Array functions shared across the codebase.</span>
+
+<span class="sd">Each function below is a standalone operation on plain NumPy arrays. This</span>
+<span class="sd">module acts a a place to collect common conventions, patterns, and conversions</span>
+<span class="sd">so that they can be used consistently across the code.</span>
+
+<span class="sd">Flow angle and coordinate conversions</span>
+<span class="sd">======================================</span>
+
+<span class="sd">Paired functions convert between the native ember data representation</span>
+<span class="sd">and and other conventions, each the inverse of its partner. There are utilities</span>
+<span class="sd">for conversion between flow angles and velocity components, between Cartesian</span>
+<span class="sd">and polar coordinates, and between polar and pseudo-Cartesian coordinates.</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   angles_to_components</span>
+<span class="sd">   components_to_angles</span>
+<span class="sd">   cart_to_pol</span>
+<span class="sd">   pol_to_cart</span>
+<span class="sd">   pol_to_pseudocart</span>
+
+<span class="sd">Vector and matrix operations</span>
+<span class="sd">=============================</span>
+
+<span class="sd">These functions are intended for use batches of vectors or matrices stacked</span>
+<span class="sd">along leading axes, with the last one or two axes holding the vector or matrix</span>
+<span class="sd">components. Some are thin wrappers around :obj:`numpy.einsum`, but for</span>
+<span class="sd">operations on the hot path of a solver loop they are implemented in Fortran for</span>
+<span class="sd">better performance.</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   dot</span>
+<span class="sd">   vecnorm</span>
+<span class="sd">   matmat</span>
+<span class="sd">   matvec</span>
+
+<span class="sd">Grid construction</span>
+<span class="sd">=================</span>
+
+<span class="sd">The below functions are used to build coordinate arrays for the solver. For</span>
+<span class="sd">simple duct geometries, they allow convenient construction of uniform or</span>
+<span class="sd">clustered :attr:`~ember.block.Block.xrt` arrays. The :func:`resample` is</span>
+<span class="sd">useful for coarsening or refining the distribution of an existing grid.</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   meshgrid3</span>
+<span class="sd">   linmesh3</span>
+<span class="sd">   cosine_cluster</span>
+<span class="sd">   cluster</span>
+<span class="sd">   cluster_symmetric</span>
+<span class="sd">   resample</span>
+
+<span class="sd">Array allocation and buffers</span>
+<span class="sd">============================</span>
+
+<span class="sd">Many of these functions are are thin wrappers around their :mod:`numpy`</span>
+<span class="sd">namesakes that fix the dtype and memory layout that weember standardises on:</span>
+<span class="sd">Fortran order and single-precision ``float32``. Calling these rather than the</span>
+<span class="sd">bare NumPy functions signals intent and keeps that convention in one place --</span>
+<span class="sd">use them for any new array creation. There are also functions for memory</span>
+<span class="sd">management: allocation, or buffer creation and reuse.</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   zeros</span>
+<span class="sd">   array</span>
+<span class="sd">   empty</span>
+<span class="sd">   full</span>
+<span class="sd">   allocate_or_reuse</span>
+<span class="sd">   bcast_if_needed</span>
+<span class="sd">   carve_view</span>
+<span class="sd">   rss_bytes</span>
+
+<span class="sd">Miscellaneous geometry</span>
+<span class="sd">========================</span>
+
+<span class="sd">Assorted utilities for working with coordinates and bounding boxes.</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   extent</span>
+<span class="sd">   bounding_box</span>
+<span class="sd">   apply_perm_flip</span>
+<span class="sd">   unwrap_meridional</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.fortran</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">line_profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">profile</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+
+<div class="viewcode-block" id="profile">
+<a class="viewcode-back" href="../../api/util.html#ember.util.profile">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">profile</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">func</span></div>
+
+
+
+<span class="n">f32</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span>
+
+
+<div class="viewcode-block" id="dot">
+<a class="viewcode-back" href="../../api/util.html#ember.util.dot">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">dot</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Dot product of two arrays along the last axis.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    a : Array, shape (..., n)</span>
+<span class="sd">        First input array.</span>
+<span class="sd">    b : Array, shape (..., n)</span>
+<span class="sd">        Second input array.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    prod : Array, shape (...)</span>
+<span class="sd">        Dot product of the input arrays, components summed along the last axis.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">&quot;...i,...i&quot;</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="angles_to_components">
+<a class="viewcode-back" href="../../api/util.html#ember.util.angles_to_components">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">angles_to_components</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">Alpha</span><span class="p">,</span> <span class="n">Beta</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve velocity magnitude into polar components.</span>
+
+<span class="sd">    Uses numerically stable trigonometry for all angles including 90 degrees.</span>
+
+<span class="sd">    Flow angle conventions:</span>
+
+<span class="sd">    - Alpha = 0°: No swirl (Vt = 0)</span>
+<span class="sd">    - Beta = 0°: Pure axial flow (Vr = 0)</span>
+<span class="sd">    - Beta = ±90°: Pure radial flow (Vx = 0)</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    V_rel : Array</span>
+<span class="sd">        Relative velocity magnitude [m/s]</span>
+<span class="sd">    Alpha : Array</span>
+<span class="sd">        Relative yaw angle (tangential flow direction) [degrees]</span>
+<span class="sd">    Beta : Array</span>
+<span class="sd">        Pitch angle (radial flow direction) [degrees]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Vx : Array</span>
+<span class="sd">        Axial velocity component [m/s]</span>
+<span class="sd">    Vr : Array</span>
+<span class="sd">        Radial velocity component [m/s]</span>
+<span class="sd">    Vt : Array</span>
+<span class="sd">        Tangential velocity component [m/s]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Convert to consistent dtype and radians</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">alpha_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">))</span>
+    <span class="n">beta_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Beta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">))</span>
+
+    <span class="c1"># Use pure trigonometry for numerical stability</span>
+    <span class="n">cos_alpha</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alpha_rad</span><span class="p">)</span>
+    <span class="n">sin_alpha</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">alpha_rad</span><span class="p">)</span>
+    <span class="n">cos_beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">beta_rad</span><span class="p">)</span>
+    <span class="n">sin_beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">beta_rad</span><span class="p">)</span>
+
+    <span class="c1"># Alpha decomposition: meridional and tangential components</span>
+    <span class="n">Vm</span> <span class="o">=</span> <span class="n">V</span> <span class="o">*</span> <span class="n">cos_alpha</span>  <span class="c1"># Meridional velocity magnitude</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">V</span> <span class="o">*</span> <span class="n">sin_alpha</span>  <span class="c1"># Tangential relative velocity</span>
+
+    <span class="c1"># Beta decomposition: axial and radial components</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">Vm</span> <span class="o">*</span> <span class="n">cos_beta</span>  <span class="c1"># Axial velocity</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">Vm</span> <span class="o">*</span> <span class="n">sin_beta</span>  <span class="c1"># Radial velocity</span>
+
+    <span class="k">return</span> <span class="n">Vx</span><span class="p">,</span> <span class="n">Vr</span><span class="p">,</span> <span class="n">Vt</span></div>
+
+
+
+<div class="viewcode-block" id="components_to_angles">
+<a class="viewcode-back" href="../../api/util.html#ember.util.components_to_angles">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">components_to_angles</span><span class="p">(</span><span class="n">Vx</span><span class="p">,</span> <span class="n">Vr</span><span class="p">,</span> <span class="n">Vt</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert velocity components to velocity magnitude and flow angles.</span>
+
+<span class="sd">    This is the inverse of :func:`angles_to_components`, obeying the conventions:</span>
+
+<span class="sd">    - Alpha = 0°: No swirl (Vt_rel = 0)</span>
+<span class="sd">    - Beta = 0°: Pure axial flow (Vr = 0)</span>
+<span class="sd">    - Beta = ±90°: Pure radial flow (Vx = 0)</span>
+
+<span class="sd">    For velocity components with very small magnitudes, angles may be</span>
+<span class="sd">    numerically unstable. Zero velocity returns (0, 0, 0).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    Vx : Array</span>
+<span class="sd">        Axial velocity component [m/s]</span>
+<span class="sd">    Vr : Array</span>
+<span class="sd">        Radial velocity component [m/s]</span>
+<span class="sd">    Vt : Array</span>
+<span class="sd">        Tangential velocity component [m/s]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    V : Array</span>
+<span class="sd">        Velocity magnitude [m/s]</span>
+<span class="sd">    Alpha : Array</span>
+<span class="sd">        Yaw angle (tangential flow direction) [degrees]</span>
+<span class="sd">    Beta : Array</span>
+<span class="sd">        Pitch angle (radial flow direction) [degrees]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Convert to consistent dtype</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Vx</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Vr</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Vt</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+
+    <span class="c1"># Calculate meridional velocity magnitude</span>
+    <span class="n">Vm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># Calculate total relative velocity magnitude</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">Vm</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vt</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># Handle zero velocity case</span>
+    <span class="n">zero_velocity</span> <span class="o">=</span> <span class="n">V</span> <span class="o">&lt;</span> <span class="mf">1e-12</span>
+
+    <span class="c1"># Calculate Alpha_rel (yaw angle from meridional vs tangential)</span>
+    <span class="c1"># atan2(Vt, V_rel_m) but handle zero meridional velocity</span>
+    <span class="n">Alpha_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">zero_velocity</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">Vt</span><span class="p">,</span> <span class="n">Vm</span><span class="p">))</span>
+
+    <span class="c1"># Calculate Beta (pitch angle from axial vs radial)</span>
+    <span class="c1"># atan2(Vr, Vx) but handle zero meridional velocity</span>
+    <span class="n">Beta_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="n">Vm</span> <span class="o">&lt;</span> <span class="mf">1e-12</span><span class="p">,</span>  <span class="c1"># Pure tangential flow or zero velocity</span>
+        <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">Vr</span><span class="p">,</span> <span class="n">Vx</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Convert to degrees</span>
+    <span class="n">Alpha_deg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="n">Alpha_rad</span><span class="p">)</span>
+    <span class="n">Beta_deg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="n">Beta_rad</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">V</span><span class="p">,</span> <span class="n">Alpha_deg</span><span class="p">,</span> <span class="n">Beta_deg</span></div>
+
+
+
+<div class="viewcode-block" id="vecnorm">
+<a class="viewcode-back" href="../../api/util.html#ember.util.vecnorm">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">vecnorm</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculate the norm of a vector array along the last axis.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : Array, shape (..., n)</span>
+<span class="sd">        Input array with last dimension as vector components.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    norm : Array, shape (...)</span>
+<span class="sd">        Norm of the input vector array.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">&quot;...i,...i&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="zeros">
+<a class="viewcode-back" href="../../api/util.html#ember.util.zeros">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">zeros</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Zero-filled array in standard layout and dtype.</span>
+
+<span class="sd">    Equivalent to :obj:`numpy.zeros`, but defaulting to ``dtype=float32``</span>
+<span class="sd">    and always ``order=&quot;F&quot;``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shape : int or tuple of int</span>
+<span class="sd">        Shape of the new array.</span>
+<span class="sd">    dtype : numpy dtype, optional</span>
+<span class="sd">        Data type for the new array. Default is ``np.float32``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array</span>
+<span class="sd">        Fortran-ordered array of the given shape and dtype, filled with 0.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="array">
+<a class="viewcode-back" href="../../api/util.html#ember.util.array">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Copy array data into standard layout and dtype.</span>
+
+<span class="sd">    Equivalent to :obj:`numpy.array`, but defaulting to ``dtype=float32``</span>
+<span class="sd">    and always ``order=&quot;F&quot;``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : array_like</span>
+<span class="sd">        Data to copy into the new array.</span>
+<span class="sd">    dtype : numpy dtype, optional</span>
+<span class="sd">        Data type for the new array. Default is ``np.float32``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array</span>
+<span class="sd">        Fortran-ordered array of the given dtype, holding a copy of ``x``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="empty">
+<a class="viewcode-back" href="../../api/util.html#ember.util.empty">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">empty</span><span class="p">(</span><span class="n">shape</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Uninitialised array in standard layout and dtype.</span>
+
+<span class="sd">    Equivalent to :obj:`numpy.empty`, but always ``dtype=float32`` and</span>
+<span class="sd">    ``order=&quot;F&quot;``. As with :obj:`numpy.empty`, contents are arbitrary until</span>
+<span class="sd">    written -- use this only where every element will be set before being</span>
+<span class="sd">    read.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shape : int or tuple of int</span>
+<span class="sd">        Shape of the new array.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array</span>
+<span class="sd">        Fortran-ordered, float32 array of the given shape with</span>
+<span class="sd">        uninitialised contents.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="full">
+<a class="viewcode-back" href="../../api/util.html#ember.util.full">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">full</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">fill_value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Constant-filled array in standard layout and dtype.</span>
+
+<span class="sd">    Equivalent to :obj:`numpy.full`, but always ``dtype=float32`` and</span>
+<span class="sd">    ``order=&quot;F&quot;``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shape : int or tuple of int</span>
+<span class="sd">        Shape of the new array.</span>
+<span class="sd">    fill_value : scalar</span>
+<span class="sd">        Value to fill every element with.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array</span>
+<span class="sd">        Fortran-ordered, float32 array of the given shape, filled with</span>
+<span class="sd">        ``fill_value``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">fill_value</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="allocate_or_reuse">
+<a class="viewcode-back" href="../../api/util.html#ember.util.allocate_or_reuse">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">allocate_or_reuse</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Allocate output array if not provided, otherwise reuse existing array.</span>
+
+<span class="sd">    Helper function for functions that accept an optional `out` parameter.</span>
+<span class="sd">    If ``out is None``, allocates a new F-contiguous zero array with the</span>
+<span class="sd">    specified shape and dtype. Otherwise returns the provided array.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    out : Array or None</span>
+<span class="sd">        Pre-allocated output array, or None to allocate new array.</span>
+<span class="sd">    shape : tuple</span>
+<span class="sd">        Shape of array to allocate if out is None.</span>
+<span class="sd">    dtype : numpy dtype, optional</span>
+<span class="sd">        Data type for new array. Default is np.float32.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array</span>
+<span class="sd">        Either the provided `out` array or a newly allocated zero array.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; def my_function(x, out=None):</span>
+<span class="sd">    ...     out = allocate_or_reuse(out, x.shape)</span>
+<span class="sd">    ...     # ... compute results into out ...</span>
+<span class="sd">    ...     return out</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="bcast_if_needed">
+<a class="viewcode-back" href="../../api/util.html#ember.util.bcast_if_needed">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">bcast_if_needed</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Broadcast ``a`` to ``shape`` only if it doesn&#39;t already have it.</span>
+
+<span class="sd">    A shape-tuple comparison is far cheaper than :func:`numpy.broadcast_to`</span>
+<span class="sd">    itself, so this is a near-zero-cost no-op on the common path where</span>
+<span class="sd">    ``a`` is already ``shape`` -- e.g. a hot-path setter that documents its</span>
+<span class="sd">    inputs as &quot;must broadcast to X&quot; for callers that need it, but whose</span>
+<span class="sd">    actual callers already pass exactly ``X``-shaped arrays.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    a : array_like</span>
+<span class="sd">        Candidate array; may already have ``shape`` or be broadcastable to it.</span>
+<span class="sd">    shape : tuple</span>
+<span class="sd">        Target shape.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array</span>
+<span class="sd">        ``a`` unchanged if ``a.shape == shape``, otherwise</span>
+<span class="sd">        ``np.broadcast_to(a, shape)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="s2">&quot;shape&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="n">shape</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">a</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="carve_view">
+<a class="viewcode-back" href="../../api/util.html#ember.util.carve_view">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">carve_view</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="o">*</span><span class="n">shapes</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Carve one or more zero-copy Fortran-order views from a buffer of any shape.</span>
+
+<span class="sd">    Reinterprets successive spans of a Fortran-contiguous `buf` as arrays of the</span>
+<span class="sd">    requested `shapes`, packing them end-to-end (view ``k`` starts where view</span>
+<span class="sd">    ``k-1`` ends) so every returned view aliases distinct storage and all may be</span>
+<span class="sd">    held live simultaneously. Used to borrow differently-shaped scratch arrays</span>
+<span class="sd">    out of one oversized solver buffer without allocating.</span>
+
+<span class="sd">    The offsets are computed internally, so a caller carving several coexisting</span>
+<span class="sd">    slots cannot accidentally overlap or gap them. ``buf.reshape(-1,</span>
+<span class="sd">    order=&quot;F&quot;)`` on such a buffer is itself a free view, so repeated calls stay</span>
+<span class="sd">    zero-copy and there is no need to hoist a shared flat view at the call</span>
+<span class="sd">    site.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    buf : Array</span>
+<span class="sd">        Fortran-contiguous source buffer to reinterpret. Must be large enough to</span>
+<span class="sd">        hold the concatenation of all `shapes` (``sum(prod(shape))`` elements).</span>
+<span class="sd">    *shapes : tuple</span>
+<span class="sd">        One shape per view, in packing order. Passing a single shape returns a</span>
+<span class="sd">        single view; passing several returns a list, one per shape.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array or list of Array</span>
+<span class="sd">        A single F-order view when one shape is given, else a list of them, each</span>
+<span class="sd">        aliasing a disjoint span of `buf`.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If the packed views would not fit within `buf`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">flat</span> <span class="o">=</span> <span class="n">buf</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">shape</span><span class="p">))</span> <span class="k">for</span> <span class="n">shape</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">sum</span><span class="p">(</span><span class="n">counts</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">flat</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;carve_view: </span><span class="si">{</span><span class="nb">sum</span><span class="p">(</span><span class="n">counts</span><span class="p">)</span><span class="si">}</span><span class="s2"> elements requested &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">shapes</span><span class="si">}</span><span class="s2">) exceed buffer capacity </span><span class="si">{</span><span class="n">flat</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="n">views</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">shape</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">shapes</span><span class="p">,</span> <span class="n">counts</span><span class="p">):</span>
+        <span class="n">views</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">flat</span><span class="p">[</span><span class="n">start</span> <span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="n">count</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">))</span>
+        <span class="n">start</span> <span class="o">+=</span> <span class="n">count</span>
+    <span class="k">return</span> <span class="n">views</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shapes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">views</span></div>
+
+
+
+<div class="viewcode-block" id="rss_bytes">
+<a class="viewcode-back" href="../../api/util.html#ember.util.rss_bytes">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">rss_bytes</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resident and peak-resident memory of this process, in bytes.</span>
+
+<span class="sd">    Reads ``VmRSS``/``VmHWM`` from ``/proc/self/status``, so the peak is the</span>
+<span class="sd">    kernel&#39;s own high-water mark: it covers transients that came and went</span>
+<span class="sd">    between two calls, which sampling ``VmRSS`` alone would miss. Where</span>
+<span class="sd">    ``/proc`` is unavailable (non-Linux) both come back as ``0``, so callers on</span>
+<span class="sd">    a debug-logging path never have to branch.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple of int</span>
+<span class="sd">        ``(rss, peak_rss)`` in bytes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;/proc/self/status&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;VmRSS&quot;</span><span class="p">,</span> <span class="s2">&quot;VmHWM&quot;</span><span class="p">):</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">rf</span><span class="s2">&quot;^</span><span class="si">{</span><span class="n">field</span><span class="si">}</span><span class="s2">:\s+(\d+) kB&quot;</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span><span class="p">)</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">*</span> <span class="mi">1024</span> <span class="k">if</span> <span class="n">match</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">out</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="meshgrid3">
+<a class="viewcode-back" href="../../api/util.html#ember.util.meshgrid3">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">meshgrid3</span><span class="p">(</span><span class="n">xv</span><span class="p">,</span> <span class="n">rv</span><span class="p">,</span> <span class="n">tv</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create 3D coordinate rectangular meshgrid.</span>
+
+<span class="sd">    This function combines the common pattern of creating a 3D meshgrid</span>
+<span class="sd">    and stacking the results into a single coordinate array. It preserves</span>
+<span class="sd">    the input dtype unless the inputs have mixed dtypes.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xv : array_like</span>
+<span class="sd">        X-coordinate vector.</span>
+<span class="sd">    rv : array_like</span>
+<span class="sd">        R-coordinate vector.</span>
+<span class="sd">    tv : array_like</span>
+<span class="sd">        Theta-coordinate vector.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (len(xv), len(rv), len(tv), 3)</span>
+<span class="sd">        Coordinate array with [x, r, t] components.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; xv = np.linspace(0, 1, 3)</span>
+<span class="sd">    &gt;&gt;&gt; rv = np.linspace(1, 2, 4)</span>
+<span class="sd">    &gt;&gt;&gt; tv = np.linspace(0, np.pi, 5)</span>
+<span class="sd">    &gt;&gt;&gt; xrt = meshgrid3(xv, rv, tv)</span>
+<span class="sd">    &gt;&gt;&gt; xrt.shape</span>
+<span class="sd">    (3, 4, 5, 3)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">xm</span><span class="p">,</span> <span class="n">rm</span><span class="p">,</span> <span class="n">tm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">xv</span><span class="p">,</span> <span class="n">rv</span><span class="p">,</span> <span class="n">tv</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">&quot;ij&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">xm</span><span class="p">,</span> <span class="n">rm</span><span class="p">,</span> <span class="n">tm</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="linmesh3">
+<a class="viewcode-back" href="../../api/util.html#ember.util.linmesh3">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">linmesh3</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create 3D coordinate meshgrid from ranges and shape.</span>
+
+<span class="sd">    This function creates linearly spaced vectors from coordinate ranges and</span>
+<span class="sd">    then generates a 3D meshgrid using :func:`meshgrid3`. It combines the</span>
+<span class="sd">    common pattern of creating linspace vectors and then meshing them.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : tuple or array_like</span>
+<span class="sd">        Axial coordinate range [x_min, x_max].</span>
+<span class="sd">    r : tuple or array_like</span>
+<span class="sd">        Radial coordinate range [r_min, r_max].</span>
+<span class="sd">    t : tuple or array_like</span>
+<span class="sd">        Angular coordinate range [t_min, t_max].</span>
+<span class="sd">    shape : tuple</span>
+<span class="sd">        Shape of the grid (ni, nj, nk).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (ni, nj, nk, 3)</span>
+<span class="sd">        Coordinate array with (x, r, t) components, dtype=float32.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; xrt = linmesh3([0, 1], [1, 2], [0, np.pi], (3, 4, 5))</span>
+<span class="sd">    &gt;&gt;&gt; xrt.shape</span>
+<span class="sd">    (3, 4, 5, 3)</span>
+<span class="sd">    &gt;&gt;&gt; xrt.dtype</span>
+<span class="sd">    dtype(&#39;float32&#39;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">shape</span>
+    <span class="n">xv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">ni</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">rv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">nj</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">tv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">nk</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">meshgrid3</span><span class="p">(</span><span class="n">xv</span><span class="p">,</span> <span class="n">rv</span><span class="p">,</span> <span class="n">tv</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="pol_to_pseudocart">
+<a class="viewcode-back" href="../../api/util.html#ember.util.pol_to_pseudocart">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">pol_to_pseudocart</span><span class="p">(</span><span class="n">xrt</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert (x, r, θ) coordinates to pseudo-Cartesian (x, r, rθ).</span>
+
+<span class="sd">    In the pseudo-Cartesian system, the theta coordinate is multiplied by</span>
+<span class="sd">    the radial coordinate to give rθ, which behaves like a Cartesian</span>
+<span class="sd">    coordinate for distance calculations in cylindrical coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xrt : array_like</span>
+<span class="sd">        Input coordinates with shape (..., 3) where the last dimension</span>
+<span class="sd">        contains [x, r, θ] coordinates.</span>
+<span class="sd">    inplace : bool, optional</span>
+<span class="sd">        If True, modify the input array in-place. If False (default),</span>
+<span class="sd">        return a copy with the conversion applied.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array</span>
+<span class="sd">        Coordinates with shape (..., 3) containing [x, r, rθ].</span>
+<span class="sd">        If inplace=True, returns the modified input array.</span>
+<span class="sd">        If inplace=False, returns a new array.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">inplace</span><span class="p">:</span>
+        <span class="n">xrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*=</span> <span class="n">xrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">xrt</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">xrt</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">result</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*=</span> <span class="n">result</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+
+
+<div class="viewcode-block" id="extent">
+<a class="viewcode-back" href="../../api/util.html#ember.util.extent">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extent</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculate per-component min and max values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    *args : array_like</span>
+<span class="sd">        Arrays to compute the extent of, must have same number of</span>
+<span class="sd">        dimensions, and same trailing dimension if ndim &gt; 1.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (2, ...)</span>
+<span class="sd">        Extent array where extent[0, ...] contains minimum values and</span>
+<span class="sd">        extent[1, ...] contains maximum values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Check all args have same ndim</span>
+    <span class="n">arrays</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+    <span class="n">ndims</span> <span class="o">=</span> <span class="p">[</span><span class="n">arr</span><span class="o">.</span><span class="n">ndim</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">arrays</span><span class="p">]</span>
+    <span class="n">ndim</span> <span class="o">=</span> <span class="n">ndims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">nd</span> <span class="o">==</span> <span class="n">ndim</span> <span class="k">for</span> <span class="n">nd</span> <span class="ow">in</span> <span class="n">ndims</span><span class="p">),</span> <span class="s2">&quot;All arguments must have same ndim&quot;</span>
+
+    <span class="c1"># Determine axes to take min/max over</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">ndim</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span> <span class="k">if</span> <span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="p">(</span><span class="mi">0</span><span class="p">,)</span>
+
+    <span class="c1"># Find extent over axes of all arrays</span>
+    <span class="n">min_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">arrays</span><span class="p">])</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">max_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">arrays</span><span class="p">])</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">min_vals</span><span class="p">,</span> <span class="n">max_vals</span><span class="p">])</span></div>
+
+
+
+<div class="viewcode-block" id="bounding_box">
+<a class="viewcode-back" href="../../api/util.html#ember.util.bounding_box">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">bounding_box</span><span class="p">(</span><span class="n">xyz</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculate bounding box vertices from Cartesian coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xyz : array_like, shape (N, 3)</span>
+<span class="sd">        Cartesian coordinates [x, y, z] with components on last axis</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (8, 3)</span>
+<span class="sd">        Eight vertices of the bounding box representing all combinations</span>
+<span class="sd">        of (min/max x, min/max y, min/max z)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">xyz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xyz</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;xyz must have 3 components on last axis&quot;</span>
+
+    <span class="c1"># Get the per-component extent (min/max) of the coordinates</span>
+    <span class="n">xyz_extent</span> <span class="o">=</span> <span class="n">extent</span><span class="p">(</span><span class="n">xyz</span><span class="p">)</span>  <span class="c1"># Shape (2, 3)</span>
+
+    <span class="c1"># Generate all 8 combinations using meshgrid</span>
+    <span class="n">meshes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="o">*</span><span class="n">xyz_extent</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">&quot;ij&quot;</span><span class="p">)</span>
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">mesh</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">vertices</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_segment_conformal</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span> <span class="n">r0</span><span class="p">,</span> <span class="n">r1</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Conformal distance along straight meridional segments.</span>
+
+<span class="sd">    With :math:`r` varying linearly from `r0` to `r1` over a segment of</span>
+<span class="sd">    meridional length `ds`, the integral has a closed form,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \Delta m&#39; = \int_0^1 \frac{\mathrm{d}s\,\mathrm{d}t}</span>
+<span class="sd">                              {r_0 + t(r_1 - r_0)}</span>
+<span class="sd">                  = \frac{\mathrm{d}s}{r_1 - r_0} \ln \frac{r_1}{r_0},</span>
+
+<span class="sd">    tending to :math:`\mathrm{d}s / r_0` as :math:`r_1 \to r_0`. Evaluating it</span>
+<span class="sd">    rather than quadrating leaves no discretisation error of its own: a</span>
+<span class="sd">    polyline&#39;s conformal distance is exact for that polyline.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dr</span> <span class="o">=</span> <span class="n">r1</span> <span class="o">-</span> <span class="n">r0</span>
+
+    <span class="c1"># The logarithmic form loses all its significant figures as dr -&gt; 0, where</span>
+    <span class="c1"># it is a ratio of two vanishing quantities, so the cylindrical limit is</span>
+    <span class="c1"># taken directly. The switch is on a relative tolerance because dr and r</span>
+    <span class="c1"># are both lengths and only their ratio says whether the segment is</span>
+    <span class="c1"># conical or cylindrical.</span>
+    <span class="n">conical</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">dr</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">1e-6</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">r0</span> <span class="o">+</span> <span class="n">r1</span><span class="p">)</span>
+    <span class="n">dr_safe</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">conical</span><span class="p">,</span> <span class="n">dr</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">r_mid</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">r0</span> <span class="o">+</span> <span class="n">r1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="n">conical</span><span class="p">,</span>
+        <span class="n">ds</span> <span class="o">/</span> <span class="n">dr_safe</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">conical</span><span class="p">,</span> <span class="n">r1</span> <span class="o">/</span> <span class="n">r0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+        <span class="n">ds</span> <span class="o">/</span> <span class="n">r_mid</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="unwrap_meridional">
+<a class="viewcode-back" href="../../api/util.html#ember.util.unwrap_meridional">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">unwrap_meridional</span><span class="p">(</span><span class="n">xr_curve</span><span class="p">,</span> <span class="n">xr_query</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Unwrap meridional coordinates onto conformal distance along a curve.</span>
+
+<span class="sd">    Returns the conformal (or &quot;blade-to-blade&quot;) meridional coordinate</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        m&#39; = \int \frac{\mathrm{d}m}{r},</span>
+<span class="sd">        \qquad \mathrm{d}m = \sqrt{\mathrm{d}x^2 + \mathrm{d}r^2},</span>
+
+<span class="sd">    integrated along `xr_curve` from its first point. Paired with</span>
+<span class="sd">    :math:`\theta` in radians, :math:`m&#39;` spans a conformal plane: angles and</span>
+<span class="sd">    aspect ratios are preserved, so an aerofoil section drawn on</span>
+<span class="sd">    :math:`(m&#39;, \theta)` axes keeps its shape at any radius.</span>
+
+<span class="sd">    The coordinate is a property of the *curve*, not of any grid: every query</span>
+<span class="sd">    point is referred to one datum by one integration, so points from</span>
+<span class="sd">    different blocks --- or from different cuts of the same machine --- come</span>
+<span class="sd">    back on a common scale with nothing to match up afterwards. Where the</span>
+<span class="sd">    curve is the same one passed to :func:`ember.cut.structured_meridional`,</span>
+<span class="sd">    the coordinate and the surface it describes are exactly consistent.</span>
+
+<span class="sd">    Query points are projected onto the curve and their perpendicular offset</span>
+<span class="sd">    discarded, so points lying near it rather than exactly on it --- the</span>
+<span class="sd">    triangulated output of :func:`ember.cut.unstructured`, say, or a blade</span>
+<span class="sd">    surface --- are handled without special-casing. A point beyond either end</span>
+<span class="sd">    clamps to that end.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xr_curve : array_like, shape (n_point, 2)</span>
+<span class="sd">        Meridional :math:`(x, r)` polyline defining the curve, in order.</span>
+<span class="sd">        Must not touch the axis, where :math:`m&#39;` diverges.</span>
+<span class="sd">    xr_query : array_like, shape (..., 2)</span>
+<span class="sd">        Meridional :math:`(x, r)` coordinates to evaluate.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (...)</span>
+<span class="sd">        Conformal distance :math:`m&#39;` [-] at each query point, zero at the</span>
+<span class="sd">        first point of the curve.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If the curve has fewer than two points, or reaches the axis.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; curve = np.array([[0.0, 2.0], [1.0, 2.0]])  # cylindrical, r = 2</span>
+<span class="sd">    &gt;&gt;&gt; float(unwrap_meridional(curve, np.array([1.0, 2.0])))  # m&#39; = m / r</span>
+<span class="sd">    0.5</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">xr_curve</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xr_curve</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">xr_query</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xr_query</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">xr_curve</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">xr_curve</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected xr_curve shape (n_point, 2), got </span><span class="si">{</span><span class="n">xr_curve</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xr_curve</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;A meridional curve needs at least two points&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">xr_query</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected xr_query shape (..., 2), got </span><span class="si">{</span><span class="n">xr_query</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">xr_curve</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Conformal distance diverges on the axis, so r must be &gt; 0&quot;</span><span class="p">)</span>
+
+    <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="n">xr_curve</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">xr_curve</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="n">delta</span> <span class="o">=</span> <span class="n">end</span> <span class="o">-</span> <span class="n">start</span>
+    <span class="n">ds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">delta</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+
+    <span class="c1"># Cumulative conformal distance at each vertex, zero at the first.</span>
+    <span class="n">mp_start</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+        <span class="p">[[</span><span class="mf">0.0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">_segment_conformal</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span> <span class="n">start</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">end</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]))]</span>
+    <span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">query</span> <span class="o">=</span> <span class="n">xr_query</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">mp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">query</span><span class="p">))</span>
+    <span class="n">nearest</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">query</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span>
+
+    <span class="c1"># Looped over segments rather than broadcast against them: a curve is</span>
+    <span class="c1"># short and a grid is not, so this costs one pass per segment but never</span>
+    <span class="c1"># materialises an (n_query, n_segment) array.</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">p0</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">length</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">delta</span><span class="p">,</span> <span class="n">ds</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">length</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Position along this segment of the closest point on it, clamped to</span>
+        <span class="c1"># the segment so the ends extrapolate flat rather than off the curve.</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="n">query</span> <span class="o">-</span> <span class="n">p0</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">offset</span> <span class="o">@</span> <span class="n">d</span> <span class="o">/</span> <span class="p">(</span><span class="n">length</span><span class="o">**</span><span class="mi">2</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+
+        <span class="n">distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">offset</span> <span class="o">-</span> <span class="n">t</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">d</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+        <span class="n">closer</span> <span class="o">=</span> <span class="n">distance</span> <span class="o">&lt;</span> <span class="n">nearest</span>
+
+        <span class="c1"># The same closed form as the whole segment, stopped at the projected</span>
+        <span class="c1"># point, so a query at t = 1 gives exactly the next vertex&#39;s value.</span>
+        <span class="n">r_projected</span> <span class="o">=</span> <span class="n">p0</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">t</span> <span class="o">*</span> <span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">mp_partial</span> <span class="o">=</span> <span class="n">_segment_conformal</span><span class="p">(</span><span class="n">t</span> <span class="o">*</span> <span class="n">length</span><span class="p">,</span> <span class="n">p0</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">r_projected</span><span class="p">)</span>
+
+        <span class="n">nearest</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">closer</span><span class="p">,</span> <span class="n">distance</span><span class="p">,</span> <span class="n">nearest</span><span class="p">)</span>
+        <span class="n">mp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">closer</span><span class="p">,</span> <span class="n">mp_start</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">mp_partial</span><span class="p">,</span> <span class="n">mp</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">array</span><span class="p">(</span><span class="n">mp</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">xr_query</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span></div>
+
+
+
+<div class="viewcode-block" id="cart_to_pol">
+<a class="viewcode-back" href="../../api/util.html#ember.util.cart_to_pol">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cart_to_pol</span><span class="p">(</span><span class="n">xyz</span><span class="p">,</span> <span class="n">Vxyz</span><span class="p">,</span> <span class="n">perm</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">signs</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Convert Cartesian coordinates and velocities to polar form.</span>
+
+<span class="sd">    Inverts the ember :math:`(x, r, \theta)` convention described at</span>
+<span class="sd">    :ref:`coordinate-system`, i.e. the map implemented by :func:`pol_to_cart`:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        y = r \cos\theta, \qquad z = -r \sin\theta</span>
+
+<span class="sd">    This function takes Cartesian data stacked on the last axis, and returns</span>
+<span class="sd">    polar data of the same shape, e.g. for setting a block&#39;s raw coordinates</span>
+<span class="sd">    and velocities :attr:`~ember.block.Block.xrt` and</span>
+<span class="sd">    :attr:`~ember.block.Block.Vxrt` after reading a Cartesian solution.</span>
+
+<span class="sd">    ``perm`` and ``signs`` arguments, when supplied, reorient the input before</span>
+<span class="sd">    conversion, for source data that doesn&#39;t already follow our</span>
+<span class="sd">    Cartesian axis order or sense. ``perm=(1, 0, 2)`` swaps :math:`x` and :math:`y`</span>
+<span class="sd">    values at every point. ``signs[i] = -1`` negates the (already permuted)</span>
+<span class="sd">    component ``i``. A mesh authored with :math:`z` pointing the opposite</span>
+<span class="sd">    way to our convention should be read with ``signs=(1, 1, -1)``, for example.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xyz : array_like, shape (..., 3)</span>
+<span class="sd">        Cartesian coordinates (x, y, z) with components on last axis</span>
+<span class="sd">    Vxyz : array_like, shape (..., 3)</span>
+<span class="sd">        Cartesian velocity components (Vx, Vy, Vz) with components on last axis</span>
+<span class="sd">    perm : tuple of int, optional</span>
+<span class="sd">        Coordinate permutation (0, 1, 2) -&gt; reordered indices. Default: (0, 1, 2)</span>
+<span class="sd">    signs : tuple of int, optional</span>
+<span class="sd">        Coordinate signs (-1 or 1 for each axis). Default: (1, 1, 1)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    xrt : Array, shape (..., 3)</span>
+<span class="sd">        Polar coordinates (x, r, t) with components on last axis</span>
+<span class="sd">    Vxrt : Array, shape (..., 3)</span>
+<span class="sd">        Polar velocity components (Vx, Vr, Vt) with components on last axis</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Use double precision for intermediate calculations</span>
+    <span class="n">xyz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xyz</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">Vxyz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Vxyz</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">signs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">signs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="c1"># Apply coordinate transformation</span>
+    <span class="n">xyz_transformed</span> <span class="o">=</span> <span class="n">xyz</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">perm</span><span class="p">]</span> <span class="o">*</span> <span class="n">signs</span>
+    <span class="n">Vxyz_transformed</span> <span class="o">=</span> <span class="n">Vxyz</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">perm</span><span class="p">]</span> <span class="o">*</span> <span class="n">signs</span>
+
+    <span class="c1"># Extract transformed coordinates</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">xyz_transformed</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">xyz_transformed</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">xyz_transformed</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+
+    <span class="c1"># Convert to polar coordinates</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">y</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">z</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="o">-</span><span class="n">z</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="c1"># Handle angle wrapping: ensure t is in [0, 2π] to match typical CFD convention</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">t</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+    <span class="c1"># Compute trigonometric functions from coordinates (more accurate than cos/sin of arctan2)</span>
+    <span class="n">cos_t</span> <span class="o">=</span> <span class="n">y</span> <span class="o">/</span> <span class="n">r</span>
+    <span class="n">sin_t</span> <span class="o">=</span> <span class="o">-</span><span class="n">z</span> <span class="o">/</span> <span class="n">r</span>
+
+    <span class="c1"># Extract transformed velocities</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">Vxyz_transformed</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vy</span> <span class="o">=</span> <span class="n">Vxyz_transformed</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">Vz</span> <span class="o">=</span> <span class="n">Vxyz_transformed</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+
+    <span class="c1"># Convert to polar velocities (reuse cos_t, sin_t)</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">Vy</span> <span class="o">*</span> <span class="n">cos_t</span> <span class="o">-</span> <span class="n">Vz</span> <span class="o">*</span> <span class="n">sin_t</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vy</span> <span class="o">*</span> <span class="n">sin_t</span> <span class="o">-</span> <span class="n">Vz</span> <span class="o">*</span> <span class="n">cos_t</span>
+
+    <span class="c1"># Assemble results</span>
+    <span class="n">xrt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">Vxrt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">Vx</span><span class="p">,</span> <span class="n">Vr</span><span class="p">,</span> <span class="n">Vt</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Convert back to float32</span>
+    <span class="n">xrt</span> <span class="o">=</span> <span class="n">xrt</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">Vxrt</span> <span class="o">=</span> <span class="n">Vxrt</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">xrt</span><span class="p">,</span> <span class="n">Vxrt</span></div>
+
+
+
+<div class="viewcode-block" id="pol_to_cart">
+<a class="viewcode-back" href="../../api/util.html#ember.util.pol_to_cart">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">pol_to_cart</span><span class="p">(</span><span class="n">xrt</span><span class="p">,</span> <span class="n">Vxrt</span><span class="p">,</span> <span class="n">perm</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">signs</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Convert polar coordinates and velocities to Cartesian form.</span>
+
+<span class="sd">    The reverse of :func:`cart_to_pol`. Implements the ember :math:`(x, r,</span>
+<span class="sd">    \theta)` convention described at :ref:`coordinate-system`:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        y = r \cos\theta, \qquad z = -r \sin\theta</span>
+
+<span class="sd">    The inputs are typically read from :attr:`~ember.block.Block.xrt` and</span>
+<span class="sd">    :attr:`~ember.block.Block.Vxrt`; the returned arrays are</span>
+<span class="sd">    Cartesian data of the same shape.</span>
+
+<span class="sd">    ``perm`` and ``signs`` reorient the output after conversion, for a target</span>
+<span class="sd">    convention that isn&#39;t ember&#39;s own axis order or sense.</span>
+<span class="sd">    ``perm[i]`` says which converted component</span>
+<span class="sd">    supplies output component ``i``, and then ``signs[i] = -1`` negates the</span>
+<span class="sd">    (already permuted) component ``i``.</span>
+
+<span class="sd">    Note that reorientation is applied on the way in by :func:`cart_to_pol` but</span>
+<span class="sd">    on the way out here, so the two are not simply symmetric for general</span>
+<span class="sd">    ``perm`` and ``signs``. :meth:`ember.grid.Grid.align_cart_unstr` detects</span>
+<span class="sd">    the correct orientation to align with a destination grid automatically when</span>
+<span class="sd">    given Cartesian data.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xrt : array_like, shape (..., 3)</span>
+<span class="sd">        Polar coordinates (x, r, t) with components on last axis</span>
+<span class="sd">    Vxrt : array_like, shape (..., 3)</span>
+<span class="sd">        Polar velocity components (Vx, Vr, Vt) with components on last axis</span>
+<span class="sd">    perm : tuple of int, optional</span>
+<span class="sd">        Coordinate permutation (0, 1, 2) -&gt; reordered indices. Default: (0, 1, 2)</span>
+<span class="sd">    signs : tuple of int, optional</span>
+<span class="sd">        Coordinate signs (-1 or 1 for each axis). Default: (1, 1, 1)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    xyz : Array, shape (..., 3)</span>
+<span class="sd">        Cartesian coordinates (x, y, z) with components on last axis</span>
+<span class="sd">    Vxyz : Array, shape (..., 3)</span>
+<span class="sd">        Cartesian velocity components (Vx, Vy, Vz) with components on last axis</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Use double precision for intermediate calculations</span>
+    <span class="n">xrt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xrt</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">Vxrt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Vxrt</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">signs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">signs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="c1"># Extract polar coordinates</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">xrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">xrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">xrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+
+    <span class="c1"># Compute trigonometric functions once</span>
+    <span class="n">cos_t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+    <span class="n">sin_t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+    <span class="c1"># Convert to Cartesian coordinates</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">r</span> <span class="o">*</span> <span class="n">cos_t</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="o">-</span><span class="n">r</span> <span class="o">*</span> <span class="n">sin_t</span>
+
+    <span class="c1"># Extract polar velocities</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">Vxrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">Vxrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">Vxrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+
+    <span class="c1"># Convert to Cartesian velocities (reuse cos_t, sin_t)</span>
+    <span class="n">Vy</span> <span class="o">=</span> <span class="n">Vr</span> <span class="o">*</span> <span class="n">cos_t</span> <span class="o">-</span> <span class="n">Vt</span> <span class="o">*</span> <span class="n">sin_t</span>
+    <span class="n">Vz</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">sin_t</span> <span class="o">-</span> <span class="n">Vt</span> <span class="o">*</span> <span class="n">cos_t</span>
+
+    <span class="c1"># Assemble Cartesian coordinates and velocities</span>
+    <span class="n">xyz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">Vxyz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">Vx</span><span class="p">,</span> <span class="n">Vy</span><span class="p">,</span> <span class="n">Vz</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Apply permutation and signs</span>
+    <span class="n">xyz</span> <span class="o">=</span> <span class="n">xyz</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">perm</span><span class="p">]</span> <span class="o">*</span> <span class="n">signs</span>
+    <span class="n">Vxyz</span> <span class="o">=</span> <span class="n">Vxyz</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">perm</span><span class="p">]</span> <span class="o">*</span> <span class="n">signs</span>
+
+    <span class="c1"># Convert back to float32</span>
+    <span class="n">xyz</span> <span class="o">=</span> <span class="n">xyz</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">Vxyz</span> <span class="o">=</span> <span class="n">Vxyz</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">xyz</span><span class="p">,</span> <span class="n">Vxyz</span></div>
+
+
+
+<div class="viewcode-block" id="matmat">
+<a class="viewcode-back" href="../../api/util.html#ember.util.matmat">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">matmat</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Matrix-matrix multiplication over trailing dimensions.</span>
+
+<span class="sd">    Performs matrix multiplication on stacks of matrices where the matrices</span>
+<span class="sd">    are stored in the trailing dimensions. This is optimized for arrays with</span>
+<span class="sd">    matrix data in the last two dimensions and arbitrary leading dimensions.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    A : Array, shape (..., m, k)</span>
+<span class="sd">        First input array with matrices in trailing dimensions.</span>
+<span class="sd">    B : Array, shape (..., k, n)</span>
+<span class="sd">        Second input array with matrices in trailing dimensions.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (..., m, n)</span>
+<span class="sd">        Result of matrix multiplication A @ B for each corresponding pair</span>
+<span class="sd">        of matrices in the trailing dimensions. Uses f32 precision and</span>
+<span class="sd">        Fortran ordering for optimal performance.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; # Stack of 2x2 matrices</span>
+<span class="sd">    &gt;&gt;&gt; A = np.random.randn(10, 5, 2, 2).astype(np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; B = np.random.randn(10, 5, 2, 2).astype(np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; C = matmat(A, B)  # Shape: (10, 5, 2, 2)</span>
+
+<span class="sd">    &gt;&gt;&gt; # Single matrix multiplication</span>
+<span class="sd">    &gt;&gt;&gt; A = np.eye(3, dtype=np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; B = np.ones((3, 3), dtype=np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; C = matmat(A, B)  # C = B</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">&quot;...ik,...kj-&gt;...ij&quot;</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">f32</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="rotation_matrices">
+<a class="viewcode-back" href="../../api/util.html#ember.util.rotation_matrices">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">rotation_matrices</span><span class="p">(</span><span class="n">chi</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Build a paired 2x2 rotation matrix and its inverse from a meridional-plane angle.</span>
+
+<span class="sd">    Both :class:`~ember.patch.RevolutionPatch`&#39;s interface frame and</span>
+<span class="sd">    :func:`~ember.block_util.resolve_to_interface` rotate a velocity pair</span>
+<span class="sd">    :math:`(V_x, V_r)` by the same convention, so this is the one place that</span>
+<span class="sd">    convention is written down:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        V_n &amp;= \cos\chi\, V_x + \sin\chi\, V_r \\</span>
+<span class="sd">        V_s &amp;= -\sin\chi\, V_x + \cos\chi\, V_r</span>
+
+<span class="sd">    ``rot_from`` is the transpose of ``rot_to`` -- the rotation is</span>
+<span class="sd">    orthogonal -- so it undoes exactly this and nothing has to be re-derived</span>
+<span class="sd">    to invert it.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    chi : float or Array</span>
+<span class="sd">        Angle [rad] of the frame axis from :math:`+x`, any shape.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    rot_to, rot_from : Array, shape ``chi.shape + (2, 2)``</span>
+<span class="sd">        ``rot_to`` turns :math:`(V_x, V_r)` into :math:`(V_n, V_s)`;</span>
+<span class="sd">        ``rot_from`` turns :math:`(V_n, V_s)` back into :math:`(V_x, V_r)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">chi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">chi</span><span class="p">)</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">chi</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">chi</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">rot_to</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+    <span class="n">rot_to</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+    <span class="n">rot_to</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span>
+    <span class="n">rot_to</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">s</span>
+    <span class="n">rot_to</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+    <span class="n">rot_from</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">rot_to</span><span class="p">)</span>
+    <span class="n">rot_from</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+    <span class="n">rot_from</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">s</span>
+    <span class="n">rot_from</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span>
+    <span class="n">rot_from</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+    <span class="k">return</span> <span class="n">rot_to</span><span class="p">,</span> <span class="n">rot_from</span></div>
+
+
+
+<div class="viewcode-block" id="matvec">
+<a class="viewcode-back" href="../../api/util.html#ember.util.matvec">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">matvec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Matrix-vector multiplication using einsum over trailing dimensions.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    A : Array, shape (..., n, m)</span>
+<span class="sd">        Input matrices with matrix dimensions in the last two axes.</span>
+<span class="sd">    b : Array, shape (..., m)</span>
+<span class="sd">        Input vectors with vector dimension in the last axis.</span>
+<span class="sd">    out : Array, shape (..., n), optional</span>
+<span class="sd">        Preallocated array to write the result into, sparing a new</span>
+<span class="sd">        allocation.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (..., n)</span>
+<span class="sd">        Result of matrix-vector multiplication A @ b for each corresponding</span>
+<span class="sd">        matrix and vector in the trailing dimensions. Uses f32 precision and</span>
+<span class="sd">        Fortran ordering for optimal performance.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    When ``out`` is given, ``A`` and ``b`` are checked against two specific</span>
+<span class="sd">    hot-path shapes -- the per-grid-point 5x5 Jacobian contractions the</span>
+<span class="sd">    solver runs every iteration -- and dispatched to a specialised Fortran</span>
+<span class="sd">    kernel if they match. Any other shape combination falls back to</span>
+<span class="sd">    ``numpy.matmul(..., out=...)``, which is still correct but without the</span>
+<span class="sd">    specialised kernel. Either way ``out`` is updated in place and returned</span>
+<span class="sd">    by identity.</span>
+
+<span class="sd">    The two fast-path shapes, with ``b.shape[-1]`` fixed at 5 in every case:</span>
+
+<span class="sd">    - **Single batch axis**: ``b.shape == (N, 5)`` and ``A.shape == (N, 5, 5)`` -- one matrix per vector, no broadcasting.</span>
+<span class="sd">    - **Three-dimensional grid with one broadcast**: ``b.shape === (ni, nj, nk, 5)``,</span>
+<span class="sd">      and ``A.shape`` one of:</span>
+
+<span class="sd">      - ``(ni, nj, 1, 5, 5)`` -- one matrix per :math:`(i,j)`, shared</span>
+<span class="sd">        across :math:`k`</span>
+<span class="sd">      - ``(1, 1, nk, 5, 5)`` -- one matrix per :math:`k`, shared across</span>
+<span class="sd">        :math:`(i,j)`</span>
+<span class="sd">      - ``(ni, 1, 1, 5, 5)`` -- one matrix per :math:`i`, shared across</span>
+<span class="sd">        :math:`(j,k)`</span>
+
+<span class="sd">      A parallel set of kernels handles the same three broadcast patterns</span>
+<span class="sd">      for ``b.shape[-1] == 2`` instead of 5.</span>
+<span class="sd">      Any other broadcast pattern within the 3-grid-axis case,  including</span>
+<span class="sd">      a full ``A`` shape ``(ni, nj, nk, n, m)`` with no broadcast axis at</span>
+<span class="sd">      all, falls back to :obj:`numpy.matmul`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; # Stack of 3x3 matrices with 3-element vectors</span>
+<span class="sd">    &gt;&gt;&gt; A = np.random.randn(10, 5, 3, 3).astype(np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; b = np.random.randn(10, 5, 3).astype(np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; y = matvec(A, b)  # Shape: (10, 5, 3)</span>
+
+<span class="sd">    &gt;&gt;&gt; # Single matrix-vector multiplication</span>
+<span class="sd">    &gt;&gt;&gt; A = np.eye(3, dtype=np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; b = np.array([1, 2, 3], dtype=np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; y = matvec(A, b)  # y = b</span>
+
+<span class="sd">    &gt;&gt;&gt; # Write into a preallocated buffer instead of allocating</span>
+<span class="sd">    &gt;&gt;&gt; A = np.random.randn(4, 5, 5).astype(np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; b = np.random.randn(4, 5).astype(np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; out = np.empty((4, 5), dtype=np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; matvec(A, b, out=out) is out</span>
+<span class="sd">    True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ndim</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">ndim</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">matvec5</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="c1"># The two-axis broadcasts are tested before the one-axis one: an</span>
+            <span class="c1"># (ni, 1, 1) matrix also satisfies the A.shape[2] == 1 test that</span>
+            <span class="c1"># selects _bcast_j, so checking _bcast_j first would make _bcast_i</span>
+            <span class="c1"># unreachable and hand the j kernel an nj it cannot use.</span>
+            <span class="k">if</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">matvec2_bcast_k</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">matvec2_bcast_i</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">matvec2_bcast_j</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])</span>
+            <span class="k">elif</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">matvec5_bcast_k</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">matvec5_bcast_i</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">matvec5_bcast_j</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">out</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">f32</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="resample">
+<a class="viewcode-back" href="../../api/util.html#ember.util.resample">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resample</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="n">vector</span><span class="p">,</span> <span class="n">i_crit</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resampled a vector with specified factor, optionally preserving critical points.</span>
+
+<span class="sd">    Creates a new vector by resampling with a given factor. The new length equals</span>
+<span class="sd">    len(vector) * factor (approximately). Critical indices are preserved, and for</span>
+<span class="sd">    upsampling, fractional indices are linearly interpolated.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    factor : float</span>
+<span class="sd">        Resampling factor. Values &gt; 1 increase resolution, &lt; 1 decrease resolution.</span>
+<span class="sd">        Must be &gt; 0.</span>
+<span class="sd">    vector : array_like</span>
+<span class="sd">        Input vector to resample.</span>
+<span class="sd">    i_crit : array_like, optional</span>
+<span class="sd">        Critical indices that must be preserved in the output.</span>
+<span class="sd">        Must be sorted and within [0, len(vector)-1]. If None, uses [0, len(vector)-1].</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    resampled_values : Array</span>
+<span class="sd">        Resampled vector with length approximately len(vector) * factor,</span>
+<span class="sd">        with values at critical indices preserved and interpolated elsewhere.</span>
+<span class="sd">    crit_mapping : dict</span>
+<span class="sd">        Dictionary mapping old critical indices to their positions in the new vector.</span>
+<span class="sd">        Format: {old_index: new_index}</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; # Increase resolution by factor of 2 with linear interpolation</span>
+<span class="sd">    &gt;&gt;&gt; x = np.array([0, 1, 4, 9, 16])</span>
+<span class="sd">    &gt;&gt;&gt; x_resampled, mapping = resample(2.0, x)</span>
+<span class="sd">    &gt;&gt;&gt; len(x_resampled)  # approximately 10</span>
+<span class="sd">    &gt;&gt;&gt; mapping[0], mapping[4]  # endpoints preserved at new positions</span>
+
+<span class="sd">    &gt;&gt;&gt; # Decrease resolution preserving critical points</span>
+<span class="sd">    &gt;&gt;&gt; x_resampled, mapping = resample(0.5, x, [0, 2, 4])</span>
+<span class="sd">    &gt;&gt;&gt; len(x_resampled)  # approximately 2-3</span>
+<span class="sd">    &gt;&gt;&gt; mapping  # {0: 0, 2: 1, 4: 2} - critical indices mapped to new positions</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Input validation</span>
+    <span class="k">if</span> <span class="n">factor</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;factor must be positive&quot;</span><span class="p">)</span>
+
+    <span class="n">vector</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">vector</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">ni</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vector</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ni</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">vector</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="p">{}</span>
+
+    <span class="c1"># Set default critical indices to endpoints</span>
+    <span class="k">if</span> <span class="n">i_crit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ni</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># Single point vector - no resampling possible</span>
+            <span class="k">return</span> <span class="n">vector</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="n">i_crit</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">i_crit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">i_crit</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">i_crit</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;i_crit must have at least 2 elements&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">i_crit</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;i_crit must be strictly increasing&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">i_crit</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">i_crit</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">ni</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;i_crit must be in range [0, </span><span class="si">{</span><span class="n">ni</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Calculate spans between consecutive critical indices</span>
+    <span class="n">spans</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">i_crit</span><span class="p">)</span>
+
+    <span class="c1"># Allocate per-segment cell counts so they sum exactly to the target</span>
+    <span class="c1"># total, instead of rounding each segment independently. Independent</span>
+    <span class="c1"># rounding lets multiple segments each accrue a half-cell overshoot,</span>
+    <span class="c1"># producing an output one node larger than the global target -- which</span>
+    <span class="c1"># then violates the multigrid coarsening invariant</span>
+    <span class="c1"># n_coarse == (n_fine - 1) // 2 + 1.</span>
+    <span class="c1">#</span>
+    <span class="c1"># Largest-remainder (Hare quota): floor each segment&#39;s ideal cell count,</span>
+    <span class="c1"># then distribute the leftover cells to the segments with the largest</span>
+    <span class="c1"># fractional remainder. Segments are clamped to &gt;= 1 cell to keep the</span>
+    <span class="c1"># critical-index mapping strictly increasing (two adjacent criticals</span>
+    <span class="c1"># cannot collapse to the same output node).</span>
+    <span class="n">total_cells</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">((</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">factor</span><span class="p">))</span>
+    <span class="n">seg_float</span> <span class="o">=</span> <span class="n">spans</span> <span class="o">*</span> <span class="n">factor</span>
+    <span class="n">seg_cells</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">seg_float</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">seg_cells</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">seg_cells</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">remainder</span> <span class="o">=</span> <span class="n">seg_float</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">seg_float</span><span class="p">)</span>
+    <span class="n">deficit</span> <span class="o">=</span> <span class="n">total_cells</span> <span class="o">-</span> <span class="n">seg_cells</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">deficit</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># Award extras to segments with largest fractional remainder.</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="o">-</span><span class="n">remainder</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;stable&quot;</span><span class="p">)</span>
+        <span class="n">seg_cells</span><span class="p">[</span><span class="n">order</span><span class="p">[:</span><span class="n">deficit</span><span class="p">]]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">elif</span> <span class="n">deficit</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># Trim from segments with smallest remainder, but never below 1.</span>
+        <span class="c1"># Sweep repeatedly: a single pass removes at most one cell per</span>
+        <span class="c1"># segment, so when the surplus exceeds the number of trimmable</span>
+        <span class="c1"># segments it must keep sweeping the large segments down. A sweep</span>
+        <span class="c1"># that trims nothing means every segment is already at 1 -- the</span>
+        <span class="c1"># target genuinely cannot be met without collapsing a segment.</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">remainder</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;stable&quot;</span><span class="p">)</span>
+        <span class="k">while</span> <span class="n">deficit</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">trimmed</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">order</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">deficit</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="k">if</span> <span class="n">seg_cells</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">seg_cells</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+                    <span class="n">deficit</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">trimmed</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">trimmed</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;resample: cannot allocate </span><span class="si">{</span><span class="n">total_cells</span><span class="si">}</span><span class="s2"> cells across &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">spans</span><span class="p">)</span><span class="si">}</span><span class="s2"> segments without collapsing a segment &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;(spans=</span><span class="si">{</span><span class="n">spans</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span><span class="si">}</span><span class="s2">, factor=</span><span class="si">{</span><span class="n">factor</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="p">)</span>
+
+    <span class="c1"># Generate fractional indices for each segment</span>
+    <span class="n">fractional_indices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">span</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">spans</span><span class="p">):</span>
+        <span class="c1"># Number of points in this segment (including both endpoints)</span>
+        <span class="n">n_points_in_segment</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">seg_cells</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="c1"># Create linearly spaced fractional indices between critical points</span>
+        <span class="n">start_idx</span> <span class="o">=</span> <span class="n">i_crit</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">end_idx</span> <span class="o">=</span> <span class="n">i_crit</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">segment_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">start_idx</span><span class="p">,</span> <span class="n">end_idx</span><span class="p">,</span> <span class="n">n_points_in_segment</span><span class="p">)</span>
+        <span class="n">fractional_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">segment_indices</span><span class="p">)</span>
+
+    <span class="c1"># Combine all segments and remove duplicates while preserving order</span>
+    <span class="n">all_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">fractional_indices</span><span class="p">)</span>
+    <span class="c1"># Remove duplicates by rounding and using unique, then sort</span>
+    <span class="n">unique_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">all_indices</span><span class="p">)</span>
+
+    <span class="c1"># Interpolate vector values at the fractional indices</span>
+    <span class="c1"># For integer indices, use exact values; for fractional, interpolate</span>
+    <span class="n">resampled_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span>
+        <span class="n">unique_indices</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ni</span><span class="p">),</span> <span class="n">vector</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="c1"># Convert back to float32 for consistency</span>
+    <span class="n">resampled_values</span> <span class="o">=</span> <span class="n">resampled_values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="c1"># Verify all critical indices are preserved (within tolerance for floating point)</span>
+    <span class="c1"># and create mapping dictionary</span>
+    <span class="n">crit_mapping</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">ic</span> <span class="ow">in</span> <span class="n">i_crit</span><span class="p">:</span>
+        <span class="c1"># Find the position of this critical index in the new vector</span>
+        <span class="n">closest_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">unique_indices</span> <span class="o">-</span> <span class="n">ic</span><span class="p">))</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">[</span><span class="n">closest_idx</span><span class="p">]</span> <span class="o">-</span> <span class="n">ic</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1e-10</span><span class="p">,</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Critical index not preserved, want </span><span class="si">{</span><span class="n">ic</span><span class="si">}</span><span class="se">\n</span><span class="s2"> got </span><span class="si">{</span><span class="n">unique_indices</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+        <span class="n">crit_mapping</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">ic</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">closest_idx</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">resampled_values</span><span class="p">,</span> <span class="n">crit_mapping</span></div>
+
+
+
+<div class="viewcode-block" id="apply_perm_flip">
+<a class="viewcode-back" href="../../api/util.html#ember.util.apply_perm_flip">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_perm_flip</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">perm</span><span class="p">,</span> <span class="n">flip</span><span class="o">=</span><span class="p">()):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply permutation and flipping to array while preserving coordinate dimension.</span>
+
+<span class="sd">    This function applies a permutation and optional flipping to the spatial dimensions</span>
+<span class="sd">    of an array, while preserving the last dimension (typically coordinates). This is</span>
+<span class="sd">    commonly used in patch operations for coordinate transformations.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    array : Array</span>
+<span class="sd">        Input array to transform, typically with shape (..., 3) where the last</span>
+<span class="sd">        dimension contains coordinate components.</span>
+<span class="sd">    perm : tuple</span>
+<span class="sd">        Permutation to apply to spatial dimensions (0, 1, 2).</span>
+<span class="sd">    flip : tuple, optional</span>
+<span class="sd">        Dimensions to flip after permutation. Default is () (no flipping).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array</span>
+<span class="sd">        Transformed array with permutation and flipping applied to spatial</span>
+<span class="sd">        dimensions, last dimension preserved.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; coords = np.random.randn(5, 4, 3).astype(np.float32, order=&#39;F&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; # Swap i and j dimensions</span>
+<span class="sd">    &gt;&gt;&gt; transformed = apply_perm_flip(coords, perm=(1, 0, 2))</span>
+<span class="sd">    &gt;&gt;&gt; transformed.shape == (4, 5, 3)  # i,j swapped, coordinates preserved</span>
+<span class="sd">    True</span>
+
+<span class="sd">    &gt;&gt;&gt; # Swap dimensions and flip along first dimension</span>
+<span class="sd">    &gt;&gt;&gt; transformed = apply_perm_flip(coords, perm=(1, 0, 2), flip=(0,))</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Apply permutation to spatial dimensions, keep coordinate index (last dim)</span>
+    <span class="n">array_transformed</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">perm</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">3</span><span class="p">,))</span>
+    <span class="k">if</span> <span class="n">flip</span><span class="p">:</span>
+        <span class="n">array_transformed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flip</span><span class="p">(</span><span class="n">array_transformed</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">flip</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">array_transformed</span></div>
+
+
+
+<div class="viewcode-block" id="cosine_cluster">
+<a class="viewcode-back" href="../../api/util.html#ember.util.cosine_cluster">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cosine_cluster</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Generate cosine-clustered points from 0 to 1, dense at both ends.</span>
+
+<span class="sd">    Produces ``n`` points on the unit interval following a half-cosine</span>
+<span class="sd">    distribution, which clusters nodes near both endpoints (``zeta = 0`` and</span>
+<span class="sd">    ``zeta = 1``) and spaces them most coarsely in the middle:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \zeta_k = \tfrac{1}{2}\left(1 - \cos\frac{\pi k}{n - 1}\right),</span>
+<span class="sd">        \quad k = 0, \ldots, n - 1.</span>
+
+<span class="sd">    The result is symmetric about 0.5 with exact endpoints 0 and 1.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n : int</span>
+<span class="sd">        Number of points to generate (must be &gt;= 2).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (n,)</span>
+<span class="sd">        Cosine-clustered vector from 0 to 1, dtype=float32.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; z = cosine_cluster(5)</span>
+<span class="sd">    &gt;&gt;&gt; z[0], z[-1]  # exact endpoints</span>
+<span class="sd">    (0.0, 1.0)</span>
+<span class="sd">    &gt;&gt;&gt; np.allclose(z + z[::-1], 1.0)  # symmetric</span>
+<span class="sd">    True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;n must be &gt;= 2&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">n</span><span class="p">))))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">f32</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="cluster">
+<a class="viewcode-back" href="../../api/util.html#ember.util.cluster">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cluster</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">ER</span><span class="p">,</span> <span class="n">dmax</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate geometrically spaced points from 0 to 1 with expansion ratio and max spacing.</span>
+
+<span class="sd">    Creates a vector from 0 to 1 with geometrically spaced points, where the spacing</span>
+<span class="sd">    expands at ratio ER but is capped to maximum size dmax. The algorithm creates an</span>
+<span class="sd">    initial geometric dx vector, then iteratively adjusts the scaling to achieve</span>
+<span class="sd">    unit total length while respecting dmax after capping.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ni : int</span>
+<span class="sd">        Number of points to generate (must be &gt;= 2)</span>
+<span class="sd">    ER : float</span>
+<span class="sd">        Expansion ratio for geometric spacing (must be &gt; 0)</span>
+<span class="sd">    dmax : float</span>
+<span class="sd">        Maximum allowed spacing between consecutive points (must be &gt; 0)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (ni,)</span>
+<span class="sd">        Vector from 0 to 1 with clustered spacing, dtype=float32</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; # Basic clustering with expansion ratio 1.2</span>
+<span class="sd">    &gt;&gt;&gt; x = cluster(10, 1.2, 0.5)</span>
+<span class="sd">    &gt;&gt;&gt; x[0], x[-1]  # Should be (0.0, 1.0)</span>
+
+<span class="sd">    &gt;&gt;&gt; # Uniform spacing when ER=1.0</span>
+<span class="sd">    &gt;&gt;&gt; x = cluster(5, 1.0, 1.0)</span>
+<span class="sd">    &gt;&gt;&gt; np.allclose(x, np.linspace(0, 1, 5))</span>
+<span class="sd">    True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">ni</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;ni must be &gt;= 2&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ER</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;ER must be &gt; 0&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">dmax</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;dmax must be &gt; 0&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Handle uniform spacing case</span>
+    <span class="k">if</span> <span class="n">ER</span> <span class="o">==</span> <span class="mf">1.0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">ni</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+
+    <span class="c1"># Create initial geometric spacing</span>
+    <span class="n">dx_geom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">dx_geom</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">dx_geom</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">ER</span>
+
+    <span class="c1"># Check if dmax is too restrictive</span>
+    <span class="n">min_uniform_spacing</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">dmax</span> <span class="o">&lt;</span> <span class="n">min_uniform_spacing</span><span class="p">:</span>
+        <span class="c1"># dmax is too restrictive, fall back to uniform spacing</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">ni</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+
+    <span class="c1"># Scale the geometric spacing to achieve unit length after capping</span>
+    <span class="n">max_iterations</span> <span class="o">=</span> <span class="mi">100</span>
+    <span class="n">tolerance</span> <span class="o">=</span> <span class="mf">1e-8</span>
+    <span class="n">scale</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_iterations</span><span class="p">):</span>
+        <span class="c1"># Apply scaling and cap</span>
+        <span class="n">dx_scaled</span> <span class="o">=</span> <span class="n">dx_geom</span> <span class="o">*</span> <span class="n">scale</span>
+        <span class="n">dx_capped</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">dx_scaled</span><span class="p">,</span> <span class="n">dmax</span><span class="p">)</span>
+        <span class="n">current_length</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dx_capped</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">current_length</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">tolerance</span><span class="p">:</span>
+            <span class="k">break</span>
+
+        <span class="c1"># Check if we&#39;ve hit the cap limit</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">dx_capped</span><span class="p">,</span> <span class="n">dmax</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">)</span> <span class="ow">and</span> <span class="n">current_length</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="c1"># All spacings are at dmax but total length &lt; 1, impossible to satisfy</span>
+            <span class="c1"># Fall back to uniform spacing</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">ni</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+
+        <span class="c1"># Adjust scaling to get closer to unit length</span>
+        <span class="n">scale</span> <span class="o">*=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">current_length</span>
+
+    <span class="c1"># Final spacing with scaling and capping</span>
+    <span class="n">dx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">dx_geom</span> <span class="o">*</span> <span class="n">scale</span><span class="p">,</span> <span class="n">dmax</span><span class="p">)</span>
+
+    <span class="c1"># Rescale dx to ensure exact unit total length</span>
+    <span class="n">dx_sum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dx</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">dx_sum</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">dx</span> <span class="o">*=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">dx_sum</span>
+
+    <span class="c1"># Construct coordinate vector by cumulative sum</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
+    <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">dx</span><span class="p">)</span>
+
+    <span class="c1"># Ensure exact endpoints (should already be correct now)</span>
+    <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+    <span class="k">return</span> <span class="n">x</span></div>
+
+
+
+<div class="viewcode-block" id="cluster_symmetric">
+<a class="viewcode-back" href="../../api/util.html#ember.util.cluster_symmetric">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cluster_symmetric</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">ER</span><span class="p">,</span> <span class="n">dmax</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate geometrically spaced points from 0 to 1, dense at both ends.</span>
+
+<span class="sd">    Where :func:`cluster` expands away from a single end, this mirrors a</span>
+<span class="sd">    half-width :func:`cluster` vector about the centreline, so the spacing</span>
+<span class="sd">    grows at expansion ratio ``ER`` away from *both* endpoints and is coarsest</span>
+<span class="sd">    in the middle. Unlike :func:`cosine_cluster`, which is also symmetric, the</span>
+<span class="sd">    growth rate is controlled rather than fixed by the distribution.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n : int</span>
+<span class="sd">        Number of points to generate. Must be odd and &gt;= 3, so that the two</span>
+<span class="sd">        mirrored halves share their midpoint.</span>
+<span class="sd">    ER : float</span>
+<span class="sd">        Expansion ratio for geometric spacing (must be &gt; 0).</span>
+<span class="sd">    dmax : float</span>
+<span class="sd">        Maximum allowed spacing in the returned vector (must be &gt; 0).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (n,)</span>
+<span class="sd">        Vector from 0 to 1 with spacing clustered at both ends, dtype=float32.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; z = cluster_symmetric(9, 1.2, 1.0)</span>
+<span class="sd">    &gt;&gt;&gt; z[0], z[-1]  # exact endpoints</span>
+<span class="sd">    (0.0, 1.0)</span>
+<span class="sd">    &gt;&gt;&gt; np.allclose(z + z[::-1], 1.0)  # symmetric about 0.5</span>
+<span class="sd">    True</span>
+
+<span class="sd">    &gt;&gt;&gt; # Uniform spacing when ER=1.0</span>
+<span class="sd">    &gt;&gt;&gt; np.allclose(cluster_symmetric(5, 1.0, 1.0), np.linspace(0, 1, 5))</span>
+<span class="sd">    True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;n must be odd and &gt;= 3 to mirror a half-width, got </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># The half-vector spans 0 to 1 and is then scaled onto 0 to 0.5, so a cap</span>
+    <span class="c1"># of dmax on the result corresponds to 2*dmax on the half.</span>
+    <span class="n">half</span> <span class="o">=</span> <span class="n">cluster</span><span class="p">((</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="n">ER</span><span class="p">,</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">dmax</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">half</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">half</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">::</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">f32</span><span class="p">)</span>
+
+    <span class="c1"># Guard the endpoints and midpoint against round-off in the mirror</span>
+    <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">x</span><span class="p">[</span><span class="n">n</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span>
+    <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+    <span class="k">return</span> <span class="n">x</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

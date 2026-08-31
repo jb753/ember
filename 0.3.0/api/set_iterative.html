@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Iterative flow-field setters &#8212; ember 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Grid" href="grid.html" />
+    <link rel="prev" title="Block utilities" href="block_util.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.3.0</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.3.0";
+    var page = "api/set_iterative.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Real gas fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Iterative flow-field setters</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#ember.set_iterative.set_ho_s_Ma_Alpha_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_ho_s_Ma_Alpha_Beta()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_ho_s_rhoVm_Alpha_Beta()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.set_iterative.set_ho_s_rhoVm_Vt_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_ho_s_rhoVm_Vt_Beta()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="block_util.html" title="previous chapter">Block utilities</a></li>
+      <li>Next: <a href="grid.html" title="next chapter">Grid</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.set_iterative">
+<span id="iterative-flow-field-setters"></span><h1>Iterative flow-field setters<a class="headerlink" href="#module-ember.set_iterative" title="Link to this heading">¶</a></h1>
+<p>Iterative setter functions for Block objects.</p>
+<p>This module provides iterative solvers for initializing thermodynamically consistent flow fields
+that satisfy complex constraints such as specified stagnation enthalpy, entropy, and flow angles.
+These functions implement Newton-Raphson style iterations to solve implicit equations coupling
+thermodynamic state variables with kinematic constraints, enabling initialization of inlet
+boundary conditions with prescribed total pressure/temperature or the creation of exact test
+cases. All setters modify Block objects in-place and support both absolute and relative reference
+frames for turbomachinery applications. The module is essential for setting up physically
+realistic initial conditions that preserve thermodynamic relations while satisfying specified
+flow topology constraints.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.set_iterative.set_ho_s_Ma_Alpha_Beta">
+<span class="sig-prename descclassname"><span class="pre">set_iterative.</span></span><span class="sig-name descname"><span class="pre">set_ho_s_Ma_Alpha_Beta</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Ma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Beta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/set_iterative.html#set_ho_s_Ma_Alpha_Beta"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.set_iterative.set_ho_s_Ma_Alpha_Beta" title="Link to this definition">¶</a></dt>
+<dd><p>Set flow field using stagnation enthalpy, entropy, absolute Mach number, and absolute flow angles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – The block object to modify.</p></li>
+<li><p><strong>ho</strong> (<em>Array</em>) – Stagnation enthalpy [J/kg].</p></li>
+<li><p><strong>s</strong> (<em>Array</em>) – Entropy [J/kg/K].</p></li>
+<li><p><strong>Ma</strong> (<em>Array</em>) – Absolute Mach number [–].</p></li>
+<li><p><strong>Alpha</strong> (<em>Array</em><em>, </em><em>default=0.0</em>) – Absolute yaw angle [deg].</p></li>
+<li><p><strong>Beta</strong> (<em>Array</em><em>, </em><em>default=0.0</em>) – Pitch angle [deg].</p></li>
+<li><p><strong>max_iter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default=200</em>) – Maximum number of iterations for convergence.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>default=1e-6</em>) – Convergence tolerance.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified block object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta">
+<span class="sig-prename descclassname"><span class="pre">set_iterative.</span></span><span class="sig-name descname"><span class="pre">set_ho_s_rhoVm_Alpha_Beta</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhoVm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Beta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/set_iterative.html#set_ho_s_rhoVm_Alpha_Beta"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta" title="Link to this definition">¶</a></dt>
+<dd><p>Set flow field using stagnation enthalpy, entropy, momentum density, and absolute flow angles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – The block object to modify.</p></li>
+<li><p><strong>ho</strong> (<em>Array</em>) – Stagnation enthalpy [J/kg].</p></li>
+<li><p><strong>s</strong> (<em>Array</em>) – Entropy [J/kg/K].</p></li>
+<li><p><strong>rhoV</strong> (<em>Array</em>) – Momentum density magnitude [kg/m^2/s].</p></li>
+<li><p><strong>Alpha</strong> (<em>Array</em><em>, </em><em>default=0.0</em>) – Absolute yaw angle [deg].</p></li>
+<li><p><strong>Beta</strong> (<em>Array</em><em>, </em><em>default=0.0</em>) – Pitch angle [deg].</p></li>
+<li><p><strong>max_iter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default=200</em>) – Maximum number of iterations for convergence.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>default=1e-6</em>) – Convergence tolerance.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified block object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.set_iterative.set_ho_s_rhoVm_Vt_Beta">
+<span class="sig-prename descclassname"><span class="pre">set_iterative.</span></span><span class="sig-name descname"><span class="pre">set_ho_s_rhoVm_Vt_Beta</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhoVm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Vt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Beta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/set_iterative.html#set_ho_s_rhoVm_Vt_Beta"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.set_iterative.set_ho_s_rhoVm_Vt_Beta" title="Link to this definition">¶</a></dt>
+<dd><p>Set flow field using stagnation enthalpy, entropy, meridional mass flux, and fixed swirl.</p>
+<p>Solves the state of a subsonic isentropic meridional contraction (or
+expansion) carrying a fixed tangential velocity. The stagnation enthalpy,
+entropy and tangential velocity are held fixed while the meridional velocity
+and thermodynamic state adjust to carry the prescribed meridional mass flux
+<span class="math notranslate nohighlight">\(\rho V_m\)</span>. The pitch angle <span class="math notranslate nohighlight">\(\beta\)</span> fixes the split of
+<span class="math notranslate nohighlight">\(V_m\)</span> into axial and radial components.</p>
+<div class="math notranslate nohighlight">
+\[h_0 = h(\rho, s) + \tfrac{1}{2}(V_m^2 + V_\theta^2), \qquad
+\rho V_m = \mathrm{const}\]</div>
+<p>Holding <span class="math notranslate nohighlight">\(V_\theta\)</span> fixed (rather than the yaw angle) conserves angular
+momentum <span class="math notranslate nohighlight">\(r V_\theta\)</span> at fixed radius, distinguishing this from
+<a class="reference internal" href="#ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta" title="ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta"><code class="xref py py-func docutils literal notranslate"><span class="pre">set_ho_s_rhoVm_Alpha_Beta()</span></code></a>.</p>
+<p>Only the <strong>subsonic</strong> meridional branch is supported (the density
+fixed-point iteration converges there). The meridional mass flux
+<span class="math notranslate nohighlight">\(\rho V_m\)</span> rises with <span class="math notranslate nohighlight">\(V_m\)</span> to a maximum at meridional Mach
+number unity; a <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> is raised if the requested mass flux
+exceeds this sonic maximum, since the meridional flow then chokes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – The block object to modify.</p></li>
+<li><p><strong>ho</strong> (<em>Array</em>) – Stagnation enthalpy [J/kg].</p></li>
+<li><p><strong>s</strong> (<em>Array</em>) – Entropy [J/kg/K].</p></li>
+<li><p><strong>rhoVm</strong> (<em>Array</em>) – Meridional momentum density (mass flux per unit area) [kg/m^2/s].</p></li>
+<li><p><strong>Vt</strong> (<em>Array</em>) – Tangential (swirl) velocity, held fixed [m/s].</p></li>
+<li><p><strong>Beta</strong> (<em>Array</em><em>, </em><em>default=0.0</em>) – Pitch angle [deg].</p></li>
+<li><p><strong>max_iter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default=200</em>) – Maximum number of iterations for convergence.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>default=1e-6</em>) – Convergence tolerance.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified block object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta">
+<span class="sig-prename descclassname"><span class="pre">set_iterative.</span></span><span class="sig-name descname"><span class="pre">set_I_s_Ma_rel_Alpha_rel_Beta</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">I</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Ma_rel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Alpha_rel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/set_iterative.html#set_I_s_Ma_rel_Alpha_rel_Beta"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta" title="Link to this definition">¶</a></dt>
+<dd><p>Set flow field using rothalpy, entropy, relative Mach number, and relative flow angles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – The block object to modify.</p></li>
+<li><p><strong>I</strong> (<em>Array</em>) – Rothalpy (rotational stagnation enthalpy) [J/kg].</p></li>
+<li><p><strong>s</strong> (<em>Array</em>) – Entropy [J/kg/K].</p></li>
+<li><p><strong>Ma_rel</strong> (<em>Array</em>) – Mach number in relative frame [–].</p></li>
+<li><p><strong>Alpha_rel</strong> (<em>Array</em>) – Relative yaw angle (tangential flow direction) [deg].</p></li>
+<li><p><strong>Beta</strong> (<em>Array</em>) – Pitch angle (radial flow direction) [deg].</p></li>
+<li><p><strong>max_iter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default=200</em>) – Maximum number of iterations for convergence.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>default=1e-6</em>) – Convergence tolerance.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified block object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a></p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>This method is particularly useful for turbomachinery applications where:
+- Rothalpy I is conserved across blade rows
+- Flow angles are specified in the relative frame
+- Alpha_rel = 0 means no relative swirl (Vt_rel = 0)
+- Beta = 90 means purely radial flow</p>
+<p>The method solves the rothalpy constraint directly:
+I = h_static + 0.5*V_abs^2 - U*Vt_abs</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta">
+<span class="sig-prename descclassname"><span class="pre">set_iterative.</span></span><span class="sig-name descname"><span class="pre">set_Po_To_Ma_rel_Alpha_rel_Beta</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Po</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">To</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Ma_rel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Alpha_rel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/set_iterative.html#set_Po_To_Ma_rel_Alpha_rel_Beta"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta" title="Link to this definition">¶</a></dt>
+<dd><p>Set flow field using total pressure, total temperature, relative Mach number, and relative flow angles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – The block object to modify.</p></li>
+<li><p><strong>Po</strong> (<em>Array</em>) – Total pressure [Pa].</p></li>
+<li><p><strong>To</strong> (<em>Array</em>) – Total temperature [K].</p></li>
+<li><p><strong>Ma_rel</strong> (<em>Array</em>) – Mach number in relative frame [–].</p></li>
+<li><p><strong>Alpha_rel</strong> (<em>Array</em>) – Relative yaw angle [deg].</p></li>
+<li><p><strong>Beta</strong> (<em>Array</em>) – Pitch angle [deg].</p></li>
+<li><p><strong>max_iter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default=200</em>) – Maximum number of iterations for convergence.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>default=1e-6</em>) – Convergence tolerance.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The modified block object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a></p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>This method is useful for turbomachinery applications where:
+- Total conditions (Po, To) are known at the inlet
+- Flow angles are specified in the relative frame
+- Alpha_rel = 0 means no relative swirl (Vt_rel = 0)
+- Beta = 90 means purely radial flow</p>
+<p>The method uses the stagnation enthalpy iterator in relative frame mode.
+Note: This approach may have convergence issues at very high rotation rates
+where absolute velocities become large compared to stagnation enthalpy.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If coordinates (r) are not initialized, which are required for relative frame calculations.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/set_iterative.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

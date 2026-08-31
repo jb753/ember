@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Examples &#8212; ember 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Basic Block usage" href="plot_block_basics.html" />
+    <link rel="prev" title="Installation" href="../install.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.3.0</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.3.0";
+    var page = "auto_examples/index.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="plot_block_basics.html">Basic Block usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_cut_average.html">Cutting and averaging a flow field</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_isentropic_nozzle.html">Isentropic nozzle analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_joule_cycle.html">Gas turbine Joule cycle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_patches.html">Boundary patches on a block</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_shocked_nozzle.html">Shocked nozzle design</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/realgas_fit.html">Real gas fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="../install.html" title="previous chapter">Installation</a></li>
+      <li>Next: <a href="plot_block_basics.html" title="next chapter">Basic Block usage</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="examples">
+<h1>Examples<a class="headerlink" href="#examples" title="Link to this heading">¶</a></h1>
+<p>A gallery of worked examples demonstrating the ember API.</p>
+<p><code class="docutils literal notranslate"><span class="pre">plot_*.py</span></code> examples run on every <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">docs</span></code> build.</p>
+<p><code class="docutils literal notranslate"><span class="pre">run_*.py</span></code> examples are expensive (multigrid solves taking many seconds
+to minutes) and are only executed by <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">docs-full</span></code>; a normal build
+shows their source unexecuted, reusing whatever output was last generated.</p>
+<div id='sg-tag-list' class='sphx-glr-tag-list'></div><div class="sphx-glr-thumbnails"><div class="sphx-glr-thumbcontainer" tooltip="The ember.block.Block class holds a flow field over a structured grid and evaluates thermodynamic and kinematic properties through an attached ember.fluid equation of state. This example tours the basics: choosing a shape, setting coordinates and velocities, fixing the thermodynamic state, working in a rotating frame, and the numpy-like indexing and array operations a block supports. It closes by plotting a radial profile straight from a block&#x27;s property arrays."><img alt="" src="../_images/sphx_glr_plot_block_basics_thumb.png" />
+<p><a class="reference internal" href="plot_block_basics.html"><span class="doc">Basic Block usage</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Basic Block usage</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="A spatially-resolved CFD solution must be reduced to mean quantities before it can be compared with a mean-line design point or an experimental traverse. This example takes a non-uniform flow field on a 3-D ember.block.Block, extracts a cross-sectional cut, and reduces it with the ember.average module."><img alt="" src="../_images/sphx_glr_plot_cut_average_thumb.png" />
+<p><a class="reference internal" href="plot_cut_average.html"><span class="doc">Cutting and averaging a flow field</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Cutting and averaging a flow field</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="This example solves the subsonic, isentropic flow through a nozzle of prescribed area variation using a simple fixed-point (Picard) iteration on a ember.block.Block flow field."><img alt="" src="../_images/sphx_glr_plot_isentropic_nozzle_thumb.png" />
+<p><a class="reference internal" href="plot_isentropic_nozzle.html"><span class="doc">Isentropic nozzle analysis</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Isentropic nozzle analysis</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="This example uses the ember.block.Block API to perform a thermodynamic analysis of a gas turbine operating on the Joule (Brayton) cycle with non-isentropic turbomachinery, then draws the corresponding temperature--entropy diagram."><img alt="" src="../_images/sphx_glr_plot_joule_cycle_thumb.png" />
+<p><a class="reference internal" href="plot_joule_cycle.html"><span class="doc">Gas turbine Joule cycle</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Gas turbine Joule cycle</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="Boundary conditions in ember are applied through patches: labelled regions on the faces of a ember.block.Block that carry inlet, outlet, periodic or rotating-wall data. This example builds an annular duct block, attaches a patch to each face, configures the boundary data, and draws the block with its patches coloured by type."><img alt="" src="../_images/sphx_glr_plot_patches_thumb.png" />
+<p><a class="reference internal" href="plot_patches.html"><span class="doc">Boundary patches on a block</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Boundary patches on a block</div>
+</div><div class="sphx-glr-thumbcontainer" tooltip="This example is the inverse of the nozzle analysis &lt;plot_isentropic_nozzle&gt;: instead of prescribing the area variation and solving for the Mach number, we prescribe the Mach number distribution through a converging--diverging nozzle containing a normal shock and recover the area variation that produces it."><img alt="" src="../_images/sphx_glr_plot_shocked_nozzle_thumb.png" />
+<p><a class="reference internal" href="plot_shocked_nozzle.html"><span class="doc">Shocked nozzle design</span></a></p>
+  <div class="sphx-glr-thumbnail-title">Shocked nozzle design</div>
+</div></div><div class="toctree-wrapper compound">
+</div>
+<div class="sphx-glr-footer sphx-glr-footer-gallery docutils container">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/07fcc19ba03226cd3d83d4e40ec44385/auto_examples_python.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">all</span> <span class="pre">examples</span> <span class="pre">in</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">auto_examples_python.zip</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/6f1e7a639e0699d6164445b55e6c116d/auto_examples_jupyter.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">all</span> <span class="pre">examples</span> <span class="pre">in</span> <span class="pre">Jupyter</span> <span class="pre">notebooks:</span> <span class="pre">auto_examples_jupyter.zip</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/auto_examples/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

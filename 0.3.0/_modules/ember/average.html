@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.average &#8212; ember 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.3.0</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.3.0";
+    var page = "_modules/ember/average.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Real gas fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Version history</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.average</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Functions for integration and averaging over 2D blocks.</span>
+
+<span class="sd">This module implements averaging methods for reducing spatially-varying 2D flow fields</span>
+<span class="sd">to representative scalar quantities, essential for comparing CFD results with mean-line design</span>
+<span class="sd">points and experimental measurements. The module provides area averaging, mass-flux averaging,</span>
+<span class="sd">and mixed-out averaging methods following turbomachinery conventions. As discussed by</span>
+<span class="sd">:cite:t:`Cumpsty2005`, dimensional reduction from 2D to 0D inherently loses information, requiring</span>
+<span class="sd">careful selection of which flow properties to conserve. :cite:t:`Burdett2022` demonstrate</span>
+<span class="sd">that mixed-out averages minimize sensitivity to streamwise location variations. All averaging</span>
+<span class="sd">functions operate on 2D Block objects and support both absolute and relative reference frames</span>
+<span class="sd">for turbomachinery with rotating components, enabling consistent performance metric extraction</span>
+<span class="sd">across blade rows.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">block_util</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">perturbation</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">fluxes</span> <span class="k">as</span> <span class="n">ember_fluxes</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_iterative</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_get_axes</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">triangulated</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Helper to validate axes argument.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">triangulated</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">axes</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;For triangulated grids, axes must be None.&quot;</span><span class="p">)</span>
+        <span class="n">axes</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">axes</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">axes</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">axes</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">axes</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="n">ax</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">axes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;For structured grids, axes must be a tuple of two integers from (0, 1), got </span><span class="si">{axes}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+    <span class="k">return</span> <span class="n">axes</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_get_dA</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return face area array, dispatching to dA_tri or dA_quad based on block.triangulated.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">block</span><span class="o">.</span><span class="n">dA_tri</span> <span class="k">if</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span> <span class="k">else</span> <span class="n">block</span><span class="o">.</span><span class="n">dA_quad</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_get_dA_nd</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Nondimensional counterpart of :func:`_get_dA`.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">block</span><span class="o">.</span><span class="n">dA_tri_nd</span> <span class="k">if</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span> <span class="k">else</span> <span class="n">block</span><span class="o">.</span><span class="n">dA_quad_nd</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_dot_conserved</span><span class="p">(</span><span class="n">flux</span><span class="p">,</span> <span class="n">dA</span><span class="p">,</span> <span class="n">axes</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Specialized dot product for conserved variable fluxes.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span>
+            <span class="s2">&quot;...ij,...i-&gt;...j&quot;</span><span class="p">,</span>
+            <span class="n">flux</span><span class="p">,</span>
+            <span class="n">dA</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">axis</span><span class="o">=</span><span class="n">axes</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_integrate_scalar</span><span class="p">(</span><span class="n">scalar_face</span><span class="p">,</span> <span class="n">dA_face</span><span class="p">,</span> <span class="n">axes</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Helper function to integrate scalar over faces.</span>
+
+<span class="sd">    Agnostic to quadrilateral vs triangulated faces.&quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">scalar_face</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="n">dA_face</span><span class="o">.</span><span class="n">ndim</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">dA_face</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">scalar_face</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">dA_face</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">scalar_face</span> <span class="o">*</span> <span class="n">util</span><span class="o">.</span><span class="n">vecnorm</span><span class="p">(</span><span class="n">dA_face</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_integrate_vector</span><span class="p">(</span><span class="n">vector_face</span><span class="p">,</span> <span class="n">dA_face</span><span class="p">,</span> <span class="n">axes</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Helper function to integrate vector flux over faces.</span>
+
+<span class="sd">    Agnostic to quadrilateral vs triangulated faces.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">util</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">vector_face</span><span class="p">,</span> <span class="n">dA_face</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_node_to_face_2d</span><span class="p">(</span><span class="n">nodal_data</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Average nodal values to face centres for 2D data.</span>
+
+<span class="sd">    For a :math:`(n_i, n_j)` array of nodal values, the face-centred value is</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \bar{q}_{i,j} = \tfrac{1}{4}\bigl(</span>
+<span class="sd">            q_{i,j} + q_{i+1,j} + q_{i+1,j+1} + q_{i,j+1}\bigr)</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nodal_data : Array, shape (ni, nj, ...)</span>
+<span class="sd">        Values at grid nodes.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (ni-1, nj-1, ...)</span>
+<span class="sd">        Values averaged to face centres.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">nodal_data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+        <span class="o">+</span> <span class="n">nodal_data</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+        <span class="o">+</span> <span class="n">nodal_data</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="o">...</span><span class="p">]</span>
+        <span class="o">+</span> <span class="n">nodal_data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_node_to_face</span><span class="p">(</span><span class="n">nodal_data</span><span class="p">,</span> <span class="n">triangulated</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Distribute nodal data to faces.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">triangulated</span><span class="p">:</span>
+        <span class="c1"># Average over triangle vertices</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">nodal_data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Use 2D node_to_face distribution</span>
+        <span class="k">return</span> <span class="n">_node_to_face_2d</span><span class="p">(</span><span class="n">nodal_data</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="flow_mass">
+<a class="viewcode-back" href="../../api/average.html#ember.average.flow_mass">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">flow_mass</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Integrate mass flow through faces of a 2D block.</span>
+
+<span class="sd">    Calculates the mass flow over the block faces,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \dot{m} = \int \rho \mathbf{V}\cdot\mathrm{d}\mathbf{A} \,.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block, shape (ni, nj) or (ntri, 3)</span>
+<span class="sd">        2D structured or triangulated block.</span>
+<span class="sd">    axes : tuple of int, default (0, 1)</span>
+<span class="sd">        For structured grids, axes over which to sum the mass flow;</span>
+<span class="sd">        for triangulated grids, should be None to sum over all faces.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    mass_flow: float</span>
+<span class="sd">        Mass flow rate through the block.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mass_flux_face</span> <span class="o">=</span> <span class="n">ember_fluxes</span><span class="o">.</span><span class="n">get_mass_flux</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="n">_get_axes</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_integrate_vector</span><span class="p">(</span><span class="n">mass_flux_face</span><span class="p">,</span> <span class="n">_get_dA</span><span class="p">(</span><span class="n">block</span><span class="p">),</span> <span class="n">axes</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="flow_conserved">
+<a class="viewcode-back" href="../../api/average.html#ember.average.flow_conserved">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">flow_conserved</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Integrate conserved flows through faces of a 2D block.</span>
+
+<span class="sd">    Calculates the conserved flows over the block faces,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \int \mathcal{F}\cdot\mathrm{d}\mathbf{A} \,,</span>
+
+<span class="sd">    where the conserved flux tensor :math:`\mathcal{F}` carries the fluxes of</span>
+<span class="sd">    mass, axial momentum, radial momentum, angular momentum and stagnation</span>
+<span class="sd">    enthalpy (energy),</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathcal{F} = \rho \mathbf{V}</span>
+<span class="sd">        \begin{bmatrix} 1 \\ V_x \\ V_r \\ r V_\theta \\ h_0 \end{bmatrix}</span>
+<span class="sd">        + p</span>
+<span class="sd">        \begin{bmatrix}</span>
+<span class="sd">            \mathbf{0} \\ \mathbf{e}_x \\ \mathbf{e}_r</span>
+<span class="sd">            \\ r\,\mathbf{e}_\theta \\ \Omega r\,\mathbf{e}_\theta</span>
+<span class="sd">        \end{bmatrix} \,.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block, shape (ni, nj) or (ntri, 3)</span>
+<span class="sd">        2D structured or triangulated block.</span>
+<span class="sd">    axes : tuple of int, default (0, 1)</span>
+<span class="sd">        For structured grids, axes over which to sum the flows;</span>
+<span class="sd">        for triangulated grids, should be None to sum over all faces.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    flow_conserved : Array shape (5,)</span>
+<span class="sd">        Integrated conserved flows</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">flow_conserved_nd</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">axes</span><span class="p">)</span> <span class="o">*</span> <span class="n">ember_fluxes</span><span class="o">.</span><span class="n">flux_ref</span><span class="p">(</span><span class="n">block</span><span class="p">)</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">L_ref</span><span class="o">**</span><span class="mi">2</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="flow_conserved_nd">
+<a class="viewcode-back" href="../../api/average.html#ember.average.flow_conserved_nd">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">flow_conserved_nd</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Nondimensional counterpart of :func:`flow_conserved`, shape (5,).</span>
+
+<span class="sd">    Scaled by ``fluxes.flux_ref(block) * block.L_ref**2``, this is</span>
+<span class="sd">    :func:`flow_conserved`. Working directly in this form lets :func:`mix_out`</span>
+<span class="sd">    run its Newton iteration without any reference-scale bookkeeping, since</span>
+<span class="sd">    the Jacobian from :mod:`ember.perturbation` is nondimensional too.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="n">_get_axes</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_dot_conserved</span><span class="p">(</span><span class="n">ember_fluxes</span><span class="o">.</span><span class="n">get_flux_nd</span><span class="p">(</span><span class="n">block</span><span class="p">),</span> <span class="n">_get_dA_nd</span><span class="p">(</span><span class="n">block</span><span class="p">),</span> <span class="n">axes</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="mass_average">
+<a class="viewcode-back" href="../../api/average.html#ember.average.mass_average">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">mass_average</span><span class="p">(</span><span class="n">scalar_node</span><span class="p">,</span> <span class="n">block</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Take mass-weighted average of a 2D nodal scalar field.</span>
+
+<span class="sd">    Calculates the mass-weighted average of the scalar field :math:`\phi`,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \bar{\phi} = \frac{\int \phi\, \rho \mathbf{V}\cdot\mathrm{d}\mathbf{A}}</span>
+<span class="sd">                          {\int \rho \mathbf{V}\cdot\mathrm{d}\mathbf{A}} \,.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    scalar_node : Array, shape (ni, nj) or (ntri, 3)</span>
+<span class="sd">        Scalar field values at grid nodes</span>
+<span class="sd">    block : Block, shape (ni, nj) or (ntri, 3)</span>
+<span class="sd">        2D structured or triangulated block</span>
+<span class="sd">    axes : tuple of int, default (0, 1)</span>
+<span class="sd">        For structured grids, axes over which to average;</span>
+<span class="sd">        for triangulated grids, should be None to average over all faces</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    avg_scalar :  float</span>
+<span class="sd">        Mass-weighted average value</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If the net mass flux through the block is zero</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="n">_get_axes</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span><span class="p">)</span>
+    <span class="n">mass_flux_vector</span> <span class="o">=</span> <span class="n">ember_fluxes</span><span class="o">.</span><span class="n">get_mass_flux</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>  <span class="c1"># Shape (..., 3)</span>
+    <span class="n">scalar_face</span> <span class="o">=</span> <span class="n">_node_to_face</span><span class="p">(</span>
+        <span class="n">scalar_node</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span>
+    <span class="p">)</span>  <span class="c1"># Shape (...,) - scalar at faces</span>
+
+    <span class="c1"># Calculate scalar mass flow through each face: phi * (rho V . dA)</span>
+    <span class="n">mass_flow_scalar</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+        <span class="n">mass_flux_vector</span><span class="p">,</span> <span class="n">_get_dA</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
+    <span class="p">)</span>  <span class="c1"># Shape (...,) - scalar mass flow</span>
+    <span class="n">scalar_mass_flow</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">scalar_face</span> <span class="o">*</span> <span class="n">mass_flow_scalar</span>
+    <span class="p">)</span>  <span class="c1"># Shape (...,) - scalar-weighted mass flow</span>
+
+    <span class="n">numerator</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">scalar_mass_flow</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span>
+    <span class="n">denominator</span> <span class="o">=</span> <span class="n">flow_mass</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">axes</span><span class="p">)</span>
+
+    <span class="c1"># Check for zero net mass flux. `np.any` because a partial reduction --</span>
+    <span class="c1"># `axes=(1,)` to average over the pitch and keep the span, say -- leaves an</span>
+    <span class="c1"># array here rather than a scalar, and a bare `&lt;` on one of those raises</span>
+    <span class="c1"># about an ambiguous truth value instead of reporting the flux.</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">denominator</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1e-14</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Net mass flux through the block is zero. &quot;</span>
+            <span class="s2">&quot;Mass averaging requires non-zero net mass flux. &quot;</span>
+            <span class="s2">&quot;Consider using area_average() instead.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">numerator</span> <span class="o">/</span> <span class="n">denominator</span></div>
+
+
+
+<div class="viewcode-block" id="area_average">
+<a class="viewcode-back" href="../../api/average.html#ember.average.area_average">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">area_average</span><span class="p">(</span><span class="n">scalar_node</span><span class="p">,</span> <span class="n">block</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Take area-weighted average of a 2D nodal scalar field.</span>
+
+<span class="sd">    Calculates the area-weighted average of the scalar field :math:`\phi`,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \bar{\phi} = \frac{\int \phi\, \mathrm{d}A}{\int \mathrm{d}A} \,.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    scalar_node : Array, shape (ni, nj) or (ntri, 3)</span>
+<span class="sd">        Scalar field values at grid nodes</span>
+<span class="sd">    block : Block, shape (ni, nj) or (ntri, 3)</span>
+<span class="sd">        2D structured or triangulated block</span>
+<span class="sd">    axes : tuple of int, default (0, 1)</span>
+<span class="sd">        For structured grids, axes over which to average;</span>
+<span class="sd">        for triangulated grids, should be None to average over all faces</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    avg_scalar : float</span>
+<span class="sd">        Area-weighted average value</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="n">_get_axes</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span><span class="p">)</span>
+    <span class="n">scalar_face</span> <span class="o">=</span> <span class="n">_node_to_face</span><span class="p">(</span><span class="n">scalar_node</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span><span class="p">)</span>
+    <span class="n">numerator</span> <span class="o">=</span> <span class="n">_integrate_scalar</span><span class="p">(</span><span class="n">scalar_face</span><span class="p">,</span> <span class="n">_get_dA</span><span class="p">(</span><span class="n">block</span><span class="p">),</span> <span class="n">axes</span><span class="p">)</span>
+    <span class="n">denominator</span> <span class="o">=</span> <span class="n">_integrate_scalar</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">scalar_face</span><span class="p">),</span> <span class="n">_get_dA</span><span class="p">(</span><span class="n">block</span><span class="p">),</span> <span class="n">axes</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">numerator</span> <span class="o">/</span> <span class="n">denominator</span></div>
+
+
+
+<div class="viewcode-block" id="total_area">
+<a class="viewcode-back" href="../../api/average.html#ember.average.total_area">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">total_area</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Compute total vector area of a 2D block.</span>
+
+<span class="sd">    Calculates the total vector area as the integral of the face area vectors,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathbf{A} = \int \mathrm{d}\mathbf{A} \,.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block, shape (ni, nj) or (ntri, 3)</span>
+<span class="sd">        2D structured or triangulated block</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    A : Array, shape (3,)</span>
+<span class="sd">        Total area of the cut [m^2] in polar coordinates (Ax, Ar, At)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">total_area_nd</span><span class="p">(</span><span class="n">block</span><span class="p">)</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">L_ref</span><span class="o">**</span><span class="mi">2</span></div>
+
+
+
+<div class="viewcode-block" id="total_area_nd">
+<a class="viewcode-back" href="../../api/average.html#ember.average.total_area_nd">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">total_area_nd</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Nondimensional counterpart of :func:`total_area`, shape (3,).</span>
+
+<span class="sd">    Total vector area divided by :math:`L_\mathrm{ref}^2`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">block</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="n">_get_axes</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">_get_dA_nd</span><span class="p">(</span><span class="n">block</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="mix_out">
+<a class="viewcode-back" href="../../api/average.html#ember.average.mix_out">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">mix_out</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">AR</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Mix out a 2D cut to uniformity, optionally through a contracted area.</span>
+
+<span class="sd">    The mixed-out state is the uniform flow that, passed through the total</span>
+<span class="sd">    area :math:`\mathbf{A} = \int \mathrm{d}\mathbf{A}`, carries the same</span>
+<span class="sd">    conserved flows as the non-uniform cut. Its conserved variables</span>
+<span class="sd">    :math:`\mathcal{U}` are found by solving</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathcal{F}(\mathcal{U})\cdot\mathbf{A}</span>
+<span class="sd">        = \int \mathcal{F}\cdot\mathrm{d}\mathbf{A} \,,</span>
+
+<span class="sd">    for the five conserved flows (mass, axial and radial momentum, angular</span>
+<span class="sd">    momentum and energy), where :math:`\mathcal{F}` is the flux tensor of</span>
+<span class="sd">    :func:`flow_conserved`. The five equations are solved iteratively by</span>
+<span class="sd">    Newton steps on :math:`\mathcal{U}`. Mixing to uniformity generates</span>
+<span class="sd">    entropy, so the result has higher entropy than the original state.</span>
+
+<span class="sd">    The optional area ratio ``AR`` then contracts (``AR&lt;1``) or expands the</span>
+<span class="sd">    uniform state isentropically from :math:`\mathbf{A}` to ``AR`` times</span>
+<span class="sd">    :math:`\mathbf{A}`, conserving mass, stagnation enthalpy, entropy and</span>
+<span class="sd">    angular momentum :math:`r V_\theta` (at fixed radius) while holding the</span>
+<span class="sd">    pitch angle :math:`\beta`. This second step is reversible, so the mixing</span>
+<span class="sd">    loss is independent of ``AR`` and ``AR=1`` recovers the plain mix-out. The</span>
+<span class="sd">    contraction stays on the mixed-out sub/supersonic branch and raises</span>
+<span class="sd">    :class:`RuntimeError` if it would choke.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block, shape (ni, nj) or (ntri, 3)</span>
+<span class="sd">        2D block, can be structured or triangulated.</span>
+<span class="sd">    AR : float, default 1.0</span>
+<span class="sd">        Area ratio for the isentropic contraction applied after mixing out.</span>
+<span class="sd">        ``AR=1`` retains the constant-area mix-out; ``AR&lt;1`` contracts the</span>
+<span class="sd">        uniform state to area ``AR * A``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    mix : Block, shape ()</span>
+<span class="sd">        New scalar block with mixed-out uniform state.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Calculate total area and conserved quantities. The whole Newton loop</span>
+    <span class="c1"># below runs nondimensionally, matching the ND Jacobian from</span>
+    <span class="c1"># ember.perturbation, so no reference scales appear in it at all.</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">total_area_nd</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
+    <span class="n">flow</span> <span class="o">=</span> <span class="n">flow_conserved_nd</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
+
+    <span class="c1"># Ensure that mass flow is positive</span>
+    <span class="k">if</span> <span class="n">flow</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="n">A</span> <span class="o">*=</span> <span class="o">-</span><span class="mf">1.0</span>
+        <span class="n">flow</span> <span class="o">*=</span> <span class="o">-</span><span class="mf">1.0</span>
+
+    <span class="c1"># Do not allow significant projected area in theta direction</span>
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mf">1e-6</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">A</span><span class="p">[:</span><span class="mi">2</span><span class="p">])),</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Block has significant projected area in theta direction: A=</span><span class="si">{</span><span class="n">A</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">A</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>  <span class="c1"># Drop theta component</span>
+    <span class="n">A_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+
+    <span class="c1"># Allocate a scalar block for the mixed-out state</span>
+    <span class="n">mix</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">empty</span><span class="p">()</span>
+
+    <span class="c1"># Mixed out coordinates</span>
+    <span class="n">rmix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">block</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">block</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">max</span><span class="p">()])</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="n">xmix</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">tmix</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">mix</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><span class="n">xmix</span><span class="p">)</span>
+    <span class="n">mix</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><span class="n">rmix</span><span class="p">)</span>
+    <span class="n">mix</span><span class="o">.</span><span class="n">set_t</span><span class="p">(</span><span class="n">tmix</span><span class="p">)</span>
+
+    <span class="c1"># Initial guess for conserved variables simple mean, written direct on the</span>
+    <span class="c1"># ND storage. This skips set_conserved&#39;s density/finite validation, which</span>
+    <span class="c1"># a mean of valid input data cannot trip, and the loop&#39;s own mix.rho check</span>
+    <span class="c1"># still guards against Newton-step divergence below.</span>
+    <span class="n">mix</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">mix</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span>
+
+    <span class="c1"># Get absolute tolerance for flows, on the same ND scale as the flows</span>
+    <span class="n">rho_ref</span> <span class="o">=</span> <span class="n">mix</span><span class="o">.</span><span class="n">rho_nd</span>
+    <span class="n">V_ref</span> <span class="o">=</span> <span class="n">mix</span><span class="o">.</span><span class="n">V_nd</span>
+    <span class="n">rhoV_ref</span> <span class="o">=</span> <span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span>
+    <span class="n">rhoVsq_ref</span> <span class="o">=</span> <span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">de_ref</span> <span class="o">=</span> <span class="n">rho_ref</span> <span class="o">*</span> <span class="n">V_ref</span><span class="o">**</span><span class="mi">3</span>
+    <span class="n">atol</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">rhoV_ref</span><span class="p">,</span>
+                <span class="n">rhoVsq_ref</span><span class="p">,</span>
+                <span class="n">rhoVsq_ref</span><span class="p">,</span>
+                <span class="n">rhoVsq_ref</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">r_mid_nd</span><span class="p">,</span>
+                <span class="n">de_ref</span><span class="p">,</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="o">*</span> <span class="n">A_ref</span>
+        <span class="o">*</span> <span class="mf">1e-4</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Iteratively adjust conserved variables to match total flow</span>
+    <span class="n">rf</span> <span class="o">=</span> <span class="mf">0.1</span>
+    <span class="n">max_iter</span> <span class="o">=</span> <span class="mi">10000</span>
+    <span class="n">n_stall</span> <span class="o">=</span> <span class="mi">50</span>
+    <span class="n">err_flow</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+    <span class="n">best_err</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+    <span class="n">best_iter</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">niter</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_iter</span><span class="p">):</span>
+        <span class="c1"># Calculate current fluxes and flows (xr system)</span>
+        <span class="n">flux_mix</span> <span class="o">=</span> <span class="n">ember_fluxes</span><span class="o">.</span><span class="n">get_flux_nd</span><span class="p">(</span><span class="n">mix</span><span class="p">)[:</span><span class="mi">2</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">flow_mix</span> <span class="o">=</span> <span class="n">_dot_conserved</span><span class="p">(</span><span class="n">flux_mix</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="p">())</span>
+        <span class="n">err_flow</span> <span class="o">=</span> <span class="n">flow</span> <span class="o">-</span> <span class="n">flow_mix</span>
+        <span class="n">err_flux</span> <span class="o">=</span> <span class="n">err_flow</span> <span class="o">/</span> <span class="n">A_ref</span>
+
+        <span class="c1"># Stop once the residual stops improving, not the moment it first drops</span>
+        <span class="c1"># below atol. Breaking at the atol crossing makes the answer depend on</span>
+        <span class="c1"># which iterate happens to land inside the tolerance ball first, and</span>
+        <span class="c1"># that in turn depends on the last bit of the input ordering -- mixing</span>
+        <span class="c1"># a cut and its k-axis-reversed twin then differ by ~3x the atol scale.</span>
+        <span class="c1"># Iterating on to the float32 fixed point costs ~2x the iterations and</span>
+        <span class="c1"># brings that difference down to the storage floor (~2e-6). atol</span>
+        <span class="c1"># survives below as the scale that makes the five residuals comparable</span>
+        <span class="c1"># and as the post-loop divergence check.</span>
+        <span class="n">err_scaled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">err_flow</span><span class="p">)</span> <span class="o">/</span> <span class="n">atol</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">err_scaled</span> <span class="o">&lt;</span> <span class="n">best_err</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="mf">1e-6</span><span class="p">):</span>
+            <span class="n">best_err</span> <span class="o">=</span> <span class="n">err_scaled</span>
+            <span class="n">best_iter</span> <span class="o">=</span> <span class="n">niter</span>
+        <span class="k">elif</span> <span class="n">niter</span> <span class="o">-</span> <span class="n">best_iter</span> <span class="o">&gt;</span> <span class="n">n_stall</span><span class="p">:</span>
+            <span class="k">break</span>
+
+        <span class="c1"># Resolve to interface-aligned velocities. Beta moves every iteration</span>
+        <span class="c1"># as mix&#39;s state does, so the matrix can&#39;t be hoisted out of the loop</span>
+        <span class="c1"># -- but building both directions from it here, once, means the</span>
+        <span class="c1"># to/from pair below shares one sine and cosine rather than each</span>
+        <span class="c1"># re-deriving its own.</span>
+        <span class="n">Beta</span> <span class="o">=</span> <span class="n">mix</span><span class="o">.</span><span class="n">Beta</span>
+        <span class="n">rot_to</span><span class="p">,</span> <span class="n">rot_from</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">rotation_matrices</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">Beta</span><span class="p">))</span>
+        <span class="n">block_util</span><span class="o">.</span><span class="n">resolve_to_interface</span><span class="p">(</span><span class="n">mix</span><span class="p">,</span> <span class="n">rot_to</span><span class="p">)</span>
+
+        <span class="c1"># Calculate Jacobian of conserved/flux transformation (nondimensional)</span>
+        <span class="n">f2c</span> <span class="o">=</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">flux_to_conserved</span><span class="p">(</span><span class="n">mix</span><span class="p">)</span>
+
+        <span class="c1"># Apply the ND Jacobian to the (already ND) flux error to get the ND</span>
+        <span class="c1"># conserved correction directly</span>
+        <span class="n">dcons_nd</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">matvec</span><span class="p">(</span><span class="n">f2c</span><span class="p">,</span> <span class="n">err_flux</span><span class="p">)</span>
+
+        <span class="c1"># Apply relaxation to avoid overshoot, direct on the ND storage</span>
+        <span class="n">mix</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">+=</span> <span class="n">rf</span> <span class="o">*</span> <span class="n">dcons_nd</span>
+        <span class="n">mix</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">mix</span><span class="o">.</span><span class="n">rho</span> <span class="o">&lt;</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;  NEGATIVE DENSITY at iter </span><span class="si">{</span><span class="n">niter</span><span class="si">}</span><span class="s2">: rho=</span><span class="si">{</span><span class="n">mix</span><span class="o">.</span><span class="n">rho</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">, dcons_nd=</span><span class="si">{</span><span class="n">dcons_nd</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Negative density&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Resolve back to physical velocities</span>
+        <span class="n">block_util</span><span class="o">.</span><span class="n">resolve_from_interface</span><span class="p">(</span><span class="n">mix</span><span class="p">,</span> <span class="n">rot_from</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">err_flow</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">atol</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  FAILED after </span><span class="si">{</span><span class="n">niter</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> iters: err_flow=</span><span class="si">{</span><span class="n">err_flow</span><span class="si">}</span><span class="s2">, atol=</span><span class="si">{</span><span class="n">atol</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  final conserved: </span><span class="si">{</span><span class="n">mix</span><span class="o">.</span><span class="n">conserved</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Failed to converge mixing after </span><span class="si">{</span><span class="n">niter</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> iterations, err_flow=</span><span class="si">{</span><span class="n">err_flow</span><span class="si">}</span><span class="s2">, atol=</span><span class="si">{</span><span class="n">atol</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Optionally contract the uniform mixed-out state isentropically from area</span>
+    <span class="c1"># A to AR*A. This is a reversible second step that leaves the mixing loss</span>
+    <span class="c1"># (computed above at the true area) unchanged.</span>
+    <span class="k">if</span> <span class="n">AR</span> <span class="o">!=</span> <span class="mf">1.0</span><span class="p">:</span>
+        <span class="c1"># Only subsonic meridional flow is supported by the contraction solver.</span>
+        <span class="k">if</span> <span class="n">mix</span><span class="o">.</span><span class="n">Vm</span> <span class="o">&gt;=</span> <span class="n">mix</span><span class="o">.</span><span class="n">a</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+                <span class="s2">&quot;Isentropic contraction (AR != 1) is only supported for &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;subsonic meridional flow (got Vm=</span><span class="si">{</span><span class="n">mix</span><span class="o">.</span><span class="n">Vm</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2"> &gt;= a=</span><span class="si">{</span><span class="n">mix</span><span class="o">.</span><span class="n">a</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">).&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Meridional mass flux through the contracted area AR*A. Mass is</span>
+        <span class="c1"># conserved, so rho*Vm scales as 1/AR.</span>
+        <span class="n">rhoVm_target</span> <span class="o">=</span> <span class="n">mix</span><span class="o">.</span><span class="n">rho</span> <span class="o">*</span> <span class="n">mix</span><span class="o">.</span><span class="n">Vm</span> <span class="o">/</span> <span class="n">AR</span>
+
+        <span class="n">set_iterative</span><span class="o">.</span><span class="n">set_ho_s_rhoVm_Vt_Beta</span><span class="p">(</span>
+            <span class="n">mix</span><span class="p">,</span>
+            <span class="n">mix</span><span class="o">.</span><span class="n">ho</span><span class="p">,</span>
+            <span class="n">mix</span><span class="o">.</span><span class="n">s</span><span class="p">,</span>
+            <span class="n">rhoVm_target</span><span class="p">,</span>
+            <span class="n">mix</span><span class="o">.</span><span class="n">Vt</span><span class="p">,</span>
+            <span class="n">Beta</span><span class="o">=</span><span class="n">mix</span><span class="o">.</span><span class="n">Beta</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">mix</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

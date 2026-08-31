@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Real gas fitting &#8212; ember 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Block" href="block.html" />
+    <link rel="prev" title="Fluid" href="fluid.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.3.0</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.3.0";
+    var page = "api/realgas_fit.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Real gas fitting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#the-method">The method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#transport-properties">Transport properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-reference-isochor">The reference isochor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#normalised-coordinates">Normalised coordinates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.realgas_fit.FitInfo"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitInfo</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.realgas_fit.FitInfo.rmse"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitInfo.rmse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.realgas_fit.FitInfo.R2"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitInfo.R2</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.realgas_fit.FitResult"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.realgas_fit.FitResult.kwargs"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.kwargs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.realgas_fit.FitResult.info_Z"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.info_Z</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.realgas_fit.FitResult.info_s"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.info_s</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.realgas_fit.entropy_integral"><code class="docutils literal notranslate"><span class="pre">realgas_fit.entropy_integral()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.realgas_fit.fit"><code class="docutils literal notranslate"><span class="pre">realgas_fit.fit()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.realgas_fit.hat"><code class="docutils literal notranslate"><span class="pre">realgas_fit.hat()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.realgas_fit.legfit2d"><code class="docutils literal notranslate"><span class="pre">realgas_fit.legfit2d()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.realgas_fit.order_matrix"><code class="docutils literal notranslate"><span class="pre">realgas_fit.order_matrix()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.realgas_fit.sample_coolprop"><code class="docutils literal notranslate"><span class="pre">realgas_fit.sample_coolprop()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="fluid.html" title="previous chapter">Fluid</a></li>
+      <li>Next: <a href="block.html" title="next chapter">Block</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.realgas_fit">
+<span id="real-gas-fitting"></span><h1>Real gas fitting<a class="headerlink" href="#module-ember.realgas_fit" title="Link to this heading">¶</a></h1>
+<p>Fit real-gas equation of state coefficients from tabulated properties.</p>
+<p>This module turns a table of thermodynamic properties into the Legendre
+coefficient arrays that <a class="reference internal" href="fluid.html#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">ember.fluid.RealFluid</span></code></a> evaluates, following the
+entropy-based formulation of Wheeler (2024), <em>Computers and Fluids</em> 268:106088.</p>
+<p>It is an offline tool. Fitting happens once, in a user script, and the
+coefficients are then passed to a fluid that the solver evaluates; nothing here
+runs in a hot path. Only <a class="reference internal" href="#ember.realgas_fit.sample_coolprop" title="ember.realgas_fit.sample_coolprop"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_coolprop()</span></code></a> needs CoolProp, and it imports
+it lazily, so the rest of the module – and every consumer of the coefficients
+– works with numpy alone.</p>
+<section id="the-method">
+<h2>The method<a class="headerlink" href="#the-method" title="Link to this heading">¶</a></h2>
+<p>The compressibility factor is fitted as a two-dimensional polynomial surface in
+density and internal energy,</p>
+<div class="math notranslate nohighlight">
+\[Z(\rho, u) = \frac{p}{\rho R T}\]</div>
+<p>and entropy follows by integrating it along an isochor and then in density,</p>
+<div class="math notranslate nohighlight">
+\[\frac{s}{R} = \sum_k \beta_k P_k(\hat{u})
+            - \int_{\rho_0}^{\rho} Z \, \mathrm{d}\ln\rho\]</div>
+<p>Because temperature and pressure are then <em>derived</em> from this one entropy
+surface rather than fitted independently, the resulting equation of state is
+thermodynamically consistent by construction. See <a class="reference internal" href="fluid.html#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">ember.fluid.RealFluid</span></code></a>
+for the evaluation side.</p>
+</section>
+<section id="transport-properties">
+<h2>Transport properties<a class="headerlink" href="#transport-properties" title="Link to this heading">¶</a></h2>
+<p>Viscosity and thermal conductivity are fitted as two further surfaces over the
+same box, in the same normalised coordinates, following Appendix B of the same
+paper. They are ordinary least-squares fits and take no part in the consistency
+argument above: pressure and temperature must come from the one entropy surface
+because the relations between them are what consistency means, whereas
+viscosity and conductivity are related to nothing. Nor is either ever
+differentiated. So there is no integral to do and no derivative to keep
+accurate — only the surfaces themselves.</p>
+<p>Each is normalised by its own value at the centre of the fit box, leaving
+coefficients of order unity and the physical scale in a single number. The
+Prandtl number is not fitted; it follows from the two surfaces and the specific
+heat.</p>
+</section>
+<section id="the-reference-isochor">
+<span id="reference-isochor"></span><h2>The reference isochor<a class="headerlink" href="#the-reference-isochor" title="Link to this heading">¶</a></h2>
+<p>The density integral starts from a reference isochor <span class="math notranslate nohighlight">\(\rho_0\)</span>, and
+<span class="math notranslate nohighlight">\(\beta\)</span> is the entropy along it. Which density that is makes no
+difference to the equation of state: moving it changes the integral by a
+function of internal energy alone, and <span class="math notranslate nohighlight">\(\beta\)</span> – fitted in that same
+basis, to the same order – absorbs the change exactly, leaving the same
+entropy surface and the same residual. So there is nothing here for a caller to
+choose, and no way to choose it well or badly; the isochor is fixed at the
+centre of the density box, <span class="math notranslate nohighlight">\(\hat\rho = 0\)</span>.</p>
+<p>The centre is also where the arithmetic is happiest. The logarithm in the
+integral is singular at zero density, just below the box, and the constants
+folded into <span class="math notranslate nohighlight">\(\beta\)</span> grow as the isochor approaches it – so an isochor at
+the low-density edge is the worst available choice, and the middle the best.</p>
+</section>
+<section id="normalised-coordinates">
+<span id="id1"></span><h2>Normalised coordinates<a class="headerlink" href="#normalised-coordinates" title="Link to this heading">¶</a></h2>
+<p>Polynomials are fitted in coordinates scaled onto <span class="math notranslate nohighlight">\([-1, 1]\)</span> by the bounds
+of the fit box,</p>
+<div class="math notranslate nohighlight">
+\[\hat{\rho} = \frac{\rho - \rho_m}{\rho_f}, \qquad
+\hat{u} = \frac{u - u_m}{u_f}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\rho_m, \rho_f\)</span> are the midpoint and half-width of the density
+bounds. Legendre polynomials are orthogonal only on <span class="math notranslate nohighlight">\([-1, 1]\)</span>, so this
+min/max normalisation – rather than the mean and standard deviation used in the
+original paper, which do not bound the coordinate – is what keeps the fit well
+conditioned.</p>
+<p>The normalisation is affine, so it absorbs any change of units or datum in the
+input data exactly: pre-scaling the table before fitting changes nothing. That
+is also why the fit box cannot be replaced by ember’s reference scales, which
+are pure scalings with no offset and are reset at runtime from the flow.</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.realgas_fit.FitInfo">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">realgas_fit.</span></span><span class="sig-name descname"><span class="pre">FitInfo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rmse</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">R2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/realgas_fit.html#FitInfo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.realgas_fit.FitInfo" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Quality of a single least-squares polynomial fit.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.realgas_fit.FitInfo.rmse">
+<span class="sig-name descname"><span class="pre">rmse</span></span><a class="headerlink" href="#ember.realgas_fit.FitInfo.rmse" title="Link to this definition">¶</a></dt>
+<dd><p>Root-mean-square residual, in the units of the fitted quantity.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.realgas_fit.FitInfo.R2">
+<span class="sig-name descname"><span class="pre">R2</span></span><a class="headerlink" href="#ember.realgas_fit.FitInfo.R2" title="Link to this definition">¶</a></dt>
+<dd><p>Coefficient of determination, one for a perfect fit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.realgas_fit.FitResult">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">realgas_fit.</span></span><span class="sig-name descname"><span class="pre">FitResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">kwargs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">info_Z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">info_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">info_mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">info_kappa</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/realgas_fit.html#FitResult"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.realgas_fit.FitResult" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Fitted coefficients together with the residuals that bound their accuracy.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.realgas_fit.FitResult.kwargs">
+<span class="sig-name descname"><span class="pre">kwargs</span></span><a class="headerlink" href="#ember.realgas_fit.FitResult.kwargs" title="Link to this definition">¶</a></dt>
+<dd><p>Keyword arguments defining the equation of state, ready to splat into
+<a class="reference internal" href="fluid.html#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">ember.fluid.RealFluid</span></code></a>. Contains <code class="docutils literal notranslate"><span class="pre">alpha</span></code>, <code class="docutils literal notranslate"><span class="pre">beta</span></code>,
+<code class="docutils literal notranslate"><span class="pre">rho_lim</span></code>, <code class="docutils literal notranslate"><span class="pre">u_lim</span></code>, <code class="docutils literal notranslate"><span class="pre">Rgas</span></code>, <code class="docutils literal notranslate"><span class="pre">delta</span></code>, <code class="docutils literal notranslate"><span class="pre">gamma</span></code>, <code class="docutils literal notranslate"><span class="pre">mu_c</span></code> and
+<code class="docutils literal notranslate"><span class="pre">kappa_c</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.realgas_fit.FitResult.info_Z">
+<span class="sig-name descname"><span class="pre">info_Z</span></span><a class="headerlink" href="#ember.realgas_fit.FitResult.info_Z" title="Link to this definition">¶</a></dt>
+<dd><p>Residual of the compressibility surface [–].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.realgas_fit.FitInfo" title="ember.realgas_fit.FitInfo">FitInfo</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.realgas_fit.FitResult.info_s">
+<span class="sig-name descname"><span class="pre">info_s</span></span><a class="headerlink" href="#ember.realgas_fit.FitResult.info_s" title="Link to this definition">¶</a></dt>
+<dd><p>Residual of the entropy fit, in units of the gas constant [–].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.realgas_fit.FitInfo" title="ember.realgas_fit.FitInfo">FitInfo</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">info_mu,</span> <span class="pre">info_kappa</span></span></dt>
+<dd><p>Residuals of the two transport surfaces, relative to the value each is
+normalised by [–], so that they read as fractional errors.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.realgas_fit.FitInfo" title="ember.realgas_fit.FitInfo">FitInfo</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.realgas_fit.entropy_integral">
+<span class="sig-prename descclassname"><span class="pre">realgas_fit.</span></span><span class="sig-name descname"><span class="pre">entropy_integral</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/realgas_fit.html#entropy_integral"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.realgas_fit.entropy_integral" title="Link to this definition">¶</a></dt>
+<dd><p>Closed-form coefficients of the density integral of a fitted surface.</p>
+<p>Evaluates the definite integral of the compressibility surface along a
+density path at fixed internal energy,</p>
+<div class="math notranslate nohighlight">
+\[I(\hat\rho, \hat u)
+    = \int_{\rho_0}^{\rho} Z \, \frac{\mathrm{d}\rho}{\rho}\]</div>
+<p>which supplies the density dependence of entropy, from the reference isochor
+at the centre of the fit box (see <a class="reference internal" href="#reference-isochor"><span class="std std-ref">The reference isochor</span></a>) up to the density
+of interest. Since <span class="math notranslate nohighlight">\(\rho \propto \hat\rho + c\)</span>, the measure is
+<span class="math notranslate nohighlight">\(\mathrm{d}\ln\rho = \mathrm{d}\hat\rho / (\hat\rho + c)\)</span>, and each
+basis term integrates in closed form. Polynomial division by
+<span class="math notranslate nohighlight">\(\hat\rho + c\)</span> leaves a constant remainder,</p>
+<div class="math notranslate nohighlight">
+\[P_i(x) = (x + c)\,Q_i(x) + P_i(-c)\]</div>
+<p>so that</p>
+<div class="math notranslate nohighlight">
+\[\int \frac{P_i(x)}{x + c}\,\mathrm{d}x
+    = \int Q_i(x)\,\mathrm{d}x + P_i(-c)\ln(x + c)\]</div>
+<p>and the whole integral splits into a polynomial part plus a single
+logarithmic term whose coefficient depends only on internal energy. The
+division and integration are done in the Legendre basis throughout, so no
+monomial coefficients are ever formed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>alpha</strong> (<em>array_like</em>) – Two-dimensional Legendre coefficients of <span class="math notranslate nohighlight">\(Z(\hat\rho, \hat u)\)</span>.</p></li>
+<li><p><strong>c</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Ratio of the density midpoint to half-width, so that
+<span class="math notranslate nohighlight">\(\rho \propto \hat\rho + c\)</span>. The logarithmic singularity sits at
+<span class="math notranslate nohighlight">\(\hat\rho = -c\)</span>, just outside the box when the lower density bound
+approaches zero.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>D</strong> (<em>ndarray</em>) – Two-dimensional Legendre coefficients of the polynomial part.</p></li>
+<li><p><strong>Lam</strong> (<em>ndarray</em>) – One-dimensional Legendre coefficients, in normalised internal energy, of
+the multiplier on <span class="math notranslate nohighlight">\(\ln(\hat\rho + c)\)</span>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The two outputs reconstruct the integral as</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>I = legval2d(x, y, D) + legval(y, Lam)*log(x + c)
+</pre></div>
+</div>
+<p>which is zero at <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">0</span></code> for every <code class="docutils literal notranslate"><span class="pre">y</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.realgas_fit.fit">
+<span class="sig-prename descclassname"><span class="pre">realgas_fit.</span></span><span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kappa</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Rgas</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_lim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u_lim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">basis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'total-order'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/realgas_fit.html#fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.realgas_fit.fit" title="Link to this definition">¶</a></dt>
+<dd><p>Fit an equation of state to tabulated thermodynamic properties.</p>
+<p>Fits the compressibility factor as a surface in density and internal energy,
+then recovers the entropy variation along the reference isochor by
+subtracting the analytic density integral from the tabulated entropy. What
+remains is a function of internal energy alone, so a one-dimensional fit
+closes the model.</p>
+<p>The sample points need not lie on a grid, but they must all be inside the
+box given by <code class="docutils literal notranslate"><span class="pre">rho_lim</span></code> and <code class="docutils literal notranslate"><span class="pre">u_lim</span></code>, and must avoid the two-phase region,
+where the properties are not smooth and the fit would be poisoned.
+<a class="reference internal" href="#ember.realgas_fit.sample_coolprop" title="ember.realgas_fit.sample_coolprop"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_coolprop()</span></code></a> masks it, and returns every argument below but the
+two that select the basis, so <code class="docutils literal notranslate"><span class="pre">fit(**sample_coolprop(...))</span></code> is the whole
+pipeline.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array_like</em>) – Sample densities [kg/m³].</p></li>
+<li><p><strong>u</strong> (<em>array_like</em>) – Sample specific internal energies [J/kg], on any datum.</p></li>
+<li><p><strong>P</strong> (<em>array_like</em>) – Pressure at the sample states [Pa].</p></li>
+<li><p><strong>T</strong> (<em>array_like</em>) – Temperature at the sample states [K].</p></li>
+<li><p><strong>s</strong> (<em>array_like</em>) – Specific entropy at the sample states [J/kg/K], on any datum.</p></li>
+<li><p><strong>mu</strong> (<em>array_like</em>) – Dynamic viscosity at the sample states [kg/m/s].</p></li>
+<li><p><strong>kappa</strong> (<em>array_like</em>) – Thermal conductivity at the sample states [W/m/K].</p></li>
+<li><p><strong>Rgas</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Specific gas constant [J/kg/K].</p></li>
+<li><p><strong>rho_lim</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> density bounds of the fit box [kg/m³].</p></li>
+<li><p><strong>u_lim</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> internal energy bounds of the fit box [J/kg], on the same
+datum as <code class="docutils literal notranslate"><span class="pre">u</span></code>.</p></li>
+<li><p><strong>order</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Maximum polynomial order in each variable.</p></li>
+<li><p><strong>basis</strong> (<em>{'total-order'</em><em>, </em><em>'tensor-grid'}</em><em>, </em><em>optional</em>) – Which combinations of orders to retain; see <a class="reference internal" href="#ember.realgas_fit.order_matrix" title="ember.realgas_fit.order_matrix"><code class="xref py py-func docutils literal notranslate"><span class="pre">order_matrix()</span></code></a>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>result</strong> – Coefficients ready for <a class="reference internal" href="fluid.html#ember.fluid.RealFluid" title="ember.fluid.RealFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">ember.fluid.RealFluid</span></code></a>, with the fit
+residuals that bound their accuracy.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ember.realgas_fit.FitResult" title="ember.realgas_fit.FitResult">FitResult</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.realgas_fit.hat">
+<span class="sig-prename descclassname"><span class="pre">realgas_fit.</span></span><span class="sig-name descname"><span class="pre">hat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lim</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/realgas_fit.html#hat"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.realgas_fit.hat" title="Link to this definition">¶</a></dt>
+<dd><p>Map a variable from its box bounds onto <span class="math notranslate nohighlight">\([-1, 1]\)</span>.</p>
+<p>See <a class="reference internal" href="#normalised-coordinates"><span class="std std-ref">Normalised coordinates</span></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>array_like</em>) – Values to normalise.</p></li>
+<li><p><strong>lim</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> bounds of the fit box.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>x_hat</strong> – Normalised coordinate, <code class="docutils literal notranslate"><span class="pre">-1</span></code> at <code class="docutils literal notranslate"><span class="pre">lim[0]</span></code> and <code class="docutils literal notranslate"><span class="pre">+1</span></code> at <code class="docutils literal notranslate"><span class="pre">lim[1]</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.realgas_fit.legfit2d">
+<span class="sig-prename descclassname"><span class="pre">realgas_fit.</span></span><span class="sig-name descname"><span class="pre">legfit2d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">basis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'total-order'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/realgas_fit.html#legfit2d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.realgas_fit.legfit2d" title="Link to this definition">¶</a></dt>
+<dd><p>Least-squares Legendre fit of a function of two normalised variables.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>array_like</em>) – Normalised sample coordinates, in <code class="docutils literal notranslate"><span class="pre">[-1,</span> <span class="pre">1]</span></code>.</p></li>
+<li><p><strong>y</strong> (<em>array_like</em>) – Normalised sample coordinates, in <code class="docutils literal notranslate"><span class="pre">[-1,</span> <span class="pre">1]</span></code>.</p></li>
+<li><p><strong>z</strong> (<em>array_like</em>) – Values to fit.</p></li>
+<li><p><strong>order</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Maximum polynomial order in each variable.</p></li>
+<li><p><strong>basis</strong> (<em>{'total-order'</em><em>, </em><em>'tensor-grid'}</em><em>, </em><em>optional</em>) – Which combinations of orders to retain; see <a class="reference internal" href="#ember.realgas_fit.order_matrix" title="ember.realgas_fit.order_matrix"><code class="xref py py-func docutils literal notranslate"><span class="pre">order_matrix()</span></code></a>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>coef</strong> (<em>ndarray</em>) – Legendre coefficients, shape <code class="docutils literal notranslate"><span class="pre">(order</span> <span class="pre">+</span> <span class="pre">1,</span> <span class="pre">order</span> <span class="pre">+</span> <span class="pre">1)</span></code>, zero outside
+the retained basis.</p></li>
+<li><p><strong>info</strong> (<em>FitInfo</em>) – Residual statistics.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.realgas_fit.order_matrix">
+<span class="sig-prename descclassname"><span class="pre">realgas_fit.</span></span><span class="sig-name descname"><span class="pre">order_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">basis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'total-order'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/realgas_fit.html#order_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.realgas_fit.order_matrix" title="Link to this definition">¶</a></dt>
+<dd><p>Boolean mask of the polynomial orders retained by a basis.</p>
+<p>A <code class="docutils literal notranslate"><span class="pre">tensor-grid</span></code> basis keeps every combination of orders up to <code class="docutils literal notranslate"><span class="pre">order</span></code> in
+each variable, giving <code class="docutils literal notranslate"><span class="pre">(order</span> <span class="pre">+</span> <span class="pre">1)**2</span></code> terms. A <code class="docutils literal notranslate"><span class="pre">total-order</span></code> basis keeps
+only those whose orders sum to at most <code class="docutils literal notranslate"><span class="pre">order</span></code>, giving roughly half as
+many. The smaller basis is usually the better trade: the dropped terms are
+the high-order-in-both corners, which contribute least and are the worst
+conditioned.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>order</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Maximum polynomial order.</p></li>
+<li><p><strong>basis</strong> (<em>{'total-order'</em><em>, </em><em>'tensor-grid'}</em><em>, </em><em>optional</em>) – Which combinations to retain.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>mask</strong> – Shape <code class="docutils literal notranslate"><span class="pre">(order</span> <span class="pre">+</span> <span class="pre">1,</span> <span class="pre">order</span> <span class="pre">+</span> <span class="pre">1)</span></code>, true where the term is retained.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray of <a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)">bool</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.realgas_fit.sample_coolprop">
+<span class="sig-prename descclassname"><span class="pre">realgas_fit.</span></span><span class="sig-name descname"><span class="pre">sample_coolprop</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fluid_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_lim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u_lim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ni</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/realgas_fit.html#sample_coolprop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.realgas_fit.sample_coolprop" title="Link to this definition">¶</a></dt>
+<dd><p>Sample thermodynamic properties over a fit box using CoolProp.</p>
+<p>CoolProp is an optional dependency, imported here rather than at module
+level so that evaluating a fitted equation of state never requires it.
+Install it with the <code class="docutils literal notranslate"><span class="pre">fit</span></code> extra.</p>
+<p>States that fail to converge or fall inside the two-phase dome are dropped:
+properties are not smooth across saturation, and including such points would
+poison the fit far more than any choice of basis or order. So are states
+whose transport properties CoolProp declines to report, which for a fluid
+with no transport model at all is every one of them — said so, rather
+than reported as an empty box.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fluid_name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Fluid name in the CoolProp database.</p></li>
+<li><p><strong>rho_lim</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> density bounds [kg/m³].</p></li>
+<li><p><strong>u_lim</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code> internal energy bounds [J/kg], on CoolProp’s datum.</p></li>
+<li><p><strong>ni</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Number of sample points along each axis.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>Arrays <code class="docutils literal notranslate"><span class="pre">rho</span></code>, <code class="docutils literal notranslate"><span class="pre">u</span></code>, <code class="docutils literal notranslate"><span class="pre">P</span></code>, <code class="docutils literal notranslate"><span class="pre">T</span></code>, <code class="docutils literal notranslate"><span class="pre">s</span></code>, <code class="docutils literal notranslate"><span class="pre">mu</span></code> and <code class="docutils literal notranslate"><span class="pre">kappa</span></code> at the
+surviving states, <code class="docutils literal notranslate"><span class="pre">Rgas</span></code>, the specific gas constant [J/kg/K], and the
+<code class="docutils literal notranslate"><span class="pre">rho_lim</span></code> and <code class="docutils literal notranslate"><span class="pre">u_lim</span></code> that were sampled. That is every argument <a class="reference internal" href="#ember.realgas_fit.fit" title="ember.realgas_fit.fit"><code class="xref py py-func docutils literal notranslate"><span class="pre">fit()</span></code></a> needs,
+so the whole pipeline is <code class="docutils literal notranslate"><span class="pre">fit(**sample_coolprop(...))</span></code>.</p>
+<p>The box is passed on rather than left to the caller to repeat because
+nothing downstream could catch it being repeated wrongly: a fit taken
+over a box other than the sampled one puts the normalised coordinates
+outside <code class="docutils literal notranslate"><span class="pre">[-1,</span> <span class="pre">1]</span></code>, where the Legendre basis loses its orthogonality
+and the fit its conditioning – and returns coefficients that are
+wrong without being nan.</p>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/realgas_fit.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

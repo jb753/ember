@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>ember &#8212; ember 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="_static/documentation_options.js?v=e259d695"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="install.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.3.0</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "./" + "../";
+    var current = "0.3.0";
+    var page = "index.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/realgas_fit.html">Real gas fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Version history</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+      <li>Next: <a href="install.html" title="next chapter">Installation</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="ember">
+<h1>ember<a class="headerlink" href="#ember" title="Link to this heading">¶</a></h1>
+<p>An ‘Enhanced Multi-Block solvER’ for turbomachinery computational fluid
+dynamics, written by <a class="reference external" href="https://jamesbrind.uk/">James Brind</a> at the <a class="reference external" href="https://whittle.eng.cam.ac.uk/">Whittle Laboratory</a>, University of Cambridge.
+Solves the compressible Reynolds-averaged Navier-Stokes equations on
+multi-block structured meshes, using an evolution of the fast and robust Denton
+algorithms. Pre- and post-processing is handled through a numpy-like Python
+interface, while the heavy computations run through compiled Fortran for speed.</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="install.html#supported-versions-and-platforms">Supported versions and platforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install.html#via-the-python-package-index">Via the Python Package Index</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install.html#from-source">From source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install.html#verifying-the-install">Verifying the install</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install.html#performance-tuning">Performance tuning</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Examples</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="coordinate_system.html">Geometry and indexing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="coordinate_system.html#indexing">Indexing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="coordinate_system.html#coordinate-system">Coordinate system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="coordinate_system.html#face-areas">Face areas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="coordinate_system.html#cell-volumes">Cell volumes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/fluid.html">Fluid</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#get-and-set-methods">Get and set methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#datum-state">Datum state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#reference-scales">Reference scales</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.set_h_s"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.set_h_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.set_P_h"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.set_P_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.set_P_rho"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.set_P_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.set_P_s"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.set_P_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.set_P_T"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.set_P_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.set_rho_s"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.set_rho_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.set_T_rho"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.set_T_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.set_T_s"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.set_T_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_a"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_a()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_cp"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_cp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_cv"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_cv()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_dhdP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_dhdP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_dhdrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_dhdrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_dsdP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_dsdP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_dsdrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_dsdrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_dudP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_dudP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_dudrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_dudrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_gamma"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_gamma()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_h"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_kappa"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_kappa()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_mu"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_mu()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_P"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_P_h_T"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_P_h_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_Pr"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_Pr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_Rgas"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_Rgas()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_s"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.get_T"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.get_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.change_datum"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.change_datum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.change_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.change_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.change_visc"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.change_visc()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.P_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.P_dtm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.P_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.P_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.Rgas_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.Rgas_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.T_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.T_dtm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.T_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.T_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.V_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.V_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.from_dict"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.from_dict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.rhoV_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.rhoV_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.rho_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.rho_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.to_dict"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.to_dict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.PerfectFluid.u_ref"><code class="docutils literal notranslate"><span class="pre">fluid.PerfectFluid.u_ref</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_h_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_h_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_P_h"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_P_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_P_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_P_T"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_P_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_rho_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_rho_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_T_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_T_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.set_T_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.set_T_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_a"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_a()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_cp"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_cp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_cv"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_cv()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dhdP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dhdP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dhdrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dhdrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dsdP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dsdP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dsdrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dsdrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dudP_rho"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dudP_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_dudrho_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_dudrho_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_gamma"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_gamma()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_h"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_kappa"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_kappa()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_mu"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_mu()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_P"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_P_h_T"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_P_h_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_Pr"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_Pr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_Rgas"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_Rgas()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_s"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.get_T"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.get_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.change_datum"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.change_datum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.change_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.change_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.change_visc"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.change_visc()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.rho_lim_nd"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.rho_lim_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.u_lim_nd"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.u_lim_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.P_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.P_dtm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.P_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.P_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.Rgas_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.Rgas_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.T_dtm"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.T_dtm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.T_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.T_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.V_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.V_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.from_dict"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.from_dict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.rhoV_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.rhoV_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.rho_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.rho_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.to_dict"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.to_dict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/fluid.html#ember.fluid.RealFluid.u_ref"><code class="docutils literal notranslate"><span class="pre">fluid.RealFluid.u_ref</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/realgas_fit.html">Real gas fitting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#the-method">The method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#transport-properties">Transport properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#the-reference-isochor">The reference isochor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#normalised-coordinates">Normalised coordinates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitInfo"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitInfo</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitInfo.rmse"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitInfo.rmse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitInfo.R2"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitInfo.R2</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult.kwargs"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.kwargs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult.info_Z"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.info_Z</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.FitResult.info_s"><code class="docutils literal notranslate"><span class="pre">realgas_fit.FitResult.info_s</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.entropy_integral"><code class="docutils literal notranslate"><span class="pre">realgas_fit.entropy_integral()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.fit"><code class="docutils literal notranslate"><span class="pre">realgas_fit.fit()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.hat"><code class="docutils literal notranslate"><span class="pre">realgas_fit.hat()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.legfit2d"><code class="docutils literal notranslate"><span class="pre">realgas_fit.legfit2d()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.order_matrix"><code class="docutils literal notranslate"><span class="pre">realgas_fit.order_matrix()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/realgas_fit.html#ember.realgas_fit.sample_coolprop"><code class="docutils literal notranslate"><span class="pre">realgas_fit.sample_coolprop()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/block.html">Block</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#initialisation">Initialisation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#indexing-and-slicing">Indexing and slicing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#equations-of-state">Equations of state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#reference-scales">Reference scales</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#array-methods">Array methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#setter-methods">Setter methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#properties">Properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#example-usage">Example usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block.html#ember.block.Block"><code class="docutils literal notranslate"><span class="pre">block.Block</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_conserved"><code class="docutils literal notranslate"><span class="pre">block.Block.set_conserved()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_fluid"><code class="docutils literal notranslate"><span class="pre">block.Block.set_fluid()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_h_s"><code class="docutils literal notranslate"><span class="pre">block.Block.set_h_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_L_ref"><code class="docutils literal notranslate"><span class="pre">block.Block.set_L_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_label"><code class="docutils literal notranslate"><span class="pre">block.Block.set_label()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_mu_turb"><code class="docutils literal notranslate"><span class="pre">block.Block.set_mu_turb()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_Nb"><code class="docutils literal notranslate"><span class="pre">block.Block.set_Nb()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_Omega"><code class="docutils literal notranslate"><span class="pre">block.Block.set_Omega()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_P_h"><code class="docutils literal notranslate"><span class="pre">block.Block.set_P_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_P_rho"><code class="docutils literal notranslate"><span class="pre">block.Block.set_P_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_P_rho_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.set_P_rho_nd()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_P_s"><code class="docutils literal notranslate"><span class="pre">block.Block.set_P_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_P_T"><code class="docutils literal notranslate"><span class="pre">block.Block.set_P_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_r"><code class="docutils literal notranslate"><span class="pre">block.Block.set_r()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_rho_s"><code class="docutils literal notranslate"><span class="pre">block.Block.set_rho_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_rho_u"><code class="docutils literal notranslate"><span class="pre">block.Block.set_rho_u()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_rho_u_Vxrt_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.set_rho_u_Vxrt_nd()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_rpm"><code class="docutils literal notranslate"><span class="pre">block.Block.set_rpm()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_t"><code class="docutils literal notranslate"><span class="pre">block.Block.set_t()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_T_s"><code class="docutils literal notranslate"><span class="pre">block.Block.set_T_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_triangulated"><code class="docutils literal notranslate"><span class="pre">block.Block.set_triangulated()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_V_Alpha_Beta"><code class="docutils literal notranslate"><span class="pre">block.Block.set_V_Alpha_Beta()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_Vr"><code class="docutils literal notranslate"><span class="pre">block.Block.set_Vr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_Vt"><code class="docutils literal notranslate"><span class="pre">block.Block.set_Vt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_Vx"><code class="docutils literal notranslate"><span class="pre">block.Block.set_Vx()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_Vxrt"><code class="docutils literal notranslate"><span class="pre">block.Block.set_Vxrt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_wdist"><code class="docutils literal notranslate"><span class="pre">block.Block.set_wdist()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_x"><code class="docutils literal notranslate"><span class="pre">block.Block.set_x()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_xrt"><code class="docutils literal notranslate"><span class="pre">block.Block.set_xrt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.set_xyz"><code class="docutils literal notranslate"><span class="pre">block.Block.set_xyz()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.copy"><code class="docutils literal notranslate"><span class="pre">block.Block.copy()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.masked"><code class="docutils literal notranslate"><span class="pre">block.Block.masked()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.memory_usage"><code class="docutils literal notranslate"><span class="pre">block.Block.memory_usage()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.update_cached_conserved"><code class="docutils literal notranslate"><span class="pre">block.Block.update_cached_conserved()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.update_primitive"><code class="docutils literal notranslate"><span class="pre">block.Block.update_primitive()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.a"><code class="docutils literal notranslate"><span class="pre">block.Block.a</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.a_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.a_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Alpha"><code class="docutils literal notranslate"><span class="pre">block.Block.Alpha</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Alpha_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.Alpha_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.ao"><code class="docutils literal notranslate"><span class="pre">block.Block.ao</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Beta"><code class="docutils literal notranslate"><span class="pre">block.Block.Beta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.conserved"><code class="docutils literal notranslate"><span class="pre">block.Block.conserved</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.conserved_avg_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.conserved_avg_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.conserved_filt_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.conserved_filt_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.conserved_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.conserved_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.cp_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.cp_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dA_quad"><code class="docutils literal notranslate"><span class="pre">block.Block.dA_quad</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dA_quad_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dA_quad_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dA_tri"><code class="docutils literal notranslate"><span class="pre">block.Block.dA_tri</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dA_tri_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dA_tri_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dAi"><code class="docutils literal notranslate"><span class="pre">block.Block.dAi</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dAi_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dAi_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dAj"><code class="docutils literal notranslate"><span class="pre">block.Block.dAj</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dAj_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dAj_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dAk"><code class="docutils literal notranslate"><span class="pre">block.Block.dAk</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dAk_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dAk_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dhdP_rho_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dhdP_rho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dhdrho_P_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dhdrho_P_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dsdP_rho_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dsdP_rho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dsdrho_P_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dsdrho_P_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dt_vol_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dt_vol_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dudP_rho_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dudP_rho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.dudrho_P_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.dudrho_P_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.F_body_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.F_body_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.flat"><code class="docutils literal notranslate"><span class="pre">block.Block.flat</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.fluid"><code class="docutils literal notranslate"><span class="pre">block.Block.fluid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.ho"><code class="docutils literal notranslate"><span class="pre">block.Block.ho</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.ho_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.ho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.ho_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.ho_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.I"><code class="docutils literal notranslate"><span class="pre">block.Block.I</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.i_cusp"><code class="docutils literal notranslate"><span class="pre">block.Block.i_cusp</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.i_perk"><code class="docutils literal notranslate"><span class="pre">block.Block.i_perk</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.ijk_wall_conv"><code class="docutils literal notranslate"><span class="pre">block.Block.ijk_wall_conv</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.ijk_wall_visc"><code class="docutils literal notranslate"><span class="pre">block.Block.ijk_wall_visc</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.kappa_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.kappa_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.L_ref"><code class="docutils literal notranslate"><span class="pre">block.Block.L_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.label"><code class="docutils literal notranslate"><span class="pre">block.Block.label</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Ma"><code class="docutils literal notranslate"><span class="pre">block.Block.Ma</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Ma_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.Ma_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Mam"><code class="docutils literal notranslate"><span class="pre">block.Block.Mam</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Max"><code class="docutils literal notranslate"><span class="pre">block.Block.Max</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.mu_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.mu_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.mu_turb"><code class="docutils literal notranslate"><span class="pre">block.Block.mu_turb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Nb"><code class="docutils literal notranslate"><span class="pre">block.Block.Nb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Omega"><code class="docutils literal notranslate"><span class="pre">block.Block.Omega</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Omega_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.Omega_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Omega_wall_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.Omega_wall_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.P_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.P_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.P_offset_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.P_offset_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.P_rot"><code class="docutils literal notranslate"><span class="pre">block.Block.P_rot</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.patches"><code class="docutils literal notranslate"><span class="pre">block.Block.patches</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.pitch"><code class="docutils literal notranslate"><span class="pre">block.Block.pitch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Po"><code class="docutils literal notranslate"><span class="pre">block.Block.Po</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Po_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.Po_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.r"><code class="docutils literal notranslate"><span class="pre">block.Block.r</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.r_mid_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.r_mid_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.r_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.r_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.residual_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.residual_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rho"><code class="docutils literal notranslate"><span class="pre">block.Block.rho</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rho_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.rho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rhoe"><code class="docutils literal notranslate"><span class="pre">block.Block.rhoe</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rhoo"><code class="docutils literal notranslate"><span class="pre">block.Block.rhoo</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rhoo_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.rhoo_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rhorVt"><code class="docutils literal notranslate"><span class="pre">block.Block.rhorVt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rhoVm"><code class="docutils literal notranslate"><span class="pre">block.Block.rhoVm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rhoVr"><code class="docutils literal notranslate"><span class="pre">block.Block.rhoVr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rhoVx"><code class="docutils literal notranslate"><span class="pre">block.Block.rhoVx</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rpm"><code class="docutils literal notranslate"><span class="pre">block.Block.rpm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.rt"><code class="docutils literal notranslate"><span class="pre">block.Block.rt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.s_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.s_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.scratch"><code class="docutils literal notranslate"><span class="pre">block.Block.scratch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.sinBeta"><code class="docutils literal notranslate"><span class="pre">block.Block.sinBeta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.store"><code class="docutils literal notranslate"><span class="pre">block.Block.store</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.t"><code class="docutils literal notranslate"><span class="pre">block.Block.t</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.T_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.T_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.tanAlpha"><code class="docutils literal notranslate"><span class="pre">block.Block.tanAlpha</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.tanAlpha_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.tanAlpha_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.tanBeta"><code class="docutils literal notranslate"><span class="pre">block.Block.tanBeta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.tau_q_faces"><code class="docutils literal notranslate"><span class="pre">block.Block.tau_q_faces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.To"><code class="docutils literal notranslate"><span class="pre">block.Block.To</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.To_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.To_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.U"><code class="docutils literal notranslate"><span class="pre">block.Block.U</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.u"><code class="docutils literal notranslate"><span class="pre">block.Block.u</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.u_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.u_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.uo"><code class="docutils literal notranslate"><span class="pre">block.Block.uo</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.uo_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.uo_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.V"><code class="docutils literal notranslate"><span class="pre">block.Block.V</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.V_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.V_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.V_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.V_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vm"><code class="docutils literal notranslate"><span class="pre">block.Block.Vm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.vol"><code class="docutils literal notranslate"><span class="pre">block.Block.vol</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.vol_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.vol_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vr"><code class="docutils literal notranslate"><span class="pre">block.Block.Vr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vr_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.Vr_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vt"><code class="docutils literal notranslate"><span class="pre">block.Block.Vt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vt_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.Vt_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vt_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.Vt_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vt_rel_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.Vt_rel_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vx"><code class="docutils literal notranslate"><span class="pre">block.Block.Vx</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vx_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.Vx_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vxrt"><code class="docutils literal notranslate"><span class="pre">block.Block.Vxrt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vxrt_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.Vxrt_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vxrt_rel"><code class="docutils literal notranslate"><span class="pre">block.Block.Vxrt_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vy"><code class="docutils literal notranslate"><span class="pre">block.Block.Vy</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Vz"><code class="docutils literal notranslate"><span class="pre">block.Block.Vz</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.wdist"><code class="docutils literal notranslate"><span class="pre">block.Block.wdist</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.wdist_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.wdist_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.weight_mgrid"><code class="docutils literal notranslate"><span class="pre">block.Block.weight_mgrid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.x"><code class="docutils literal notranslate"><span class="pre">block.Block.x</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.xr"><code class="docutils literal notranslate"><span class="pre">block.Block.xr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.xrrt"><code class="docutils literal notranslate"><span class="pre">block.Block.xrrt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.xrt"><code class="docutils literal notranslate"><span class="pre">block.Block.xrt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.xrt_nd"><code class="docutils literal notranslate"><span class="pre">block.Block.xrt_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.y"><code class="docutils literal notranslate"><span class="pre">block.Block.y</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.z"><code class="docutils literal notranslate"><span class="pre">block.Block.z</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.cp"><code class="docutils literal notranslate"><span class="pre">block.Block.cp</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.cv"><code class="docutils literal notranslate"><span class="pre">block.Block.cv</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.gamma"><code class="docutils literal notranslate"><span class="pre">block.Block.gamma</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.h"><code class="docutils literal notranslate"><span class="pre">block.Block.h</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.kappa"><code class="docutils literal notranslate"><span class="pre">block.Block.kappa</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.mu"><code class="docutils literal notranslate"><span class="pre">block.Block.mu</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.P"><code class="docutils literal notranslate"><span class="pre">block.Block.P</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Pr"><code class="docutils literal notranslate"><span class="pre">block.Block.Pr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.Rgas"><code class="docutils literal notranslate"><span class="pre">block.Block.Rgas</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.s"><code class="docutils literal notranslate"><span class="pre">block.Block.s</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.T"><code class="docutils literal notranslate"><span class="pre">block.Block.T</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.__getitem__"><code class="docutils literal notranslate"><span class="pre">block.Block.__getitem__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.clear_cache"><code class="docutils literal notranslate"><span class="pre">block.Block.clear_cache()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.empty"><code class="docutils literal notranslate"><span class="pre">block.Block.empty()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.flip"><code class="docutils literal notranslate"><span class="pre">block.Block.flip()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.freeze"><code class="docutils literal notranslate"><span class="pre">block.Block.freeze()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.frozen"><code class="docutils literal notranslate"><span class="pre">block.Block.frozen</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.mean"><code class="docutils literal notranslate"><span class="pre">block.Block.mean()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.nanmean"><code class="docutils literal notranslate"><span class="pre">block.Block.nanmean()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.ndim"><code class="docutils literal notranslate"><span class="pre">block.Block.ndim</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.ni"><code class="docutils literal notranslate"><span class="pre">block.Block.ni</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.nj"><code class="docutils literal notranslate"><span class="pre">block.Block.nj</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.nk"><code class="docutils literal notranslate"><span class="pre">block.Block.nk</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.nvar"><code class="docutils literal notranslate"><span class="pre">block.Block.nvar</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.reshape"><code class="docutils literal notranslate"><span class="pre">block.Block.reshape()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.shape"><code class="docutils literal notranslate"><span class="pre">block.Block.shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.shape_cell"><code class="docutils literal notranslate"><span class="pre">block.Block.shape_cell</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.shape_iface"><code class="docutils literal notranslate"><span class="pre">block.Block.shape_iface</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.shape_jface"><code class="docutils literal notranslate"><span class="pre">block.Block.shape_jface</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.shape_kface"><code class="docutils literal notranslate"><span class="pre">block.Block.shape_kface</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.size"><code class="docutils literal notranslate"><span class="pre">block.Block.size</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.squeeze"><code class="docutils literal notranslate"><span class="pre">block.Block.squeeze()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.transpose"><code class="docutils literal notranslate"><span class="pre">block.Block.transpose()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.triangulated"><code class="docutils literal notranslate"><span class="pre">block.Block.triangulated</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/block.html#ember.block.Block.view"><code class="docutils literal notranslate"><span class="pre">block.Block.view()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/block_util.html">Block utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#combining-and-reshaping-blocks">Combining and reshaping blocks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#interface-aligned-velocities">Interface-aligned velocities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#solution-transfer">Solution transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#post-processing-and-i-o">Post-processing and I/O</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.concatenate"><code class="docutils literal notranslate"><span class="pre">block_util.concatenate()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.resolve_to_interface"><code class="docutils literal notranslate"><span class="pre">block_util.resolve_to_interface()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.resolve_from_interface"><code class="docutils literal notranslate"><span class="pre">block_util.resolve_from_interface()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.resample"><code class="docutils literal notranslate"><span class="pre">block_util.resample()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.STATE"><code class="docutils literal notranslate"><span class="pre">block_util.STATE</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.interp_from_arrays"><code class="docutils literal notranslate"><span class="pre">block_util.interp_from_arrays()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.interp_from_grid"><code class="docutils literal notranslate"><span class="pre">block_util.interp_from_grid()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.repeat_pitchwise"><code class="docutils literal notranslate"><span class="pre">block_util.repeat_pitchwise()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.wall_yplus"><code class="docutils literal notranslate"><span class="pre">block_util.wall_yplus()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/block_util.html#ember.block_util.to_tm3"><code class="docutils literal notranslate"><span class="pre">block_util.to_tm3()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/set_iterative.html">Iterative flow-field setters</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/set_iterative.html#ember.set_iterative.set_ho_s_Ma_Alpha_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_ho_s_Ma_Alpha_Beta()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/set_iterative.html#ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_ho_s_rhoVm_Alpha_Beta()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/set_iterative.html#ember.set_iterative.set_ho_s_rhoVm_Vt_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_ho_s_rhoVm_Vt_Beta()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/set_iterative.html#ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/set_iterative.html#ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta"><code class="docutils literal notranslate"><span class="pre">set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/grid.html">Grid</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#construction-and-file-formats">Construction and file formats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#connectivity">Connectivity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#global-flow-field-setting">Global flow field setting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#time-marching">Time marching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#metadata">Metadata</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.Grid"><code class="docutils literal notranslate"><span class="pre">grid.Grid</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.read_emb"><code class="docutils literal notranslate"><span class="pre">grid.Grid.read_emb()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.read_plot3d"><code class="docutils literal notranslate"><span class="pre">grid.Grid.read_plot3d()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.set_conserved_cart_unstr"><code class="docutils literal notranslate"><span class="pre">grid.Grid.set_conserved_cart_unstr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.set_fluid"><code class="docutils literal notranslate"><span class="pre">grid.Grid.set_fluid()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.set_L_ref"><code class="docutils literal notranslate"><span class="pre">grid.Grid.set_L_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.set_primitive_cart_unstr"><code class="docutils literal notranslate"><span class="pre">grid.Grid.set_primitive_cart_unstr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.get_convergence"><code class="docutils literal notranslate"><span class="pre">grid.Grid.get_convergence()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.get_r_ref"><code class="docutils literal notranslate"><span class="pre">grid.Grid.get_r_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.accumulate_avg"><code class="docutils literal notranslate"><span class="pre">grid.Grid.accumulate_avg()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.align_cart_unstr"><code class="docutils literal notranslate"><span class="pre">grid.Grid.align_cart_unstr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.apply_bconds"><code class="docutils literal notranslate"><span class="pre">grid.Grid.apply_bconds()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.apply_guess_meridional"><code class="docutils literal notranslate"><span class="pre">grid.Grid.apply_guess_meridional()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.apply_guess_quasi3d"><code class="docutils literal notranslate"><span class="pre">grid.Grid.apply_guess_quasi3d()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.calculate_wdist"><code class="docutils literal notranslate"><span class="pre">grid.Grid.calculate_wdist()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.check_nan"><code class="docutils literal notranslate"><span class="pre">grid.Grid.check_nan()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.copy"><code class="docutils literal notranslate"><span class="pre">grid.Grid.copy()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.finalise_average"><code class="docutils literal notranslate"><span class="pre">grid.Grid.finalise_average()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.interp_from_arrays"><code class="docutils literal notranslate"><span class="pre">grid.Grid.interp_from_arrays()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.interp_from_grid"><code class="docutils literal notranslate"><span class="pre">grid.Grid.interp_from_grid()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.resample"><code class="docutils literal notranslate"><span class="pre">grid.Grid.resample()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.smooth"><code class="docutils literal notranslate"><span class="pre">grid.Grid.smooth()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.update_bconds"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_bconds()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.update_cached_conserved"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_cached_conserved()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.update_filter"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_filter()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.update_residual"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_residual()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.update_sources"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_sources()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.update_timestep"><code class="docutils literal notranslate"><span class="pre">grid.Grid.update_timestep()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.write_emb"><code class="docutils literal notranslate"><span class="pre">grid.Grid.write_emb()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.write_fvbnd"><code class="docutils literal notranslate"><span class="pre">grid.Grid.write_fvbnd()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.write_plot3d"><code class="docutils literal notranslate"><span class="pre">grid.Grid.write_plot3d()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.connectivity"><code class="docutils literal notranslate"><span class="pre">grid.Grid.connectivity</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.n_row"><code class="docutils literal notranslate"><span class="pre">grid.Grid.n_row</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.patches"><code class="docutils literal notranslate"><span class="pre">grid.Grid.patches</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.row_station_bid_pid"><code class="docutils literal notranslate"><span class="pre">grid.Grid.row_station_bid_pid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.rows"><code class="docutils literal notranslate"><span class="pre">grid.Grid.rows</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.size"><code class="docutils literal notranslate"><span class="pre">grid.Grid.size</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.append"><code class="docutils literal notranslate"><span class="pre">grid.Grid.append()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.clear"><code class="docutils literal notranslate"><span class="pre">grid.Grid.clear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.extend"><code class="docutils literal notranslate"><span class="pre">grid.Grid.extend()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.index"><code class="docutils literal notranslate"><span class="pre">grid.Grid.index()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.insert"><code class="docutils literal notranslate"><span class="pre">grid.Grid.insert()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.labels"><code class="docutils literal notranslate"><span class="pre">grid.Grid.labels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.pop"><code class="docutils literal notranslate"><span class="pre">grid.Grid.pop()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.Grid.remove"><code class="docutils literal notranslate"><span class="pre">grid.Grid.remove()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivity"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivity.apply"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.apply()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivity.clear"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.clear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivity.exchange"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.exchange()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivity.exchange_faces"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.exchange_faces()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivity.pair"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivity.pair()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivityManager"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivityManager.clear"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.clear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivityManager.pair"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.pair()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivityManager.cusp"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.cusp</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivityManager.mixing"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.mixing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivityManager.nonmatch"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.nonmatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.GridConnectivityManager.periodic"><code class="docutils literal notranslate"><span class="pre">grid.GridConnectivityManager.periodic</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.residual"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.residual</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.mdot"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.mdot</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.ho"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.ho</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.s"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.s</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.mdot_target"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.mdot_target</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.mdot_throttle"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.mdot_throttle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.dP_throttle"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_throttle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.dP_P"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_P</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.dP_I"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_I</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.ConvergenceStep.dP_D"><code class="docutils literal notranslate"><span class="pre">grid.ConvergenceStep.dP_D</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/grid.html#ember.grid.DivergenceError"><code class="docutils literal notranslate"><span class="pre">grid.DivergenceError</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.DivergenceError.add_note"><code class="docutils literal notranslate"><span class="pre">grid.DivergenceError.add_note()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.DivergenceError.args"><code class="docutils literal notranslate"><span class="pre">grid.DivergenceError.args</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/grid.html#ember.grid.DivergenceError.with_traceback"><code class="docutils literal notranslate"><span class="pre">grid.DivergenceError.with_traceback()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/communicators.html">Communicators</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/communicators.html#ember.periodic_communicator.PeriodicCommunicator"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.periodic_communicator.PeriodicCommunicator.pairs"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.pairs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.periodic_communicator.PeriodicCommunicator.ijk_node_flat"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.ijk_node_flat</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.periodic_communicator.PeriodicCommunicator.apply"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.apply()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.periodic_communicator.PeriodicCommunicator.exchange_faces"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.exchange_faces()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/communicators.html#ember.mixing_communicator.MixingCommunicator"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.mixing_communicator.MixingCommunicator.leak"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.leak</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.mixing_communicator.MixingCommunicator.Ma_clip"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.Ma_clip</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.mixing_communicator.MixingCommunicator.Ma_clip_max"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.Ma_clip_max</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.mixing_communicator.MixingCommunicator.get_stats"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.get_stats()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.mixing_communicator.MixingCommunicator.exchange"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.exchange()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/communicators.html#ember.nonmatch_communicator.NonMatchCommunicator"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.nonmatch_communicator.NonMatchCommunicator.pairs"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator.pairs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.nonmatch_communicator.NonMatchCommunicator.uv_coords"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator.uv_coords</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/communicators.html#ember.nonmatch_communicator.NonMatchCommunicator.apply"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator.apply()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/patch.html">Patch</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#limiting-index-rules">Limiting index rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#types-of-patches">Types of patches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#storage-and-attachment-to-blocks">Storage and attachment to blocks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#example-usage">Example usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#base-classes">Base classes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.Patch"><code class="docutils literal notranslate"><span class="pre">patch.Patch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.RevolutionPatch"><code class="docutils literal notranslate"><span class="pre">patch.RevolutionPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.NonReflectingPatch"><code class="docutils literal notranslate"><span class="pre">patch.NonReflectingPatch</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#patch-types">Patch types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.PeriodicPatch"><code class="docutils literal notranslate"><span class="pre">patch.PeriodicPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.InletPatch"><code class="docutils literal notranslate"><span class="pre">patch.InletPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.OutletPatch"><code class="docutils literal notranslate"><span class="pre">patch.OutletPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.MixingPatch"><code class="docutils literal notranslate"><span class="pre">patch.MixingPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.NonMatchPatch"><code class="docutils literal notranslate"><span class="pre">patch.NonMatchPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.RotatingPatch"><code class="docutils literal notranslate"><span class="pre">patch.RotatingPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.CoolingPatch"><code class="docutils literal notranslate"><span class="pre">patch.CoolingPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.InviscidPatch"><code class="docutils literal notranslate"><span class="pre">patch.InviscidPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.CuspPatch"><code class="docutils literal notranslate"><span class="pre">patch.CuspPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.ProbePatch"><code class="docutils literal notranslate"><span class="pre">patch.ProbePatch</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/patch.html#collections">Collections</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.BlockPatchCollection"><code class="docutils literal notranslate"><span class="pre">patch.BlockPatchCollection</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/patch.html#ember.patch.GridPatchCollection"><code class="docutils literal notranslate"><span class="pre">patch.GridPatchCollection</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/average.html">Averaging</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.flow_mass"><code class="docutils literal notranslate"><span class="pre">average.flow_mass()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.flow_conserved"><code class="docutils literal notranslate"><span class="pre">average.flow_conserved()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.flow_conserved_nd"><code class="docutils literal notranslate"><span class="pre">average.flow_conserved_nd()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.mass_average"><code class="docutils literal notranslate"><span class="pre">average.mass_average()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.area_average"><code class="docutils literal notranslate"><span class="pre">average.area_average()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.total_area"><code class="docutils literal notranslate"><span class="pre">average.total_area()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.total_area_nd"><code class="docutils literal notranslate"><span class="pre">average.total_area_nd()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/average.html#ember.average.mix_out"><code class="docutils literal notranslate"><span class="pre">average.mix_out()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/cut.html">Cutting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#cuts-along-grid-surfaces-by-index">Cuts along grid surfaces by index</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#ember.cut.unstructured"><code class="docutils literal notranslate"><span class="pre">cut.unstructured()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#ember.cut.structured_meridional"><code class="docutils literal notranslate"><span class="pre">cut.structured_meridional()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#ember.cut.interpolate_to_structured"><code class="docutils literal notranslate"><span class="pre">cut.interpolate_to_structured()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/cut.html#ember.cut.triangulate_to_unstructured"><code class="docutils literal notranslate"><span class="pre">cut.triangulate_to_unstructured()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/solver.html">Solver</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#overview-of-one-time-step">Overview of one time step</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#time-integrators">Time integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#cfl-number">CFL number</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#smoothing">Smoothing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#multigrid">Multigrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#body-forces-and-viscous-model">Body forces and viscous model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#boundary-patches-and-inter-block-coupling">Boundary patches and inter-block coupling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#logging-averaging-and-convergence-history">Logging, averaging, and convergence history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.BaseSolver"><code class="docutils literal notranslate"><span class="pre">solver.BaseSolver</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.BaseSolver.run"><code class="docutils literal notranslate"><span class="pre">solver.BaseSolver.run()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.Solver"><code class="docutils literal notranslate"><span class="pre">solver.Solver</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.n_step"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_step</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.n_step_log"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_step_log</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.n_step_avg"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_step_avg</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.cfl"><code class="docutils literal notranslate"><span class="pre">solver.Solver.cfl</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.sf4"><code class="docutils literal notranslate"><span class="pre">solver.Solver.sf4</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.sf2"><code class="docutils literal notranslate"><span class="pre">solver.Solver.sf2</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.inviscid"><code class="docutils literal notranslate"><span class="pre">solver.Solver.inviscid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.fac_visc"><code class="docutils literal notranslate"><span class="pre">solver.Solver.fac_visc</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.sf_resid"><code class="docutils literal notranslate"><span class="pre">solver.Solver.sf_resid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.gain_filt"><code class="docutils literal notranslate"><span class="pre">solver.Solver.gain_filt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.delta_filt"><code class="docutils literal notranslate"><span class="pre">solver.Solver.delta_filt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.n_stage"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_stage</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.n_levels"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_levels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.fac_mgrid"><code class="docutils literal notranslate"><span class="pre">solver.Solver.fac_mgrid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.expon_mgrid"><code class="docutils literal notranslate"><span class="pre">solver.Solver.expon_mgrid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.rf_inlet"><code class="docutils literal notranslate"><span class="pre">solver.Solver.rf_inlet</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.rf_outlet"><code class="docutils literal notranslate"><span class="pre">solver.Solver.rf_outlet</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.rf_mix"><code class="docutils literal notranslate"><span class="pre">solver.Solver.rf_mix</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.rf_exchange"><code class="docutils literal notranslate"><span class="pre">solver.Solver.rf_exchange</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.mix_reflective"><code class="docutils literal notranslate"><span class="pre">solver.Solver.mix_reflective</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.run"><code class="docutils literal notranslate"><span class="pre">solver.Solver.run()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/solver.html#ember.solver.Solver.run_fmg"><code class="docutils literal notranslate"><span class="pre">solver.Solver.run_fmg()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.scree_step"><code class="docutils literal notranslate"><span class="pre">solver.scree_step()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.mg_coarse_shapes"><code class="docutils literal notranslate"><span class="pre">solver.mg_coarse_shapes()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.advance_rk_stage_mg"><code class="docutils literal notranslate"><span class="pre">solver.advance_rk_stage_mg()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/solver.html#ember.solver.rk_step"><code class="docutils literal notranslate"><span class="pre">solver.rk_step()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/convergence_history.html">Convergence history</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#reading-a-history">Reading a history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#monitors">Monitors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#storage">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#reading-from-a-file">Reading from a file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.from_grid"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.from_grid()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.read_cnv"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.read_cnv()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.check_convergence"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.check_convergence()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.find_settling_record"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.find_settling_record()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.format_message"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.format_message()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.format_timing"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.format_timing()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.record_convergence"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.record_convergence()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.to_json"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.to_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.trim"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.trim()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.write_cnv"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.write_cnv()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.diverged"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.diverged</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.dP_D"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.dP_D</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.dP_I"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.dP_I</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.dP_P"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.dP_P</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.err_mdot"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.err_mdot</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.err_mdot_row"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.err_mdot_row</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.ho_nd"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.ho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.i_log"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.i_log</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.i_step"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.i_step</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.mdot_nd"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.mdot_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.mdot_target"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.mdot_target</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.mdot_throttle"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.mdot_throttle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.n_node"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.n_node</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.now"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.now</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.psi"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.psi</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.residual"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.residual</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.s_nd"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.s_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.throttle"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.throttle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.time"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.tpnps"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.tpnps</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.zeta"><code class="docutils literal notranslate"><span class="pre">convergence_history.ConvergenceHistory.zeta</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/perturbation.html">Jacobians</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_conserved"><code class="docutils literal notranslate"><span class="pre">perturbation.primitive_to_conserved()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.conserved_to_primitive"><code class="docutils literal notranslate"><span class="pre">perturbation.conserved_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_chic"><code class="docutils literal notranslate"><span class="pre">perturbation.primitive_to_chic()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.chic_to_primitive"><code class="docutils literal notranslate"><span class="pre">perturbation.chic_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_flux"><code class="docutils literal notranslate"><span class="pre">perturbation.primitive_to_flux()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.flux_to_primitive"><code class="docutils literal notranslate"><span class="pre">perturbation.flux_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_bcond"><code class="docutils literal notranslate"><span class="pre">perturbation.primitive_to_bcond()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.bcond_to_primitive"><code class="docutils literal notranslate"><span class="pre">perturbation.bcond_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.primitive_to_mix"><code class="docutils literal notranslate"><span class="pre">perturbation.primitive_to_mix()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.mix_to_primitive"><code class="docutils literal notranslate"><span class="pre">perturbation.mix_to_primitive()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.mix_to_conserved"><code class="docutils literal notranslate"><span class="pre">perturbation.mix_to_conserved()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.chic_to_bcond"><code class="docutils literal notranslate"><span class="pre">perturbation.chic_to_bcond()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.chic_to_mix"><code class="docutils literal notranslate"><span class="pre">perturbation.chic_to_mix()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.flux_to_conserved"><code class="docutils literal notranslate"><span class="pre">perturbation.flux_to_conserved()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/perturbation.html#ember.perturbation.conserved_to_flux"><code class="docutils literal notranslate"><span class="pre">perturbation.conserved_to_flux()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/util.html">Array utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#flow-angle-and-coordinate-conversions">Flow angle and coordinate conversions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#vector-and-matrix-operations">Vector and matrix operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#grid-construction">Grid construction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#array-allocation-and-buffers">Array allocation and buffers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#miscellaneous-geometry">Miscellaneous geometry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.profile"><code class="docutils literal notranslate"><span class="pre">util.profile()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.dot"><code class="docutils literal notranslate"><span class="pre">util.dot()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.angles_to_components"><code class="docutils literal notranslate"><span class="pre">util.angles_to_components()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.components_to_angles"><code class="docutils literal notranslate"><span class="pre">util.components_to_angles()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.vecnorm"><code class="docutils literal notranslate"><span class="pre">util.vecnorm()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.zeros"><code class="docutils literal notranslate"><span class="pre">util.zeros()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.array"><code class="docutils literal notranslate"><span class="pre">util.array()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.empty"><code class="docutils literal notranslate"><span class="pre">util.empty()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.full"><code class="docutils literal notranslate"><span class="pre">util.full()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.allocate_or_reuse"><code class="docutils literal notranslate"><span class="pre">util.allocate_or_reuse()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.bcast_if_needed"><code class="docutils literal notranslate"><span class="pre">util.bcast_if_needed()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.carve_view"><code class="docutils literal notranslate"><span class="pre">util.carve_view()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.rss_bytes"><code class="docutils literal notranslate"><span class="pre">util.rss_bytes()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.meshgrid3"><code class="docutils literal notranslate"><span class="pre">util.meshgrid3()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.linmesh3"><code class="docutils literal notranslate"><span class="pre">util.linmesh3()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.pol_to_pseudocart"><code class="docutils literal notranslate"><span class="pre">util.pol_to_pseudocart()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.extent"><code class="docutils literal notranslate"><span class="pre">util.extent()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.bounding_box"><code class="docutils literal notranslate"><span class="pre">util.bounding_box()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.unwrap_meridional"><code class="docutils literal notranslate"><span class="pre">util.unwrap_meridional()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.cart_to_pol"><code class="docutils literal notranslate"><span class="pre">util.cart_to_pol()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.pol_to_cart"><code class="docutils literal notranslate"><span class="pre">util.pol_to_cart()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.matmat"><code class="docutils literal notranslate"><span class="pre">util.matmat()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.rotation_matrices"><code class="docutils literal notranslate"><span class="pre">util.rotation_matrices()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.matvec"><code class="docutils literal notranslate"><span class="pre">util.matvec()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.resample"><code class="docutils literal notranslate"><span class="pre">util.resample()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.apply_perm_flip"><code class="docutils literal notranslate"><span class="pre">util.apply_perm_flip()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.cosine_cluster"><code class="docutils literal notranslate"><span class="pre">util.cosine_cluster()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.cluster"><code class="docutils literal notranslate"><span class="pre">util.cluster()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/util.html#ember.util.cluster_symmetric"><code class="docutils literal notranslate"><span class="pre">util.cluster_symmetric()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/yaml_util.html">YAML utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/yaml_util.html#ember.yaml_util.read_yaml"><code class="docutils literal notranslate"><span class="pre">yaml_util.read_yaml()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/yaml_util.html#ember.yaml_util.write_yaml"><code class="docutils literal notranslate"><span class="pre">yaml_util.write_yaml()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/cases.html">Cases</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/cases.html#ember.cases.build_duct_grid"><code class="docutils literal notranslate"><span class="pre">cases.build_duct_grid()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/cases.html#ember.cases.er_for_duct_yplus"><code class="docutils literal notranslate"><span class="pre">cases.er_for_duct_yplus()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Version history</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#v0-3-0">0.3.0</a></li>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#v0-2-0">0.2.0 (2026-08-18)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#v0-1-0">0.1.0 (2026-08-06)</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<section id="indices">
+<h2>Indices<a class="headerlink" href="#indices" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+</ul>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.perturbation &#8212; ember 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.3.0</p>
+
+
+
+
+
+
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.3.0";
+    var page = "_modules/ember/perturbation.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script>
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Real gas fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Version history</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.perturbation</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobians between the flow variable sets used throughout EMBER.</span>
+
+<span class="sd">Six five-component variable sets, each labelled by a single calligraphic</span>
+<span class="sd">letter, describe the same flow state; boundary conditions, the</span>
+<span class="sd">characteristic treatment and the mixing planes all need to move small</span>
+<span class="sd">perturbations between them:</span>
+
+<span class="sd">* **primitive**</span>
+
+<span class="sd">  .. math::</span>
+<span class="sd">      \mathcal{P} = [\rho, V_x, V_r, V_\theta, p]^\mathrm{T}</span>
+
+<span class="sd">* **conserved** -- what :meth:`~ember.block.Block.set_conserved` stores</span>
+
+<span class="sd">  .. math::</span>
+<span class="sd">      \mathcal{U} = [\rho, \rho V_x, \rho V_r, \rho r V_\theta, \rho e]^\mathrm{T}</span>
+
+<span class="sd">* **flux** -- the x-direction advective flux of each conserved variable</span>
+
+<span class="sd">  .. math::</span>
+<span class="sd">      \mathcal{F} = [\rho V_x,\ \rho V_x^2 + p,\ \rho V_x V_r,\</span>
+<span class="sd">      \rho V_x r V_\theta,\ \rho V_x h_0]^\mathrm{T}</span>
+
+<span class="sd">* **chic** -- one-dimensional characteristic variables of the Euler equations</span>
+
+<span class="sd">  .. math::</span>
+<span class="sd">      \mathcal{C} = [c_\mathrm{up}, c_\mathrm{down}, c_r, c_t, c_s]^\mathrm{T}</span>
+
+<span class="sd">* **bcond** -- what a subsonic inflow prescribes; see</span>
+<span class="sd">  :class:`~ember.patch.InletPatch`</span>
+
+<span class="sd">  .. math::</span>
+<span class="sd">      \mathcal{B} = [h_0, s, \tan\alpha, \sin\beta, p]^\mathrm{T}</span>
+
+<span class="sd">* **mix** -- what a mixing plane exchanges; see</span>
+<span class="sd">  :class:`~ember.patch.MixingPatch`</span>
+
+<span class="sd">  .. math::</span>
+<span class="sd">      \mathcal{M} = [h_0, s, V_r, V_\theta, p]^\mathrm{T}</span>
+
+<span class="sd">Every function below is named ``X_to_Y`` and returns the Jacobian</span>
+<span class="sd">:math:`\mathbf{J}_{\mathcal{X}\to\mathcal{Y}}`, evaluated pointwise from a</span>
+<span class="sd">:class:`~ember.block.Block`&#39;s current state and returned as a batch of 5x5</span>
+<span class="sd">matrices stacked on the trailing two axes:</span>
+
+<span class="sd">.. math::</span>
+<span class="sd">    \delta\mathcal{Y} = \mathbf{J}_{\mathcal{X}\to\mathcal{Y}}\,\delta\mathcal{X}</span>
+
+<span class="sd">Two conventions keep this cheap. First, whenever both a Jacobian and its</span>
+<span class="sd">inverse are needed, the inverse is not obtained by numerically inverting the</span>
+<span class="sd">forward 5x5 matrix at every point -- it is worked out analytically in closed</span>
+<span class="sd">form and implemented as its own function. :func:`conserved_to_primitive`,</span>
+<span class="sd">for instance, is the closed-form inverse of :func:`primitive_to_conserved`,</span>
+<span class="sd">and every other ``Y_to_X`` in this module pairs with an ``X_to_Y`` the same</span>
+<span class="sd">way. Second, every Jacobian between two sets neither of which is primitive</span>
+<span class="sd">necessarily passes through primitive variables,</span>
+<span class="sd">:math:`\mathbf{J}_{\mathcal{X}\to\mathcal{Y}} = \mathbf{J}_{\mathcal{P}\to\mathcal{Y}}\,\mathbf{J}_{\mathcal{X}\to\mathcal{P}}`,</span>
+<span class="sd">and where that composite sits on a hot path -- the characteristic and</span>
+<span class="sd">mixing-plane boundary conditions evaluate one every timestep -- the product</span>
+<span class="sd">is worked out analytically once and implemented as its own fused function</span>
+<span class="sd">rather than composed from two separate calls. For example</span>
+<span class="sd">:func:`chic_to_bcond` evaluates</span>
+<span class="sd">:math:`\mathbf{J}_{\mathcal{C}\to\mathcal{B}} = \mathbf{J}_{\mathcal{P}\to\mathcal{B}}\,\mathbf{J}_{\mathcal{C}\to\mathcal{P}}`</span>
+<span class="sd">directly, rather than calling :func:`primitive_to_bcond` and</span>
+<span class="sd">:func:`chic_to_primitive` and multiplying the results at every timestep.</span>
+<span class="sd">Elsewhere, where the extra multiply is not performance-critical, a composite</span>
+<span class="sd">Jacobian is simply the product of two separately evaluated calls --</span>
+<span class="sd">:func:`flux_to_conserved` and :func:`conserved_to_flux`, for instance, are</span>
+<span class="sd">literally :func:`primitive_to_conserved` :math:`\cdot` :func:`flux_to_primitive`</span>
+<span class="sd">and :func:`primitive_to_flux` :math:`\cdot` :func:`conserved_to_primitive`</span>
+<span class="sd">multiplied together at call time.</span>
+
+<span class="sd">All Jacobians are evaluated in the nondimensional space the block stores its</span>
+<span class="sd">state in, using :attr:`~ember.block.Block.conserved_nd`,</span>
+<span class="sd">:attr:`~ember.block.Block.r_nd` and the fluid&#39;s ``_nd`` thermodynamic</span>
+<span class="sd">derivative properties.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.fortran</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_stack_matrix</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stack nested iterables into a matrix with trailing matrix dimensions.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    args : nested iterables length [nrow][ncol]</span>
+<span class="sd">        Variables to stack, where args[i][j] contains the (i,j) matrix element.</span>
+<span class="sd">        Use None for zero entries to skip the copy.</span>
+<span class="sd">    shape : tuple</span>
+<span class="sd">        Grid shape for the batch dimensions.</span>
+<span class="sd">    out : array, optional</span>
+<span class="sd">        Preallocated output array of shape (*shape, nrow, ncol). If None, a new</span>
+<span class="sd">        array is allocated.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    out : Array, shape (*shape, nrow, ncol)</span>
+<span class="sd">        A composite matrix variable with matrix dimensions in trailing axes.</span>
+<span class="sd">        Uses f32 precision and Fortran ordering for optimal performance.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nrow</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="n">ncol</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="n">nrow</span><span class="p">,</span> <span class="n">ncol</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nrow</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ncol</span><span class="p">):</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<div class="viewcode-block" id="primitive_to_conserved">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.primitive_to_conserved">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">primitive_to_conserved</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of conserved variables with respect to primitive variables.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        \delta\mathcal{U} = \mathbf{J}_{\mathcal{P}\to\mathcal{U}}\,\delta\mathcal{P}</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{U}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">primitive_to_conserved</span><span class="p">(</span>
+            <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">dudrho_P_nd</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">dudP_rho_nd</span><span class="p">,</span> <span class="n">out</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">drhoe_drho_P</span> <span class="o">=</span> <span class="n">e</span> <span class="o">+</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">dudrho_P_nd</span>
+    <span class="n">drhoe_dP_rho</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">dudP_rho_nd</span>
+
+    <span class="n">out</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vx</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">rho</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vr</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">rho</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span> <span class="o">*</span> <span class="n">Vt</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span> <span class="o">*</span> <span class="n">rho</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">drhoe_drho_P</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">Vt</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">drhoe_dP_rho</span>
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="conserved_to_primitive">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.conserved_to_primitive">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">conserved_to_primitive</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of primitive variables with respect to conserved variables.</span>
+
+<span class="sd">    Analytical inverse of :func:`primitive_to_conserved`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{U}\to\mathcal{P}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vsq</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vt</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">drhoe_drho_P</span> <span class="o">=</span> <span class="n">e</span> <span class="o">+</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">dudrho_P_nd</span>
+    <span class="n">drhoe_dP_rho</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">dudP_rho_nd</span>
+
+    <span class="n">out</span> <span class="o">=</span> <span class="n">_stack_matrix</span><span class="p">(</span>
+        <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="o">-</span><span class="n">Vx</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="o">-</span><span class="n">Vr</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="o">-</span><span class="n">Vt</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">r</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span>
+            <span class="p">(</span><span class="n">Vsq</span> <span class="o">-</span> <span class="n">drhoe_drho_P</span><span class="p">),</span>
+            <span class="o">-</span><span class="n">Vx</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">Vr</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">Vt</span> <span class="o">/</span> <span class="n">r</span><span class="p">,</span>
+            <span class="mf">1.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">shape</span><span class="o">=</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="c1"># Divide rows 1-3 of each matrix by rho (need to add dimensions for broadcasting)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">4</span><span class="p">,</span> <span class="p">:]</span> <span class="o">/=</span> <span class="n">rho</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="c1"># Divide last row by drhoe_dP_rho</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">/=</span> <span class="n">drhoe_dP_rho</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="primitive_to_chic">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.primitive_to_chic">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">primitive_to_chic</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of one-dimensional characteristic variables with respect to primitive variables.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{C}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">a_nd</span>
+
+    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">primitive_to_chic</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="n">rhoa</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">a</span>
+    <span class="n">asq</span> <span class="o">=</span> <span class="n">a</span><span class="o">**</span><span class="mi">2</span>
+
+    <span class="n">out</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">rhoa</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhoa</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhoa</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhoa</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">asq</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="chic_to_primitive">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.chic_to_primitive">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">chic_to_primitive</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of primitive variables with respect to one-dimensional characteristic variables.</span>
+
+<span class="sd">    Analytical inverse of :func:`primitive_to_chic`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{P}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">a_nd</span>
+
+    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">chic_to_primitive</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="n">asq_recip</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">a</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">rhoa_recip</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">a</span><span class="p">)</span>
+
+    <span class="n">out</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">asq_recip</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">asq_recip</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">asq_recip</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">rhoa_recip</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">rhoa_recip</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhoa_recip</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhoa_recip</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span>
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="primitive_to_flux">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.primitive_to_flux">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">primitive_to_flux</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of the x-direction advective flux with respect to primitive variables.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{F}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">rhoVx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">rhoVr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="n">rhorVt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">rhoVx</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">rhoVr</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">rhorVt</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">ho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">ho_nd</span>
+    <span class="n">VxVr</span> <span class="o">=</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">Vr</span>
+    <span class="n">VxrVt</span> <span class="o">=</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">r</span> <span class="o">*</span> <span class="n">Vt</span>
+    <span class="n">VxVx</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">dE_drho</span> <span class="o">=</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">ho</span> <span class="o">+</span> <span class="n">rhoVx</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdrho_P_nd</span>
+    <span class="n">dE_dVx</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">ho</span> <span class="o">+</span> <span class="n">rhoVx</span> <span class="o">*</span> <span class="n">Vx</span>
+
+    <span class="k">return</span> <span class="n">_stack_matrix</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">Vx</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">VxVx</span><span class="p">,</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">rhoVx</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">VxVr</span><span class="p">,</span> <span class="n">rhoVr</span><span class="p">,</span> <span class="n">rhoVx</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">VxrVt</span><span class="p">,</span> <span class="n">rhorVt</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">rhoVx</span> <span class="o">*</span> <span class="n">r</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">dE_drho</span><span class="p">,</span> <span class="n">dE_dVx</span><span class="p">,</span> <span class="n">rhoVx</span> <span class="o">*</span> <span class="n">Vr</span><span class="p">,</span> <span class="n">rhoVx</span> <span class="o">*</span> <span class="n">Vt</span><span class="p">,</span> <span class="n">rhoVx</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdP_rho_nd</span><span class="p">),</span>
+        <span class="n">shape</span><span class="o">=</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="flux_to_primitive">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.flux_to_primitive">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">flux_to_primitive</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of primitive variables with respect to the x-direction advective flux.</span>
+
+<span class="sd">    Analytical inverse of :func:`primitive_to_flux`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{F}\to\mathcal{P}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">ho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">ho_nd</span>
+    <span class="n">dhdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdP_rho_nd</span>
+    <span class="n">dhdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdrho_P_nd</span>
+
+    <span class="c1"># Fast Fortran path for 1D blocks only</span>
+    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">flux_to_primitive</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">ho</span><span class="p">,</span> <span class="n">dhdP_rho</span><span class="p">,</span> <span class="n">dhdrho_P</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="n">VxVx</span> <span class="o">=</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">Vx</span>
+    <span class="n">Vsq</span> <span class="o">=</span> <span class="n">Vr</span> <span class="o">*</span> <span class="n">Vr</span> <span class="o">+</span> <span class="n">Vt</span> <span class="o">*</span> <span class="n">Vt</span>
+    <span class="n">dhdP_rho_rho</span> <span class="o">=</span> <span class="n">dhdP_rho</span> <span class="o">*</span> <span class="n">rho</span>
+    <span class="n">dhdrho_rho</span> <span class="o">=</span> <span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">rho</span>
+    <span class="c1"># D = Vx^2*(dhdP_rho*rho - 1) + dhdrho_P*rho</span>
+    <span class="n">D_inv</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">VxVx</span> <span class="o">*</span> <span class="p">(</span><span class="n">dhdP_rho_rho</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">+</span> <span class="n">dhdrho_rho</span><span class="p">)</span>
+    <span class="n">Vx_inv</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">Vx</span>
+    <span class="n">rho_inv</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">rhoVx_inv</span> <span class="o">=</span> <span class="n">rho_inv</span> <span class="o">*</span> <span class="n">Vx_inv</span>
+    <span class="n">r_inv</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">r</span>
+
+    <span class="n">D_inv_Vx</span> <span class="o">=</span> <span class="n">D_inv</span> <span class="o">*</span> <span class="n">Vx_inv</span>
+    <span class="n">D_inv_rho</span> <span class="o">=</span> <span class="n">D_inv</span> <span class="o">*</span> <span class="n">rho_inv</span>
+
+    <span class="n">out</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+
+    <span class="c1"># Row 0: d(rho)/d(flux)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">Vsq</span> <span class="o">-</span> <span class="n">ho</span> <span class="o">+</span> <span class="n">VxVx</span> <span class="o">*</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">dhdP_rho_rho</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">))</span> <span class="o">*</span> <span class="n">D_inv_Vx</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">dhdP_rho_rho</span> <span class="o">*</span> <span class="n">D_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">D_inv_Vx</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vt</span> <span class="o">*</span> <span class="n">r_inv</span> <span class="o">*</span> <span class="n">D_inv_Vx</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">D_inv_Vx</span>
+
+    <span class="c1"># Row 1: d(Vx)/d(flux)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">Vsq</span> <span class="o">+</span> <span class="n">ho</span> <span class="o">+</span> <span class="n">dhdrho_rho</span> <span class="o">-</span> <span class="n">VxVx</span> <span class="o">*</span> <span class="n">dhdP_rho_rho</span><span class="p">)</span> <span class="o">*</span> <span class="n">D_inv_rho</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">dhdP_rho</span> <span class="o">*</span> <span class="n">D_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vr</span> <span class="o">*</span> <span class="n">D_inv_rho</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vt</span> <span class="o">*</span> <span class="n">r_inv</span> <span class="o">*</span> <span class="n">D_inv_rho</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">D_inv_rho</span>
+
+    <span class="c1"># Row 2: d(Vr)/d(flux)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">rhoVx_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhoVx_inv</span>
+
+    <span class="c1"># Row 3: d(Vt)/d(flux)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vt</span> <span class="o">*</span> <span class="n">rhoVx_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">r_inv</span> <span class="o">*</span> <span class="n">rhoVx_inv</span>
+
+    <span class="c1"># Row 4: d(P)/d(flux)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vx</span> <span class="o">*</span> <span class="p">(</span><span class="n">Vsq</span> <span class="o">+</span> <span class="n">VxVx</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">dhdrho_rho</span> <span class="o">-</span> <span class="n">ho</span><span class="p">)</span> <span class="o">*</span> <span class="n">D_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">dhdrho_rho</span> <span class="o">-</span> <span class="n">VxVx</span><span class="p">)</span> <span class="o">*</span> <span class="n">D_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vx</span> <span class="o">*</span> <span class="n">Vr</span> <span class="o">*</span> <span class="n">D_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vx</span> <span class="o">*</span> <span class="n">Vt</span> <span class="o">*</span> <span class="n">r_inv</span> <span class="o">*</span> <span class="n">D_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">D_inv</span>
+
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="primitive_to_bcond">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.primitive_to_bcond">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">primitive_to_bcond</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of a subsonic inflow&#39;s prescribed quantities with respect to primitive variables.</span>
+
+<span class="sd">    Both angles are measured against the meridional velocity magnitude</span>
+<span class="sd">    :math:`V_m = \sqrt{V_x^2 + V_r^2}`, as in :attr:`~ember.block.Block.tanAlpha`</span>
+<span class="sd">    and :attr:`~ember.block.Block.sinBeta`, so every angle derivative below</span>
+<span class="sd">    carries :math:`V_m` and not the total speed. ``sinBeta`` is used in place</span>
+<span class="sd">    of ``tanBeta`` to avoid the singularity at :math:`\beta = 90^\circ`;</span>
+<span class="sd">    :math:`\sin\beta = V_r/V_m`, with derivatives verified numerically.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{B}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">Vm_sq</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">Vm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">Vm_sq</span><span class="p">)</span>
+    <span class="n">Vm_cb</span> <span class="o">=</span> <span class="n">Vm</span> <span class="o">*</span> <span class="n">Vm_sq</span>
+    <span class="n">tanAlpha</span> <span class="o">=</span> <span class="n">Vt</span> <span class="o">/</span> <span class="n">Vm</span>
+    <span class="n">dtanAl_dVx</span> <span class="o">=</span> <span class="o">-</span><span class="n">tanAlpha</span> <span class="o">*</span> <span class="n">Vx</span> <span class="o">/</span> <span class="n">Vm_sq</span>
+    <span class="n">dtanAl_dVr</span> <span class="o">=</span> <span class="o">-</span><span class="n">tanAlpha</span> <span class="o">*</span> <span class="n">Vr</span> <span class="o">/</span> <span class="n">Vm_sq</span>
+    <span class="n">dtanAl_dVt</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">Vm</span>
+
+    <span class="n">dsinBe_dVx</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">Vx</span> <span class="o">/</span> <span class="n">Vm_cb</span>
+    <span class="n">dsinBe_dVr</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">Vm_cb</span>
+
+    <span class="k">return</span> <span class="n">_stack_matrix</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">dhdrho_P_nd</span><span class="p">,</span> <span class="n">Vx</span><span class="p">,</span> <span class="n">Vr</span><span class="p">,</span> <span class="n">Vt</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdP_rho_nd</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">dsdrho_P_nd</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdP_rho_nd</span><span class="p">),</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtanAl_dVx</span><span class="p">,</span> <span class="n">dtanAl_dVr</span><span class="p">,</span> <span class="n">dtanAl_dVt</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">dsinBe_dVx</span><span class="p">,</span> <span class="n">dsinBe_dVr</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+        <span class="n">shape</span><span class="o">=</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="bcond_to_primitive">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.bcond_to_primitive">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">bcond_to_primitive</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of primitive variables with respect to a subsonic inflow&#39;s prescribed quantities.</span>
+
+<span class="sd">    Analytical inverse of :func:`primitive_to_bcond`.</span>
+
+<span class="sd">    :math:`V_m` is the meridional speed the two angles are measured against</span>
+<span class="sd">    and :math:`V^2 = V_m^2 + V_\theta^2` the total speed squared. The entropy</span>
+<span class="sd">    row of the forward matrix eliminates :math:`\delta\rho` in favour of</span>
+<span class="sd">    :math:`\delta s` and :math:`\delta p`, leaving a stagnation-enthalpy</span>
+<span class="sd">    residual</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        \delta b_0 = \delta h_0</span>
+<span class="sd">            - \frac{\partial h_0/\partial\rho|_p}{\partial s/\partial\rho|_p}\,\delta s</span>
+<span class="sd">            + \text{cross}\cdot\delta p</span>
+
+<span class="sd">    Substituting that into the enthalpy row leaves the meridional velocity</span>
+<span class="sd">    projection :math:`\delta u = V_x\,\delta V_x + V_r\,\delta V_r` as the</span>
+<span class="sd">    only remaining unknown, solved for as</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        \delta u = \frac{V_m^2}{V^2}</span>
+<span class="sd">            \left(\delta b_0 - V_\theta V_m\,\delta\tan\alpha\right)</span>
+
+<span class="sd">    which is then split between :math:`\delta V_x` and :math:`\delta V_r`</span>
+<span class="sd">    using :math:`\delta\sin\beta`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{B}\to\mathcal{P}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">dhdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdrho_P_nd</span>
+    <span class="n">dhdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdP_rho_nd</span>
+    <span class="n">dsdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdrho_P_nd</span>
+    <span class="n">dsdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdP_rho_nd</span>
+
+    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">bcond_to_primitive</span><span class="p">(</span>
+            <span class="n">q</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">dhdrho_P</span><span class="p">,</span> <span class="n">dhdP_rho</span><span class="p">,</span> <span class="n">dsdrho_P</span><span class="p">,</span> <span class="n">dsdP_rho</span><span class="p">,</span> <span class="n">out</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="n">Vm_sq</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">Vsq</span> <span class="o">=</span> <span class="n">Vm_sq</span> <span class="o">+</span> <span class="n">Vt</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">Vm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">Vm_sq</span><span class="p">)</span>
+    <span class="n">dsdrho_inv</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">dsdrho_P</span>
+    <span class="n">cross</span> <span class="o">=</span> <span class="p">(</span><span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">dsdP_rho</span> <span class="o">-</span> <span class="n">dhdP_rho</span> <span class="o">*</span> <span class="n">dsdrho_P</span><span class="p">)</span> <span class="o">*</span> <span class="n">dsdrho_inv</span>
+    <span class="n">Vx_Vsq</span> <span class="o">=</span> <span class="n">Vx</span> <span class="o">/</span> <span class="n">Vsq</span>
+    <span class="n">Vr_Vsq</span> <span class="o">=</span> <span class="n">Vr</span> <span class="o">/</span> <span class="n">Vsq</span>
+    <span class="n">Vt_Vsq</span> <span class="o">=</span> <span class="n">Vt</span> <span class="o">/</span> <span class="n">Vsq</span>
+    <span class="n">Vt_Vm</span> <span class="o">=</span> <span class="n">Vt</span> <span class="o">*</span> <span class="n">Vm</span>
+
+    <span class="n">out</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">dsdrho_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">dsdP_rho</span> <span class="o">*</span> <span class="n">dsdrho_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vx_Vsq</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">Vx_Vsq</span> <span class="o">*</span> <span class="n">dsdrho_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vx_Vsq</span> <span class="o">*</span> <span class="n">Vt_Vm</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">Vm</span> <span class="o">/</span> <span class="n">Vx</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">cross</span> <span class="o">*</span> <span class="n">Vx_Vsq</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vr_Vsq</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">Vr_Vsq</span> <span class="o">*</span> <span class="n">dsdrho_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vr_Vsq</span> <span class="o">*</span> <span class="n">Vt_Vm</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vm</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">cross</span> <span class="o">*</span> <span class="n">Vr_Vsq</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vt_Vsq</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">Vt_Vsq</span> <span class="o">*</span> <span class="n">dsdrho_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vm</span> <span class="o">*</span> <span class="n">Vm_sq</span> <span class="o">/</span> <span class="n">Vsq</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">cross</span> <span class="o">*</span> <span class="n">Vt_Vsq</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="primitive_to_mix">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.primitive_to_mix">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">primitive_to_mix</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of a mixing plane&#39;s exchanged quantities with respect to primitive variables.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{P}\to\mathcal{M}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">dhdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdrho_P_nd</span>
+    <span class="n">dhdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdP_rho_nd</span>
+    <span class="n">dsdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdrho_P_nd</span>
+    <span class="n">dsdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdP_rho_nd</span>
+
+    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">primitive_to_mix</span><span class="p">(</span>
+            <span class="n">q</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">dhdrho_P</span><span class="p">,</span> <span class="n">dhdP_rho</span><span class="p">,</span> <span class="n">dsdrho_P</span><span class="p">,</span> <span class="n">dsdP_rho</span><span class="p">,</span> <span class="n">out</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="n">out</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">dhdrho_P</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vx</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vr</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vt</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">dhdP_rho</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">dsdrho_P</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">dsdP_rho</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="mix_to_primitive">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.mix_to_primitive">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">mix_to_primitive</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of primitive variables with respect to a mixing plane&#39;s exchanged quantities.</span>
+
+<span class="sd">    Analytical inverse of :func:`primitive_to_mix`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{M}\to\mathcal{P}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">dhdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdrho_P_nd</span>
+    <span class="n">dhdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdP_rho_nd</span>
+    <span class="n">dsdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdrho_P_nd</span>
+    <span class="n">dsdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdP_rho_nd</span>
+
+    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">mix_to_primitive</span><span class="p">(</span>
+            <span class="n">q</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">dhdrho_P</span><span class="p">,</span> <span class="n">dhdP_rho</span><span class="p">,</span> <span class="n">dsdrho_P</span><span class="p">,</span> <span class="n">dsdP_rho</span><span class="p">,</span> <span class="n">out</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="n">Vx_inv</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">Vx</span>
+    <span class="n">dsdrho_inv</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">dsdrho_P</span>
+    <span class="n">cross</span> <span class="o">=</span> <span class="p">(</span><span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">dsdP_rho</span> <span class="o">-</span> <span class="n">dhdP_rho</span> <span class="o">*</span> <span class="n">dsdrho_P</span><span class="p">)</span> <span class="o">*</span> <span class="n">dsdrho_inv</span>
+
+    <span class="n">out</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">dsdrho_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">dsdP_rho</span> <span class="o">*</span> <span class="n">dsdrho_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">Vx_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">Vx_inv</span> <span class="o">*</span> <span class="n">dsdrho_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">Vx_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vt</span> <span class="o">*</span> <span class="n">Vx_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">cross</span> <span class="o">*</span> <span class="n">Vx_inv</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="mix_to_conserved">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.mix_to_conserved">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">mix_to_conserved</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of conserved variables with respect to a mixing plane&#39;s exchanged quantities.</span>
+
+<span class="sd">    Analytically fused product</span>
+<span class="sd">    :math:`\mathbf{J}_{\mathcal{M}\to\mathcal{U}}</span>
+<span class="sd">    = \mathbf{J}_{\mathcal{P}\to\mathcal{U}}\,\mathbf{J}_{\mathcal{M}\to\mathcal{P}}`,</span>
+<span class="sd">    i.e. :func:`primitive_to_conserved` :math:`\cdot`</span>
+<span class="sd">    :func:`mix_to_primitive`, rather than composing the two Jacobians at</span>
+<span class="sd">    call time.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{M}\to\mathcal{U}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">dhdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdrho_P_nd</span>
+    <span class="n">dhdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdP_rho_nd</span>
+    <span class="n">dsdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdP_rho_nd</span>
+    <span class="n">dsdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdrho_P_nd</span>
+    <span class="n">drhoe_drho_P</span> <span class="o">=</span> <span class="n">e</span> <span class="o">+</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">dudrho_P_nd</span>
+    <span class="n">drhoe_dP_rho</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">dudP_rho_nd</span>
+
+    <span class="n">dsdrho_inv</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">dsdrho_P</span>
+    <span class="n">Vx_inv</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">Vx</span>
+    <span class="n">rho_Vx_inv</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">Vx_inv</span>
+    <span class="n">VxVx</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">cross</span> <span class="o">=</span> <span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">dsdP_rho</span> <span class="o">-</span> <span class="n">dhdP_rho</span> <span class="o">*</span> <span class="n">dsdrho_P</span>
+
+    <span class="k">return</span> <span class="n">_stack_matrix</span><span class="p">(</span>
+        <span class="c1"># Row 0: d(rho)/d(mix)</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">dsdrho_inv</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="o">-</span><span class="n">dsdP_rho</span> <span class="o">*</span> <span class="n">dsdrho_inv</span><span class="p">),</span>
+        <span class="c1"># Row 1: d(rhoVx)/d(mix)</span>
+        <span class="p">(</span>
+            <span class="n">rho_Vx_inv</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">VxVx</span> <span class="o">-</span> <span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">rho</span><span class="p">)</span> <span class="o">*</span> <span class="n">Vx_inv</span> <span class="o">*</span> <span class="n">dsdrho_inv</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">rho_Vx_inv</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">Vt</span> <span class="o">*</span> <span class="n">rho_Vx_inv</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">cross</span> <span class="o">-</span> <span class="n">VxVx</span> <span class="o">*</span> <span class="n">dsdP_rho</span><span class="p">)</span> <span class="o">*</span> <span class="n">Vx_inv</span> <span class="o">*</span> <span class="n">dsdrho_inv</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="c1"># Row 2: d(rhoVr)/d(mix)</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">Vr</span> <span class="o">*</span> <span class="n">dsdrho_inv</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="o">-</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">dsdP_rho</span> <span class="o">*</span> <span class="n">dsdrho_inv</span><span class="p">),</span>
+        <span class="c1"># Row 3: d(rhorVt)/d(mix)</span>
+        <span class="p">(</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="n">Vt</span> <span class="o">*</span> <span class="n">r</span> <span class="o">*</span> <span class="n">dsdrho_inv</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="n">r</span> <span class="o">*</span> <span class="n">rho</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">Vt</span> <span class="o">*</span> <span class="n">dsdP_rho</span> <span class="o">*</span> <span class="n">r</span> <span class="o">*</span> <span class="n">dsdrho_inv</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="c1"># Row 4: d(rhoe)/d(mix)</span>
+        <span class="p">(</span>
+            <span class="n">rho</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">drhoe_drho_P</span> <span class="o">-</span> <span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">rho</span><span class="p">)</span> <span class="o">*</span> <span class="n">dsdrho_inv</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">drhoe_dP_rho</span> <span class="o">*</span> <span class="n">dsdrho_P</span> <span class="o">-</span> <span class="n">drhoe_drho_P</span> <span class="o">*</span> <span class="n">dsdP_rho</span> <span class="o">+</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">cross</span><span class="p">)</span>
+            <span class="o">*</span> <span class="n">dsdrho_inv</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">shape</span><span class="o">=</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="chic_to_bcond">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.chic_to_bcond">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">chic_to_bcond</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of a subsonic inflow&#39;s prescribed quantities with respect to characteristic variables.</span>
+
+<span class="sd">    Analytically fused product</span>
+<span class="sd">    :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{B}}</span>
+<span class="sd">    = \mathbf{J}_{\mathcal{P}\to\mathcal{B}}\,\mathbf{J}_{\mathcal{C}\to\mathcal{P}}`,</span>
+<span class="sd">    i.e. :func:`primitive_to_bcond` :math:`\cdot` :func:`chic_to_primitive`.</span>
+<span class="sd">    Rows 0-3 against the four incoming characteristic columns form the</span>
+<span class="sd">    square system a non-reflecting inlet solves to drive its boundary</span>
+<span class="sd">    condition residuals to zero; see :class:`~ember.patch.InletPatch`. The</span>
+<span class="sd">    angle derivatives are as in :func:`primitive_to_bcond`, both measured</span>
+<span class="sd">    against the meridional speed.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{B}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">a_nd</span>
+    <span class="n">dhdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdrho_P_nd</span>
+    <span class="n">dhdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdP_rho_nd</span>
+    <span class="n">dsdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdrho_P_nd</span>
+    <span class="n">dsdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdP_rho_nd</span>
+    <span class="n">asq_recip</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">a</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">rhoa_recip</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">a</span><span class="p">)</span>
+    <span class="n">half_asq</span> <span class="o">=</span> <span class="n">asq_recip</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="n">half_rhoa_recip</span> <span class="o">=</span> <span class="n">rhoa_recip</span> <span class="o">/</span> <span class="mf">2.0</span>
+
+    <span class="n">Vm_sq</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">Vm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">Vm_sq</span><span class="p">)</span>
+    <span class="n">Vm_cb</span> <span class="o">=</span> <span class="n">Vm</span> <span class="o">*</span> <span class="n">Vm_sq</span>
+    <span class="n">tanAlpha</span> <span class="o">=</span> <span class="n">Vt</span> <span class="o">/</span> <span class="n">Vm</span>
+    <span class="n">dtanAl_dVx</span> <span class="o">=</span> <span class="o">-</span><span class="n">tanAlpha</span> <span class="o">*</span> <span class="n">Vx</span> <span class="o">/</span> <span class="n">Vm_sq</span>
+    <span class="n">dtanAl_dVr</span> <span class="o">=</span> <span class="o">-</span><span class="n">tanAlpha</span> <span class="o">*</span> <span class="n">Vr</span> <span class="o">/</span> <span class="n">Vm_sq</span>
+    <span class="n">dtanAl_dVt</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">Vm</span>
+    <span class="n">dsinBe_dVx</span> <span class="o">=</span> <span class="o">-</span><span class="n">Vr</span> <span class="o">*</span> <span class="n">Vx</span> <span class="o">/</span> <span class="n">Vm_cb</span>
+    <span class="n">dsinBe_dVr</span> <span class="o">=</span> <span class="n">Vx</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">Vm_cb</span>
+
+    <span class="c1"># Common sub-expressions for row 0</span>
+    <span class="n">half_dhdP</span> <span class="o">=</span> <span class="n">dhdP_rho</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="n">half_dhdrho_asq</span> <span class="o">=</span> <span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">half_asq</span>
+
+    <span class="c1"># Common sub-expressions for row 1</span>
+    <span class="n">half_dsdP</span> <span class="o">=</span> <span class="n">dsdP_rho</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="n">half_dsdrho_asq</span> <span class="o">=</span> <span class="n">dsdrho_P</span> <span class="o">*</span> <span class="n">half_asq</span>
+
+    <span class="c1"># The two acoustic characteristics enter every velocity derivative through</span>
+    <span class="c1"># dVx = (c_down - c_up) / (2 rho a), so their columns share a magnitude and</span>
+    <span class="c1"># differ only in sign.</span>
+    <span class="n">half_dtanAl</span> <span class="o">=</span> <span class="n">dtanAl_dVx</span> <span class="o">*</span> <span class="n">half_rhoa_recip</span>
+    <span class="n">half_dsinBe</span> <span class="o">=</span> <span class="n">dsinBe_dVx</span> <span class="o">*</span> <span class="n">half_rhoa_recip</span>
+
+    <span class="k">return</span> <span class="n">_stack_matrix</span><span class="p">(</span>
+        <span class="c1"># Row 0: d(ho)/d(chic)</span>
+        <span class="p">(</span>
+            <span class="n">half_dhdrho_asq</span> <span class="o">-</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">half_rhoa_recip</span> <span class="o">+</span> <span class="n">half_dhdP</span><span class="p">,</span>
+            <span class="n">half_dhdrho_asq</span> <span class="o">+</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">half_rhoa_recip</span> <span class="o">+</span> <span class="n">half_dhdP</span><span class="p">,</span>
+            <span class="n">Vr</span> <span class="o">*</span> <span class="n">rhoa_recip</span><span class="p">,</span>
+            <span class="n">Vt</span> <span class="o">*</span> <span class="n">rhoa_recip</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">asq_recip</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="c1"># Row 1: d(s)/d(chic)</span>
+        <span class="p">(</span>
+            <span class="n">half_dsdrho_asq</span> <span class="o">+</span> <span class="n">half_dsdP</span><span class="p">,</span>
+            <span class="n">half_dsdrho_asq</span> <span class="o">+</span> <span class="n">half_dsdP</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">dsdrho_P</span> <span class="o">*</span> <span class="n">asq_recip</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="c1"># Row 2: d(tanAlpha)/d(chic)</span>
+        <span class="p">(</span>
+            <span class="o">-</span><span class="n">half_dtanAl</span><span class="p">,</span>
+            <span class="n">half_dtanAl</span><span class="p">,</span>
+            <span class="n">dtanAl_dVr</span> <span class="o">*</span> <span class="n">rhoa_recip</span><span class="p">,</span>
+            <span class="n">dtanAl_dVt</span> <span class="o">*</span> <span class="n">rhoa_recip</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="c1"># Row 3: d(sinBeta)/d(chic)</span>
+        <span class="p">(</span>
+            <span class="o">-</span><span class="n">half_dsinBe</span><span class="p">,</span>
+            <span class="n">half_dsinBe</span><span class="p">,</span>
+            <span class="n">dsinBe_dVr</span> <span class="o">*</span> <span class="n">rhoa_recip</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="c1"># Row 4: d(P)/d(chic)</span>
+        <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">shape</span><span class="o">=</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="chic_to_mix">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.chic_to_mix">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">chic_to_mix</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of a mixing plane&#39;s exchanged quantities with respect to characteristic variables.</span>
+
+<span class="sd">    Analytically fused product</span>
+<span class="sd">    :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{M}}</span>
+<span class="sd">    = \mathbf{J}_{\mathcal{P}\to\mathcal{M}}\,\mathbf{J}_{\mathcal{C}\to\mathcal{P}}`,</span>
+<span class="sd">    i.e. :func:`primitive_to_mix` :math:`\cdot` :func:`chic_to_primitive`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+<span class="sd">    out : ndarray, optional</span>
+<span class="sd">        Pre-allocated output array, shape ``(*block.shape, 5, 5)``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{C}\to\mathcal{M}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">block</span>
+
+    <span class="n">q</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">r_nd</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vx</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vr</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">rho</span>
+    <span class="n">Vt</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">a_nd</span>
+    <span class="n">dhdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdrho_P_nd</span>
+    <span class="n">dhdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dhdP_rho_nd</span>
+    <span class="n">dsdrho_P</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdrho_P_nd</span>
+    <span class="n">dsdP_rho</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">dsdP_rho_nd</span>
+    <span class="n">asq_recip</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">a</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">rhoa_recip</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">a</span><span class="p">)</span>
+    <span class="n">half_asq</span> <span class="o">=</span> <span class="n">asq_recip</span> <span class="o">/</span> <span class="mf">2.0</span>
+
+    <span class="c1"># Common sub-expressions for row 0</span>
+    <span class="n">half_dhdP</span> <span class="o">=</span> <span class="n">dhdP_rho</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="n">half_dhdrho_asq</span> <span class="o">=</span> <span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">half_asq</span>
+
+    <span class="c1"># Common sub-expressions for row 1</span>
+    <span class="n">half_dsdP</span> <span class="o">=</span> <span class="n">dsdP_rho</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="n">half_dsdrho_asq</span> <span class="o">=</span> <span class="n">dsdrho_P</span> <span class="o">*</span> <span class="n">half_asq</span>
+
+    <span class="k">return</span> <span class="n">_stack_matrix</span><span class="p">(</span>
+        <span class="c1"># Row 0: d(ho)/d(chic)</span>
+        <span class="p">(</span>
+            <span class="n">half_dhdrho_asq</span> <span class="o">-</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">rhoa_recip</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">+</span> <span class="n">half_dhdP</span><span class="p">,</span>
+            <span class="n">half_dhdrho_asq</span> <span class="o">+</span> <span class="n">Vx</span> <span class="o">*</span> <span class="n">rhoa_recip</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">+</span> <span class="n">half_dhdP</span><span class="p">,</span>
+            <span class="n">Vr</span> <span class="o">*</span> <span class="n">rhoa_recip</span><span class="p">,</span>
+            <span class="n">Vt</span> <span class="o">*</span> <span class="n">rhoa_recip</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">dhdrho_P</span> <span class="o">*</span> <span class="n">asq_recip</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="c1"># Row 1: d(s)/d(chic)</span>
+        <span class="p">(</span>
+            <span class="n">half_dsdrho_asq</span> <span class="o">+</span> <span class="n">half_dsdP</span><span class="p">,</span>
+            <span class="n">half_dsdrho_asq</span> <span class="o">+</span> <span class="n">half_dsdP</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">dsdrho_P</span> <span class="o">*</span> <span class="n">asq_recip</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="c1"># Row 2: d(Vr)/d(chic)</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">rhoa_recip</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="c1"># Row 3: d(Vt)/d(chic)</span>
+        <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">rhoa_recip</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="c1"># Row 4: d(P)/d(chic)</span>
+        <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">shape</span><span class="o">=</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="flux_to_conserved">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.flux_to_conserved">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">flux_to_conserved</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of conserved variables with respect to the x-direction advective flux.</span>
+
+<span class="sd">    Computed as :func:`primitive_to_conserved` :math:`\cdot`</span>
+<span class="sd">    :func:`flux_to_primitive`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{F}\to\mathcal{U}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">util</span><span class="o">.</span><span class="n">matmat</span><span class="p">(</span><span class="n">primitive_to_conserved</span><span class="p">(</span><span class="n">block</span><span class="p">),</span> <span class="n">flux_to_primitive</span><span class="p">(</span><span class="n">block</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="conserved_to_flux">
+<a class="viewcode-back" href="../../api/perturbation.html#ember.perturbation.conserved_to_flux">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">conserved_to_flux</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Jacobian of the x-direction advective flux with respect to conserved variables.</span>
+
+<span class="sd">    Computed as :func:`primitive_to_flux` :math:`\cdot`</span>
+<span class="sd">    :func:`conserved_to_primitive`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose current state the Jacobian is evaluated at.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    jac : ndarray, shape (..., 5, 5)</span>
+<span class="sd">        :math:`\mathbf{J}_{\mathcal{U}\to\mathcal{F}}`, stacked on the</span>
+<span class="sd">        trailing two axes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">util</span><span class="o">.</span><span class="n">matmat</span><span class="p">(</span><span class="n">primitive_to_flux</span><span class="p">(</span><span class="n">block</span><span class="p">),</span> <span class="n">conserved_to_primitive</span><span class="p">(</span><span class="n">block</span><span class="p">))</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
