@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Block &#8212; ember 0.3.1.dev7+g0a2169fdd documentation</title>
+    <title>Block &#8212; ember 0.3.1.dev15+g557f1d5bc documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=1ade279d"></script>
+    <script src="../_static/documentation_options.js?v=f99af76c"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.3.1.dev7+g0a2169fdd</p>
+<p class="blurb">Version 0.3.1.dev15+g557f1d5bc</p>
 
 
 
@@ -131,6 +131,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.dAj_nd"><code class="docutils literal notranslate"><span class="pre">dAj_nd</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.dAk"><code class="docutils literal notranslate"><span class="pre">dAk</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.dAk_nd"><code class="docutils literal notranslate"><span class="pre">dAk_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.damp_rfac"><code class="docutils literal notranslate"><span class="pre">damp_rfac</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.dhdP_rho_nd"><code class="docutils literal notranslate"><span class="pre">dhdP_rho_nd</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.dhdrho_P_nd"><code class="docutils literal notranslate"><span class="pre">dhdrho_P_nd</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.dsdP_rho_nd"><code class="docutils literal notranslate"><span class="pre">dsdP_rho_nd</span></code></a></li>
@@ -222,7 +223,6 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Vz"><code class="docutils literal notranslate"><span class="pre">Vz</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.wdist"><code class="docutils literal notranslate"><span class="pre">wdist</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.wdist_nd"><code class="docutils literal notranslate"><span class="pre">wdist_nd</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.weight_mgrid"><code class="docutils literal notranslate"><span class="pre">weight_mgrid</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.x"><code class="docutils literal notranslate"><span class="pre">x</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.xr"><code class="docutils literal notranslate"><span class="pre">xr</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.xrrt"><code class="docutils literal notranslate"><span class="pre">xrrt</span></code></a></li>
@@ -969,29 +969,29 @@ conserved variables themselves.</p>
 <p>Miscellaneous:</p>
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.i_cusp" title="ember.block.Block.i_cusp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.i_cusp</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.damp_rfac" title="ember.block.Block.damp_rfac"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.damp_rfac</span></code></a></p></td>
+<td><p>Change-limiter state, one reciprocal normaliser per conserved variable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.i_cusp" title="ember.block.Block.i_cusp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.i_cusp</span></code></a></p></td>
 <td><p>1-based start and end node indices of the cusp patch, (start, end).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.i_perk" title="ember.block.Block.i_perk"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.i_perk</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.i_perk" title="ember.block.Block.i_perk"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.i_perk</span></code></a></p></td>
 <td><p>1-based (i_LE, i_TE) bounding the k-periodic intervals of an H-mesh.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.ijk_wall_conv" title="ember.block.Block.ijk_wall_conv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.ijk_wall_conv</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.ijk_wall_conv" title="ember.block.Block.ijk_wall_conv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.ijk_wall_conv</span></code></a></p></td>
 <td><p>Per-face wall indicator dict for the convective (inviscid) kernel.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.ijk_wall_visc" title="ember.block.Block.ijk_wall_visc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.ijk_wall_visc</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.ijk_wall_visc" title="ember.block.Block.ijk_wall_visc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.ijk_wall_visc</span></code></a></p></td>
 <td><p>Per-face wall indicator dict for the viscous kernel.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.scratch" title="ember.block.Block.scratch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.scratch</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.scratch" title="ember.block.Block.scratch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.scratch</span></code></a></p></td>
 <td><p>Shared scratch arena, flat, sized to the most demanding phase of a step.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.store" title="ember.block.Block.store"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.store</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.store" title="ember.block.Block.store"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.store</span></code></a></p></td>
 <td><p>Persistent cross-step solver buffer, nodal shape (ni, nj, nk, 5).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.tau_q_faces" title="ember.block.Block.tau_q_faces"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.tau_q_faces</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.tau_q_faces" title="ember.block.Block.tau_q_faces"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.tau_q_faces</span></code></a></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">(i1,</span> <span class="pre">ini,</span> <span class="pre">j1,</span> <span class="pre">jnj,</span> <span class="pre">k1,</span> <span class="pre">knk)</span></code>.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.weight_mgrid" title="ember.block.Block.weight_mgrid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.weight_mgrid</span></code></a></p></td>
-<td><p>Multigrid prolongation interpolation weights <span class="math notranslate nohighlight">\(w\)</span> [-], per direction.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2000,6 +2000,30 @@ reference.</p>
 </dd></dl>
 
 <dl class="py property">
+<dt class="sig sig-object py" id="ember.block.Block.damp_rfac">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">damp_rfac</span></span><a class="headerlink" href="#ember.block.Block.damp_rfac" title="Link to this definition">¶</a></dt>
+<dd><p>Change-limiter state, one reciprocal normaliser per conserved variable.</p>
+<p>Like <a class="reference internal" href="#ember.block.Block.store" title="ember.block.Block.store"><code class="xref py py-attr docutils literal notranslate"><span class="pre">store</span></code></a> and unlike <a class="reference internal" href="#ember.block.Block.scratch" title="ember.block.Block.scratch"><code class="xref py py-attr docutils literal notranslate"><span class="pre">scratch</span></code></a>, this carries meaning
+between kernel calls: it holds <code class="docutils literal notranslate"><span class="pre">ncell</span> <span class="pre">*</span> <span class="pre">scale</span> <span class="pre">/</span> <span class="pre">(dampin</span> <span class="pre">*</span> <span class="pre">sum|dU|)</span></code>
+per variable, accumulated by one call to a scree/RK kernel and consumed
+by the next. The limiter multall applies to the assembled increment
+needs a block mean of that increment, and ember’s multigrid scatter
+never materialises the increment full-volume, so the normaliser is
+lagged one call rather than costing a second traversal (see
+<code class="docutils literal notranslate"><span class="pre">scree.f90</span></code>’s <code class="docutils literal notranslate"><span class="pre">damp_increment</span></code>). The <code class="docutils literal notranslate"><span class="pre">scale</span></code> factor makes the
+stored value independent of the march coefficient, so the lag carries
+across RK stages of differing <code class="docutils literal notranslate"><span class="pre">alpha</span></code> without mis-scaling.</p>
+<p>Seeded to zeros, which is the identity soft-clip: the first call of a
+march runs unlimited, and a march with <code class="docutils literal notranslate"><span class="pre">Solver.dampin</span> <span class="pre">&lt;=</span> <span class="pre">0</span></code> never
+leaves zero and so is bitwise identical to an undamped one.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (5,)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="ember.block.Block.dhdP_rho_nd">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dhdP_rho_nd</span></span><a class="headerlink" href="#ember.block.Block.dhdP_rho_nd" title="Link to this definition">¶</a></dt>
 <dd><p>Nondimensional derivative of enthalpy wrt. pressure at constant density <span class="math notranslate nohighlight">\((\partial h/\partial p)_\rho \, \rho_\mathrm{ref}\)</span> [-].</p>
@@ -2825,49 +2849,6 @@ only required for viscous runs. Usually populated automatically by
 <dt class="sig sig-object py" id="ember.block.Block.wdist_nd">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">wdist_nd</span></span><a class="headerlink" href="#ember.block.Block.wdist_nd" title="Link to this definition">¶</a></dt>
 <dd><p>Nondimensional distance to nearest wall <span class="math notranslate nohighlight">\(w/L_\mathrm{ref}\)</span> [-], nodal array.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="ember.block.Block.weight_mgrid">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">weight_mgrid</span></span><a class="headerlink" href="#ember.block.Block.weight_mgrid" title="Link to this definition">¶</a></dt>
-<dd><p>Multigrid prolongation interpolation weights <span class="math notranslate nohighlight">\(w\)</span> [-], per direction.</p>
-<p>The multigrid coarse correction is carried back to the fine grid by a
-separable factor-2 linear interpolation. Which pair of coarse cells a
-target falls between is index arithmetic (<code class="docutils literal notranslate"><span class="pre">mg_bracket2x</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">mg_bracket2x_node</span></code> for the final hop) and stays so, but where it sits
-BETWEEN them is geometry: the fractional position of the target along
-the edge joining the two coarse centroids, taken volume-weighted so it
-is the point the block-sum residual is balanced about. Placing every
-target at <code class="docutils literal notranslate"><span class="pre">(i</span> <span class="pre">-</span> <span class="pre">0.5)/2</span> <span class="pre">+</span> <span class="pre">0.5</span></code> instead, as this used to, is linear
-interpolation only on a mesh uniform in physical space; on one clustered
-towards a wall it is not, and that is the mesh on which the block-sum
-correction goes unstable.</p>
-<p>The final hop’s target is the fine NODES, not the fine cell centres:
-that is where the correction is applied, and interpolating onto the
-centres and averaging back out would evaluate the interpolant at the
-mean of the eight surrounding centroids, a point offset from the node by
-<code class="docutils literal notranslate"><span class="pre">(h_next</span> <span class="pre">-</span> <span class="pre">h_prev)/4</span></code> on a stretched mesh. Hops 2 and up are
-coarse-&gt;coarse and stay cell-targeted.</p>
-<p>That hop’s three passes are each anchored on the positions the previous
-one produced, and its weights are bounded (<code class="docutils literal notranslate"><span class="pre">MG_W_LO</span></code>/<code class="docutils literal notranslate"><span class="pre">MG_W_HI</span></code>).
-Both matter on a sheared mesh clustered to a wall, where the projection
-placing each target along the edge between its two coarse centroids is
-otherwise ill-conditioned enough to turn the prolongation into an
-amplifier.</p>
-<p>Returns the <code class="docutils literal notranslate"><span class="pre">(wi,</span> <span class="pre">wj,</span> <span class="pre">wk)</span></code> the kernels take, one flat array per
-direction – the three interpolation passes resolve i, then j, then k,
-so each carries a different mix of fine and coarse extents. Within each
-array the hops run finest first, matching <code class="docutils literal notranslate"><span class="pre">mg_weight_offsets</span></code> in
-<code class="docutils literal notranslate"><span class="pre">scree.f90</span></code>; indexing hops from the fine grid down is what keeps the
-layout independent of <code class="docutils literal notranslate"><span class="pre">n_levels</span></code>, so one cache serves any level count.</p>
-<p>Cached and never invalidated, as <a class="reference internal" href="#ember.block.Block.ijk_wall_conv" title="ember.block.Block.ijk_wall_conv"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ijk_wall_conv</span></code></a> is: the
-coordinates must not be modified after first access. Nothing in a march
-does – <a class="reference internal" href="grid.html#ember.grid.Grid.resample" title="ember.grid.Grid.resample"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.resample()</span></code></a> returns new blocks rather than
-moving an existing one – and <a class="reference internal" href="#ember.block.Block.clear_cache" title="ember.block.Block.clear_cache"><code class="xref py py-meth docutils literal notranslate"><span class="pre">clear_cache()</span></code></a> is the way out if
-something ever does. Emphatically not solver scratch either way: unlike
-<a class="reference internal" href="#ember.block.Block.scratch" title="ember.block.Block.scratch"><code class="xref py py-attr docutils literal notranslate"><span class="pre">scratch</span></code></a> this has to survive the step. Costs about 14 bytes per
-fine cell – hop 1’s <code class="docutils literal notranslate"><span class="pre">wk</span></code> alone is one float per node – and being lazy
-it is never built by a run with multigrid off.</p>
 </dd></dl>
 
 <dl class="py property">
