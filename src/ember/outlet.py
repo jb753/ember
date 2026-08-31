@@ -1,4 +1,4 @@
-r"""Subsonic outlet boundary condition for EMBER CFD.
+r"""Subsonic outlet boundary condition.
 
 :class:`OutletPatch` prescribes the pitchwise-mean static pressure at an outflow
 face while letting outgoing waves leave the domain, after the steady
@@ -454,10 +454,9 @@ class OutletPatch(NonReflectingPatch):
         The price of the fixed pressure scale is a loop gain of
         :math:`p_\mathrm{ref} / 2q = (\rho_\mathrm{ref}/\rho)
         (V_\mathrm{ref}/V_m)^2` rather than exactly one, so the gains do assume
-        the references are representative of the flow, as
-        :func:`ember.cases.build_duct_grid` sets them. A ``V_ref`` far from the
-        exit velocity moves the loop gain by its square, and is the one case
-        where these want retuning.
+        the reference scales are representative of the flow. A ``V_ref`` far
+        from the exit velocity moves the loop gain by its square, and is the
+        one case where these want retuning.
 
         Only one outlet patch in a grid may be throttled; the solver refuses a
         grid carrying more. Two patches
@@ -490,12 +489,11 @@ class OutletPatch(NonReflectingPatch):
             Proportional gain, dimensionless. Default 0.5, half the Newton step
             of 1 above.
         Ki : float, optional
-            Integral gain, dimensionless. Default 0.002, from a sweep on the
-            square duct of :func:`ember.cases.build_duct_grid` at ``cfl=5``:
-            ten times that rings, with six crossings of the target at a period
-            of 360 steps, and a third of it never arrives. Since the integral
-            only has to remove the droop, erring low costs settling time while
-            erring high costs stability.
+            Integral gain, dimensionless. Default 0.002, from a sweep on a
+            square duct at ``cfl=5``: ten times that rings, with six crossings
+            of the target at a period of 360 steps, and a third of it never
+            arrives. Since the integral only has to remove the droop, erring low
+            costs settling time while erring high costs stability.
 
         See Also
         --------

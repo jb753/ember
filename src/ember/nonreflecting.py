@@ -1,4 +1,4 @@
-r"""Shared machinery for the steady non-reflecting boundary conditions of EMBER CFD.
+r"""Shared machinery for the steady non-reflecting boundary conditions.
 
 :class:`NonReflectingPatch` implements the steady non-reflecting inflow and
 outflow conditions of :cite:t:`Giles1988` (his Chapter 5), as extended to three

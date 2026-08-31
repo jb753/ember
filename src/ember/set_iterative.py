@@ -1,14 +1,64 @@
-"""Iterative setter functions for Block objects.
+r"""Iterative setter functions for :class:`~ember.block.Block` objects.
 
-This module provides iterative solvers for initializing thermodynamically consistent flow fields
-that satisfy complex constraints such as specified stagnation enthalpy, entropy, and flow angles.
-These functions implement Newton-Raphson style iterations to solve implicit equations coupling
-thermodynamic state variables with kinematic constraints, enabling initialization of inlet
-boundary conditions with prescribed total pressure/temperature or the creation of exact test
-cases. All setters modify Block objects in-place and support both absolute and relative reference
-frames for turbomachinery applications. The module is essential for setting up physically
-realistic initial conditions that preserve thermodynamic relations while satisfying specified
-flow topology constraints.
+This module provides iterative solvers for initialising
+:class:`~ember.block.Block` objects with flow fields from combined
+thermodynamic and kinematic variable sets that do not have a closed-form
+solution for the corresponding conserved variables. For example, stagnation
+pressure depends on both velocity and static pressure. These functions run a
+fixed-point iteration on density to solve the ensuing implicit equations, then
+modify the block in place with the converged flow field. Like the non-iterative
+setters such as :func:`~ember.block.Block.set_P_T`, inputs must be
+broadcastable to the block shape.
+
+The prescribed stagnation enthalpy and flow angles are in the absolute
+(stationary) frame; the velocity magnitude is closed by a Mach number, a
+meridional mass flux, or a fixed swirl.
+
+.. autosummary::
+
+   set_ho_s_Ma_Alpha_Beta
+   set_ho_s_rhoVm_Alpha_Beta
+   set_ho_s_rhoVm_Vt_Beta
+
+For rotating rows: rothalpy (or relative total conditions) and relative flow
+angles are prescribed, and the energy balance is closed with the absolute
+velocity through the local blade speed :math:`U = r\,\Omega`. The block must
+carry its radial coordinate before these are called (angular velocity defaults
+to zero if not set).
+
+.. autosummary::
+
+   set_I_s_Ma_rel_Alpha_rel_Beta
+   set_Po_To_Ma_rel_Alpha_rel_Beta
+
+Example usage
+=============
+
+Initialise a block from stagnation conditions, a relative Mach number that
+ramps along the block, and flow angles:
+
+.. code-block:: python
+
+    import numpy as np
+    import ember.block
+    import ember.fluid
+    import ember.set_iterative
+
+    fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
+    block = ember.block.Block(shape=(4,))
+    block.set_fluid(fluid)
+    block.set_r(1.0)  # blade speed is U = r * Omega, so the radius is required
+    block.set_Omega(100.0)
+
+    # Absolute Po [Pa] and To [K], relative Mach, yaw and pitch [deg]. Scalars
+    # broadcast across the block; Ma_rel here is a profile.
+    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(
+        block, Po=1.0e5, To=300.0, Ma_rel=np.linspace(0.2, 0.6, 4),
+        Alpha_rel=0.0, Beta=0.0,
+    )
+    # block.Po ~ 1e5, block.To ~ 300, block.Ma_rel ~ [0.2 ... 0.6];
+    # block.Ma (absolute) differs from Ma_rel by the wheel speed
+
 """
 
 import numpy as np
@@ -246,31 +296,30 @@ def set_ho_s_Ma_Alpha_Beta(
     max_iter=_DEFAULT_MAX_ITER,
     tol=_DEFAULT_TOL,
 ):
-    """Set flow field using stagnation enthalpy, entropy, absolute Mach number, and absolute flow angles.
+    """Set the flow field from stagnation enthalpy, entropy, absolute Mach number and flow angles.
+
+    Entropy is held constant while density is iterated until the static state
+    and the velocity implied by the Mach number satisfy the stagnation
+    enthalpy. Velocities are in the absolute (stationary) frame.
 
     Parameters
     ----------
     block : Block
-        The block object to modify.
-    ho : Array
-        Stagnation enthalpy [J/kg].
-    s : Array
-        Entropy [J/kg/K].
-    Ma : Array
-        Absolute Mach number [--].
-    Alpha : Array, default=0.0
-        Absolute yaw angle [deg].
-    Beta : Array, default=0.0
-        Pitch angle [deg].
-    max_iter : int, default=200
-        Maximum number of iterations for convergence.
-    tol : float, default=1e-6
-        Convergence tolerance.
-
-    Returns
-    -------
-    Block
-        The modified block object.
+        Block to modify in place.
+    ho : array-like
+        Stagnation enthalpy [J/kg]. Must broadcast to block shape.
+    s : array-like
+        Specific entropy [J/kg/K]. Must broadcast to block shape.
+    Ma : array-like
+        Absolute Mach number [-]. Must broadcast to block shape.
+    Alpha : array-like, default 0.0
+        Absolute yaw angle [deg]. Must broadcast to block shape.
+    Beta : array-like, default 0.0
+        Pitch angle [deg]. Must broadcast to block shape.
+    max_iter : int, default 200
+        Maximum number of iterations before a :class:`RuntimeError` is raised.
+    tol : float, default 1e-6
+        Relative convergence tolerance on density.
     """
 
     # Nondimensionalise inputs
@@ -306,31 +355,31 @@ def set_ho_s_rhoVm_Alpha_Beta(
     max_iter=_DEFAULT_MAX_ITER,
     tol=_DEFAULT_TOL,
 ):
-    """Set flow field using stagnation enthalpy, entropy, momentum density, and absolute flow angles.
+    """Set the flow field from stagnation enthalpy, entropy, meridional mass flux and flow angles.
+
+    Entropy is held constant while density is iterated until the static state
+    and the velocity implied by the meridional mass flux satisfy the stagnation
+    enthalpy. Velocities are in the absolute (stationary) frame.
 
     Parameters
     ----------
     block : Block
-        The block object to modify.
-    ho : Array
-        Stagnation enthalpy [J/kg].
-    s : Array
-        Entropy [J/kg/K].
-    rhoV : Array
-        Momentum density magnitude [kg/m^2/s].
-    Alpha : Array, default=0.0
-        Absolute yaw angle [deg].
-    Beta : Array, default=0.0
-        Pitch angle [deg].
-    max_iter : int, default=200
-        Maximum number of iterations for convergence.
-    tol : float, default=1e-6
-        Convergence tolerance.
-
-    Returns
-    -------
-    Block
-        The modified block object.
+        Block to modify in place.
+    ho : array-like
+        Stagnation enthalpy [J/kg]. Must broadcast to block shape.
+    s : array-like
+        Specific entropy [J/kg/K]. Must broadcast to block shape.
+    rhoVm : array-like
+        Meridional mass flux (momentum density) [kg/m^2/s]. Must broadcast to
+        block shape.
+    Alpha : array-like, default 0.0
+        Absolute yaw angle [deg]. Must broadcast to block shape.
+    Beta : array-like, default 0.0
+        Pitch angle [deg]. Must broadcast to block shape.
+    max_iter : int, default 200
+        Maximum number of iterations before a :class:`RuntimeError` is raised.
+    tol : float, default 1e-6
+        Relative convergence tolerance on density.
     """
 
     # Nondimensionalise inputs
@@ -366,53 +415,38 @@ def set_ho_s_rhoVm_Vt_Beta(
     max_iter=_DEFAULT_MAX_ITER,
     tol=_DEFAULT_TOL,
 ):
-    r"""Set flow field using stagnation enthalpy, entropy, meridional mass flux, and fixed swirl.
+    r"""Set the flow field from stagnation enthalpy, entropy, meridional mass flux and fixed swirl.
 
-    Solves the state of a subsonic isentropic meridional contraction (or
-    expansion) carrying a fixed tangential velocity. The stagnation enthalpy,
-    entropy and tangential velocity are held fixed while the meridional velocity
-    and thermodynamic state adjust to carry the prescribed meridional mass flux
-    :math:`\rho V_m`. The pitch angle :math:`\beta` fixes the split of
-    :math:`V_m` into axial and radial components.
-
-    .. math::
-
-        h_0 = h(\rho, s) + \tfrac{1}{2}(V_m^2 + V_\theta^2), \qquad
-        \rho V_m = \mathrm{const}
-
-    Holding :math:`V_\theta` fixed (rather than the yaw angle) conserves angular
-    momentum :math:`r V_\theta` at fixed radius, distinguishing this from
+    The stagnation enthalpy, entropy and tangential velocity are held fixed
+    while the meridional velocity and static state adjust to carry the
+    prescribed meridional mass flux :math:`\rho V_m`. Holding :math:`V_\theta`
+    rather than the yaw angle conserves angular momentum at fixed radius, unlike
     :func:`set_ho_s_rhoVm_Alpha_Beta`.
 
-    Only the **subsonic** meridional branch is supported (the density
-    fixed-point iteration converges there). The meridional mass flux
-    :math:`\rho V_m` rises with :math:`V_m` to a maximum at meridional Mach
-    number unity; a :class:`RuntimeError` is raised if the requested mass flux
-    exceeds this sonic maximum, since the meridional flow then chokes.
+    Only the subsonic meridional branch is solved. :math:`\rho V_m` is maximised
+    at meridional Mach number unity; a :class:`RuntimeError` is raised if the
+    requested value exceeds that sonic maximum.
 
     Parameters
     ----------
     block : Block
-        The block object to modify.
-    ho : Array
-        Stagnation enthalpy [J/kg].
-    s : Array
-        Entropy [J/kg/K].
-    rhoVm : Array
-        Meridional momentum density (mass flux per unit area) [kg/m^2/s].
-    Vt : Array
-        Tangential (swirl) velocity, held fixed [m/s].
-    Beta : Array, default=0.0
-        Pitch angle [deg].
-    max_iter : int, default=200
-        Maximum number of iterations for convergence.
-    tol : float, default=1e-6
-        Convergence tolerance.
-
-    Returns
-    -------
-    Block
-        The modified block object.
+        Block to modify in place.
+    ho : array-like
+        Stagnation enthalpy [J/kg]. Must broadcast to block shape.
+    s : array-like
+        Specific entropy [J/kg/K]. Must broadcast to block shape.
+    rhoVm : array-like
+        Meridional mass flux (momentum density) [kg/m^2/s]. Must broadcast to
+        block shape.
+    Vt : array-like
+        Tangential (swirl) velocity, held fixed [m/s]. Must broadcast to block
+        shape.
+    Beta : array-like, default 0.0
+        Pitch angle [deg]. Must broadcast to block shape.
+    max_iter : int, default 200
+        Maximum number of iterations before a :class:`RuntimeError` is raised.
+    tol : float, default 1e-6
+        Relative convergence tolerance on density.
     """
 
     # Nondimensionalise inputs
@@ -511,42 +545,32 @@ def set_I_s_Ma_rel_Alpha_rel_Beta(
     max_iter=_DEFAULT_MAX_ITER,
     tol=_DEFAULT_TOL,
 ):
-    """Set flow field using rothalpy, entropy, relative Mach number, and relative flow angles.
+    r"""Set the flow field from rothalpy, entropy, relative Mach number and relative flow angles.
+
+    Entropy is held constant while density is iterated until the static state
+    and the relative velocity satisfy the rothalpy
+    :math:`I = h + \tfrac12 V^2 - U V_\theta`, where :math:`V_\theta` is the
+    absolute tangential velocity and :math:`U = r\,\Omega` the blade speed. Set
+    the block radius (and rotation rate, if rotating) first.
 
     Parameters
     ----------
     block : Block
-        The block object to modify.
-    I : Array
-        Rothalpy (rotational stagnation enthalpy) [J/kg].
-    s : Array
-        Entropy [J/kg/K].
-    Ma_rel : Array
-        Mach number in relative frame [--].
-    Alpha_rel : Array
-        Relative yaw angle (tangential flow direction) [deg].
-    Beta : Array
-        Pitch angle (radial flow direction) [deg].
-    max_iter : int, default=200
-        Maximum number of iterations for convergence.
-    tol : float, default=1e-6
-        Convergence tolerance.
-
-    Returns
-    -------
-    Block
-        The modified block object.
-
-    Notes
-    -----
-    This method is particularly useful for turbomachinery applications where:
-    - Rothalpy I is conserved across blade rows
-    - Flow angles are specified in the relative frame
-    - Alpha_rel = 0 means no relative swirl (Vt_rel = 0)
-    - Beta = 90 means purely radial flow
-
-    The method solves the rothalpy constraint directly:
-    I = h_static + 0.5*V_abs^2 - U*Vt_abs
+        Block to modify in place.
+    I : array-like
+        Rothalpy [J/kg]. Must broadcast to block shape.
+    s : array-like
+        Specific entropy [J/kg/K]. Must broadcast to block shape.
+    Ma_rel : array-like
+        Relative-frame Mach number [-]. Must broadcast to block shape.
+    Alpha_rel : array-like
+        Relative yaw angle [deg]. Must broadcast to block shape.
+    Beta : array-like
+        Pitch angle [deg]. Must broadcast to block shape.
+    max_iter : int, default 200
+        Maximum number of iterations before a :class:`RuntimeError` is raised.
+    tol : float, default 1e-6
+        Relative convergence tolerance on density.
     """
 
     # Nondimensionalise inputs
@@ -574,48 +598,40 @@ def set_Po_To_Ma_rel_Alpha_rel_Beta(
     max_iter=_DEFAULT_MAX_ITER,
     tol=_DEFAULT_TOL,
 ):
-    """Set flow field using total pressure, total temperature, relative Mach number, and relative flow angles.
+    r"""Set the flow field from absolute total conditions, relative Mach number and relative flow angles.
+
+    The total pressure and temperature fix the absolute stagnation enthalpy and
+    entropy. Entropy is held constant while density is iterated until the static
+    state and the relative velocity satisfy
+    :math:`h_0 = h + \tfrac12 V^2`, with :math:`V` the absolute velocity and
+    blade speed :math:`U = r\,\Omega`. Set the block radius (and rotation rate,
+    if rotating) first.
 
     Parameters
     ----------
     block : Block
-        The block object to modify.
-    Po : Array
-        Total pressure [Pa].
-    To : Array
-        Total temperature [K].
-    Ma_rel : Array
-        Mach number in relative frame [--].
-    Alpha_rel : Array
-        Relative yaw angle [deg].
-    Beta : Array
-        Pitch angle [deg].
-    max_iter : int, default=200
-        Maximum number of iterations for convergence.
-    tol : float, default=1e-6
-        Convergence tolerance.
-
-    Returns
-    -------
-    Block
-        The modified block object.
-
-    Notes
-    -----
-    This method is useful for turbomachinery applications where:
-    - Total conditions (Po, To) are known at the inlet
-    - Flow angles are specified in the relative frame
-    - Alpha_rel = 0 means no relative swirl (Vt_rel = 0)
-    - Beta = 90 means purely radial flow
-
-    The method uses the stagnation enthalpy iterator in relative frame mode.
-    Note: This approach may have convergence issues at very high rotation rates
-    where absolute velocities become large compared to stagnation enthalpy.
+        Block to modify in place.
+    Po : array-like
+        Absolute total pressure [Pa]. Must be positive and broadcast to block
+        shape.
+    To : array-like
+        Absolute total temperature [K]. Must be positive and broadcast to block
+        shape.
+    Ma_rel : array-like
+        Relative-frame Mach number [-]. Must broadcast to block shape.
+    Alpha_rel : array-like
+        Relative yaw angle [deg]. Must broadcast to block shape.
+    Beta : array-like
+        Pitch angle [deg]. Must broadcast to block shape.
+    max_iter : int, default 200
+        Maximum number of iterations before a :class:`RuntimeError` is raised.
+    tol : float, default 1e-6
+        Relative convergence tolerance on density.
 
     Raises
     ------
     ValueError
-        If coordinates (r) are not initialized, which are required for relative frame calculations.
+        If the block radius has not been set.
     """
     # Check if coordinates are initialized (required for relative frame)
     if not block._versions.get("r", False):

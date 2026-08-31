@@ -1,11 +1,11 @@
-"""Enhanced Multi-block solvER (EMBER) for turbomachinery computational fluid dynamics.
+"""Enhanced Multi-block solvER (ember) for turbomachinery computational fluid dynamics.
 
-EMBER is a Python-based CFD solver designed for turbomachinery applications, featuring
+ember is a Python-based CFD solver designed for turbomachinery applications, featuring
 multi-block structured grid capabilities, explicit time integration schemes, and specialized
 tools for analyzing compressor and turbine flows. The package provides comprehensive support
 for grid generation, flow field initialization, boundary condition specification, time-accurate
 simulations, and post-processing including circumferential averaging and performance metrics
-extraction. Built on NumPy with Fortran-accelerated numerics, EMBER emphasizes ease of use
+extraction. Built on NumPy with Fortran-accelerated numerics, ember emphasizes ease of use
 for rapid prototyping while maintaining computational efficiency for production simulations.
 """
 

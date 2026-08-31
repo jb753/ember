@@ -1,4 +1,4 @@
-"""Cusp boundary condition patch for EMBER CFD.
+"""Cusp boundary condition patch.
 
 CuspPatch handles cusp boundaries across a modelled trailing edge.
 

@@ -33,6 +33,7 @@ import pytest
 
 import ember.fluid
 import ember.realgas_fit as rgf
+from ember import _realgas_poly as poly
 from conftest import VanDerWaals
 
 
@@ -126,13 +127,13 @@ def test_hat_maps_box_to_unit_interval():
     """The box bounds map onto exactly -1 and +1."""
 
     lim = (0.01, 260.0)
-    assert np.isclose(rgf.hat(lim[0], lim), -1.0)
-    assert np.isclose(rgf.hat(lim[1], lim), 1.0)
-    assert np.isclose(rgf.hat(np.mean(lim), lim), 0.0)
+    assert np.isclose(poly.hat(lim[0], lim), -1.0)
+    assert np.isclose(poly.hat(lim[1], lim), 1.0)
+    assert np.isclose(poly.hat(np.mean(lim), lim), 0.0)
 
     # Affine, so the interior maps proportionally too.
     x = np.linspace(*lim, 17)
-    assert np.allclose(rgf.hat(x, lim) * 0.5 * (lim[1] - lim[0]) + np.mean(lim), x)
+    assert np.allclose(poly.hat(x, lim) * 0.5 * (lim[1] - lim[0]) + np.mean(lim), x)
 
 
 def test_hat_is_affine_invariant():
@@ -149,7 +150,7 @@ def test_hat_is_affine_invariant():
     for scale, offset in ((2.5, 0.0), (1.0, -17.0), (0.03, 400.0)):
         xp = scale * x + offset
         lim_p = (xp.min(), xp.max())
-        assert np.allclose(rgf.hat(xp, lim_p), rgf.hat(x, lim))
+        assert np.allclose(poly.hat(xp, lim_p), poly.hat(x, lim))
 
 
 # ---------------------------------------------------------------------------
@@ -162,11 +163,11 @@ def test_order_matrix_counts():
 
     order = 3
 
-    tensor = rgf.order_matrix(order, basis="tensor-grid")
+    tensor = poly.order_matrix(order, basis="tensor-grid")
     assert tensor.shape == (order + 1, order + 1)
     assert tensor.sum() == (order + 1) ** 2
 
-    total = rgf.order_matrix(order, basis="total-order")
+    total = poly.order_matrix(order, basis="total-order")
     assert total.shape == (order + 1, order + 1)
     # Terms with i + j <= order only: (n+1)(n+2)/2
     assert total.sum() == (order + 1) * (order + 2) // 2
@@ -174,7 +175,7 @@ def test_order_matrix_counts():
     assert not total[order, order]
 
     with pytest.raises(ValueError):
-        rgf.order_matrix(order, basis="not-a-basis")
+        poly.order_matrix(order, basis="not-a-basis")
 
 
 def test_legfit2d_recovers_known_polynomial():
@@ -182,7 +183,7 @@ def test_legfit2d_recovers_known_polynomial():
 
     rng = np.random.default_rng(17)
     coef = np.zeros((4, 4))
-    mask = rgf.order_matrix(3, basis="total-order")
+    mask = poly.order_matrix(3, basis="total-order")
     coef[mask] = rng.standard_normal(mask.sum())
 
     x = np.linspace(-1.0, 1.0, 31)
@@ -190,7 +191,7 @@ def test_legfit2d_recovers_known_polynomial():
     xg, yg = np.meshgrid(x, y, indexing="ij")
     z = np.polynomial.legendre.legval2d(xg, yg, coef)
 
-    fitted, info = rgf.legfit2d(
+    fitted, info = rgf._legfit2d(
         xg.ravel(), yg.ravel(), z.ravel(), order=3, basis="total-order"
     )
 
@@ -228,10 +229,10 @@ def test_entropy_integral_matches_quadrature(c):
 
     rng = np.random.default_rng(3)
     alpha = np.zeros((4, 4))
-    mask = rgf.order_matrix(3, basis="total-order")
+    mask = poly.order_matrix(3, basis="total-order")
     alpha[mask] = rng.standard_normal(mask.sum())
 
-    D, Lam = rgf.entropy_integral(alpha, c)
+    D, Lam = poly.entropy_integral(alpha, c)
 
     for y in (-0.9, -0.2, 0.5, 1.0):
         for x in (-0.95, -0.5, 0.0, 0.37, 1.0):
@@ -250,7 +251,7 @@ def test_entropy_integral_vanishes_at_isochor():
     rng = np.random.default_rng(5)
     alpha = rng.standard_normal((4, 4))
     c = 1.2
-    D, Lam = rgf.entropy_integral(alpha, c)
+    D, Lam = poly.entropy_integral(alpha, c)
 
     y = np.linspace(-1.0, 1.0, 11)
     val = np.polynomial.legendre.legval2d(
@@ -273,11 +274,11 @@ def test_entropy_integral_near_low_density():
 
     rng = np.random.default_rng(11)
     alpha = np.zeros((3, 3))
-    alpha[rgf.order_matrix(2, basis="total-order")] = rng.standard_normal(6)
+    alpha[poly.order_matrix(2, basis="total-order")] = rng.standard_normal(6)
 
-    D, Lam = rgf.entropy_integral(alpha, c)
+    D, Lam = poly.entropy_integral(alpha, c)
 
-    x = rgf.hat(0.02, rho_lim)  # just above the low-density bound
+    x = poly.hat(0.02, rho_lim)  # just above the low-density bound
     for y in (-1.0, 0.0, 1.0):
         got = np.polynomial.legendre.legval2d(x, y, D) + np.polynomial.legendre.legval(
             y, Lam
@@ -571,6 +572,6 @@ def test_beta_is_the_entropy_on_the_box_centre_isochor():
     rho_0 = float(np.mean(RHO_LIM_VDW))
 
     u = np.linspace(*U_LIM_VDW, 21)
-    got = np.polynomial.legendre.legval(rgf.hat(u, U_LIM_VDW), beta)
+    got = np.polynomial.legendre.legval(poly.hat(u, U_LIM_VDW), beta)
     expect = VDW.get_s(np.full_like(u, rho_0), u) / VDW.Rgas
     assert np.allclose(got, expect, rtol=1e-8, atol=1e-8)

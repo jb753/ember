@@ -13,10 +13,13 @@ Overview of one time step
 
 :meth:`Solver.run` performs the following operations each step:
 
-1. **Boundary conditions**: :meth:`~ember.grid.Grid.update_bconds` updates
-   boundary patch targets (mass-flow throttle, radial equilibrium,
-   mixing-plane exchange) and :meth:`~ember.grid.Grid.apply_bconds` imposes
-   those boundary conditions by modifying :attr:`~ember.block.Block.conserved_nd`.
+1. **Cache flush and boundary conditions**:
+   :meth:`~ember.grid.Grid.update_cached_conserved` refreshes the pressure and
+   temperature caches left stale by the previous step's in-place march, then
+   :meth:`~ember.grid.Grid.update_bconds` updates boundary patch targets
+   (mass-flow throttle, radial equilibrium, mixing-plane exchange) and
+   :meth:`~ember.grid.Grid.apply_bconds` imposes those boundary conditions by
+   modifying :attr:`~ember.block.Block.conserved_nd`.
 2. **NaN check**: :meth:`~ember.grid.Grid.check_nan` aborts the run early if
    the conserved state has gone non-finite. Sets a flag on the returned
    :class:`~ember.convergence_history.ConvergenceHistory` and leaves the
@@ -30,7 +33,7 @@ Overview of one time step
    recomputed every few steps to save cost.
 4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes
    the time step and stores it pre-divided by cell volume in
-   :attr:``ember.block.Block.block.dt_vol_nd``.
+   :attr:`~ember.block.Block.dt_vol_nd`.
 5. **Filter**: when :attr:`~Solver.gain_filt` is nonzero,
    :meth:`~ember.grid.Grid.update_filter` advances the
    selective-frequency-damping low-pass filter one step using that time step,
@@ -176,8 +179,11 @@ two knobs:
   multigrid. Each block's cell counts must be an exact multiple of the coarsest
   block size ``2**n_levels`` in every direction, or :meth:`Solver.run` raises before
   marching.
-- :attr:`~Solver.fac_mgrid` -- scaling on the coarse correction, with
-  successively coarser levels damped further; 0 also disables multigrid.
+- :attr:`~Solver.fac_mgrid` -- scaling on the coarse correction; 0 also
+  disables multigrid.
+- :attr:`~Solver.expon_mgrid` -- base of the per-level geometric decay applied
+  on top of ``fac_mgrid``, so successively coarser levels are damped further
+  (``coef_l ~ expon_mgrid**-(l-1)``).
 
 :attr:`~Solver.sf_resid` additionally drives implicit residual smoothing
 (Jameson IRS) on the fine-grid residual via
@@ -626,8 +632,18 @@ def _mg_coarse_scratch_sizes(ni, nj, nk, n_levels, np=5):
 # The hier2 kernels' scratch arguments, in the order _mg_coarse_shapes returns
 # their shapes. Kept together so the two cannot drift apart.
 MG_COARSE_NAMES = (
-    "cbuf", "aplane", "bb", "dtblk", "rawbuf", "sdt", "sv",
-    "corr_all", "acc0", "acc1", "cres", "triw",
+    "cbuf",
+    "aplane",
+    "bb",
+    "dtblk",
+    "rawbuf",
+    "sdt",
+    "sv",
+    "corr_all",
+    "acc0",
+    "acc1",
+    "cres",
+    "triw",
 )
 
 
@@ -1014,8 +1030,11 @@ def _run(grid, conf):
     n_log = -(-conf.n_step // conf.n_step_log)
     hist = ConvergenceHistory.from_grid(n_log, grid)
 
-    _log_rss("march start, n_levels=%d, shape(s) %s", conf.n_levels,
-             [block.shape for block in grid])
+    _log_rss(
+        "march start, n_levels=%d, shape(s) %s",
+        conf.n_levels,
+        [block.shape for block in grid],
+    )
 
     for i_step in range(conf.n_step):
         #

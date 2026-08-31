@@ -60,9 +60,11 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 add_module_names = True
-# Show the full dotted path in sidebar TOC object entries, matching the
-# fully-qualified headings produced by ``add_module_names``.
-toc_object_entries_show_parents = "all"
+# Headings keep the full dotted path (``add_module_names``), but sidebar TOC
+# entries show only the object's own name -- the parent module and class are
+# already visible from the entry's position in the nesting, and the full chain
+# (e.g. "fluid.PerfectFluid.set_P_T") just clutters the navigation pane.
+toc_object_entries_show_parents = "hide"
 autoclass_content = "init"
 autodoc_member_order = "bysource"
 autodoc_default_options = {
@@ -96,9 +98,6 @@ nitpick_ignore = [
     # Objects that do not yet have a documentation page. Remove an entry once
     # the corresponding module gains an autodoc page so the link resolves.
     ("py:class", "ember.collections._LabelledList"),
-    # Private base class, so no page of its own; ``:show-inheritance:`` on
-    # PerfectFluid still emits a reference to it from the rendered "Bases:" line.
-    ("py:class", "ember.fluid._Fluid"),
     ("py:meth", "ember._struct.StructuredData.__init__"),
     # Documented on the private base, which has no page of its own; Block.flat
     # points readers at it for the ordering rules.
@@ -127,9 +126,9 @@ html_context = {"ember_version_slug": os.environ.get("EMBER_DOCS_VERSION", relea
 html_sidebars = {
     "**": [
         "about.html",
-        "versions.html",
         "searchfield.html",
         "navigation.html",
+        "versions.html",
         "relations.html",
         "donate.html",
     ]

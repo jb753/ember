@@ -1,10 +1,10 @@
 r"""Working fluid interface and equation of state implementations.
 
-This module defines an interface for computing thermodynamic properties of
-working fluids enabling manipulations of flow fields independent of the
-underlying equations of state. The abstraction cleanly separates thermodynamic
-relations from the flow solver, allowing easy extension to real gas models or
-tabulated properties.
+:class:`Fluid` is the interface for computing thermodynamic properties of a
+working fluid, so that flow fields can be manipulated independently of the
+underlying equation of state. The abstraction separates thermodynamic relations
+from the flow solver and is the type other modules and downstream code accept;
+extending to a new real-gas or tabulated model is a matter of subclassing it.
 
 Two implementations are provided: :class:`PerfectFluid`, for ideal gases with
 constant specific heats, and :class:`RealFluid`, a thermodynamically consistent
@@ -41,7 +41,7 @@ in :math:`h = u + p/\rho`.
 It is possible to shift the datum state of a fluid instance using
 ``change_datum``, which returns a new instance with the same properties but
 shifted datum. The current datum is accessible via
-:attr:`~PerfectFluid.P_dtm` and :attr:`~PerfectFluid.T_dtm` attributes.
+:attr:`~Fluid.P_dtm` and :attr:`~Fluid.T_dtm` attributes.
 
 
 .. _reference-scales:
@@ -53,24 +53,24 @@ The constructors for fluid instances take optional reference scales for non-dime
 
 The user specifies:
 
-- :math:`\rho_\mathrm{ref}\,`: density [kg/m\ :sup:`3`], :attr:`~PerfectFluid.rho_ref`
-- :math:`V_\mathrm{ref}\,`: velocity [m/s], :attr:`~PerfectFluid.V_ref`
-- :math:`R_\mathrm{ref}\,`: gas constant [J/kg/K], :attr:`~PerfectFluid.Rgas_ref`
+- :math:`\rho_\mathrm{ref}\,`: density [kg/m\ :sup:`3`], :attr:`~Fluid.rho_ref`
+- :math:`V_\mathrm{ref}\,`: velocity [m/s], :attr:`~Fluid.V_ref`
+- :math:`R_\mathrm{ref}\,`: gas constant [J/kg/K], :attr:`~Fluid.Rgas_ref`
 
 and the class forms the following derived reference scales:
 
-- :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\,`: dynamic pressure [Pa], :attr:`~PerfectFluid.P_ref`
-- :math:`u_\mathrm{ref} = V_\mathrm{ref}^2\,`: specific energy [J/kg], :attr:`~PerfectFluid.u_ref`
-- :math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\,`: temperature [K], :attr:`~PerfectFluid.T_ref`
-- :math:`(\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}\,`: mass flux [kg/m\ :sup:`2`/s], :attr:`~PerfectFluid.rhoV_ref`
+- :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\,`: dynamic pressure [Pa], :attr:`~Fluid.P_ref`
+- :math:`u_\mathrm{ref} = V_\mathrm{ref}^2\,`: specific energy [J/kg], :attr:`~Fluid.u_ref`
+- :math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}\,`: temperature [K], :attr:`~Fluid.T_ref`
+- :math:`(\rho V)_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}\,`: mass flux [kg/m\ :sup:`2`/s], :attr:`~Fluid.rhoV_ref`
 
 Equations of state are unchanged when all quantities are scaled consistently. For example, taking the ideal gas law :math:`p = \rho R T` and dividing through by the reference pressure :math:`\rho_\mathrm{ref} V_\mathrm{ref}^2` gives
 
 .. math:: \frac{p}{\rho_\mathrm{ref} V_\mathrm{ref}^2} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{V_\mathrm{ref}^2 / R_\mathrm{ref}} = \frac{\rho}{\rho_\mathrm{ref}} \frac{R}{R_\mathrm{ref}} \frac{T}{T_\mathrm{ref}}
 
-Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters: viscosity is divided by :math:`\rho_\mathrm{ref} V_\mathrm{ref}` and conductivity by :math:`\rho_\mathrm{ref} V_\mathrm{ref} R_\mathrm{ref}`, which are the two scalings that leave the Prandtl number :math:`\mu c_p / \kappa` dimensionless. Scaling the transport properties on their own, to sweep Reynolds number at a fixed flow field, is what :meth:`PerfectFluid.change_visc` is for.
+Transport properties such as viscosity and thermal conductivity are an exception to this scaling, and would require an additional reference length to make fully non-dimensional. So when references are provided, transport properties have dimensions of meters: viscosity is divided by :math:`\rho_\mathrm{ref} V_\mathrm{ref}` and conductivity by :math:`\rho_\mathrm{ref} V_\mathrm{ref} R_\mathrm{ref}`, which are the two scalings that leave the Prandtl number :math:`\mu c_p / \kappa` dimensionless. Scaling the transport properties on their own, to sweep Reynolds number at a fixed flow field, is what :meth:`Fluid.change_visc` is for.
 
-We can get a new instance with different reference scales using the :meth:`PerfectFluid.change_ref` method.
+We can get a new instance with different reference scales using the :meth:`Fluid.change_ref` method.
 
 """
 
@@ -79,8 +79,10 @@ import inspect
 import numpy as np
 from abc import ABC, abstractmethod
 from ember import util
+from ember._realgas_poly import entropy_integral
 import ember.fortran
-import ember.realgas_fit
+
+__all__ = ["Fluid", "PerfectFluid", "RealFluid"]
 
 _leg = np.polynomial.legendre
 
@@ -138,10 +140,88 @@ def _plain(value):
     return float(value)
 
 
-class _Fluid(ABC):
-    """Interface for converting density and internal energy to and from other thermodynamic properties.
+class Fluid(ABC):
+    r"""The equation-of-state interface: density and internal energy to and from other thermodynamic properties.
 
-    Constructors should cast all input parameters to single-precision floats; the output types of all methods are not explicitly cast, but will be single-precision if all inputs are single-precision.
+    :class:`PerfectFluid` and :class:`RealFluid` implement it; the rest of the
+    codebase and downstream code accept a ``Fluid`` and never test which. See
+    the module documentation above for the :math:`(\rho, u)` convention, the
+    :ref:`datum state <datum-state>` and the :ref:`reference scales
+    <reference-scales>`.
+
+    Every ``get_*`` method takes ``(rho, u, out=None)`` --- density and internal
+    energy, broadcastable against each other --- and returns one array of the
+    broadcast shape, optionally written into ``out`` (the NumPy ``out=``
+    convention). Every ``set_x_y`` method takes the two named properties,
+    likewise broadcastable, and returns ``(rho, u)``. Outputs are single
+    precision when the inputs are. With non-unity reference scales all
+    quantities in and out are non-dimensional; transport properties are then
+    only quasi-dimensional (see :meth:`get_mu`).
+
+    Property inputs must be physically valid --- pressures, temperatures and
+    densities positive, every value finite. This layer does not check;
+    :meth:`ember.block.Block.set_P_T` and its siblings are the validated entry
+    points.
+
+    A new equation of state is a subclass implementing the abstract methods
+    below; :meth:`from_dict` then reconstructs it by class name.
+
+    .. rubric:: Thermodynamic state
+
+    .. autosummary::
+
+       get_P
+       get_T
+       get_h
+       get_s
+       get_a
+       get_cp
+       get_cv
+       get_gamma
+       get_Rgas
+
+    .. rubric:: Setters (return ``(rho, u)``)
+
+    .. autosummary::
+
+       set_P_T
+       set_P_h
+       set_P_s
+       set_P_rho
+       set_h_s
+       set_rho_s
+       set_T_s
+       set_T_rho
+
+    .. rubric:: Partial derivatives
+
+    .. autosummary::
+
+       get_dhdP_rho
+       get_dhdrho_P
+       get_dsdP_rho
+       get_dsdrho_P
+       get_dudP_rho
+       get_dudrho_P
+
+    .. rubric:: Transport
+
+    .. autosummary::
+
+       get_mu
+       get_kappa
+       get_Pr
+
+    .. rubric:: Batched evaluation and factories
+
+    .. autosummary::
+
+       get_P_h_T
+       from_dict
+       to_dict
+       change_datum
+       change_ref
+       change_visc
 
     """
 
@@ -187,7 +267,7 @@ class _Fluid(ABC):
     def from_dict(cls, data):
         """Build a fluid from a dict written by :meth:`to_dict`.
 
-        Called on :class:`_Fluid` it dispatches on the ``type`` key, so a saved
+        Called on :class:`Fluid` it dispatches on the ``type`` key, so a saved
         fluid can be read back without the caller knowing which equation of
         state wrote it. Called on a concrete class it checks that ``type``
         names that class, so loading the wrong file is an error rather than a
@@ -200,7 +280,7 @@ class _Fluid(ABC):
 
         Returns
         -------
-        fluid : _Fluid
+        fluid : Fluid
             A new instance of the class named by ``data["type"]``.
         """
         data = dict(data)
@@ -211,7 +291,7 @@ class _Fluid(ABC):
                 f"A fluid dict needs a 'type' key, one of {sorted(_FLUID_TYPES)}."
             )
 
-        if cls is _Fluid:
+        if cls is Fluid:
             if name not in _FLUID_TYPES:
                 raise ValueError(
                     f"Unknown fluid type {name!r}. "
@@ -237,46 +317,57 @@ class _Fluid(ABC):
 
     @abstractmethod
     def set_h_s(self, h, s):
+        """Density and internal energy from specific enthalpy and entropy."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_P_h(self, P, h):
+        """Density and internal energy from pressure and specific enthalpy."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_P_rho(self, P, rho):
+        """Density and internal energy from pressure and density."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_P_s(self, P, s):
+        """Density and internal energy from pressure and specific entropy."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_P_T(self, P, T):
+        """Density and internal energy from pressure and temperature."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_rho_s(self, rho, s):
+        """Density and internal energy from density and specific entropy."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_T_rho(self, T, rho):
+        """Density and internal energy from temperature and density."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_T_s(self, T, s):
+        """Density and internal energy from temperature and specific entropy."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_a(self, rho, u, out=None):
+        """Speed of sound."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_cp(self, rho, u, out=None):
+        """Specific heat at constant pressure."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_cv(self, rho, u, out=None):
+        """Specific heat at constant volume."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -311,10 +402,12 @@ class _Fluid(ABC):
 
     @abstractmethod
     def get_gamma(self, rho, u, out=None):
+        r"""Ratio of specific heats, :math:`c_p / c_v`."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_h(self, rho, u, out=None):
+        """Specific enthalpy, relative to the datum (see :ref:`datum-state`)."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -334,6 +427,7 @@ class _Fluid(ABC):
 
     @abstractmethod
     def get_P(self, rho, u, out=None):
+        """Static pressure."""
         raise NotImplementedError()
 
     def get_P_h_T(self, rho, u, out_P=None, out_h=None, out_T=None):
@@ -374,18 +468,22 @@ class _Fluid(ABC):
 
     @abstractmethod
     def get_Pr(self, rho, u, out=None):
+        r"""Prandtl number, :math:`\mu c_p / \kappa`."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_Rgas(self, rho, u, out=None):
+        """Specific gas constant."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_s(self, rho, u, out=None):
+        """Specific entropy, relative to the datum (see :ref:`datum-state`)."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_T(self, rho, u, out=None):
+        """Static temperature."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -404,9 +502,27 @@ class _Fluid(ABC):
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def change_ref(self, rho_ref=None, V_ref=None, Rgas_ref=None):
-        """Return a new instance with different reference scales."""
-        raise NotImplementedError("Subclasses must implement change_ref")
+        """Return a new instance with different reference scales.
+
+        A pure factory, like :meth:`change_datum`: the fitted or stored
+        properties are untouched, only the scales the non-dimensionalisation
+        uses. An omitted scale keeps this instance's value, so a call need name
+        only the scales that change. See :ref:`reference-scales`.
+
+        Parameters
+        ----------
+        rho_ref, V_ref, Rgas_ref : float, optional
+            New reference density, velocity and gas constant. Any left out keep
+            their current value.
+
+        Returns
+        -------
+        fluid_new : Fluid
+            New fluid instance with the same properties on the new scales.
+        """
+        raise NotImplementedError()
 
     @abstractmethod
     def change_visc(self, scale_visc):
@@ -431,7 +547,7 @@ class _Fluid(ABC):
 
         Returns
         -------
-        fluid_new : _Fluid
+        fluid_new : Fluid
             New fluid instance with scaled viscosity.
         """
         raise NotImplementedError()
@@ -538,7 +654,7 @@ class _Fluid(ABC):
         return self._V_ref
 
 
-class PerfectFluid(_Fluid):
+class PerfectFluid(Fluid):
     def __init__(
         self,
         cp,
@@ -621,7 +737,7 @@ class PerfectFluid(_Fluid):
         self._kappa_nd = self._mu_nd * self._cp_nd / self._Pr
 
     def _kwargs(self):
-        """Constructor arguments reproducing this fluid; see :meth:`_Fluid._kwargs`."""
+        """Constructor arguments reproducing this fluid; see :meth:`Fluid._kwargs`."""
         return {
             "cp": float(self._cp),
             "gamma": float(self._gamma),
@@ -1431,45 +1547,9 @@ class PerfectFluid(_Fluid):
         return out
 
     def change_datum(self, P_dtm, T_dtm):
-        """Get a new :class:`PerfectFluid` with shifted datum.
-
-        The new instance will have zero internal energy and entropy at the specified pressure and temperature. See :ref:`datum-state`.
-
-        Parameters
-        ----------
-        P_dtm : float
-            New datum pressure [Pa].
-        T_dtm : float
-            New datum temperature [K].
-
-        Returns
-        -------
-        fluid_new : PerfectFluid
-            New fluid instance with shifted and entropy datum.
-
-        """
         return self._rebuild(P_dtm=P_dtm, T_dtm=T_dtm)
 
     def change_ref(self, rho_ref=None, V_ref=None, Rgas_ref=None):
-        """Make a new :class:`PerfectFluid` with different reference scales.
-
-        Omitted reference scales default to the current instance's reference scales, so only the scales that need to be changed must be specified.
-
-        Parameters
-        ----------
-        rho_ref : float, optional
-            New reference density for non-dimensionalisation.
-        V_ref : float, optional
-            New reference velocity for non-dimensionalisation.
-        Rgas_ref : float, optional
-            New reference gas constant for non-dimensionalisation.
-
-        Returns
-        -------
-        fluid_new : PerfectFluid
-            New fluid instance with the same properties but different reference scales.
-
-        """
         return self._rebuild(
             rho_ref=rho_ref if rho_ref is not None else self.rho_ref,
             V_ref=V_ref if V_ref is not None else self.V_ref,
@@ -1477,36 +1557,20 @@ class PerfectFluid(_Fluid):
         )
 
     def change_visc(self, scale_visc):
-        """Get a new :class:`PerfectFluid` with scaled viscosity.
+        """Scale the stored constant ``mu`` (and ``kappa`` with it).
 
-        The viscosity is a constant here, so scaling it is a change of the
-        stored ``mu``. Conductivity follows it through the fixed Prandtl
-        number, with nothing to do.
-
-        Scaling is relative to this fluid, so the factors of a chain of calls
-        multiply together, and nothing but the transport properties moves.
-
-        Parameters
-        ----------
-        scale_visc : float
-            Factor to multiply this fluid's viscosity by. Must be positive.
-
-        Returns
-        -------
-        fluid_new : PerfectFluid
-            New fluid instance with scaled viscosity.
-
+        See :meth:`Fluid.change_visc` for the contract.
         """
         if scale_visc <= 0.0:
             raise ValueError(f"scale_visc={scale_visc} must be positive.")
         return self._rebuild(mu=float(self._mu) * float(scale_visc))
 
 
-class RealFluid(_Fluid):
+class RealFluid(Fluid):
     r"""Real gas defined by a fitted entropy surface.
 
-    Implements the thermodynamically consistent equation of state of Wheeler
-    (2024), *Computers and Fluids* 268:106088. A polynomial surface is fitted
+    Implements the thermodynamically consistent equation of state of
+    :cite:t:`Wheeler2024`. A polynomial surface is fitted
     offline to the compressibility factor and integrated analytically to give
     entropy; temperature and pressure are then *derived* from that one surface
     rather than fitted separately, so the thermodynamic relations between them
@@ -1565,12 +1629,11 @@ class RealFluid(_Fluid):
     ----------
     alpha : array_like
         Two-dimensional Legendre coefficients of the compressibility factor
-        :math:`Z(\hat\rho, \hat u)` [--], in the normalised coordinates of
-        :ref:`normalised-coordinates`.
+        :math:`Z(\hat\rho, \hat u)` [--], in density and internal energy each
+        scaled onto :math:`[-1, 1]` by the fit-box bounds.
     beta : array_like
         One-dimensional Legendre coefficients of :math:`s/R` along the reference
-        isochor, the one at the centre of the density box; see
-        :ref:`reference-isochor`.
+        isochor, the one through the centre of the density box.
     delta : array_like
         Two-dimensional Legendre coefficients of the viscosity surface [--],
         normalised by ``mu_c``.
@@ -1831,7 +1894,7 @@ class RealFluid(_Fluid):
 
         # Density integral of the compressibility surface, in closed form, from
         # the reference isochor at the centre of the density box.
-        D, Lam = ember.realgas_fit.entropy_integral(self._alpha, rho_m / rho_f)
+        D, Lam = entropy_integral(self._alpha, rho_m / rho_f)
 
         # Assemble the non-dimensional entropy surface,
         #     s = legval2d(x, y, Sc) + legval(y, Sl)*log(rho)
@@ -2242,7 +2305,7 @@ class RealFluid(_Fluid):
         return buf
 
     def _kwargs(self):
-        """Constructor arguments reproducing this fluid; see :meth:`_Fluid._kwargs`."""
+        """Constructor arguments reproducing this fluid; see :meth:`Fluid._kwargs`."""
         return {
             "alpha": self._alpha,
             "beta": self._beta,
@@ -3256,49 +3319,15 @@ class RealFluid(_Fluid):
         return self._write(1.0 / s_u, out)
 
     def change_datum(self, P_dtm, T_dtm):
-        """Get a new :class:`RealFluid` with shifted datum.
-
-        The coefficient arrays are untouched: they describe a dimensionless
-        surface in normalised coordinates, and the datum only enters through the
-        affine constants composed at construction. See :ref:`datum-state`.
-
-        Parameters
-        ----------
-        P_dtm : float
-            New datum pressure [Pa].
-        T_dtm : float
-            New datum temperature [K].
-
-        Returns
-        -------
-        fluid_new : RealFluid
-            New fluid instance with shifted energy and entropy datum.
-
+        """Shift the datum. The fitted coefficients are untouched --- the datum
+        enters only through the affine constants composed at construction, so
+        there is no refit. See :meth:`Fluid.change_datum`.
         """
         return self._rebuild(P_dtm=P_dtm, T_dtm=T_dtm)
 
     def change_ref(self, rho_ref=None, V_ref=None, Rgas_ref=None):
-        """Make a new :class:`RealFluid` with different reference scales.
-
-        Omitted reference scales default to the current instance's, so only the
-        scales that need to be changed must be specified. As with
-        :meth:`change_datum`, no refit is involved.
-
-        Parameters
-        ----------
-        rho_ref : float, optional
-            New reference density for non-dimensionalisation.
-        V_ref : float, optional
-            New reference velocity for non-dimensionalisation.
-        Rgas_ref : float, optional
-            New reference gas constant for non-dimensionalisation.
-
-        Returns
-        -------
-        fluid_new : RealFluid
-            New fluid instance with the same properties but different reference
-            scales.
-
+        """Rescale. No refit, as for :meth:`change_datum`; see
+        :meth:`Fluid.change_ref`.
         """
         return self._rebuild(
             rho_ref=rho_ref if rho_ref is not None else self.rho_ref,
@@ -3307,27 +3336,10 @@ class RealFluid(_Fluid):
         )
 
     def change_visc(self, scale_visc):
-        r"""Get a new :class:`RealFluid` with scaled viscosity.
+        r"""Scale the two fitted transport surfaces together --- there is no
+        stored viscosity, only a polynomial in :math:`(\rho, u)`.
 
-        A multiplier on the two fitted transport surfaces, which is what a
-        factor on a surface has to be: there is no stored viscosity to change,
-        only a polynomial in :math:`(\rho, u)`. Conductivity is scaled with it,
-        so the Prandtl number the two surfaces give is unchanged everywhere in
-        the box.
-
-        Scaling is relative to this fluid, so the factors of a chain of calls
-        multiply together, and nothing but the transport properties moves.
-
-        Parameters
-        ----------
-        scale_visc : float
-            Factor to multiply this fluid's viscosity by. Must be positive.
-
-        Returns
-        -------
-        fluid_new : RealFluid
-            New fluid instance with scaled viscosity.
-
+        See :meth:`Fluid.change_visc` for the contract.
         """
         if scale_visc <= 0.0:
             raise ValueError(f"scale_visc={scale_visc} must be positive.")
@@ -3358,7 +3370,7 @@ class RealFluid(_Fluid):
 
 
 _FLUID_TYPES = {cls.__name__: cls for cls in (PerfectFluid, RealFluid)}
-"""Equations of state :meth:`_Fluid.from_dict` will build, by class name.
+"""Equations of state :meth:`Fluid.from_dict` will build, by class name.
 
 An explicit table rather than a lookup on the module, so that a ``type`` out of
 a file can only ever name one of these two classes.

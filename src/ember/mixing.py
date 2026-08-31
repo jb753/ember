@@ -1,4 +1,4 @@
-r"""Mixing plane for EMBER CFD.
+r"""Mixing plane joining bladerows with circumferentially averaged flow.
 
 :class:`MixingPatch` is either side of a steady stator/rotor
 interface after :cite:t:`Saxer1993` (his Section 5.5, Eqs. 5.60-5.66), which

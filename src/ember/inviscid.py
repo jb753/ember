@@ -1,4 +1,4 @@
-"""Inviscid wall boundary condition patch for EMBER CFD.
+"""Inviscid wall boundary condition.
 
 InviscidPatch represents an impermeable but frictionless boundary condition,
 typically used for slip walls in inviscid flow calculations.
@@ -20,4 +20,3 @@ class InviscidPatch(Patch):
     instead of a no-slip wall when viscous effects on that face should be
     suppressed, for example on a symmetry plane or an inviscid endwall.
     """
-

@@ -23,7 +23,7 @@ Test cases:
 - test_nondim_scaling: Non-unity-ref fluid returns values scaled by refs
 - test_change_ref: change_ref returns consistent object
 - test_change_datum_nondim: change_datum with non-unity reference values
-- test_fluid_member_order: _Fluid and subclasses follow standard member ordering
+- test_fluid_member_order: Fluid and subclasses follow standard member ordering
 - test_real_fluid_reports_a_solve_that_produced_no_number: a nan solve raises
 - test_real_fluid_rejects_density_outside_the_fit_box: given rho is checked
 - test_real_fluid_accepts_density_on_the_box_bounds: the bounds are in domain
@@ -78,7 +78,7 @@ class FluidCase:
     ----------
     name : str
         Identifier used as the pytest parameter id.
-    fluid : ember.fluid._Fluid
+    fluid : ember.fluid.Fluid
         The equation of state under test.
     rho, u : tuple
         Paired sample densities [kg/m^3] and internal energies [J/kg], covering
@@ -91,7 +91,7 @@ class FluidCase:
     T_off : float
         Temperature offset from ``T_dtm`` that stays in domain.
     datum_new : tuple
-        ``(P, T)`` for :meth:`~ember.fluid._Fluid.change_datum`, in domain.
+        ``(P, T)`` for :meth:`~ember.fluid.Fluid.change_datum`, in domain.
     P_acc, rho_acc : tuple
         Pressure and density sweeps for the ``set_P_rho`` accuracy test.
     u_atol : float
@@ -367,7 +367,7 @@ def test_universal_relations_numerical(case):
 def test_perfect_gamma_is_cp_over_cv(case):
     """For a perfect gas only, the isentropic exponent equals cp/cv.
 
-    Not a universal relation: :meth:`~ember.fluid._Fluid.get_gamma` returns the
+    Not a universal relation: :meth:`~ember.fluid.Fluid.get_gamma` returns the
     isentropic exponent, which for a real gas differs from the ratio of specific
     heats. The two coincide when cp and cv are constant.
     """
@@ -630,7 +630,7 @@ def test_change_visc(case):
     )
 
     # A round trip through to_dict carries the scaling with it
-    rebuilt = ember.fluid._Fluid.from_dict(fluid_new.to_dict())
+    rebuilt = ember.fluid.Fluid.from_dict(fluid_new.to_dict())
     assert np.allclose(rebuilt.get_mu(rho, u), fluid_new.get_mu(rho, u), rtol=1e-6)
 
     for bad in (0.0, -1.0):
@@ -875,15 +875,15 @@ def test_perfect_fluid_datum_default_and_custom():
 
 
 def test_fluid_member_order():
-    """_Fluid and all concrete subclasses follow the standard member ordering convention."""
+    """Fluid and all concrete subclasses follow the standard member ordering convention."""
     import inspect
     from pathlib import Path
     from conftest import assert_class_member_order
 
-    fluid_cls = ember.fluid._Fluid
+    fluid_cls = ember.fluid.Fluid
     src = Path(inspect.getfile(fluid_cls)).read_text()
 
-    assert_class_member_order(src, "_Fluid")
+    assert_class_member_order(src, "Fluid")
 
     for name in dir(ember.fluid):
         obj = getattr(ember.fluid, name)
@@ -1622,7 +1622,7 @@ def test_to_dict_round_trip(case):
     """A fluid rebuilt from its own dict is the same fluid."""
 
     data = case.fluid.to_dict()
-    rebuilt = ember.fluid._Fluid.from_dict(data)
+    rebuilt = ember.fluid.Fluid.from_dict(data)
 
     assert type(rebuilt) is type(case.fluid)
 
@@ -1643,7 +1643,7 @@ def test_to_dict_round_trip_states(case):
     place.
     """
 
-    rebuilt = ember.fluid._Fluid.from_dict(case.fluid.to_dict())
+    rebuilt = ember.fluid.Fluid.from_dict(case.fluid.to_dict())
 
     for rho, u in zip(case.rho, case.u):
         for prop in ("get_P", "get_T", "get_s", "get_h", "get_a", "get_cp"):
@@ -1689,7 +1689,7 @@ def test_from_dict_rejects_unknown_type():
     data["type"] = "StiffenedGas"
 
     with pytest.raises(ValueError, match="StiffenedGas"):
-        ember.fluid._Fluid.from_dict(data)
+        ember.fluid.Fluid.from_dict(data)
 
 
 def test_from_dict_rejects_missing_type():
@@ -1699,7 +1699,7 @@ def test_from_dict_rejects_missing_type():
     del data["type"]
 
     with pytest.raises(ValueError, match="type"):
-        ember.fluid._Fluid.from_dict(data)
+        ember.fluid.Fluid.from_dict(data)
 
 
 def test_from_dict_rejects_wrong_type():
@@ -1722,11 +1722,11 @@ def test_from_dict_rejects_unknown_key():
     data["Prr"] = 0.9
 
     with pytest.raises(ValueError, match="Prr"):
-        ember.fluid._Fluid.from_dict(data)
+        ember.fluid.Fluid.from_dict(data)
 
 
 def test_from_dict_on_subclass():
-    """A concrete class can be asked directly, without going through _Fluid."""
+    """A concrete class can be asked directly, without going through Fluid."""
 
     for case in CASES:
         rebuilt = type(case.fluid).from_dict(case.fluid.to_dict())
@@ -1860,7 +1860,7 @@ def test_a_defaulted_datum_round_trips_through_a_dict():
 
     data = fluid.to_dict()
     assert data["P_dtm"] == pytest.approx(float(fluid.P_dtm))
-    assert ember.fluid._Fluid.from_dict(data).to_dict() == data
+    assert ember.fluid.Fluid.from_dict(data).to_dict() == data
 
 
 def _zero_d(value):

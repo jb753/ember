@@ -1,4 +1,4 @@
-r"""Jacobians between the flow variable sets used throughout EMBER.
+r"""Jacobians between flow variable sets.
 
 Six five-component variable sets, each labelled by a single calligraphic
 letter, describe the same flow state; boundary conditions, the

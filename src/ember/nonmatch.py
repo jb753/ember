@@ -1,4 +1,4 @@
-"""Non-matching interface patch for EMBER CFD.
+"""Non-matching interface patch.
 
 NonMatchPatch connects two block faces that occupy the same physical space
 but have different nodal distributions, using parametric interpolation.

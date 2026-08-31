@@ -1,100 +1,50 @@
-r"""Fit real-gas equation of state coefficients from tabulated properties.
+r"""Fit real-gas equation of state from tabulated properties.
 
-This module turns a table of thermodynamic properties into the Legendre
-coefficient arrays that :class:`ember.fluid.RealFluid` evaluates, following the
-entropy-based formulation of Wheeler (2024), *Computers and Fluids* 268:106088.
+This module turns a table of thermodynamic properties into the polynomial
+coefficient arrays required by :class:`ember.fluid.RealFluid`, following the
+entropy-based formulation of :cite:t:`Wheeler2024`.
 
-It is an offline tool. Fitting happens once, in a user script, and the
-coefficients are then passed to a fluid that the solver evaluates; nothing here
-runs in a hot path. Only :func:`sample_coolprop` needs CoolProp, and it imports
-it lazily, so the rest of the module -- and every consumer of the coefficients
--- works with numpy alone.
+The user should perform the fitting once, offline, and then pass the resulting
+coefficients to :class:`ember.fluid.RealFluid` at simulation runtime. Only
+:func:`sample_coolprop` needs a lazy import of CoolProp, so the rest of the
+code can be used without it.
 
-The method
-==========
-
-The compressibility factor is fitted as a two-dimensional polynomial surface in
-density and internal energy,
-
-.. math:: Z(\rho, u) = \frac{p}{\rho R T}
-
-and entropy follows by integrating it along an isochor and then in density,
-
-.. math::
-
-    \frac{s}{R} = \sum_k \beta_k P_k(\hat{u})
-                - \int_{\rho_0}^{\rho} Z \, \mathrm{d}\ln\rho
-
-Because temperature and pressure are then *derived* from this one entropy
-surface rather than fitted independently, the resulting equation of state is
-thermodynamically consistent by construction. See :class:`ember.fluid.RealFluid`
-for the evaluation side.
-
-Transport properties
-====================
-
-Viscosity and thermal conductivity are fitted as two further surfaces over the
-same box, in the same normalised coordinates, following Appendix B of the same
-paper. They are ordinary least-squares fits and take no part in the consistency
-argument above: pressure and temperature must come from the one entropy surface
-because the relations between them are what consistency means, whereas
-viscosity and conductivity are related to nothing. Nor is either ever
-differentiated. So there is no integral to do and no derivative to keep
-accurate --- only the surfaces themselves.
-
-Each is normalised by its own value at the centre of the fit box, leaving
-coefficients of order unity and the physical scale in a single number. The
-Prandtl number is not fitted; it follows from the two surfaces and the specific
-heat.
-
-.. _reference-isochor:
-
-The reference isochor
-=====================
-
-The density integral starts from a reference isochor :math:`\rho_0`, and
-:math:`\beta` is the entropy along it. Which density that is makes no
-difference to the equation of state: moving it changes the integral by a
-function of internal energy alone, and :math:`\beta` -- fitted in that same
-basis, to the same order -- absorbs the change exactly, leaving the same
-entropy surface and the same residual. So there is nothing here for a caller to
-choose, and no way to choose it well or badly; the isochor is fixed at the
-centre of the density box, :math:`\hat\rho = 0`.
-
-The centre is also where the arithmetic is happiest. The logarithm in the
-integral is singular at zero density, just below the box, and the constants
-folded into :math:`\beta` grow as the isochor approaches it -- so an isochor at
-the low-density edge is the worst available choice, and the middle the best.
-
-.. _normalised-coordinates:
-
-Normalised coordinates
-======================
+The method requires two polynomial fits: compressibility factor as a
+two-dimensional surface in density and internal energy, and entropy along a
+reference isochor as a one-dimensional function of internal energy. Optionally,
+viscosity and thermal conductivity are fitted as two further two-dimensional
+surfaces over density and internal energy.
 
 Polynomials are fitted in coordinates scaled onto :math:`[-1, 1]` by the bounds
-of the fit box,
+of a fit box. The reference isochor passes through the centre of the box, and viscosity and conductivity are normalised by their values at the box centre.
 
-.. math::
+Example usage
+=============
 
-    \hat{\rho} = \frac{\rho - \rho_m}{\rho_f}, \qquad
-    \hat{u} = \frac{u - u_m}{u_f}
+With CoolProp installed, the pipeline is a single call:
 
-where :math:`\rho_m, \rho_f` are the midpoint and half-width of the density
-bounds. Legendre polynomials are orthogonal only on :math:`[-1, 1]`, so this
-min/max normalisation -- rather than the mean and standard deviation used in the
-original paper, which do not bound the coordinate -- is what keeps the fit well
-conditioned.
+.. code-block:: python
 
-The normalisation is affine, so it absorbs any change of units or datum in the
-input data exactly: pre-scaling the table before fitting changes nothing. That
-is also why the fit box cannot be replaced by ember's reference scales, which
-are pure scalings with no offset and are reset at runtime from the flow.
+    from ember.realgas_fit import fit, sample_coolprop
+    from ember.fluid import RealFluid
+
+    result = fit(
+        **sample_coolprop(
+            "CO2", rho_lim=(2.0, 150.0), u_lim=(3.5e5, 5.0e5)
+        )
+    )  # fit the equation of state and transport surfaces
+
+    fluid = RealFluid(**result.kwargs)               # hand to the solver
+    print(result.info_Z.rmse, result.info_s.rmse)    # inspect the fit residuals
+
 
 """
 
 import dataclasses
 
 import numpy as np
+
+from ember import _realgas_poly as _poly
 
 _leg = np.polynomial.legendre
 
@@ -171,7 +121,7 @@ def _fit_normalised(x, y, z, order, basis, name):
     info : FitInfo
         Residual statistics, scaled to match ``coef``.
     """
-    coef, info = legfit2d(x, y, z, order, basis)
+    coef, info = _legfit2d(x, y, z, order, basis)
     centre = float(_leg.legval2d(0.0, 0.0, coef))
     if not centre > 0.0:
         raise ValueError(
@@ -180,101 +130,6 @@ def _fit_normalised(x, y, z, order, basis, name):
             "data for the wrong sign or the wrong units."
         )
     return coef / centre, centre, FitInfo(rmse=info.rmse / centre, R2=info.R2)
-
-
-def entropy_integral(alpha, c):
-    r"""Closed-form coefficients of the density integral of a fitted surface.
-
-    Evaluates the definite integral of the compressibility surface along a
-    density path at fixed internal energy,
-
-    .. math::
-
-        I(\hat\rho, \hat u)
-            = \int_{\rho_0}^{\rho} Z \, \frac{\mathrm{d}\rho}{\rho}
-
-    which supplies the density dependence of entropy, from the reference isochor
-    at the centre of the fit box (see :ref:`reference-isochor`) up to the density
-    of interest. Since :math:`\rho \propto \hat\rho + c`, the measure is
-    :math:`\mathrm{d}\ln\rho = \mathrm{d}\hat\rho / (\hat\rho + c)`, and each
-    basis term integrates in closed form. Polynomial division by
-    :math:`\hat\rho + c` leaves a constant remainder,
-
-    .. math::
-
-        P_i(x) = (x + c)\,Q_i(x) + P_i(-c)
-
-    so that
-
-    .. math::
-
-        \int \frac{P_i(x)}{x + c}\,\mathrm{d}x
-            = \int Q_i(x)\,\mathrm{d}x + P_i(-c)\ln(x + c)
-
-    and the whole integral splits into a polynomial part plus a single
-    logarithmic term whose coefficient depends only on internal energy. The
-    division and integration are done in the Legendre basis throughout, so no
-    monomial coefficients are ever formed.
-
-    Parameters
-    ----------
-    alpha : array_like
-        Two-dimensional Legendre coefficients of :math:`Z(\hat\rho, \hat u)`.
-    c : float
-        Ratio of the density midpoint to half-width, so that
-        :math:`\rho \propto \hat\rho + c`. The logarithmic singularity sits at
-        :math:`\hat\rho = -c`, just outside the box when the lower density bound
-        approaches zero.
-
-    Returns
-    -------
-    D : ndarray
-        Two-dimensional Legendre coefficients of the polynomial part.
-    Lam : ndarray
-        One-dimensional Legendre coefficients, in normalised internal energy, of
-        the multiplier on :math:`\ln(\hat\rho + c)`.
-
-    Notes
-    -----
-    The two outputs reconstruct the integral as
-
-    .. code-block:: text
-
-        I = legval2d(x, y, D) + legval(y, Lam)*log(x + c)
-
-    which is zero at ``x = 0`` for every ``y``.
-
-    """
-    alpha = np.atleast_2d(np.asarray(alpha, dtype=float))
-    m = alpha.shape[0] - 1
-
-    # Split each density basis polynomial into a quotient, which integrates to a
-    # polynomial, and a constant remainder, which integrates to the log term.
-    divisor = np.array([c, 1.0])  # (x + c) in the Legendre basis
-    G = np.zeros((m + 1, m + 2))  # antiderivative of the quotient, per order
-    r = np.zeros(m + 1)  # remainder P_i(-c), per order
-    for i in range(m + 1):
-        basis = np.zeros(i + 1)
-        basis[i] = 1.0
-        quo, rem = _leg.legdiv(basis, divisor)
-        r[i] = rem[0] if rem.size else 0.0
-        Gi = _leg.legint(quo)
-        G[i, : Gi.size] = Gi
-
-    # Contract over the density order: the polynomial part inherits the
-    # antiderivatives, the log multiplier inherits the remainders.
-    D = G.T @ alpha
-    Lam = alpha.T @ r
-
-    # Shift so the definite integral vanishes on the reference isochor, the
-    # centre of the box at x = 0. Both corrections are functions of internal
-    # energy alone, so they fold into the constant-density row of D, where the
-    # density basis polynomial is one.
-    P0 = _leg.legvander(np.asarray(0.0), D.shape[0] - 1).ravel()
-    D = D.copy()
-    D[0, :] -= P0 @ D + Lam * np.log(c)
-
-    return D, Lam
 
 
 def fit(
@@ -332,7 +187,11 @@ def fit(
     order : int, optional
         Maximum polynomial order in each variable.
     basis : {'total-order', 'tensor-grid'}, optional
-        Which combinations of orders to retain; see :func:`order_matrix`.
+        Which order combinations to retain. ``'total-order'`` (the default)
+        keeps only terms whose orders in the two variables sum to at most
+        ``order``; ``'tensor-grid'`` keeps every combination up to ``order`` in
+        each. The default drops the worst-conditioned high-order-in-both corners
+        for roughly half the terms.
 
     Returns
     -------
@@ -343,13 +202,13 @@ def fit(
     """
     rho = np.asarray(rho, dtype=float)
     u = np.asarray(u, dtype=float)
-    x = hat(rho, rho_lim)
-    y = hat(u, u_lim)
+    x = _poly.hat(rho, rho_lim)
+    y = _poly.hat(u, u_lim)
 
     # Compressibility surface. Dimensionless and O(1), so it fits far better
     # than entropy would directly, and it is what the density integral needs.
     Z = np.asarray(P, dtype=float) / (rho * Rgas * np.asarray(T, dtype=float))
-    alpha, info_Z = legfit2d(x, y, Z, order, basis)
+    alpha, info_Z = _legfit2d(x, y, Z, order, basis)
 
     # Subtract the analytic density integral from the tabulated entropy. The
     # remainder is a function of internal energy alone -- exactly, for an
@@ -358,8 +217,8 @@ def fit(
     # averages out rather than amplifies.
     #
     # Zero density maps to x = -c, where the log in the integral is singular.
-    c = -float(hat(0.0, rho_lim))
-    D, Lam = entropy_integral(alpha, c)
+    c = -float(_poly.hat(0.0, rho_lim))
+    D, Lam = _poly.entropy_integral(alpha, c)
     integral = _leg.legval2d(x, y, D) + _leg.legval(y, Lam) * np.log(x + c)
     beta_target = np.asarray(s, dtype=float) / Rgas + integral
 
@@ -367,8 +226,8 @@ def fit(
     info_s = _fit_info(beta_target, _leg.legval(y, beta))
 
     # Transport surfaces, fitted over the same points in the same coordinates
-    # and normalised at the centre of the box; see `Transport properties`_.
-    # Nothing couples them to the entropy surface or to each other.
+    # and normalised at the centre of the box. They are ordinary least-squares
+    # fits: nothing couples them to the entropy surface or to each other.
     delta, mu_c, info_mu = _fit_normalised(x, y, mu, order, basis, "viscosity")
     gamma, kappa_c, info_kappa = _fit_normalised(
         x, y, kappa, order, basis, "conductivity"
@@ -394,33 +253,7 @@ def fit(
     )
 
 
-def hat(x, lim):
-    r"""Map a variable from its box bounds onto :math:`[-1, 1]`.
-
-    See :ref:`normalised-coordinates`.
-
-    Parameters
-    ----------
-    x : array_like
-        Values to normalise.
-    lim : tuple
-        ``(min, max)`` bounds of the fit box.
-
-    Returns
-    -------
-    x_hat : ndarray
-        Normalised coordinate, ``-1`` at ``lim[0]`` and ``+1`` at ``lim[1]``.
-
-    """
-    lo, hi = float(lim[0]), float(lim[1])
-    if not hi > lo:
-        raise ValueError(f"Box bounds must be increasing, got {lim}")
-    mid = 0.5 * (hi + lo)
-    half = 0.5 * (hi - lo)
-    return (np.asarray(x, dtype=float) - mid) / half
-
-
-def legfit2d(x, y, z, order, basis="total-order"):
+def _legfit2d(x, y, z, order, basis="total-order"):
     """Least-squares Legendre fit of a function of two normalised variables.
 
     Parameters
@@ -432,7 +265,7 @@ def legfit2d(x, y, z, order, basis="total-order"):
     order : int
         Maximum polynomial order in each variable.
     basis : {'total-order', 'tensor-grid'}, optional
-        Which combinations of orders to retain; see :func:`order_matrix`.
+        Which combinations of orders to retain.
 
     Returns
     -------
@@ -447,7 +280,7 @@ def legfit2d(x, y, z, order, basis="total-order"):
     y = np.asarray(y, dtype=float).ravel()
     z = np.asarray(z, dtype=float).ravel()
 
-    mask = order_matrix(order, basis)
+    mask = _poly.order_matrix(order, basis)
     # legvander2d lays terms out as P_i(x)*P_j(y) at flat index i*(order+1)+j,
     # which is C order -- the same as ravelling the mask.
     V = _leg.legvander2d(x, y, [order, order])[:, mask.ravel()]
@@ -458,43 +291,8 @@ def legfit2d(x, y, z, order, basis="total-order"):
     return coef, _fit_info(z, _leg.legval2d(x, y, coef))
 
 
-def order_matrix(order, basis="total-order"):
-    """Boolean mask of the polynomial orders retained by a basis.
-
-    A ``tensor-grid`` basis keeps every combination of orders up to ``order`` in
-    each variable, giving ``(order + 1)**2`` terms. A ``total-order`` basis keeps
-    only those whose orders sum to at most ``order``, giving roughly half as
-    many. The smaller basis is usually the better trade: the dropped terms are
-    the high-order-in-both corners, which contribute least and are the worst
-    conditioned.
-
-    Parameters
-    ----------
-    order : int
-        Maximum polynomial order.
-    basis : {'total-order', 'tensor-grid'}, optional
-        Which combinations to retain.
-
-    Returns
-    -------
-    mask : ndarray of bool
-        Shape ``(order + 1, order + 1)``, true where the term is retained.
-
-    """
-    i, j = np.mgrid[0 : order + 1, 0 : order + 1]
-    if basis == "tensor-grid":
-        return np.ones((order + 1, order + 1), dtype=bool)
-    if basis == "total-order":
-        return (i + j) <= order
-    raise ValueError(f"basis must be 'total-order' or 'tensor-grid', got {basis!r}")
-
-
 def sample_coolprop(fluid_name, rho_lim, u_lim, ni=100):
     """Sample thermodynamic properties over a fit box using CoolProp.
-
-    CoolProp is an optional dependency, imported here rather than at module
-    level so that evaluating a fitted equation of state never requires it.
-    Install it with the ``fit`` extra.
 
     States that fail to converge or fall inside the two-phase dome are dropped:
     properties are not smooth across saturation, and including such points would
