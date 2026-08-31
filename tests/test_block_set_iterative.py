@@ -510,7 +510,9 @@ def test_set_ho_s_rhoVm_nonzero_alpha():
     Alpha = np.array([30.0, 45.0, 60.0])  # degrees
     rhoVm_test = np.array([50.0, 75.0, 100.0])
 
-    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(block, ho1, s1, rhoVm_test, Alpha=Alpha)
+    ember.set_iterative.set_ho_s_rhoVm_Alpha_Beta(
+        block, ho1, s1, rhoVm_test, Alpha=Alpha
+    )
 
     # Verify relationship: rhoVm = rho * Vm = rho * V * cos(Alpha)
     rhoVm_calc = block.rho * block.Vm
@@ -1364,6 +1366,176 @@ def test_iterative_setters_realistic_conditions():
     assert U_over_a_max < 1.5, (
         f"Blade speed too high: U/a = {U_over_a_max:.2f} (should be < 1.5 for realistic turbomachinery)"
     )
+
+
+# ============================================================================
+# Broadcasting contract (all five public setters)
+#
+# The setters do not reshape their inputs against ``block.shape``; they rely on
+# NumPy broadcasting between the arguments and on the ``Block.set_*`` machinery
+# broadcasting on assignment. These tests pin that contract: a scalar is
+# accepted in any argument slot -- including when the other arguments are
+# arrays -- and produces exactly the state the equivalent full array would.
+# ============================================================================
+
+_BCAST_FLUID = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)
+_BCAST_SHAPE = (2, 3)
+
+
+def _bcast_lin(a, b):
+    """A mildly varying block-shaped ``float32`` array from ``a`` to ``b``."""
+    n = int(np.prod(_BCAST_SHAPE))
+    return np.linspace(a, b, n, dtype=np.float32).reshape(_BCAST_SHAPE)
+
+
+def _bcast_ref_ho_s():
+    """Block-shaped, varying stagnation enthalpy and entropy [SI]."""
+    rho_o, u_o = _BCAST_FLUID.set_P_T(
+        _bcast_lin(0.98e5, 1.02e5), _bcast_lin(295.0, 305.0)
+    )
+    return _BCAST_FLUID.get_h(rho_o, u_o), _BCAST_FLUID.get_s(rho_o, u_o)
+
+
+def _bcast_block(rotating):
+    block = ember.block.Block(shape=_BCAST_SHAPE)
+    block.set_fluid(_BCAST_FLUID)
+    if rotating:
+        zeros = np.zeros(_BCAST_SHAPE, dtype=np.float32)
+        block.set_x(zeros)
+        block.set_r(_bcast_lin(0.8, 1.0))
+        block.set_t(zeros)
+        block.set_Omega(50.0)
+    return block
+
+
+def _bcast_cases():
+    """``name -> (rotating, base_kwargs)`` with every argument a block-shaped array."""
+    ho, s = _bcast_ref_ho_s()
+    return {
+        "set_ho_s_Ma_Alpha_Beta": (
+            False,
+            dict(
+                ho=ho,
+                s=s,
+                Ma=_bcast_lin(0.35, 0.60),
+                Alpha=_bcast_lin(-6.0, 6.0),
+                Beta=_bcast_lin(-5.0, 5.0),
+            ),
+        ),
+        "set_ho_s_rhoVm_Alpha_Beta": (
+            False,
+            dict(
+                ho=ho,
+                s=s,
+                rhoVm=_bcast_lin(40.0, 80.0),
+                Alpha=_bcast_lin(-6.0, 6.0),
+                Beta=_bcast_lin(-5.0, 5.0),
+            ),
+        ),
+        "set_ho_s_rhoVm_Vt_Beta": (
+            False,
+            dict(
+                ho=ho,
+                s=s,
+                rhoVm=_bcast_lin(40.0, 80.0),
+                Vt=_bcast_lin(20.0, 50.0),
+                Beta=_bcast_lin(-5.0, 5.0),
+            ),
+        ),
+        "set_I_s_Ma_rel_Alpha_rel_Beta": (
+            True,
+            dict(
+                I=_bcast_lin(88000.0, 92000.0),
+                s=s,
+                Ma_rel=_bcast_lin(0.40, 0.55),
+                Alpha_rel=_bcast_lin(-4.0, 4.0),
+                Beta=_bcast_lin(84.0, 90.0),
+            ),
+        ),
+        "set_Po_To_Ma_rel_Alpha_rel_Beta": (
+            True,
+            dict(
+                Po=_bcast_lin(0.98e5, 1.02e5),
+                To=_bcast_lin(295.0, 305.0),
+                Ma_rel=_bcast_lin(0.40, 0.55),
+                Alpha_rel=_bcast_lin(6.0, 14.0),
+                Beta=_bcast_lin(-4.0, 4.0),
+            ),
+        ),
+    }
+
+
+def _bcast_primitives(block):
+    return {
+        k: np.asarray(getattr(block, k), dtype=float)
+        for k in ("P", "T", "Vx", "Vr", "Vt")
+    }
+
+
+@pytest.mark.parametrize("setter_name", list(_bcast_cases()))
+def test_setter_scalar_equivalent_to_full_array(setter_name):
+    """A scalar in any one argument slot matches the equivalent full array.
+
+    The other arguments stay arrays, so this also pins that a scalar is
+    accepted alongside array inputs.
+    """
+    rotating, base = _bcast_cases()[setter_name]
+    func = getattr(ember.set_iterative, setter_name)
+
+    for arg, arr in base.items():
+        scalar = float(np.asarray(arr).flat[0])
+        full = np.full(_BCAST_SHAPE, scalar, dtype=np.float32)
+
+        b_scalar = _bcast_block(rotating)
+        func(b_scalar, **{**base, arg: scalar})
+
+        b_full = _bcast_block(rotating)
+        func(b_full, **{**base, arg: full})
+
+        ps, pf = _bcast_primitives(b_scalar), _bcast_primitives(b_full)
+        for k in ps:
+            assert ps[k].shape == _BCAST_SHAPE
+            assert np.all(np.isfinite(ps[k]))
+            np.testing.assert_allclose(
+                ps[k],
+                pf[k],
+                rtol=1e-5,
+                atol=1e-4,
+                err_msg=f"{setter_name}: scalar {arg} != full-array {arg} ({k})",
+            )
+
+
+@pytest.mark.parametrize("setter_name", list(_bcast_cases()))
+def test_setter_all_scalar_inputs(setter_name):
+    """Every argument scalar (the docstring-example form) -> finite block state."""
+    rotating, base = _bcast_cases()[setter_name]
+    func = getattr(ember.set_iterative, setter_name)
+    kwargs = {k: float(np.asarray(v).flat[0]) for k, v in base.items()}
+
+    block = _bcast_block(rotating)
+    func(block, **kwargs)
+
+    for k in ("P", "T", "rho", "Vx", "Vr", "Vt"):
+        val = np.asarray(getattr(block, k), dtype=float)
+        assert val.shape == _BCAST_SHAPE
+        assert np.all(np.isfinite(val))
+    if not rotating:
+        # No radius-dependent blade speed, so scalar inputs give a uniform state.
+        np.testing.assert_allclose(block.P, block.P.flat[0], rtol=1e-5)
+        np.testing.assert_allclose(block.T, block.T.flat[0], rtol=1e-5)
+
+
+@pytest.mark.parametrize("setter_name", list(_bcast_cases()))
+def test_setter_non_broadcastable_shape_rejected(setter_name):
+    """An argument whose shape does not broadcast to the block raises ValueError."""
+    rotating, base = _bcast_cases()[setter_name]
+    func = getattr(ember.set_iterative, setter_name)
+    arg = list(base)[-1]  # Beta for every setter
+    bad = np.ones(_BCAST_SHAPE[-1] + 1, dtype=np.float32)  # (4,) vs (2, 3)
+
+    block = _bcast_block(rotating)
+    with pytest.raises(ValueError):
+        func(block, **{**base, arg: bad})
 
 
 if __name__ == "__main__":

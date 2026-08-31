@@ -1,4 +1,4 @@
-"""Flow-sampling probe patch for EMBER CFD.
+"""Flow-sampling probe.
 
 ProbePatch marks a point, face, or interior plane where flow history is
 recorded. It is a passive overlay: it does not change the boundary condition of

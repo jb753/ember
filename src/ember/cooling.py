@@ -1,4 +1,4 @@
-"""Cooling flow boundary condition patch for EMBER CFD.
+"""Cooling flow boundary condition patch.
 
 CoolingPatch represents cooling flow injection through a boundary.
 

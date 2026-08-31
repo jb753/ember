@@ -1,4 +1,4 @@
-"""Periodic boundary condition patch for EMBER CFD.
+"""Periodic boundary condition patch.
 
 PeriodicPatch connects coincident or circumferentially periodic block faces.
 Connectivity is detected automatically and conserved variables are averaged

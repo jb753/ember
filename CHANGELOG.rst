@@ -7,8 +7,8 @@ public API without a deprecation period.
 
 .. _v0.3.0:
 
-0.3.0
------
+0.3.0 (2026-08-31)
+------------------
 
 * Multigrid now applies a uniform coarse correction to the fine nodes, instead
   of linearly interpolating through the coarse cell centers. This is more

@@ -1,4 +1,4 @@
-"""Rotating wall boundary condition patch for EMBER CFD.
+"""Rotating wall boundary condition patch.
 
 RotatingPatch represents a rotating wall boundary with specified angular velocity.
 

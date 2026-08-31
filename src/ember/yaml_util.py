@@ -1,26 +1,19 @@
 """Read and write YAML files with numpy and :class:`~pathlib.Path` support.
 
-This module is a convenience for **plugins**, not core code -- nothing
+This module is a convenience for plugins, not core code -- nothing
 in :mod:`ember` itself depends on it. A plugin that wants to load or save
 its own configuration as YAML can use :func:`read_yaml` and
-:func:`write_yaml` in place of ``yaml.safe_load`` and ``yaml.safe_dump`` to
-avoid two footguns in plain `PyYAML <https://pyyaml.org/>`_:
+:func:`write_yaml` in place of ``yaml.safe_load`` and ``yaml.safe_dump``.
 
-- ``yaml.SafeDumper`` raises ``yaml.representer.RepresenterError`` on
-  ``numpy.float64``, ``numpy.int64``, :class:`numpy.ndarray` and
-  :class:`~pathlib.Path`, all of which turn up routinely in dicts built
-  from computed quantities. This module registers representers so they dump
-  as plain YAML scalars and lists instead.
-- ``yaml.SafeLoader`` fails to recognise scientific-notation floats
-  that have no decimal point, such as ``1e-5``, loading them back as
-  strings instead of floats. This module patches the loader's implicit
-  float resolver to catch that case too.
+The following fixes are applied:
 
-Uses PyYAML's ``CSafeLoader``/``CSafeDumper`` (backed by libyaml's C
-scanner/parser/emitter) when available, falling back to the pure-Python
-``SafeLoader``/``SafeDumper`` otherwise.
+- Dump numpy arrays and scalars as plain YAML lists and scalars
+- :class:`~pathlib.Path` as an expanded string
+- Parse scientific notation without decimal points e.g. ``1e-5``
+- Use PyYAML's ``CSafeLoader``/``CSafeDumper`` for speed where
+  available, falling back to the pure-Python versions otherwise
+- Always read and write files as UTF-8 encoded
 
-Ported from turbigen's ``yaml_utils`` module.
 """
 
 import re
@@ -189,10 +182,6 @@ def _float_loader():
 def read_yaml(fname):
     """Read a dictionary from a YAML file.
 
-    Uses a patched loader in place of the stock ``yaml.SafeLoader``, so that
-    scientific-notation floats without a decimal point parse correctly; see
-    the module docstring.
-
     Parameters
     ----------
     fname : str or Path
@@ -212,11 +201,6 @@ def read_yaml(fname):
 
 def write_yaml(d, fname, mode="w"):
     """Write a dictionary to a YAML file.
-
-    Uses this module's own dumper, carrying the representers it registers
-    for numpy scalars, numpy arrays and :class:`~pathlib.Path` objects;
-    see the module docstring. The output is bracketed with ``---``/``...``
-    document markers.
 
     Parameters
     ----------

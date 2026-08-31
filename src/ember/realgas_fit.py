@@ -1,96 +1,27 @@
-r"""Fit real-gas equation of state coefficients from tabulated properties.
+r"""Fit real-gas equation of state from tabulated properties.
 
-This module turns a table of thermodynamic properties into the Legendre
-coefficient arrays that :class:`ember.fluid.RealFluid` evaluates, following the
+This module turns a table of thermodynamic properties into the polynomial
+coefficient arrays required by :class:`ember.fluid.RealFluid`, following the
 entropy-based formulation of Wheeler (2024), *Computers and Fluids* 268:106088.
 
-It is an offline tool. Fitting happens once, in a user script, and the
-coefficients are then passed to a fluid that the solver evaluates; nothing here
-runs in a hot path. Only :func:`sample_coolprop` needs CoolProp, and it imports
-it lazily, so the rest of the module -- and every consumer of the coefficients
--- works with numpy alone.
+The user should perform the fitting once, offline, and then pass the resulting
+coefficients to :class:`ember.fluid.RealFluid` at simulation runtime. Only
+:func:`sample_coolprop` needs a lazy import of CoolProp, so the rest of the
+code can be used without it.
 
-The method
-==========
-
-The compressibility factor is fitted as a two-dimensional polynomial surface in
-density and internal energy,
-
-.. math:: Z(\rho, u) = \frac{p}{\rho R T}
-
-and entropy follows by integrating it along an isochor and then in density,
-
-.. math::
-
-    \frac{s}{R} = \sum_k \beta_k P_k(\hat{u})
-                - \int_{\rho_0}^{\rho} Z \, \mathrm{d}\ln\rho
-
-Because temperature and pressure are then *derived* from this one entropy
-surface rather than fitted independently, the resulting equation of state is
-thermodynamically consistent by construction. See :class:`ember.fluid.RealFluid`
-for the evaluation side.
-
-Transport properties
-====================
-
-Viscosity and thermal conductivity are fitted as two further surfaces over the
-same box, in the same normalised coordinates, following Appendix B of the same
-paper. They are ordinary least-squares fits and take no part in the consistency
-argument above: pressure and temperature must come from the one entropy surface
-because the relations between them are what consistency means, whereas
-viscosity and conductivity are related to nothing. Nor is either ever
-differentiated. So there is no integral to do and no derivative to keep
-accurate --- only the surfaces themselves.
-
-Each is normalised by its own value at the centre of the fit box, leaving
-coefficients of order unity and the physical scale in a single number. The
-Prandtl number is not fitted; it follows from the two surfaces and the specific
-heat.
-
-.. _reference-isochor:
-
-The reference isochor
-=====================
-
-The density integral starts from a reference isochor :math:`\rho_0`, and
-:math:`\beta` is the entropy along it. Which density that is makes no
-difference to the equation of state: moving it changes the integral by a
-function of internal energy alone, and :math:`\beta` -- fitted in that same
-basis, to the same order -- absorbs the change exactly, leaving the same
-entropy surface and the same residual. So there is nothing here for a caller to
-choose, and no way to choose it well or badly; the isochor is fixed at the
-centre of the density box, :math:`\hat\rho = 0`.
-
-The centre is also where the arithmetic is happiest. The logarithm in the
-integral is singular at zero density, just below the box, and the constants
-folded into :math:`\beta` grow as the isochor approaches it -- so an isochor at
-the low-density edge is the worst available choice, and the middle the best.
-
-.. _normalised-coordinates:
-
-Normalised coordinates
-======================
+The method requires two polynomial fits: compressibility factor as a
+two-dimensional surface in density and internal energy, and entropy along a
+reference isochor as a one-dimensional function of internal energy. Optionally,
+viscosity and thermal conductivity are fitted as two further two-dimensional
+surfaces over density and internal energy.
 
 Polynomials are fitted in coordinates scaled onto :math:`[-1, 1]` by the bounds
-of the fit box,
-
-.. math::
-
-    \hat{\rho} = \frac{\rho - \rho_m}{\rho_f}, \qquad
-    \hat{u} = \frac{u - u_m}{u_f}
-
-where :math:`\rho_m, \rho_f` are the midpoint and half-width of the density
-bounds. Legendre polynomials are orthogonal only on :math:`[-1, 1]`, so this
-min/max normalisation -- rather than the mean and standard deviation used in the
-original paper, which do not bound the coordinate -- is what keeps the fit well
-conditioned.
-
-The normalisation is affine, so it absorbs any change of units or datum in the
-input data exactly: pre-scaling the table before fitting changes nothing. That
-is also why the fit box cannot be replaced by ember's reference scales, which
-are pure scalings with no offset and are reset at runtime from the flow.
+of a fit box. The reference isochor passes through the centre of the box, and viscosity and conductivity are normalised by their values at the box centre.
 
 """
+
+# TODO
+# Proper bibtex entry for Wheeler
 
 import dataclasses
 
@@ -491,10 +422,6 @@ def order_matrix(order, basis="total-order"):
 
 def sample_coolprop(fluid_name, rho_lim, u_lim, ni=100):
     """Sample thermodynamic properties over a fit box using CoolProp.
-
-    CoolProp is an optional dependency, imported here rather than at module
-    level so that evaluating a fitted equation of state never requires it.
-    Install it with the ``fit`` extra.
 
     States that fail to converge or fall inside the two-phase dome are dropped:
     properties are not smooth across saturation, and including such points would

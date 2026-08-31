@@ -1,4 +1,4 @@
-r"""Subsonic outlet boundary condition for EMBER CFD.
+r"""Subsonic outlet boundary condition.
 
 :class:`OutletPatch` prescribes the pitchwise-mean static pressure at an outflow
 face while letting outgoing waves leave the domain, after the steady

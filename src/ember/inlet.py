@@ -1,4 +1,4 @@
-r"""Subsonic inlet boundary condition for EMBER CFD.
+r"""Subsonic inlet boundary condition.
 
 :class:`InletPatch` prescribes stagnation enthalpy, entropy and the two flow
 angles at an inflow face while letting outgoing acoustic waves leave the domain,
