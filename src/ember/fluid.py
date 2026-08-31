@@ -79,8 +79,8 @@ import inspect
 import numpy as np
 from abc import ABC, abstractmethod
 from ember import util
+from ember._realgas_poly import entropy_integral
 import ember.fortran
-import ember.realgas_fit
 
 _leg = np.polynomial.legendre
 
@@ -1565,12 +1565,11 @@ class RealFluid(_Fluid):
     ----------
     alpha : array_like
         Two-dimensional Legendre coefficients of the compressibility factor
-        :math:`Z(\hat\rho, \hat u)` [--], in the normalised coordinates of
-        :ref:`normalised-coordinates`.
+        :math:`Z(\hat\rho, \hat u)` [--], in density and internal energy each
+        scaled onto :math:`[-1, 1]` by the fit-box bounds.
     beta : array_like
         One-dimensional Legendre coefficients of :math:`s/R` along the reference
-        isochor, the one at the centre of the density box; see
-        :ref:`reference-isochor`.
+        isochor, the one through the centre of the density box.
     delta : array_like
         Two-dimensional Legendre coefficients of the viscosity surface [--],
         normalised by ``mu_c``.
@@ -1831,7 +1830,7 @@ class RealFluid(_Fluid):
 
         # Density integral of the compressibility surface, in closed form, from
         # the reference isochor at the centre of the density box.
-        D, Lam = ember.realgas_fit.entropy_integral(self._alpha, rho_m / rho_f)
+        D, Lam = entropy_integral(self._alpha, rho_m / rho_f)
 
         # Assemble the non-dimensional entropy surface,
         #     s = legval2d(x, y, Sc) + legval(y, Sl)*log(rho)
