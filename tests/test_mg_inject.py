@@ -279,6 +279,8 @@ def _dense_restriction(nc, np_):
             sv=Z(nc, nc, nc),
             corr_all=corr_all,
                 triw=Z(n_tri),
+            rfac=Z(np_),
+            dampin=0.0,
         )
         rows.append(corr_all.reshape(nc, nc, nc, np_, order="F")[..., 0].ravel("F"))
     return np.stack(rows, axis=1)

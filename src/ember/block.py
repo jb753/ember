@@ -362,6 +362,7 @@ Miscellaneous:
 
 .. autosummary::
 
+   Block.damp_rfac
    Block.i_cusp
    Block.i_perk
    Block.ijk_wall_conv
@@ -2795,6 +2796,31 @@ class Block(ember._struct.StructuredData):
         # copy of the result is ever materialised.
         out = util.allocate_or_reuse(out, (3,) + self.shape_kface)
         return _get_dak(self._xrt_nd, out)
+
+    @scratch_array
+    def damp_rfac(self, out):
+        """Change-limiter state, one reciprocal normaliser per conserved variable.
+
+        Like :attr:`store` and unlike :attr:`scratch`, this carries meaning
+        between kernel calls: it holds ``ncell * scale / (dampin * sum|dU|)``
+        per variable, accumulated by one call to a scree/RK kernel and consumed
+        by the next. The limiter multall applies to the assembled increment
+        needs a block mean of that increment, and ember's multigrid scatter
+        never materialises the increment full-volume, so the normaliser is
+        lagged one call rather than costing a second traversal (see
+        ``scree.f90``'s ``damp_increment``). The ``scale`` factor makes the
+        stored value independent of the march coefficient, so the lag carries
+        across RK stages of differing ``alpha`` without mis-scaling.
+
+        Seeded to zeros, which is the identity soft-clip: the first call of a
+        march runs unlimited, and a march with ``Solver.dampin <= 0`` never
+        leaves zero and so is bitwise identical to an undamped one.
+
+        Returns
+        -------
+        Array, shape (5,)
+        """
+        return util.zeros((5,))
 
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def dhdP_rho_nd(self, out):

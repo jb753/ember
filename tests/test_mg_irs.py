@@ -90,6 +90,8 @@ def _run(
         sv=Z(nc1i, nc1j, nc1k),
         corr_all=Z(n_corr),
         triw=Z(n_tri),
+        rfac=Z(NP),
+        dampin=0.0,
     )
     return cons
 
@@ -167,6 +169,8 @@ def test_rk_plain_matches_mg_at_fac_mgrid_zero():
         alpha=1.0,
         cfl=0.4,
         tmp=tmp,
+        rfac=np.zeros(NP, dtype=np.float32),
+        dampin=0.0,
     )
     np.testing.assert_allclose(cons_plain, cons_mg, atol=1e-6, rtol=1e-3)
 

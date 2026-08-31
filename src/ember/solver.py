@@ -401,6 +401,28 @@ class Solver(BaseSolver):
     """Base of the per-level multigrid decay, ``coef_l ~ expon_mgrid**-(l-1)``.
     Honored by both integrators (:func:`scree_step` and :func:`rk_step`)."""
 
+    dampin: float = 0.0
+    """Negative-feedback change limiter (multall's ``DAMP``); 0 disables it.
+
+    Applied to the ASSEMBLED increment -- fine term plus injected coarse
+    multigrid correction -- immediately before it reaches the nodes, which is
+    where multall applies it (``tblock-p-2_3_1.f:7736``, after the block-sum
+    corrections are summed in at 7710-7713). Each cell's increment is soft-
+    clipped to ``dU / (1 + |dU| / (dampin * mean|dU|))``, per conserved
+    variable, so cells far above their block mean are pulled back towards
+    ``dampin`` times it.
+
+    This is NOT the limiter removed in ember ``7b4fd71``. That one sat in
+    ``set_residual``, on the fine residual upstream of the multigrid
+    restriction, and destroyed the extensivity the box sum relies on -- which
+    is why it and multigrid diverged together while either alone converged.
+    Here the restriction has already happened.
+
+    The block mean is lagged one call (see :attr:`ember.block.Block.damp_rfac`).
+    Honored by both integrators; note RK applies it once per stage, where
+    multall's scree-equivalent single update applies it once per step, so the
+    scree path (``n_stage=0``) is the faithful analogue."""
+
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
     (:attr:`~ember.patch.NonReflectingPatch.sigma`) on every
@@ -506,7 +528,9 @@ class Solver(BaseSolver):
         return _run_fmg(grid, self)
 
 
-def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0):
+def scree_step(
+    grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0, dampin=0.0
+):
     """Advance every block one Denton scree step in place."""
     # Preconditions: dt_vol_nd populated and cached P/T consistent with
     # conserved_nd on entry. The caller invalidates caches and applies boundary
@@ -580,6 +604,8 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 rbuf=rbuf,
+                rfac=block.damp_rfac,
+                dampin=dampin,
                 **dict(zip(MG_COARSE_NAMES, mg_bufs)),
             )
         else:
@@ -597,6 +623,8 @@ def scree_step(grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0
                 dt_vol=block.dt_vol_nd,
                 cfl=cfl,
                 tmp=tmp,
+                rfac=block.damp_rfac,
+                dampin=dampin,
             )
 
 
@@ -651,7 +679,7 @@ def mg_coarse_shapes(ni, nj, nk, n_levels):
 
 
 def advance_rk_stage_mg(
-    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0
+    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0, dampin=0.0
 ):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
@@ -810,6 +838,8 @@ def advance_rk_stage_mg(
                 sf_irs=sf_irs,
                 n_levels=n_levels_eff,
                 rbuf=rbuf,
+                rfac=block.damp_rfac,
+                dampin=dampin,
                 **dict(zip(MG_COARSE_NAMES, mg_bufs)),
             )
         else:
@@ -823,6 +853,8 @@ def advance_rk_stage_mg(
                 alpha=alpha,
                 cfl=cfl,
                 tmp=tmp,
+                rfac=block.damp_rfac,
+                dampin=dampin,
             )
 
 
@@ -854,6 +886,7 @@ def rk_step(grid, conf):
             conf.n_levels,
             expon_mgrid=conf.expon_mgrid,
             sf_irs=conf.sf_resid,
+            dampin=conf.dampin,
         )
         grid.update_cached_conserved()
         grid.apply_bconds()
@@ -1077,6 +1110,7 @@ def _run(grid, conf):
                 expon_mgrid=conf.expon_mgrid,
                 n_levels=conf.n_levels,
                 sf_irs=conf.sf_resid,
+                dampin=conf.dampin,
             )
         else:
             rk_step(grid, conf)

@@ -90,6 +90,145 @@ subroutine fine_term(q, dt_vol, scale, tmp, ni, nj, nk, np)
 end subroutine fine_term
 
 
+! ============================================================================
+! Negative-feedback change limiter (multall's DAMP), applied to the ASSEMBLED
+! increment.
+!
+! POSITION IS THE WHOLE POINT. multall applies this at tblock-p-2_3_1.f:7736,
+! to STORE *after* the block-sum corrections have been summed in at 7710-7713.
+! ember's previous limiter (removed in 7b4fd71) sat in set_residual, on the
+! fine residual UPSTREAM of the restriction, and that is what broke it: the box
+! sum is exact only because the residual is extensive and interior fluxes
+! telescope, and a per-cell nonlinear rescaling applied before the sum destroys
+! that, so the coarse levels were agglomerating a non-conservative field. Here
+! the restriction has already happened and there is nothing left to break; the
+! limiter only clips the increment that is about to reach the nodes.
+!
+! The formula is multall's, unchanged:
+!
+!   dU <- dU / (1 + |dU| / (dampin * mean|dU|))
+!
+! carried per conserved variable, as multall carries it (SUMFLUX is called once
+! per VAR, so each variable is normalised by its own block mean) and as the
+! removed ember limiter did (its ravg was likewise dimension 5).
+!
+! THE NORMALISER IS LAGGED ONE CALL. multall materialises STORE full-volume and
+! makes two passes over it: one to accumulate SUMCHG, one to scale. ember's
+! multigrid scatter is a rolling two-plane kernel that never materialises the
+! increment (see mg_fine_scatter), so a same-call mean would cost either a
+! full-volume temporary or a second traversal. Instead each call accumulates
+! sum|dU| for the NEXT call and scales with what the previous call left in
+! rfac. The mean moves slowly against the field it normalises, so this is a
+! small approximation, but it IS an approximation multall does not make, and
+! the first call of a march runs unlimited (rfac starts at zero).
+!
+! THE STORED VALUE IS SCALE-INVARIANT, which is what makes the lag survive RK.
+! multall has one update per step; ember's RK has n_stage of them, and the
+! increment scales with the stage coefficient alpha (1/4, 1/3, 1/2, 1 for four
+! stages), so a mean lagged straight from the previous stage would be wrong by
+! the ratio of consecutive alphas -- up to 4x, alternately over- and
+! under-damping around the cycle. rfac therefore holds
+!
+!   ncell * scale / (dampin * sum|dU|)
+!
+! with scale the march coefficient the increment was built with (cfl for scree,
+! alpha*cfl for an RK stage). sum|dU| is proportional to scale, so the stored
+! quantity is not; the consumer divides by ITS OWN scale to recover the
+! reciprocal mean. For an unchanged field the lag is then exact rather than
+! merely close, and the scree path (one update per step, constant scale) is
+! unaffected either way.
+!
+! rfac holds the reciprocal 1/(dampin*mean) rather than the mean itself, so the
+! per-cell work is a multiply and one divide.
+!
+! OFF IS A SKIPPED PASS, NOT A NEUTRAL ONE. dampin <= 0 makes the whole limiter
+! traversal disappear -- an early return here, an `if` around the plane pass in
+! mg_fine_scatter -- rather than running it with rfac == 0 and relying on
+! dU/(1 + |dU|*0) being dU. That identity is exact in IEEE, and it still is not
+! enough: these routines are inlined into each other (see inline_info.txt), so
+! merely READING the increment back between fine_term and the scatter changes
+! how the compiler contracts the multiply-add that built it, moving rk_plain's
+! increment by ~1 ULP. That is invisible on its own and not invisible at all in
+! test_golden_coarse_increment, which pins the difference between a multigrid
+! increment and a non-multigrid one, where the two nearly cancel and 1 ULP of
+! each becomes 0.2% of the difference.
+!
+! So the guard is what makes an undamped march byte-identical to the
+! pre-limiter code, and it has to be a guard. It is per call and per k-plane,
+! never per cell, so the inner loops stay branch-free; this is the one place
+! where configuration is resolved by a runtime test rather than by which block
+! the caller invokes, and the reason is that the alternative was measurably
+! wrong rather than merely inelegant.
+!
+! (The removed limiter kept fdamp/dampin as a division to stay bit-exact
+! against a second fused code path that computed it that way. There is only one
+! path here, so dampin is folded into rfac once per call instead.)
+! ============================================================================
+
+
+! Fold the accumulated sum|dU| into the scale-invariant normaliser the NEXT
+! call will divide by its own scale to use. dampin <= 0 (limiter off) or a flat
+! component (zero sum) both leave rfac at zero, the identity soft-clip.
+subroutine damp_state_update(rfac, sum_abs, dampin, scale, ncell, np)
+    implicit none
+    integer, intent(in) :: np, ncell
+    real,    intent(in) :: sum_abs(np), dampin, scale
+    real, intent(out)   :: rfac(np)
+    integer :: m
+    do m = 1, np
+        if (dampin > 0e0 .and. sum_abs(m) > 0e0) then
+            rfac(m) = real(ncell) * scale / (dampin * sum_abs(m))
+        else
+            rfac(m) = 0e0
+        end if
+    end do
+end subroutine damp_state_update
+
+
+! Limit a materialised full-volume increment in place: scale by the lagged
+! rfac, accumulate this call's sum|dU|, and roll rfac for the next call. This
+! is the multigrid-OFF tail (scree_plain, rk_plain), which already holds the
+! increment in tmp; the multigrid-ON path does the same arithmetic inside
+! mg_fine_scatter's rolling buffer instead, where the increment is never
+! materialised full-volume.
+!
+! The sum is over the UNSCALED increment, as multall's is -- SUMCHG is
+! accumulated in the combine loop at 7714, before the limiter runs at 7736.
+subroutine damp_increment(dU, rfac, dampin, scale, ni, nj, nk, np)
+    implicit none
+    integer, intent(in) :: ni, nj, nk, np
+    real, intent(inout) :: dU(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: rfac(np)
+    real,    intent(in) :: dampin, scale
+    real    :: sum_abs(np), s, r, v, a
+    integer :: i, j, k, ip
+    ! Limiter off: no traversal at all, so fine_term's write is the last thing
+    ! to touch dU and the scatter sees exactly what it saw before this routine
+    ! existed. rfac is left at zero. See the guard note above -- reading dU back
+    ! here is enough to perturb the increment by 1 ULP even when the arithmetic
+    ! is the identity.
+    if (dampin <= 0e0) return
+    do ip = 1, np
+        ! rfac is stored scale-invariant; recover this call's reciprocal mean.
+        r = rfac(ip) / scale
+        s = 0e0
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    v = dU(i,j,k,ip)
+                    a = abs(v)
+                    s = s + a
+                    dU(i,j,k,ip) = v / (1e0 + a*r)
+                end do
+            end do
+        end do
+        sum_abs(ip) = s
+    end do
+    call damp_state_update(rfac, sum_abs, dampin, scale, &
+                           (ni-1)*(nj-1)*(nk-1), np)
+end subroutine damp_increment
+
+
 ! Form the Denton fine quantity in place in the history buffer:
 !   store <- 2*residual - store
 ! The pre-roll store (dF/dt)_{n-1} is read once here and overwritten with the
@@ -479,7 +618,7 @@ end subroutine mg_collapse_levels
 ! from an array an eighth the size, resident in cache, so even scalarised it is
 ! cheap against the dt_vol and q streams it is added to.
 subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
-        scale, dt_vol, q, ni, nj, nk, np, rbuf)
+        scale, dt_vol, q, ni, nj, nk, np, rbuf, rfac, dampin)
     implicit none
     integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np
     real, intent(in)    :: src(nci, ncj, nck, np)
@@ -492,7 +631,18 @@ subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
     ! and written at its own index within one statement).
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    ! Change-limiter state: lagged reciprocal normaliser in, rolled on exit.
+    ! dampin <= 0 skips the limiter pass entirely and leaves rfac at zero. See
+    ! the damp_increment block above for why it is skipped rather than run
+    ! neutrally.
+    real, intent(inout) :: rfac(np)
+    real,    intent(in) :: dampin
+    real    :: sum_abs(np), s, r, v, a
     integer :: i, j, ip, kc, kb, jb, cur, prev, sw
+
+    do ip = 1, np
+        sum_abs(ip) = 0e0
+    end do
 
     cur  = 1
     prev = 2
@@ -507,12 +657,48 @@ subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
                 end do
             end do
         end do
+        ! The limiter is applied to rbuf HERE -- fine term plus injected coarse
+        ! correction, which is exactly multall's STORE at 7710-7713. It must
+        ! land before the emits below, because emit_kint reads both the plane
+        ! just built (cur) and the one before it (prev), and both must already
+        ! be limited when they reach the nodes.
+        !
+        ! Deliberately a SECOND pass over the plane rather than fused into the
+        ! assembly above, which is what it looks like it should be. Carrying the
+        ! assembled value through a temporary lets the compiler contract the
+        ! multiply-add differently, which moves the increment by ~1 ULP even
+        ! when the arithmetic is the identity. Leaving the assembly statement
+        ! untouched, and skipping this pass entirely when the limiter is off,
+        ! are together what keep an undamped march byte-identical to the
+        ! pre-limiter code. The cost when it IS on is a read and a write over
+        ! two k-planes of rbuf, resident in cache, against the dt_vol and q
+        ! streams the assembly already pulls from memory.
+        if (dampin > 0e0) then
+            do ip = 1, np
+                ! rfac is stored scale-invariant; recover this call's reciprocal
+                ! mean. See the damp_increment block above.
+                r = rfac(ip) / scale
+                s = 0e0
+                do j = 1, nj-1
+                    do i = 1, ni-1
+                        v = rbuf(i,j,ip,cur)
+                        a = abs(v)
+                        s = s + a
+                        rbuf(i,j,ip,cur) = v / (1e0 + a*r)
+                    end do
+                end do
+                sum_abs(ip) = sum_abs(ip) + s
+            end do
+        end if
         ! Both ends emit two node planes in one pass.
         if (kc == 1)    call emit_kbnd(cur, 1)
         if (kc >= 2)    call emit_kint(prev, cur, kc)
         if (kc == nk-1) call emit_kbnd(cur, nk)
         sw = cur; cur = prev; prev = sw
     end do
+
+    call damp_state_update(rfac, sum_abs, dampin, scale, &
+                           (ni-1)*(nj-1)*(nk-1), np)
 
 contains
 
@@ -601,35 +787,40 @@ end subroutine mg_fine_scatter
 
 
 ! scree, multigrid off: form q, fine term only, roll history and frozen-scatter.
-subroutine scree_plain(cons, residual, store, dt_vol, cfl, tmp, ni, nj, nk, np)
+subroutine scree_plain(cons, residual, store, dt_vol, cfl, tmp, rfac, dampin, &
+        ni, nj, nk, np)
     implicit none
     integer, intent(in) :: ni, nj, nk, np
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: cfl
+    real,    intent(in) :: cfl, dampin
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)  ! in: (dF/dt)_{n-1}; out: (dF/dt)_n
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: rfac(np)
 
     call scree_form_q(store, residual, ni, nj, nk, np)
     call fine_term(store, dt_vol, cfl, tmp, ni, nj, nk, np)
+    call damp_increment(tmp, rfac, dampin, cfl, ni, nj, nk, np)
     call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
 end subroutine scree_plain
 
 
 ! RK stage, multigrid off: fine term only (q = residual), scatter off snapshot.
 subroutine rk_plain(cons, snapshot, residual, dt_vol, alpha, cfl, tmp, &
-        ni, nj, nk, np)
+        rfac, dampin, ni, nj, nk, np)
     implicit none
     integer, intent(in) :: ni, nj, nk, np
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
     real,    intent(in) :: dt_vol(ni-1, nj-1, nk-1)
-    real,    intent(in) :: alpha, cfl
+    real,    intent(in) :: alpha, cfl, dampin
     real,    intent(in) :: snapshot(ni, nj, nk, np)
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: rfac(np)
 
     call fine_term(residual, dt_vol, alpha*cfl, tmp, ni, nj, nk, np)
+    call damp_increment(tmp, rfac, dampin, alpha*cfl, ni, nj, nk, np)
     ! cons = snapshot + cell_to_node(tmp). Distinct in/out (snapshot vs cons).
     call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
 end subroutine rk_plain
@@ -650,7 +841,7 @@ end subroutine rk_plain
 ! scree, multigrid on, coarse-level IRS.
 subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
         fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, rawbuf, sdt, sv, &
-        corr_all, triw, &
+        corr_all, triw, rfac, dampin, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -668,6 +859,8 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     real, intent(inout) :: sv (nc1i, nc1j, nc1k)
     real, intent(inout) :: corr_all(n_corr)
     real, intent(inout) :: triw(n_tri)
+    real, intent(inout) :: rfac(np)
+    real,    intent(in) :: dampin
     external :: smooth_residual_tri_tiled
 
     call scree_form_q(store, residual, ni, nj, nk, np)
@@ -678,7 +871,7 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     call mg_collapse_levels(corr_all, n_levels, ni, nj, nk, np, n_corr)
     call mg_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
                        nc1i, nc1j, nc1k, cons, cons, &
-                       cfl, dt_vol, store, ni, nj, nk, np, rbuf)
+                       cfl, dt_vol, store, ni, nj, nk, np, rbuf, rfac, dampin)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_irs
 
@@ -686,7 +879,7 @@ end subroutine scree_mg_irs
 ! scree, multigrid on, no smoothing.
 subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
         fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, rawbuf, sdt, sv, &
-        corr_all, triw, &
+        corr_all, triw, rfac, dampin, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -704,6 +897,8 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     real, intent(inout) :: sv (nc1i, nc1j, nc1k)
     real, intent(inout) :: corr_all(n_corr)
     real, intent(inout) :: triw(n_tri)
+    real, intent(inout) :: rfac(np)
+    real,    intent(in) :: dampin
     external :: mg_smooth_noop
 
     call scree_form_q(store, residual, ni, nj, nk, np)
@@ -714,7 +909,7 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     call mg_collapse_levels(corr_all, n_levels, ni, nj, nk, np, n_corr)
     call mg_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
                        nc1i, nc1j, nc1k, cons, cons, &
-                       cfl, dt_vol, store, ni, nj, nk, np, rbuf)
+                       cfl, dt_vol, store, ni, nj, nk, np, rbuf, rfac, dampin)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_noirs
 
@@ -722,7 +917,7 @@ end subroutine scree_mg_noirs
 ! RK stage, multigrid on, coarse-level IRS. q = residual (passed directly).
 subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
         alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, &
-        rawbuf, sdt, sv, corr_all, triw, &
+        rawbuf, sdt, sv, corr_all, triw, rfac, dampin, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -740,6 +935,8 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     real, intent(inout) :: sv (nc1i, nc1j, nc1k)
     real, intent(inout) :: corr_all(n_corr)
     real, intent(inout) :: triw(n_tri)
+    real, intent(inout) :: rfac(np)
+    real,    intent(in) :: dampin
     external :: smooth_residual_tri_tiled
 
     call mg_restrict_levels(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, &
@@ -749,14 +946,15 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     call mg_collapse_levels(corr_all, n_levels, ni, nj, nk, np, n_corr)
     call mg_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
                        nc1i, nc1j, nc1k, snapshot, cons, &
-                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, rbuf)
+                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, rbuf, &
+                       rfac, dampin)
 end subroutine rk_mg_irs
 
 
 ! RK stage, multigrid on, no smoothing. q = residual (passed directly).
 subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
         alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, &
-        rawbuf, sdt, sv, corr_all, triw, &
+        rawbuf, sdt, sv, corr_all, triw, rfac, dampin, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -774,6 +972,8 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     real, intent(inout) :: sv (nc1i, nc1j, nc1k)
     real, intent(inout) :: corr_all(n_corr)
     real, intent(inout) :: triw(n_tri)
+    real, intent(inout) :: rfac(np)
+    real,    intent(in) :: dampin
     external :: mg_smooth_noop
 
     call mg_restrict_levels(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, &
@@ -783,5 +983,6 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     call mg_collapse_levels(corr_all, n_levels, ni, nj, nk, np, n_corr)
     call mg_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
                        nc1i, nc1j, nc1k, snapshot, cons, &
-                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, rbuf)
+                       alpha*cfl, dt_vol, residual, ni, nj, nk, np, rbuf, &
+                       rfac, dampin)
 end subroutine rk_mg_noirs

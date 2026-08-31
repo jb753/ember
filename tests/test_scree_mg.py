@@ -70,6 +70,8 @@ def _run_plain(residual, dt_vol, store, cons, ni, nj, nk):
         dt_vol=dt_vol,
         cfl=CFL,
         tmp=tmp,
+        rfac=np.zeros(NP, dtype=np.float32),
+        dampin=0.0,
     )
     return cons_out, store_out
 
@@ -126,6 +128,8 @@ def _run_mg(
         sv=Z(nc1i, nc1j, nc1k),
         corr_all=Z(n_corr),
         triw=Z(n_tri),
+        rfac=Z(NP),
+        dampin=0.0,
     )
     return cons_out, store_out
 
