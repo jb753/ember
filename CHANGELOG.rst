@@ -7,72 +7,17 @@ public API without a deprecation period.
 
 .. _v0.3.0:
 
-0.3.0 (unreleased)
-------------------
+0.3.0
+-----
 
-* Fix the node-targeted multigrid prolongation weights, which on a sheared mesh
-  clustered to a wall could reach -25 and so turn the final hop into an
-  amplifier of the coarse correction rather than a blend of it. Two parts. Each
-  of the hop's three passes is now anchored on the positions the previous pass
-  produced -- the j pass blends two values the i pass placed at a fine node, so
-  its weight has to measure along the segment joining those, not between the
-  coarse centroids of the bracket's own i index, which leaves the target
-  displaced by up to half a coarse i cell and projects that displacement onto a
-  coarse j edge an order of magnitude shorter. And the weights are bounded at
-  ``block.MG_W_LO``/``MG_W_HI`` = -0.25/1.25, which the cell-targeted hops'
-  ``[0, 1]`` clamp had been supplying until the node hop stopped clamping in the
-  interior. On the LISA 1.5-stage rotor the composed worst-case gain of the
-  three passes falls from 1030 to 3.3 and the prolongation's linear-reproduction
-  error from 6.5% to 2.2% of field range; the case diverged in ten steps at
-  ``fac_mgrid=0.2`` and no longer does. Behaviour change on skewed or clustered
-  meshes, and the accuracy of the weights is unchanged where the projection was
-  already well conditioned.
-* Put selective frequency damping back into the march. ``Solver.gain_filt``
-  applied its body force every step, but nothing ever advanced the low-pass
-  filter that force is built from -- the ``Grid.update_filter`` call in
-  ``Solver.run`` was commented out, with a signature predating the split of the
-  filter update out of ``adapt_cfl`` -- so ``conserved_filt_nd`` stayed at the
-  state it seeds itself to on first access, and a nonzero gain pulled the
-  solution back towards its own initial condition instead of towards a running
-  low-pass of it. The filter now advances once per step, after the timestep
-  refresh (it needs the current ``dt_vol``) and outside the scree march's
-  every-fifth-step source cadence (its ``dt`` is a per-step increment, so
-  sharing that cadence would have stretched ``delta_filt`` fivefold). No change
-  at the default ``gain_filt = 0.0``, where the update is skipped and the
-  filter buffer is never allocated.
-* Take the multigrid coarse timestep as the volume-weighted **harmonic** mean
-  of ``dt_vol`` over each block, ``sum(vol)/sum(vol/dt_vol)``, in place of the
-  arithmetic mean ``sum(dt_vol*vol)/sum(vol)``. The block needs the reciprocal
-  of its own mean spectral radius and ``dt_vol`` is ``1/Lambda`` per cell, so
-  the harmonic mean is the consistent one; by Jensen the arithmetic mean was
-  the larger of the two whenever ``Lambda`` varied over a block, overstating
-  the coarse timestep on a stretched mesh by up to 2x for the smallest cells.
-  Behaviour change on stretched meshes; identical on uniform ones.
-* Add ``ember.cases.er_for_duct_yplus``, which solves the duct grid's
-  clustering expansion ratio for a target wall ``y+`` rather than having it
-  picked by hand: a uniform probe grid supplies the mean flow and geometry, a
-  flat-plate skin-friction correlation (White or Prandtl) sets the friction
-  velocity, and ``cluster_symmetric``'s first spacing is bisected onto the
-  resulting wall height. Raises if the target is coarser than the uniform mesh
-  already gives, which no amount of clustering can reach.
-* Rename the throttle pressure correction from ``P_throttle`` to
-  ``dP_throttle``, in ``OutletPatch.get_throttle_stats``, ``ConvergenceStep``
-  and the ``ConvergenceHistory`` column. Breaking, the last of these being a
-  public attribute; a ``.cnv`` written before the rename is relabelled as it
-  unpickles, so existing files still read.
+* Multigrid now applies a uniform coarse correction to the fine nodes, instead
+  of linearly interpolating through the coarse cell centers. This is more
+  stable on clustered grids.
+* Selective frequency damping is available again.
 * Add ``OutletPatch.P_throttle``, the static pressure level a throttled outlet
-  has arrived at [Pa], being the prescribed pressure plus the correction. This
-  is what to record to reproduce an operating point later, and what to
-  re-prescribe to hold one: ``set_P(patch.P_throttle)`` before
-  ``set_throttle(None)``, since clearing a throttle reverts to the pressure
-  that was prescribed rather than freezing the one it reached.
-* Add ``Solver.mix_reflective``, running every mixing plane as a reflective
-  one: at each span station both faces are set to the average of the two sides'
-  circumferential means, in place of the characteristic exchange. Imposed on
-  every plane of every level like ``rf_inlet``, so a run's treatment follows
-  from its configuration; None leaves each plane alone. It reflects every
-  pitchwise harmonic and conserves mass but not the momentum or energy flux,
-  so it is a robustness tool rather than a substitute for the default plane.
+  has been adjusted to. It is equal to the initially prescribed pressure plus the
+  mass flow PID correction. Also for consistency renamed the throttle pressure
+  correction from   ``P_throttle`` to  ``dP_throttle`` in ``ConvergenceHistory``.
 * Delete ``Block.xlen_sq_nd`` and ``Block.conserved_cell_nd``, calculate them
   inline in the Fortran kernels instead.
 * Add ``RealFluid`` real-gas equation of state and fitting module, following

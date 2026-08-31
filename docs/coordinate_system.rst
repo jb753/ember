@@ -54,7 +54,7 @@ each component is contiguous in memory with Fortran column-major ordering.
 For example, nodal velocity vector
 has shape ``(ni, nj, nk, 3)`` with the coordinate direction on
 the last axis, and cell residuals have shape
-``(ni-1, nj, nk, 5)`` with the equation index on the last
+``(ni-1, nj-1, nk-1, 5)`` with the equation index on the last
 axis.
 
 .. _coordinate-system:
@@ -99,7 +99,7 @@ direction.
 
 First, we convert to pseudo-Cartesian coordinates. Subtract the mean angle of all
 four nodes so that :math:`\theta` is measured from the centre of the face. This
-allows us to locally linearise the circumferential direction with by
+allows us to locally linearise the circumferential direction by
 replacing :math:`\theta` with :math:`r\theta` to give a pseudo-Cartesian
 coordinate system and use standard vector operations. Then, we cross the diagonals of the quadrilateral to get the area vector.
 
