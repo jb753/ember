@@ -1,5 +1,5 @@
 Iterative flow-field setters
-=============================
+============================
 
 .. automodule:: ember.set_iterative
    :members:

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Patch &#8212; ember 0.2.1.dev98+gd37f6bfe2 documentation</title>
+    <title>Patch &#8212; ember 0.3.1.dev7+g0a2169fdd documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=eb75f924"></script>
+    <script src="../_static/documentation_options.js?v=1ade279d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,12 +38,79 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev98+gd37f6bfe2</p>
+<p class="blurb">Version 0.3.1.dev7+g0a2169fdd</p>
 
 
 
 
 
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Patch</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#limiting-index-rules">Limiting index rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#types-of-patches">Types of patches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#storage-and-attachment-to-blocks">Storage and attachment to blocks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example-usage">Example usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#base-classes">Base classes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.Patch"><code class="docutils literal notranslate"><span class="pre">Patch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.RevolutionPatch"><code class="docutils literal notranslate"><span class="pre">RevolutionPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.NonReflectingPatch"><code class="docutils literal notranslate"><span class="pre">NonReflectingPatch</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#patch-types">Patch types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.PeriodicPatch"><code class="docutils literal notranslate"><span class="pre">PeriodicPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.InletPatch"><code class="docutils literal notranslate"><span class="pre">InletPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.OutletPatch"><code class="docutils literal notranslate"><span class="pre">OutletPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.MixingPatch"><code class="docutils literal notranslate"><span class="pre">MixingPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.NonMatchPatch"><code class="docutils literal notranslate"><span class="pre">NonMatchPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.RotatingPatch"><code class="docutils literal notranslate"><span class="pre">RotatingPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.CoolingPatch"><code class="docutils literal notranslate"><span class="pre">CoolingPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.InviscidPatch"><code class="docutils literal notranslate"><span class="pre">InviscidPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.CuspPatch"><code class="docutils literal notranslate"><span class="pre">CuspPatch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.ProbePatch"><code class="docutils literal notranslate"><span class="pre">ProbePatch</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#collections">Collections</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.BlockPatchCollection"><code class="docutils literal notranslate"><span class="pre">BlockPatchCollection</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.patch.GridPatchCollection"><code class="docutils literal notranslate"><span class="pre">GridPatchCollection</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
 
 
 <div id="ember-versions" hidden>
@@ -90,75 +157,7 @@
         // Single-version or local build; leave the picker hidden.
     });
 })();
-</script>
-<search id="searchbox" style="display: none" role="search">
-    <div class="searchformwrapper">
-    <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</search>
-<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
-<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
-<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Real gas fitting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
-<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
-<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
-<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Patch</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#limiting-index-rules">Limiting index rules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#types-of-patches">Types of patches</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#storage-and-attachment-to-blocks">Storage and attachment to blocks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#example-usage">Example usage</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#base-classes">Base classes</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.Patch"><code class="docutils literal notranslate"><span class="pre">patch.Patch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.RevolutionPatch"><code class="docutils literal notranslate"><span class="pre">patch.RevolutionPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.NonReflectingPatch"><code class="docutils literal notranslate"><span class="pre">patch.NonReflectingPatch</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#patch-types">Patch types</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.PeriodicPatch"><code class="docutils literal notranslate"><span class="pre">patch.PeriodicPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.InletPatch"><code class="docutils literal notranslate"><span class="pre">patch.InletPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.OutletPatch"><code class="docutils literal notranslate"><span class="pre">patch.OutletPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.MixingPatch"><code class="docutils literal notranslate"><span class="pre">patch.MixingPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.NonMatchPatch"><code class="docutils literal notranslate"><span class="pre">patch.NonMatchPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.RotatingPatch"><code class="docutils literal notranslate"><span class="pre">patch.RotatingPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.CoolingPatch"><code class="docutils literal notranslate"><span class="pre">patch.CoolingPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.InviscidPatch"><code class="docutils literal notranslate"><span class="pre">patch.InviscidPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.CuspPatch"><code class="docutils literal notranslate"><span class="pre">patch.CuspPatch</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.ProbePatch"><code class="docutils literal notranslate"><span class="pre">patch.ProbePatch</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#collections">Collections</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.BlockPatchCollection"><code class="docutils literal notranslate"><span class="pre">patch.BlockPatchCollection</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.patch.GridPatchCollection"><code class="docutils literal notranslate"><span class="pre">patch.GridPatchCollection</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
-<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
-<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
-<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
-</ul>
-
-<div class="relations">
+</script><div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
@@ -1514,10 +1513,9 @@ CFL does not.</p>
 <p>The price of the fixed pressure scale is a loop gain of
 <span class="math notranslate nohighlight">\(p_\mathrm{ref} / 2q = (\rho_\mathrm{ref}/\rho)
 (V_\mathrm{ref}/V_m)^2\)</span> rather than exactly one, so the gains do assume
-the references are representative of the flow, as
-<a class="reference internal" href="cases.html#ember.cases.build_duct_grid" title="ember.cases.build_duct_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cases.build_duct_grid()</span></code></a> sets them. A <code class="docutils literal notranslate"><span class="pre">V_ref</span></code> far from the
-exit velocity moves the loop gain by its square, and is the one case
-where these want retuning.</p>
+the reference scales are representative of the flow. A <code class="docutils literal notranslate"><span class="pre">V_ref</span></code> far
+from the exit velocity moves the loop gain by its square, and is the
+one case where these want retuning.</p>
 <p>Only one outlet patch in a grid may be throttled; the solver refuses a
 grid carrying more. Two patches
 driving independent controllers at the same target would each apply the
@@ -1546,12 +1544,11 @@ point and then holds it. See <a class="reference internal" href="#ember.patch.Ou
 </p></li>
 <li><p><strong>Kp</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Proportional gain, dimensionless. Default 0.5, half the Newton step
 of 1 above.</p></li>
-<li><p><strong>Ki</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Integral gain, dimensionless. Default 0.002, from a sweep on the
-square duct of <a class="reference internal" href="cases.html#ember.cases.build_duct_grid" title="ember.cases.build_duct_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cases.build_duct_grid()</span></code></a> at <code class="docutils literal notranslate"><span class="pre">cfl=5</span></code>:
-ten times that rings, with six crossings of the target at a period
-of 360 steps, and a third of it never arrives. Since the integral
-only has to remove the droop, erring low costs settling time while
-erring high costs stability.</p></li>
+<li><p><strong>Ki</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Integral gain, dimensionless. Default 0.002, from a sweep on a
+square duct at <code class="docutils literal notranslate"><span class="pre">cfl=5</span></code>: ten times that rings, with six crossings
+of the target at a period of 360 steps, and a third of it never
+arrives. Since the integral only has to remove the droop, erring low
+costs settling time while erring high costs stability.</p></li>
 </ul>
 </dd>
 </dl>

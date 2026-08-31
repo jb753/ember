@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Solver &#8212; ember 0.2.1.dev98+gd37f6bfe2 documentation</title>
+    <title>Solver &#8212; ember 0.3.1.dev7+g0a2169fdd documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=eb75f924"></script>
+    <script src="../_static/documentation_options.js?v=1ade279d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,12 +38,92 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev98+gd37f6bfe2</p>
+<p class="blurb">Version 0.3.1.dev7+g0a2169fdd</p>
 
 
 
 
 
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Solver</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview-of-one-time-step">Overview of one time step</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#time-integrators">Time integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cfl-number">CFL number</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#smoothing">Smoothing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multigrid">Multigrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#body-forces-and-viscous-model">Body forces and viscous model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#boundary-patches-and-inter-block-coupling">Boundary patches and inter-block coupling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#logging-averaging-and-convergence-history">Logging, averaging, and convergence history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.BaseSolver"><code class="docutils literal notranslate"><span class="pre">BaseSolver</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.BaseSolver.run"><code class="docutils literal notranslate"><span class="pre">run()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.Solver"><code class="docutils literal notranslate"><span class="pre">Solver</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_step"><code class="docutils literal notranslate"><span class="pre">n_step</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_step_log"><code class="docutils literal notranslate"><span class="pre">n_step_log</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_step_avg"><code class="docutils literal notranslate"><span class="pre">n_step_avg</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.cfl"><code class="docutils literal notranslate"><span class="pre">cfl</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf4"><code class="docutils literal notranslate"><span class="pre">sf4</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf2"><code class="docutils literal notranslate"><span class="pre">sf2</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.inviscid"><code class="docutils literal notranslate"><span class="pre">inviscid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.fac_visc"><code class="docutils literal notranslate"><span class="pre">fac_visc</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf_resid"><code class="docutils literal notranslate"><span class="pre">sf_resid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.gain_filt"><code class="docutils literal notranslate"><span class="pre">gain_filt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.delta_filt"><code class="docutils literal notranslate"><span class="pre">delta_filt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_stage"><code class="docutils literal notranslate"><span class="pre">n_stage</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_levels"><code class="docutils literal notranslate"><span class="pre">n_levels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.fac_mgrid"><code class="docutils literal notranslate"><span class="pre">fac_mgrid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.expon_mgrid"><code class="docutils literal notranslate"><span class="pre">expon_mgrid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_inlet"><code class="docutils literal notranslate"><span class="pre">rf_inlet</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_outlet"><code class="docutils literal notranslate"><span class="pre">rf_outlet</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_mix"><code class="docutils literal notranslate"><span class="pre">rf_mix</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_exchange"><code class="docutils literal notranslate"><span class="pre">rf_exchange</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.mix_reflective"><code class="docutils literal notranslate"><span class="pre">mix_reflective</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.run"><code class="docutils literal notranslate"><span class="pre">run()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.run_fmg"><code class="docutils literal notranslate"><span class="pre">run_fmg()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.scree_step"><code class="docutils literal notranslate"><span class="pre">scree_step()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.mg_coarse_shapes"><code class="docutils literal notranslate"><span class="pre">mg_coarse_shapes()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.advance_rk_stage_mg"><code class="docutils literal notranslate"><span class="pre">advance_rk_stage_mg()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.rk_step"><code class="docutils literal notranslate"><span class="pre">rk_step()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
 
 
 <div id="ember-versions" hidden>
@@ -90,88 +170,7 @@
         // Single-version or local build; leave the picker hidden.
     });
 })();
-</script>
-<search id="searchbox" style="display: none" role="search">
-    <div class="searchformwrapper">
-    <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</search>
-<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
-<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
-<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Real gas fitting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
-<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
-<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
-<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
-<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
-<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Solver</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#overview-of-one-time-step">Overview of one time step</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#time-integrators">Time integrators</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#cfl-number">CFL number</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#smoothing">Smoothing</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#multigrid">Multigrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#body-forces-and-viscous-model">Body forces and viscous model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#boundary-patches-and-inter-block-coupling">Boundary patches and inter-block coupling</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#logging-averaging-and-convergence-history">Logging, averaging, and convergence history</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.solver.BaseSolver"><code class="docutils literal notranslate"><span class="pre">solver.BaseSolver</span></code></a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.BaseSolver.run"><code class="docutils literal notranslate"><span class="pre">solver.BaseSolver.run()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.solver.Solver"><code class="docutils literal notranslate"><span class="pre">solver.Solver</span></code></a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_step"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_step</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_step_log"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_step_log</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_step_avg"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_step_avg</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.cfl"><code class="docutils literal notranslate"><span class="pre">solver.Solver.cfl</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf4"><code class="docutils literal notranslate"><span class="pre">solver.Solver.sf4</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf2"><code class="docutils literal notranslate"><span class="pre">solver.Solver.sf2</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.inviscid"><code class="docutils literal notranslate"><span class="pre">solver.Solver.inviscid</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.fac_visc"><code class="docutils literal notranslate"><span class="pre">solver.Solver.fac_visc</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf_resid"><code class="docutils literal notranslate"><span class="pre">solver.Solver.sf_resid</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.gain_filt"><code class="docutils literal notranslate"><span class="pre">solver.Solver.gain_filt</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.delta_filt"><code class="docutils literal notranslate"><span class="pre">solver.Solver.delta_filt</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_stage"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_stage</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_levels"><code class="docutils literal notranslate"><span class="pre">solver.Solver.n_levels</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.fac_mgrid"><code class="docutils literal notranslate"><span class="pre">solver.Solver.fac_mgrid</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.expon_mgrid"><code class="docutils literal notranslate"><span class="pre">solver.Solver.expon_mgrid</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_inlet"><code class="docutils literal notranslate"><span class="pre">solver.Solver.rf_inlet</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_outlet"><code class="docutils literal notranslate"><span class="pre">solver.Solver.rf_outlet</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_mix"><code class="docutils literal notranslate"><span class="pre">solver.Solver.rf_mix</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_exchange"><code class="docutils literal notranslate"><span class="pre">solver.Solver.rf_exchange</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.mix_reflective"><code class="docutils literal notranslate"><span class="pre">solver.Solver.mix_reflective</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.run"><code class="docutils literal notranslate"><span class="pre">solver.Solver.run()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.run_fmg"><code class="docutils literal notranslate"><span class="pre">solver.Solver.run_fmg()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.solver.scree_step"><code class="docutils literal notranslate"><span class="pre">solver.scree_step()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.solver.mg_coarse_shapes"><code class="docutils literal notranslate"><span class="pre">solver.mg_coarse_shapes()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.solver.advance_rk_stage_mg"><code class="docutils literal notranslate"><span class="pre">solver.advance_rk_stage_mg()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.solver.rk_step"><code class="docutils literal notranslate"><span class="pre">solver.rk_step()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
-<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
-<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
-</ul>
-
-<div class="relations">
+</script><div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
@@ -210,10 +209,13 @@ control each stage.</p>
 <h2>Overview of one time step<a class="headerlink" href="#overview-of-one-time-step" title="Link to this heading">¶</a></h2>
 <p><a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a> performs the following operations each step:</p>
 <ol class="arabic simple">
-<li><p><strong>Boundary conditions</strong>: <a class="reference internal" href="grid.html#ember.grid.Grid.update_bconds" title="ember.grid.Grid.update_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_bconds()</span></code></a> updates
-boundary patch targets (mass-flow throttle, radial equilibrium,
-mixing-plane exchange) and <a class="reference internal" href="grid.html#ember.grid.Grid.apply_bconds" title="ember.grid.Grid.apply_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply_bconds()</span></code></a> imposes
-those boundary conditions by modifying <a class="reference internal" href="block.html#ember.block.Block.conserved_nd" title="ember.block.Block.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved_nd</span></code></a>.</p></li>
+<li><p><strong>Cache flush and boundary conditions</strong>:
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_cached_conserved" title="ember.grid.Grid.update_cached_conserved"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_cached_conserved()</span></code></a> refreshes the pressure and
+temperature caches left stale by the previous step’s in-place march, then
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_bconds" title="ember.grid.Grid.update_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_bconds()</span></code></a> updates boundary patch targets
+(mass-flow throttle, radial equilibrium, mixing-plane exchange) and
+<a class="reference internal" href="grid.html#ember.grid.Grid.apply_bconds" title="ember.grid.Grid.apply_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply_bconds()</span></code></a> imposes those boundary conditions by
+modifying <a class="reference internal" href="block.html#ember.block.Block.conserved_nd" title="ember.block.Block.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved_nd</span></code></a>.</p></li>
 <li><p><strong>NaN check</strong>: <a class="reference internal" href="grid.html#ember.grid.Grid.check_nan" title="ember.grid.Grid.check_nan"><code class="xref py py-meth docutils literal notranslate"><span class="pre">check_nan()</span></code></a> aborts the run early if
 the conserved state has gone non-finite. Sets a flag on the returned
 <a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConvergenceHistory</span></code></a> and leaves the
@@ -227,7 +229,7 @@ integrator, <a class="reference internal" href="#ember.solver.Solver.n_stage" ti
 recomputed every few steps to save cost.</p></li>
 <li><p><strong>Update time step</strong>: <a class="reference internal" href="grid.html#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_timestep()</span></code></a> computes
 the time step and stores it pre-divided by cell volume in
-:attr:<code class="docutils literal notranslate"><span class="pre">ember.block.Block.block.dt_vol_nd</span></code>.</p></li>
+<a class="reference internal" href="block.html#ember.block.Block.dt_vol_nd" title="ember.block.Block.dt_vol_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dt_vol_nd</span></code></a>.</p></li>
 <li><p><strong>Filter</strong>: when <a class="reference internal" href="#ember.solver.Solver.gain_filt" title="ember.solver.Solver.gain_filt"><code class="xref py py-attr docutils literal notranslate"><span class="pre">gain_filt</span></code></a> is nonzero,
 <a class="reference internal" href="grid.html#ember.grid.Grid.update_filter" title="ember.grid.Grid.update_filter"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_filter()</span></code></a> advances the
 selective-frequency-damping low-pass filter one step using that time step,
@@ -346,8 +348,11 @@ two knobs:</p>
 multigrid. Each block’s cell counts must be an exact multiple of the coarsest
 block size <code class="docutils literal notranslate"><span class="pre">2**n_levels</span></code> in every direction, or <a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a> raises before
 marching.</p></li>
-<li><p><a class="reference internal" href="#ember.solver.Solver.fac_mgrid" title="ember.solver.Solver.fac_mgrid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">fac_mgrid</span></code></a> – scaling on the coarse correction, with
-successively coarser levels damped further; 0 also disables multigrid.</p></li>
+<li><p><a class="reference internal" href="#ember.solver.Solver.fac_mgrid" title="ember.solver.Solver.fac_mgrid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">fac_mgrid</span></code></a> – scaling on the coarse correction; 0 also
+disables multigrid.</p></li>
+<li><p><a class="reference internal" href="#ember.solver.Solver.expon_mgrid" title="ember.solver.Solver.expon_mgrid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">expon_mgrid</span></code></a> – base of the per-level geometric decay applied
+on top of <code class="docutils literal notranslate"><span class="pre">fac_mgrid</span></code>, so successively coarser levels are damped further
+(<code class="docutils literal notranslate"><span class="pre">coef_l</span> <span class="pre">~</span> <span class="pre">expon_mgrid**-(l-1)</span></code>).</p></li>
 </ul>
 <p><a class="reference internal" href="#ember.solver.Solver.sf_resid" title="ember.solver.Solver.sf_resid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf_resid</span></code></a> additionally drives implicit residual smoothing
 (Jameson IRS) on the fine-grid residual via
@@ -604,7 +609,7 @@ value alone.</p>
 <span class="sig-name descname"><span class="pre">mix_reflective</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#ember.solver.Solver.mix_reflective" title="Link to this definition">¶</a></dt>
 <dd><p>Run every mixing plane as a reflective one, imposing the mixed-out
 state directly instead of the characteristic exchange.</p>
-<p>The default plane is the whole of <span class="bibtex-citation" id="id3">Saxer and Giles [<a class="reference internal" href="../references.html#id9" title="A. P. Saxer and M. B. Giles. &quot;Quasi-Three-Dimensional Nonreflecting Boundary Conditions for Euler Equations Calculations&quot;. J. Propuls. Power, 9(2):263–271, 1993. doi:10.2514/3.23618.">1</a>]</span>: the cross-plane
+<p>The default plane is the whole of <span class="bibtex-citation" id="id3">Saxer and Giles [<a class="reference internal" href="../references.html#id10" title="A. P. Saxer and M. B. Giles. &quot;Quasi-Three-Dimensional Nonreflecting Boundary Conditions for Euler Equations Calculations&quot;. J. Propuls. Power, 9(2):263–271, 1993. doi:10.2514/3.23618.">2</a>]</span>: the cross-plane
 mismatch is split by direction of propagation, relaxed onto a target with
 <a class="reference internal" href="#ember.solver.Solver.rf_exchange" title="ember.solver.Solver.rf_exchange"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_exchange</span></code></a>, and the target drives only the mean mode of a boundary
 condition that stays non-reflecting to the harmonics. This replaces all of

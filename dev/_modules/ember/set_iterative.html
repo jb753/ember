@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.set_iterative &#8212; ember 0.2.1.dev98+gd37f6bfe2 documentation</title>
+    <title>ember.set_iterative &#8212; ember 0.3.1.dev7+g0a2169fdd documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=eb75f924"></script>
+    <script src="../../_static/documentation_options.js?v=1ade279d"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,12 +34,49 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev98+gd37f6bfe2</p>
+<p class="blurb">Version 0.3.1.dev7+g0a2169fdd</p>
 
 
 
 
 
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Version history</a></li>
+</ul>
 
 
 <div id="ember-versions" hidden>
@@ -86,45 +123,7 @@
         // Single-version or local build; leave the picker hidden.
     });
 })();
-</script>
-<search id="searchbox" style="display: none" role="search">
-    <div class="searchformwrapper">
-    <form class="search" action="../../search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</search>
-<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
-<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Real gas fitting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api/cases.html">Cases</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Version history</a></li>
-</ul>
-
-<div class="relations">
+</script><div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="../../index.html">Documentation overview</a><ul>
@@ -150,17 +149,67 @@
           <div class="body" role="main">
             
   <h1>Source code for ember.set_iterative</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;Iterative setter functions for Block objects.</span>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Iterative setter functions for :class:`~ember.block.Block` objects.</span>
 
-<span class="sd">This module provides iterative solvers for initializing thermodynamically consistent flow fields</span>
-<span class="sd">that satisfy complex constraints such as specified stagnation enthalpy, entropy, and flow angles.</span>
-<span class="sd">These functions implement Newton-Raphson style iterations to solve implicit equations coupling</span>
-<span class="sd">thermodynamic state variables with kinematic constraints, enabling initialization of inlet</span>
-<span class="sd">boundary conditions with prescribed total pressure/temperature or the creation of exact test</span>
-<span class="sd">cases. All setters modify Block objects in-place and support both absolute and relative reference</span>
-<span class="sd">frames for turbomachinery applications. The module is essential for setting up physically</span>
-<span class="sd">realistic initial conditions that preserve thermodynamic relations while satisfying specified</span>
-<span class="sd">flow topology constraints.</span>
+<span class="sd">This module provides iterative solvers for initialising</span>
+<span class="sd">:class:`~ember.block.Block` objects with flow fields from combined</span>
+<span class="sd">thermodynamic and kinematic variable sets that do not have a closed-form</span>
+<span class="sd">solution for the corresponding conserved variables. For example, stagnation</span>
+<span class="sd">pressure depends on both velocity and static pressure. These functions run a</span>
+<span class="sd">fixed-point iteration on density to solve the ensuing implicit equations, then</span>
+<span class="sd">modify the block in place with the converged flow field. Like the non-iterative</span>
+<span class="sd">setters such as :func:`~ember.block.Block.set_P_T`, inputs must be</span>
+<span class="sd">broadcastable to the block shape.</span>
+
+<span class="sd">The prescribed stagnation enthalpy and flow angles are in the absolute</span>
+<span class="sd">(stationary) frame; the velocity magnitude is closed by a Mach number, a</span>
+<span class="sd">meridional mass flux, or a fixed swirl.</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   set_ho_s_Ma_Alpha_Beta</span>
+<span class="sd">   set_ho_s_rhoVm_Alpha_Beta</span>
+<span class="sd">   set_ho_s_rhoVm_Vt_Beta</span>
+
+<span class="sd">For rotating rows: rothalpy (or relative total conditions) and relative flow</span>
+<span class="sd">angles are prescribed, and the energy balance is closed with the absolute</span>
+<span class="sd">velocity through the local blade speed :math:`U = r\,\Omega`. The block must</span>
+<span class="sd">carry its radial coordinate before these are called (angular velocity defaults</span>
+<span class="sd">to zero if not set).</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   set_I_s_Ma_rel_Alpha_rel_Beta</span>
+<span class="sd">   set_Po_To_Ma_rel_Alpha_rel_Beta</span>
+
+<span class="sd">Example usage</span>
+<span class="sd">=============</span>
+
+<span class="sd">Initialise a block from stagnation conditions, a relative Mach number that</span>
+<span class="sd">ramps along the block, and flow angles:</span>
+
+<span class="sd">.. code-block:: python</span>
+
+<span class="sd">    import numpy as np</span>
+<span class="sd">    import ember.block</span>
+<span class="sd">    import ember.fluid</span>
+<span class="sd">    import ember.set_iterative</span>
+
+<span class="sd">    fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.7)</span>
+<span class="sd">    block = ember.block.Block(shape=(4,))</span>
+<span class="sd">    block.set_fluid(fluid)</span>
+<span class="sd">    block.set_r(1.0)  # blade speed is U = r * Omega, so the radius is required</span>
+<span class="sd">    block.set_Omega(100.0)</span>
+
+<span class="sd">    # Absolute Po [Pa] and To [K], relative Mach, yaw and pitch [deg]. Scalars</span>
+<span class="sd">    # broadcast across the block; Ma_rel here is a profile.</span>
+<span class="sd">    ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta(</span>
+<span class="sd">        block, Po=1.0e5, To=300.0, Ma_rel=np.linspace(0.2, 0.6, 4),</span>
+<span class="sd">        Alpha_rel=0.0, Beta=0.0,</span>
+<span class="sd">    )</span>
+<span class="sd">    # block.Po ~ 1e5, block.To ~ 300, block.Ma_rel ~ [0.2 ... 0.6];</span>
+<span class="sd">    # block.Ma (absolute) differs from Ma_rel by the wheel speed</span>
+
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
@@ -400,31 +449,30 @@
     <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
     <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
 <span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set flow field using stagnation enthalpy, entropy, absolute Mach number, and absolute flow angles.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set the flow field from stagnation enthalpy, entropy, absolute Mach number and flow angles.</span>
+
+<span class="sd">    Entropy is held constant while density is iterated until the static state</span>
+<span class="sd">    and the velocity implied by the Mach number satisfy the stagnation</span>
+<span class="sd">    enthalpy. Velocities are in the absolute (stationary) frame.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    block : Block</span>
-<span class="sd">        The block object to modify.</span>
-<span class="sd">    ho : Array</span>
-<span class="sd">        Stagnation enthalpy [J/kg].</span>
-<span class="sd">    s : Array</span>
-<span class="sd">        Entropy [J/kg/K].</span>
-<span class="sd">    Ma : Array</span>
-<span class="sd">        Absolute Mach number [--].</span>
-<span class="sd">    Alpha : Array, default=0.0</span>
-<span class="sd">        Absolute yaw angle [deg].</span>
-<span class="sd">    Beta : Array, default=0.0</span>
-<span class="sd">        Pitch angle [deg].</span>
-<span class="sd">    max_iter : int, default=200</span>
-<span class="sd">        Maximum number of iterations for convergence.</span>
-<span class="sd">    tol : float, default=1e-6</span>
-<span class="sd">        Convergence tolerance.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    Block</span>
-<span class="sd">        The modified block object.</span>
+<span class="sd">        Block to modify in place.</span>
+<span class="sd">    ho : array-like</span>
+<span class="sd">        Stagnation enthalpy [J/kg]. Must broadcast to block shape.</span>
+<span class="sd">    s : array-like</span>
+<span class="sd">        Specific entropy [J/kg/K]. Must broadcast to block shape.</span>
+<span class="sd">    Ma : array-like</span>
+<span class="sd">        Absolute Mach number [-]. Must broadcast to block shape.</span>
+<span class="sd">    Alpha : array-like, default 0.0</span>
+<span class="sd">        Absolute yaw angle [deg]. Must broadcast to block shape.</span>
+<span class="sd">    Beta : array-like, default 0.0</span>
+<span class="sd">        Pitch angle [deg]. Must broadcast to block shape.</span>
+<span class="sd">    max_iter : int, default 200</span>
+<span class="sd">        Maximum number of iterations before a :class:`RuntimeError` is raised.</span>
+<span class="sd">    tol : float, default 1e-6</span>
+<span class="sd">        Relative convergence tolerance on density.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># Nondimensionalise inputs</span>
@@ -463,31 +511,31 @@
     <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
     <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
 <span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set flow field using stagnation enthalpy, entropy, momentum density, and absolute flow angles.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set the flow field from stagnation enthalpy, entropy, meridional mass flux and flow angles.</span>
+
+<span class="sd">    Entropy is held constant while density is iterated until the static state</span>
+<span class="sd">    and the velocity implied by the meridional mass flux satisfy the stagnation</span>
+<span class="sd">    enthalpy. Velocities are in the absolute (stationary) frame.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    block : Block</span>
-<span class="sd">        The block object to modify.</span>
-<span class="sd">    ho : Array</span>
-<span class="sd">        Stagnation enthalpy [J/kg].</span>
-<span class="sd">    s : Array</span>
-<span class="sd">        Entropy [J/kg/K].</span>
-<span class="sd">    rhoV : Array</span>
-<span class="sd">        Momentum density magnitude [kg/m^2/s].</span>
-<span class="sd">    Alpha : Array, default=0.0</span>
-<span class="sd">        Absolute yaw angle [deg].</span>
-<span class="sd">    Beta : Array, default=0.0</span>
-<span class="sd">        Pitch angle [deg].</span>
-<span class="sd">    max_iter : int, default=200</span>
-<span class="sd">        Maximum number of iterations for convergence.</span>
-<span class="sd">    tol : float, default=1e-6</span>
-<span class="sd">        Convergence tolerance.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    Block</span>
-<span class="sd">        The modified block object.</span>
+<span class="sd">        Block to modify in place.</span>
+<span class="sd">    ho : array-like</span>
+<span class="sd">        Stagnation enthalpy [J/kg]. Must broadcast to block shape.</span>
+<span class="sd">    s : array-like</span>
+<span class="sd">        Specific entropy [J/kg/K]. Must broadcast to block shape.</span>
+<span class="sd">    rhoVm : array-like</span>
+<span class="sd">        Meridional mass flux (momentum density) [kg/m^2/s]. Must broadcast to</span>
+<span class="sd">        block shape.</span>
+<span class="sd">    Alpha : array-like, default 0.0</span>
+<span class="sd">        Absolute yaw angle [deg]. Must broadcast to block shape.</span>
+<span class="sd">    Beta : array-like, default 0.0</span>
+<span class="sd">        Pitch angle [deg]. Must broadcast to block shape.</span>
+<span class="sd">    max_iter : int, default 200</span>
+<span class="sd">        Maximum number of iterations before a :class:`RuntimeError` is raised.</span>
+<span class="sd">    tol : float, default 1e-6</span>
+<span class="sd">        Relative convergence tolerance on density.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># Nondimensionalise inputs</span>
@@ -526,53 +574,38 @@
     <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
     <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
 <span class="p">):</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Set flow field using stagnation enthalpy, entropy, meridional mass flux, and fixed swirl.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Set the flow field from stagnation enthalpy, entropy, meridional mass flux and fixed swirl.</span>
 
-<span class="sd">    Solves the state of a subsonic isentropic meridional contraction (or</span>
-<span class="sd">    expansion) carrying a fixed tangential velocity. The stagnation enthalpy,</span>
-<span class="sd">    entropy and tangential velocity are held fixed while the meridional velocity</span>
-<span class="sd">    and thermodynamic state adjust to carry the prescribed meridional mass flux</span>
-<span class="sd">    :math:`\rho V_m`. The pitch angle :math:`\beta` fixes the split of</span>
-<span class="sd">    :math:`V_m` into axial and radial components.</span>
-
-<span class="sd">    .. math::</span>
-
-<span class="sd">        h_0 = h(\rho, s) + \tfrac{1}{2}(V_m^2 + V_\theta^2), \qquad</span>
-<span class="sd">        \rho V_m = \mathrm{const}</span>
-
-<span class="sd">    Holding :math:`V_\theta` fixed (rather than the yaw angle) conserves angular</span>
-<span class="sd">    momentum :math:`r V_\theta` at fixed radius, distinguishing this from</span>
+<span class="sd">    The stagnation enthalpy, entropy and tangential velocity are held fixed</span>
+<span class="sd">    while the meridional velocity and static state adjust to carry the</span>
+<span class="sd">    prescribed meridional mass flux :math:`\rho V_m`. Holding :math:`V_\theta`</span>
+<span class="sd">    rather than the yaw angle conserves angular momentum at fixed radius, unlike</span>
 <span class="sd">    :func:`set_ho_s_rhoVm_Alpha_Beta`.</span>
 
-<span class="sd">    Only the **subsonic** meridional branch is supported (the density</span>
-<span class="sd">    fixed-point iteration converges there). The meridional mass flux</span>
-<span class="sd">    :math:`\rho V_m` rises with :math:`V_m` to a maximum at meridional Mach</span>
-<span class="sd">    number unity; a :class:`RuntimeError` is raised if the requested mass flux</span>
-<span class="sd">    exceeds this sonic maximum, since the meridional flow then chokes.</span>
+<span class="sd">    Only the subsonic meridional branch is solved. :math:`\rho V_m` is maximised</span>
+<span class="sd">    at meridional Mach number unity; a :class:`RuntimeError` is raised if the</span>
+<span class="sd">    requested value exceeds that sonic maximum.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    block : Block</span>
-<span class="sd">        The block object to modify.</span>
-<span class="sd">    ho : Array</span>
-<span class="sd">        Stagnation enthalpy [J/kg].</span>
-<span class="sd">    s : Array</span>
-<span class="sd">        Entropy [J/kg/K].</span>
-<span class="sd">    rhoVm : Array</span>
-<span class="sd">        Meridional momentum density (mass flux per unit area) [kg/m^2/s].</span>
-<span class="sd">    Vt : Array</span>
-<span class="sd">        Tangential (swirl) velocity, held fixed [m/s].</span>
-<span class="sd">    Beta : Array, default=0.0</span>
-<span class="sd">        Pitch angle [deg].</span>
-<span class="sd">    max_iter : int, default=200</span>
-<span class="sd">        Maximum number of iterations for convergence.</span>
-<span class="sd">    tol : float, default=1e-6</span>
-<span class="sd">        Convergence tolerance.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    Block</span>
-<span class="sd">        The modified block object.</span>
+<span class="sd">        Block to modify in place.</span>
+<span class="sd">    ho : array-like</span>
+<span class="sd">        Stagnation enthalpy [J/kg]. Must broadcast to block shape.</span>
+<span class="sd">    s : array-like</span>
+<span class="sd">        Specific entropy [J/kg/K]. Must broadcast to block shape.</span>
+<span class="sd">    rhoVm : array-like</span>
+<span class="sd">        Meridional mass flux (momentum density) [kg/m^2/s]. Must broadcast to</span>
+<span class="sd">        block shape.</span>
+<span class="sd">    Vt : array-like</span>
+<span class="sd">        Tangential (swirl) velocity, held fixed [m/s]. Must broadcast to block</span>
+<span class="sd">        shape.</span>
+<span class="sd">    Beta : array-like, default 0.0</span>
+<span class="sd">        Pitch angle [deg]. Must broadcast to block shape.</span>
+<span class="sd">    max_iter : int, default 200</span>
+<span class="sd">        Maximum number of iterations before a :class:`RuntimeError` is raised.</span>
+<span class="sd">    tol : float, default 1e-6</span>
+<span class="sd">        Relative convergence tolerance on density.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># Nondimensionalise inputs</span>
@@ -674,42 +707,32 @@
     <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
     <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
 <span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set flow field using rothalpy, entropy, relative Mach number, and relative flow angles.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Set the flow field from rothalpy, entropy, relative Mach number and relative flow angles.</span>
+
+<span class="sd">    Entropy is held constant while density is iterated until the static state</span>
+<span class="sd">    and the relative velocity satisfy the rothalpy</span>
+<span class="sd">    :math:`I = h + \tfrac12 V^2 - U V_\theta`, where :math:`V_\theta` is the</span>
+<span class="sd">    absolute tangential velocity and :math:`U = r\,\Omega` the blade speed. Set</span>
+<span class="sd">    the block radius (and rotation rate, if rotating) first.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    block : Block</span>
-<span class="sd">        The block object to modify.</span>
-<span class="sd">    I : Array</span>
-<span class="sd">        Rothalpy (rotational stagnation enthalpy) [J/kg].</span>
-<span class="sd">    s : Array</span>
-<span class="sd">        Entropy [J/kg/K].</span>
-<span class="sd">    Ma_rel : Array</span>
-<span class="sd">        Mach number in relative frame [--].</span>
-<span class="sd">    Alpha_rel : Array</span>
-<span class="sd">        Relative yaw angle (tangential flow direction) [deg].</span>
-<span class="sd">    Beta : Array</span>
-<span class="sd">        Pitch angle (radial flow direction) [deg].</span>
-<span class="sd">    max_iter : int, default=200</span>
-<span class="sd">        Maximum number of iterations for convergence.</span>
-<span class="sd">    tol : float, default=1e-6</span>
-<span class="sd">        Convergence tolerance.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    Block</span>
-<span class="sd">        The modified block object.</span>
-
-<span class="sd">    Notes</span>
-<span class="sd">    -----</span>
-<span class="sd">    This method is particularly useful for turbomachinery applications where:</span>
-<span class="sd">    - Rothalpy I is conserved across blade rows</span>
-<span class="sd">    - Flow angles are specified in the relative frame</span>
-<span class="sd">    - Alpha_rel = 0 means no relative swirl (Vt_rel = 0)</span>
-<span class="sd">    - Beta = 90 means purely radial flow</span>
-
-<span class="sd">    The method solves the rothalpy constraint directly:</span>
-<span class="sd">    I = h_static + 0.5*V_abs^2 - U*Vt_abs</span>
+<span class="sd">        Block to modify in place.</span>
+<span class="sd">    I : array-like</span>
+<span class="sd">        Rothalpy [J/kg]. Must broadcast to block shape.</span>
+<span class="sd">    s : array-like</span>
+<span class="sd">        Specific entropy [J/kg/K]. Must broadcast to block shape.</span>
+<span class="sd">    Ma_rel : array-like</span>
+<span class="sd">        Relative-frame Mach number [-]. Must broadcast to block shape.</span>
+<span class="sd">    Alpha_rel : array-like</span>
+<span class="sd">        Relative yaw angle [deg]. Must broadcast to block shape.</span>
+<span class="sd">    Beta : array-like</span>
+<span class="sd">        Pitch angle [deg]. Must broadcast to block shape.</span>
+<span class="sd">    max_iter : int, default 200</span>
+<span class="sd">        Maximum number of iterations before a :class:`RuntimeError` is raised.</span>
+<span class="sd">    tol : float, default 1e-6</span>
+<span class="sd">        Relative convergence tolerance on density.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># Nondimensionalise inputs</span>
@@ -740,48 +763,40 @@
     <span class="n">max_iter</span><span class="o">=</span><span class="n">_DEFAULT_MAX_ITER</span><span class="p">,</span>
     <span class="n">tol</span><span class="o">=</span><span class="n">_DEFAULT_TOL</span><span class="p">,</span>
 <span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set flow field using total pressure, total temperature, relative Mach number, and relative flow angles.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Set the flow field from absolute total conditions, relative Mach number and relative flow angles.</span>
+
+<span class="sd">    The total pressure and temperature fix the absolute stagnation enthalpy and</span>
+<span class="sd">    entropy. Entropy is held constant while density is iterated until the static</span>
+<span class="sd">    state and the relative velocity satisfy</span>
+<span class="sd">    :math:`h_0 = h + \tfrac12 V^2`, with :math:`V` the absolute velocity and</span>
+<span class="sd">    blade speed :math:`U = r\,\Omega`. Set the block radius (and rotation rate,</span>
+<span class="sd">    if rotating) first.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    block : Block</span>
-<span class="sd">        The block object to modify.</span>
-<span class="sd">    Po : Array</span>
-<span class="sd">        Total pressure [Pa].</span>
-<span class="sd">    To : Array</span>
-<span class="sd">        Total temperature [K].</span>
-<span class="sd">    Ma_rel : Array</span>
-<span class="sd">        Mach number in relative frame [--].</span>
-<span class="sd">    Alpha_rel : Array</span>
-<span class="sd">        Relative yaw angle [deg].</span>
-<span class="sd">    Beta : Array</span>
-<span class="sd">        Pitch angle [deg].</span>
-<span class="sd">    max_iter : int, default=200</span>
-<span class="sd">        Maximum number of iterations for convergence.</span>
-<span class="sd">    tol : float, default=1e-6</span>
-<span class="sd">        Convergence tolerance.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    Block</span>
-<span class="sd">        The modified block object.</span>
-
-<span class="sd">    Notes</span>
-<span class="sd">    -----</span>
-<span class="sd">    This method is useful for turbomachinery applications where:</span>
-<span class="sd">    - Total conditions (Po, To) are known at the inlet</span>
-<span class="sd">    - Flow angles are specified in the relative frame</span>
-<span class="sd">    - Alpha_rel = 0 means no relative swirl (Vt_rel = 0)</span>
-<span class="sd">    - Beta = 90 means purely radial flow</span>
-
-<span class="sd">    The method uses the stagnation enthalpy iterator in relative frame mode.</span>
-<span class="sd">    Note: This approach may have convergence issues at very high rotation rates</span>
-<span class="sd">    where absolute velocities become large compared to stagnation enthalpy.</span>
+<span class="sd">        Block to modify in place.</span>
+<span class="sd">    Po : array-like</span>
+<span class="sd">        Absolute total pressure [Pa]. Must be positive and broadcast to block</span>
+<span class="sd">        shape.</span>
+<span class="sd">    To : array-like</span>
+<span class="sd">        Absolute total temperature [K]. Must be positive and broadcast to block</span>
+<span class="sd">        shape.</span>
+<span class="sd">    Ma_rel : array-like</span>
+<span class="sd">        Relative-frame Mach number [-]. Must broadcast to block shape.</span>
+<span class="sd">    Alpha_rel : array-like</span>
+<span class="sd">        Relative yaw angle [deg]. Must broadcast to block shape.</span>
+<span class="sd">    Beta : array-like</span>
+<span class="sd">        Pitch angle [deg]. Must broadcast to block shape.</span>
+<span class="sd">    max_iter : int, default 200</span>
+<span class="sd">        Maximum number of iterations before a :class:`RuntimeError` is raised.</span>
+<span class="sd">    tol : float, default 1e-6</span>
+<span class="sd">        Relative convergence tolerance on density.</span>
 
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
 <span class="sd">    ValueError</span>
-<span class="sd">        If coordinates (r) are not initialized, which are required for relative frame calculations.</span>
+<span class="sd">        If the block radius has not been set.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Check if coordinates are initialized (required for relative frame)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">block</span><span class="o">.</span><span class="n">_versions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>

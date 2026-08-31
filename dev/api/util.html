@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Array utilities &#8212; ember 0.2.1.dev98+gd37f6bfe2 documentation</title>
+    <title>Array utilities &#8212; ember 0.3.1.dev7+g0a2169fdd documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=eb75f924"></script>
+    <script src="../_static/documentation_options.js?v=1ade279d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,12 +38,85 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev98+gd37f6bfe2</p>
+<p class="blurb">Version 0.3.1.dev7+g0a2169fdd</p>
 
 
 
 
 
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Array utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#flow-angle-and-coordinate-conversions">Flow angle and coordinate conversions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#vector-and-matrix-operations">Vector and matrix operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#grid-construction">Grid construction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#array-allocation-and-buffers">Array allocation and buffers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#miscellaneous-geometry">Miscellaneous geometry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.profile"><code class="docutils literal notranslate"><span class="pre">profile()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.dot"><code class="docutils literal notranslate"><span class="pre">dot()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.angles_to_components"><code class="docutils literal notranslate"><span class="pre">angles_to_components()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.components_to_angles"><code class="docutils literal notranslate"><span class="pre">components_to_angles()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.vecnorm"><code class="docutils literal notranslate"><span class="pre">vecnorm()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.zeros"><code class="docutils literal notranslate"><span class="pre">zeros()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.array"><code class="docutils literal notranslate"><span class="pre">array()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.empty"><code class="docutils literal notranslate"><span class="pre">empty()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.full"><code class="docutils literal notranslate"><span class="pre">full()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.allocate_or_reuse"><code class="docutils literal notranslate"><span class="pre">allocate_or_reuse()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.bcast_if_needed"><code class="docutils literal notranslate"><span class="pre">bcast_if_needed()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.carve_view"><code class="docutils literal notranslate"><span class="pre">carve_view()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.rss_bytes"><code class="docutils literal notranslate"><span class="pre">rss_bytes()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.meshgrid3"><code class="docutils literal notranslate"><span class="pre">meshgrid3()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.linmesh3"><code class="docutils literal notranslate"><span class="pre">linmesh3()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.pol_to_pseudocart"><code class="docutils literal notranslate"><span class="pre">pol_to_pseudocart()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.extent"><code class="docutils literal notranslate"><span class="pre">extent()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.bounding_box"><code class="docutils literal notranslate"><span class="pre">bounding_box()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.unwrap_meridional"><code class="docutils literal notranslate"><span class="pre">unwrap_meridional()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.cart_to_pol"><code class="docutils literal notranslate"><span class="pre">cart_to_pol()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.pol_to_cart"><code class="docutils literal notranslate"><span class="pre">pol_to_cart()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.matmat"><code class="docutils literal notranslate"><span class="pre">matmat()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.rotation_matrices"><code class="docutils literal notranslate"><span class="pre">rotation_matrices()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.matvec"><code class="docutils literal notranslate"><span class="pre">matvec()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.resample"><code class="docutils literal notranslate"><span class="pre">resample()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.apply_perm_flip"><code class="docutils literal notranslate"><span class="pre">apply_perm_flip()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.cosine_cluster"><code class="docutils literal notranslate"><span class="pre">cosine_cluster()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.cluster"><code class="docutils literal notranslate"><span class="pre">cluster()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.cluster_symmetric"><code class="docutils literal notranslate"><span class="pre">cluster_symmetric()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
 
 
 <div id="ember-versions" hidden>
@@ -90,81 +163,7 @@
         // Single-version or local build; leave the picker hidden.
     });
 })();
-</script>
-<search id="searchbox" style="display: none" role="search">
-    <div class="searchformwrapper">
-    <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</search>
-<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
-<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
-<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Real gas fitting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
-<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
-<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
-<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
-<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
-<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
-<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
-<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Array utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#flow-angle-and-coordinate-conversions">Flow angle and coordinate conversions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#vector-and-matrix-operations">Vector and matrix operations</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#grid-construction">Grid construction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#array-allocation-and-buffers">Array allocation and buffers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#miscellaneous-geometry">Miscellaneous geometry</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.profile"><code class="docutils literal notranslate"><span class="pre">util.profile()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.dot"><code class="docutils literal notranslate"><span class="pre">util.dot()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.angles_to_components"><code class="docutils literal notranslate"><span class="pre">util.angles_to_components()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.components_to_angles"><code class="docutils literal notranslate"><span class="pre">util.components_to_angles()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.vecnorm"><code class="docutils literal notranslate"><span class="pre">util.vecnorm()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.zeros"><code class="docutils literal notranslate"><span class="pre">util.zeros()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.array"><code class="docutils literal notranslate"><span class="pre">util.array()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.empty"><code class="docutils literal notranslate"><span class="pre">util.empty()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.full"><code class="docutils literal notranslate"><span class="pre">util.full()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.allocate_or_reuse"><code class="docutils literal notranslate"><span class="pre">util.allocate_or_reuse()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.bcast_if_needed"><code class="docutils literal notranslate"><span class="pre">util.bcast_if_needed()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.carve_view"><code class="docutils literal notranslate"><span class="pre">util.carve_view()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.rss_bytes"><code class="docutils literal notranslate"><span class="pre">util.rss_bytes()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.meshgrid3"><code class="docutils literal notranslate"><span class="pre">util.meshgrid3()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.linmesh3"><code class="docutils literal notranslate"><span class="pre">util.linmesh3()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.pol_to_pseudocart"><code class="docutils literal notranslate"><span class="pre">util.pol_to_pseudocart()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.extent"><code class="docutils literal notranslate"><span class="pre">util.extent()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.bounding_box"><code class="docutils literal notranslate"><span class="pre">util.bounding_box()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.unwrap_meridional"><code class="docutils literal notranslate"><span class="pre">util.unwrap_meridional()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.cart_to_pol"><code class="docutils literal notranslate"><span class="pre">util.cart_to_pol()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.pol_to_cart"><code class="docutils literal notranslate"><span class="pre">util.pol_to_cart()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.matmat"><code class="docutils literal notranslate"><span class="pre">util.matmat()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.rotation_matrices"><code class="docutils literal notranslate"><span class="pre">util.rotation_matrices()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.matvec"><code class="docutils literal notranslate"><span class="pre">util.matvec()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.resample"><code class="docutils literal notranslate"><span class="pre">util.resample()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.apply_perm_flip"><code class="docutils literal notranslate"><span class="pre">util.apply_perm_flip()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.cosine_cluster"><code class="docutils literal notranslate"><span class="pre">util.cosine_cluster()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.cluster"><code class="docutils literal notranslate"><span class="pre">util.cluster()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.util.cluster_symmetric"><code class="docutils literal notranslate"><span class="pre">util.cluster_symmetric()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
-</ul>
-
-<div class="relations">
+</script><div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>

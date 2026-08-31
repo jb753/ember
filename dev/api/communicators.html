@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Communicators &#8212; ember 0.2.1.dev98+gd37f6bfe2 documentation</title>
+    <title>Communicators &#8212; ember 0.3.1.dev7+g0a2169fdd documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=eb75f924"></script>
+    <script src="../_static/documentation_options.js?v=1ade279d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,12 +38,72 @@
 
 
 
-<p class="blurb">Version 0.2.1.dev98+gd37f6bfe2</p>
+<p class="blurb">Version 0.3.1.dev7+g0a2169fdd</p>
 
 
 
 
 
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Communicators</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator"><code class="docutils literal notranslate"><span class="pre">PeriodicCommunicator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.pairs"><code class="docutils literal notranslate"><span class="pre">pairs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.ijk_node_flat"><code class="docutils literal notranslate"><span class="pre">ijk_node_flat</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.apply"><code class="docutils literal notranslate"><span class="pre">apply()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.exchange_faces"><code class="docutils literal notranslate"><span class="pre">exchange_faces()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator"><code class="docutils literal notranslate"><span class="pre">MixingCommunicator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.leak"><code class="docutils literal notranslate"><span class="pre">leak</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip"><code class="docutils literal notranslate"><span class="pre">Ma_clip</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip_max"><code class="docutils literal notranslate"><span class="pre">Ma_clip_max</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.get_stats"><code class="docutils literal notranslate"><span class="pre">get_stats()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.exchange"><code class="docutils literal notranslate"><span class="pre">exchange()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator"><code class="docutils literal notranslate"><span class="pre">NonMatchCommunicator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator.pairs"><code class="docutils literal notranslate"><span class="pre">pairs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator.uv_coords"><code class="docutils literal notranslate"><span class="pre">uv_coords</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator.apply"><code class="docutils literal notranslate"><span class="pre">apply()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
 
 
 <div id="ember-versions" hidden>
@@ -90,68 +150,7 @@
         // Single-version or local build; leave the picker hidden.
     });
 })();
-</script>
-<search id="searchbox" style="display: none" role="search">
-    <div class="searchformwrapper">
-    <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</search>
-<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
-<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
-<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Real gas fitting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
-<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
-<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Communicators</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator</span></code></a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.pairs"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.pairs</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.ijk_node_flat"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.ijk_node_flat</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.apply"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.apply()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.periodic_communicator.PeriodicCommunicator.exchange_faces"><code class="docutils literal notranslate"><span class="pre">periodic_communicator.PeriodicCommunicator.exchange_faces()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator</span></code></a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.leak"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.leak</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.Ma_clip</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip_max"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.Ma_clip_max</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.get_stats"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.get_stats()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator.exchange"><code class="docutils literal notranslate"><span class="pre">mixing_communicator.MixingCommunicator.exchange()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator</span></code></a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator.pairs"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator.pairs</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator.uv_coords"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator.uv_coords</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.nonmatch_communicator.NonMatchCommunicator.apply"><code class="docutils literal notranslate"><span class="pre">nonmatch_communicator.NonMatchCommunicator.apply()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
-<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
-<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
-<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
-<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cases.html">Cases</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
-</ul>
-
-<div class="relations">
+</script><div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
@@ -284,7 +283,7 @@ gate for this is a two-block case.</p>
 <p><a class="reference internal" href="#ember.mixing_communicator.MixingCommunicator" title="ember.mixing_communicator.MixingCommunicator"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingCommunicator</span></code></a> pairs the two sides of the mixing plane of
 <a class="reference internal" href="patch.html#ember.patch.MixingPatch" title="ember.mixing.MixingPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingPatch</span></code></a>, holds the relaxation factor and the per-pair diagnostics,
 and carries out the exchange itself: it takes the cross-plane <em>flux</em> mismatch,
-splits it by direction of propagation after <span class="bibtex-citation" id="id1">Saxer and Giles [<a class="reference internal" href="../references.html#id9" title="A. P. Saxer and M. B. Giles. &quot;Quasi-Three-Dimensional Nonreflecting Boundary Conditions for Euler Equations Calculations&quot;. J. Propuls. Power, 9(2):263–271, 1993. doi:10.2514/3.23618.">1</a>]</span>, and writes the
+splits it by direction of propagation after <span class="bibtex-citation" id="id1">Saxer and Giles [<a class="reference internal" href="../references.html#id10" title="A. P. Saxer and M. B. Giles. &quot;Quasi-Three-Dimensional Nonreflecting Boundary Conditions for Euler Equations Calculations&quot;. J. Propuls. Power, 9(2):263–271, 1993. doi:10.2514/3.23618.">2</a>]</span>, and writes the
 result in the mix variables <span class="math notranslate nohighlight">\([h_0, s, V_r, V_\theta, p]\)</span> its patches
 take their pitchwise-mean residuals against.</p>
 <p>A run with <a class="reference internal" href="solver.html#ember.solver.Solver.mix_reflective" title="ember.solver.Solver.mix_reflective"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mix_reflective</span></code></a> set bypasses all of
@@ -312,7 +311,7 @@ that, exchanging the plain average of the two circumferential means instead.</p>
 <p>The exchange accumulates its correction onto the previous target
 rather than re-anchoring to the live interface baseline every step, so
 that the fixed point is exact flux balance rather than the proportional
-form’s standing offset (<span class="bibtex-citation" id="id2">Holmes [<a class="reference internal" href="../references.html#id8" title="D. G. Holmes. &quot;Mixing Planes Revisited: A Steady Mixing Plane Approach Designed for High Blade Count Ratio Turbomachinery Applications&quot;. In Proceedings of ASME Turbo Expo 2008: Power for Land, Sea and Air. 2008. doi:10.1115/GT2008-50043.">2</a>]</span> Eq. 15, applied to the
+form’s standing offset (<span class="bibtex-citation" id="id2">Holmes [<a class="reference internal" href="../references.html#id8" title="D. G. Holmes. &quot;Mixing Planes Revisited: A Steady Mixing Plane Approach Designed for High Blade Count Ratio Turbomachinery Applications&quot;. In Proceedings of ASME Turbo Expo 2008: Power for Land, Sea and Air. 2008. doi:10.1115/GT2008-50043.">3</a>]</span> Eq. 15, applied to the
 auxiliary cells rather than re-derived each step). A pure integrator can
 wind up while the mismatch has not yet resolved – most a reversed station
 whose own boundary condition has not caught up with a target that has
@@ -328,7 +327,7 @@ seen to wind up.</p>
 <span class="sig-name descname"><span class="pre">Ma_clip</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.05</span></span><a class="headerlink" href="#ember.mixing_communicator.MixingCommunicator.Ma_clip" title="Link to this definition">¶</a></dt>
 <dd><p>Floor on <span class="math notranslate nohighlight">\(\lvert \mathit{Ma}_x \rvert\)</span> of the symmetrised mean
 state the Jacobians are evaluated on.</p>
-<p><span class="bibtex-citation" id="id3">Holmes [<a class="reference internal" href="../references.html#id8" title="D. G. Holmes. &quot;Mixing Planes Revisited: A Steady Mixing Plane Approach Designed for High Blade Count Ratio Turbomachinery Applications&quot;. In Proceedings of ASME Turbo Expo 2008: Power for Land, Sea and Air. 2008. doi:10.1115/GT2008-50043.">2</a>]</span> Eq. 16: as the mean normal velocity tends to zero the
+<p><span class="bibtex-citation" id="id3">Holmes [<a class="reference internal" href="../references.html#id8" title="D. G. Holmes. &quot;Mixing Planes Revisited: A Steady Mixing Plane Approach Designed for High Blade Count Ratio Turbomachinery Applications&quot;. In Proceedings of ASME Turbo Expo 2008: Power for Land, Sea and Air. 2008. doi:10.1115/GT2008-50043.">3</a>]</span> Eq. 16: as the mean normal velocity tends to zero the
 eigenvalues of the transformation matrices grow, so the interface
 over-controls to make up for the slow advection the small velocity implies.
 Bounding the magnitude – not the direction, which a reversed station keeps
