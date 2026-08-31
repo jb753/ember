@@ -1,10 +1,10 @@
 r"""Working fluid interface and equation of state implementations.
 
-This module defines an interface for computing thermodynamic properties of
-working fluids enabling manipulations of flow fields independent of the
-underlying equations of state. The abstraction cleanly separates thermodynamic
-relations from the flow solver, allowing easy extension to real gas models or
-tabulated properties.
+:class:`Fluid` is the interface for computing thermodynamic properties of a
+working fluid, so that flow fields can be manipulated independently of the
+underlying equation of state. The abstraction separates thermodynamic relations
+from the flow solver and is the type other modules and downstream code accept;
+extending to a new real-gas or tabulated model is a matter of subclassing it.
 
 Two implementations are provided: :class:`PerfectFluid`, for ideal gases with
 constant specific heats, and :class:`RealFluid`, a thermodynamically consistent
@@ -141,9 +141,82 @@ def _plain(value):
 
 
 class Fluid(ABC):
-    """Interface for converting density and internal energy to and from other thermodynamic properties.
+    r"""The equation-of-state interface: density and internal energy to and from other thermodynamic properties.
 
-    Constructors should cast all input parameters to single-precision floats; the output types of all methods are not explicitly cast, but will be single-precision if all inputs are single-precision.
+    :class:`PerfectFluid` and :class:`RealFluid` implement it; the rest of the
+    codebase and downstream code accept a ``Fluid`` and never test which. See
+    the module documentation above for the :math:`(\rho, u)` convention, the
+    :ref:`datum state <datum-state>` and the :ref:`reference scales
+    <reference-scales>`.
+
+    Every ``get_*`` method takes ``(rho, u, out=None)`` --- density and internal
+    energy, broadcastable against each other --- and returns one array of the
+    broadcast shape, optionally written into ``out`` (the NumPy ``out=``
+    convention). Every ``set_x_y`` method takes the two named properties,
+    likewise broadcastable, and returns ``(rho, u)``. Outputs are single
+    precision when the inputs are. With non-unity reference scales all
+    quantities in and out are non-dimensional; transport properties are then
+    only quasi-dimensional (see :meth:`get_mu`).
+
+    A new equation of state is a subclass implementing the abstract methods
+    below; :meth:`from_dict` then reconstructs it by class name.
+
+    .. rubric:: Thermodynamic state
+
+    .. autosummary::
+
+       get_P
+       get_T
+       get_h
+       get_s
+       get_a
+       get_cp
+       get_cv
+       get_gamma
+       get_Rgas
+
+    .. rubric:: Setters (return ``(rho, u)``)
+
+    .. autosummary::
+
+       set_P_T
+       set_P_h
+       set_P_s
+       set_P_rho
+       set_h_s
+       set_rho_s
+       set_T_s
+       set_T_rho
+
+    .. rubric:: Partial derivatives
+
+    .. autosummary::
+
+       get_dhdP_rho
+       get_dhdrho_P
+       get_dsdP_rho
+       get_dsdrho_P
+       get_dudP_rho
+       get_dudrho_P
+
+    .. rubric:: Transport
+
+    .. autosummary::
+
+       get_mu
+       get_kappa
+       get_Pr
+
+    .. rubric:: Batched evaluation and factories
+
+    .. autosummary::
+
+       get_P_h_T
+       from_dict
+       to_dict
+       change_datum
+       change_ref
+       change_visc
 
     """
 
@@ -239,46 +312,57 @@ class Fluid(ABC):
 
     @abstractmethod
     def set_h_s(self, h, s):
+        """Density and internal energy from specific enthalpy and entropy."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_P_h(self, P, h):
+        """Density and internal energy from pressure and specific enthalpy."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_P_rho(self, P, rho):
+        """Density and internal energy from pressure and density."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_P_s(self, P, s):
+        """Density and internal energy from pressure and specific entropy."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_P_T(self, P, T):
+        """Density and internal energy from pressure and temperature."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_rho_s(self, rho, s):
+        """Density and internal energy from density and specific entropy."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_T_rho(self, T, rho):
+        """Density and internal energy from temperature and density."""
         raise NotImplementedError()
 
     @abstractmethod
     def set_T_s(self, T, s):
+        """Density and internal energy from temperature and specific entropy."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_a(self, rho, u, out=None):
+        """Speed of sound."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_cp(self, rho, u, out=None):
+        """Specific heat at constant pressure."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_cv(self, rho, u, out=None):
+        """Specific heat at constant volume."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -313,10 +397,12 @@ class Fluid(ABC):
 
     @abstractmethod
     def get_gamma(self, rho, u, out=None):
+        r"""Ratio of specific heats, :math:`c_p / c_v`."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_h(self, rho, u, out=None):
+        """Specific enthalpy, relative to the datum (see :ref:`datum-state`)."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -336,6 +422,7 @@ class Fluid(ABC):
 
     @abstractmethod
     def get_P(self, rho, u, out=None):
+        """Static pressure."""
         raise NotImplementedError()
 
     def get_P_h_T(self, rho, u, out_P=None, out_h=None, out_T=None):
@@ -376,18 +463,22 @@ class Fluid(ABC):
 
     @abstractmethod
     def get_Pr(self, rho, u, out=None):
+        r"""Prandtl number, :math:`\mu c_p / \kappa`."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_Rgas(self, rho, u, out=None):
+        """Specific gas constant."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_s(self, rho, u, out=None):
+        """Specific entropy, relative to the datum (see :ref:`datum-state`)."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_T(self, rho, u, out=None):
+        """Static temperature."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -1507,8 +1598,8 @@ class PerfectFluid(Fluid):
 class RealFluid(Fluid):
     r"""Real gas defined by a fitted entropy surface.
 
-    Implements the thermodynamically consistent equation of state of Wheeler
-    (2024), *Computers and Fluids* 268:106088. A polynomial surface is fitted
+    Implements the thermodynamically consistent equation of state of
+    :cite:t:`Wheeler2024`. A polynomial surface is fitted
     offline to the compressibility factor and integrated analytically to give
     entropy; temperature and pressure are then *derived* from that one surface
     rather than fitted separately, so the thermodynamic relations between them
