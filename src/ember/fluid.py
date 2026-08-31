@@ -158,6 +158,11 @@ class Fluid(ABC):
     quantities in and out are non-dimensional; transport properties are then
     only quasi-dimensional (see :meth:`get_mu`).
 
+    Property inputs must be physically valid --- pressures, temperatures and
+    densities positive, every value finite. This layer does not check;
+    :meth:`ember.block.Block.set_P_T` and its siblings are the validated entry
+    points.
+
     A new equation of state is a subclass implementing the abstract methods
     below; :meth:`from_dict` then reconstructs it by class name.
 
@@ -497,9 +502,27 @@ class Fluid(ABC):
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def change_ref(self, rho_ref=None, V_ref=None, Rgas_ref=None):
-        """Return a new instance with different reference scales."""
-        raise NotImplementedError("Subclasses must implement change_ref")
+        """Return a new instance with different reference scales.
+
+        A pure factory, like :meth:`change_datum`: the fitted or stored
+        properties are untouched, only the scales the non-dimensionalisation
+        uses. An omitted scale keeps this instance's value, so a call need name
+        only the scales that change. See :ref:`reference-scales`.
+
+        Parameters
+        ----------
+        rho_ref, V_ref, Rgas_ref : float, optional
+            New reference density, velocity and gas constant. Any left out keep
+            their current value.
+
+        Returns
+        -------
+        fluid_new : Fluid
+            New fluid instance with the same properties on the new scales.
+        """
+        raise NotImplementedError()
 
     @abstractmethod
     def change_visc(self, scale_visc):
@@ -1524,45 +1547,9 @@ class PerfectFluid(Fluid):
         return out
 
     def change_datum(self, P_dtm, T_dtm):
-        """Get a new :class:`PerfectFluid` with shifted datum.
-
-        The new instance will have zero internal energy and entropy at the specified pressure and temperature. See :ref:`datum-state`.
-
-        Parameters
-        ----------
-        P_dtm : float
-            New datum pressure [Pa].
-        T_dtm : float
-            New datum temperature [K].
-
-        Returns
-        -------
-        fluid_new : PerfectFluid
-            New fluid instance with shifted and entropy datum.
-
-        """
         return self._rebuild(P_dtm=P_dtm, T_dtm=T_dtm)
 
     def change_ref(self, rho_ref=None, V_ref=None, Rgas_ref=None):
-        """Make a new :class:`PerfectFluid` with different reference scales.
-
-        Omitted reference scales default to the current instance's reference scales, so only the scales that need to be changed must be specified.
-
-        Parameters
-        ----------
-        rho_ref : float, optional
-            New reference density for non-dimensionalisation.
-        V_ref : float, optional
-            New reference velocity for non-dimensionalisation.
-        Rgas_ref : float, optional
-            New reference gas constant for non-dimensionalisation.
-
-        Returns
-        -------
-        fluid_new : PerfectFluid
-            New fluid instance with the same properties but different reference scales.
-
-        """
         return self._rebuild(
             rho_ref=rho_ref if rho_ref is not None else self.rho_ref,
             V_ref=V_ref if V_ref is not None else self.V_ref,
@@ -1570,25 +1557,9 @@ class PerfectFluid(Fluid):
         )
 
     def change_visc(self, scale_visc):
-        """Get a new :class:`PerfectFluid` with scaled viscosity.
+        """Scale the stored constant ``mu`` (and ``kappa`` with it).
 
-        The viscosity is a constant here, so scaling it is a change of the
-        stored ``mu``. Conductivity follows it through the fixed Prandtl
-        number, with nothing to do.
-
-        Scaling is relative to this fluid, so the factors of a chain of calls
-        multiply together, and nothing but the transport properties moves.
-
-        Parameters
-        ----------
-        scale_visc : float
-            Factor to multiply this fluid's viscosity by. Must be positive.
-
-        Returns
-        -------
-        fluid_new : PerfectFluid
-            New fluid instance with scaled viscosity.
-
+        See :meth:`Fluid.change_visc` for the contract.
         """
         if scale_visc <= 0.0:
             raise ValueError(f"scale_visc={scale_visc} must be positive.")
@@ -3348,49 +3319,15 @@ class RealFluid(Fluid):
         return self._write(1.0 / s_u, out)
 
     def change_datum(self, P_dtm, T_dtm):
-        """Get a new :class:`RealFluid` with shifted datum.
-
-        The coefficient arrays are untouched: they describe a dimensionless
-        surface in normalised coordinates, and the datum only enters through the
-        affine constants composed at construction. See :ref:`datum-state`.
-
-        Parameters
-        ----------
-        P_dtm : float
-            New datum pressure [Pa].
-        T_dtm : float
-            New datum temperature [K].
-
-        Returns
-        -------
-        fluid_new : RealFluid
-            New fluid instance with shifted energy and entropy datum.
-
+        """Shift the datum. The fitted coefficients are untouched --- the datum
+        enters only through the affine constants composed at construction, so
+        there is no refit. See :meth:`Fluid.change_datum`.
         """
         return self._rebuild(P_dtm=P_dtm, T_dtm=T_dtm)
 
     def change_ref(self, rho_ref=None, V_ref=None, Rgas_ref=None):
-        """Make a new :class:`RealFluid` with different reference scales.
-
-        Omitted reference scales default to the current instance's, so only the
-        scales that need to be changed must be specified. As with
-        :meth:`change_datum`, no refit is involved.
-
-        Parameters
-        ----------
-        rho_ref : float, optional
-            New reference density for non-dimensionalisation.
-        V_ref : float, optional
-            New reference velocity for non-dimensionalisation.
-        Rgas_ref : float, optional
-            New reference gas constant for non-dimensionalisation.
-
-        Returns
-        -------
-        fluid_new : RealFluid
-            New fluid instance with the same properties but different reference
-            scales.
-
+        """Rescale. No refit, as for :meth:`change_datum`; see
+        :meth:`Fluid.change_ref`.
         """
         return self._rebuild(
             rho_ref=rho_ref if rho_ref is not None else self.rho_ref,
@@ -3399,27 +3336,10 @@ class RealFluid(Fluid):
         )
 
     def change_visc(self, scale_visc):
-        r"""Get a new :class:`RealFluid` with scaled viscosity.
+        r"""Scale the two fitted transport surfaces together --- there is no
+        stored viscosity, only a polynomial in :math:`(\rho, u)`.
 
-        A multiplier on the two fitted transport surfaces, which is what a
-        factor on a surface has to be: there is no stored viscosity to change,
-        only a polynomial in :math:`(\rho, u)`. Conductivity is scaled with it,
-        so the Prandtl number the two surfaces give is unchanged everywhere in
-        the box.
-
-        Scaling is relative to this fluid, so the factors of a chain of calls
-        multiply together, and nothing but the transport properties moves.
-
-        Parameters
-        ----------
-        scale_visc : float
-            Factor to multiply this fluid's viscosity by. Must be positive.
-
-        Returns
-        -------
-        fluid_new : RealFluid
-            New fluid instance with scaled viscosity.
-
+        See :meth:`Fluid.change_visc` for the contract.
         """
         if scale_visc <= 0.0:
             raise ValueError(f"scale_visc={scale_visc} must be positive.")
