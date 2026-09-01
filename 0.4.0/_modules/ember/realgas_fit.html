@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.realgas_fit &#8212; ember 0.4.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.4.0";
+    var page = "_modules/ember/realgas_fit.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.realgas_fit</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Fit real-gas equation of state from tabulated properties.</span>
+
+<span class="sd">This module turns a table of thermodynamic properties into the polynomial</span>
+<span class="sd">coefficient arrays required by :class:`ember.fluid.RealFluid`, following the</span>
+<span class="sd">entropy-based formulation of :cite:t:`Wheeler2024`.</span>
+
+<span class="sd">The user should perform the fitting once, offline, and then pass the resulting</span>
+<span class="sd">coefficients to :class:`ember.fluid.RealFluid` at simulation runtime. Only</span>
+<span class="sd">:func:`sample_coolprop` needs a lazy import of CoolProp, so the rest of the</span>
+<span class="sd">code can be used without it.</span>
+
+<span class="sd">The method requires two polynomial fits: compressibility factor as a</span>
+<span class="sd">two-dimensional surface in density and internal energy, and entropy along a</span>
+<span class="sd">reference isochor as a one-dimensional function of internal energy. Optionally,</span>
+<span class="sd">viscosity and thermal conductivity are fitted as two further two-dimensional</span>
+<span class="sd">surfaces over density and internal energy.</span>
+
+<span class="sd">Polynomials are fitted in coordinates scaled onto :math:`[-1, 1]` by the bounds</span>
+<span class="sd">of a fit box. The reference isochor passes through the centre of the box, and viscosity and conductivity are normalised by their values at the box centre.</span>
+
+<span class="sd">Example usage</span>
+<span class="sd">=============</span>
+
+<span class="sd">With CoolProp installed, the pipeline is a single call:</span>
+
+<span class="sd">.. code-block:: python</span>
+
+<span class="sd">    from ember.realgas_fit import fit, sample_coolprop</span>
+<span class="sd">    from ember.fluid import RealFluid</span>
+
+<span class="sd">    result = fit(</span>
+<span class="sd">        **sample_coolprop(</span>
+<span class="sd">            &quot;CO2&quot;, rho_lim=(2.0, 150.0), u_lim=(3.5e5, 5.0e5)</span>
+<span class="sd">        )</span>
+<span class="sd">    )  # fit the equation of state and transport surfaces</span>
+
+<span class="sd">    fluid = RealFluid(**result.kwargs)               # hand to the solver</span>
+<span class="sd">    print(result.info_Z.rmse, result.info_s.rmse)    # inspect the fit residuals</span>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">_realgas_poly</span> <span class="k">as</span> <span class="n">_poly</span>
+
+<span class="n">_leg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">polynomial</span><span class="o">.</span><span class="n">legendre</span>
+
+
+<div class="viewcode-block" id="FitInfo">
+<a class="viewcode-back" href="../../api/realgas_fit.html#ember.realgas_fit.FitInfo">[docs]</a>
+<span class="nd">@dataclasses</span><span class="o">.</span><span class="n">dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FitInfo</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Quality of a single least-squares polynomial fit.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rmse : float</span>
+<span class="sd">        Root-mean-square residual, in the units of the fitted quantity.</span>
+<span class="sd">    R2 : float</span>
+<span class="sd">        Coefficient of determination, one for a perfect fit.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">rmse</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">R2</span><span class="p">:</span> <span class="nb">float</span></div>
+
+
+
+<div class="viewcode-block" id="FitResult">
+<a class="viewcode-back" href="../../api/realgas_fit.html#ember.realgas_fit.FitResult">[docs]</a>
+<span class="nd">@dataclasses</span><span class="o">.</span><span class="n">dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FitResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fitted coefficients together with the residuals that bound their accuracy.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    kwargs : dict</span>
+<span class="sd">        Keyword arguments defining the equation of state, ready to splat into</span>
+<span class="sd">        :class:`ember.fluid.RealFluid`. Contains ``alpha``, ``beta``,</span>
+<span class="sd">        ``rho_lim``, ``u_lim``, ``Rgas``, ``delta``, ``gamma``, ``mu_c`` and</span>
+<span class="sd">        ``kappa_c``.</span>
+<span class="sd">    info_Z : FitInfo</span>
+<span class="sd">        Residual of the compressibility surface [--].</span>
+<span class="sd">    info_s : FitInfo</span>
+<span class="sd">        Residual of the entropy fit, in units of the gas constant [--].</span>
+<span class="sd">    info_mu, info_kappa : FitInfo</span>
+<span class="sd">        Residuals of the two transport surfaces, relative to the value each is</span>
+<span class="sd">        normalised by [--], so that they read as fractional errors.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span>
+    <span class="n">info_Z</span><span class="p">:</span> <span class="n">FitInfo</span>
+    <span class="n">info_s</span><span class="p">:</span> <span class="n">FitInfo</span>
+    <span class="n">info_mu</span><span class="p">:</span> <span class="n">FitInfo</span>
+    <span class="n">info_kappa</span><span class="p">:</span> <span class="n">FitInfo</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fit_info</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">y_fit</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Residual statistics of a fit.&quot;&quot;&quot;</span>
+    <span class="n">resid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">y_fit</span><span class="p">)</span>
+    <span class="n">rmse</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">resid</span><span class="o">**</span><span class="mi">2</span><span class="p">)))</span>
+    <span class="n">ss_tot</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">y</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">y</span><span class="p">))</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="n">R2</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">ss_tot</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">resid</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">/</span> <span class="n">ss_tot</span>
+    <span class="k">return</span> <span class="n">FitInfo</span><span class="p">(</span><span class="n">rmse</span><span class="o">=</span><span class="n">rmse</span><span class="p">,</span> <span class="n">R2</span><span class="o">=</span><span class="n">R2</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fit_normalised</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">basis</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fit a surface and divide it through by its value at the box centre.</span>
+
+<span class="sd">    Least squares is linear in its target, so scaling the coefficients of a fit</span>
+<span class="sd">    of ``z`` is exactly the fit of ``z`` scaled --- there is no second fit here,</span>
+<span class="sd">    and no interpolation of the sample data to find the centre value. It also</span>
+<span class="sd">    leaves the returned surface exactly one at the centre, which is what makes</span>
+<span class="sd">    that point an anchor a caller can rely on rather than a fit residual away.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    coef : ndarray</span>
+<span class="sd">        Normalised Legendre coefficients, of order unity.</span>
+<span class="sd">    centre : float</span>
+<span class="sd">        Value of the fitted surface at the centre of the box, in the units of</span>
+<span class="sd">        ``z``.</span>
+<span class="sd">    info : FitInfo</span>
+<span class="sd">        Residual statistics, scaled to match ``coef``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">coef</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">_legfit2d</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">basis</span><span class="p">)</span>
+    <span class="n">centre</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">_leg</span><span class="o">.</span><span class="n">legval2d</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">coef</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">centre</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;The fitted </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> surface is </span><span class="si">{</span><span class="n">centre</span><span class="si">}</span><span class="s2"> at the centre of the fit &quot;</span>
+            <span class="s2">&quot;box, so it cannot be normalised by that value. Check the sample &quot;</span>
+            <span class="s2">&quot;data for the wrong sign or the wrong units.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">coef</span> <span class="o">/</span> <span class="n">centre</span><span class="p">,</span> <span class="n">centre</span><span class="p">,</span> <span class="n">FitInfo</span><span class="p">(</span><span class="n">rmse</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">rmse</span> <span class="o">/</span> <span class="n">centre</span><span class="p">,</span> <span class="n">R2</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">R2</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="fit">
+<a class="viewcode-back" href="../../api/realgas_fit.html#ember.realgas_fit.fit">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span>
+    <span class="n">rho</span><span class="p">,</span>
+    <span class="n">u</span><span class="p">,</span>
+    <span class="n">P</span><span class="p">,</span>
+    <span class="n">T</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">,</span>
+    <span class="n">mu</span><span class="p">,</span>
+    <span class="n">kappa</span><span class="p">,</span>
+    <span class="n">Rgas</span><span class="p">,</span>
+    <span class="n">rho_lim</span><span class="p">,</span>
+    <span class="n">u_lim</span><span class="p">,</span>
+    <span class="n">order</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+    <span class="n">basis</span><span class="o">=</span><span class="s2">&quot;total-order&quot;</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Fit an equation of state to tabulated thermodynamic properties.</span>
+
+<span class="sd">    Fits the compressibility factor as a surface in density and internal energy,</span>
+<span class="sd">    then recovers the entropy variation along the reference isochor by</span>
+<span class="sd">    subtracting the analytic density integral from the tabulated entropy. What</span>
+<span class="sd">    remains is a function of internal energy alone, so a one-dimensional fit</span>
+<span class="sd">    closes the model.</span>
+
+<span class="sd">    The sample points need not lie on a grid, but they must all be inside the</span>
+<span class="sd">    box given by ``rho_lim`` and ``u_lim``, and must avoid the two-phase region,</span>
+<span class="sd">    where the properties are not smooth and the fit would be poisoned.</span>
+<span class="sd">    :func:`sample_coolprop` masks it, and returns every argument below but the</span>
+<span class="sd">    two that select the basis, so ``fit(**sample_coolprop(...))`` is the whole</span>
+<span class="sd">    pipeline.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rho : array_like</span>
+<span class="sd">        Sample densities [kg/m³].</span>
+<span class="sd">    u : array_like</span>
+<span class="sd">        Sample specific internal energies [J/kg], on any datum.</span>
+<span class="sd">    P : array_like</span>
+<span class="sd">        Pressure at the sample states [Pa].</span>
+<span class="sd">    T : array_like</span>
+<span class="sd">        Temperature at the sample states [K].</span>
+<span class="sd">    s : array_like</span>
+<span class="sd">        Specific entropy at the sample states [J/kg/K], on any datum.</span>
+<span class="sd">    mu : array_like</span>
+<span class="sd">        Dynamic viscosity at the sample states [kg/m/s].</span>
+<span class="sd">    kappa : array_like</span>
+<span class="sd">        Thermal conductivity at the sample states [W/m/K].</span>
+<span class="sd">    Rgas : float</span>
+<span class="sd">        Specific gas constant [J/kg/K].</span>
+<span class="sd">    rho_lim : tuple</span>
+<span class="sd">        ``(min, max)`` density bounds of the fit box [kg/m³].</span>
+<span class="sd">    u_lim : tuple</span>
+<span class="sd">        ``(min, max)`` internal energy bounds of the fit box [J/kg], on the same</span>
+<span class="sd">        datum as ``u``.</span>
+<span class="sd">    order : int, optional</span>
+<span class="sd">        Maximum polynomial order in each variable.</span>
+<span class="sd">    basis : {&#39;total-order&#39;, &#39;tensor-grid&#39;}, optional</span>
+<span class="sd">        Which order combinations to retain. ``&#39;total-order&#39;`` (the default)</span>
+<span class="sd">        keeps only terms whose orders in the two variables sum to at most</span>
+<span class="sd">        ``order``; ``&#39;tensor-grid&#39;`` keeps every combination up to ``order`` in</span>
+<span class="sd">        each. The default drops the worst-conditioned high-order-in-both corners</span>
+<span class="sd">        for roughly half the terms.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : FitResult</span>
+<span class="sd">        Coefficients ready for :class:`ember.fluid.RealFluid`, with the fit</span>
+<span class="sd">        residuals that bound their accuracy.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">rho</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">_poly</span><span class="o">.</span><span class="n">hat</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span> <span class="n">rho_lim</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">_poly</span><span class="o">.</span><span class="n">hat</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">u_lim</span><span class="p">)</span>
+
+    <span class="c1"># Compressibility surface. Dimensionless and O(1), so it fits far better</span>
+    <span class="c1"># than entropy would directly, and it is what the density integral needs.</span>
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">rho</span> <span class="o">*</span> <span class="n">Rgas</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">))</span>
+    <span class="n">alpha</span><span class="p">,</span> <span class="n">info_Z</span> <span class="o">=</span> <span class="n">_legfit2d</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">basis</span><span class="p">)</span>
+
+    <span class="c1"># Subtract the analytic density integral from the tabulated entropy. The</span>
+    <span class="c1"># remainder is a function of internal energy alone -- exactly, for an</span>
+    <span class="c1"># equation of state of this form -- so a one-dimensional fit closes it. Any</span>
+    <span class="c1"># error in alpha leaks in here as a weak density dependence, which the fit</span>
+    <span class="c1"># averages out rather than amplifies.</span>
+    <span class="c1">#</span>
+    <span class="c1"># Zero density maps to x = -c, where the log in the integral is singular.</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="n">_poly</span><span class="o">.</span><span class="n">hat</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">rho_lim</span><span class="p">))</span>
+    <span class="n">D</span><span class="p">,</span> <span class="n">Lam</span> <span class="o">=</span> <span class="n">_poly</span><span class="o">.</span><span class="n">entropy_integral</span><span class="p">(</span><span class="n">alpha</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+    <span class="n">integral</span> <span class="o">=</span> <span class="n">_leg</span><span class="o">.</span><span class="n">legval2d</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span> <span class="o">+</span> <span class="n">_leg</span><span class="o">.</span><span class="n">legval</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">Lam</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">c</span><span class="p">)</span>
+    <span class="n">beta_target</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">/</span> <span class="n">Rgas</span> <span class="o">+</span> <span class="n">integral</span>
+
+    <span class="n">beta</span> <span class="o">=</span> <span class="n">_leg</span><span class="o">.</span><span class="n">legfit</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">beta_target</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+    <span class="n">info_s</span> <span class="o">=</span> <span class="n">_fit_info</span><span class="p">(</span><span class="n">beta_target</span><span class="p">,</span> <span class="n">_leg</span><span class="o">.</span><span class="n">legval</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">beta</span><span class="p">))</span>
+
+    <span class="c1"># Transport surfaces, fitted over the same points in the same coordinates</span>
+    <span class="c1"># and normalised at the centre of the box. They are ordinary least-squares</span>
+    <span class="c1"># fits: nothing couples them to the entropy surface or to each other.</span>
+    <span class="n">delta</span><span class="p">,</span> <span class="n">mu_c</span><span class="p">,</span> <span class="n">info_mu</span> <span class="o">=</span> <span class="n">_fit_normalised</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">basis</span><span class="p">,</span> <span class="s2">&quot;viscosity&quot;</span><span class="p">)</span>
+    <span class="n">gamma</span><span class="p">,</span> <span class="n">kappa_c</span><span class="p">,</span> <span class="n">info_kappa</span> <span class="o">=</span> <span class="n">_fit_normalised</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">kappa</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">basis</span><span class="p">,</span> <span class="s2">&quot;conductivity&quot;</span>
+    <span class="p">)</span>
+
+    <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="n">alpha</span><span class="p">,</span>
+        <span class="s2">&quot;beta&quot;</span><span class="p">:</span> <span class="n">beta</span><span class="p">,</span>
+        <span class="s2">&quot;delta&quot;</span><span class="p">:</span> <span class="n">delta</span><span class="p">,</span>
+        <span class="s2">&quot;gamma&quot;</span><span class="p">:</span> <span class="n">gamma</span><span class="p">,</span>
+        <span class="s2">&quot;rho_lim&quot;</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rho_lim</span><span class="p">),</span>
+        <span class="s2">&quot;u_lim&quot;</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">u_lim</span><span class="p">),</span>
+        <span class="s2">&quot;Rgas&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">Rgas</span><span class="p">),</span>
+        <span class="s2">&quot;mu_c&quot;</span><span class="p">:</span> <span class="n">mu_c</span><span class="p">,</span>
+        <span class="s2">&quot;kappa_c&quot;</span><span class="p">:</span> <span class="n">kappa_c</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">FitResult</span><span class="p">(</span>
+        <span class="n">kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="n">info_Z</span><span class="o">=</span><span class="n">info_Z</span><span class="p">,</span>
+        <span class="n">info_s</span><span class="o">=</span><span class="n">info_s</span><span class="p">,</span>
+        <span class="n">info_mu</span><span class="o">=</span><span class="n">info_mu</span><span class="p">,</span>
+        <span class="n">info_kappa</span><span class="o">=</span><span class="n">info_kappa</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_legfit2d</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">basis</span><span class="o">=</span><span class="s2">&quot;total-order&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Least-squares Legendre fit of a function of two normalised variables.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x, y : array_like</span>
+<span class="sd">        Normalised sample coordinates, in ``[-1, 1]``.</span>
+<span class="sd">    z : array_like</span>
+<span class="sd">        Values to fit.</span>
+<span class="sd">    order : int</span>
+<span class="sd">        Maximum polynomial order in each variable.</span>
+<span class="sd">    basis : {&#39;total-order&#39;, &#39;tensor-grid&#39;}, optional</span>
+<span class="sd">        Which combinations of orders to retain.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    coef : ndarray</span>
+<span class="sd">        Legendre coefficients, shape ``(order + 1, order + 1)``, zero outside</span>
+<span class="sd">        the retained basis.</span>
+<span class="sd">    info : FitInfo</span>
+<span class="sd">        Residual statistics.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">_poly</span><span class="o">.</span><span class="n">order_matrix</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">basis</span><span class="p">)</span>
+    <span class="c1"># legvander2d lays terms out as P_i(x)*P_j(y) at flat index i*(order+1)+j,</span>
+    <span class="c1"># which is C order -- the same as ravelling the mask.</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">_leg</span><span class="o">.</span><span class="n">legvander2d</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="p">[</span><span class="n">order</span><span class="p">,</span> <span class="n">order</span><span class="p">])[:,</span> <span class="n">mask</span><span class="o">.</span><span class="n">ravel</span><span class="p">()]</span>
+    <span class="n">coef_flat</span><span class="p">,</span> <span class="o">*</span><span class="n">_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">rcond</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="n">coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">coef</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="n">coef_flat</span>
+    <span class="k">return</span> <span class="n">coef</span><span class="p">,</span> <span class="n">_fit_info</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">_leg</span><span class="o">.</span><span class="n">legval2d</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">coef</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="sample_coolprop">
+<a class="viewcode-back" href="../../api/realgas_fit.html#ember.realgas_fit.sample_coolprop">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">sample_coolprop</span><span class="p">(</span><span class="n">fluid_name</span><span class="p">,</span> <span class="n">rho_lim</span><span class="p">,</span> <span class="n">u_lim</span><span class="p">,</span> <span class="n">ni</span><span class="o">=</span><span class="mi">100</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sample thermodynamic properties over a fit box using CoolProp.</span>
+
+<span class="sd">    States that fail to converge or fall inside the two-phase dome are dropped:</span>
+<span class="sd">    properties are not smooth across saturation, and including such points would</span>
+<span class="sd">    poison the fit far more than any choice of basis or order. So are states</span>
+<span class="sd">    whose transport properties CoolProp declines to report, which for a fluid</span>
+<span class="sd">    with no transport model at all is every one of them --- said so, rather</span>
+<span class="sd">    than reported as an empty box.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fluid_name : str</span>
+<span class="sd">        Fluid name in the CoolProp database.</span>
+<span class="sd">    rho_lim : tuple</span>
+<span class="sd">        ``(min, max)`` density bounds [kg/m³].</span>
+<span class="sd">    u_lim : tuple</span>
+<span class="sd">        ``(min, max)`` internal energy bounds [J/kg], on CoolProp&#39;s datum.</span>
+<span class="sd">    ni : int, optional</span>
+<span class="sd">        Number of sample points along each axis.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        Arrays ``rho``, ``u``, ``P``, ``T``, ``s``, ``mu`` and ``kappa`` at the</span>
+<span class="sd">        surviving states, ``Rgas``, the specific gas constant [J/kg/K], and the</span>
+<span class="sd">        ``rho_lim`` and ``u_lim`` that were sampled. That is every argument :func:`fit` needs,</span>
+<span class="sd">        so the whole pipeline is ``fit(**sample_coolprop(...))``.</span>
+
+<span class="sd">        The box is passed on rather than left to the caller to repeat because</span>
+<span class="sd">        nothing downstream could catch it being repeated wrongly: a fit taken</span>
+<span class="sd">        over a box other than the sampled one puts the normalised coordinates</span>
+<span class="sd">        outside ``[-1, 1]``, where the Legendre basis loses its orthogonality</span>
+<span class="sd">        and the fit its conditioning -- and returns coefficients that are</span>
+<span class="sd">        wrong without being nan.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Deliberately not at module scope: CoolProp is an optional extra,</span>
+        <span class="c1"># and every consumer of a fitted equation of state must work</span>
+        <span class="c1"># without it. noqa: PLC0415</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">CoolProp</span><span class="w"> </span><span class="kn">import</span> <span class="n">CoolProp</span> <span class="k">as</span> <span class="n">CP</span>  <span class="c1"># noqa: PLC0415</span>
+    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>  <span class="c1"># pragma: no cover - depends on optional extra</span>
+        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+            <span class="s2">&quot;sample_coolprop requires CoolProp; install ember with the &#39;fit&#39; &quot;</span>
+            <span class="s2">&quot;extra, for example `uv pip install -e &#39;.[fit]&#39;`.&quot;</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">err</span>
+
+    <span class="n">state</span> <span class="o">=</span> <span class="n">CP</span><span class="o">.</span><span class="n">AbstractState</span><span class="p">(</span><span class="s2">&quot;HEOS&quot;</span><span class="p">,</span> <span class="n">fluid_name</span><span class="p">)</span>
+    <span class="n">Rgas</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">gas_constant</span><span class="p">()</span> <span class="o">/</span> <span class="n">state</span><span class="o">.</span><span class="n">molar_mass</span><span class="p">()</span>
+
+    <span class="n">rho_g</span><span class="p">,</span> <span class="n">u_g</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">*</span><span class="n">rho_lim</span><span class="p">,</span> <span class="n">ni</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">*</span><span class="n">u_lim</span><span class="p">,</span> <span class="n">ni</span><span class="p">),</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">&quot;ij&quot;</span>
+    <span class="p">)</span>
+    <span class="n">rho_flat</span> <span class="o">=</span> <span class="n">rho_g</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="n">u_flat</span> <span class="o">=</span> <span class="n">u_g</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+    <span class="n">P</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">rho_flat</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">rho_flat</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">rho_flat</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="n">mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">rho_flat</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="n">kappa</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">rho_flat</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="p">(</span><span class="n">rho_k</span><span class="p">,</span> <span class="n">u_k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">rho_flat</span><span class="p">,</span> <span class="n">u_flat</span><span class="p">)):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">CP</span><span class="o">.</span><span class="n">DmassUmass_INPUTS</span><span class="p">,</span> <span class="n">rho_k</span><span class="p">,</span> <span class="n">u_k</span><span class="p">)</span>
+            <span class="n">quality</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">Q</span><span class="p">()</span>
+            <span class="k">if</span> <span class="mf">0.0</span> <span class="o">&lt;=</span> <span class="n">quality</span> <span class="o">&lt;=</span> <span class="mf">1.0</span><span class="p">:</span>
+                <span class="k">continue</span>  <span class="c1"># inside the two-phase dome</span>
+            <span class="n">P</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">p</span><span class="p">()</span>
+            <span class="n">T</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">T</span><span class="p">()</span>
+            <span class="n">s</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">smass</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">continue</span>  <span class="c1"># state did not converge; leave as nan</span>
+        <span class="c1"># Separately, because a fluid can have a perfectly good equation of</span>
+        <span class="c1"># state and no transport model, and the two failures want telling</span>
+        <span class="c1"># apart below.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">mu</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">viscosity</span><span class="p">()</span>
+            <span class="n">kappa</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">conductivity</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+    <span class="n">thermodynamic</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">P</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">T</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="n">keep</span> <span class="o">=</span> <span class="n">thermodynamic</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">mu</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">kappa</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">keep</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">thermodynamic</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;CoolProp reports no transport properties for </span><span class="si">{</span><span class="n">fluid_name</span><span class="si">!r}</span><span class="s2"> &quot;</span>
+                <span class="s2">&quot;anywhere in the given box, so the viscosity and conductivity &quot;</span>
+                <span class="s2">&quot;surfaces cannot be fitted.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;No valid single-phase states for </span><span class="si">{</span><span class="n">fluid_name</span><span class="si">!r}</span><span class="s2"> in the given box; &quot;</span>
+            <span class="s2">&quot;check rho_lim and u_lim.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;rho&quot;</span><span class="p">:</span> <span class="n">rho_flat</span><span class="p">[</span><span class="n">keep</span><span class="p">],</span>
+        <span class="s2">&quot;u&quot;</span><span class="p">:</span> <span class="n">u_flat</span><span class="p">[</span><span class="n">keep</span><span class="p">],</span>
+        <span class="s2">&quot;P&quot;</span><span class="p">:</span> <span class="n">P</span><span class="p">[</span><span class="n">keep</span><span class="p">],</span>
+        <span class="s2">&quot;T&quot;</span><span class="p">:</span> <span class="n">T</span><span class="p">[</span><span class="n">keep</span><span class="p">],</span>
+        <span class="s2">&quot;s&quot;</span><span class="p">:</span> <span class="n">s</span><span class="p">[</span><span class="n">keep</span><span class="p">],</span>
+        <span class="s2">&quot;mu&quot;</span><span class="p">:</span> <span class="n">mu</span><span class="p">[</span><span class="n">keep</span><span class="p">],</span>
+        <span class="s2">&quot;kappa&quot;</span><span class="p">:</span> <span class="n">kappa</span><span class="p">[</span><span class="n">keep</span><span class="p">],</span>
+        <span class="s2">&quot;Rgas&quot;</span><span class="p">:</span> <span class="n">Rgas</span><span class="p">,</span>
+        <span class="s2">&quot;rho_lim&quot;</span><span class="p">:</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">rho_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">float</span><span class="p">(</span><span class="n">rho_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">])),</span>
+        <span class="s2">&quot;u_lim&quot;</span><span class="p">:</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">u_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">float</span><span class="p">(</span><span class="n">u_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">])),</span>
+    <span class="p">}</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

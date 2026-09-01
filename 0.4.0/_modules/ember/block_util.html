@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.block_util &#8212; ember 0.4.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.4.0";
+    var page = "_modules/ember/block_util.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.block_util</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Operations on :class:`~ember.block.Block` instances that don&#39;t belong on the class itself.</span>
+
+<span class="sd">Each function below takes one or more :class:`~ember.block.Block`\ s and</span>
+<span class="sd">returns a new one (or mutates in place, per its docstring). Grid-level</span>
+<span class="sd">counterparts such as :meth:`~ember.grid.Grid.resample` and</span>
+<span class="sd">:meth:`~ember.grid.Grid.interp_from_grid` are thin loops over these</span>
+<span class="sd">block-granularity functions.</span>
+
+<span class="sd">Combining and reshaping blocks</span>
+<span class="sd">===============================</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   concatenate</span>
+<span class="sd">   repeat_pitchwise</span>
+<span class="sd">   resample</span>
+
+<span class="sd">Interface-aligned velocities</span>
+<span class="sd">=============================</span>
+
+<span class="sd">Paired functions that rotate the meridional velocity components (Vx, Vr) by a</span>
+<span class="sd">precomputed 2x2 matrix from :func:`~ember.util.rotation_matrices`, each the</span>
+<span class="sd">inverse of its partner.</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   resolve_to_interface</span>
+<span class="sd">   resolve_from_interface</span>
+
+<span class="sd">Solution transfer</span>
+<span class="sd">==================</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   interp_from_arrays</span>
+<span class="sd">   interp_from_grid</span>
+
+<span class="sd">Post-processing and I/O</span>
+<span class="sd">=========================</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   wall_yplus</span>
+<span class="sd">   to_tm3</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.collections</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.fortran</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.block</span><span class="w"> </span><span class="kn">import</span> <span class="n">Block</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="concatenate">
+<a class="viewcode-back" href="../../api/block_util.html#ember.block_util.concatenate">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">concatenate</span><span class="p">(</span><span class="o">*</span><span class="n">blocks</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Concatenate multiple blocks along a specified axis.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    *blocks : Block</span>
+<span class="sd">        Blocks to concatenate in order</span>
+<span class="sd">    axis : int, optional</span>
+<span class="sd">        Axis along which to concatenate (0, 1, or 2), default 0</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        New block containing concatenated data</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If no blocks provided, blocks have incompatible working fluids,</span>
+<span class="sd">        incompatible shapes, or patches on concatenation interfaces</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;At least 1 block required for concatenation&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">blocks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1"># Concatenate sequentially using the private helper</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">blocks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">blocks</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">_concatenate_two_blocks</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">block</span><span class="p">,</span> <span class="n">axis</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_concatenate_two_blocks</span><span class="p">(</span><span class="n">block1</span><span class="p">,</span> <span class="n">block2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Private helper to concatenate exactly two blocks along a specified axis.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block1 : Block</span>
+<span class="sd">        First block to concatenate</span>
+<span class="sd">    block2 : Block</span>
+<span class="sd">        Second block to concatenate</span>
+<span class="sd">    axis : int, optional</span>
+<span class="sd">        Axis along which to concatenate (0, 1, or 2), default 0</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        New block containing concatenated data</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If blocks have incompatible working fluids, incompatible shapes,</span>
+<span class="sd">        or patches on concatenation interfaces</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Check that shapes are compatible for concatenation</span>
+    <span class="n">shape1</span> <span class="o">=</span> <span class="n">block1</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">shape2</span> <span class="o">=</span> <span class="n">block2</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="k">if</span> <span class="n">axis</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">axis</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape1</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid axis </span><span class="si">{</span><span class="n">axis</span><span class="si">}</span><span class="s2"> for shapes </span><span class="si">{</span><span class="n">shape1</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Check all dimensions except concatenation axis match</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">shape1</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">axis</span> <span class="ow">and</span> <span class="n">shape1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="n">shape2</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Incompatible shapes for concatenation: </span><span class="si">{</span><span class="n">shape1</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">shape2</span><span class="si">}</span><span class="s2"> along axis </span><span class="si">{</span><span class="n">axis</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+    <span class="c1"># Calculate new shape</span>
+    <span class="n">new_shape</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">shape1</span><span class="p">)</span>
+    <span class="n">new_shape</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span> <span class="o">=</span> <span class="n">shape1</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span> <span class="o">+</span> <span class="n">shape2</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span>
+    <span class="n">new_shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">new_shape</span><span class="p">)</span>
+
+    <span class="c1"># Create new block with concatenated shape</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">new_shape</span><span class="p">)</span>
+
+    <span class="c1"># Copy metadata from first block (prioritize block1 properties)</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">block1</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="o">!=</span> <span class="s2">&quot;patches&quot;</span><span class="p">:</span>  <span class="c1"># Handle patches separately</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="c1"># Check for metadata mismatches and error</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">block1</span><span class="o">.</span><span class="n">_metadata</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;patches&quot;</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">,</span> <span class="s2">&quot;Omega&quot;</span><span class="p">,</span> <span class="s2">&quot;Nb&quot;</span><span class="p">]:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">block2</span><span class="o">.</span><span class="n">_metadata</span><span class="p">:</span>
+            <span class="n">value1</span> <span class="o">=</span> <span class="n">block1</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="n">value2</span> <span class="o">=</span> <span class="n">block2</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+            <span class="c1"># Handle different types of comparisons</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value1</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value2</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">value1</span><span class="p">,</span> <span class="n">value2</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Metadata mismatch for &#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39;: block1=</span><span class="si">{</span><span class="n">value1</span><span class="si">}</span><span class="s2">, block2=</span><span class="si">{</span><span class="n">value2</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value1</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">))</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span>
+                <span class="n">value2</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">)</span>
+            <span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">value1</span><span class="p">,</span> <span class="n">value2</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Metadata mismatch for &#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39;: block1=</span><span class="si">{</span><span class="n">value1</span><span class="si">}</span><span class="s2">, block2=</span><span class="si">{</span><span class="n">value2</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+            <span class="k">elif</span> <span class="n">value1</span> <span class="o">!=</span> <span class="n">value2</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Metadata mismatch for &#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39;: block1=</span><span class="si">{</span><span class="n">value1</span><span class="si">}</span><span class="s2">, block2=</span><span class="si">{</span><span class="n">value2</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+    <span class="c1"># Error about metadata keys that exist in only one block</span>
+    <span class="n">keys1</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">block1</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">-</span> <span class="p">{</span><span class="s2">&quot;patches&quot;</span><span class="p">}</span>
+    <span class="n">keys2</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">block2</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">-</span> <span class="p">{</span><span class="s2">&quot;patches&quot;</span><span class="p">}</span>
+    <span class="n">only_in_block1</span> <span class="o">=</span> <span class="n">keys1</span> <span class="o">-</span> <span class="n">keys2</span>
+    <span class="n">only_in_block2</span> <span class="o">=</span> <span class="n">keys2</span> <span class="o">-</span> <span class="n">keys1</span>
+
+    <span class="k">if</span> <span class="n">only_in_block1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Metadata keys </span><span class="si">{</span><span class="n">only_in_block1</span><span class="si">}</span><span class="s2"> exist only in block1&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">only_in_block2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Metadata keys </span><span class="si">{</span><span class="n">only_in_block2</span><span class="si">}</span><span class="s2"> exist only in block2&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Concatenate data arrays</span>
+    <span class="n">data1</span> <span class="o">=</span> <span class="n">block1</span><span class="o">.</span><span class="n">_data</span>
+    <span class="n">data2</span> <span class="o">=</span> <span class="n">block2</span><span class="o">.</span><span class="n">_data</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">data1</span><span class="p">,</span> <span class="n">data2</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+
+    <span class="c1"># Mark all data keys as initialized if they were in both blocks</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">block1</span><span class="o">.</span><span class="n">_data_keys</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">block1</span><span class="o">.</span><span class="n">_versions</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="ow">and</span> <span class="n">block2</span><span class="o">.</span><span class="n">_versions</span><span class="p">[</span><span class="n">key</span><span class="p">]:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">_versions</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="c1"># Handle patches with proper index adjustment</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="s2">&quot;patches&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">collections</span><span class="o">.</span><span class="n">BlockPatchCollection</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+    <span class="n">Omega</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">block1</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Omega&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">block2</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Omega&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>
+    <span class="p">)</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="s2">&quot;Omega&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Omega</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Omega</span><span class="p">))]</span>
+
+    <span class="n">axis_offset</span> <span class="o">=</span> <span class="n">block1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_interface_patch</span><span class="p">(</span>
+        <span class="n">patch</span><span class="p">,</span> <span class="n">block_shape</span><span class="p">,</span> <span class="n">concatenation_axis</span><span class="p">,</span> <span class="n">is_second_block</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if patch lies on the concatenation interface.&quot;&quot;&quot;</span>
+        <span class="n">const_dim</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">const_dim</span>
+
+        <span class="k">if</span> <span class="n">const_dim</span> <span class="o">!=</span> <span class="n">concatenation_axis</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>  <span class="c1"># Not on concatenation face</span>
+
+        <span class="c1"># Get absolute limits for the constant dimension</span>
+        <span class="n">const_index</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="p">[</span><span class="n">const_dim</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>  <span class="c1"># Since it&#39;s constant, start==end</span>
+
+        <span class="k">if</span> <span class="n">is_second_block</span><span class="p">:</span>
+            <span class="c1"># For block2: interface is at index 0 of concatenation axis</span>
+            <span class="k">return</span> <span class="n">const_index</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># For block1: interface is at last index of concatenation axis</span>
+            <span class="k">return</span> <span class="n">const_index</span> <span class="o">==</span> <span class="n">block_shape</span><span class="p">[</span><span class="n">const_dim</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">adjust_patch_indices</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">axis_offset</span><span class="p">,</span> <span class="n">concatenation_axis</span><span class="p">,</span> <span class="n">block2_shape</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create new patch with adjusted indices for block2.&quot;&quot;&quot;</span>
+        <span class="c1"># Get the original limits</span>
+        <span class="n">i_lim</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">j_lim</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">k_lim</span> <span class="o">=</span> <span class="n">patch</span><span class="o">.</span><span class="n">_ijk_lim</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Convert negative indices to positive for the concatenation axis</span>
+        <span class="c1"># before applying the offset</span>
+        <span class="k">if</span> <span class="n">concatenation_axis</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Convert negative i indices to positive using block2 shape</span>
+            <span class="n">i_lim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">i_lim</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">block2_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">i_lim</span><span class="p">,</span> <span class="n">i_lim</span><span class="p">)</span>
+            <span class="c1"># Then add the axis offset</span>
+            <span class="n">i_lim</span> <span class="o">=</span> <span class="n">i_lim</span> <span class="o">+</span> <span class="n">axis_offset</span>
+        <span class="k">elif</span> <span class="n">concatenation_axis</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># Convert negative j indices to positive using block2 shape</span>
+            <span class="n">j_lim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">j_lim</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">block2_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">j_lim</span><span class="p">,</span> <span class="n">j_lim</span><span class="p">)</span>
+            <span class="c1"># Then add the axis offset</span>
+            <span class="n">j_lim</span> <span class="o">=</span> <span class="n">j_lim</span> <span class="o">+</span> <span class="n">axis_offset</span>
+        <span class="k">elif</span> <span class="n">concatenation_axis</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1"># Convert negative k indices to positive using block2 shape</span>
+            <span class="n">k_lim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">k_lim</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">block2_shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">k_lim</span><span class="p">,</span> <span class="n">k_lim</span><span class="p">)</span>
+            <span class="c1"># Then add the axis offset</span>
+            <span class="n">k_lim</span> <span class="o">=</span> <span class="n">k_lim</span> <span class="o">+</span> <span class="n">axis_offset</span>
+
+        <span class="n">new_patch</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">patch</span><span class="p">)(</span><span class="n">i</span><span class="o">=</span><span class="n">i_lim</span><span class="p">,</span> <span class="n">j</span><span class="o">=</span><span class="n">j_lim</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">k_lim</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">patch</span><span class="o">.</span><span class="n">label</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">new_patch</span>
+
+    <span class="c1"># Check for interface patches and raise error if found</span>
+    <span class="n">interface_patches_block1</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">interface_patches_block2</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block1</span><span class="o">.</span><span class="n">patches</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">is_interface_patch</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">block1</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">is_second_block</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+            <span class="n">interface_patches_block1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block2</span><span class="o">.</span><span class="n">patches</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">is_interface_patch</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">block2</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">is_second_block</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+            <span class="n">interface_patches_block2</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">interface_patches_block1</span> <span class="ow">or</span> <span class="n">interface_patches_block2</span><span class="p">:</span>
+        <span class="n">error_msg</span> <span class="o">=</span> <span class="s2">&quot;Cannot concatenate blocks with patches on concatenation interface:&quot;</span>
+        <span class="k">if</span> <span class="n">interface_patches_block1</span><span class="p">:</span>
+            <span class="n">error_msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">  Block1 interface patches: </span><span class="si">{</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">interface_patches_block1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">if</span> <span class="n">interface_patches_block2</span><span class="p">:</span>
+            <span class="n">error_msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">  Block2 interface patches: </span><span class="si">{</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">interface_patches_block2</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">error_msg</span><span class="p">)</span>
+
+    <span class="c1"># Add patches from block1 (no interface patches present)</span>
+    <span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block1</span><span class="o">.</span><span class="n">patches</span><span class="p">:</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span>
+
+    <span class="c1"># Add adjusted patches from block2 (no interface patches present)</span>
+    <span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block2</span><span class="o">.</span><span class="n">patches</span><span class="p">:</span>
+        <span class="n">adjusted_patch</span> <span class="o">=</span> <span class="n">adjust_patch_indices</span><span class="p">(</span><span class="n">patch</span><span class="p">,</span> <span class="n">axis_offset</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">block2</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">adjusted_patch</span><span class="o">.</span><span class="n">attach_to_block</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>  <span class="c1"># Update to new block</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">adjusted_patch</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rotate_meridional</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">rot</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Rotate a block&#39;s meridional momentum :math:`(\rho V_x, \rho V_r)` in place by ``rot``.</span>
+
+<span class="sd">    Shared by :func:`resolve_to_interface` and :func:`resolve_from_interface`,</span>
+<span class="sd">    which differ only in which of the paired matrices from</span>
+<span class="sd">    :func:`~ember.util.rotation_matrices` they are handed -- the two are each</span>
+<span class="sd">    other&#39;s inverse, so there is nothing else to tell them apart. ``Vt`` is</span>
+<span class="sd">    untouched.</span>
+
+<span class="sd">    Operates directly on the nondimensional momentum components of</span>
+<span class="sd">    :attr:`~ember.block.Block.conserved_nd`, mirroring</span>
+<span class="sd">    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface`. A proper</span>
+<span class="sd">    rotation leaves :math:`V_x^2 + V_r^2` exactly invariant, so density and</span>
+<span class="sd">    energy need no update -- going via :meth:`~ember.block.Block.set_Vx` and</span>
+<span class="sd">    :meth:`~ember.block.Block.set_Vr` instead would rebuild energy from</span>
+<span class="sd">    internal energy plus new kinetic energy on every call, subtracting and</span>
+<span class="sd">    re-adding terms of very different magnitude for no mathematical reason.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block whose momentum is rotated.</span>
+<span class="sd">    rot : Array, shape ``chi.shape + (2, 2)``</span>
+<span class="sd">        Rotation matrix, from :func:`~ember.util.rotation_matrices`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        ``block``, with the momentum components of ``conserved_nd`` updated</span>
+<span class="sd">        in place.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cons</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span>
+    <span class="n">cons</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">matvec</span><span class="p">(</span><span class="n">rot</span><span class="p">,</span> <span class="n">cons</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">block</span>
+
+
+<div class="viewcode-block" id="resolve_to_interface">
+<a class="viewcode-back" href="../../api/block_util.html#ember.block_util.resolve_to_interface">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_to_interface</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">rot_to</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Convert meridional velocity to interface-aligned velocities.</span>
+
+<span class="sd">    Resolves the meridional velocity components :math:`(V_x, V_r)` to</span>
+<span class="sd">    velocities aligned with an interface: velocity through the interface</span>
+<span class="sd">    :math:`V_n` and velocity in it :math:`V_s`,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        V_n &amp;= \cos\chi\, V_x + \sin\chi\, V_r \\</span>
+<span class="sd">        V_s &amp;= -\sin\chi\, V_x + \cos\chi\, V_r</span>
+
+<span class="sd">    for the interface angle :math:`\chi` that ``rot_to`` was built from by</span>
+<span class="sd">    :func:`~ember.util.rotation_matrices`. Inverse of</span>
+<span class="sd">    :func:`resolve_from_interface`. Applies the rotation directly to the</span>
+<span class="sd">    nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,</span>
+<span class="sd">    the same approach as</span>
+<span class="sd">    :meth:`~ember.patch.RevolutionPatch.resolve_to_interface` on a</span>
+<span class="sd">    patch&#39;s averaging plane.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block containing velocity data to be resolved.</span>
+<span class="sd">    rot_to : Array, shape ``chi.shape + (2, 2)``</span>
+<span class="sd">        Rotation matrix, the first of the pair returned by</span>
+<span class="sd">        :func:`~ember.util.rotation_matrices`. Building it once and reusing</span>
+<span class="sd">        it across repeated to/from calls at the same angle -- as</span>
+<span class="sd">        :func:`~ember.average.mix_out` does each Newton iteration -- avoids</span>
+<span class="sd">        re-deriving the same sine and cosine on every call.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        The input block with momentum updated to interface-aligned form.</span>
+<span class="sd">        :math:`V_n` becomes the new Vx, :math:`V_s` becomes the new Vr, Vt</span>
+<span class="sd">        unchanged.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_rotate_meridional</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">rot_to</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_from_interface">
+<a class="viewcode-back" href="../../api/block_util.html#ember.block_util.resolve_from_interface">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_from_interface</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">rot_from</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Convert interface-aligned velocities back to meridional components.</span>
+
+<span class="sd">    Converts interface-aligned velocities (:math:`V_n` = ``block.Vx`` through</span>
+<span class="sd">    the interface, :math:`V_s` = ``block.Vr`` in it) back to meridional</span>
+<span class="sd">    components :math:`(V_x, V_r)`,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        V_x &amp;= \cos\chi\, V_n - \sin\chi\, V_s \\</span>
+<span class="sd">        V_r &amp;= \sin\chi\, V_n + \cos\chi\, V_s</span>
+
+<span class="sd">    for the interface angle :math:`\chi` that ``rot_from`` was built from by</span>
+<span class="sd">    :func:`~ember.util.rotation_matrices`. Inverse of</span>
+<span class="sd">    :func:`resolve_to_interface`. Applies the rotation directly to the</span>
+<span class="sd">    nondimensional momentum in :attr:`~ember.block.Block.conserved_nd`,</span>
+<span class="sd">    the same approach as</span>
+<span class="sd">    :meth:`~ember.patch.RevolutionPatch.resolve_from_interface` on a</span>
+<span class="sd">    patch&#39;s averaging plane.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block containing interface-aligned velocities (Vn=block.Vx, Vs=block.Vr).</span>
+<span class="sd">    rot_from : Array, shape ``chi.shape + (2, 2)``</span>
+<span class="sd">        Rotation matrix, the second of the pair returned by</span>
+<span class="sd">        :func:`~ember.util.rotation_matrices`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        The input block with momentum updated to meridional form.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_rotate_meridional</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">rot_from</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="resample">
+<a class="viewcode-back" href="../../api/block_util.html#ember.block_util.resample">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resample</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">factors</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resample 3D block with vectorized interpolation while preserving patch connectivity.</span>
+
+<span class="sd">    Creates a new block by resampling with given factor(s). Critical indices from</span>
+<span class="sd">    patch boundaries are preserved to maintain connectivity. Uses scipy.interpn</span>
+<span class="sd">    for efficient multi-dimensional interpolation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block to resample</span>
+<span class="sd">    factors : float or tuple of 3 floats</span>
+<span class="sd">        Resampling factor(s). Values &gt; 1 increase resolution, &lt; 1 decrease resolution.</span>
+<span class="sd">        If scalar, same factor applied to all three dimensions.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Block</span>
+<span class="sd">        New resampled block with updated patch indices and preserved metadata</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Handle scalar factor</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="n">factors</span> <span class="o">=</span> <span class="p">(</span><span class="n">factors</span><span class="p">,)</span> <span class="o">*</span> <span class="mi">3</span>
+
+    <span class="n">old_shape</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="c1"># 1. Collect critical indices using list comprehension</span>
+    <span class="n">ijk_crit</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span>
+            <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">old_shape</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="o">+</span> <span class="p">[</span><span class="n">idx</span> <span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">patch</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="p">[</span><span class="n">dim</span><span class="p">]]</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="p">]</span>
+
+    <span class="c1"># 2. Resample each direction with mappings</span>
+    <span class="n">ijk_new</span><span class="p">,</span> <span class="n">ijk_mappings</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span>
+        <span class="o">*</span><span class="p">[</span>
+            <span class="n">util</span><span class="o">.</span><span class="n">resample</span><span class="p">(</span><span class="n">factors</span><span class="p">[</span><span class="n">dim</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">old_shape</span><span class="p">[</span><span class="n">dim</span><span class="p">]),</span> <span class="n">ijk_crit</span><span class="p">[</span><span class="n">dim</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">new_shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span> <span class="k">for</span> <span class="n">coords</span> <span class="ow">in</span> <span class="n">ijk_new</span><span class="p">)</span>
+
+    <span class="c1"># 3. Interpolate all variables in a single Fortran call</span>
+    <span class="n">data_new</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">map_coordinates_3d</span><span class="p">(</span>
+        <span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">,</span>
+        <span class="n">ijk_new</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+        <span class="n">ijk_new</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+        <span class="n">ijk_new</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Get all old patch limits before creating new block</span>
+    <span class="n">old_patch_limits</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">:</span>
+        <span class="n">old_patch_limits</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">patch</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)])</span>
+
+    <span class="c1"># 4. Create new block with independent patch collection</span>
+    <span class="n">new_block</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">new_shape</span><span class="p">)</span>
+    <span class="n">new_block</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">data_new</span>
+
+    <span class="c1"># empty() shallow-copies _metadata, so new_block.patches is still the original</span>
+    <span class="c1"># BlockPatchCollection. Replace it with unattached copies; indices will be</span>
+    <span class="c1"># remapped and patches re-attached in step 5 below.</span>
+    <span class="n">copied_patches</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">]</span>
+    <span class="n">new_patch_collection</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">collections</span><span class="o">.</span><span class="n">BlockPatchCollection</span><span class="p">(</span><span class="n">new_block</span><span class="p">)</span>
+    <span class="n">new_patch_collection</span><span class="o">.</span><span class="n">_items</span> <span class="o">=</span> <span class="n">copied_patches</span>
+    <span class="n">new_block</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;patches&quot;</span><span class="p">,</span> <span class="n">new_patch_collection</span><span class="p">)</span>
+
+    <span class="c1"># 5. Update all patch indices using absolute limits and mapping</span>
+    <span class="k">for</span> <span class="n">old_patch</span><span class="p">,</span> <span class="n">old_limits</span><span class="p">,</span> <span class="n">new_patch</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+        <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">,</span> <span class="n">old_patch_limits</span><span class="p">,</span> <span class="n">new_block</span><span class="o">.</span><span class="n">patches</span>
+    <span class="p">):</span>
+        <span class="n">new_limits</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="nb">tuple</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">ijk_mappings</span><span class="p">[</span><span class="n">dim</span><span class="p">][</span><span class="n">old_limits</span><span class="p">[</span><span class="n">dim</span><span class="p">][</span><span class="mi">0</span><span class="p">]],</span>
+                    <span class="n">ijk_mappings</span><span class="p">[</span><span class="n">dim</span><span class="p">][</span><span class="n">old_limits</span><span class="p">[</span><span class="n">dim</span><span class="p">][</span><span class="mi">1</span><span class="p">]],</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="n">new_patch</span><span class="o">.</span><span class="n">set_i_lim</span><span class="p">(</span><span class="n">new_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">new_patch</span><span class="o">.</span><span class="n">set_j_lim</span><span class="p">(</span><span class="n">new_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">new_patch</span><span class="o">.</span><span class="n">set_k_lim</span><span class="p">(</span><span class="n">new_limits</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="c1"># Re-validate with new block, and carry across any boundary condition</span>
+        <span class="c1"># the old patch holds per span station -- a prescribed spanwise profile</span>
+        <span class="c1"># is written for the node count it was set on, so it is interpolated</span>
+        <span class="c1"># onto the new one rather than replayed at the old length. The original</span>
+        <span class="c1"># patch is still attached and is where the source span stations come</span>
+        <span class="c1"># from, so this has to happen before `block` goes anywhere.</span>
+        <span class="n">new_patch</span><span class="o">.</span><span class="n">attach_to_block_resampled</span><span class="p">(</span><span class="n">new_block</span><span class="p">,</span> <span class="n">old_patch</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">new_block</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_patch_crit</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Critical indices per dimension for a block-to-block interpolation.</span>
+
+<span class="sd">    A critical index is a location that must land exactly where it started:</span>
+<span class="sd">    the ends of the block, and every patch boundary. Returned as one</span>
+<span class="sd">    ``(src, block)`` pair per dimension, which is all</span>
+<span class="sd">    :func:`_interp_coords` needs -- so the notion of a patch stays here, on</span>
+<span class="sd">    the side of the interface that has blocks, and never reaches the array</span>
+<span class="sd">    path.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">crit</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">crit</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span>
+                    <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">src</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                    <span class="o">+</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">src</span><span class="o">.</span><span class="n">patches</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="p">[</span><span class="n">d</span><span class="p">]]</span>
+                <span class="p">),</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span>
+                    <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                    <span class="o">+</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">ijk_lim_abs</span><span class="p">[</span><span class="n">d</span><span class="p">]]</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">crit</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_interp_coords</span><span class="p">(</span><span class="n">block_shape</span><span class="p">,</span> <span class="n">src_shape</span><span class="p">,</span> <span class="n">crit</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build per-dimension float32 query coordinate arrays for interpolation.</span>
+
+<span class="sd">    Between each pair of consecutive critical indices a linspace maps block</span>
+<span class="sd">    index space into source index space, so those locations land exactly</span>
+<span class="sd">    where they started and only the spans between them are stretched.</span>
+
+<span class="sd">    With no critical indices given, the ends are the only ones: they line up</span>
+<span class="sd">    and everything between is stretched evenly. That is the right behaviour</span>
+<span class="sd">    for a bare field, which has no patch layout to align to -- and for a flow</span>
+<span class="sd">    field, unlike for coordinates, a boundary landing a fraction of a cell out</span>
+<span class="sd">    is immaterial.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block_shape : tuple</span>
+<span class="sd">        Shape of the target, whose index space the coordinates are defined over.</span>
+<span class="sd">    src_shape : tuple</span>
+<span class="sd">        Shape of the source, in whose index space they are expressed.</span>
+<span class="sd">    crit : list of tuple, optional</span>
+<span class="sd">        One ``(src, block)`` pair of critical index arrays per dimension.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list of Array</span>
+<span class="sd">        Three float32 arrays, one per dimension, each of length</span>
+<span class="sd">        ``block_shape[d]``, containing source-index-space coordinates.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If a dimension&#39;s critical-index count differs between source and block.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">crit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">src_crit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">src_shape</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="n">blk_crit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">block_shape</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">src_crit</span><span class="p">,</span> <span class="n">blk_crit</span> <span class="o">=</span> <span class="n">crit</span><span class="p">[</span><span class="n">d</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">src_crit</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">blk_crit</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Dimension </span><span class="si">{</span><span class="n">d</span><span class="si">}</span><span class="s2">: src has </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">src_crit</span><span class="p">)</span><span class="si">}</span><span class="s2"> critical indices &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;but block has </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">blk_crit</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="n">segments</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">src_crit</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">blk_crit</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">blk_crit</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">seg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span>
+                <span class="nb">float</span><span class="p">(</span><span class="n">src_crit</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span> <span class="nb">float</span><span class="p">(</span><span class="n">src_crit</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]),</span> <span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span>
+            <span class="p">)</span>
+            <span class="n">segments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">seg</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">segments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">src_crit</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">))</span>
+        <span class="n">coords</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">segments</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">coords</span>
+
+
+<span class="n">STATE</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;P&quot;</span><span class="p">,</span> <span class="s2">&quot;T&quot;</span><span class="p">,</span> <span class="s2">&quot;Vx&quot;</span><span class="p">,</span> <span class="s2">&quot;Vr&quot;</span><span class="p">,</span> <span class="s2">&quot;Vt&quot;</span><span class="p">,</span> <span class="s2">&quot;mu_turb&quot;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;Quantities transferred by the interpolation functions below.</span>
+
+<span class="sd">Primitives, not the conserved variables. Conserved energy is measured from its</span>
+<span class="sd">fluid&#39;s datum, so copying it between blocks whose fluids differ silently</span>
+<span class="sd">reinterprets it -- a datum 600 K apart turns 400 K into 1000 K, with nothing</span>
+<span class="sd">raised. Pressure, temperature and velocity are datum-free and cross unchanged,</span>
+<span class="sd">which is also why interpolating them cannot produce a negative temperature the</span>
+<span class="sd">way interpolating ``rhoe`` can.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="interp_from_arrays">
+<a class="viewcode-back" href="../../api/block_util.html#ember.block_util.interp_from_arrays">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">interp_from_arrays</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">arrays</span><span class="p">,</span> <span class="n">crit</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Interpolate a flow field onto ``block`` by index-space trilinear interpolation.</span>
+
+<span class="sd">    The caller must have already set the fluid on block.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Target block to receive the field.</span>
+<span class="sd">    arrays : sequence of Array</span>
+<span class="sd">        One array per entry of :data:`STATE`, in that order, all of the same</span>
+<span class="sd">        shape and all dimensional. They need not match ``block``&#39;s shape.</span>
+<span class="sd">    crit : list of tuple, optional</span>
+<span class="sd">        One ``(src, block)`` pair of critical index arrays per dimension,</span>
+<span class="sd">        locations to be held fixed through the mapping. None for a bare</span>
+<span class="sd">        field, which maps end to end instead. Built from patches by</span>
+<span class="sd">        :func:`interp_from_grid`; this function has no notion of a patch.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    AssertionError</span>
+<span class="sd">        If a different-shape interpolation produces values outside the</span>
+<span class="sd">        source&#39;s range -- trilinear interpolation must not create new extrema.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">data_in</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">arrays</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">src_shape</span> <span class="o">=</span> <span class="n">data_in</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;interp: src </span><span class="si">%s</span><span class="s2"> -&gt; block </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">src_shape</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">src_shape</span> <span class="o">==</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+        <span class="n">data_out</span> <span class="o">=</span> <span class="n">data_in</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="n">_interp_coords</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">src_shape</span><span class="p">,</span> <span class="n">crit</span><span class="p">)</span>
+
+        <span class="n">data_out</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">map_coordinates_3d</span><span class="p">(</span>
+            <span class="n">data_in</span><span class="p">,</span> <span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">coords</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">coords</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Trilinear interpolation must not create new extrema; allow a small</span>
+        <span class="c1"># tolerance for float32 rounding relative to the range of each variable.</span>
+        <span class="n">lo</span> <span class="o">=</span> <span class="n">data_in</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">data_in</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">hi</span> <span class="o">=</span> <span class="n">data_in</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">data_in</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">tol</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">1e-4</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">hi</span> <span class="o">-</span> <span class="n">lo</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">1e-4</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">hi</span><span class="p">))</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">data_out</span> <span class="o">&gt;=</span> <span class="n">lo</span> <span class="o">-</span> <span class="n">tol</span><span class="p">)</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">data_out</span> <span class="o">&lt;=</span> <span class="n">hi</span> <span class="o">+</span> <span class="n">tol</span><span class="p">),</span> <span class="p">(</span>
+            <span class="s2">&quot;Interpolated values exceed source bounds&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">block</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="n">data_out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">data_out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="n">data_out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="n">data_out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="n">data_out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+    <span class="n">block</span><span class="o">.</span><span class="n">set_mu_turb</span><span class="p">(</span><span class="n">data_out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">5</span><span class="p">])</span>
+
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">T</span><span class="p">))</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">T</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span>
+        <span class="s2">&quot;Target block has non-finite or non-positive temperatures after interpolation&quot;</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="interp_from_grid">
+<a class="viewcode-back" href="../../api/block_util.html#ember.block_util.interp_from_grid">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">interp_from_grid</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Interpolate the solution on ``src`` onto ``block``.</span>
+
+<span class="sd">    A thin unpacking of :func:`interp_from_arrays`: the state is read off</span>
+<span class="sd">    ``src`` dimensionally, so the two blocks may carry different fluids --</span>
+<span class="sd">    different reference scales, and different entropy and energy datums --</span>
+<span class="sd">    without any conversion being needed.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Target block to receive the interpolated solution.</span>
+<span class="sd">    src : Block</span>
+<span class="sd">        Source block providing the solution.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">interp_from_arrays</span><span class="p">(</span>
+        <span class="n">block</span><span class="p">,</span>
+        <span class="p">[</span><span class="nb">getattr</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">STATE</span><span class="p">],</span>
+        <span class="n">crit</span><span class="o">=</span><span class="n">_patch_crit</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">src</span><span class="p">),</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="repeat_pitchwise">
+<a class="viewcode-back" href="../../api/block_util.html#ember.block_util.repeat_pitchwise">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">repeat_pitchwise</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">n_passage</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Return copies of `block`, each one blade pitch further round.</span>
+
+<span class="sd">    A single passage is all a periodic solver computes, but it is rarely all</span>
+<span class="sd">    anyone wants to look at: repeating it shows the flow as a cascade, where</span>
+<span class="sd">    the passage-to-passage picture reads at a glance. The copies are</span>
+<span class="sd">    successively rotated by :attr:`~ember.block.Block.pitch`, the first left</span>
+<span class="sd">    where it is.</span>
+
+<span class="sd">    Copies rather than one concatenated block, deliberately. Joining them</span>
+<span class="sd">    would need to know which index runs pitchwise, which is a property of a</span>
+<span class="sd">    grid&#39;s topology and not something to guess; and a consumer that draws</span>
+<span class="sd">    blocks --- a contour plot, a mesh view --- draws a list just as happily,</span>
+<span class="sd">    while keeping one colour scale across the set.</span>
+
+<span class="sd">    Patches are dropped. A rotated copy is a view of the flow, not a member of</span>
+<span class="sd">    a connected grid, and its periodic patches would claim connections that no</span>
+<span class="sd">    longer hold.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Block to repeat. The rotation is :attr:`~ember.block.Block.pitch`, so</span>
+<span class="sd">        it follows the blade count: on a block whose</span>
+<span class="sd">        :attr:`~ember.block.Block.Nb` was never set, that is the default of one</span>
+<span class="sd">        blade, a pitch of a whole revolution, and copies that coincide.</span>
+<span class="sd">    n_passage : int</span>
+<span class="sd">        Number of passages to return, including the original.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list of Block</span>
+<span class="sd">        `n_passage` blocks, rotated by 0, 1, ... pitches.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If `n_passage` is less than one.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">n_passage</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Need at least one passage, got n_passage=</span><span class="si">{</span><span class="n">n_passage</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">passages</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i_passage</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_passage</span><span class="p">):</span>
+        <span class="n">passage</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">keep_patches</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">passage</span><span class="o">.</span><span class="n">set_t</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">t</span> <span class="o">+</span> <span class="n">i_passage</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">pitch</span><span class="p">)</span>
+        <span class="n">passages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">passage</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">passages</span></div>
+
+
+
+<div class="viewcode-block" id="wall_yplus">
+<a class="viewcode-back" href="../../api/block_util.html#ember.block_util.wall_yplus">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">wall_yplus</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;y+ on all six wall-adjacent boundary faces of ``block``.</span>
+
+<span class="sd">    Post-processing only -- NOT part of the per-step viscous kernel.</span>
+<span class="sd">    ``wall_yplus_field`` (``_fortran/viscous.f90``) reuses the exact Re/cf/d</span>
+<span class="sd">    that ``set_visc_force``&#39;s own wall function uses (both call the shared</span>
+<span class="sd">    ``wall_core``), so this cannot silently drift from what the solver</span>
+<span class="sd">    actually modeled at a face; it carries none of ``set_visc_force``&#39;s</span>
+<span class="sd">    k-slab/rolling-buffer machinery since it costs O(surface) per call, not</span>
+<span class="sd">    O(volume) per step.</span>
+
+<span class="sd">    The height is the wall-adjacent cell thickness ``vol/|dA|``, i.e. the</span>
+<span class="sd">    distance to the first off-wall *node* -- the point whose velocity the wall</span>
+<span class="sd">    function actually samples in this cell-vertex scheme, so this is y+ where</span>
+<span class="sd">    the closure is evaluated. Cell-centred codes report y+ at the first cell</span>
+<span class="sd">    centroid instead, which is the usual &quot;first cell y+&quot; of mesh-sizing</span>
+<span class="sd">    guidance; **halve** these values for that convention, since y+ is linear</span>
+<span class="sd">    in wall distance at fixed friction velocity. That is not a conversion for</span>
+<span class="sd">    comparing against another code&#39;s number on the same mesh, though: a</span>
+<span class="sd">    cell-centred solver samples its velocity at the half height too, so it</span>
+<span class="sd">    infers its own friction velocity and does not simply see half of this.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict[str, numpy.ndarray]</span>
+<span class="sd">        Keys ``yplus_i1``, ``yplus_j1``, ``yplus_k1``, ``yplus_ni``,</span>
+<span class="sd">        ``yplus_nj``, ``yplus_nk``, each shaped like the corresponding</span>
+<span class="sd">        :attr:`~ember.block.Block.ijk_wall_visc` face array, zero on</span>
+<span class="sd">        non-wall cells.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;yplus_i1&quot;</span><span class="p">,</span> <span class="s2">&quot;yplus_j1&quot;</span><span class="p">,</span> <span class="s2">&quot;yplus_k1&quot;</span><span class="p">,</span> <span class="s2">&quot;yplus_ni&quot;</span><span class="p">,</span> <span class="s2">&quot;yplus_nj&quot;</span><span class="p">,</span> <span class="s2">&quot;yplus_nk&quot;</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">wall_yplus_field</span><span class="p">(</span>
+        <span class="n">cons</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
+        <span class="n">vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">vol_nd</span><span class="p">,</span>
+        <span class="n">dai</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dAi_nd</span><span class="p">,</span>
+        <span class="n">daj</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dAj_nd</span><span class="p">,</span>
+        <span class="n">dak</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dAk_nd</span><span class="p">,</span>
+        <span class="n">omega_block</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">Omega_nd</span><span class="p">,</span>
+        <span class="n">r</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">r_nd</span><span class="p">,</span>
+        <span class="n">mu</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">mu_nd</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">block</span><span class="o">.</span><span class="n">ijk_wall_visc</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">block</span><span class="o">.</span><span class="n">Omega_wall_nd</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">result</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="to_tm3">
+<a class="viewcode-back" href="../../api/block_util.html#ember.block_util.to_tm3">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_tm3</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">clip_quantile</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Write a triangulated cut to a tm3 binary file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    block : Block</span>
+<span class="sd">        Triangulated block with shape ``(ntri, 3)``.</span>
+<span class="sd">    filename : str or path-like</span>
+<span class="sd">        Output file path.</span>
+<span class="sd">    clip_quantile : float, optional</span>
+<span class="sd">        Quantile used to clip the property colour range. The range is set</span>
+<span class="sd">        to [q, 1-q] percentiles so that extreme outliers do not dominate</span>
+<span class="sd">        the colour scale. Default is 0.01 (1%). Set to 0 to use the</span>
+<span class="sd">        full min/max range.</span>
+<span class="sd">    **kwargs : array_like, shape (ntri, 3)</span>
+<span class="sd">        Exactly one keyword argument: the key is used as the property name</span>
+<span class="sd">        in the file, the value is the per-vertex scalar array.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If the block is not triangulated, kwargs count != 1, or the value</span>
+<span class="sd">        shape does not match the block shape.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">block</span><span class="o">.</span><span class="n">triangulated</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;to_tm3 requires a triangulated block&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;to_tm3 requires shape (ntri, 3), got </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;to_tm3 requires exactly one keyword argument (property name=array), &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;got </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">prop_name</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Property array shape </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> does not match block shape </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">ntri</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">nverts</span> <span class="o">=</span> <span class="n">ntri</span> <span class="o">*</span> <span class="mi">3</span>
+
+    <span class="c1"># Cartesian vertex coordinates, shape (ntri, 3, 3): [tri, node, xyz]</span>
+    <span class="n">xyz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">block</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">z</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># (ntri, 3, 3)</span>
+    <span class="n">nodes</span> <span class="o">=</span> <span class="n">xyz</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>  <span class="c1"># (nverts, 3)</span>
+
+    <span class="c1"># Each triangle&#39;s vertices are consecutive — no shared vertices</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nverts</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ntri</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="c1"># Bounding geometry</span>
+    <span class="n">rmax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">nodes</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="n">xrange_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">nodes</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">nodes</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">yrange_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">nodes</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">nodes</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">zrange_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">nodes</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">nodes</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="n">values_flat</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">q_lo</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">values_flat</span><span class="p">,</span> <span class="mf">100.0</span> <span class="o">*</span> <span class="n">clip_quantile</span><span class="p">))</span>
+    <span class="n">q_hi</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">values_flat</span><span class="p">,</span> <span class="mf">100.0</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">clip_quantile</span><span class="p">)))</span>
+    <span class="n">prange_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">q_lo</span><span class="p">,</span> <span class="n">q_hi</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="n">surface_name</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">label</span> <span class="k">if</span> <span class="n">block</span><span class="o">.</span><span class="n">label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">&quot;surface&quot;</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># nsteps</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># nsurfaces</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">surface_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;S96&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># surface name</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">nverts</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># nverts</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">ntri</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># ntris</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># nprops</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">rmax</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># rmax</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">xrange_</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># xrange</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">yrange_</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># yrange</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">zrange_</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># zrange</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">nodes</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># vertices</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># triangle indices</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">prop_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;S96&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># prop name</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">prange_</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># prange</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">values_flat</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>  <span class="c1"># property values</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

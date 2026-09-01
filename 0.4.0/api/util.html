@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Array utilities &#8212; ember 0.4.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=6c02275b"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="YAML utilities" href="yaml_util.html" />
+    <link rel="prev" title="Jacobians" href="perturbation.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Array utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#flow-angle-and-coordinate-conversions">Flow angle and coordinate conversions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#vector-and-matrix-operations">Vector and matrix operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#grid-construction">Grid construction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#array-allocation-and-buffers">Array allocation and buffers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#miscellaneous-geometry">Miscellaneous geometry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.profile"><code class="docutils literal notranslate"><span class="pre">profile()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.dot"><code class="docutils literal notranslate"><span class="pre">dot()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.angles_to_components"><code class="docutils literal notranslate"><span class="pre">angles_to_components()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.components_to_angles"><code class="docutils literal notranslate"><span class="pre">components_to_angles()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.vecnorm"><code class="docutils literal notranslate"><span class="pre">vecnorm()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.zeros"><code class="docutils literal notranslate"><span class="pre">zeros()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.array"><code class="docutils literal notranslate"><span class="pre">array()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.empty"><code class="docutils literal notranslate"><span class="pre">empty()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.full"><code class="docutils literal notranslate"><span class="pre">full()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.allocate_or_reuse"><code class="docutils literal notranslate"><span class="pre">allocate_or_reuse()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.bcast_if_needed"><code class="docutils literal notranslate"><span class="pre">bcast_if_needed()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.carve_view"><code class="docutils literal notranslate"><span class="pre">carve_view()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.rss_bytes"><code class="docutils literal notranslate"><span class="pre">rss_bytes()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.meshgrid3"><code class="docutils literal notranslate"><span class="pre">meshgrid3()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.linmesh3"><code class="docutils literal notranslate"><span class="pre">linmesh3()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.pol_to_pseudocart"><code class="docutils literal notranslate"><span class="pre">pol_to_pseudocart()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.extent"><code class="docutils literal notranslate"><span class="pre">extent()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.bounding_box"><code class="docutils literal notranslate"><span class="pre">bounding_box()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.unwrap_meridional"><code class="docutils literal notranslate"><span class="pre">unwrap_meridional()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.cart_to_pol"><code class="docutils literal notranslate"><span class="pre">cart_to_pol()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.pol_to_cart"><code class="docutils literal notranslate"><span class="pre">pol_to_cart()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.matmat"><code class="docutils literal notranslate"><span class="pre">matmat()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.rotation_matrices"><code class="docutils literal notranslate"><span class="pre">rotation_matrices()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.matvec"><code class="docutils literal notranslate"><span class="pre">matvec()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.resample"><code class="docutils literal notranslate"><span class="pre">resample()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.apply_perm_flip"><code class="docutils literal notranslate"><span class="pre">apply_perm_flip()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.cosine_cluster"><code class="docutils literal notranslate"><span class="pre">cosine_cluster()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.cluster"><code class="docutils literal notranslate"><span class="pre">cluster()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.util.cluster_symmetric"><code class="docutils literal notranslate"><span class="pre">cluster_symmetric()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.4.0";
+    var page = "api/util.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="perturbation.html" title="previous chapter">Jacobians</a></li>
+      <li>Next: <a href="yaml_util.html" title="next chapter">YAML utilities</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.util">
+<span id="array-utilities"></span><h1>Array utilities<a class="headerlink" href="#module-ember.util" title="Link to this heading">¶</a></h1>
+<p>Array functions shared across the codebase.</p>
+<p>Each function below is a standalone operation on plain NumPy arrays. This
+module acts a a place to collect common conventions, patterns, and conversions
+so that they can be used consistently across the code.</p>
+<section id="flow-angle-and-coordinate-conversions">
+<h2>Flow angle and coordinate conversions<a class="headerlink" href="#flow-angle-and-coordinate-conversions" title="Link to this heading">¶</a></h2>
+<p>Paired functions convert between the native ember data representation
+and and other conventions, each the inverse of its partner. There are utilities
+for conversion between flow angles and velocity components, between Cartesian
+and polar coordinates, and between polar and pseudo-Cartesian coordinates.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.angles_to_components" title="ember.util.angles_to_components"><code class="xref py py-obj docutils literal notranslate"><span class="pre">angles_to_components</span></code></a>(V, Alpha, Beta)</p></td>
+<td><p>Resolve velocity magnitude into polar components.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.components_to_angles" title="ember.util.components_to_angles"><code class="xref py py-obj docutils literal notranslate"><span class="pre">components_to_angles</span></code></a>(Vx, Vr, Vt)</p></td>
+<td><p>Convert velocity components to velocity magnitude and flow angles.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.cart_to_pol" title="ember.util.cart_to_pol"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cart_to_pol</span></code></a>(xyz, Vxyz[, perm, signs])</p></td>
+<td><p>Convert Cartesian coordinates and velocities to polar form.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.pol_to_cart" title="ember.util.pol_to_cart"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pol_to_cart</span></code></a>(xrt, Vxrt[, perm, signs])</p></td>
+<td><p>Convert polar coordinates and velocities to Cartesian form.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.pol_to_pseudocart" title="ember.util.pol_to_pseudocart"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pol_to_pseudocart</span></code></a>(xrt[, inplace])</p></td>
+<td><p>Convert (x, r, θ) coordinates to pseudo-Cartesian (x, r, rθ).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="vector-and-matrix-operations">
+<h2>Vector and matrix operations<a class="headerlink" href="#vector-and-matrix-operations" title="Link to this heading">¶</a></h2>
+<p>These functions are intended for use batches of vectors or matrices stacked
+along leading axes, with the last one or two axes holding the vector or matrix
+components. Some are thin wrappers around <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.einsum.html#numpy.einsum" title="(in NumPy v2.5)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">numpy.einsum</span></code></a>, but for
+operations on the hot path of a solver loop they are implemented in Fortran for
+better performance.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.dot" title="ember.util.dot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dot</span></code></a>(a, b)</p></td>
+<td><p>Dot product of two arrays along the last axis.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.vecnorm" title="ember.util.vecnorm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vecnorm</span></code></a>(x)</p></td>
+<td><p>Calculate the norm of a vector array along the last axis.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.matmat" title="ember.util.matmat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">matmat</span></code></a>(A, B)</p></td>
+<td><p>Matrix-matrix multiplication over trailing dimensions.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.matvec" title="ember.util.matvec"><code class="xref py py-obj docutils literal notranslate"><span class="pre">matvec</span></code></a>(A, b[, out])</p></td>
+<td><p>Matrix-vector multiplication using einsum over trailing dimensions.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="grid-construction">
+<h2>Grid construction<a class="headerlink" href="#grid-construction" title="Link to this heading">¶</a></h2>
+<p>The below functions are used to build coordinate arrays for the solver. For
+simple duct geometries, they allow convenient construction of uniform or
+clustered <a class="reference internal" href="block.html#ember.block.Block.xrt" title="ember.block.Block.xrt"><code class="xref py py-attr docutils literal notranslate"><span class="pre">xrt</span></code></a> arrays. The <a class="reference internal" href="#ember.util.resample" title="ember.util.resample"><code class="xref py py-func docutils literal notranslate"><span class="pre">resample()</span></code></a> is
+useful for coarsening or refining the distribution of an existing grid.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.meshgrid3" title="ember.util.meshgrid3"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meshgrid3</span></code></a>(xv, rv, tv)</p></td>
+<td><p>Create 3D coordinate rectangular meshgrid.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.linmesh3" title="ember.util.linmesh3"><code class="xref py py-obj docutils literal notranslate"><span class="pre">linmesh3</span></code></a>(x, r, t, shape)</p></td>
+<td><p>Create 3D coordinate meshgrid from ranges and shape.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.cosine_cluster" title="ember.util.cosine_cluster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cosine_cluster</span></code></a>(n)</p></td>
+<td><p>Generate cosine-clustered points from 0 to 1, dense at both ends.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.cluster" title="ember.util.cluster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cluster</span></code></a>(ni, ER, dmax)</p></td>
+<td><p>Generate geometrically spaced points from 0 to 1 with expansion ratio and max spacing.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.cluster_symmetric" title="ember.util.cluster_symmetric"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cluster_symmetric</span></code></a>(n, ER[, dmax])</p></td>
+<td><p>Generate geometrically spaced points from 0 to 1, dense at both ends.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.resample" title="ember.util.resample"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resample</span></code></a>(factor, vector[, i_crit])</p></td>
+<td><p>Resampled a vector with specified factor, optionally preserving critical points.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="array-allocation-and-buffers">
+<h2>Array allocation and buffers<a class="headerlink" href="#array-allocation-and-buffers" title="Link to this heading">¶</a></h2>
+<p>Many of these functions are are thin wrappers around their <a class="reference external" href="https://numpy.org/doc/stable/reference/index.html#module-numpy" title="(in NumPy v2.5)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">numpy</span></code></a>
+namesakes that fix the dtype and memory layout that weember standardises on:
+Fortran order and single-precision <code class="docutils literal notranslate"><span class="pre">float32</span></code>. Calling these rather than the
+bare NumPy functions signals intent and keeps that convention in one place –
+use them for any new array creation. There are also functions for memory
+management: allocation, or buffer creation and reuse.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.zeros" title="ember.util.zeros"><code class="xref py py-obj docutils literal notranslate"><span class="pre">zeros</span></code></a>(shape[, dtype])</p></td>
+<td><p>Zero-filled array in standard layout and dtype.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.array" title="ember.util.array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">array</span></code></a>(x[, dtype])</p></td>
+<td><p>Copy array data into standard layout and dtype.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.empty" title="ember.util.empty"><code class="xref py py-obj docutils literal notranslate"><span class="pre">empty</span></code></a>(shape)</p></td>
+<td><p>Uninitialised array in standard layout and dtype.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.full" title="ember.util.full"><code class="xref py py-obj docutils literal notranslate"><span class="pre">full</span></code></a>(shape, fill_value)</p></td>
+<td><p>Constant-filled array in standard layout and dtype.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.allocate_or_reuse" title="ember.util.allocate_or_reuse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">allocate_or_reuse</span></code></a>(out, shape[, dtype])</p></td>
+<td><p>Allocate output array if not provided, otherwise reuse existing array.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.bcast_if_needed" title="ember.util.bcast_if_needed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bcast_if_needed</span></code></a>(a, shape)</p></td>
+<td><p>Broadcast <code class="docutils literal notranslate"><span class="pre">a</span></code> to <code class="docutils literal notranslate"><span class="pre">shape</span></code> only if it doesn't already have it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.carve_view" title="ember.util.carve_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">carve_view</span></code></a>(buf, *shapes)</p></td>
+<td><p>Carve one or more zero-copy Fortran-order views from a buffer of any shape.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.rss_bytes" title="ember.util.rss_bytes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rss_bytes</span></code></a>()</p></td>
+<td><p>Resident and peak-resident memory of this process, in bytes.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="miscellaneous-geometry">
+<h2>Miscellaneous geometry<a class="headerlink" href="#miscellaneous-geometry" title="Link to this heading">¶</a></h2>
+<p>Assorted utilities for working with coordinates and bounding boxes.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.extent" title="ember.util.extent"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extent</span></code></a>(*args)</p></td>
+<td><p>Calculate per-component min and max values.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.bounding_box" title="ember.util.bounding_box"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bounding_box</span></code></a>(xyz)</p></td>
+<td><p>Calculate bounding box vertices from Cartesian coordinates.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.apply_perm_flip" title="ember.util.apply_perm_flip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_perm_flip</span></code></a>(array, perm[, flip])</p></td>
+<td><p>Apply permutation and flipping to array while preserving coordinate dimension.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.unwrap_meridional" title="ember.util.unwrap_meridional"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unwrap_meridional</span></code></a>(xr_curve, xr_query)</p></td>
+<td><p>Unwrap meridional coordinates onto conformal distance along a curve.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.profile">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">profile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#profile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.profile" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.dot">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">dot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#dot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.dot" title="Link to this definition">¶</a></dt>
+<dd><p>Dot product of two arrays along the last axis.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>a</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>n</em><em>)</em>) – First input array.</p></li>
+<li><p><strong>b</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>n</em><em>)</em>) – Second input array.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>prod</strong> – Dot product of the input arrays, components summed along the last axis.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (…)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.angles_to_components">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">angles_to_components</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">V</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Beta</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#angles_to_components"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.angles_to_components" title="Link to this definition">¶</a></dt>
+<dd><p>Resolve velocity magnitude into polar components.</p>
+<p>Uses numerically stable trigonometry for all angles including 90 degrees.</p>
+<p>Flow angle conventions:</p>
+<ul class="simple">
+<li><p>Alpha = 0°: No swirl (Vt = 0)</p></li>
+<li><p>Beta = 0°: Pure axial flow (Vr = 0)</p></li>
+<li><p>Beta = ±90°: Pure radial flow (Vx = 0)</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>V_rel</strong> (<em>Array</em>) – Relative velocity magnitude [m/s]</p></li>
+<li><p><strong>Alpha</strong> (<em>Array</em>) – Relative yaw angle (tangential flow direction) [degrees]</p></li>
+<li><p><strong>Beta</strong> (<em>Array</em>) – Pitch angle (radial flow direction) [degrees]</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>Vx</strong> (<em>Array</em>) – Axial velocity component [m/s]</p></li>
+<li><p><strong>Vr</strong> (<em>Array</em>) – Radial velocity component [m/s]</p></li>
+<li><p><strong>Vt</strong> (<em>Array</em>) – Tangential velocity component [m/s]</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.components_to_angles">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">components_to_angles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Vx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Vr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Vt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#components_to_angles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.components_to_angles" title="Link to this definition">¶</a></dt>
+<dd><p>Convert velocity components to velocity magnitude and flow angles.</p>
+<p>This is the inverse of <a class="reference internal" href="#ember.util.angles_to_components" title="ember.util.angles_to_components"><code class="xref py py-func docutils literal notranslate"><span class="pre">angles_to_components()</span></code></a>, obeying the conventions:</p>
+<ul class="simple">
+<li><p>Alpha = 0°: No swirl (Vt_rel = 0)</p></li>
+<li><p>Beta = 0°: Pure axial flow (Vr = 0)</p></li>
+<li><p>Beta = ±90°: Pure radial flow (Vx = 0)</p></li>
+</ul>
+<p>For velocity components with very small magnitudes, angles may be
+numerically unstable. Zero velocity returns (0, 0, 0).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Vx</strong> (<em>Array</em>) – Axial velocity component [m/s]</p></li>
+<li><p><strong>Vr</strong> (<em>Array</em>) – Radial velocity component [m/s]</p></li>
+<li><p><strong>Vt</strong> (<em>Array</em>) – Tangential velocity component [m/s]</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>V</strong> (<em>Array</em>) – Velocity magnitude [m/s]</p></li>
+<li><p><strong>Alpha</strong> (<em>Array</em>) – Yaw angle (tangential flow direction) [degrees]</p></li>
+<li><p><strong>Beta</strong> (<em>Array</em>) – Pitch angle (radial flow direction) [degrees]</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.vecnorm">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">vecnorm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#vecnorm"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.vecnorm" title="Link to this definition">¶</a></dt>
+<dd><p>Calculate the norm of a vector array along the last axis.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>x</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>n</em><em>)</em>) – Input array with last dimension as vector components.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>norm</strong> – Norm of the input vector array.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (…)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.zeros">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">zeros</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;class</span> <span class="pre">'numpy.float32'&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#zeros"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.zeros" title="Link to this definition">¶</a></dt>
+<dd><p>Zero-filled array in standard layout and dtype.</p>
+<p>Equivalent to <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.zeros.html#numpy.zeros" title="(in NumPy v2.5)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">numpy.zeros</span></code></a>, but defaulting to <code class="docutils literal notranslate"><span class="pre">dtype=float32</span></code>
+and always <code class="docutils literal notranslate"><span class="pre">order=&quot;F&quot;</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Shape of the new array.</p></li>
+<li><p><strong>dtype</strong> (<em>numpy dtype</em><em>, </em><em>optional</em>) – Data type for the new array. Default is <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Fortran-ordered array of the given shape and dtype, filled with 0.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.array">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;class</span> <span class="pre">'numpy.float32'&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#array"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.array" title="Link to this definition">¶</a></dt>
+<dd><p>Copy array data into standard layout and dtype.</p>
+<p>Equivalent to <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.array.html#numpy.array" title="(in NumPy v2.5)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">numpy.array</span></code></a>, but defaulting to <code class="docutils literal notranslate"><span class="pre">dtype=float32</span></code>
+and always <code class="docutils literal notranslate"><span class="pre">order=&quot;F&quot;</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>array_like</em>) – Data to copy into the new array.</p></li>
+<li><p><strong>dtype</strong> (<em>numpy dtype</em><em>, </em><em>optional</em>) – Data type for the new array. Default is <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Fortran-ordered array of the given dtype, holding a copy of <code class="docutils literal notranslate"><span class="pre">x</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.empty">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">empty</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#empty"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.empty" title="Link to this definition">¶</a></dt>
+<dd><p>Uninitialised array in standard layout and dtype.</p>
+<p>Equivalent to <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.empty.html#numpy.empty" title="(in NumPy v2.5)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">numpy.empty</span></code></a>, but always <code class="docutils literal notranslate"><span class="pre">dtype=float32</span></code> and
+<code class="docutils literal notranslate"><span class="pre">order=&quot;F&quot;</span></code>. As with <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.empty.html#numpy.empty" title="(in NumPy v2.5)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">numpy.empty</span></code></a>, contents are arbitrary until
+written – use this only where every element will be set before being
+read.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Shape of the new array.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Fortran-ordered, float32 array of the given shape with
+uninitialised contents.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.full">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">full</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#full"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.full" title="Link to this definition">¶</a></dt>
+<dd><p>Constant-filled array in standard layout and dtype.</p>
+<p>Equivalent to <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.full.html#numpy.full" title="(in NumPy v2.5)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">numpy.full</span></code></a>, but always <code class="docutils literal notranslate"><span class="pre">dtype=float32</span></code> and
+<code class="docutils literal notranslate"><span class="pre">order=&quot;F&quot;</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Shape of the new array.</p></li>
+<li><p><strong>fill_value</strong> (<em>scalar</em>) – Value to fill every element with.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Fortran-ordered, float32 array of the given shape, filled with
+<code class="docutils literal notranslate"><span class="pre">fill_value</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.allocate_or_reuse">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">allocate_or_reuse</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">out</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;class</span> <span class="pre">'numpy.float32'&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#allocate_or_reuse"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.allocate_or_reuse" title="Link to this definition">¶</a></dt>
+<dd><p>Allocate output array if not provided, otherwise reuse existing array.</p>
+<p>Helper function for functions that accept an optional <cite>out</cite> parameter.
+If <code class="docutils literal notranslate"><span class="pre">out</span> <span class="pre">is</span> <span class="pre">None</span></code>, allocates a new F-contiguous zero array with the
+specified shape and dtype. Otherwise returns the provided array.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>out</strong> (<em>Array</em><em> or </em><em>None</em>) – Pre-allocated output array, or None to allocate new array.</p></li>
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of array to allocate if out is None.</p></li>
+<li><p><strong>dtype</strong> (<em>numpy dtype</em><em>, </em><em>optional</em>) – Data type for new array. Default is np.float32.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Either the provided <cite>out</cite> array or a newly allocated zero array.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span><span class="w"> </span><span class="nf">my_function</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">out</span> <span class="o">=</span> <span class="n">allocate_or_reuse</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="c1"># ... compute results into out ...</span>
+<span class="gp">... </span>    <span class="k">return</span> <span class="n">out</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.bcast_if_needed">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">bcast_if_needed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shape</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#bcast_if_needed"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.bcast_if_needed" title="Link to this definition">¶</a></dt>
+<dd><p>Broadcast <code class="docutils literal notranslate"><span class="pre">a</span></code> to <code class="docutils literal notranslate"><span class="pre">shape</span></code> only if it doesn’t already have it.</p>
+<p>A shape-tuple comparison is far cheaper than <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.broadcast_to.html#numpy.broadcast_to" title="(in NumPy v2.5)"><code class="xref py py-func docutils literal notranslate"><span class="pre">numpy.broadcast_to()</span></code></a>
+itself, so this is a near-zero-cost no-op on the common path where
+<code class="docutils literal notranslate"><span class="pre">a</span></code> is already <code class="docutils literal notranslate"><span class="pre">shape</span></code> – e.g. a hot-path setter that documents its
+inputs as “must broadcast to X” for callers that need it, but whose
+actual callers already pass exactly <code class="docutils literal notranslate"><span class="pre">X</span></code>-shaped arrays.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>a</strong> (<em>array_like</em>) – Candidate array; may already have <code class="docutils literal notranslate"><span class="pre">shape</span></code> or be broadcastable to it.</p></li>
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Target shape.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">a</span></code> unchanged if <code class="docutils literal notranslate"><span class="pre">a.shape</span> <span class="pre">==</span> <span class="pre">shape</span></code>, otherwise
+<code class="docutils literal notranslate"><span class="pre">np.broadcast_to(a,</span> <span class="pre">shape)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.carve_view">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">carve_view</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">shapes</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#carve_view"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.carve_view" title="Link to this definition">¶</a></dt>
+<dd><p>Carve one or more zero-copy Fortran-order views from a buffer of any shape.</p>
+<p>Reinterprets successive spans of a Fortran-contiguous <cite>buf</cite> as arrays of the
+requested <cite>shapes</cite>, packing them end-to-end (view <code class="docutils literal notranslate"><span class="pre">k</span></code> starts where view
+<code class="docutils literal notranslate"><span class="pre">k-1</span></code> ends) so every returned view aliases distinct storage and all may be
+held live simultaneously. Used to borrow differently-shaped scratch arrays
+out of one oversized solver buffer without allocating.</p>
+<p>The offsets are computed internally, so a caller carving several coexisting
+slots cannot accidentally overlap or gap them. <code class="docutils literal notranslate"><span class="pre">buf.reshape(-1,</span>
+<span class="pre">order=&quot;F&quot;)</span></code> on such a buffer is itself a free view, so repeated calls stay
+zero-copy and there is no need to hoist a shared flat view at the call
+site.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>buf</strong> (<em>Array</em>) – Fortran-contiguous source buffer to reinterpret. Must be large enough to
+hold the concatenation of all <cite>shapes</cite> (<code class="docutils literal notranslate"><span class="pre">sum(prod(shape))</span></code> elements).</p></li>
+<li><p><strong>*shapes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – One shape per view, in packing order. Passing a single shape returns a
+single view; passing several returns a list, one per shape.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A single F-order view when one shape is given, else a list of them, each
+aliasing a disjoint span of <cite>buf</cite>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array or <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a> of Array</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the packed views would not fit within <cite>buf</cite>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.rss_bytes">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">rss_bytes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#rss_bytes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.rss_bytes" title="Link to this definition">¶</a></dt>
+<dd><p>Resident and peak-resident memory of this process, in bytes.</p>
+<p>Reads <code class="docutils literal notranslate"><span class="pre">VmRSS</span></code>/<code class="docutils literal notranslate"><span class="pre">VmHWM</span></code> from <code class="docutils literal notranslate"><span class="pre">/proc/self/status</span></code>, so the peak is the
+kernel’s own high-water mark: it covers transients that came and went
+between two calls, which sampling <code class="docutils literal notranslate"><span class="pre">VmRSS</span></code> alone would miss. Where
+<code class="docutils literal notranslate"><span class="pre">/proc</span></code> is unavailable (non-Linux) both come back as <code class="docutils literal notranslate"><span class="pre">0</span></code>, so callers on
+a debug-logging path never have to branch.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">(rss,</span> <span class="pre">peak_rss)</span></code> in bytes.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.meshgrid3">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">meshgrid3</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tv</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#meshgrid3"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.meshgrid3" title="Link to this definition">¶</a></dt>
+<dd><p>Create 3D coordinate rectangular meshgrid.</p>
+<p>This function combines the common pattern of creating a 3D meshgrid
+and stacking the results into a single coordinate array. It preserves
+the input dtype unless the inputs have mixed dtypes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xv</strong> (<em>array_like</em>) – X-coordinate vector.</p></li>
+<li><p><strong>rv</strong> (<em>array_like</em>) – R-coordinate vector.</p></li>
+<li><p><strong>tv</strong> (<em>array_like</em>) – Theta-coordinate vector.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Coordinate array with [x, r, t] components.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (len(xv), len(rv), len(tv), 3)</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">xv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">tv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">xrt</span> <span class="o">=</span> <span class="n">meshgrid3</span><span class="p">(</span><span class="n">xv</span><span class="p">,</span> <span class="n">rv</span><span class="p">,</span> <span class="n">tv</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">xrt</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">(3, 4, 5, 3)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.linmesh3">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">linmesh3</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shape</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#linmesh3"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.linmesh3" title="Link to this definition">¶</a></dt>
+<dd><p>Create 3D coordinate meshgrid from ranges and shape.</p>
+<p>This function creates linearly spaced vectors from coordinate ranges and
+then generates a 3D meshgrid using <a class="reference internal" href="#ember.util.meshgrid3" title="ember.util.meshgrid3"><code class="xref py py-func docutils literal notranslate"><span class="pre">meshgrid3()</span></code></a>. It combines the
+common pattern of creating linspace vectors and then meshing them.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> or </em><em>array_like</em>) – Axial coordinate range [x_min, x_max].</p></li>
+<li><p><strong>r</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> or </em><em>array_like</em>) – Radial coordinate range [r_min, r_max].</p></li>
+<li><p><strong>t</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> or </em><em>array_like</em>) – Angular coordinate range [t_min, t_max].</p></li>
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of the grid (ni, nj, nk).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Coordinate array with (x, r, t) components, dtype=float32.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (<a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni">ni</a>, <a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj">nj</a>, <a class="reference internal" href="block.html#ember.block.Block.nk" title="ember.block.Block.nk">nk</a>, 3)</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">xrt</span> <span class="o">=</span> <span class="n">linmesh3</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">],</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">xrt</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">(3, 4, 5, 3)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">xrt</span><span class="o">.</span><span class="n">dtype</span>
+<span class="go">dtype(&#39;float32&#39;)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.pol_to_pseudocart">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">pol_to_pseudocart</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xrt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inplace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#pol_to_pseudocart"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.pol_to_pseudocart" title="Link to this definition">¶</a></dt>
+<dd><p>Convert (x, r, θ) coordinates to pseudo-Cartesian (x, r, rθ).</p>
+<p>In the pseudo-Cartesian system, the theta coordinate is multiplied by
+the radial coordinate to give rθ, which behaves like a Cartesian
+coordinate for distance calculations in cylindrical coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xrt</strong> (<em>array_like</em>) – Input coordinates with shape (…, 3) where the last dimension
+contains [x, r, θ] coordinates.</p></li>
+<li><p><strong>inplace</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, modify the input array in-place. If False (default),
+return a copy with the conversion applied.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Coordinates with shape (…, 3) containing [x, r, rθ].
+If inplace=True, returns the modified input array.
+If inplace=False, returns a new array.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.extent">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">extent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#extent"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.extent" title="Link to this definition">¶</a></dt>
+<dd><p>Calculate per-component min and max values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>*args</strong> (<em>array_like</em>) – Arrays to compute the extent of, must have same number of
+dimensions, and same trailing dimension if ndim &gt; 1.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Extent array where extent[0, …] contains minimum values and
+extent[1, …] contains maximum values.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (2, …)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.bounding_box">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">bounding_box</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#bounding_box"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.bounding_box" title="Link to this definition">¶</a></dt>
+<dd><p>Calculate bounding box vertices from Cartesian coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates [x, y, z] with components on last axis</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Eight vertices of the bounding box representing all combinations
+of (min/max x, min/max y, min/max z)</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (8, 3)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.unwrap_meridional">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">unwrap_meridional</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xr_curve</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xr_query</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#unwrap_meridional"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.unwrap_meridional" title="Link to this definition">¶</a></dt>
+<dd><p>Unwrap meridional coordinates onto conformal distance along a curve.</p>
+<p>Returns the conformal (or “blade-to-blade”) meridional coordinate</p>
+<div class="math notranslate nohighlight">
+\[m' = \int \frac{\mathrm{d}m}{r},
+\qquad \mathrm{d}m = \sqrt{\mathrm{d}x^2 + \mathrm{d}r^2},\]</div>
+<p>integrated along <cite>xr_curve</cite> from its first point. Paired with
+<span class="math notranslate nohighlight">\(\theta\)</span> in radians, <span class="math notranslate nohighlight">\(m'\)</span> spans a conformal plane: angles and
+aspect ratios are preserved, so an aerofoil section drawn on
+<span class="math notranslate nohighlight">\((m', \theta)\)</span> axes keeps its shape at any radius.</p>
+<p>The coordinate is a property of the <em>curve</em>, not of any grid: every query
+point is referred to one datum by one integration, so points from
+different blocks — or from different cuts of the same machine — come
+back on a common scale with nothing to match up afterwards. Where the
+curve is the same one passed to <a class="reference internal" href="cut.html#ember.cut.structured_meridional" title="ember.cut.structured_meridional"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cut.structured_meridional()</span></code></a>,
+the coordinate and the surface it describes are exactly consistent.</p>
+<p>Query points are projected onto the curve and their perpendicular offset
+discarded, so points lying near it rather than exactly on it — the
+triangulated output of <a class="reference internal" href="cut.html#ember.cut.unstructured" title="ember.cut.unstructured"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cut.unstructured()</span></code></a>, say, or a blade
+surface — are handled without special-casing. A point beyond either end
+clamps to that end.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xr_curve</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_point</em><em>, </em><em>2</em><em>)</em>) – Meridional <span class="math notranslate nohighlight">\((x, r)\)</span> polyline defining the curve, in order.
+Must not touch the axis, where <span class="math notranslate nohighlight">\(m'\)</span> diverges.</p></li>
+<li><p><strong>xr_query</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>2</em><em>)</em>) – Meridional <span class="math notranslate nohighlight">\((x, r)\)</span> coordinates to evaluate.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Conformal distance <span class="math notranslate nohighlight">\(m'\)</span> [-] at each query point, zero at the
+first point of the curve.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (…)</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the curve has fewer than two points, or reaches the axis.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">curve</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]])</span>  <span class="c1"># cylindrical, r = 2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">float</span><span class="p">(</span><span class="n">unwrap_meridional</span><span class="p">(</span><span class="n">curve</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])))</span>  <span class="c1"># m&#39; = m / r</span>
+<span class="go">0.5</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.cart_to_pol">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">cart_to_pol</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Vxyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">perm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0,</span> <span class="pre">1,</span> <span class="pre">2)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">signs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#cart_to_pol"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.cart_to_pol" title="Link to this definition">¶</a></dt>
+<dd><p>Convert Cartesian coordinates and velocities to polar form.</p>
+<p>Inverts the ember <span class="math notranslate nohighlight">\((x, r, \theta)\)</span> convention described at
+<a class="reference internal" href="../coordinate_system.html#coordinate-system"><span class="std std-ref">Coordinate system</span></a>, i.e. the map implemented by <a class="reference internal" href="#ember.util.pol_to_cart" title="ember.util.pol_to_cart"><code class="xref py py-func docutils literal notranslate"><span class="pre">pol_to_cart()</span></code></a>:</p>
+<div class="math notranslate nohighlight">
+\[y = r \cos\theta, \qquad z = -r \sin\theta\]</div>
+<p>This function takes Cartesian data stacked on the last axis, and returns
+polar data of the same shape, e.g. for setting a block’s raw coordinates
+and velocities <a class="reference internal" href="block.html#ember.block.Block.xrt" title="ember.block.Block.xrt"><code class="xref py py-attr docutils literal notranslate"><span class="pre">xrt</span></code></a> and
+<a class="reference internal" href="block.html#ember.block.Block.Vxrt" title="ember.block.Block.Vxrt"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Vxrt</span></code></a> after reading a Cartesian solution.</p>
+<p><code class="docutils literal notranslate"><span class="pre">perm</span></code> and <code class="docutils literal notranslate"><span class="pre">signs</span></code> arguments, when supplied, reorient the input before
+conversion, for source data that doesn’t already follow our
+Cartesian axis order or sense. <code class="docutils literal notranslate"><span class="pre">perm=(1,</span> <span class="pre">0,</span> <span class="pre">2)</span></code> swaps <span class="math notranslate nohighlight">\(x\)</span> and <span class="math notranslate nohighlight">\(y\)</span>
+values at every point. <code class="docutils literal notranslate"><span class="pre">signs[i]</span> <span class="pre">=</span> <span class="pre">-1</span></code> negates the (already permuted)
+component <code class="docutils literal notranslate"><span class="pre">i</span></code>. A mesh authored with <span class="math notranslate nohighlight">\(z\)</span> pointing the opposite
+way to our convention should be read with <code class="docutils literal notranslate"><span class="pre">signs=(1,</span> <span class="pre">1,</span> <span class="pre">-1)</span></code>, for example.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates (x, y, z) with components on last axis</p></li>
+<li><p><strong>Vxyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Cartesian velocity components (Vx, Vy, Vz) with components on last axis</p></li>
+<li><p><strong>perm</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate permutation (0, 1, 2) -&gt; reordered indices. Default: (0, 1, 2)</p></li>
+<li><p><strong>signs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate signs (-1 or 1 for each axis). Default: (1, 1, 1)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>xrt</strong> (<em>Array, shape (…, 3)</em>) – Polar coordinates (x, r, t) with components on last axis</p></li>
+<li><p><strong>Vxrt</strong> (<em>Array, shape (…, 3)</em>) – Polar velocity components (Vx, Vr, Vt) with components on last axis</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.pol_to_cart">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">pol_to_cart</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xrt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Vxrt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">perm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0,</span> <span class="pre">1,</span> <span class="pre">2)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">signs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#pol_to_cart"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.pol_to_cart" title="Link to this definition">¶</a></dt>
+<dd><p>Convert polar coordinates and velocities to Cartesian form.</p>
+<p>The reverse of <a class="reference internal" href="#ember.util.cart_to_pol" title="ember.util.cart_to_pol"><code class="xref py py-func docutils literal notranslate"><span class="pre">cart_to_pol()</span></code></a>. Implements the ember <span class="math notranslate nohighlight">\((x, r,
+\theta)\)</span> convention described at <a class="reference internal" href="../coordinate_system.html#coordinate-system"><span class="std std-ref">Coordinate system</span></a>:</p>
+<div class="math notranslate nohighlight">
+\[y = r \cos\theta, \qquad z = -r \sin\theta\]</div>
+<p>The inputs are typically read from <a class="reference internal" href="block.html#ember.block.Block.xrt" title="ember.block.Block.xrt"><code class="xref py py-attr docutils literal notranslate"><span class="pre">xrt</span></code></a> and
+<a class="reference internal" href="block.html#ember.block.Block.Vxrt" title="ember.block.Block.Vxrt"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Vxrt</span></code></a>; the returned arrays are
+Cartesian data of the same shape.</p>
+<p><code class="docutils literal notranslate"><span class="pre">perm</span></code> and <code class="docutils literal notranslate"><span class="pre">signs</span></code> reorient the output after conversion, for a target
+convention that isn’t ember’s own axis order or sense.
+<code class="docutils literal notranslate"><span class="pre">perm[i]</span></code> says which converted component
+supplies output component <code class="docutils literal notranslate"><span class="pre">i</span></code>, and then <code class="docutils literal notranslate"><span class="pre">signs[i]</span> <span class="pre">=</span> <span class="pre">-1</span></code> negates the
+(already permuted) component <code class="docutils literal notranslate"><span class="pre">i</span></code>.</p>
+<p>Note that reorientation is applied on the way in by <a class="reference internal" href="#ember.util.cart_to_pol" title="ember.util.cart_to_pol"><code class="xref py py-func docutils literal notranslate"><span class="pre">cart_to_pol()</span></code></a> but
+on the way out here, so the two are not simply symmetric for general
+<code class="docutils literal notranslate"><span class="pre">perm</span></code> and <code class="docutils literal notranslate"><span class="pre">signs</span></code>. <a class="reference internal" href="grid.html#ember.grid.Grid.align_cart_unstr" title="ember.grid.Grid.align_cart_unstr"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.align_cart_unstr()</span></code></a> detects
+the correct orientation to align with a destination grid automatically when
+given Cartesian data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xrt</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Polar coordinates (x, r, t) with components on last axis</p></li>
+<li><p><strong>Vxrt</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Polar velocity components (Vx, Vr, Vt) with components on last axis</p></li>
+<li><p><strong>perm</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate permutation (0, 1, 2) -&gt; reordered indices. Default: (0, 1, 2)</p></li>
+<li><p><strong>signs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate signs (-1 or 1 for each axis). Default: (1, 1, 1)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>xyz</strong> (<em>Array, shape (…, 3)</em>) – Cartesian coordinates (x, y, z) with components on last axis</p></li>
+<li><p><strong>Vxyz</strong> (<em>Array, shape (…, 3)</em>) – Cartesian velocity components (Vx, Vy, Vz) with components on last axis</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.matmat">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">matmat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">B</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#matmat"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.matmat" title="Link to this definition">¶</a></dt>
+<dd><p>Matrix-matrix multiplication over trailing dimensions.</p>
+<p>Performs matrix multiplication on stacks of matrices where the matrices
+are stored in the trailing dimensions. This is optimized for arrays with
+matrix data in the last two dimensions and arbitrary leading dimensions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>A</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>m</em><em>, </em><em>k</em><em>)</em>) – First input array with matrices in trailing dimensions.</p></li>
+<li><p><strong>B</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>k</em><em>, </em><em>n</em><em>)</em>) – Second input array with matrices in trailing dimensions.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Result of matrix multiplication A &#64; B for each corresponding pair
+of matrices in the trailing dimensions. Uses f32 precision and
+Fortran ordering for optimal performance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (…, m, n)</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Stack of 2x2 matrices</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">B</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">C</span> <span class="o">=</span> <span class="n">matmat</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>  <span class="c1"># Shape: (10, 5, 2, 2)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Single matrix multiplication</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">B</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">C</span> <span class="o">=</span> <span class="n">matmat</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>  <span class="c1"># C = B</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.rotation_matrices">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">rotation_matrices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chi</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#rotation_matrices"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.rotation_matrices" title="Link to this definition">¶</a></dt>
+<dd><p>Build a paired 2x2 rotation matrix and its inverse from a meridional-plane angle.</p>
+<p>Both <a class="reference internal" href="patch.html#ember.patch.RevolutionPatch" title="ember.patch.RevolutionPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">RevolutionPatch</span></code></a>’s interface frame and
+<a class="reference internal" href="block_util.html#ember.block_util.resolve_to_interface" title="ember.block_util.resolve_to_interface"><code class="xref py py-func docutils literal notranslate"><span class="pre">resolve_to_interface()</span></code></a> rotate a velocity pair
+<span class="math notranslate nohighlight">\((V_x, V_r)\)</span> by the same convention, so this is the one place that
+convention is written down:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}V_n &amp;= \cos\chi\, V_x + \sin\chi\, V_r \\
+V_s &amp;= -\sin\chi\, V_x + \cos\chi\, V_r\end{split}\]</div>
+<p><code class="docutils literal notranslate"><span class="pre">rot_from</span></code> is the transpose of <code class="docutils literal notranslate"><span class="pre">rot_to</span></code> – the rotation is
+orthogonal – so it undoes exactly this and nothing has to be re-derived
+to invert it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>chi</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><em>Array</em>) – Angle [rad] of the frame axis from <span class="math notranslate nohighlight">\(+x\)</span>, any shape.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>rot_to, rot_from</strong> – <code class="docutils literal notranslate"><span class="pre">rot_to</span></code> turns <span class="math notranslate nohighlight">\((V_x, V_r)\)</span> into <span class="math notranslate nohighlight">\((V_n, V_s)\)</span>;
+<code class="docutils literal notranslate"><span class="pre">rot_from</span></code> turns <span class="math notranslate nohighlight">\((V_n, V_s)\)</span> back into <span class="math notranslate nohighlight">\((V_x, V_r)\)</span>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, shape <code class="docutils literal notranslate"><span class="pre">chi.shape</span> <span class="pre">+</span> <span class="pre">(2,</span> <span class="pre">2)</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.matvec">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">matvec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#matvec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.matvec" title="Link to this definition">¶</a></dt>
+<dd><p>Matrix-vector multiplication using einsum over trailing dimensions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>A</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>n</em><em>, </em><em>m</em><em>)</em>) – Input matrices with matrix dimensions in the last two axes.</p></li>
+<li><p><strong>b</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>m</em><em>)</em>) – Input vectors with vector dimension in the last axis.</p></li>
+<li><p><strong>out</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>n</em><em>)</em><em>, </em><em>optional</em>) – Preallocated array to write the result into, sparing a new
+allocation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Result of matrix-vector multiplication A &#64; b for each corresponding
+matrix and vector in the trailing dimensions. Uses f32 precision and
+Fortran ordering for optimal performance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (…, n)</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">out</span></code> is given, <code class="docutils literal notranslate"><span class="pre">A</span></code> and <code class="docutils literal notranslate"><span class="pre">b</span></code> are checked against two specific
+hot-path shapes – the per-grid-point 5x5 Jacobian contractions the
+solver runs every iteration – and dispatched to a specialised Fortran
+kernel if they match. Any other shape combination falls back to
+<code class="docutils literal notranslate"><span class="pre">numpy.matmul(...,</span> <span class="pre">out=...)</span></code>, which is still correct but without the
+specialised kernel. Either way <code class="docutils literal notranslate"><span class="pre">out</span></code> is updated in place and returned
+by identity.</p>
+<p>The two fast-path shapes, with <code class="docutils literal notranslate"><span class="pre">b.shape[-1]</span></code> fixed at 5 in every case:</p>
+<ul>
+<li><p><strong>Single batch axis</strong>: <code class="docutils literal notranslate"><span class="pre">b.shape</span> <span class="pre">==</span> <span class="pre">(N,</span> <span class="pre">5)</span></code> and <code class="docutils literal notranslate"><span class="pre">A.shape</span> <span class="pre">==</span> <span class="pre">(N,</span> <span class="pre">5,</span> <span class="pre">5)</span></code> – one matrix per vector, no broadcasting.</p></li>
+<li><p><strong>Three-dimensional grid with one broadcast</strong>: <code class="docutils literal notranslate"><span class="pre">b.shape</span> <span class="pre">===</span> <span class="pre">(ni,</span> <span class="pre">nj,</span> <span class="pre">nk,</span> <span class="pre">5)</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">A.shape</span></code> one of:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">nj,</span> <span class="pre">1,</span> <span class="pre">5,</span> <span class="pre">5)</span></code> – one matrix per <span class="math notranslate nohighlight">\((i,j)\)</span>, shared
+across <span class="math notranslate nohighlight">\(k\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">(1,</span> <span class="pre">1,</span> <span class="pre">nk,</span> <span class="pre">5,</span> <span class="pre">5)</span></code> – one matrix per <span class="math notranslate nohighlight">\(k\)</span>, shared across
+<span class="math notranslate nohighlight">\((i,j)\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">1,</span> <span class="pre">1,</span> <span class="pre">5,</span> <span class="pre">5)</span></code> – one matrix per <span class="math notranslate nohighlight">\(i\)</span>, shared across
+<span class="math notranslate nohighlight">\((j,k)\)</span></p></li>
+</ul>
+<p>A parallel set of kernels handles the same three broadcast patterns
+for <code class="docutils literal notranslate"><span class="pre">b.shape[-1]</span> <span class="pre">==</span> <span class="pre">2</span></code> instead of 5.
+Any other broadcast pattern within the 3-grid-axis case,  including
+a full <code class="docutils literal notranslate"><span class="pre">A</span></code> shape <code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">nj,</span> <span class="pre">nk,</span> <span class="pre">n,</span> <span class="pre">m)</span></code> with no broadcast axis at
+all, falls back to <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.matmul.html#numpy.matmul" title="(in NumPy v2.5)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">numpy.matmul</span></code></a>.</p>
+</li>
+</ul>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Stack of 3x3 matrices with 3-element vectors</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">matvec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>  <span class="c1"># Shape: (10, 5, 3)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Single matrix-vector multiplication</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">matvec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>  <span class="c1"># y = b</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Write into a preallocated buffer instead of allocating</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">matvec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span> <span class="ow">is</span> <span class="n">out</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.resample">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">resample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">factor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vector</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i_crit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#resample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.resample" title="Link to this definition">¶</a></dt>
+<dd><p>Resampled a vector with specified factor, optionally preserving critical points.</p>
+<p>Creates a new vector by resampling with a given factor. The new length equals
+len(vector) * factor (approximately). Critical indices are preserved, and for
+upsampling, fractional indices are linearly interpolated.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>factor</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Resampling factor. Values &gt; 1 increase resolution, &lt; 1 decrease resolution.
+Must be &gt; 0.</p></li>
+<li><p><strong>vector</strong> (<em>array_like</em>) – Input vector to resample.</p></li>
+<li><p><strong>i_crit</strong> (<em>array_like</em><em>, </em><em>optional</em>) – Critical indices that must be preserved in the output.
+Must be sorted and within [0, len(vector)-1]. If None, uses [0, len(vector)-1].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>resampled_values</strong> (<em>Array</em>) – Resampled vector with length approximately len(vector) * factor,
+with values at critical indices preserved and interpolated elsewhere.</p></li>
+<li><p><strong>crit_mapping</strong> (<em>dict</em>) – Dictionary mapping old critical indices to their positions in the new vector.
+Format: {old_index: new_index}</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Increase resolution by factor of 2 with linear interpolation</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">16</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_resampled</span><span class="p">,</span> <span class="n">mapping</span> <span class="o">=</span> <span class="n">resample</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">x_resampled</span><span class="p">)</span>  <span class="c1"># approximately 10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mapping</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">mapping</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>  <span class="c1"># endpoints preserved at new positions</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decrease resolution preserving critical points</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_resampled</span><span class="p">,</span> <span class="n">mapping</span> <span class="o">=</span> <span class="n">resample</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">x_resampled</span><span class="p">)</span>  <span class="c1"># approximately 2-3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mapping</span>  <span class="c1"># {0: 0, 2: 1, 4: 2} - critical indices mapped to new positions</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.apply_perm_flip">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">apply_perm_flip</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">perm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flip</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#apply_perm_flip"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.apply_perm_flip" title="Link to this definition">¶</a></dt>
+<dd><p>Apply permutation and flipping to array while preserving coordinate dimension.</p>
+<p>This function applies a permutation and optional flipping to the spatial dimensions
+of an array, while preserving the last dimension (typically coordinates). This is
+commonly used in patch operations for coordinate transformations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>array</strong> (<em>Array</em>) – Input array to transform, typically with shape (…, 3) where the last
+dimension contains coordinate components.</p></li>
+<li><p><strong>perm</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Permutation to apply to spatial dimensions (0, 1, 2).</p></li>
+<li><p><strong>flip</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>, </em><em>optional</em>) – Dimensions to flip after permutation. Default is () (no flipping).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Transformed array with permutation and flipping applied to spatial
+dimensions, last dimension preserved.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Swap i and j dimensions</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transformed</span> <span class="o">=</span> <span class="n">apply_perm_flip</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="n">perm</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transformed</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># i,j swapped, coordinates preserved</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Swap dimensions and flip along first dimension</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">transformed</span> <span class="o">=</span> <span class="n">apply_perm_flip</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="n">perm</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">flip</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,))</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.cosine_cluster">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">cosine_cluster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#cosine_cluster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.cosine_cluster" title="Link to this definition">¶</a></dt>
+<dd><p>Generate cosine-clustered points from 0 to 1, dense at both ends.</p>
+<p>Produces <code class="docutils literal notranslate"><span class="pre">n</span></code> points on the unit interval following a half-cosine
+distribution, which clusters nodes near both endpoints (<code class="docutils literal notranslate"><span class="pre">zeta</span> <span class="pre">=</span> <span class="pre">0</span></code> and
+<code class="docutils literal notranslate"><span class="pre">zeta</span> <span class="pre">=</span> <span class="pre">1</span></code>) and spaces them most coarsely in the middle:</p>
+<div class="math notranslate nohighlight">
+\[\zeta_k = \tfrac{1}{2}\left(1 - \cos\frac{\pi k}{n - 1}\right),
+\quad k = 0, \ldots, n - 1.\]</div>
+<p>The result is symmetric about 0.5 with exact endpoints 0 and 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>n</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of points to generate (must be &gt;= 2).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Cosine-clustered vector from 0 to 1, dtype=float32.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (n,)</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">z</span> <span class="o">=</span> <span class="n">cosine_cluster</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">z</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># exact endpoints</span>
+<span class="go">(0.0, 1.0)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">z</span> <span class="o">+</span> <span class="n">z</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="mf">1.0</span><span class="p">)</span>  <span class="c1"># symmetric</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.cluster">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">cluster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ni</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ER</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dmax</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#cluster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.cluster" title="Link to this definition">¶</a></dt>
+<dd><p>Generate geometrically spaced points from 0 to 1 with expansion ratio and max spacing.</p>
+<p>Creates a vector from 0 to 1 with geometrically spaced points, where the spacing
+expands at ratio ER but is capped to maximum size dmax. The algorithm creates an
+initial geometric dx vector, then iteratively adjusts the scaling to achieve
+unit total length while respecting dmax after capping.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ni</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of points to generate (must be &gt;= 2)</p></li>
+<li><p><strong>ER</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Expansion ratio for geometric spacing (must be &gt; 0)</p></li>
+<li><p><strong>dmax</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Maximum allowed spacing between consecutive points (must be &gt; 0)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Vector from 0 to 1 with clustered spacing, dtype=float32</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (<a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni">ni</a>,)</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Basic clustering with expansion ratio 1.2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">cluster</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Should be (0.0, 1.0)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Uniform spacing when ER=1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">cluster</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.util.cluster_symmetric">
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">cluster_symmetric</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ER</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#cluster_symmetric"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.cluster_symmetric" title="Link to this definition">¶</a></dt>
+<dd><p>Generate geometrically spaced points from 0 to 1, dense at both ends.</p>
+<p>Where <a class="reference internal" href="#ember.util.cluster" title="ember.util.cluster"><code class="xref py py-func docutils literal notranslate"><span class="pre">cluster()</span></code></a> expands away from a single end, this mirrors a
+half-width <a class="reference internal" href="#ember.util.cluster" title="ember.util.cluster"><code class="xref py py-func docutils literal notranslate"><span class="pre">cluster()</span></code></a> vector about the centreline, so the spacing
+grows at expansion ratio <code class="docutils literal notranslate"><span class="pre">ER</span></code> away from <em>both</em> endpoints and is coarsest
+in the middle. Unlike <a class="reference internal" href="#ember.util.cosine_cluster" title="ember.util.cosine_cluster"><code class="xref py py-func docutils literal notranslate"><span class="pre">cosine_cluster()</span></code></a>, which is also symmetric, the
+growth rate is controlled rather than fixed by the distribution.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of points to generate. Must be odd and &gt;= 3, so that the two
+mirrored halves share their midpoint.</p></li>
+<li><p><strong>ER</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Expansion ratio for geometric spacing (must be &gt; 0).</p></li>
+<li><p><strong>dmax</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Maximum allowed spacing in the returned vector (must be &gt; 0).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Vector from 0 to 1 with spacing clustered at both ends, dtype=float32.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (n,)</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">z</span> <span class="o">=</span> <span class="n">cluster_symmetric</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">z</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># exact endpoints</span>
+<span class="go">(0.0, 1.0)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">z</span> <span class="o">+</span> <span class="n">z</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="mf">1.0</span><span class="p">)</span>  <span class="c1"># symmetric about 0.5</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Uniform spacing when ER=1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">cluster_symmetric</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/util.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

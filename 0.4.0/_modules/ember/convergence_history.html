@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.convergence_history &#8212; ember 0.4.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.4.0";
+    var page = "_modules/ember/convergence_history.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.convergence_history</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Convergence history recorded by the time-marching loop.</span>
+
+<span class="sd">This module defines :class:`ConvergenceHistory`, a 1D time series of flow</span>
+<span class="sd">monitors that :meth:`ember.solver.Solver.run` fills as it marches. It holds one</span>
+<span class="sd">*record* per logged step, carrying the residuals, and the mass flow, stagnation</span>
+<span class="sd">enthalpy and entropy at each station. The residuals are whole-field block</span>
+<span class="sd">means; only the mass flow, enthalpy, and entropy are per-station quantities.</span>
+
+<span class="sd">Throughout, *record* means one entry in the history, and *row* is reserved for</span>
+<span class="sd">a blade row of the machine.</span>
+
+<span class="sd">A history is *returned to you* by :meth:`ember.solver.Solver.run`; it is not something</span>
+<span class="sd">you build directly. :meth:`ConvergenceHistory.from_grid`,</span>
+<span class="sd">:meth:`ConvergenceHistory.record_convergence` exist for the solver to call, and</span>
+<span class="sd">are of no use outside it.</span>
+
+<span class="sd">Reading a history</span>
+<span class="sd">=================</span>
+
+<span class="sd">Run a simulation, then read the monitors as plain numpy arrays::</span>
+
+<span class="sd">    hist = ember.solver.Solver(n_step=1000).run(grid)</span>
+
+<span class="sd">    hist.i_step            # solver step index of each record</span>
+<span class="sd">    hist.residual[:, 4]    # energy residual, drhoe</span>
+<span class="sd">    hist.err_mdot          # mass flow conservation error</span>
+<span class="sd">    hist.zeta              # entropy rise, outlet minus inlet station</span>
+
+<span class="sd">Every property returns a single-precision float32 array of length ``i_log +</span>
+<span class="sd">1``, one entry per record.</span>
+
+<span class="sd">The residuals, enthalpy and entropy are stored non-dimensionally on the fluid reference</span>
+<span class="sd">scales as described in :ref:`reference-scales`.</span>
+
+<span class="sd">Monitors</span>
+<span class="sd">========</span>
+
+<span class="sd">Whole-field, one value per record:</span>
+
+<span class="sd">* :attr:`ConvergenceHistory.residual` -- block-mean ``|residual_nd|`` per</span>
+<span class="sd">  conserved variable</span>
+<span class="sd">* :attr:`ConvergenceHistory.err_mdot` -- mass flow conservation error, inlet to</span>
+<span class="sd">  outlet</span>
+<span class="sd">* :attr:`ConvergenceHistory.err_mdot_row` -- the same, resolved per blade row</span>
+<span class="sd">* :attr:`ConvergenceHistory.psi` -- stagnation enthalpy rise across the machine</span>
+<span class="sd">* :attr:`ConvergenceHistory.zeta` -- entropy rise across the machine</span>
+<span class="sd">* :attr:`ConvergenceHistory.tpnps` -- wall-clock time per node per step</span>
+
+<span class="sd">Through-flow stations. Each blade row contributes an upstream and a downstream</span>
+<span class="sd">face, ordered inlet to outlet as ``[row0_up, row0_dn, row1_up, row1_dn]``, so</span>
+<span class="sd">station ``0`` is the inlet and station ``-1`` the outlet. All three are</span>
+<span class="sd">non-dimensional, hence the ``_nd`` suffix:</span>
+
+<span class="sd">* :attr:`ConvergenceHistory.mdot_nd`, :attr:`ConvergenceHistory.ho_nd`,</span>
+<span class="sd">  :attr:`ConvergenceHistory.s_nd`</span>
+
+<span class="sd">Throttle state, driven by :meth:`ember.patch.OutletPatch.set_throttle` and</span>
+<span class="sd">reading zero on a run whose outlets all hold a plain prescribed pressure.</span>
+<span class="sd">Unlike the stations above, they are dimensional:</span>
+
+<span class="sd">* :attr:`ConvergenceHistory.throttle`, :attr:`ConvergenceHistory.mdot_target`,</span>
+<span class="sd">  :attr:`ConvergenceHistory.mdot_throttle`</span>
+<span class="sd">* :attr:`ConvergenceHistory.dP_P`, :attr:`ConvergenceHistory.dP_I`,</span>
+<span class="sd">  :attr:`ConvergenceHistory.dP_D`</span>
+
+<span class="sd">Bookkeeping:</span>
+
+<span class="sd">* :attr:`ConvergenceHistory.i_step` -- solver step index of each record</span>
+<span class="sd">* :attr:`ConvergenceHistory.time` -- elapsed wall-clock time</span>
+<span class="sd">* :attr:`ConvergenceHistory.i_log` -- index of the last written record</span>
+<span class="sd">* :attr:`ConvergenceHistory.diverged` -- True if the march blew up</span>
+<span class="sd">* :attr:`ConvergenceHistory.now` -- view of the record currently being written</span>
+<span class="sd">* :attr:`ConvergenceHistory.n_node` -- node count of the grid behind the history</span>
+
+<span class="sd">Storage</span>
+<span class="sd">=======</span>
+
+<span class="sd">:meth:`ConvergenceHistory.from_grid` allocates ``n_log`` records up front and</span>
+<span class="sd">fills them with NaN, one per log step; the solver passes</span>
+<span class="sd">``n_log = ceil(n_step / n_step_log)`` for ``n_step`` marched steps logged every</span>
+<span class="sd">``n_step_log``. At each log step,</span>
+<span class="sd">:meth:`ember.solver.Solver.run` calls :meth:`ConvergenceHistory.record_convergence`</span>
+<span class="sd">to fill one record. A march that runs to completion fills every record; one that</span>
+<span class="sd">diverges breaks from the loop early before logging an invalid value, sets</span>
+<span class="sd">:attr:`ConvergenceHistory.diverged`, and trims the history to drop the</span>
+<span class="sd">preallocated NaN for steps that were never reached. This means that we can</span>
+<span class="sd">always assume that history arrays are finite and valid for plotting or</span>
+<span class="sd">reduction, without having to mask out NaN values.</span>
+
+<span class="sd">Reading from a file</span>
+<span class="sd">===================</span>
+
+<span class="sd">A history is read back from disk with :meth:`ConvergenceHistory.read_cnv`, which</span>
+<span class="sd">unpickles a history written by :meth:`ConvergenceHistory.write_cnv`.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">gzip</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember._struct</span><span class="w"> </span><span class="kn">import</span> <span class="n">StructuredData</span>
+
+<span class="n">f32</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span>
+
+
+<div class="viewcode-block" id="ConvergenceHistory">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConvergenceHistory</span><span class="p">(</span><span class="n">StructuredData</span><span class="p">):</span>
+    <span class="c1"># No class docstring: docs/conf.py sets autoclass_content = &quot;init&quot;, so</span>
+    <span class="c1"># Sphinx renders the inherited StructuredData.__init__ docstring in its</span>
+    <span class="c1"># place and a class docstring here would never appear. The prose lives in</span>
+    <span class="c1"># the module docstring above, as it does for Block.</span>
+
+    <span class="n">_TIME_SCALE</span> <span class="o">=</span> <span class="mf">1e-3</span>  <span class="c1"># seconds per stored unit (i.e. milliseconds)</span>
+
+    <span class="c1"># A history built by any route other than a completed solver run has not</span>
+    <span class="c1"># observed a divergence, so `diverged` reads False without being set.</span>
+    <span class="n">_defaults</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;diverged&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(),</span> <span class="n">n_row</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Allocate the data array, sized for ``n_row`` blade rows.</span>
+
+<span class="sd">        Station ordering and reference scales are documented in the module</span>
+<span class="sd">        docstring. The station columns (``mdot_st&lt;i&gt;``, ``ho_st&lt;i&gt;``,</span>
+<span class="sd">        ``s_st&lt;i&gt;``) are sized to ``2 * n_row`` each, one inlet/exit pair per</span>
+<span class="sd">        row, rather than a fixed width -- so the column-key list is built here,</span>
+<span class="sd">        per instance, before delegating to the base initialiser, which reads it</span>
+<span class="sd">        to size the backing array.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        shape : tuple</span>
+<span class="sd">            Shape of a single property array.</span>
+<span class="sd">        n_row : int, optional</span>
+<span class="sd">            Number of blade rows this history tracks (default 1, i.e. 2</span>
+<span class="sd">            stations: inlet and exit).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n_station</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">n_row</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data_keys</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">tuple</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mdot_st</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_station</span><span class="p">))</span>
+            <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ho_st</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_station</span><span class="p">))</span>
+            <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;s_st</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_station</span><span class="p">))</span>
+            <span class="o">+</span> <span class="p">(</span>
+                <span class="s2">&quot;drho&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;drhoVx&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;drhoVr&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;drhorVt&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;drhoe&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;i_step&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;time&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;mdot_target&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;mdot_throttle&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;dP_throttle&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;dP_P&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;dP_I&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;dP_D&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;n_row&quot;</span><span class="p">,</span> <span class="n">n_row</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+        <span class="c1"># Mark all data keys as initialized (we write to slices, not whole arrays)</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_keys</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># Column names that have been renamed, old to new. A `.cnv` is a pickle of</span>
+    <span class="c1"># this object and the name-to-column map travels inside it, so a file</span>
+    <span class="c1"># written before a rename comes back labelled the way it was written and</span>
+    <span class="c1"># every lookup by the new name misses.</span>
+    <span class="n">_RENAMED_KEYS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;P_throttle&quot;</span><span class="p">:</span> <span class="s2">&quot;dP_throttle&quot;</span><span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Restore a pickled history, relabelling columns that have been renamed.</span>
+
+<span class="sd">        Positions are untouched: a rename moves a name from one dict key to</span>
+<span class="sd">        another in the maps a lookup goes through, and the data array behind</span>
+<span class="sd">        them is the same array in the same order. So an old file reads as a new</span>
+<span class="sd">        one rather than needing conversion, and a file written since the rename</span>
+<span class="sd">        passes through unchanged because it has none of the old names in it.</span>
+
+<span class="sd">        The column-key tuple is handled but usually absent. A history is</span>
+<span class="sd">        written after being trimmed to the records it actually holds, and the</span>
+<span class="sd">        trimming carries the name-to-index map but not the key tuple --- so the</span>
+<span class="sd">        maps below, not that tuple, are what a lookup by name actually reads.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__setstate__</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">old_key</span><span class="p">,</span> <span class="n">new_key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_RENAMED_KEYS</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">old_key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_inds</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data_inds</span><span class="p">[</span><span class="n">new_key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_inds</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">old_key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">old_key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="p">[</span><span class="n">new_key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">old_key</span><span class="p">)</span>
+
+        <span class="n">keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;_data_keys&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">keys</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data_keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_RENAMED_KEYS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_n_station</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Number of through-flow stations, ``2 * n_row`` (defaults to 2).&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_row&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_station_array</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prefix</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Stack the per-station data keys ``&lt;prefix&gt;0..N-1`` on the last axis.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">(</span>
+            <span class="nb">tuple</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_n_station</span><span class="p">))</span>
+        <span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_grid_metadata</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the node count on `out` from a grid.</span>
+
+<span class="sd">        Shared by from_grid and other readers (e.g. the ember-cfd-ts log</span>
+<span class="sd">        parser); callers set `fluid` and any per-step data themselves.</span>
+
+<span class="sd">        The convergence monitors are non-dimensionalised entirely by the fluid</span>
+<span class="sd">        reference scales (carried on `fluid`), so no separate kinetic-energy</span>
+<span class="sd">        reference velocity/temperature is stored here.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;n_node&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ConvergenceHistory.from_grid">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.from_grid">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_grid</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">n_log</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize an empty convergence history sized for a solver run.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        n_log : int</span>
+<span class="sd">            Number of records to allocate; one is filled per log step. The</span>
+<span class="sd">            solver derives this as ``ceil(n_step / n_step_log)`` -- floor</span>
+<span class="sd">            division would under-allocate when ``n_step`` is not a multiple of</span>
+<span class="sd">            ``n_step_log``.</span>
+<span class="sd">        grid : Grid</span>
+<span class="sd">            Grid object containing blocks with patches</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ConvergenceHistory</span>
+<span class="sd">            Configured instance ready to record data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n_row</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">rows</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_log</span><span class="p">,),</span> <span class="n">n_row</span><span class="o">=</span><span class="n">n_row</span><span class="p">)</span>
+
+        <span class="c1"># Reference scales and counts derived from the grid geometry/flow.</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">_set_grid_metadata</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">grid</span><span class="p">)</span>
+
+        <span class="c1"># Fluid from the first outlet patch (the grid is the reference frame the</span>
+        <span class="c1"># history is projected onto).</span>
+        <span class="n">outlet_block</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">outlet</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">block_view</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;fluid&quot;</span><span class="p">,</span> <span class="n">outlet_block</span><span class="o">.</span><span class="n">fluid</span><span class="p">)</span>
+
+        <span class="c1"># Initialize timer reference</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span>
+            <span class="s2">&quot;_time_start&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">_time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Initialize log index to -1 (incremented to 0 by the first record_convergence)</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;i_log&quot;</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.read_cnv">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.read_cnv">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">read_cnv</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read convergence history from CNV binary format file.</span>
+
+<span class="sd">        Automatically detects gzip-compressed files.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Input CNV file to read</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ConvergenceHistory</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.check_convergence">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.check_convergence">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_convergence</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">decay</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">slope</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">cfl</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;True when every enabled convergence criterion is met.</span>
+
+<span class="sd">        Three independent signals reduce the history to a single verdict, and</span>
+<span class="sd">        the result is their logical AND. Each criterion is disabled by passing</span>
+<span class="sd">        its no-op threshold, so a bare :meth:`check_convergence` checks</span>
+<span class="sd">        divergence alone.</span>
+
+<span class="sd">        * **Divergence** reads :attr:`diverged` only; it never touches the</span>
+<span class="sd">          residual. A diverged march is never converged.</span>
+<span class="sd">        * **Decay** and **slope** read the energy residual ``drhoe`` (column 4</span>
+<span class="sd">          of :attr:`residual`), the strictest conserved-variable residual and</span>
+<span class="sd">          the one that lags in a stalled march, over the ``i_log + 1`` written</span>
+<span class="sd">          records.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        decay : float, optional</span>
+<span class="sd">            Required fall of the residual from its peak over the whole march, in</span>
+<span class="sd">            decades: converged needs ``log10(r.max() / r[-1]) &gt;= decay``. The</span>
+<span class="sd">            default ``0`` disables the check (0 decades of fall is always met).</span>
+<span class="sd">        slope : float, optional</span>
+<span class="sd">            Maximum allowed magnitude of the residual slope, in decades of</span>
+<span class="sd">            residual per unit pseudo-time, where pseudo-time is ``i_step * cfl``.</span>
+<span class="sd">            Fitted over the last 20% of records so it reflects the recent tail</span>
+<span class="sd">            rather than the startup transient. Converged needs</span>
+<span class="sd">            ``abs(d log10(r) / d(i_step * cfl)) &lt;= slope``. The default ``0``</span>
+<span class="sd">            disables the check.</span>
+<span class="sd">        cfl : float, optional</span>
+<span class="sd">            CFL number used to march, scaling the pseudo-time step so the slope</span>
+<span class="sd">            is comparable across runs with different step sizes. Only affects</span>
+<span class="sd">            the ``slope`` criterion.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Divergence: always checked, cannot be disabled. Reads the flag only.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">diverged</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">residual</span><span class="p">[:</span><span class="n">n</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>  <span class="c1"># energy residual, drhoe</span>
+
+        <span class="c1"># Decay: decades fallen from the peak residual over the whole calc.</span>
+        <span class="k">if</span> <span class="n">decay</span> <span class="o">&gt;</span> <span class="mf">0.0</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">/</span> <span class="n">r</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">decay</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Slope: decades of residual per unit pseudo-time (i_step scaled by</span>
+        <span class="c1"># cfl), fitted over the final fifth of the march.</span>
+        <span class="k">if</span> <span class="n">slope</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>  <span class="c1"># need &gt;= 2 records to fit a line</span>
+            <span class="n">n_fit</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="p">(</span><span class="o">-</span><span class="n">n</span> <span class="o">//</span> <span class="mi">5</span><span class="p">))</span>  <span class="c1"># ceil(n / 5), at least 2 records</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_step</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="n">n_fit</span> <span class="p">:</span> <span class="n">n</span><span class="p">]</span> <span class="o">*</span> <span class="n">cfl</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">polyfit</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="n">n_fit</span> <span class="p">:]),</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">m</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">slope</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.find_settling_record">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.find_settling_record">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">find_settling_record</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Record index at which the entropy rise :attr:`zeta` has settled.</span>
+
+<span class="sd">        Complements :meth:`check_convergence`: where that reduces the *residual*</span>
+<span class="sd">        history to a converged/not verdict, this locates when the *solution</span>
+<span class="sd">        output* stopped moving. It returns the record index at which</span>
+<span class="sd">        :attr:`zeta` has come within a fraction ``tol`` of its total change and</span>
+<span class="sd">        stays there for the rest of the march.</span>
+
+<span class="sd">        The asymptote is estimated as the mean of ``zeta`` over the final fifth</span>
+<span class="sd">        of records (the same last-20% window :meth:`check_convergence` fits its</span>
+<span class="sd">        slope over), and the band is ``tol`` of the total swing</span>
+<span class="sd">        ``abs(zeta[0] - target)`` about it. The settling record is the one</span>
+<span class="sd">        *after* the last record still outside that band -- keying on the last</span>
+<span class="sd">        exit rather than the first entry makes it robust to any overshoot that</span>
+<span class="sd">        dips through the band and back out. Because the asymptote is the tail</span>
+<span class="sd">        mean, the result is only physically meaningful once the march has</span>
+<span class="sd">        actually levelled out (e.g. a run :meth:`check_convergence` accepts).</span>
+
+<span class="sd">        The return is a *record index* into the history arrays, not a solver</span>
+<span class="sd">        step number, so both the step it settled at and the wall-clock time to</span>
+<span class="sd">        get there are one indexing away::</span>
+
+<span class="sd">            idx  = hist.find_settling_record()</span>
+<span class="sd">            step = int(hist.i_step[idx])                  # solver step</span>
+<span class="sd">            wall = float(hist.time[idx] - hist.time[0])   # ms to settle</span>
+
+<span class="sd">        (``hist.time[0]`` is the one-iteration startup offset, not zero, so</span>
+<span class="sd">        subtract it for elapsed march time.)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        tol : float, optional</span>
+<span class="sd">            Settling band half-width, as a fraction of the total ``zeta`` swing.</span>
+<span class="sd">            Default ``0.01`` (1%).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            Record index of the settling point. Falls back to ``0`` when</span>
+<span class="sd">            ``zeta`` is within the band from the start, or is flat (zero swing).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">zeta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">zeta</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span>
+        <span class="n">n_tail</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="p">(</span><span class="o">-</span><span class="n">n</span> <span class="o">//</span> <span class="mi">5</span><span class="p">))</span>  <span class="c1"># ceil(n / 5), the final fifth, at least 1</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">zeta</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="n">n_tail</span> <span class="p">:]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>  <span class="c1"># asymptote estimate</span>
+        <span class="n">band</span> <span class="o">=</span> <span class="n">tol</span> <span class="o">*</span> <span class="nb">abs</span><span class="p">(</span><span class="n">zeta</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">target</span><span class="p">)</span>  <span class="c1"># tol of the total swing</span>
+        <span class="n">outside</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">zeta</span> <span class="o">-</span> <span class="n">target</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">band</span>
+        <span class="k">if</span> <span class="n">band</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">outside</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="c1"># Record after the last one still outside; clamp in case the tail</span>
+            <span class="c1"># itself never settles (then report the last record).</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">outside</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">return</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.format_message">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.format_message">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">format_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_step</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Format convergence message for current log step.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        n_step : int, optional</span>
+<span class="sd">            Total steps in this march. When given, a timing line (tpnps,</span>
+<span class="sd">            elapsed, estimated remaining) is inserted after the step header.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            Formatted convergence status message</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">now</span>
+        <span class="n">i_step</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">i_step</span><span class="p">)</span>
+
+        <span class="n">out</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Step </span><span class="si">{</span><span class="n">i_step</span><span class="si">:</span><span class="s2">4d</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+        <span class="k">if</span> <span class="n">n_step</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">out</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">format_timing</span><span class="p">(</span><span class="n">i_step</span><span class="p">,</span> <span class="n">n_step</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+        <span class="c1"># Second line: stagnation conditions. ho/s are stored non-dimensional</span>
+        <span class="c1"># (by u_ref / Rgas_ref), which is exactly what set_h_s expects.</span>
+        <span class="n">fluid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;fluid&quot;</span><span class="p">)</span>
+        <span class="n">ho</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="n">now</span><span class="o">.</span><span class="n">ho_nd</span><span class="p">,</span> <span class="n">now</span><span class="o">.</span><span class="n">s_nd</span>
+        <span class="n">rho_o_in</span><span class="p">,</span> <span class="n">u_o_in</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">ho</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+        <span class="n">rho_o_out</span><span class="p">,</span> <span class="n">u_o_out</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">set_h_s</span><span class="p">(</span><span class="n">ho</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">To_in</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_T</span><span class="p">(</span><span class="n">rho_o_in</span><span class="p">,</span> <span class="n">u_o_in</span><span class="p">)</span> <span class="o">*</span> <span class="n">fluid</span><span class="o">.</span><span class="n">T_ref</span>
+        <span class="n">To_out</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_T</span><span class="p">(</span><span class="n">rho_o_out</span><span class="p">,</span> <span class="n">u_o_out</span><span class="p">)</span> <span class="o">*</span> <span class="n">fluid</span><span class="o">.</span><span class="n">T_ref</span>
+        <span class="n">Po_in</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_P</span><span class="p">(</span><span class="n">rho_o_in</span><span class="p">,</span> <span class="n">u_o_in</span><span class="p">)</span> <span class="o">*</span> <span class="n">fluid</span><span class="o">.</span><span class="n">P_ref</span>
+        <span class="n">Po_out</span> <span class="o">=</span> <span class="n">fluid</span><span class="o">.</span><span class="n">get_P</span><span class="p">(</span><span class="n">rho_o_out</span><span class="p">,</span> <span class="n">u_o_out</span><span class="p">)</span> <span class="o">*</span> <span class="n">fluid</span><span class="o">.</span><span class="n">P_ref</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="s2">&quot;  In/Out:&quot;</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  To=</span><span class="si">{</span><span class="n">To_in</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">To_out</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> K&quot;</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  Po=</span><span class="si">{</span><span class="n">Po_in</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1e3</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">Po_out</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1e3</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> kPa</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+        <span class="c1"># Throttle line (only when active)</span>
+        <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">mdot_target</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">err</span> <span class="o">=</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">mdot_throttle</span><span class="p">)</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">mdot_target</span><span class="p">))</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span>
+                <span class="n">now</span><span class="o">.</span><span class="n">mdot_target</span>
+            <span class="p">)</span>
+            <span class="n">out</span> <span class="o">+=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;  Throt :&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;  mdot=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">mdot_throttle</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">mdot_target</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> kg/s&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;  err=</span><span class="si">{</span><span class="n">err</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;  dP=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">dP_P</span><span class="p">)</span><span class="si">:</span><span class="s2">+.1f</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">dP_I</span><span class="p">)</span><span class="si">:</span><span class="s2">+.1f</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">dP_D</span><span class="p">)</span><span class="si">:</span><span class="s2">+.1f</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Third line: non-dimensional metrics</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="s2">&quot;  m ho s:&quot;</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  ε=</span><span class="si">{</span><span class="n">now</span><span class="o">.</span><span class="n">err_mdot</span><span class="si">:</span><span class="s2">&lt;6.4f</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  ψ=</span><span class="si">{</span><span class="n">now</span><span class="o">.</span><span class="n">psi</span><span class="si">:</span><span class="s2">6.4f</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  ζ=</span><span class="si">{</span><span class="n">now</span><span class="o">.</span><span class="n">zeta</span><span class="si">:</span><span class="s2">6.4f</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+        <span class="c1"># Per-row and mix-plane mdot errors (only when n_row metadata present)</span>
+        <span class="n">n_row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_row&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">n_row</span><span class="p">:</span>
+            <span class="n">mdot</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="nb">float</span><span class="p">(</span><span class="n">now</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="sa">f</span><span class="s2">&quot;mdot_st</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,)))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">n_row</span><span class="p">)</span>
+            <span class="p">]</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">_err</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">b</span> <span class="o">-</span> <span class="n">a</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">))</span>
+
+            <span class="n">row_errs</span> <span class="o">=</span> <span class="p">[</span><span class="n">_err</span><span class="p">(</span><span class="n">mdot</span><span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">r</span><span class="p">],</span> <span class="n">mdot</span><span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">r</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_row</span><span class="p">)]</span>
+            <span class="n">out</span> <span class="o">+=</span> <span class="s2">&quot;  Rows  :&quot;</span>
+            <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">row_errs</span><span class="p">):</span>
+                <span class="n">out</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  row</span><span class="si">{</span><span class="n">r</span><span class="si">}</span><span class="s2"> ε=</span><span class="si">{</span><span class="n">e</span><span class="si">:</span><span class="s2">+.4f</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">if</span> <span class="n">n_row</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">mix_err</span> <span class="o">=</span> <span class="n">_err</span><span class="p">(</span><span class="n">mdot</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">mdot</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                <span class="n">out</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  mix ε=</span><span class="si">{</span><span class="n">mix_err</span><span class="si">:</span><span class="s2">+.4f</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">out</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+        <span class="c1"># Residuals line</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">now</span><span class="o">.</span><span class="n">residual</span>
+        <span class="n">out</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;  Resid : </span><span class="si">{</span><span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">9.2e</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">res</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">9.2e</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">res</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">:</span><span class="s2">9.2e</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">res</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="si">:</span><span class="s2">9.2e</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">res</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="si">:</span><span class="s2">9.2e</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+        <span class="c1"># Drop the trailing newline so callers (logger) own line separation.</span>
+        <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.format_timing">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.format_timing">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">format_timing</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i_step</span><span class="p">,</span> <span class="n">n_step</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Format timing line: tpnps, elapsed, and estimated remaining.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        i_step : int</span>
+<span class="sd">            Current step index within this march.</span>
+<span class="sd">        n_step : int</span>
+<span class="sd">            Total steps in this march.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># tpnps already divides wall time by this history&#39;s own grid node count</span>
+        <span class="c1"># (from_grid stores n_node = grid.size), so it is the true per-node cost</span>
+        <span class="c1"># of the grid being marched. Under FMG each level keeps its own history,</span>
+        <span class="c1"># so no cross-level rescaling is needed here.</span>
+        <span class="n">tpnps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tpnps</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">tpnps</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s2">&quot;  Timing: insufficient data&quot;</span>
+
+        <span class="n">elapsed_ms</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">now</span><span class="o">.</span><span class="n">time</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_TIME_SCALE</span> <span class="o">*</span> <span class="mf">1e3</span>
+        <span class="n">steps_left</span> <span class="o">=</span> <span class="n">n_step</span> <span class="o">-</span> <span class="n">i_step</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">remaining_ms</span> <span class="o">=</span> <span class="n">steps_left</span> <span class="o">*</span> <span class="n">tpnps</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_node</span> <span class="o">/</span> <span class="mf">1e3</span>
+        <span class="n">elapsed_min</span> <span class="o">=</span> <span class="n">elapsed_ms</span> <span class="o">/</span> <span class="mf">60e3</span>
+
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;  Timing:&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;  tpnps=</span><span class="si">{</span><span class="n">tpnps</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> µs&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;  Elapsed/Remaining=</span><span class="si">{</span><span class="n">elapsed_min</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">remaining_ms</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">60e3</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> min&quot;</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.record_convergence">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.record_convergence">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">record_convergence</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i_step</span><span class="p">,</span> <span class="n">conv</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Append one fully populated record, holding solver step ``i_step``.</span>
+
+<span class="sd">        Advances :attr:`i_log` onto the next allocated record and writes every</span>
+<span class="sd">        column of it: the step index, the time, and the monitors carried by</span>
+<span class="sd">        ``conv``. A record is never left half-written, so the only NaN a reader</span>
+<span class="sd">        can meet is an untouched record past ``i_log``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        i_step : int</span>
+<span class="sd">            Index of the solver step being recorded.</span>
+<span class="sd">        conv : ember.grid.ConvergenceStep</span>
+<span class="sd">            One step&#39;s monitors, from :meth:`ember.grid.Grid.get_convergence`.</span>
+<span class="sd">            The ``mdot``, ``ho`` and ``s`` station vectors are unpacked into one</span>
+<span class="sd">            scalar column per station; the history must have been constructed</span>
+<span class="sd">            with a matching ``n_row`` to have enough station columns allocated.</span>
+<span class="sd">        time : float, optional</span>
+<span class="sd">            Elapsed time for this record, in seconds. Defaults to the wall-clock</span>
+<span class="sd">            time since the history was created (the live-solver behaviour); a</span>
+<span class="sd">            reader replaying a log passes the log&#39;s own time instead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">conv</span><span class="o">.</span><span class="n">mdot</span><span class="p">)</span>
+
+        <span class="c1"># Advance onto the next allocated record, then fill every column of it.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;i_log&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;i_log&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">now</span>
+
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;i_step&quot;</span><span class="p">,),</span> <span class="n">i_step</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">time</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">t_start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;_time_start&quot;</span><span class="p">)</span>  <span class="c1"># float64 array</span>
+            <span class="n">time</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">_time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">())</span> <span class="o">-</span> <span class="n">t_start</span>  <span class="c1"># elapsed s, in f64</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;time&quot;</span><span class="p">,),</span> <span class="n">f32</span><span class="p">(</span><span class="n">time</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_TIME_SCALE</span><span class="p">))</span>
+
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">(</span>
+            <span class="p">(</span><span class="s2">&quot;drho&quot;</span><span class="p">,</span> <span class="s2">&quot;drhoVx&quot;</span><span class="p">,</span> <span class="s2">&quot;drhoVr&quot;</span><span class="p">,</span> <span class="s2">&quot;drhorVt&quot;</span><span class="p">,</span> <span class="s2">&quot;drhoe&quot;</span><span class="p">),</span> <span class="n">conv</span><span class="o">.</span><span class="n">residual</span>
+        <span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mdot_st</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)),</span> <span class="n">conv</span><span class="o">.</span><span class="n">mdot</span><span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ho_st</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)),</span> <span class="n">conv</span><span class="o">.</span><span class="n">ho</span><span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;s_st</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)),</span> <span class="n">conv</span><span class="o">.</span><span class="n">s</span><span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;mdot_target&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">mdot_target</span><span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;mdot_throttle&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">mdot_throttle</span><span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_throttle&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">dP_throttle</span><span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_P&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">dP_P</span><span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_I&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">dP_I</span><span class="p">)</span>
+        <span class="n">now</span><span class="o">.</span><span class="n">_set_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_D&quot;</span><span class="p">,),</span> <span class="n">conv</span><span class="o">.</span><span class="n">dP_D</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.to_json">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.to_json">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">directory</span><span class="o">=</span><span class="s2">&quot;.&quot;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Write convergence history to three JSON files in directory.</span>
+
+<span class="sd">        Writes err_mdot.json, work.json, and convergence_loss.json, each</span>
+<span class="sd">        containing a list of {&quot;x&quot;: i_step, &quot;y&quot;: value} objects.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        directory : str or path-like, optional</span>
+<span class="sd">            Output directory (default current directory).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>  <span class="c1"># noqa: PLC0415 - only needed on this path</span>
+
+        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">i_step</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
+        <span class="n">series</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;convergence_err_mdot&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">err_mdot</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)],</span>
+            <span class="s2">&quot;convergence_work&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">psi</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)],</span>
+            <span class="s2">&quot;convergence_loss&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">zeta</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)],</span>
+        <span class="p">}</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">series</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">points</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="n">xi</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="n">yi</span><span class="p">}</span> <span class="k">for</span> <span class="n">xi</span><span class="p">,</span> <span class="n">yi</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)]</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">.json&quot;</span><span class="p">),</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.trim">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.trim">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">trim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Copy of the records actually written, dropping the unfilled ones.</span>
+
+<span class="sd">        :meth:`from_grid` allocates enough records for the requested step count</span>
+<span class="sd">        and leaves them NaN until :meth:`record_convergence` fills them, so a</span>
+<span class="sd">        march that broke early on divergence leaves a NaN tail past ``i_log``.</span>
+<span class="sd">        The result holds ``i_log + 1`` records, the only length at which</span>
+<span class="sd">        ``i_log`` stays consistent with the number of records, and it can be</span>
+<span class="sd">        plotted or reduced without masking the tail out first.</span>
+
+<span class="sd">        The copy is independent of the original, which is also what makes the</span>
+<span class="sd">        result safe to keep once the full allocation is dropped. It has no</span>
+<span class="sd">        spare records, so :meth:`record_convergence` cannot be called on it:</span>
+<span class="sd">        trim once the march is over.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ConvergenceHistory</span>
+<span class="sd">            A new history containing only the logged steps.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="p">[:</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.write_cnv">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.write_cnv">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">write_cnv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Write convergence history to CNV binary format file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Output filename</span>
+<span class="sd">        compress : bool, optional</span>
+<span class="sd">            If True, compress using gzip (default False)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">opener</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span> <span class="k">if</span> <span class="n">compress</span> <span class="k">else</span> <span class="nb">open</span>
+        <span class="k">with</span> <span class="n">opener</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">diverged</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;True if the run that produced this history blew up, scalar.</span>
+
+<span class="sd">        Set by :meth:`ember.solver.Solver.run` when :meth:`ember.grid.Grid.check_nan`</span>
+<span class="sd">        raises :class:`ember.grid.DivergenceError`, in which case the step loop</span>
+<span class="sd">        broke early and only ``i_log + 1`` records were written.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;diverged&quot;</span><span class="p">)</span>
+
+    <span class="nd">@diverged</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">diverged</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;diverged&quot;</span><span class="p">,</span> <span class="nb">bool</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dP_D</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Derivative term of the throttle correction [Pa], record array.</span>
+
+<span class="sd">        The three terms :attr:`dP_P`, :attr:`dP_I` and :attr:`dP_D` sum to the</span>
+<span class="sd">        total correction :math:`\Delta p_\mathrm{throttle}` the outlet adds to</span>
+<span class="sd">        its prescribed static pressure. This one is always zero: the throttle is</span>
+<span class="sd">        a PI controller, and the column survives so the on-disk layout reads in</span>
+<span class="sd">        both directions. See :meth:`ember.patch.OutletPatch.set_throttle`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_D&quot;</span><span class="p">,))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dP_I</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Integral term of the throttle correction [Pa], record array.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_I&quot;</span><span class="p">,))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dP_P</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Proportional term of the throttle correction [Pa], record array.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;dP_P&quot;</span><span class="p">,))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">err_mdot</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Mass flow conservation error</span>
+<span class="sd">        :math:`(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}` [-],</span>
+<span class="sd">        record array.</span>
+
+<span class="sd">        Taken between the first and last station, so it spans the whole machine.</span>
+<span class="sd">        Zero for a perfectly converged march; the sign says whether the outlet</span>
+<span class="sd">        passes more or less than the inlet.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mdot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mdot_nd</span>
+        <span class="n">mdot_in</span><span class="p">,</span> <span class="n">mdot_out</span> <span class="o">=</span> <span class="n">mdot</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">mdot</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">mdot_out</span> <span class="o">-</span> <span class="n">mdot_in</span><span class="p">)</span> <span class="o">/</span> <span class="p">((</span><span class="n">mdot_in</span> <span class="o">+</span> <span class="n">mdot_out</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">err_mdot_row</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Mass flow conservation error per blade row [-], shape ``(n_log, n_row)``.</span>
+
+<span class="sd">        As :attr:`err_mdot`, but taken across each blade row separately:</span>
+<span class="sd">        ``err[i, r] = (mdot_dn_r - mdot_up_r) / mdot_avg_r`` for record ``i``</span>
+<span class="sd">        and row ``r``.</span>
+
+<span class="sd">        Returns an empty NaN array if the ``n_row`` metadata is absent, as it is</span>
+<span class="sd">        for histories written before that key existed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n_row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_row&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">n_row</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">n</span><span class="p">,</span> <span class="n">n_row</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_row</span><span class="p">):</span>
+            <span class="n">up</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="sa">f</span><span class="s2">&quot;mdot_st</span><span class="si">{</span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">r</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,))[:</span><span class="n">n</span><span class="p">]</span>
+            <span class="n">dn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="sa">f</span><span class="s2">&quot;mdot_st</span><span class="si">{</span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,))[:</span><span class="n">n</span><span class="p">]</span>
+            <span class="n">avg</span> <span class="o">=</span> <span class="p">(</span><span class="n">up</span> <span class="o">+</span> <span class="n">dn</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span>
+            <span class="n">out</span><span class="p">[:,</span> <span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">dn</span> <span class="o">-</span> <span class="n">up</span><span class="p">)</span> <span class="o">/</span> <span class="n">avg</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ho_nd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Stagnation enthalpy :math:`h_0/u_\mathrm{ref}` [-] at each station.</span>
+
+<span class="sd">        Record array of shape ``(n_log, 2*n_row)``; station ``0`` is the inlet</span>
+<span class="sd">        and ``-1`` the outlet. Carries an offset dependent</span>
+<span class="sd">        on the arbitrary datum where :math:`u = s = 0` at</span>
+<span class="sd">        :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`; only changes are physically</span>
+<span class="sd">        meaningful, which is why :attr:`psi` is a difference between stations.</span>
+<span class="sd">        See :ref:`datum-state`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_station_array</span><span class="p">(</span><span class="s2">&quot;ho_st&quot;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">i_log</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Index of the last written record; ``-1`` before any is written, scalar.</span>
+
+<span class="sd">        A trimmed history has ``i_log + 1`` records, so ``i_log`` is also its</span>
+<span class="sd">        last valid index.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;i_log&quot;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">i_step</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Solver step index :math:`i_\mathrm{step}` [-], record array.</span>
+
+<span class="sd">        The step the march had reached when each record was written, so entries</span>
+<span class="sd">        advance by ``n_step_log``, not by one.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;i_step&quot;</span><span class="p">,))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mdot_nd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Mass flow :math:`\dot m` [-] at each station, non-dimensional.</span>
+
+<span class="sd">        Record array of shape ``(n_log, 2*n_row)``; station ``0`` is the inlet</span>
+<span class="sd">        and ``-1`` the outlet. Scaled by the fluid mass-flux scale, and summed</span>
+<span class="sd">        over the whole annulus. Not to be confused with :attr:`mdot_target` and</span>
+<span class="sd">        :attr:`mdot_throttle`, which are dimensional [kg/s] and count one</span>
+<span class="sd">        passage, so the two differ by the blade count as well as by the scaling.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_station_array</span><span class="p">(</span><span class="s2">&quot;mdot_st&quot;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mdot_target</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Throttle mass flow setpoint :math:`\dot m_\mathrm{target}` [kg/s], record array.</span>
+
+<span class="sd">        Zero when no outlet is running a throttle.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;mdot_target&quot;</span><span class="p">,))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mdot_throttle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Mass flow measured at the throttled outlet :math:`\dot m` [kg/s], record array.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;mdot_throttle&quot;</span><span class="p">,))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">n_node</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Node count of the grid that produced this history [-], scalar.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;n_node&quot;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">now</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;View of the record at :attr:`i_log`, a single-record history.</span>
+
+<span class="sd">        During a march this is the record being written. Once</span>
+<span class="sd">        :meth:`ember.solver.Solver.run` has trimmed the history it is the last one.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">i_log</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">psi</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Stagnation enthalpy rise :math:`\psi` [-] across the machine, record array.</span>
+
+<span class="sd">        Outlet station minus inlet station. Both terms are already non-dimensional (scaled by ``u_ref``), so this is</span>
+<span class="sd">        the inlet-to-outlet stagnation enthalpy change on the fluid reference</span>
+<span class="sd">        scale -- no separate kinetic-energy normalisation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ho</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ho_nd</span>
+        <span class="k">return</span> <span class="n">ho</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">ho</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">residual</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Residual of each conserved variable [-], shape ``(n_log, 5)``.</span>
+
+<span class="sd">        Ordered ``(drho, drhoVx, drhoVr, drhorVt, drhoe)``. Each entry is a block mean of :math:`|\mathtt{residual\_nd}|` for one</span>
+<span class="sd">        conserved variable (see :meth:`ember.grid.Grid.get_convergence`), so</span>
+<span class="sd">        the values are non-negative by construction.</span>
+
+<span class="sd">        In a real march they are also strictly positive, and callers may plot</span>
+<span class="sd">        them on a log axis without masking. A mean of non-negative floats is</span>
+<span class="sd">        zero only if every cell residual is exactly zero, since the sum is</span>
+<span class="sd">        never smaller than its largest term and so cannot underflow. Float32</span>
+<span class="sd">        round-off in the flux balance and boundary conditions keeps a converged</span>
+<span class="sd">        residual at a floor many orders of magnitude above the smallest normal</span>
+<span class="sd">        float, rather than descending to zero: a uniform inviscid duct marched</span>
+<span class="sd">        to a standstill still reports ``~2.6e-6``.</span>
+
+<span class="sd">        The exception is a history rebuilt from an external solver log (e.g. by</span>
+<span class="sd">        the ember-cfd-ts parser), which may recover only the density residual and</span>
+<span class="sd">        leave the other four NaN.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;drho&quot;</span><span class="p">,</span> <span class="s2">&quot;drhoVx&quot;</span><span class="p">,</span> <span class="s2">&quot;drhoVr&quot;</span><span class="p">,</span> <span class="s2">&quot;drhorVt&quot;</span><span class="p">,</span> <span class="s2">&quot;drhoe&quot;</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">s_nd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Specific entropy :math:`s/R_\mathrm{ref}` [-] at each station.</span>
+
+<span class="sd">        Record array of shape ``(n_log, 2*n_row)``; station ``0`` is the inlet</span>
+<span class="sd">        and ``-1`` the outlet. Carries the same</span>
+<span class="sd">        arbitrary datum offset as :attr:`ho_nd`, so only changes between</span>
+<span class="sd">        stations are meaningful. See :ref:`datum-state`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_station_array</span><span class="p">(</span><span class="s2">&quot;s_st&quot;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">throttle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Throttle state ``(mdot_target, mdot_throttle, dP_throttle)``, shape ``(n_log, 3)``.</span>
+
+<span class="sd">        The first two are mass flows [kg/s], through one passage rather than the</span>
+<span class="sd">        whole annulus; the third is the total pressure correction</span>
+<span class="sd">        :math:`\Delta p_\mathrm{throttle}` [Pa], the sum of :attr:`dP_P`,</span>
+<span class="sd">        :attr:`dP_I` and :attr:`dP_D`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;mdot_target&quot;</span><span class="p">,</span> <span class="s2">&quot;mdot_throttle&quot;</span><span class="p">,</span> <span class="s2">&quot;dP_throttle&quot;</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">time</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Elapsed wall-clock time since the march began [ms], record array.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_data_by_keys</span><span class="p">((</span><span class="s2">&quot;time&quot;</span><span class="p">,))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">tpnps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Wall-clock time per node per step [:math:`\mu\mathrm{s}`], scalar.</span>
+
+<span class="sd">        Measured over the interval between the last two records, so it is NaN</span>
+<span class="sd">        until a second record exists.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="n">dt_s</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">i_log</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_TIME_SCALE</span>
+        <span class="n">di_step</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_step</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">i_log</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_step</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">dt_s</span> <span class="o">/</span> <span class="n">di_step</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_node</span> <span class="o">*</span> <span class="mf">1e6</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">zeta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Entropy rise :math:`\zeta` [-] across the machine, record array.</span>
+
+<span class="sd">        Outlet station minus inlet station. Both terms are already non-dimensional (scaled by ``Rgas_ref``), so this</span>
+<span class="sd">        is the inlet-to-outlet entropy generation on the fluid reference scale.</span>
+<span class="sd">        It remains positive for an irreversible process (Gouy-Stodola), but is</span>
+<span class="sd">        no longer normalised by a reference kinetic energy.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">s_nd</span>
+        <span class="k">return</span> <span class="n">s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

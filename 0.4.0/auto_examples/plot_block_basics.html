@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Basic Block usage &#8212; ember 0.4.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=6c02275b"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Cutting and averaging a flow field" href="plot_cut_average.html" />
+    <link rel="prev" title="Examples" href="index.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Examples</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Basic Block usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_cut_average.html">Cutting and averaging a flow field</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_isentropic_nozzle.html">Isentropic nozzle analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_joule_cycle.html">Gas turbine Joule cycle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_patches.html">Boundary patches on a block</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_shocked_nozzle.html">Shocked nozzle design</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.4.0";
+    var page = "auto_examples/plot_block_basics.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Examples</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Examples</a></li>
+      <li>Next: <a href="plot_cut_average.html" title="next chapter">Cutting and averaging a flow field</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-plot-block-basics-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="basic-block-usage">
+<span id="sphx-glr-auto-examples-plot-block-basics-py"></span><h1>Basic Block usage<a class="headerlink" href="#basic-block-usage" title="Link to this heading">¶</a></h1>
+<p>The <a class="reference internal" href="../api/block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">ember.block.Block</span></code></a> class holds a flow field over a structured grid and evaluates
+thermodynamic and kinematic properties through an attached
+<a class="reference internal" href="../api/fluid.html#module-ember.fluid" title="ember.fluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">ember.fluid</span></code></a> equation of state. This example tours the basics: choosing
+a shape, setting coordinates and velocities, fixing the thermodynamic state,
+working in a rotating frame, and the numpy-like indexing and array operations a
+block supports. It closes by plotting a radial profile straight from a block’s
+property arrays.</p>
+<p>See the <a class="reference internal" href="plot_joule_cycle.html"><span class="doc">Joule cycle example</span></a> for a worked thermodynamic
+calculation built on this same interface.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.block</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.fluid</span>
+</pre></div>
+</div>
+<section id="a-scalar-block-coordinates-and-velocity">
+<h2>A scalar block: coordinates and velocity<a class="headerlink" href="#a-scalar-block-coordinates-and-velocity" title="Link to this heading">¶</a></h2>
+<p>With no shape argument a block defaults to a single scalar point of shape
+<code class="docutils literal notranslate"><span class="pre">()</span></code>.
+Coordinates and velocity components can be set individually, or a velocity
+vector can be supplied as an array. Flow angles are derived properties.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">block</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Default shape: </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Set individual coordinates</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_t</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Coordinates (x, r, t): </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">xrt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Set velocity components and read back derived angles</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="mf">100.0</span><span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="mf">50.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Yaw Alpha = </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">Alpha</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> deg, pitch Beta = </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">Beta</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> deg&quot;</span><span class="p">)</span>
+
+<span class="c1"># Double the velocity vector, setting from array</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_Vxrt</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">Vxrt</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Doubled velocity vector: </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">Vxrt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Default shape: ()
+Coordinates (x, r, t): [0.5 1.  0. ]
+Yaw Alpha = 26.6 deg, pitch Beta = 0.0 deg
+Doubled velocity vector: [200.   0. 100.]
+</pre></div>
+</div>
+</section>
+<section id="thermodynamic-state">
+<h2>Thermodynamic state<a class="headerlink" href="#thermodynamic-state" title="Link to this heading">¶</a></h2>
+<p>A block needs a fluid before any thermodynamic property can be evaluated. The
+state is then fixed two properties at a time by the two-property rule.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Define a perfect gas</span>
+<span class="n">fluid</span> <span class="o">=</span> <a href="https://docs.python.org/3/library/abc.html#abc.ABC" title="abc.ABC" class="sphx-glr-backref-module-abc sphx-glr-backref-type-py-class"><span class="n">ember</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">PerfectFluid</span></a><span class="p">(</span><span class="n">cp</span><span class="o">=</span><span class="mf">1005.0</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="mf">1.4</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">,</span> <span class="n">Pr</span><span class="o">=</span><span class="mf">0.71</span><span class="p">)</span>
+
+<span class="c1"># Read back denstiy and enthalpy from a (P, T) pair.</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1e5</span><span class="p">,</span> <span class="mf">300.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;From (P,T): rho = </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">rho</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> kg/m^3, h = </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">h</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> J/kg&quot;</span><span class="p">)</span>
+
+<span class="c1"># A different property pair</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_rho_u</span><span class="p">(</span><span class="mf">1.1</span><span class="p">,</span> <span class="mf">1e4</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;From (rho, u): T = </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">T</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> K&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>From (P,T): rho = 1.161 kg/m^3, h = 86143 J/kg
+From (rho, u): T = 313.9 K
+</pre></div>
+</div>
+</section>
+<section id="setting-state-independently">
+<h2>Setting state independently<a class="headerlink" href="#setting-state-independently" title="Link to this heading">¶</a></h2>
+<p>Coordinates, velocity and thermodynamic state are three independent families.
+Setting one gives access to its derived properties but not the others;
+reading a property that depends on an unset family raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Coordinates alone give geometry, but velocity is still unset.</span>
+<span class="n">geom</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">geom</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.array.html#numpy.array" title="numpy.array" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">array</span></a><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ones.html#numpy.ones" title="numpy.ones" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">ones</span></a><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span>
+<span class="n">geom</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.array.html#numpy.array" title="numpy.array" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">array</span></a><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ones.html#numpy.ones" title="numpy.ones" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">ones</span></a><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span>
+<span class="n">geom</span><span class="o">.</span><span class="n">set_t</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.array.html#numpy.array" title="numpy.array" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">array</span></a><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">])[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ones.html#numpy.ones" title="numpy.ones" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">ones</span></a><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cell volume = </span><span class="si">{</span><span class="n">geom</span><span class="o">.</span><span class="n">vol</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">geom</span><span class="o">.</span><span class="n">Vx</span>
+<span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Reading Vx before set_Vx raises ValueError&quot;</span><span class="p">)</span>
+
+<span class="c1"># Velocity alone gives flow angles, but geometry is still unset.</span>
+<span class="n">swirl</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">()</span>
+<span class="n">swirl</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">swirl</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="mf">100.0</span><span class="p">)</span>
+<span class="n">swirl</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">swirl</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="mf">50.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Alpha = </span><span class="si">{</span><span class="n">swirl</span><span class="o">.</span><span class="n">Alpha</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> deg, Beta = </span><span class="si">{</span><span class="n">swirl</span><span class="o">.</span><span class="n">Beta</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> deg&quot;</span><span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">swirl</span><span class="o">.</span><span class="n">x</span>
+<span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Reading x before set_x raises ValueError&quot;</span><span class="p">)</span>
+
+<span class="c1"># Thermodynamic state alone gives density, but geometry is still unset.</span>
+<span class="n">state</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">()</span>
+<span class="n">state</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<span class="n">state</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1e5</span><span class="p">,</span> <span class="mf">300.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Density = </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">rho</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> kg/m^3&quot;</span><span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">x</span>
+<span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Reading x before set_x raises ValueError&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Cell volume = [[[0.0375]]]
+Reading Vx before set_Vx raises ValueError
+Alpha = 26.6 deg, Beta = 0.0 deg
+Reading x before set_x raises ValueError
+Density = 1.161 kg/m^3
+Reading x before set_x raises ValueError
+</pre></div>
+</div>
+</section>
+<section id="shifting-the-thermodynamic-datum">
+<h2>Shifting the thermodynamic datum<a class="headerlink" href="#shifting-the-thermodynamic-datum" title="Link to this heading">¶</a></h2>
+<p>The datum (where enthalpy and entropy are zero) can be moved by attaching a
+fluid from <a class="reference internal" href="../api/fluid.html#ember.fluid.PerfectFluid.change_datum" title="ember.fluid.PerfectFluid.change_datum"><code class="xref py py-meth docutils literal notranslate"><span class="pre">change_datum()</span></code></a>. Pressure and
+temperature are unaffected; only enthalpy and entropy shift.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">datum</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">()</span>
+<span class="n">datum</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<span class="n">datum</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1.2e5</span><span class="p">,</span> <span class="mf">350.0</span><span class="p">)</span>
+<span class="n">datum</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">datum</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">datum</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;Original datum: P = </span><span class="si">{</span><span class="n">datum</span><span class="o">.</span><span class="n">P</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> Pa, T = </span><span class="si">{</span><span class="n">datum</span><span class="o">.</span><span class="n">T</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> K</span><span class="se">\n</span><span class="s2">&quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;                h = </span><span class="si">{</span><span class="n">datum</span><span class="o">.</span><span class="n">h</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> J/kg, s = </span><span class="si">{</span><span class="n">datum</span><span class="o">.</span><span class="n">s</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> J/kg/K&quot;</span>
+<span class="p">)</span>
+
+<span class="n">datum</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="o">.</span><span class="n">change_datum</span><span class="p">(</span><span class="mf">101325.0</span><span class="p">,</span> <span class="mf">288.15</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;Shifted datum:  P = </span><span class="si">{</span><span class="n">datum</span><span class="o">.</span><span class="n">P</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> Pa, T = </span><span class="si">{</span><span class="n">datum</span><span class="o">.</span><span class="n">T</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> K</span><span class="se">\n</span><span class="s2">&quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;                h = </span><span class="si">{</span><span class="n">datum</span><span class="o">.</span><span class="n">h</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> J/kg, s = </span><span class="si">{</span><span class="n">datum</span><span class="o">.</span><span class="n">s</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> J/kg/K&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Original datum: P = 120000 Pa, T = 350 K
+                h = 136393 J/kg, s = 102.6 J/kg/K
+Shifted datum:  P = 120000 Pa, T = 350 K
+                h = 144899 J/kg, s = 146.9 J/kg/K
+</pre></div>
+</div>
+</section>
+<section id="reference-scales">
+<h2>Reference scales<a class="headerlink" href="#reference-scales" title="Link to this heading">¶</a></h2>
+<p>A block stores its conserved variables in a non-dimensional backing array,
+scaled by a fluid reference density and velocity, and the block’s reference
+length — see <a class="reference internal" href="../api/block.html#block-reference-scales"><span class="std std-ref">Reference scales</span></a>.
+The dimensional
+<a class="reference internal" href="../api/block.html#ember.block.Block.conserved" title="ember.block.Block.conserved"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved</span></code></a> variables are independent of this
+choice; only the raw <a class="reference internal" href="../api/block.html#ember.block.Block.conserved_nd" title="ember.block.Block.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved_nd</span></code></a> array changes.
+If we set reference scales matched to the flow, the raw values sit near unity,
+which keeps the backing array well-conditioned, while the dimensional values are unchanged.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">cons</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">()</span>
+<span class="n">cons</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<span class="n">cons</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">cons</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1e5</span><span class="p">,</span> <span class="mf">300.0</span><span class="p">)</span>
+<span class="n">cons</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="mf">150.0</span><span class="p">)</span>
+<span class="n">cons</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">cons</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="mf">60.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;With unit reference scales:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  conserved    = </span><span class="si">{</span><span class="n">cons</span><span class="o">.</span><span class="n">conserved</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  conserved_nd = </span><span class="si">{</span><span class="n">cons</span><span class="o">.</span><span class="n">conserved_nd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Same as dimensional</span>
+
+<span class="c1"># Choose reference scales matched to the flow state.</span>
+<span class="n">cons</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="o">.</span><span class="n">change_ref</span><span class="p">(</span><span class="n">rho_ref</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">cons</span><span class="o">.</span><span class="n">rho</span><span class="p">),</span> <span class="n">V_ref</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span> <span class="n">Rgas_ref</span><span class="o">=</span><span class="mf">287.0</span><span class="p">))</span>
+<span class="n">cons</span><span class="o">.</span><span class="n">set_L_ref</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;With matched reference scales:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  conserved    = </span><span class="si">{</span><span class="n">cons</span><span class="o">.</span><span class="n">conserved</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Dimensional values unchanged</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  conserved_nd = </span><span class="si">{</span><span class="n">cons</span><span class="o">.</span><span class="n">conserved_nd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Raw backing array near unity</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>With unit reference scales:
+  conserved    = [1.1608626e+00 1.7412938e+02 0.0000000e+00 6.9651756e+01 1.5149257e+04]
+  conserved_nd = [1.1608626e+00 1.7412938e+02 0.0000000e+00 6.9651756e+01 1.5149257e+04]
+With matched reference scales:
+  conserved    = [1.1608622e+00 1.7412933e+02 0.0000000e+00 6.9651733e+01 1.5149268e+04]
+  conserved_nd = [0.9999997  0.49999985 0.         0.19999996 0.14500012]
+</pre></div>
+</div>
+</section>
+<section id="rotating-reference-frame">
+<h2>Rotating reference frame<a class="headerlink" href="#rotating-reference-frame" title="Link to this heading">¶</a></h2>
+<p>By default the angular velocity <a class="reference internal" href="../api/block.html#ember.block.Block.Omega" title="ember.block.Block.Omega"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Omega</span></code></a> is zero, so absolute and relative
+circumferential
+velocities are equal and the stagnation pressure equals its relative
+counterpart. Setting a rotation rate splits the absolute and relative swirl
+and changes the relative stagnation pressure, without affecting the absolute
+stagnation pressure or the static pressure. Quantities suffixed <code class="docutils literal notranslate"><span class="pre">_rel</span></code> are
+evaluated in the rotating frame.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">rotor</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">()</span>
+<span class="n">rotor</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<span class="n">rotor</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">rotor</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1e5</span><span class="p">,</span> <span class="mf">300.0</span><span class="p">)</span>
+<span class="n">rotor</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">rotor</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">rotor</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="mf">100.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;At rest:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Vt = </span><span class="si">{</span><span class="n">rotor</span><span class="o">.</span><span class="n">Vt</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> m/s, Vt_rel = </span><span class="si">{</span><span class="n">rotor</span><span class="o">.</span><span class="n">Vt_rel</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> m/s&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Po = </span><span class="si">{</span><span class="n">rotor</span><span class="o">.</span><span class="n">Po</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> Pa, Po_rel = </span><span class="si">{</span><span class="n">rotor</span><span class="o">.</span><span class="n">Po_rel</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> Pa&quot;</span><span class="p">)</span>
+
+<span class="n">rotor</span><span class="o">.</span><span class="n">set_Omega</span><span class="p">(</span><span class="mf">50.0</span><span class="p">)</span>  <span class="c1"># rad/s</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Spinning at Omega = 50 rad/s:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Vt = </span><span class="si">{</span><span class="n">rotor</span><span class="o">.</span><span class="n">Vt</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> m/s, Vt_rel = </span><span class="si">{</span><span class="n">rotor</span><span class="o">.</span><span class="n">Vt_rel</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> m/s&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Po = </span><span class="si">{</span><span class="n">rotor</span><span class="o">.</span><span class="n">Po</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> Pa, Po_rel = </span><span class="si">{</span><span class="n">rotor</span><span class="o">.</span><span class="n">Po_rel</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> Pa&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>At rest:
+  Vt = 100.0 m/s, Vt_rel = 100.0 m/s
+  Po = 105926 Pa, Po_rel = 105926 Pa
+Spinning at Omega = 50 rad/s:
+  Vt = 100.0 m/s, Vt_rel = 50.0 m/s
+  Po = 105926 Pa, Po_rel = 101459 Pa
+</pre></div>
+</div>
+</section>
+<section id="array-valued-blocks-and-broadcasting">
+<h2>Array-valued blocks and broadcasting<a class="headerlink" href="#array-valued-blocks-and-broadcasting" title="Link to this heading">¶</a></h2>
+<p>A shape argument allocates a multidimensional field. Inputs to the setters
+broadcast to the block shape, so a scalar fills the whole block and a 1-D
+array fills along one axis.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">field</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+<span class="n">field</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<span class="n">field</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>  <span class="c1"># Scalar broadcasts everywhere</span>
+<span class="n">field</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.linspace.html#numpy.linspace" title="numpy.linspace" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">linspace</span></a><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">ni</span><span class="p">))</span>  <span class="c1"># Varies along the first axis</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Block shape </span><span class="si">{</span><span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">, r spans </span><span class="si">{</span><span class="n">field</span><span class="o">.</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r</span></a><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">--</span><span class="si">{</span><span class="n">field</span><span class="o">.</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r</span></a><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Block shape (5, 6, 5), r spans 1.0--2.0
+</pre></div>
+</div>
+</section>
+<section id="indexing-and-slicing">
+<h2>Indexing and slicing<a class="headerlink" href="#indexing-and-slicing" title="Link to this heading">¶</a></h2>
+<p>Blocks index like numpy arrays. An integer or tuple selects a point or
+sub-block; a slice returns a smaller block sharing the data. Every result is
+itself a block with all properties available.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">line</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,))</span>
+<span class="n">line</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.arange.html#numpy.arange" title="numpy.arange" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">arange</span></a><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">ni</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;line[5].x = </span><span class="si">{</span><span class="n">line</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">x</span><span class="si">}</span><span class="s2">, line[-2].x = </span><span class="si">{</span><span class="n">line</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;line[3:6].x = </span><span class="si">{</span><span class="n">line</span><span class="p">[</span><span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span><span class="o">.</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">grid</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.arange.html#numpy.arange" title="numpy.arange" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">arange</span></a><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;grid[0, :].x = </span><span class="si">{</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="p">:]</span><span class="o">.</span><span class="n">x</span><span class="si">}</span><span class="s2">, grid[:, 1].x = </span><span class="si">{</span><span class="n">grid</span><span class="p">[:,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>line[5].x = 5.0, line[-2].x = 8.0
+line[3:6].x = [3. 4. 5.]
+grid[0, :].x = [0. 1.], grid[:, 1].x = [1. 3. 5.]
+</pre></div>
+</div>
+</section>
+<section id="copying-and-reshaping">
+<h2>Copying and reshaping<a class="headerlink" href="#copying-and-reshaping" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">copy</span></code> makes an independent block; <code class="docutils literal notranslate"><span class="pre">transpose</span></code>, <code class="docutils literal notranslate"><span class="pre">flat</span></code> and <code class="docutils literal notranslate"><span class="pre">reshape</span></code>
+rearrange the axes (as views where possible).</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">original</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">()</span>
+<span class="n">original</span><span class="o">.</span><span class="n">set_xrt</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.array.html#numpy.array" title="numpy.array" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">array</span></a><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">]))</span>
+<span class="n">modified</span> <span class="o">=</span> <span class="n">original</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">modified</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><span class="o">-</span><span class="mf">6.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;copy is independent: original.x = </span><span class="si">{</span><span class="n">original</span><span class="o">.</span><span class="n">x</span><span class="si">}</span><span class="s2">, modified.x = </span><span class="si">{</span><span class="n">modified</span><span class="o">.</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">shaped</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="n">shaped</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.arange.html#numpy.arange" title="numpy.arange" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">arange</span></a><span class="p">(</span><span class="n">shaped</span><span class="o">.</span><span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shaped</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;shape </span><span class="si">{</span><span class="n">shaped</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> -&gt; transpose </span><span class="si">{</span><span class="n">shaped</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> &quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;-&gt; flat </span><span class="si">{</span><span class="n">shaped</span><span class="o">.</span><span class="n">flat</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> -&gt; reshape </span><span class="si">{</span><span class="n">shaped</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">))</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>copy is independent: original.x = 2.0, modified.x = -6.0
+shape (4, 3) -&gt; transpose (3, 4) -&gt; flat (12,) -&gt; reshape (2, 6)
+</pre></div>
+</div>
+</section>
+<section id="a-radial-profile-setters-in-derived-properties-out">
+<h2>A radial profile: setters in, derived properties out<a class="headerlink" href="#a-radial-profile-setters-in-derived-properties-out" title="Link to this heading">¶</a></h2>
+<p>To tie the pieces together, build a one-dimensional radial line through an
+annulus and read back derived properties that the setters never touched
+directly. The thermodynamic state is uniform — the same static pressure and
+temperature at every radius — but the velocity varies with radius like a
+turbomachinery inlet profile: a uniform free stream with a smooth boundary
+layer growing in from each annulus wall. The flow is set as a speed
+and a fixed yaw (swirl) angle through <a class="reference internal" href="../api/block.html#ember.block.Block.set_V_Alpha_Beta" title="ember.block.Block.set_V_Alpha_Beta"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_V_Alpha_Beta()</span></code></a>,
+and the block spins in a rotating frame via <a class="reference internal" href="../api/block.html#ember.block.Block.set_Omega" title="ember.block.Block.set_Omega"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_Omega()</span></code></a>.</p>
+<p>We never set the axial velocity or the relative swirl directly. They fall out
+of the setters: <a class="reference internal" href="../api/block.html#ember.block.Block.Vx" title="ember.block.Block.Vx"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Vx</span></code></a> is the axial projection of the
+speed, and <a class="reference internal" href="../api/block.html#ember.block.Block.Vt_rel" title="ember.block.Block.Vt_rel"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Vt_rel</span></code></a> subtracts the local blade speed
+<span class="math notranslate nohighlight">\(\Omega r\)</span> from the absolute swirl.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_hub</span></a><span class="p">,</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_cas</span></a> <span class="o">=</span> <span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.5</span>
+<span class="n">profile</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">101</span><span class="p">,))</span>
+<span class="n">profile</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r</span></a> <span class="o">=</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.linspace.html#numpy.linspace" title="numpy.linspace" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">linspace</span></a><span class="p">(</span><a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_hub</span></a><span class="p">,</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_cas</span></a><span class="p">,</span> <span class="n">profile</span><span class="o">.</span><span class="n">ni</span><span class="p">)</span>
+<span class="n">profile</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r</span></a><span class="p">)</span>
+
+<span class="c1"># Uniform static state across the span.</span>
+<span class="n">profile</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1e5</span><span class="p">,</span> <span class="mf">300.0</span><span class="p">)</span>
+
+<span class="c1"># Smooth boundary layers growing in from the hub and casing walls: a tanh</span>
+<span class="c1"># profile rolls off to zero at each wall without the kink of a power law.</span>
+<a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">V_inf</span></a><span class="p">,</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">delta</span></a> <span class="o">=</span> <span class="mf">150.0</span><span class="p">,</span> <span class="mf">0.015</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">d_wall</span></a> <span class="o">=</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ufunc.html#numpy.ufunc" title="numpy.ufunc" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">np</span><span class="o">.</span><span class="n">minimum</span></a><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r</span></a> <span class="o">-</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_hub</span></a><span class="p">,</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_cas</span></a> <span class="o">-</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r</span></a><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">V</span></a> <span class="o">=</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">V_inf</span></a> <span class="o">*</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ufunc.html#numpy.ufunc" title="numpy.ufunc" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">np</span><span class="o">.</span><span class="n">tanh</span></a><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">d_wall</span></a> <span class="o">/</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">delta</span></a><span class="p">)</span>
+
+<span class="c1"># A fixed 60 deg swirl angle; no pitch. Speed and angles in, velocity out.</span>
+<span class="n">profile</span><span class="o">.</span><span class="n">set_V_Alpha_Beta</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">V</span></a><span class="p">,</span> <span class="mf">60.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+
+<span class="c1"># Spin the frame at the blade speed for the mean radius.</span>
+<a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_mid</span></a> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_hub</span></a> <span class="o">+</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_cas</span></a><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float64" title="numpy.float64" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">Omega</span></a> <span class="o">=</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">V_inf</span></a> <span class="o">*</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ufunc.html#numpy.ufunc" title="numpy.ufunc" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">np</span><span class="o">.</span><span class="n">sin</span></a><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ufunc.html#numpy.ufunc" title="numpy.ufunc" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">np</span><span class="o">.</span><span class="n">radians</span></a><span class="p">(</span><span class="mf">60.0</span><span class="p">))</span> <span class="o">/</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_mid</span></a>
+<span class="n">profile</span><span class="o">.</span><span class="n">set_Omega</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float64" title="numpy.float64" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">Omega</span></a><span class="p">)</span>
+
+<span class="c1"># Non-dimensionalise: span fraction on the ordinate, velocity over blade speed</span>
+<span class="c1"># U = Omega * r_mid on the abscissa.</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">span</span></a> <span class="o">=</span> <span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r</span></a> <span class="o">-</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_hub</span></a><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_cas</span></a> <span class="o">-</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_hub</span></a><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float64" title="numpy.float64" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">U</span></a> <span class="o">=</span> <a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float64" title="numpy.float64" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">Omega</span></a> <span class="o">*</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">r_mid</span></a>
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">Vx</span> <span class="o">/</span> <a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float64" title="numpy.float64" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">U</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">span</span></a><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$V_x$ (axial)&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">Vt</span> <span class="o">/</span> <a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float64" title="numpy.float64" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">U</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">span</span></a><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$V_\theta$ (absolute swirl)&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">Vt_rel</span> <span class="o">/</span> <a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float64" title="numpy.float64" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">U</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">span</span></a><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$V_\theta^\mathrm</span><span class="si">{rel}</span><span class="s2">$ (relative swirl)&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;0.7&quot;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$V_i / U$&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;Span fraction&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s2">&quot;center left&quot;</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_plot_block_basics_001.png" srcset="../_images/sphx_glr_plot_block_basics_001.png" alt="plot block basics" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 0.093 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-block-basics-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/07abdf3cf5011d90da64d8dd6b763894/plot_block_basics.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_block_basics.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/4b37bc5a89b3a632459a8e9a8fbb316a/plot_block_basics.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_block_basics.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/c88022e80c0758ab8ba10a158ecdebac/plot_block_basics.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">plot_block_basics.zip</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/auto_examples/plot_block_basics.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Averaging &#8212; ember 0.4.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=6c02275b"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Cutting" href="cut.html" />
+    <link rel="prev" title="Patch" href="patch.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Averaging</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#ember.average.flow_mass"><code class="docutils literal notranslate"><span class="pre">flow_mass()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.average.flow_conserved"><code class="docutils literal notranslate"><span class="pre">flow_conserved()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.average.flow_conserved_nd"><code class="docutils literal notranslate"><span class="pre">flow_conserved_nd()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.average.mass_average"><code class="docutils literal notranslate"><span class="pre">mass_average()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.average.area_average"><code class="docutils literal notranslate"><span class="pre">area_average()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.average.total_area"><code class="docutils literal notranslate"><span class="pre">total_area()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.average.total_area_nd"><code class="docutils literal notranslate"><span class="pre">total_area_nd()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.average.mix_out"><code class="docutils literal notranslate"><span class="pre">mix_out()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.4.0";
+    var page = "api/average.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="patch.html" title="previous chapter">Patch</a></li>
+      <li>Next: <a href="cut.html" title="next chapter">Cutting</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.average">
+<span id="averaging"></span><h1>Averaging<a class="headerlink" href="#module-ember.average" title="Link to this heading">¶</a></h1>
+<p>Functions for integration and averaging over 2D blocks.</p>
+<p>This module implements averaging methods for reducing spatially-varying 2D flow fields
+to representative scalar quantities, essential for comparing CFD results with mean-line design
+points and experimental measurements. The module provides area averaging, mass-flux averaging,
+and mixed-out averaging methods following turbomachinery conventions. As discussed by
+<span class="bibtex-citation" id="id1">Cumpsty and Horlock [<a class="reference internal" href="../references.html#id5" title="N. A. Cumpsty and J. H. Horlock. Averaging nonuniform flow for a purpose. J. Turbomach., 128(1):120–129, 2005. doi:10.1115/1.2098807.">4</a>]</span>, dimensional reduction from 2D to 0D inherently loses information, requiring
+careful selection of which flow properties to conserve. <span class="bibtex-citation" id="id2">Burdett and Povey [<a class="reference internal" href="../references.html#id6" title="Daniel Burdett and Thomas Povey. Analysis of averaging methods for nonuniform total pressure fields. J. Turbomach., 2022. doi:10.1115/1.4053020.">5</a>]</span> demonstrate
+that mixed-out averages minimize sensitivity to streamwise location variations. All averaging
+functions operate on 2D Block objects and support both absolute and relative reference frames
+for turbomachinery with rotating components, enabling consistent performance metric extraction
+across blade rows.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.average.flow_mass">
+<span class="sig-prename descclassname"><span class="pre">average.</span></span><span class="sig-name descname"><span class="pre">flow_mass</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/average.html#flow_mass"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.average.flow_mass" title="Link to this definition">¶</a></dt>
+<dd><p>Integrate mass flow through faces of a 2D block.</p>
+<p>Calculates the mass flow over the block faces,</p>
+<div class="math notranslate nohighlight">
+\[\dot{m} = \int \rho \mathbf{V}\cdot\mathrm{d}\mathbf{A} \,.\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D structured or triangulated block.</p></li>
+<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to sum the mass flow;
+for triangulated grids, should be None to sum over all faces.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>mass_flow</strong> – Mass flow rate through the block.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.average.flow_conserved">
+<span class="sig-prename descclassname"><span class="pre">average.</span></span><span class="sig-name descname"><span class="pre">flow_conserved</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/average.html#flow_conserved"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.average.flow_conserved" title="Link to this definition">¶</a></dt>
+<dd><p>Integrate conserved flows through faces of a 2D block.</p>
+<p>Calculates the conserved flows over the block faces,</p>
+<div class="math notranslate nohighlight">
+\[\int \mathcal{F}\cdot\mathrm{d}\mathbf{A} \,,\]</div>
+<p>where the conserved flux tensor <span class="math notranslate nohighlight">\(\mathcal{F}\)</span> carries the fluxes of
+mass, axial momentum, radial momentum, angular momentum and stagnation
+enthalpy (energy),</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mathcal{F} = \rho \mathbf{V}
+\begin{bmatrix} 1 \\ V_x \\ V_r \\ r V_\theta \\ h_0 \end{bmatrix}
++ p
+\begin{bmatrix}
+    \mathbf{0} \\ \mathbf{e}_x \\ \mathbf{e}_r
+    \\ r\,\mathbf{e}_\theta \\ \Omega r\,\mathbf{e}_\theta
+\end{bmatrix} \,.\end{split}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D structured or triangulated block.</p></li>
+<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to sum the flows;
+for triangulated grids, should be None to sum over all faces.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>flow_conserved</strong> – Integrated conserved flows</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array shape (5,)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.average.flow_conserved_nd">
+<span class="sig-prename descclassname"><span class="pre">average.</span></span><span class="sig-name descname"><span class="pre">flow_conserved_nd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/average.html#flow_conserved_nd"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.average.flow_conserved_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional counterpart of <a class="reference internal" href="#ember.average.flow_conserved" title="ember.average.flow_conserved"><code class="xref py py-func docutils literal notranslate"><span class="pre">flow_conserved()</span></code></a>, shape (5,).</p>
+<p>Scaled by <code class="docutils literal notranslate"><span class="pre">fluxes.flux_ref(block)</span> <span class="pre">*</span> <span class="pre">block.L_ref**2</span></code>, this is
+<a class="reference internal" href="#ember.average.flow_conserved" title="ember.average.flow_conserved"><code class="xref py py-func docutils literal notranslate"><span class="pre">flow_conserved()</span></code></a>. Working directly in this form lets <a class="reference internal" href="#ember.average.mix_out" title="ember.average.mix_out"><code class="xref py py-func docutils literal notranslate"><span class="pre">mix_out()</span></code></a>
+run its Newton iteration without any reference-scale bookkeeping, since
+the Jacobian from <a class="reference internal" href="perturbation.html#module-ember.perturbation" title="ember.perturbation"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.perturbation</span></code></a> is nondimensional too.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.average.mass_average">
+<span class="sig-prename descclassname"><span class="pre">average.</span></span><span class="sig-name descname"><span class="pre">mass_average</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scalar_node</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/average.html#mass_average"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.average.mass_average" title="Link to this definition">¶</a></dt>
+<dd><p>Take mass-weighted average of a 2D nodal scalar field.</p>
+<p>Calculates the mass-weighted average of the scalar field <span class="math notranslate nohighlight">\(\phi\)</span>,</p>
+<div class="math notranslate nohighlight">
+\[\bar{\phi} = \frac{\int \phi\, \rho \mathbf{V}\cdot\mathrm{d}\mathbf{A}}
+                  {\int \rho \mathbf{V}\cdot\mathrm{d}\mathbf{A}} \,.\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>scalar_node</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – Scalar field values at grid nodes</p></li>
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D structured or triangulated block</p></li>
+<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to average;
+for triangulated grids, should be None to average over all faces</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>avg_scalar</strong> – Mass-weighted average value</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the net mass flux through the block is zero</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.average.area_average">
+<span class="sig-prename descclassname"><span class="pre">average.</span></span><span class="sig-name descname"><span class="pre">area_average</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scalar_node</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/average.html#area_average"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.average.area_average" title="Link to this definition">¶</a></dt>
+<dd><p>Take area-weighted average of a 2D nodal scalar field.</p>
+<p>Calculates the area-weighted average of the scalar field <span class="math notranslate nohighlight">\(\phi\)</span>,</p>
+<div class="math notranslate nohighlight">
+\[\bar{\phi} = \frac{\int \phi\, \mathrm{d}A}{\int \mathrm{d}A} \,.\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>scalar_node</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – Scalar field values at grid nodes</p></li>
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D structured or triangulated block</p></li>
+<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to average;
+for triangulated grids, should be None to average over all faces</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>avg_scalar</strong> – Area-weighted average value</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.average.total_area">
+<span class="sig-prename descclassname"><span class="pre">average.</span></span><span class="sig-name descname"><span class="pre">total_area</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/average.html#total_area"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.average.total_area" title="Link to this definition">¶</a></dt>
+<dd><p>Compute total vector area of a 2D block.</p>
+<p>Calculates the total vector area as the integral of the face area vectors,</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{A} = \int \mathrm{d}\mathbf{A} \,.\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D structured or triangulated block</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>A</strong> – Total area of the cut [m^2] in polar coordinates (Ax, Ar, At)</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (3,)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.average.total_area_nd">
+<span class="sig-prename descclassname"><span class="pre">average.</span></span><span class="sig-name descname"><span class="pre">total_area_nd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/average.html#total_area_nd"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.average.total_area_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional counterpart of <a class="reference internal" href="#ember.average.total_area" title="ember.average.total_area"><code class="xref py py-func docutils literal notranslate"><span class="pre">total_area()</span></code></a>, shape (3,).</p>
+<p>Total vector area divided by <span class="math notranslate nohighlight">\(L_\mathrm{ref}^2\)</span>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.average.mix_out">
+<span class="sig-prename descclassname"><span class="pre">average.</span></span><span class="sig-name descname"><span class="pre">mix_out</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">AR</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/average.html#mix_out"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.average.mix_out" title="Link to this definition">¶</a></dt>
+<dd><p>Mix out a 2D cut to uniformity, optionally through a contracted area.</p>
+<p>The mixed-out state is the uniform flow that, passed through the total
+area <span class="math notranslate nohighlight">\(\mathbf{A} = \int \mathrm{d}\mathbf{A}\)</span>, carries the same
+conserved flows as the non-uniform cut. Its conserved variables
+<span class="math notranslate nohighlight">\(\mathcal{U}\)</span> are found by solving</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{F}(\mathcal{U})\cdot\mathbf{A}
+= \int \mathcal{F}\cdot\mathrm{d}\mathbf{A} \,,\]</div>
+<p>for the five conserved flows (mass, axial and radial momentum, angular
+momentum and energy), where <span class="math notranslate nohighlight">\(\mathcal{F}\)</span> is the flux tensor of
+<a class="reference internal" href="#ember.average.flow_conserved" title="ember.average.flow_conserved"><code class="xref py py-func docutils literal notranslate"><span class="pre">flow_conserved()</span></code></a>. The five equations are solved iteratively by
+Newton steps on <span class="math notranslate nohighlight">\(\mathcal{U}\)</span>. Mixing to uniformity generates
+entropy, so the result has higher entropy than the original state.</p>
+<p>The optional area ratio <code class="docutils literal notranslate"><span class="pre">AR</span></code> then contracts (<code class="docutils literal notranslate"><span class="pre">AR&lt;1</span></code>) or expands the
+uniform state isentropically from <span class="math notranslate nohighlight">\(\mathbf{A}\)</span> to <code class="docutils literal notranslate"><span class="pre">AR</span></code> times
+<span class="math notranslate nohighlight">\(\mathbf{A}\)</span>, conserving mass, stagnation enthalpy, entropy and
+angular momentum <span class="math notranslate nohighlight">\(r V_\theta\)</span> (at fixed radius) while holding the
+pitch angle <span class="math notranslate nohighlight">\(\beta\)</span>. This second step is reversible, so the mixing
+loss is independent of <code class="docutils literal notranslate"><span class="pre">AR</span></code> and <code class="docutils literal notranslate"><span class="pre">AR=1</span></code> recovers the plain mix-out. The
+contraction stays on the mixed-out sub/supersonic branch and raises
+<a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> if it would choke.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D block, can be structured or triangulated.</p></li>
+<li><p><strong>AR</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>default 1.0</em>) – Area ratio for the isentropic contraction applied after mixing out.
+<code class="docutils literal notranslate"><span class="pre">AR=1</span></code> retains the constant-area mix-out; <code class="docutils literal notranslate"><span class="pre">AR&lt;1</span></code> contracts the
+uniform state to area <code class="docutils literal notranslate"><span class="pre">AR</span> <span class="pre">*</span> <span class="pre">A</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>mix</strong> – New scalar block with mixed-out uniform state.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a>, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> ()</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/average.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

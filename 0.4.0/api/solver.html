@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Solver &#8212; ember 0.4.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=6c02275b"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Convergence history" href="convergence_history.html" />
+    <link rel="prev" title="Cutting" href="cut.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Solver</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview-of-one-time-step">Overview of one time step</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#time-integrators">Time integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cfl-number">CFL number</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#smoothing">Smoothing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multigrid">Multigrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#body-forces-and-viscous-model">Body forces and viscous model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#boundary-patches-and-inter-block-coupling">Boundary patches and inter-block coupling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#logging-averaging-and-convergence-history">Logging, averaging, and convergence history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.BaseSolver"><code class="docutils literal notranslate"><span class="pre">BaseSolver</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.BaseSolver.run"><code class="docutils literal notranslate"><span class="pre">run()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.Solver"><code class="docutils literal notranslate"><span class="pre">Solver</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_step"><code class="docutils literal notranslate"><span class="pre">n_step</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_step_log"><code class="docutils literal notranslate"><span class="pre">n_step_log</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_step_avg"><code class="docutils literal notranslate"><span class="pre">n_step_avg</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.cfl"><code class="docutils literal notranslate"><span class="pre">cfl</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf4"><code class="docutils literal notranslate"><span class="pre">sf4</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf2"><code class="docutils literal notranslate"><span class="pre">sf2</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.inviscid"><code class="docutils literal notranslate"><span class="pre">inviscid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.fac_visc"><code class="docutils literal notranslate"><span class="pre">fac_visc</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf_resid"><code class="docutils literal notranslate"><span class="pre">sf_resid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.gain_filt"><code class="docutils literal notranslate"><span class="pre">gain_filt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.delta_filt"><code class="docutils literal notranslate"><span class="pre">delta_filt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_stage"><code class="docutils literal notranslate"><span class="pre">n_stage</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.n_levels"><code class="docutils literal notranslate"><span class="pre">n_levels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.fac_mgrid"><code class="docutils literal notranslate"><span class="pre">fac_mgrid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.expon_mgrid"><code class="docutils literal notranslate"><span class="pre">expon_mgrid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.dampin"><code class="docutils literal notranslate"><span class="pre">dampin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_inlet"><code class="docutils literal notranslate"><span class="pre">rf_inlet</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_outlet"><code class="docutils literal notranslate"><span class="pre">rf_outlet</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_mix"><code class="docutils literal notranslate"><span class="pre">rf_mix</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_exchange"><code class="docutils literal notranslate"><span class="pre">rf_exchange</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.mix_reflective"><code class="docutils literal notranslate"><span class="pre">mix_reflective</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.run"><code class="docutils literal notranslate"><span class="pre">run()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.run_fmg"><code class="docutils literal notranslate"><span class="pre">run_fmg()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.scree_step"><code class="docutils literal notranslate"><span class="pre">scree_step()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.mg_coarse_shapes"><code class="docutils literal notranslate"><span class="pre">mg_coarse_shapes()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.advance_rk_stage_mg"><code class="docutils literal notranslate"><span class="pre">advance_rk_stage_mg()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.solver.rk_step"><code class="docutils literal notranslate"><span class="pre">rk_step()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.4.0";
+    var page = "api/solver.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="cut.html" title="previous chapter">Cutting</a></li>
+      <li>Next: <a href="convergence_history.html" title="next chapter">Convergence history</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.solver">
+<span id="solver"></span><h1>Solver<a class="headerlink" href="#module-ember.solver" title="Link to this heading">¶</a></h1>
+<p>Configure and run the Navier–Stokes solver.</p>
+<p>ember integrates the compressible Navier–Stokes equations to a steady state
+using an explicit pseudo-time march, accelerated by multigrid and residual
+smoothing. The finite-volume discretisation is second-order accurate in space
+on structured multi-block grids; cell-centred residuals are distributed equally
+back to nodal conserved variables. This page describes the solver loop driven
+by <a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a> and the configuration parameters in <a class="reference internal" href="#ember.solver.Solver" title="ember.solver.Solver"><code class="xref py py-class docutils literal notranslate"><span class="pre">Solver</span></code></a> that
+control each stage.</p>
+<section id="overview-of-one-time-step">
+<h2>Overview of one time step<a class="headerlink" href="#overview-of-one-time-step" title="Link to this heading">¶</a></h2>
+<p><a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a> performs the following operations each step:</p>
+<ol class="arabic simple">
+<li><p><strong>Cache flush and boundary conditions</strong>:
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_cached_conserved" title="ember.grid.Grid.update_cached_conserved"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_cached_conserved()</span></code></a> refreshes the pressure and
+temperature caches left stale by the previous step’s in-place march, then
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_bconds" title="ember.grid.Grid.update_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_bconds()</span></code></a> updates boundary patch targets
+(mass-flow throttle, radial equilibrium, mixing-plane exchange) and
+<a class="reference internal" href="grid.html#ember.grid.Grid.apply_bconds" title="ember.grid.Grid.apply_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply_bconds()</span></code></a> imposes those boundary conditions by
+modifying <a class="reference internal" href="block.html#ember.block.Block.conserved_nd" title="ember.block.Block.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved_nd</span></code></a>.</p></li>
+<li><p><strong>NaN check</strong>: <a class="reference internal" href="grid.html#ember.grid.Grid.check_nan" title="ember.grid.Grid.check_nan"><code class="xref py py-meth docutils literal notranslate"><span class="pre">check_nan()</span></code></a> aborts the run early if
+the conserved state has gone non-finite. Sets a flag on the returned
+<a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConvergenceHistory</span></code></a> and leaves the
+invalid field in place for inspection.</p></li>
+<li><p><strong>Source terms</strong>: <a class="reference internal" href="grid.html#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_sources()</span></code></a> updates viscous
+forces and the polar coordinates source term needed to balance the radial
+momentum equation. With the Runge–Kutta integrator,
+<a class="reference internal" href="#ember.solver.Solver.n_stage" title="ember.solver.Solver.n_stage"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_stage</span></code></a> <code class="docutils literal notranslate"><span class="pre">&gt;</span> <span class="pre">0</span></code>, this runs once every full step
+with the source terms held constant for all stages. When using the scree
+integrator, <a class="reference internal" href="#ember.solver.Solver.n_stage" title="ember.solver.Solver.n_stage"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_stage</span></code></a> <code class="docutils literal notranslate"><span class="pre">==</span> <span class="pre">0</span></code>, the source terms are
+recomputed every few steps to save cost.</p></li>
+<li><p><strong>Update time step</strong>: <a class="reference internal" href="grid.html#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_timestep()</span></code></a> computes
+the time step and stores it pre-divided by cell volume in
+<a class="reference internal" href="block.html#ember.block.Block.dt_vol_nd" title="ember.block.Block.dt_vol_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dt_vol_nd</span></code></a>.</p></li>
+<li><p><strong>Filter</strong>: when <a class="reference internal" href="#ember.solver.Solver.gain_filt" title="ember.solver.Solver.gain_filt"><code class="xref py py-attr docutils literal notranslate"><span class="pre">gain_filt</span></code></a> is nonzero,
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_filter" title="ember.grid.Grid.update_filter"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_filter()</span></code></a> advances the
+selective-frequency-damping low-pass filter one step using that time step,
+every step regardless of the source cadence above. The SFD body force of
+stage 3 reads what this leaves behind on the following step. Skipped
+entirely at the default zero gain.</p></li>
+<li><p><strong>Residual</strong>: <a class="reference internal" href="grid.html#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_residual()</span></code></a> calculates the
+unintegrated net-flow residual, with optional implicit residual smoothing
+, <a class="reference internal" href="#ember.solver.Solver.sf_resid" title="ember.solver.Solver.sf_resid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf_resid</span></code></a>.</p></li>
+<li><p><strong>Convergence logging</strong>: every <a class="reference internal" href="#ember.solver.Solver.n_step_log" title="ember.solver.Solver.n_step_log"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_step_log</span></code></a> steps,
+<a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory.record_convergence" title="ember.convergence_history.ConvergenceHistory.record_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">record_convergence()</span></code></a>
+and <a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory.format_message" title="ember.convergence_history.ConvergenceHistory.format_message"><code class="xref py py-meth docutils literal notranslate"><span class="pre">format_message()</span></code></a>
+record and print a <a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConvergenceHistory</span></code></a>
+row using the current residual.</p></li>
+<li><p><strong>March</strong>: advance the solution with the selected integrator – Denton’s
+scree march, <a class="reference internal" href="#ember.solver.scree_step" title="ember.solver.scree_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">scree_step()</span></code></a>, or Jameson multi-stage Runge–Kutta,
+<a class="reference internal" href="#ember.solver.rk_step" title="ember.solver.rk_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">rk_step()</span></code></a> – optionally accelerated by multigrid.</p></li>
+<li><p><strong>Smoothing</strong>: <a class="reference internal" href="grid.html#ember.grid.Grid.smooth" title="ember.grid.Grid.smooth"><code class="xref py py-meth docutils literal notranslate"><span class="pre">smooth()</span></code></a> applies a
+constant-coefficient blended second- and fourth-order filter to the
+post-march <a class="reference internal" href="block.html#ember.block.Block.conserved_nd" title="ember.block.Block.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ember.block.Block.conserved_nd</span></code></a> field, to provide artificial dissipation and
+suppress odd-even decoupling.</p></li>
+<li><p><strong>Pseudotime averaging</strong>: over the final <a class="reference internal" href="#ember.solver.Solver.n_step_avg" title="ember.solver.Solver.n_step_avg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_step_avg</span></code></a>
+steps, <a class="reference internal" href="grid.html#ember.grid.Grid.accumulate_avg" title="ember.grid.Grid.accumulate_avg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">accumulate_avg()</span></code></a> accumulates the conserved
+state into a running average, which
+<a class="reference internal" href="grid.html#ember.grid.Grid.finalise_average" title="ember.grid.Grid.finalise_average"><code class="xref py py-meth docutils literal notranslate"><span class="pre">finalise_average()</span></code></a> uses to replace the
+instantaneous state once the run completes. With
+<a class="reference internal" href="#ember.solver.Solver.n_step_avg" title="ember.solver.Solver.n_step_avg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_step_avg</span></code></a> of 0 or 1 the whole stage is skipped and the
+final state stands as the solution.</p></li>
+</ol>
+</section>
+<section id="time-integrators">
+<span id="march-schemes"></span><h2>Time integrators<a class="headerlink" href="#time-integrators" title="Link to this heading">¶</a></h2>
+<p><a class="reference internal" href="#ember.solver.Solver.n_stage" title="ember.solver.Solver.n_stage"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_stage</span></code></a> selects one of two integrators, applied to every
+block each step:</p>
+<p><a class="reference internal" href="#ember.solver.scree_step" title="ember.solver.scree_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">scree_step()</span></code></a> – <a class="reference internal" href="#ember.solver.Solver.n_stage" title="ember.solver.Solver.n_stage"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_stage</span></code></a> <code class="docutils literal notranslate"><span class="pre">==</span> <span class="pre">0</span></code>
+Implements Denton’s basic scree scheme (two steps forward, one step back)</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{U}_{n+1} = \mathcal{U}_n + \left[ 2 \left(\frac{d\mathcal{U}}{dt}\right)_n
+- \left(\frac{d\mathcal{U}}{dt}\right)_{n-1} \right] \Delta t\]</div>
+<p>The residual from the previous step, <span class="math notranslate nohighlight">\((d\mathcal{U}/dt)_{n-1}\)</span>, is kept in
+<a class="reference internal" href="block.html#ember.block.Block.store" title="ember.block.Block.store"><code class="xref py py-attr docutils literal notranslate"><span class="pre">store</span></code></a> between steps. This scheme is only first-order accurate in pseudotime, unlike Adams–Bashforth, but experience shows it requires less artificial dissipation and is more robust.</p>
+<p><a class="reference internal" href="#ember.solver.rk_step" title="ember.solver.rk_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">rk_step()</span></code></a>  – <a class="reference internal" href="#ember.solver.Solver.n_stage" title="ember.solver.Solver.n_stage"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_stage</span></code></a> <code class="docutils literal notranslate"><span class="pre">&gt;=</span> <span class="pre">1</span></code>
+– Jameson’s classic Runge–Kutta scheme. Every full step
+snapshots the starting conserved state
+<span class="math notranslate nohighlight">\(\mathcal{U}_n\)</span>, saving it to <a class="reference internal" href="block.html#ember.block.Block.store" title="ember.block.Block.store"><code class="xref py py-attr docutils literal notranslate"><span class="pre">store</span></code></a>.
+Then, <a class="reference internal" href="#ember.solver.Solver.n_stage" title="ember.solver.Solver.n_stage"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_stage</span></code></a> substages call
+<a class="reference internal" href="#ember.solver.advance_rk_stage_mg" title="ember.solver.advance_rk_stage_mg"><code class="xref py py-func docutils literal notranslate"><span class="pre">advance_rk_stage_mg()</span></code></a>, each stage <span class="math notranslate nohighlight">\(k\)</span> marching relative to the starting snapshot but with the residual freshly evaluated on the most recent stage:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mathcal{U}^{(0)} &amp;= \mathcal{U}_n \\
+\mathcal{U}^{(k)} &amp;= \mathcal{U}_n
++ \alpha_k\,\Delta t \left(\frac{d\mathcal{U}}{dt}\right)^{(k-1)},
+\qquad k = 1, \dots, m \\
+\mathcal{U}_{n+1} &amp;= \mathcal{U}^{(m)}\end{split}\]</div>
+<p>for <span class="math notranslate nohighlight">\(m =\)</span> <a class="reference internal" href="#ember.solver.Solver.n_stage" title="ember.solver.Solver.n_stage"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_stage</span></code></a> stages with coefficients
+<span class="math notranslate nohighlight">\(\alpha_k = 1 / (m - k + 1)\)</span>, so the final stage takes the full step
+<span class="math notranslate nohighlight">\(\alpha_m = 1\)</span>.</p>
+<p>Both integrators share the <a class="reference internal" href="#multigrid"><span class="std std-ref">Multigrid</span></a> acceleration and the constant-coefficient
+<a class="reference internal" href="#smoothing"><span class="std std-ref">Smoothing</span></a> step; they differ only in the march formula and in how many
+residual evaluations occur per step. At the end of the step, <a class="reference internal" href="block.html#ember.block.Block.conserved_nd" title="ember.block.Block.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved_nd</span></code></a> contains the advanced solution.</p>
+</section>
+<section id="cfl-number">
+<span id="cfl"></span><h2>CFL number<a class="headerlink" href="#cfl-number" title="Link to this heading">¶</a></h2>
+<p>The integrators of the previous section scale each cell’s residual by
+<a class="reference internal" href="#ember.solver.Solver.cfl" title="ember.solver.Solver.cfl"><code class="xref py py-attr docutils literal notranslate"><span class="pre">cfl</span></code></a> and the local volumetric timestep
+<span class="math notranslate nohighlight">\(\Delta t_\mathrm{vol}\)</span> set by <a class="reference internal" href="grid.html#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_timestep()</span></code></a>,
+so the <span class="math notranslate nohighlight">\(\Delta t\)</span> appearing in the march formulae is
+<span class="math notranslate nohighlight">\(\mathrm{cfl}\,\Delta t_\mathrm{vol}\)</span> per cell. The timestep is the
+reciprocal of the larger of a convective and a turbulent-diffusion spectral
+radius (a max-of-directional-radii variant of the JST/Blazek definition):</p>
+<div class="math notranslate nohighlight">
+\[\Delta t_\mathrm{vol} = \frac{1}{\max(\lambda_\mathrm{conv},\,\lambda_\mathrm{diff})}\]</div>
+<p>For each direction <span class="math notranslate nohighlight">\(d \in \{i, j, k\}\)</span>, with <span class="math notranslate nohighlight">\(\mathbf{S}_d\)</span> the mean
+of the two opposing face-area vectors, <span class="math notranslate nohighlight">\(\mathbf{V}_\mathrm{rel}\)</span> the
+relative-frame velocity, <span class="math notranslate nohighlight">\(a\)</span> the speed of sound, <span class="math notranslate nohighlight">\(\mu_t\)</span> the
+turbulent viscosity, <span class="math notranslate nohighlight">\(\rho\)</span> the density and <span class="math notranslate nohighlight">\(\mathcal{V}\)</span> the cell
+volume, the directional convective radius and the two combined radii are</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\Lambda_d &amp;= \left| \mathbf{V}_\mathrm{rel} \cdot \mathbf{S}_d \right|
++ a \left\| \mathbf{S}_d \right\| \\
+\lambda_\mathrm{conv} &amp;= \max_d \Lambda_d \\
+\lambda_\mathrm{diff} &amp;= f_\mathrm{visc}\, \frac{\mu_t}{\rho}\,
+\frac{\max_d \left\| \mathbf{S}_d \right\|^2}{\mathcal{V}}\end{split}\]</div>
+<p>Taking the max over directions (rather than Blazek’s sum) makes
+<a class="reference internal" href="#ember.solver.Solver.cfl" title="ember.solver.Solver.cfl"><code class="xref py py-attr docutils literal notranslate"><span class="pre">cfl</span></code></a> the true 1D Courant limit, so it stays
+aspect-ratio-independent for both limits and a single value scales them
+consistently; <a class="reference internal" href="#ember.solver.Solver.fac_visc" title="ember.solver.Solver.fac_visc"><code class="xref py py-attr docutils literal notranslate"><span class="pre">fac_visc</span></code></a> tightens only the diffusion radius
+so the viscous march tolerates the same CFL as the inviscid one. Setting
+<span class="math notranslate nohighlight">\(\mu_t = 0\)</span> drops <span class="math notranslate nohighlight">\(\lambda_\mathrm{diff}\)</span> and recovers the bare
+convective limit. The 4-stage Runge–Kutta march is stable up to
+<span class="math notranslate nohighlight">\(\mathrm{cfl} \approx 2\sqrt{2}\)</span>; the scree scheme is stable up to <span class="math notranslate nohighlight">\(\mathrm{cfl} \approx 0.6\)</span> on a uniform mesh.</p>
+<p><a class="reference internal" href="#ember.solver.Solver.cfl" title="ember.solver.Solver.cfl"><code class="xref py py-attr docutils literal notranslate"><span class="pre">cfl</span></code></a> is a single constant applied uniformly to every cell
+for the entire run – there is no per-cell adaptive CFL field and no
+tolerance-driven backoff inside the solver. A larger CFL converges faster but
+risks divergence; implicit residual smoothing (<a class="reference internal" href="#ember.solver.Solver.sf_resid" title="ember.solver.Solver.sf_resid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf_resid</span></code></a>)
+damps high-frequency residual content and so tolerates a substantially higher
+CFL for a given scheme.</p>
+</section>
+<section id="smoothing">
+<span id="id1"></span><h2>Smoothing<a class="headerlink" href="#smoothing" title="Link to this heading">¶</a></h2>
+<p>A constant-coefficient blend of second- and fourth-difference operators, <a class="reference internal" href="grid.html#ember.grid.Grid.smooth" title="ember.grid.Grid.smooth"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.smooth()</span></code></a>, is applied to <a class="reference internal" href="block.html#ember.block.Block.conserved_nd" title="ember.block.Block.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ember.block.Block.conserved_nd</span></code></a> after
+each step to suppress odd–even decoupling and high-frequency content
+introduced by the march and multigrid corrections.
+<a class="reference internal" href="#ember.solver.Solver.sf4" title="ember.solver.Solver.sf4"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf4</span></code></a> and <a class="reference internal" href="#ember.solver.Solver.sf2" title="ember.solver.Solver.sf2"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf2</span></code></a> are coefficients on the
+fourth- and second-difference terms, each scaled by the run’s <code class="docutils literal notranslate"><span class="pre">cfl</span></code> to make the effective dissipation independent of the time step.</p>
+</section>
+<section id="multigrid">
+<span id="id2"></span><h2>Multigrid<a class="headerlink" href="#multigrid" title="Link to this heading">¶</a></h2>
+<p><strong>In-step Denton block-sum multigrid.</strong> Coarse-grid corrections are computed
+in place within a single march call over one grid – coarse block-sum
+corrections are folded directly into the fine-grid increment before it is
+scattered onto the conserved state – rather than as a classical
+restrict/prolong V-cycle across separate coarse grids. Both integrators honor
+two knobs:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#ember.solver.Solver.n_levels" title="ember.solver.Solver.n_levels"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_levels</span></code></a> – number of coarse levels; 0 disables
+multigrid. Each block’s cell counts must be an exact multiple of the coarsest
+block size <code class="docutils literal notranslate"><span class="pre">2**n_levels</span></code> in every direction, or <a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a> raises before
+marching.</p></li>
+<li><p><a class="reference internal" href="#ember.solver.Solver.fac_mgrid" title="ember.solver.Solver.fac_mgrid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">fac_mgrid</span></code></a> – scaling on the coarse correction; 0 also
+disables multigrid.</p></li>
+<li><p><a class="reference internal" href="#ember.solver.Solver.expon_mgrid" title="ember.solver.Solver.expon_mgrid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">expon_mgrid</span></code></a> – base of the per-level geometric decay applied
+on top of <code class="docutils literal notranslate"><span class="pre">fac_mgrid</span></code>, so successively coarser levels are damped further
+(<code class="docutils literal notranslate"><span class="pre">coef_l</span> <span class="pre">~</span> <span class="pre">expon_mgrid**-(l-1)</span></code>).</p></li>
+</ul>
+<p><a class="reference internal" href="#ember.solver.Solver.sf_resid" title="ember.solver.Solver.sf_resid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf_resid</span></code></a> additionally drives implicit residual smoothing
+(Jameson IRS) on the fine-grid residual via
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_residual()</span></code></a>, independent of whether multigrid is
+enabled.</p>
+<p><strong>Full multigrid startup.</strong> <a class="reference internal" href="#ember.solver.Solver.run_fmg" title="ember.solver.Solver.run_fmg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run_fmg()</span></code></a> runs the same solver
+coarse-to-fine as a startup schedule, rather than within a single step. It
+builds <a class="reference internal" href="#ember.solver.Solver.n_levels" title="ember.solver.Solver.n_levels"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_levels</span></code></a> progressively-halved grids
+(<a class="reference internal" href="grid.html#ember.grid.Grid.resample" title="ember.grid.Grid.resample"><code class="xref py py-meth docutils literal notranslate"><span class="pre">resample()</span></code></a>), solves the coarsest first, then
+prolongs each converged solution onto the next finer grid as its initial
+guess (<a class="reference internal" href="grid.html#ember.grid.Grid.interp_from_grid" title="ember.grid.Grid.interp_from_grid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">interp_from_grid()</span></code></a>) and calls <a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a>
+again with the in-step multigrid depth set to that level’s index – so the
+coarsest level runs with no in-step multigrid and the finest runs at the full
+requested <a class="reference internal" href="#ember.solver.Solver.n_levels" title="ember.solver.Solver.n_levels"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_levels</span></code></a>, identical to calling <a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a>
+directly on the finest grid. With <code class="docutils literal notranslate"><span class="pre">n_levels</span> <span class="pre">&lt;=</span> <span class="pre">0</span></code> it reduces to a single call
+to <a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a>.</p>
+</section>
+<section id="body-forces-and-viscous-model">
+<span id="body-forces"></span><h2>Body forces and viscous model<a class="headerlink" href="#body-forces-and-viscous-model" title="Link to this heading">¶</a></h2>
+<p>The cell-centred body-force buffer (<code class="docutils literal notranslate"><span class="pre">block.F_body_nd</span></code>) accumulates all
+source terms before they are added to the residual, rebuilt by
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.update_sources()</span></code></a>:</p>
+<ul class="simple">
+<li><p>Viscous shear stresses and heat flux, computed unless
+<code class="docutils literal notranslate"><span class="pre">Solver.inviscid</span></code> is set. The viscous pass is phased across the
+whole grid (tau/q on every block, then a periodic-seam halo exchange, then
+face-flux accumulation) so block-to-block periodic interfaces stay
+consistent.</p></li>
+<li><p>A polar (axisymmetric) source term to balance the cylindrical coordinate
+metric.</p></li>
+<li><p>An optional selective-frequency-damping (SFD) force when
+<code class="docutils literal notranslate"><span class="pre">Solver.gain_filt</span></code> is nonzero.</p></li>
+</ul>
+<p>The mixing-length turbulent viscosity uses a fixed turbulent Prandtl number
+of 1.0 and is evaluated from the absolute-frame vorticity magnitude.
+<code class="docutils literal notranslate"><span class="pre">Solver.fac_visc</span></code> multiplies the turbulent-diffusion timestep radius
+independently of this, tightening the viscous stability limit to recover the
+inviscid stable CFL where needed.</p>
+</section>
+<section id="boundary-patches-and-inter-block-coupling">
+<span id="boundary-coupling"></span><h2>Boundary patches and inter-block coupling<a class="headerlink" href="#boundary-patches-and-inter-block-coupling" title="Link to this heading">¶</a></h2>
+<p>Inlet, outlet, and mixing-plane patches each relax their own state towards a
+target every step, with their own relaxation factor rather than a single
+solver-wide setting:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="patch.html#ember.patch.InletPatch" title="ember.patch.InletPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">InletPatch</span></code></a> and <a class="reference internal" href="patch.html#ember.patch.OutletPatch" title="ember.patch.OutletPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">OutletPatch</span></code></a> take
+one under-relaxed step of the characteristic condition per timestep, scaled
+by <a class="reference internal" href="patch.html#ember.patch.NonReflectingPatch.sigma" title="ember.patch.NonReflectingPatch.sigma"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sigma</span></code></a>; see
+<a class="reference internal" href="#ember.solver.Solver.rf_inlet" title="ember.solver.Solver.rf_inlet"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_inlet</span></code></a> and <a class="reference internal" href="#ember.solver.Solver.rf_outlet" title="ember.solver.Solver.rf_outlet"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_outlet</span></code></a>.</p></li>
+<li><p><a class="reference internal" href="patch.html#ember.patch.MixingPatch" title="ember.patch.MixingPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingPatch</span></code></a> takes the same under-relaxed
+characteristic step as the inlet and outlet, scaled by its own
+<a class="reference internal" href="patch.html#ember.patch.NonReflectingPatch.sigma" title="ember.patch.NonReflectingPatch.sigma"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sigma</span></code></a>; see
+<a class="reference internal" href="#ember.solver.Solver.rf_mix" title="ember.solver.Solver.rf_mix"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_mix</span></code></a>.</p></li>
+<li><p><a class="reference internal" href="communicators.html#ember.mixing_communicator.MixingCommunicator" title="ember.mixing_communicator.MixingCommunicator"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingCommunicator</span></code></a> relaxes the
+mixing-plane target exchanged between adjacent blocks with the patches’
+<code class="docutils literal notranslate"><span class="pre">rf_exchange</span></code>, separately from either side’s own step.
+<a class="reference internal" href="#ember.solver.Solver.mix_reflective" title="ember.solver.Solver.mix_reflective"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mix_reflective</span></code></a> replaces that whole exchange,
+and both sides’ characteristic steps, with a direct mixed-out state.</p></li>
+<li><p><a class="reference internal" href="patch.html#ember.patch.OutletPatch" title="ember.patch.OutletPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">OutletPatch</span></code></a> relaxes its spanwise radial-equilibrium
+profile separately, via <code class="docutils literal notranslate"><span class="pre">set_adjustment(rf=...)</span></code>, and damps its mass-flow
+throttle separately again, via the dimensionless gains of
+<code class="docutils literal notranslate"><span class="pre">set_throttle(mdot_target,</span> <span class="pre">Kp=...,</span> <span class="pre">Ki=...)</span></code>.</p></li>
+</ul>
+<p><a class="reference internal" href="grid.html#ember.grid.Grid.update_bconds" title="ember.grid.Grid.update_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.update_bconds()</span></code></a> advances the slowly-varying boundary
+targets once per step (mixing-plane exchange, characteristic mean state,
+outlet throttle and spanwise target); <a class="reference internal" href="grid.html#ember.grid.Grid.apply_bconds" title="ember.grid.Grid.apply_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.apply_bconds()</span></code></a> then
+imposes the full set of physical boundary conditions and closes periodic
+seams every time it is called, including between Runge–Kutta substages.</p>
+</section>
+<section id="logging-averaging-and-convergence-history">
+<span id="logging-and-averaging"></span><h2>Logging, averaging, and convergence history<a class="headerlink" href="#logging-averaging-and-convergence-history" title="Link to this heading">¶</a></h2>
+<p>Convergence diagnostics are recorded into a
+<a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConvergenceHistory</span></code></a> every
+<code class="docutils literal notranslate"><span class="pre">Solver.n_step_log</span></code> steps: mean residual, mass flow / stagnation
+enthalpy / entropy at row interfaces, and outlet throttle state
+(<a class="reference internal" href="grid.html#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.get_convergence()</span></code></a>).</p>
+<p>Pseudotime averaging of the conserved variables accumulates over the final
+<code class="docutils literal notranslate"><span class="pre">Solver.n_step_avg</span></code> steps of the run
+(<a class="reference internal" href="grid.html#ember.grid.Grid.accumulate_avg" title="ember.grid.Grid.accumulate_avg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.accumulate_avg()</span></code></a>). On completion, the time-averaged
+state replaces the instantaneous state
+(<a class="reference internal" href="grid.html#ember.grid.Grid.finalise_average" title="ember.grid.Grid.finalise_average"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.finalise_average()</span></code></a>) – skipped if the run diverged, so
+the invalid field is preserved for inspection rather than overwritten by a
+partially-accumulated average, and skipped when <code class="docutils literal notranslate"><span class="pre">Solver.n_step_avg</span></code> is 0 or
+1, where the mean of one sample is the sample and no accumulator is
+allocated.</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.solver.BaseSolver">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">BaseSolver</span></span><a class="reference internal" href="../_modules/ember/solver.html#BaseSolver"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.BaseSolver" title="Link to this definition">¶</a></dt>
+<dd><p>Common interface for in-place flow solvers.</p>
+<p>A solver is constructed from its configuration and run with
+<code class="docutils literal notranslate"><span class="pre">solver.run(grid)</span></code>, which advances <code class="docutils literal notranslate"><span class="pre">grid</span></code> in place and returns the
+convergence history. Both the built-in <a class="reference internal" href="#ember.solver.Solver" title="ember.solver.Solver"><code class="xref py py-class docutils literal notranslate"><span class="pre">Solver</span></code></a> and external-solver
+plugins (e.g. <code class="docutils literal notranslate"><span class="pre">ember.plugins.ts.TS3Solver</span></code>) implement this contract so
+they are drop-in interchangeable.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.solver.BaseSolver.run">
+<span class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#BaseSolver.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.BaseSolver.run" title="Link to this definition">¶</a></dt>
+<dd><p>Solve on <code class="docutils literal notranslate"><span class="pre">grid</span></code> in place; return a <code class="docutils literal notranslate"><span class="pre">ConvergenceHistory</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.solver.Solver">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">Solver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_step</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_step_log</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_step_avg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf4</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.008</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.002</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inviscid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_visc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf_resid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gain_filt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta_filt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_stage</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_levels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expon_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.414</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dampin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_inlet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_outlet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_mix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mix_reflective</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#Solver"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.Solver" title="Link to this definition">¶</a></dt>
+<dd><p>Configuration for the explicit time-marching solver.</p>
+<p>Also the entry point: build one with the parameters below and call
+<a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">run()</span></code></a> (or <a class="reference internal" href="#ember.solver.Solver.run_fmg" title="ember.solver.Solver.run_fmg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">run_fmg()</span></code></a>) to march a grid in place.</p>
+<p>Frozen, because a solver is a set of parameters rather than a thing with
+state: nothing here is written after construction, the march keeps its
+working state on the grid, and <a class="reference internal" href="#ember.solver.Solver.run_fmg" title="ember.solver.Solver.run_fmg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">run_fmg()</span></code></a> already derives its
+per-level configurations with <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.replace" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">dataclasses.replace()</span></code></a>. Settings that
+would otherwise be adjusted in place are made by building another one.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.n_step">
+<span class="sig-name descname"><span class="pre">n_step</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#ember.solver.Solver.n_step" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.n_step_log">
+<span class="sig-name descname"><span class="pre">n_step_log</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></span><a class="headerlink" href="#ember.solver.Solver.n_step_log" title="Link to this definition">¶</a></dt>
+<dd><p>Number of steps between convergence log messages.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.n_step_avg">
+<span class="sig-name descname"><span class="pre">n_step_avg</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></span><a class="headerlink" href="#ember.solver.Solver.n_step_avg" title="Link to this definition">¶</a></dt>
+<dd><p>Number of steps at the end of the march to average the solution over.</p>
+<p><code class="docutils literal notranslate"><span class="pre">0</span></code> and <code class="docutils literal notranslate"><span class="pre">1</span></code> both mean no averaging: a one-sample mean is the sample,
+so the march skips the accumulator entirely and leaves the final state as
+the solution. Must not exceed <a class="reference internal" href="#ember.solver.Solver.n_step" title="ember.solver.Solver.n_step"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_step</span></code></a> — see <code class="xref py py-meth docutils literal notranslate"><span class="pre">__post_init__()</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.cfl">
+<span class="sig-name descname"><span class="pre">cfl</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">5.0</span></span><a class="headerlink" href="#ember.solver.Solver.cfl" title="Link to this definition">¶</a></dt>
+<dd><p>Constant CFL number for the march</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.sf4">
+<span class="sig-name descname"><span class="pre">sf4</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.008</span></span><a class="headerlink" href="#ember.solver.Solver.sf4" title="Link to this definition">¶</a></dt>
+<dd><p>Fourth-order smoothing factor.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.sf2">
+<span class="sig-name descname"><span class="pre">sf2</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.002</span></span><a class="headerlink" href="#ember.solver.Solver.sf2" title="Link to this definition">¶</a></dt>
+<dd><p>Second-order smoothing factor.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.inviscid">
+<span class="sig-name descname"><span class="pre">inviscid</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#ember.solver.Solver.inviscid" title="Link to this definition">¶</a></dt>
+<dd><p>Skip viscous terms in the sources evaluation.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.fac_visc">
+<span class="sig-name descname"><span class="pre">fac_visc</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></span><a class="headerlink" href="#ember.solver.Solver.fac_visc" title="Link to this definition">¶</a></dt>
+<dd><p>Multiplier on the turbulent-diffusion timestep radius; &gt;1 tightens the
+viscous limit to recover the inviscid stable CFL.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.sf_resid">
+<span class="sig-name descname"><span class="pre">sf_resid</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></span><a class="headerlink" href="#ember.solver.Solver.sf_resid" title="Link to this definition">¶</a></dt>
+<dd><p>Implicit residual smoothing factor. Applied to the fine residual by
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_residual()</span></code></a> (<code class="docutils literal notranslate"><span class="pre">sf</span></code>) and, on both integrators,
+to the coarse block-restricted residual of the multigrid correction
+(<a class="reference internal" href="#ember.solver.advance_rk_stage_mg" title="ember.solver.advance_rk_stage_mg"><code class="xref py py-func docutils literal notranslate"><span class="pre">advance_rk_stage_mg()</span></code></a>’s <code class="docutils literal notranslate"><span class="pre">sf_irs</span></code> for RK, <a class="reference internal" href="#ember.solver.scree_step" title="ember.solver.scree_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">scree_step()</span></code></a>’s
+<code class="docutils literal notranslate"><span class="pre">sf_irs</span></code> for scree). The coarse smoothing needs <code class="docutils literal notranslate"><span class="pre">n_levels</span> <span class="pre">&gt;</span> <span class="pre">0</span></code> to have
+any effect.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.gain_filt">
+<span class="sig-name descname"><span class="pre">gain_filt</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.solver.Solver.gain_filt" title="Link to this definition">¶</a></dt>
+<dd><p>Selective frequency damping gain.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.delta_filt">
+<span class="sig-name descname"><span class="pre">delta_filt</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></span><a class="headerlink" href="#ember.solver.Solver.delta_filt" title="Link to this definition">¶</a></dt>
+<dd><p>Selective frequency damping filter width (higher is smoother).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.n_stage">
+<span class="sig-name descname"><span class="pre">n_stage</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></span><a class="headerlink" href="#ember.solver.Solver.n_stage" title="Link to this definition">¶</a></dt>
+<dd><p>Number of time integration stages per step. 0 for scree, &gt;=1 for RK.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.n_levels">
+<span class="sig-name descname"><span class="pre">n_levels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">3</span></span><a class="headerlink" href="#ember.solver.Solver.n_levels" title="Link to this definition">¶</a></dt>
+<dd><p>Number of coarse multigrid levels; 0 disables multigrid. Honored by
+both integrators (<a class="reference internal" href="#ember.solver.scree_step" title="ember.solver.scree_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">scree_step()</span></code></a> and <a class="reference internal" href="#ember.solver.rk_step" title="ember.solver.rk_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">rk_step()</span></code></a>).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.fac_mgrid">
+<span class="sig-name descname"><span class="pre">fac_mgrid</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.2</span></span><a class="headerlink" href="#ember.solver.Solver.fac_mgrid" title="Link to this definition">¶</a></dt>
+<dd><p>Scaling factor on multigrid corrections. Honored by both integrators
+(<a class="reference internal" href="#ember.solver.scree_step" title="ember.solver.scree_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">scree_step()</span></code></a> and <a class="reference internal" href="#ember.solver.rk_step" title="ember.solver.rk_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">rk_step()</span></code></a>).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.expon_mgrid">
+<span class="sig-name descname"><span class="pre">expon_mgrid</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.414</span></span><a class="headerlink" href="#ember.solver.Solver.expon_mgrid" title="Link to this definition">¶</a></dt>
+<dd><p>Base of the per-level multigrid decay, <code class="docutils literal notranslate"><span class="pre">coef_l</span> <span class="pre">~</span> <span class="pre">expon_mgrid**-(l-1)</span></code>.
+Honored by both integrators (<a class="reference internal" href="#ember.solver.scree_step" title="ember.solver.scree_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">scree_step()</span></code></a> and <a class="reference internal" href="#ember.solver.rk_step" title="ember.solver.rk_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">rk_step()</span></code></a>).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.dampin">
+<span class="sig-name descname"><span class="pre">dampin</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.solver.Solver.dampin" title="Link to this definition">¶</a></dt>
+<dd><p>Negative-feedback change limiter (multall’s <code class="docutils literal notranslate"><span class="pre">DAMP</span></code>); 0 disables it.</p>
+<p>Applied to the ASSEMBLED increment – fine term plus injected coarse
+multigrid correction – immediately before it reaches the nodes, which is
+where multall applies it (<code class="docutils literal notranslate"><span class="pre">tblock-p-2_3_1.f:7736</span></code>, after the block-sum
+corrections are summed in at 7710-7713). Each cell’s increment is soft-
+clipped to <code class="docutils literal notranslate"><span class="pre">dU</span> <span class="pre">/</span> <span class="pre">(1</span> <span class="pre">+</span> <span class="pre">|dU|</span> <span class="pre">/</span> <span class="pre">(dampin</span> <span class="pre">*</span> <span class="pre">mean|dU|))</span></code>, per conserved
+variable, so cells far above their block mean are pulled back towards
+<code class="docutils literal notranslate"><span class="pre">dampin</span></code> times it.</p>
+<p>This is NOT the limiter removed in ember <code class="docutils literal notranslate"><span class="pre">7b4fd71</span></code>. That one sat in
+<code class="docutils literal notranslate"><span class="pre">set_residual</span></code>, on the fine residual upstream of the multigrid
+restriction, and destroyed the extensivity the box sum relies on – which
+is why it and multigrid diverged together while either alone converged.
+Here the restriction has already happened.</p>
+<p>The block mean is lagged one call (see <a class="reference internal" href="block.html#ember.block.Block.damp_rfac" title="ember.block.Block.damp_rfac"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ember.block.Block.damp_rfac</span></code></a>).
+Honored by both integrators; note RK applies it once per stage, where
+multall’s scree-equivalent single update applies it once per step, so the
+scree path (<code class="docutils literal notranslate"><span class="pre">n_stage=0</span></code>) is the faithful analogue.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.rf_inlet">
+<span class="sig-name descname"><span class="pre">rf_inlet</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.05</span></span><a class="headerlink" href="#ember.solver.Solver.rf_inlet" title="Link to this definition">¶</a></dt>
+<dd><p>Characteristic under-relaxation
+(<a class="reference internal" href="patch.html#ember.patch.NonReflectingPatch.sigma" title="ember.patch.NonReflectingPatch.sigma"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sigma</span></code></a>) on every
+<a class="reference internal" href="patch.html#ember.patch.InletPatch" title="ember.patch.InletPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">InletPatch</span></code></a>. Imposed on every such patch at the start
+of the run, so the default overrides a value the patches carried in; pass
+None to leave whatever they already hold.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.rf_outlet">
+<span class="sig-name descname"><span class="pre">rf_outlet</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.05</span></span><a class="headerlink" href="#ember.solver.Solver.rf_outlet" title="Link to this definition">¶</a></dt>
+<dd><p>As <a class="reference internal" href="#ember.solver.Solver.rf_inlet" title="ember.solver.Solver.rf_inlet"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_inlet</span></code></a>, for every <a class="reference internal" href="patch.html#ember.patch.OutletPatch" title="ember.patch.OutletPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">OutletPatch</span></code></a>. This
+is the characteristic relaxation only; the spanwise radial-equilibrium
+profile has its own, set via <code class="docutils literal notranslate"><span class="pre">set_adjustment(rf=...)</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.rf_mix">
+<span class="sig-name descname"><span class="pre">rf_mix</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.01</span></span><a class="headerlink" href="#ember.solver.Solver.rf_mix" title="Link to this definition">¶</a></dt>
+<dd><p>As <a class="reference internal" href="#ember.solver.Solver.rf_inlet" title="ember.solver.Solver.rf_inlet"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_inlet</span></code></a>, for every <a class="reference internal" href="patch.html#ember.patch.MixingPatch" title="ember.patch.MixingPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingPatch</span></code></a>. This
+is each side’s own characteristic relaxation; <a class="reference internal" href="#ember.solver.Solver.rf_exchange" title="ember.solver.Solver.rf_exchange"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_exchange</span></code></a> is the
+separate factor on the cross-plane exchange between them.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.rf_exchange">
+<span class="sig-name descname"><span class="pre">rf_exchange</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.01</span></span><a class="headerlink" href="#ember.solver.Solver.rf_exchange" title="Link to this definition">¶</a></dt>
+<dd><p>Relaxation of the cross-plane mismatch on every
+<a class="reference internal" href="patch.html#ember.patch.MixingPatch" title="ember.patch.MixingPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingPatch</span></code></a>. Read from the patches by
+<a class="reference internal" href="communicators.html#ember.mixing_communicator.MixingCommunicator" title="ember.mixing_communicator.MixingCommunicator"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingCommunicator</span></code></a> at each exchange.
+As <a class="reference internal" href="#ember.solver.Solver.rf_inlet" title="ember.solver.Solver.rf_inlet"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_inlet</span></code></a>, the default is imposed and None leaves each plane’s own
+value alone.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.mix_reflective">
+<span class="sig-name descname"><span class="pre">mix_reflective</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#ember.solver.Solver.mix_reflective" title="Link to this definition">¶</a></dt>
+<dd><p>Run every mixing plane as a reflective one, imposing the mixed-out
+state directly instead of the characteristic exchange.</p>
+<p>The default plane is the whole of <span class="bibtex-citation" id="id3">Saxer and Giles [<a class="reference internal" href="../references.html#id10" title="A. P. Saxer and M. B. Giles. &quot;Quasi-Three-Dimensional Nonreflecting Boundary Conditions for Euler Equations Calculations&quot;. J. Propuls. Power, 9(2):263–271, 1993. doi:10.2514/3.23618.">2</a>]</span>: the cross-plane
+mismatch is split by direction of propagation, relaxed onto a target with
+<a class="reference internal" href="#ember.solver.Solver.rf_exchange" title="ember.solver.Solver.rf_exchange"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_exchange</span></code></a>, and the target drives only the mean mode of a boundary
+condition that stays non-reflecting to the harmonics. This replaces all of
+that with the simplest thing that couples two rows – at every span station
+the conserved variables of both faces are set to the average of the two
+sides’ circumferential means, and the whole face is reset to it on every
+application – and it is worth being clear about what is given up and what
+is not.</p>
+<p>What is given up is accuracy at the plane. Every pitchwise harmonic
+reaching either face is annihilated at the boundary node rather than
+absorbed, so the plane reflects; the state imposed is the <em>area</em> average of
+the conserved variables, which preserves each row’s mass flow exactly (the
+face mass flux is linear in the conserved vector, and
+<a class="reference internal" href="patch.html#ember.patch.RevolutionPatch.weight_pitch" title="ember.patch.RevolutionPatch.weight_pitch"><code class="xref py py-attr docutils literal notranslate"><span class="pre">weight_pitch</span></code></a> is the same trapezoidal
+quadrature the face quads use) but not the momentum or energy flux, so it
+is not the flux-conserving mixed-out state a loss audit would want; and
+there is no under-relaxation anywhere, so the two rows are yanked onto
+their common mean every stage. <a class="reference internal" href="#ember.solver.Solver.rf_mix" title="ember.solver.Solver.rf_mix"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_mix</span></code></a> and <a class="reference internal" href="#ember.solver.Solver.rf_exchange" title="ember.solver.Solver.rf_exchange"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_exchange</span></code></a> both
+address machinery this switches off, and so do nothing while it is set.</p>
+<p>What is <em>not</em> given up is conservation. The inviscid face flow is built
+from the four boundary nodes of each face quad and the face area vector
+alone, so two faces carrying the same pitch-uniform state pass identical
+mass, meridional momentum, angular momentum and energy per unit annulus –
+whatever their blade counts and pitchwise resolutions, and whatever their
+rotational speeds, since the frame terms enter only through the
+circumferential component of the face area, which vanishes on a surface of
+revolution.</p>
+<p>As <a class="reference internal" href="#ember.solver.Solver.rf_inlet" title="ember.solver.Solver.rf_inlet"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rf_inlet</span></code></a>, this is imposed on every mixing patch of every level at
+the start of the run, so the default overrides whatever a grid was pickled
+with, and both sides of every plane necessarily agree; pass None to leave
+each plane as it is. A grid with no mixing plane is unaffected whatever
+this is set to.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.solver.Solver.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#Solver.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.Solver.run" title="Link to this definition">¶</a></dt>
+<dd><p>Drive <code class="docutils literal notranslate"><span class="pre">grid</span></code> through <code class="docutils literal notranslate"><span class="pre">n_step</span></code> steps in place; return the history.</p>
+<p>The public <a class="reference internal" href="#ember.solver.BaseSolver" title="ember.solver.BaseSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseSolver</span></code></a> entry point for the stage-by-stage march.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.solver.Solver.run_fmg">
+<span class="sig-name descname"><span class="pre">run_fmg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#Solver.run_fmg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.Solver.run_fmg" title="Link to this definition">¶</a></dt>
+<dd><p>Full-multigrid startup on <code class="docutils literal notranslate"><span class="pre">grid</span></code> in place.</p>
+<p>Returns a list of per-level <code class="xref py py-class docutils literal notranslate"><span class="pre">ConvergenceHistory</span></code>, coarsest first.
+Not part of the <a class="reference internal" href="#ember.solver.BaseSolver" title="ember.solver.BaseSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseSolver</span></code></a> contract (plugins have no FMG
+analogue).</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.solver.scree_step">
+<span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">scree_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfl</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expon_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_levels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf_irs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dampin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#scree_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.scree_step" title="Link to this definition">¶</a></dt>
+<dd><p>Advance every block one Denton scree step in place.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.solver.mg_coarse_shapes">
+<span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">mg_coarse_shapes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ni</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nj</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nk</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_levels</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#mg_coarse_shapes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.mg_coarse_shapes" title="Link to this definition">¶</a></dt>
+<dd><p>Shapes of the multigrid kernels’ seven scratch buffers, in MG_COARSE_NAMES order.</p>
+<p>Separated from the carve so a CALLER can fold these into the single
+<code class="docutils literal notranslate"><span class="pre">util.carve_view</span></code> that also carves its own buffers. That matters because
+the multigrid scratch and the caller’s increment buffer are live at the same
+time and come from the same arena (<code class="docutils literal notranslate"><span class="pre">Block.scratch</span></code>): carving them together
+is what makes them provably disjoint rather than disjoint by convention. It
+is also what the arena sizing is computed from, so the sizing and the carve
+cannot disagree.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.solver.advance_rk_stage_mg">
+<span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">advance_rk_stage_mg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfl</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_mgrid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_levels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expon_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf_irs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dampin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#advance_rk_stage_mg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.advance_rk_stage_mg" title="Link to this definition">¶</a></dt>
+<dd><p>One Jameson RK stage, optionally with Denton block-sum multigrid.</p>
+<p>The single RK stage integrator. Each stage marches every block off its
+step-start conserved snapshot (<code class="docutils literal notranslate"><span class="pre">block.store</span></code>, seeded by the caller) using
+the residual evaluated on the previous stage’s state. In one pass it
+assembles a cell-centred increment – the fine RK term plus the injected
+coarse block corrections of <code class="docutils literal notranslate"><span class="pre">n_levels</span></code> coarse levels – and scatters it
+onto the snapshot (multall’s DO 1500 combine, then <code class="docutils literal notranslate"><span class="pre">cell_to_node</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dU_cell</span> <span class="o">=</span> <span class="n">alpha</span><span class="o">*</span><span class="n">cfl</span><span class="o">*</span><span class="n">dt_vol</span><span class="o">*</span><span class="n">residual</span>                          <span class="p">(</span><span class="n">fine</span><span class="p">)</span>
+        <span class="o">+</span> <span class="n">sum_l</span>  <span class="n">inject_l</span><span class="p">(</span> <span class="n">coef_l</span> <span class="o">*</span> <span class="n">dt_coarse_l</span> <span class="o">*</span> <span class="n">restrict_l</span><span class="p">(</span><span class="n">residual</span><span class="p">)</span> <span class="p">)</span>
+<span class="n">cons</span>    <span class="o">=</span> <span class="n">snapshot</span> <span class="o">+</span> <span class="n">cell_to_node</span><span class="p">(</span><span class="n">dU_cell</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">n_levels</span></code> counts the coarse levels only. <code class="docutils literal notranslate"><span class="pre">n_levels</span> <span class="pre">==</span> <span class="pre">0</span></code> (the default)
+is the trivial subcase: the coarse loop is empty, so the stage reduces to a
+plain Jameson RK step <code class="docutils literal notranslate"><span class="pre">cons</span> <span class="pre">=</span> <span class="pre">snapshot</span> <span class="pre">+</span> <span class="pre">alpha*cfl*dt_vol*residual</span></code>. For
+<code class="docutils literal notranslate"><span class="pre">l</span> <span class="pre">=</span> <span class="pre">1..n_levels</span></code> the coarse block has <code class="docutils literal notranslate"><span class="pre">b</span> <span class="pre">=</span> <span class="pre">2**l</span></code> and
+<code class="docutils literal notranslate"><span class="pre">coef_l</span> <span class="pre">=</span> <span class="pre">alpha*cfl*fac_mgrid/b**2</span> <span class="pre">*</span> <span class="pre">expon_mgrid**-(l-1)</span></code>. The
+<code class="docutils literal notranslate"><span class="pre">expon_mgrid**-(l-1)</span></code> term damps successively coarser levels: level 1
+(finest coarse, <code class="docutils literal notranslate"><span class="pre">b=2</span></code>) carries the full <code class="docutils literal notranslate"><span class="pre">fac_mgrid</span></code>, level 2
+<code class="docutils literal notranslate"><span class="pre">fac_mgrid/expon_mgrid</span></code>, level 3 <code class="docutils literal notranslate"><span class="pre">fac_mgrid/expon_mgrid**2</span></code>, and so on
+(the default <code class="docutils literal notranslate"><span class="pre">expon_mgrid=2.0</span></code> reproduces the original fixed factor-2
+decay).</p>
+<p><code class="docutils literal notranslate"><span class="pre">dt_coarse_l</span></code> is the volume-weighted HARMONIC mean of <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> over the
+coarse block, <code class="docutils literal notranslate"><span class="pre">sum(vol)/sum(vol/dt_vol)</span></code>, which is why the kernels take
+<code class="docutils literal notranslate"><span class="pre">block.vol_nd</span></code>. Harmonic because the block needs the reciprocal of the
+block’s spectral radius, <code class="docutils literal notranslate"><span class="pre">1/&lt;Lambda&gt;</span></code>, and <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> is <code class="docutils literal notranslate"><span class="pre">1/Lambda</span></code> per
+cell; by Jensen the arithmetic mean <code class="docutils literal notranslate"><span class="pre">sum(dt_vol*vol)/sum(vol)</span></code> that this
+used to take is the larger of the two whenever <code class="docutils literal notranslate"><span class="pre">Lambda</span></code> varies over the
+block, so it overstated the coarse timestep on a stretched mesh and
+over-drove the block’s smallest cells. This mirrors multall’s <code class="docutils literal notranslate"><span class="pre">STEP1</span> <span class="pre">=</span>
+<span class="pre">CFL*FBLK*PERPMIN/VSOUND/VOLB</span></code>: our <code class="docutils literal notranslate"><span class="pre">dt_vol*vol</span></code> is the per-cell
+<code class="docutils literal notranslate"><span class="pre">perp/(a+V)</span></code> that multall sums into <code class="docutils literal notranslate"><span class="pre">PERPMIN</span></code>, and the <code class="docutils literal notranslate"><span class="pre">1/b**2</span></code> stays
+in <code class="docutils literal notranslate"><span class="pre">coef_l</span></code>. Sampling <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> at the block’s centre cell instead –
+what this used to do – is wrong by the local clustering ratio on a
+stretched mesh. On a uniform mesh the two agree identically.
+Scaling the block push by the same <code class="docutils literal notranslate"><span class="pre">alpha</span></code> as the fine term keeps the stage
+consistent; the final stage (<code class="docutils literal notranslate"><span class="pre">alpha=1</span></code>) therefore lands the full-weight
+coarse correction, matching Denton, while earlier stages damp it like the
+fine residual.</p>
+<p>Prolongation is <strong>injection</strong>: every fine cell under a coarse block takes
+that block’s correction unaltered, so <code class="docutils literal notranslate"><span class="pre">inject_l</span></code> above is a lookup.
+<code class="docutils literal notranslate"><span class="pre">mg_collapse_levels</span></code> sums the levels in place inside <code class="docutils literal notranslate"><span class="pre">corr_all</span></code> –
+coarsest first, each slot gaining the injected total of the one above it –
+and <code class="docutils literal notranslate"><span class="pre">mg_fine_scatter</span></code> reads the finest slot once per fine cell. The
+correction is then a cell quantity like the fine term, so both are added
+into the increment and ride the one <code class="docutils literal notranslate"><span class="pre">cell_to_node</span></code> scatter. That costs
+nothing: within a coarse block the correction is constant and the scatter is
+a partition of unity, so it comes through exactly; the two differ only at
+block faces, where the node takes the mean of the two adjoining blocks’
+corrections. That is a one-cell smoothing of the staircase applied where the
+staircase is.</p>
+<p>Injection is exactly the transpose of the block-sum restriction, on any mesh
+and with no normalisation, weights or geometry. This replaced a cascade of
+factor-2 trilinear interpolations whose final hop targeted the fine nodes
+through geometry-derived weights; that scheme, its per-block weight cache and
+the ill-conditioning that made <code class="docutils literal notranslate"><span class="pre">MG_W_LO</span></code>/<code class="docutils literal notranslate"><span class="pre">MG_W_HI</span></code> necessary are all
+gone. See <code class="docutils literal notranslate"><span class="pre">docs/dev/plan_piecewise_constant_mgrid.md</span></code>.</p>
+<p>The whole per-block body – fine term, all coarse levels, and the final
+scatter – runs in one fused Fortran kernel (<code class="docutils literal notranslate"><span class="pre">rk_mg_irs</span></code>/<code class="docutils literal notranslate"><span class="pre">rk_mg_noirs</span></code>,
+thin wrappers over the shared scheme-agnostic engine <code class="docutils literal notranslate"><span class="pre">mg_restrict_levels</span></code>),
+with no per-level Python crossings or numpy temporaries. With
+<code class="docutils literal notranslate"><span class="pre">n_levels</span> <span class="pre">==</span> <span class="pre">0</span></code> (or <code class="docutils literal notranslate"><span class="pre">fac_mgrid</span> <span class="pre">==</span> <span class="pre">0</span></code>) the coarse machinery is skipped
+entirely by the <code class="docutils literal notranslate"><span class="pre">rk_plain</span></code> kernel (fine term + scatter, no coarse scratch).
+Restriction is <strong>hierarchical</strong>: only level 1
+reads the fine grid, coarser levels reduce the running accumulators
+(<code class="docutils literal notranslate"><span class="pre">rawbuf</span></code> for the residual, <code class="docutils literal notranslate"><span class="pre">sdt</span></code>/<code class="docutils literal notranslate"><span class="pre">sv</span></code> for the volume-weighted dt),
+cutting restriction reads from <code class="docutils literal notranslate"><span class="pre">n_levels</span> <span class="pre">x</span> <span class="pre">N</span></code> to ~``1.14 x N``. Prolongation
+is <strong>injection</strong>, collapsed IN PLACE inside <code class="docutils literal notranslate"><span class="pre">corr_all</span></code>: its per-level
+slots are compact and disjoint, so no accumulator is needed and nothing but
+the final read touches the fine grid.</p>
+<p>The coarse timestep (<code class="docutils literal notranslate"><span class="pre">dtblk</span></code>), the restriction accumulators, <code class="docutils literal notranslate"><span class="pre">corr_all</span></code>,
+the coarse-IRS coefficients (<code class="docutils literal notranslate"><span class="pre">triw</span></code>) and the rolling increment are
+all carved from <code class="docutils literal notranslate"><span class="pre">block.scratch</span></code> at non-overlapping offsets, in ONE
+<code class="docutils literal notranslate"><span class="pre">carve_view</span></code> – they reach the same kernel call, so carving them together
+is what makes them disjoint. The scatter reads the snapshot
+from <code class="docutils literal notranslate"><span class="pre">block.store</span></code> and writes <code class="docutils literal notranslate"><span class="pre">conserved_nd</span></code> directly (frozen pressure,
+bypasses the P/T cache).</p>
+<p><code class="docutils literal notranslate"><span class="pre">dtblk</span></code> is rebuilt inside the kernel on every call, so for RK it is
+recomputed once per stage even though <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> only changes once per step.
+That redundancy is deliberate: confining <code class="docutils literal notranslate"><span class="pre">dtblk</span></code>’s live range to a single
+kernel call is what makes it safe to borrow the arena, which
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_residual()</span></code></a> clobbers between stages. The
+pre-pass costs under 1.15 fine-cell passes of two multiply-adds per level,
+against a full residual evaluation already paid every stage.</p>
+<p>No boundary masking is applied here: <code class="docutils literal notranslate"><span class="pre">grid.apply_bconds</span></code> re-imposes the
+inlet/outlet/mixing/cusp targets between stages and at the next step top, so
+the coarse push cannot leave a BC-controlled node inconsistent – exactly as
+for the fine RK term, which is likewise unmasked.</p>
+<p><code class="docutils literal notranslate"><span class="pre">sf_irs</span></code> (0 disables it, the default) applies implicit residual
+smoothing (Jameson IRS) to the coarse block-restricted residual at every
+level, exactly like the fine-grid smoothing <code class="docutils literal notranslate"><span class="pre">Grid.update_residual</span></code>
+already applies via its <code class="docutils literal notranslate"><span class="pre">sf</span></code> argument – both are driven by the same
+<code class="docutils literal notranslate"><span class="pre">Solver.sf_resid</span></code> value (see <a class="reference internal" href="#ember.solver.rk_step" title="ember.solver.rk_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">rk_step()</span></code></a>). <code class="docutils literal notranslate"><span class="pre">sf_irs</span> <span class="pre">&gt;</span> <span class="pre">0</span></code>
+dispatches <code class="docutils literal notranslate"><span class="pre">rk_mg_irs</span></code>; <code class="docutils literal notranslate"><span class="pre">sf_irs</span> <span class="pre">==</span> <span class="pre">0</span></code> (the default) dispatches
+<code class="docutils literal notranslate"><span class="pre">rk_mg_noirs</span></code>, which enters no smoothing code at all. The two share
+<code class="docutils literal notranslate"><span class="pre">mg_restrict_levels</span></code> and differ only in the coarse-residual smoother
+passed to it, so the choice is a Python-side branch
+with no <code class="docutils literal notranslate"><span class="pre">sf_irs</span></code> test inside the engine (the fine term is never smoothed
+here – it already carries the fine residual the caller smoothed). The
+per-level scratch it needs (<code class="docutils literal notranslate"><span class="pre">triw</span></code>) is carved from
+<code class="docutils literal notranslate"><span class="pre">block.scratch</span></code> – caller-owned, no per-call allocation.</p>
+<p>Assumes <code class="docutils literal notranslate"><span class="pre">block.dt_vol_nd</span></code> and <code class="docutils literal notranslate"><span class="pre">block.residual_nd</span></code> are populated and the
+caller refreshes P/T, boundary conditions and the residual between stages.</p>
+<p><code class="docutils literal notranslate"><span class="pre">fac_mgrid</span> <span class="pre">==</span> <span class="pre">0</span></code> scales every coarse correction to identically zero, so it
+collapses to the plain-RK fast path (<code class="docutils literal notranslate"><span class="pre">n_levels</span></code> passed as 0, empty coarse
+loop) rather than running restrict/prolong for a guaranteed-zero push – and
+makes <code class="docutils literal notranslate"><span class="pre">sf_irs</span></code> inert, exactly as in <a class="reference internal" href="#ember.solver.scree_step" title="ember.solver.scree_step"><code class="xref py py-func docutils literal notranslate"><span class="pre">scree_step()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.solver.rk_step">
+<span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">rk_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conf</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#rk_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.rk_step" title="Link to this definition">¶</a></dt>
+<dd><p>Advance every block one Jameson multi-stage RK step in place.</p>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/solver.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

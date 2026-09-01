@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Boundary patches on a block &#8212; ember 0.4.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=6c02275b"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Shocked nozzle design" href="plot_shocked_nozzle.html" />
+    <link rel="prev" title="Gas turbine Joule cycle" href="plot_joule_cycle.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="plot_block_basics.html">Basic Block usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_cut_average.html">Cutting and averaging a flow field</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_isentropic_nozzle.html">Isentropic nozzle analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_joule_cycle.html">Gas turbine Joule cycle</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Boundary patches on a block</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_shocked_nozzle.html">Shocked nozzle design</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.4.0";
+    var page = "auto_examples/plot_patches.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Examples</a><ul>
+      <li>Previous: <a href="plot_joule_cycle.html" title="previous chapter">Gas turbine Joule cycle</a></li>
+      <li>Next: <a href="plot_shocked_nozzle.html" title="next chapter">Shocked nozzle design</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-plot-patches-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="boundary-patches-on-a-block">
+<span id="sphx-glr-auto-examples-plot-patches-py"></span><h1>Boundary patches on a block<a class="headerlink" href="#boundary-patches-on-a-block" title="Link to this heading">¶</a></h1>
+<p>Boundary conditions in ember are applied through <em>patches</em>: labelled regions on
+the faces of a <a class="reference internal" href="../api/block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">ember.block.Block</span></code></a> that carry inlet, outlet, periodic or
+rotating-wall data. This example builds an annular duct block, attaches a patch
+to each face, configures the boundary data, and draws the block with its patches
+coloured by type.</p>
+<p>Patches index a constant-<span class="math notranslate nohighlight">\(i\)</span>, <span class="math notranslate nohighlight">\(j\)</span> or <span class="math notranslate nohighlight">\(k\)</span> face of the block, so
+the parent block must already have its coordinates set before a patch is
+attached – the patch needs the geometry to identify the span and pitch
+directions of the surface of revolution.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.patches</span><span class="w"> </span><span class="kn">import</span> <span class="n">Patch</span> <span class="k">as</span> <span class="n">LegendPatch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.block</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.fluid</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.patch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
+</pre></div>
+</div>
+<section id="annular-duct-geometry">
+<h2>Annular duct geometry<a class="headerlink" href="#annular-duct-geometry" title="Link to this heading">¶</a></h2>
+<p>A block spanning a short axial length of an annulus: <code class="docutils literal notranslate"><span class="pre">i</span></code> runs axially,
+<code class="docutils literal notranslate"><span class="pre">j</span></code> radially across the span, and <code class="docutils literal notranslate"><span class="pre">k</span></code> circumferentially across one pitch.
+The coordinates are set first so that patches can attach to it.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">block</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">))</span>
+<span class="c1"># The inlet and outlet are characteristic conditions and attach only to a whole</span>
+<span class="c1"># blade passage, so the circumferential extent is exactly one pitch of the</span>
+<span class="c1"># blade count set on the block.</span>
+<a href="https://docs.python.org/3/library/functions.html#int" title="builtins.int" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Nb</span></a> <span class="o">=</span> <span class="mi">18</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_xrt</span><span class="p">(</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">linmesh3</span><span class="p">((</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.9</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span> <span class="o">*</span> <a href="https://docs.python.org/3/library/functions.html#float" title="builtins.float" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">np</span><span class="o">.</span><span class="n">pi</span></a> <span class="o">/</span> <a href="https://docs.python.org/3/library/functions.html#int" title="builtins.int" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Nb</span></a><span class="p">),</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_Nb</span><span class="p">(</span><a href="https://docs.python.org/3/library/functions.html#int" title="builtins.int" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Nb</span></a><span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><a href="https://docs.python.org/3/library/abc.html#abc.ABC" title="abc.ABC" class="sphx-glr-backref-module-abc sphx-glr-backref-type-py-class"><span class="n">ember</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">PerfectFluid</span></a><span class="p">(</span><span class="n">cp</span><span class="o">=</span><span class="mf">1005.0</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="mf">1.4</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mf">1.8e-5</span><span class="p">,</span> <span class="n">Pr</span><span class="o">=</span><span class="mf">0.7</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+<section id="creating-and-attaching-patches">
+<h2>Creating and attaching patches<a class="headerlink" href="#creating-and-attaching-patches" title="Link to this heading">¶</a></h2>
+<p>Each patch names the constant face it occupies (<code class="docutils literal notranslate"><span class="pre">i=0</span></code> is the first axial
+plane, <code class="docutils literal notranslate"><span class="pre">i=-1</span></code> the last) and an optional label. Omitting the other two
+indices spans the whole face. Patches live in the block’s <code class="docutils literal notranslate"><span class="pre">patches</span></code>
+collection and can be added one at a time or in bulk.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><a href="https://docs.python.org/3/library/abc.html#abc.ABC" title="abc.ABC" class="sphx-glr-backref-module-abc sphx-glr-backref-type-py-class"><span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">InletPatch</span></a><span class="p">(</span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;inflow&quot;</span><span class="p">))</span>
+<span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><a href="https://docs.python.org/3/library/abc.html#abc.ABC" title="abc.ABC" class="sphx-glr-backref-module-abc sphx-glr-backref-type-py-class"><span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">OutletPatch</span></a><span class="p">(</span><span class="n">i</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;outflow&quot;</span><span class="p">))</span>
+<span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+    <span class="p">[</span>
+        <a href="https://docs.python.org/3/library/abc.html#abc.ABC" title="abc.ABC" class="sphx-glr-backref-module-abc sphx-glr-backref-type-py-class"><span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">PeriodicPatch</span></a><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;lower&quot;</span><span class="p">),</span>
+        <a href="https://docs.python.org/3/library/abc.html#abc.ABC" title="abc.ABC" class="sphx-glr-backref-module-abc sphx-glr-backref-type-py-class"><span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">PeriodicPatch</span></a><span class="p">(</span><span class="n">k</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;upper&quot;</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><a href="https://docs.python.org/3/library/abc.html#abc.ABC" title="abc.ABC" class="sphx-glr-backref-module-abc sphx-glr-backref-type-py-class"><span class="n">ember</span><span class="o">.</span><span class="n">patch</span><span class="o">.</span><span class="n">RotatingPatch</span></a><span class="p">(</span><span class="n">j</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;hub&quot;</span><span class="p">))</span>
+
+<span class="c1"># Patches are retrievable by index, by label, or by type.</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">)</span><span class="si">}</span><span class="s2"> patches attached&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;by label:&quot;</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;inflow&quot;</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">&quot;by type: &quot;</span><span class="p">,</span>
+    <span class="nb">len</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">inlet</span><span class="p">),</span>
+    <span class="s2">&quot;inlet,&quot;</span><span class="p">,</span>
+    <span class="nb">len</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">periodic</span><span class="p">),</span>
+    <span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Once attached, the constant dimension, shape and point count are known.</span>
+<span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">patch</span><span class="o">.</span><span class="n">label</span><span class="si">:</span><span class="s2">&gt;8</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">:</span><span class="s2">14</span><span class="si">}</span><span class="s2"> &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;const_dim=</span><span class="si">{</span><span class="n">patch</span><span class="o">.</span><span class="n">const_dim</span><span class="si">}</span><span class="s2"> shape=</span><span class="si">{</span><span class="n">patch</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> size=</span><span class="si">{</span><span class="n">patch</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>5 patches attached
+by label: InletPatch(i=(0, 0), j=(0, -1), k=(0, -1), label=&#39;inflow&#39;)
+by type:  1 inlet, 2 periodic
+    inflow: InletPatch     const_dim=0 shape=(1, 5, 7) size=35
+   outflow: OutletPatch    const_dim=0 shape=(1, 5, 7) size=35
+     lower: PeriodicPatch  const_dim=2 shape=(8, 5, 1) size=40
+     upper: PeriodicPatch  const_dim=2 shape=(8, 5, 1) size=40
+       hub: RotatingPatch  const_dim=1 shape=(8, 1, 7) size=56
+</pre></div>
+</div>
+</section>
+<section id="configuring-boundary-data">
+<h2>Configuring boundary data<a class="headerlink" href="#configuring-boundary-data" title="Link to this heading">¶</a></h2>
+<p>Inlet patches take a stagnation state and the two flow angles; outlet patches
+take a static pressure. Rotating patches take an angular velocity.</p>
+<p>Each of these is imposed on the pitchwise mean at every span station, never
+node by node, so the values are a scalar or a spanwise profile. A
+pitchwise-varying value is refused rather than quietly averaged.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">inlet</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;inflow&quot;</span><span class="p">]</span>
+<span class="n">inlet</span><span class="o">.</span><span class="n">set_Po_To</span><span class="p">(</span><span class="mf">2e5</span><span class="p">,</span> <span class="mf">1200.0</span><span class="p">)</span>
+<span class="n">inlet</span><span class="o">.</span><span class="n">set_Alpha</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">inlet</span><span class="o">.</span><span class="n">set_Beta</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+
+<span class="c1"># A radial stagnation-temperature profile across the span (j direction).</span>
+<a href="https://docs.python.org/3/library/functions.html#int" title="builtins.int" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">_</span></a><span class="p">,</span> <a href="https://docs.python.org/3/library/functions.html#int" title="builtins.int" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">nj</span></a><span class="p">,</span> <a href="https://docs.python.org/3/library/functions.html#int" title="builtins.int" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">_</span></a> <span class="o">=</span> <span class="n">inlet</span><span class="o">.</span><span class="n">shape</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">To_profile</span></a> <span class="o">=</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.linspace.html#numpy.linspace" title="numpy.linspace" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">linspace</span></a><span class="p">(</span><span class="mf">1100.0</span><span class="p">,</span> <span class="mf">1300.0</span><span class="p">,</span> <a href="https://docs.python.org/3/library/functions.html#int" title="builtins.int" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">nj</span></a><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <a href="https://docs.python.org/3/library/functions.html#int" title="builtins.int" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">nj</span></a><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">inlet</span><span class="o">.</span><span class="n">set_Po_To</span><span class="p">(</span><span class="mf">2e5</span><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">To_profile</span></a><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Inlet To varies </span><span class="si">{</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">To_profile</span></a><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">--</span><span class="si">{</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">To_profile</span></a><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> K&quot;</span><span class="p">)</span>
+
+<span class="n">outlet</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;outflow&quot;</span><span class="p">]</span>
+<span class="n">outlet</span><span class="o">.</span><span class="n">set_P</span><span class="p">(</span><span class="mf">1e5</span><span class="p">)</span>  <span class="c1"># Static pressure [Pa], imposed on the pitchwise mean</span>
+
+<span class="n">hub</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">[</span><span class="s2">&quot;hub&quot;</span><span class="p">]</span>
+<span class="n">hub</span><span class="o">.</span><span class="n">set_Omega</span><span class="p">(</span><span class="mf">500.0</span><span class="p">)</span>  <span class="c1"># rad/s</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Hub speed: </span><span class="si">{</span><span class="n">hub</span><span class="o">.</span><span class="n">rpm</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> rpm&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Inlet To varies 1100--1300 K
+Hub speed: 4775 rpm
+</pre></div>
+</div>
+</section>
+<section id="extracting-data-on-a-patch">
+<h2>Extracting data on a patch<a class="headerlink" href="#extracting-data-on-a-patch" title="Link to this heading">¶</a></h2>
+<p>Every patch exposes a <code class="docutils literal notranslate"><span class="pre">slice</span></code> that indexes its face out of the parent block,
+either as a 2-D sub-block (with all properties available) or applied directly
+to a property array.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">inlet_face</span> <span class="o">=</span> <span class="n">block</span><span class="p">[</span><span class="n">inlet</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span>  <span class="c1"># 2-D sub-block on the inlet face</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Inlet face block shape: </span><span class="si">{</span><span class="n">inlet_face</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;Same coordinates direct from the array: &quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.array_equal.html#numpy.array_equal" title="numpy.array_equal" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">array_equal</span></a><span class="p">(</span><span class="n">inlet_face</span><span class="o">.</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="o">.</span><span class="n">x</span><span class="p">[</span><span class="n">inlet</span><span class="o">.</span><span class="n">slice</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Inlet face block shape: (1, 5, 7)
+Same coordinates direct from the array: True
+</pre></div>
+</div>
+</section>
+<section id="visualising-the-patched-block">
+<h2>Visualising the patched block<a class="headerlink" href="#visualising-the-patched-block" title="Link to this heading">¶</a></h2>
+<p>Drawing each patch on its face shows how the boundaries tile the block. A
+light wireframe of the whole block places each patch extent within the full
+domain – including the casing face, which carries no patch here. Cartesian
+coordinates follow from <span class="math notranslate nohighlight">\(y = r\cos\theta\)</span>, <span class="math notranslate nohighlight">\(z = r\sin\theta\)</span>; each
+patch face is one singleton-dimension slice.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><a href="https://docs.python.org/3/library/stdtypes.html#dict" title="builtins.dict" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">colours</span></a> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;InletPatch&quot;</span><span class="p">:</span> <span class="s2">&quot;C0&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;OutletPatch&quot;</span><span class="p">:</span> <span class="s2">&quot;C3&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;PeriodicPatch&quot;</span><span class="p">:</span> <span class="s2">&quot;C2&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;RotatingPatch&quot;</span><span class="p">:</span> <span class="s2">&quot;C1&quot;</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">to_xyz</span><span class="p">(</span><span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Cartesian coordinates of a block, with any singleton axes removed.&quot;&quot;&quot;</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">x</span><span class="p">),</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">r</span><span class="p">),</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">t</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(),</span> <span class="p">(</span><span class="n">r</span> <span class="o">*</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ufunc.html#numpy.ufunc" title="numpy.ufunc" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">np</span><span class="o">.</span><span class="n">cos</span></a><span class="p">(</span><span class="n">t</span><span class="p">))</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(),</span> <span class="p">(</span><span class="n">r</span> <span class="o">*</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ufunc.html#numpy.ufunc" title="numpy.ufunc" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">np</span><span class="o">.</span><span class="n">sin</span></a><span class="p">(</span><span class="n">t</span><span class="p">))</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">block_edges</span><span class="p">(</span><span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The twelve edges of a block, as sub-blocks tracing the actual nodes.&quot;&quot;&quot;</span>
+    <span class="n">ends</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">edges</span> <span class="o">=</span> <span class="p">[</span><span class="n">b</span><span class="p">[:,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">ends</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">ends</span><span class="p">]</span>  <span class="c1"># along i</span>
+    <span class="n">edges</span> <span class="o">+=</span> <span class="p">[</span><span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:,</span> <span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ends</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">ends</span><span class="p">]</span>  <span class="c1"># along j</span>
+    <span class="n">edges</span> <span class="o">+=</span> <span class="p">[</span><span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="p">:]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ends</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">ends</span><span class="p">]</span>  <span class="c1"># along k</span>
+    <span class="k">return</span> <span class="n">edges</span>
+
+
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s2">&quot;3d&quot;</span><span class="p">)</span>
+
+<span class="c1"># Wireframe of the whole block (curved circumferential edges traced), drawn</span>
+<span class="c1"># heavier than the patch faces are translucent so the full extent reads through.</span>
+<span class="k">for</span> <span class="n">edge</span> <span class="ow">in</span> <span class="n">block_edges</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">to_xyz</span><span class="p">(</span><span class="n">edge</span><span class="p">),</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;0.3&quot;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">1.2</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">:</span>
+    <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">X</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Y</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Z</span></a> <span class="o">=</span> <span class="n">to_xyz</span><span class="p">(</span><span class="n">block</span><span class="p">[</span><span class="n">patch</span><span class="o">.</span><span class="n">slice</span><span class="p">])</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot_surface</span><span class="p">(</span>
+        <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">X</span></a><span class="p">,</span>
+        <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Y</span></a><span class="p">,</span>
+        <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Z</span></a><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><a href="https://docs.python.org/3/library/stdtypes.html#dict" title="builtins.dict" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">colours</span></a><span class="p">[</span><span class="nb">type</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">],</span>
+        <span class="n">alpha</span><span class="o">=</span><span class="mf">0.55</span><span class="p">,</span>
+        <span class="n">edgecolor</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span>
+        <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+    <span class="p">)</span>
+
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;$x$ [m]&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;$y$ [m]&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_zlabel</span><span class="p">(</span><span class="s2">&quot;$z$ [m]&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">view_init</span><span class="p">(</span><span class="n">elev</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">azim</span><span class="o">=</span><span class="mi">125</span><span class="p">)</span>
+
+<a href="https://docs.python.org/3/library/stdtypes.html#dict" title="builtins.dict" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">legend</span></a> <span class="o">=</span> <span class="p">{</span><span class="nb">type</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span> <span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="p">}</span>  <span class="c1"># one entry per type</span>
+<span class="n">ax</span><span class="o">.</span><a href="https://docs.python.org/3/library/stdtypes.html#dict" title="builtins.dict" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">legend</span></a><span class="p">(</span>
+    <span class="n">handles</span><span class="o">=</span><span class="p">[</span><span class="n">LegendPatch</span><span class="p">(</span><span class="n">facecolor</span><span class="o">=</span><a href="https://docs.python.org/3/library/stdtypes.html#dict" title="builtins.dict" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">colours</span></a><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <a href="https://docs.python.org/3/library/stdtypes.html#dict" title="builtins.dict" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">legend</span></a><span class="p">],</span>
+    <span class="n">loc</span><span class="o">=</span><span class="s2">&quot;upper left&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_plot_patches_001.png" srcset="../_images/sphx_glr_plot_patches_001.png" alt="plot patches" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 0.078 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-patches-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/38960575366877bb4508e80b19a8bcf3/plot_patches.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_patches.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/efd84bfc05a14e4e69cae6000aaef200/plot_patches.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_patches.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/c3a50941c3108807da8c363c923c64fd/plot_patches.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">plot_patches.zip</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/auto_examples/plot_patches.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

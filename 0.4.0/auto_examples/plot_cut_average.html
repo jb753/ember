@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Cutting and averaging a flow field &#8212; ember 0.4.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=6c02275b"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Isentropic nozzle analysis" href="plot_isentropic_nozzle.html" />
+    <link rel="prev" title="Basic Block usage" href="plot_block_basics.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="plot_block_basics.html">Basic Block usage</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Cutting and averaging a flow field</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_isentropic_nozzle.html">Isentropic nozzle analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_joule_cycle.html">Gas turbine Joule cycle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_patches.html">Boundary patches on a block</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plot_shocked_nozzle.html">Shocked nozzle design</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.4.0";
+    var page = "auto_examples/plot_cut_average.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Examples</a><ul>
+      <li>Previous: <a href="plot_block_basics.html" title="previous chapter">Basic Block usage</a></li>
+      <li>Next: <a href="plot_isentropic_nozzle.html" title="next chapter">Isentropic nozzle analysis</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-plot-cut-average-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="cutting-and-averaging-a-flow-field">
+<span id="sphx-glr-auto-examples-plot-cut-average-py"></span><h1>Cutting and averaging a flow field<a class="headerlink" href="#cutting-and-averaging-a-flow-field" title="Link to this heading">¶</a></h1>
+<p>A spatially-resolved CFD solution must be reduced to mean quantities before it
+can be compared with a mean-line design point or an experimental traverse. This
+example takes a non-uniform flow field on a 3-D <a class="reference internal" href="../api/block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">ember.block.Block</span></code></a>,
+extracts a cross-sectional cut, and reduces it with the <a class="reference internal" href="../api/average.html#module-ember.average" title="ember.average"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.average</span></code></a>
+module.</p>
+<p>Two subtleties are illustrated. First, mass-averaging and area-averaging give
+<em>different</em> answers for a non-uniform flow, and the mixed-out state (the uniform
+flow carrying the same conserved fluxes through the same area) differs from
+both, with an associated entropy rise. Second, a cut need not follow grid lines:
+<a class="reference internal" href="../api/cut.html#ember.cut.unstructured" title="ember.cut.unstructured"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cut.unstructured()</span></code></a> returns a triangulated plane that every averaging
+function accepts unchanged.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.tri</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mtri</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.block</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.fluid</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.average</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.cut</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
+</pre></div>
+</div>
+<section id="a-sheared-annular-flow-field">
+<h2>A sheared annular flow field<a class="headerlink" href="#a-sheared-annular-flow-field" title="Link to this heading">¶</a></h2>
+<p>We build a 3-D block spanning a short length of an annulus and impose a
+radially varying flow: an axial velocity with a mid-span dip, solid-body-like
+swirl, and a radial temperature gradient at constant pressure. The radial
+component is set to zero. This stands in for a turbine-exit traverse plane.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">fluid</span> <span class="o">=</span> <a href="https://docs.python.org/3/library/abc.html#abc.ABC" title="abc.ABC" class="sphx-glr-backref-module-abc sphx-glr-backref-type-py-class"><span class="n">ember</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">PerfectFluid</span></a><span class="p">(</span><span class="n">cp</span><span class="o">=</span><span class="mf">1005.0</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="mf">1.4</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">,</span> <span class="n">Pr</span><span class="o">=</span><span class="mf">0.72</span><span class="p">)</span>
+
+<span class="n">block</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_xrt</span><span class="p">(</span><span class="n">util</span><span class="o">.</span><span class="n">linmesh3</span><span class="p">((</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.9</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+
+<span class="n">block</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="mf">45.0</span> <span class="o">+</span> <span class="mf">2000.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">r</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># Axial velocity, m/s</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="mf">10.0</span> <span class="o">+</span> <span class="mf">1000.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">r</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">))</span>  <span class="c1"># Swirl velocity, m/s</span>
+<span class="n">block</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1e5</span><span class="p">,</span> <span class="mf">300.0</span> <span class="o">+</span> <span class="mf">300.0</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">r</span><span class="p">)</span>  <span class="c1"># Constant pressure, radial T gradient</span>
+</pre></div>
+</div>
+</section>
+<section id="structured-cut-and-integrated-flows">
+<h2>Structured cut and integrated flows<a class="headerlink" href="#structured-cut-and-integrated-flows" title="Link to this heading">¶</a></h2>
+<p>A structured cut is simply an index: <code class="docutils literal notranslate"><span class="pre">block[0]</span></code> selects the first axial
+plane and drops that axis, leaving a 2-D block. The averaging module
+integrates the mass flow and the projected area vector over it (only the axial
+component of area is non-zero for this constant-x plane).</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">cut</span> <span class="o">=</span> <span class="n">block</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+<a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">mdot</span></a> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">average</span><span class="o">.</span><span class="n">flow_mass</span><span class="p">(</span><span class="n">cut</span><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">area</span></a> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">average</span><span class="o">.</span><span class="n">total_area</span><span class="p">(</span><span class="n">cut</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mass flow: </span><span class="si">{</span><a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">mdot</span></a><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> kg/s&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Projected area vector: </span><span class="si">{</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">area</span></a><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Mass flow: 0.6017 kg/s
+Projected area vector: [0.02000001 0.         0.        ]
+</pre></div>
+</div>
+</section>
+<section id="three-averages-three-answers">
+<h2>Three averages, three answers<a class="headerlink" href="#three-averages-three-answers" title="Link to this heading">¶</a></h2>
+<p>We reduce the swirl velocity three ways. Mass- and area-averaging weight the
+local value by mass flux and by area respectively; for a non-uniform field
+they disagree. The mixed-out state is the uniform flow with the same mass,
+momentum and energy fluxes through the same area – a more physical mean that
+matches neither simple average. Mixing is irreversible, so its entropy exceeds
+the mass-averaged entropy of the real flow.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">Vt_mass</span></a> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">average</span><span class="o">.</span><span class="n">mass_average</span><span class="p">(</span><span class="n">cut</span><span class="o">.</span><span class="n">Vt</span><span class="p">,</span> <span class="n">cut</span><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">Vt_area</span></a> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">average</span><span class="o">.</span><span class="n">area_average</span><span class="p">(</span><span class="n">cut</span><span class="o">.</span><span class="n">Vt</span><span class="p">,</span> <span class="n">cut</span><span class="p">)</span>
+<span class="n">mixed</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">average</span><span class="o">.</span><span class="n">mix_out</span><span class="p">(</span><span class="n">cut</span><span class="p">)</span>
+
+<a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">s_mass</span></a> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">average</span><span class="o">.</span><span class="n">mass_average</span><span class="p">(</span><span class="n">cut</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="n">cut</span><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">entropy_rise</span></a> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">mixed</span><span class="o">.</span><span class="n">s</span><span class="p">)</span> <span class="o">-</span> <a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">s_mass</span></a>
+
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;Swirl Vt:  mass-avg </span><span class="si">{</span><a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">Vt_mass</span></a><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">  area-avg </span><span class="si">{</span><a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">Vt_area</span></a><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">  &quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;mixed-out </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">mixed</span><span class="o">.</span><span class="n">Vt</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">  m/s&quot;</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Entropy rise on mixing: </span><span class="si">{</span><a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">entropy_rise</span></a><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> J/kg/K&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Swirl Vt:  mass-avg 11.78  area-avg 13.28  mixed-out 15.48  m/s
+Entropy rise on mixing: 3.539 J/kg/K
+</pre></div>
+</div>
+</section>
+<section id="an-unstructured-cut">
+<h2>An unstructured cut<a class="headerlink" href="#an-unstructured-cut" title="Link to this heading">¶</a></h2>
+<p>When the plane of interest does not coincide with a grid line, a triangulated
+cut is taken along a meridional segment with <a class="reference internal" href="../api/cut.html#ember.cut.unstructured" title="ember.cut.unstructured"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cut.unstructured()</span></code></a>.
+The same averaging functions apply; only the area integration differs (sum of
+triangles rather than quadrilaterals), so the mass flow agrees to within the
+triangulation error and a sign convention.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">xr_cut</span></a> <span class="o">=</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.array.html#numpy.array" title="numpy.array" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">array</span></a><span class="p">([[</span><span class="mf">0.02</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.08</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">]])</span>  <span class="c1"># (x, r) start and end points</span>
+<span class="n">cut_unstr</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">cut</span><span class="o">.</span><span class="n">unstructured</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">xr_cut</span></a><span class="p">)</span>
+
+<a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">mdot_unstr</span></a> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">average</span><span class="o">.</span><span class="n">flow_mass</span><span class="p">(</span><span class="n">cut_unstr</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;Unstructured cut: </span><span class="si">{</span><span class="n">cut_unstr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> triangles, &quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;mass flow </span><span class="si">{</span><span class="nb">abs</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.float32" title="numpy.float32" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-attribute"><span class="n">mdot_unstr</span></a><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> kg/s&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Unstructured cut: 216 triangles, mass flow 0.6017 kg/s
+</pre></div>
+</div>
+</section>
+<section id="structured-versus-triangulated-meshes">
+<h2>Structured versus triangulated meshes<a class="headerlink" href="#structured-versus-triangulated-meshes" title="Link to this heading">¶</a></h2>
+<p>The two cut types are drawn in the cross-sectional plane, coloured by swirl
+velocity: the structured cut tiles the sector with quadrilaterals, the
+unstructured cut with triangles. The Cartesian cross-section coordinates
+<a class="reference internal" href="../api/block.html#ember.block.Block.y" title="ember.block.Block.y"><code class="xref py py-attr docutils literal notranslate"><span class="pre">y</span></code></a> and <a class="reference internal" href="../api/block.html#ember.block.Block.z" title="ember.block.Block.z"><code class="xref py py-attr docutils literal notranslate"><span class="pre">z</span></code></a> are read
+straight off the block.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><a href="https://docs.python.org/3/library/stdtypes.html#dict" title="builtins.dict" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">levels</span></a> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">cut</span><span class="o">.</span><span class="n">Vt</span><span class="o">.</span><span class="n">min</span><span class="p">()),</span> <span class="n">vmax</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">cut</span><span class="o">.</span><span class="n">Vt</span><span class="o">.</span><span class="n">max</span><span class="p">()))</span>
+
+<span class="n">fig</span><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mf">4.5</span><span class="p">),</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># Structured: quadrilateral mesh</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Zs</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Ys</span></a> <span class="o">=</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><span class="n">cut</span><span class="o">.</span><span class="n">z</span><span class="p">),</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><span class="n">cut</span><span class="o">.</span><span class="n">y</span><span class="p">)</span>
+<span class="n">mesh</span> <span class="o">=</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">pcolormesh</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Zs</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Ys</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><span class="n">cut</span><span class="o">.</span><span class="n">Vt</span><span class="p">),</span> <span class="n">shading</span><span class="o">=</span><span class="s2">&quot;gouraud&quot;</span><span class="p">,</span> <span class="o">**</span><a href="https://docs.python.org/3/library/stdtypes.html#dict" title="builtins.dict" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">levels</span></a><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Zs</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Ys</span></a><span class="p">,</span> <span class="s2">&quot;k-&quot;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>  <span class="c1"># Grid lines along each direction</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Zs</span><span class="o">.</span><span class="n">T</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Ys</span><span class="o">.</span><span class="n">T</span></a><span class="p">,</span> <span class="s2">&quot;k-&quot;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Structured cut (quadrilaterals)&quot;</span><span class="p">)</span>
+
+<span class="c1"># Unstructured: triangle mesh (each row of the block is one triangle)</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Zu</span></a><span class="p">,</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Yu</span></a> <span class="o">=</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><span class="n">cut_unstr</span><span class="o">.</span><span class="n">z</span><span class="p">),</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><span class="n">cut_unstr</span><span class="o">.</span><span class="n">y</span><span class="p">)</span>
+<span class="n">triang</span> <span class="o">=</span> <span class="n">mtri</span><span class="o">.</span><span class="n">Triangulation</span><span class="p">(</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Zu</span></a><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Yu</span></a><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.arange.html#numpy.arange" title="numpy.arange" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">arange</span></a><span class="p">(</span><a href="https://docs.python.org/3/library/functions.html#int" title="builtins.int" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">Zu</span><span class="o">.</span><span class="n">size</span></a><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">tripcolor</span><span class="p">(</span>
+    <span class="n">triang</span><span class="p">,</span>
+    <span class="n">facecolors</span><span class="o">=</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.asarray.html#numpy.asarray" title="numpy.asarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-function"><span class="n">np</span><span class="o">.</span><span class="n">asarray</span></a><span class="p">(</span><span class="n">cut_unstr</span><span class="o">.</span><span class="n">Vt</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">edgecolors</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span>
+    <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+    <span class="o">**</span><a href="https://docs.python.org/3/library/stdtypes.html#dict" title="builtins.dict" class="sphx-glr-backref-module-builtins sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">levels</span></a><span class="p">,</span>
+<span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Unstructured cut (triangles)&quot;</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a><span class="p">:</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_aspect</span><span class="p">(</span><span class="s2">&quot;equal&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;$z$ [m]&quot;</span><span class="p">)</span>
+<a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;$y$ [m]&quot;</span><span class="p">)</span>
+
+<span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><a href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="numpy.ndarray" class="sphx-glr-backref-module-numpy sphx-glr-backref-type-py-class sphx-glr-backref-instance"><span class="n">axs</span></a><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Swirl velocity, $V_</span><span class="se">\\</span><span class="s2">theta$ [m/s]&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_plot_cut_average_001.png" srcset="../_images/sphx_glr_plot_cut_average_001.png" alt="Structured cut (quadrilaterals), Unstructured cut (triangles)" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 0.107 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-cut-average-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/3a2035438552832f8965f8d2f5f004cc/plot_cut_average.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_cut_average.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/efb3d0f9a172f3f89b2c4c41555e5b15/plot_cut_average.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_cut_average.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/e173bf3e92d6ce8c3af7dbc6367c061b/plot_cut_average.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">plot_cut_average.zip</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/auto_examples/plot_cut_average.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
