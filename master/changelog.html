@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Version history &#8212; ember 0.3.1.dev17+g7de221833 documentation</title>
+    <title>Version history &#8212; ember 0.3.1.dev18+gd3fd0970c documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="_static/documentation_options.js?v=303a6e3b"></script>
+    <script src="_static/documentation_options.js?v=c75fda41"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/sg-tags.js?v=d80f6fa4"></script>
@@ -36,7 +36,7 @@
 
 
 
-<p class="blurb">Version 0.3.1.dev17+g7de221833</p>
+<p class="blurb">Version 0.3.1.dev18+gd3fd0970c</p>
 
 
 
@@ -78,6 +78,7 @@
 <li class="toctree-l1"><a class="reference internal" href="api/yaml_util.html">YAML utilities</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references.html">Bibliography</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Version history</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#v0-4-0">0.4.0 (2026-09-01)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#v0-3-0">0.3.0 (2026-08-31)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#v0-2-0">0.2.0 (2026-08-18)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#v0-1-0">0.1.0 (2026-08-06)</a></li>
@@ -166,12 +167,23 @@
 <p>ember roughly follows <a class="reference external" href="https://semver.org/">semantic versioning</a> starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.</p>
-<section id="v0-3-0">
-<span id="id1"></span><h2>0.3.0 (2026-08-31)<a class="headerlink" href="#v0-3-0" title="Link to this heading">¶</a></h2>
+<section id="v0-4-0">
+<span id="id1"></span><h2>0.4.0 (2026-09-01)<a class="headerlink" href="#v0-4-0" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Multigrid now applies a uniform coarse correction to the fine nodes, instead
 of linearly interpolating through the coarse cell centers. This is more
 stable on clustered grids.</p></li>
+<li><p>The equation-of-state-agnostic fluid base class is now public as <code class="docutils literal notranslate"><span class="pre">Fluid</span></code>,
+renamed from <code class="docutils literal notranslate"><span class="pre">_Fluid</span></code>, and carries the shared <code class="docutils literal notranslate"><span class="pre">from_dict</span></code>/<code class="docutils literal notranslate"><span class="pre">to_dict</span></code> and
+<code class="docutils literal notranslate"><span class="pre">change_*</span></code> contract.</p></li>
+<li><p>Trimmed the <code class="docutils literal notranslate"><span class="pre">realgas_fit</span></code> public surface to <code class="docutils literal notranslate"><span class="pre">fit</span></code>, <code class="docutils literal notranslate"><span class="pre">sample_coolprop</span></code>,
+<code class="docutils literal notranslate"><span class="pre">FitResult</span></code> and <code class="docutils literal notranslate"><span class="pre">FitInfo</span></code>; <code class="docutils literal notranslate"><span class="pre">legfit2d</span></code> is now private, and the pure
+Legendre/coordinate helpers move to the <code class="docutils literal notranslate"><span class="pre">ember._realgas_poly</span></code> leaf module.</p></li>
+</ul>
+</section>
+<section id="v0-3-0">
+<span id="id2"></span><h2>0.3.0 (2026-08-31)<a class="headerlink" href="#v0-3-0" title="Link to this heading">¶</a></h2>
+<ul class="simple">
 <li><p>Selective frequency damping is available again.</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">OutletPatch.P_throttle</span></code>, the static pressure level a throttled outlet
 has been adjusted to. It is equal to the initially prescribed pressure plus the
@@ -203,7 +215,7 @@ workspace for the Fortan kernels is carved out of it.</p></li>
 </ul>
 </section>
 <section id="v0-2-0">
-<span id="id2"></span><h2>0.2.0 (2026-08-18)<a class="headerlink" href="#v0-2-0" title="Link to this heading">¶</a></h2>
+<span id="id3"></span><h2>0.2.0 (2026-08-18)<a class="headerlink" href="#v0-2-0" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Renamed <code class="docutils literal notranslate"><span class="pre">ember.set_iter</span></code> to <code class="docutils literal notranslate"><span class="pre">ember.set_iterative</span></code>.</p></li>
 <li><p>Removed <code class="docutils literal notranslate"><span class="pre">BlockRestart</span></code> and its helpers.</p></li>
@@ -269,7 +281,7 @@ resolved shear when built with gfortran 13.</p></li>
 </ul>
 </section>
 <section id="v0-1-0">
-<span id="id3"></span><h2>0.1.0 (2026-08-06)<a class="headerlink" href="#v0-1-0" title="Link to this heading">¶</a></h2>
+<span id="id4"></span><h2>0.1.0 (2026-08-06)<a class="headerlink" href="#v0-1-0" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>First public release on the Python Package Index.</p></li>
 </ul>
