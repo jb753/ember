@@ -113,6 +113,9 @@ html_static_path = ["_static"]
 html_theme_options = {
     "description": f"Version {release}",
     "fixed_sidebar": True,
+    "extra_nav_links": {
+        "Source code repository": "https://github.com/jb753/ember",
+    },
 }
 
 # Docs are published as one directory per version, so a build has to know the
