@@ -5,14 +5,26 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
-.. _v0.3.0:
+.. _v0.4.0:
 
-0.3.0 (2026-08-31)
+0.4.0 (2026-09-01)
 ------------------
 
 * Multigrid now applies a uniform coarse correction to the fine nodes, instead
   of linearly interpolating through the coarse cell centers. This is more
   stable on clustered grids.
+* The equation-of-state-agnostic fluid base class is now public as ``Fluid``,
+  renamed from ``_Fluid``, and carries the shared ``from_dict``/``to_dict`` and
+  ``change_*`` contract.
+* Trimmed the ``realgas_fit`` public surface to ``fit``, ``sample_coolprop``,
+  ``FitResult`` and ``FitInfo``; ``legfit2d`` is now private, and the pure
+  Legendre/coordinate helpers move to the ``ember._realgas_poly`` leaf module.
+
+.. _v0.3.0:
+
+0.3.0 (2026-08-31)
+------------------
+
 * Selective frequency damping is available again.
 * Add ``OutletPatch.P_throttle``, the static pressure level a throttled outlet
   has been adjusted to. It is equal to the initially prescribed pressure plus the
