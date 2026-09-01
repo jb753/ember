@@ -12,7 +12,7 @@ deploy has synced its own:
   .nojekyll      stops GitHub Pages running Jekyll, which silently discards
                  the _static/ and _sources/ directories Sphinx emits
 
-Directories are ordered dev first, then releases newest first, then anything
+Directories are ordered master first, then releases newest first, then anything
 else alphabetically. Only a non-prerelease version is ever a redirect target,
 so a throwaway or prerelease deploy is listed but never becomes the landing
 page.
@@ -26,7 +26,7 @@ from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
-DEV = "dev"
+DEV = "master"
 
 # GitHub Pages serves static files and cannot answer with a 3xx, so the root
 # has to redirect from the page itself. location.replace runs before the body
@@ -67,7 +67,7 @@ def parse(name):
 
 
 def order(names):
-    """Sort names dev first, then releases newest first, then the rest."""
+    """Sort names master first, then releases newest first, then the rest."""
     dev = [name for name in names if name == DEV]
     releases = sorted(
         (n for n in names if n != DEV and parse(n) is not None),
@@ -111,7 +111,7 @@ def main(argv):
     )
 
     # Fall back to the first listed directory when no release has been
-    # published yet, so a site holding only `dev` still has a working root.
+    # published yet, so a site holding only `master` still has a working root.
     landing = newest_release(names) or ordered[0]
     (site / "index.html").write_text(REDIRECT.format(name=landing))
 

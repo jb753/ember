@@ -119,7 +119,7 @@ html_theme_options = {
 }
 
 # Docs are published as one directory per version, so a build has to know the
-# slug it will be served under: the rolling master build lives at "dev", not at
+# slug it will be served under: the rolling master build lives at "master", not at
 # setuptools-scm's "0.2.1.devN+g<sha>". The picker template reads this to mark
 # the current entry.
 html_context = {"ember_version_slug": os.environ.get("EMBER_DOCS_VERSION", release)}

@@ -22,7 +22,7 @@ pip install ember-cfd
 Precompiled wheels are published for Linux (x86_64), so no Fortran compiler is
 needed there. On other platforms pip falls back to building from source, which
 requires a Fortran toolchain. See the
-[installation guide](https://ember-cfd.org/en/latest/install.html) for more information on source builds and performance tuning the build for your CPU.
+[installation guide](https://ember-cfd.org/master/install.html) for more information on source builds and performance tuning the build for your CPU.
 
 ## Example usage
 
@@ -89,5 +89,5 @@ solver.run(grid)
 
 ```
 
-The [example gallery](https://ember-cfd.org/en/latest/auto_examples/index.html) works
+The [example gallery](https://ember-cfd.org/master/auto_examples/index.html) works
 through the block interface, and demonstrates the capabilities of the processing interface.

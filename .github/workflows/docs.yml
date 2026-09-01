@@ -5,7 +5,7 @@ on:
     branches: [master]
     tags: ["v*"]
   # Backfilling an older tag, or publishing a throwaway directory to try the
-  # deploy out without touching dev or a release.
+  # deploy out without touching master or a release.
   workflow_dispatch:
     inputs:
       ref:
@@ -51,7 +51,7 @@ jobs:
             slug="${REF_NAME#v}"
           else
             ref="$REF_NAME"
-            slug="dev"
+            slug="master"
           fi
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "slug=$slug" >> "$GITHUB_OUTPUT"
@@ -120,7 +120,7 @@ jobs:
           # the environment back to the default dev group installed above.
           UV_NO_SYNC: "1"
         run: |
-          if [ "$EMBER_DOCS_VERSION" != "dev" ]; then
+          if [ "$EMBER_DOCS_VERSION" != "master" ]; then
             # conf.py reads the version off the installed package. The graft
             # edits conf.py, a tracked file, so setuptools-scm sees a dirty
             # tree and labels a tag build 0.2.1.dev0+g<sha>.d<date> rather than
@@ -132,7 +132,7 @@ jobs:
           # extension) and the docs group, but none of the dev tooling.
           uv sync --no-default-groups --group docs
 
-          if [ "$EMBER_DOCS_VERSION" != "dev" ]; then
+          if [ "$EMBER_DOCS_VERSION" != "master" ]; then
             # A cached build could still carry the old version, and the only
             # symptom would be pages quietly labelled with the wrong release.
             installed=$(uv run --no-sync python -c \
