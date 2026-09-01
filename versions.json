@@ -1,8 +1,8 @@
 {
   "versions": [
     {
-      "name": "dev",
-      "url": "dev/"
+      "name": "master",
+      "url": "master/"
     },
     {
       "name": "0.3.0",
