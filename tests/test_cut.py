@@ -70,7 +70,7 @@ from ember.cut import (
     _cube_index,
     _vijk,
     _eijk,
-    _signed_distance,
+    signed_distance,
 )
 
 
@@ -1729,7 +1729,7 @@ class TestSignedDistance:
         # Points on either side
         points = np.array([[-1, 1.5], [1, 1.5]], dtype=np.float32)
 
-        dist = _signed_distance(segments, points)
+        dist = signed_distance(segments, points)
 
         # Check shape
         assert dist.shape == (2,)
@@ -1748,7 +1748,7 @@ class TestSignedDistance:
         # Points above and below
         points = np.array([[1.5, -1], [1.5, 1]], dtype=np.float32)
 
-        dist = _signed_distance(segments, points)
+        dist = signed_distance(segments, points)
 
         # Check shape and magnitudes
         assert dist.shape == (2,)
@@ -1762,7 +1762,7 @@ class TestSignedDistance:
         # Point exactly on the line
         points = np.array([[0.5, 0.5]], dtype=np.float32)
 
-        dist = _signed_distance(segments, points)
+        dist = signed_distance(segments, points)
 
         assert dist.shape == (1,)
         assert np.allclose(dist, [0], atol=1e-6)
@@ -1778,7 +1778,7 @@ class TestSignedDistance:
         x_grid, r_grid = np.meshgrid(x_pts, r_pts, indexing="ij")
         points = np.stack([x_grid, r_grid], axis=-1)  # Shape (3, 4, 2)
 
-        dist = _signed_distance(segments, points)
+        dist = signed_distance(segments, points)
 
         # Check output shape
         assert dist.shape == (3, 4)
@@ -1799,7 +1799,7 @@ class TestSignedDistance:
         points = np.array([[0.5, 0.5]], dtype=np.float32)
 
         # This should work fine - shape is correct
-        dist = _signed_distance(bad_segments, points)
+        dist = signed_distance(bad_segments, points)
         assert dist.shape == (1,)
 
         # Wrong points shape - only 1 component instead of 2
@@ -1807,7 +1807,7 @@ class TestSignedDistance:
         bad_points = np.array([[0.5]], dtype=np.float32)  # Shape (1, 1) - wrong!
 
         with pytest.raises(AssertionError, match="Points must have shape"):
-            _signed_distance(segments, bad_points)
+            signed_distance(segments, bad_points)
 
     def test_signed_distance_l_shaped_curve(self):
         """Test with an L-shaped curve having multiple segments."""
@@ -1825,7 +1825,7 @@ class TestSignedDistance:
             dtype=np.float32,
         )
 
-        dist = _signed_distance(segments, points)
+        dist = signed_distance(segments, points)
 
         assert dist.shape == (4,)
         assert np.all(np.isfinite(dist))

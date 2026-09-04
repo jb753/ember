@@ -691,7 +691,7 @@ def _marching_cubes(data, dist):
         return None
 
 
-def _signed_distance(xr, xr_query):
+def signed_distance(xr, xr_query):
     """Distance above or below a piecewise line in meridional plane.
 
     Note that this becomes increasingly inaccurate far away from the
@@ -788,7 +788,7 @@ def unstructured(grid, xr_cut):
         xr_coords = block.xrt[..., :2]
 
         # Evaluate signed distance for all points in the block
-        dist = _signed_distance(xr_cut, xr_coords)
+        dist = signed_distance(xr_cut, xr_coords)
 
         # Skip blocks that do not intersect the cut
         if np.all(dist >= 0) or np.all(dist <= 0):
@@ -849,7 +849,7 @@ def structured_meridional(grid, xr_cut):
         xr_coords = block.xrt[..., :2]  # Extract (x, r) coordinates
 
         # Get signed distance
-        dist = _signed_distance(xr_cut, xr_coords)
+        dist = signed_distance(xr_cut, xr_coords)
 
         # Check for intersection
         if np.all(dist >= 0) or np.all(dist <= 0):
