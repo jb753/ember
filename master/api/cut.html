@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Cutting &#8212; ember 0.3.1.dev18+gd3fd0970c documentation</title>
+    <title>Cutting &#8212; ember 0.4.1.dev5+gab580937b documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=c75fda41"></script>
+    <script src="../_static/documentation_options.js?v=3d7a1ca2"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.3.1.dev18+gd3fd0970c</p>
+<p class="blurb">Version 0.4.1.dev5+gab580937b</p>
 
 
 
@@ -74,6 +74,7 @@
 <li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Cutting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#cuts-along-grid-surfaces-by-index">Cuts along grid surfaces by index</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.cut.signed_distance"><code class="docutils literal notranslate"><span class="pre">signed_distance()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.cut.unstructured"><code class="docutils literal notranslate"><span class="pre">unstructured()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.cut.structured_meridional"><code class="docutils literal notranslate"><span class="pre">structured_meridional()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.cut.interpolate_to_structured"><code class="docutils literal notranslate"><span class="pre">interpolate_to_structured()</span></code></a></li>
@@ -171,9 +172,9 @@
 <p>Marching cubes algorithm and 3D structured grid cutting utilities.</p>
 <p>This module implements the marching cubes algorithm for extracting isosurfaces from 3D
 structured grids, along with utilities for creating both structured meridional cuts and
-unstructured triangulated cuts. The marching cubes implementation uses precomputed lookup
-tables (EDGETABLE and TRITABLE) to efficiently determine which cell edges intersect an
-isosurface and how to triangulate those intersections. Key functionality includes extracting
+unstructured triangulated cuts. The marching cubes implementation uses a precomputed lookup
+table (TRITABLE) to determine how to triangulate the cell edges an isosurface intersects.
+Key functionality includes extracting
 unstructured triangular cuts using signed distance fields, creating structured 2D meridional
 slices by interpolating along grid lines, and converting between structured quad meshes and
 unstructured triangle meshes. The module supports both direct marching cubes output and
@@ -187,6 +188,29 @@ cut along a grid surface of constant index, none of them are needed: a
 parent’s data as a zero-copy view. See the indexing section of
 <a class="reference internal" href="block.html#module-ember.block" title="ember.block"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.block</span></code></a> for the full rules.</p>
 </section>
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.cut.signed_distance">
+<span class="sig-prename descclassname"><span class="pre">cut.</span></span><span class="sig-name descname"><span class="pre">signed_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xr_query</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/cut.html#signed_distance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.cut.signed_distance" title="Link to this definition">¶</a></dt>
+<dd><p>Distance above or below a piecewise line in meridional plane.</p>
+<p>Note that this becomes increasingly inaccurate far away from the
+curve but the zero level is correct (which is sufficient for cutting).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xr</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>nseg</em><em>, </em><em>2</em><em>)</em>) – Coordinates of the cut plane segments following ember convention
+with components in last axis.</p></li>
+<li><p><strong>xr_query</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>2</em><em>)</em>) – Meridional coordinates to evaluate distance at.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Signed distance above or below the cut.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (…)</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="ember.cut.unstructured">
 <span class="sig-prename descclassname"><span class="pre">cut.</span></span><span class="sig-name descname"><span class="pre">unstructured</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xr_cut</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/cut.html#unstructured"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.cut.unstructured" title="Link to this definition">¶</a></dt>

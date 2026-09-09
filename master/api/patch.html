@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Patch &#8212; ember 0.3.1.dev18+gd3fd0970c documentation</title>
+    <title>Patch &#8212; ember 0.4.1.dev5+gab580937b documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=c75fda41"></script>
+    <script src="../_static/documentation_options.js?v=3d7a1ca2"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.3.1.dev18+gd3fd0970c</p>
+<p class="blurb">Version 0.4.1.dev5+gab580937b</p>
 
 
 
@@ -433,6 +433,21 @@ corresponds to (i, j, k).</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="ember.patch.Patch.attach_to_block">
+<span class="sig-name descname"><span class="pre">attach_to_block</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/basepatch.html#Patch.attach_to_block"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.Patch.attach_to_block" title="Link to this definition">¶</a></dt>
+<dd><p>Attach this patch to a block and validate limits against block shape.</p>
+<p>Do not call directly; attachment is handled automatically when a patch
+is added to <a class="reference internal" href="block.html#ember.block.Block.patches" title="ember.block.Block.patches"><code class="xref py py-attr docutils literal notranslate"><span class="pre">patches</span></code></a> via
+<a class="reference internal" href="#ember.patch.BlockPatchCollection" title="ember.collections.BlockPatchCollection"><code class="xref py py-class docutils literal notranslate"><span class="pre">BlockPatchCollection</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a>) – The block this patch belongs to.
+A weak reference is stored.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="ember.patch.Patch.attach_to_block_resampled">
 <span class="sig-name descname"><span class="pre">attach_to_block_resampled</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/basepatch.html#Patch.attach_to_block_resampled"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.Patch.attach_to_block_resampled" title="Link to this definition">¶</a></dt>
 <dd><p>Attach to a resampled <code class="docutils literal notranslate"><span class="pre">block</span></code>, carrying <code class="docutils literal notranslate"><span class="pre">src</span></code>’s span-varying state.</p>
@@ -446,21 +461,6 @@ interpolate it onto the new stations.</p>
 <p>Used by <a class="reference internal" href="block_util.html#ember.block_util.resample" title="ember.block_util.resample"><code class="xref py py-func docutils literal notranslate"><span class="pre">resample()</span></code></a>, which is what puts a
 configured patch on a coarser grid – the multigrid hierarchy of
 <a class="reference internal" href="solver.html#ember.solver.Solver.run_fmg" title="ember.solver.Solver.run_fmg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.solver.Solver.run_fmg()</span></code></a>, among others.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="ember.patch.Patch.attach_to_block">
-<span class="sig-name descname"><span class="pre">attach_to_block</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/basepatch.html#Patch.attach_to_block"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.Patch.attach_to_block" title="Link to this definition">¶</a></dt>
-<dd><p>Attach this patch to a block and validate limits against block shape.</p>
-<p>Do not call directly; attachment is handled automatically when a patch
-is added to <a class="reference internal" href="block.html#ember.block.Block.patches" title="ember.block.Block.patches"><code class="xref py py-attr docutils literal notranslate"><span class="pre">patches</span></code></a> via
-<a class="reference internal" href="#ember.patch.BlockPatchCollection" title="ember.collections.BlockPatchCollection"><code class="xref py py-class docutils literal notranslate"><span class="pre">BlockPatchCollection</span></code></a>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a>) – The block this patch belongs to.
-A weak reference is stored.</p>
-</dd>
-</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -693,26 +693,6 @@ components become the interface-normal and interface-span components:</p>
 frame axis already is <span class="math notranslate nohighlight">\(x\)</span>; see <a class="reference internal" href="#ember.patch.RevolutionPatch.chi_node" title="ember.patch.RevolutionPatch.chi_node"><code class="xref py py-attr docutils literal notranslate"><span class="pre">chi_node</span></code></a>.</p>
 </dd></dl>
 
-<dl class="py property">
-<dt class="sig sig-object py" id="ember.patch.RevolutionPatch.chi_node">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">chi_node</span></span><a class="headerlink" href="#ember.patch.RevolutionPatch.chi_node" title="Link to this definition">¶</a></dt>
-<dd><p>Angle of the frame axis from <span class="math notranslate nohighlight">\(+x\)</span>, one value per span node.</p>
-<p>The meridional-plane angle <span class="math notranslate nohighlight">\(\chi\)</span> that
-<a class="reference internal" href="#ember.patch.RevolutionPatch.resolve_to_interface" title="ember.patch.RevolutionPatch.resolve_to_interface"><code class="xref py py-meth docutils literal notranslate"><span class="pre">resolve_to_interface()</span></code></a> rotates through, so that
-<span class="math notranslate nohighlight">\(V_n = \cos\chi\, V_x + \sin\chi\, V_r\)</span> is the velocity along the
-frame axis and <span class="math notranslate nohighlight">\(V_s = -\sin\chi\, V_x + \cos\chi\, V_r\)</span> the one
-in the surface. Zero on a face whose frame axis is <span class="math notranslate nohighlight">\(+x\)</span>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Angle [rad], shaped to broadcast over the patch along its span
-dimension.</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>array</p>
-</dd>
-</dl>
-</dd></dl>
-
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.patch.RevolutionPatch.smooth_pitch_121">
 <span class="sig-name descname"><span class="pre">smooth_pitch_121</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">field</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/basepatch.html#RevolutionPatch.smooth_pitch_121"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.RevolutionPatch.smooth_pitch_121" title="Link to this definition">¶</a></dt>
@@ -766,6 +746,26 @@ dimensional round trip and its float32 rounding.</p>
 <p>Coordinates are the pitch-mean x, r, t at each span station. The
 conserved variables are populated by calling <a class="reference internal" href="#ember.patch.RevolutionPatch.set_block_avg" title="ember.patch.RevolutionPatch.set_block_avg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_block_avg()</span></code></a>;
 before that call the flow-field arrays contain uninitialised values.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.patch.RevolutionPatch.chi_node">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">chi_node</span></span><a class="headerlink" href="#ember.patch.RevolutionPatch.chi_node" title="Link to this definition">¶</a></dt>
+<dd><p>Angle of the frame axis from <span class="math notranslate nohighlight">\(+x\)</span>, one value per span node.</p>
+<p>The meridional-plane angle <span class="math notranslate nohighlight">\(\chi\)</span> that
+<a class="reference internal" href="#ember.patch.RevolutionPatch.resolve_to_interface" title="ember.patch.RevolutionPatch.resolve_to_interface"><code class="xref py py-meth docutils literal notranslate"><span class="pre">resolve_to_interface()</span></code></a> rotates through, so that
+<span class="math notranslate nohighlight">\(V_n = \cos\chi\, V_x + \sin\chi\, V_r\)</span> is the velocity along the
+frame axis and <span class="math notranslate nohighlight">\(V_s = -\sin\chi\, V_x + \cos\chi\, V_r\)</span> the one
+in the surface. Zero on a face whose frame axis is <span class="math notranslate nohighlight">\(+x\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Angle [rad], shaped to broadcast over the patch along its span
+dimension.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>array</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py property">
