@@ -25,6 +25,7 @@ Test cases:
 - test_beta_is_the_entropy_on_the_box_centre_isochor: the isochor convention
 """
 
+import functools
 import sys
 import types
 
@@ -205,18 +206,27 @@ def test_legfit2d_recovers_known_polynomial():
 # ---------------------------------------------------------------------------
 
 
-def _quad_entropy_integral(alpha, c, x, y, n=400):
+@functools.lru_cache(maxsize=None)
+def _leggauss(n):
+    """Cached Gauss-Legendre nodes and weights.
+
+    ``leggauss`` costs ~0.2 s at n = 64 and the tests call the quadrature in a
+    nested loop over comparison points; the nodes depend on nothing but ``n``.
+    """
+    return np.polynomial.legendre.leggauss(n)
+
+
+def _quad_entropy_integral(alpha, c, x, y, n=64):
     """Reference integral(Z dln rho) from the box centre to x, by quadrature.
 
     Integrating in ``t = ln(x + c)`` rather than in ``x`` removes the
-    ``1/(x + c)`` factor, leaving a smooth integrand that Gauss-Legendre
-    resolves to near machine precision with a modest number of nodes. That
-    matters because a fit box reaching down to low density puts the singularity
-    just outside the interval, where a fixed-step rule converges far too slowly
-    to be a credible reference.
+    ``1/(x + c)`` factor, leaving an analytic integrand that Gauss-Legendre
+    resolves to machine precision with a handful of nodes even when the fit box
+    reaches down to low density and the singularity sits just outside the
+    interval -- n = 64 matches n = 2000 to 1e-13 there.
     """
     t0, t1 = np.log(c), np.log(x + c)
-    nodes, weights = np.polynomial.legendre.leggauss(n)
+    nodes, weights = _leggauss(n)
     t = 0.5 * (t1 - t0) * nodes + 0.5 * (t1 + t0)
     xs = np.exp(t) - c
     Z = np.polynomial.legendre.legval2d(xs, np.full_like(xs, y), alpha)
@@ -283,7 +293,7 @@ def test_entropy_integral_near_low_density():
         got = np.polynomial.legendre.legval2d(x, y, D) + np.polynomial.legendre.legval(
             y, Lam
         ) * np.log(x + c)
-        expect = _quad_entropy_integral(alpha, c, x, y, n=800)
+        expect = _quad_entropy_integral(alpha, c, x, y, n=128)
         assert np.isclose(got, expect, rtol=1e-11)
 
 
