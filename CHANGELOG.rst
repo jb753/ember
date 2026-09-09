@@ -5,7 +5,13 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
-.. _v0.4.0:
+.. _v0.4.1:
+
+0.4.1 (2026-09-09)
+------------------
+
+* Promote `cut.signed_distance` to public API
+* Made performance improvements to cutting functions
 
 0.4.0 (2026-09-01)
 ------------------
