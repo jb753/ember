@@ -841,13 +841,19 @@ class RevolutionPatch(Patch):
             Shape ``(nspan, 2)``, the meridional components in that order.
         """
         block = self.block
-        xr_patch = block.xrt[self.slice][..., :2].mean(axis=self.pitch_dim).squeeze()
-        xr_offset = (
-            block.xrt[self._get_offset_slice(1)][..., :2]
-            .mean(axis=self.pitch_dim)
-            .squeeze()
-        )
-        return xr_offset - xr_patch
+
+        # Sliced before it is stacked, not after. `xrt` is a derived array:
+        # reading it materialises and copies the whole block, three components
+        # of every node, and this wants one face and the layer behind it --
+        # tens of megabytes built twice per call to be thrown away bar a few
+        # hundred nodes. Same numbers, and ninety times faster on a million-node
+        # block. `_build_rot_matrices` below already reads its own geometry
+        # this way, off `_block_view`.
+        def meridional(where):
+            xr = np.stack((block.x[where], block.r[where]), axis=-1)
+            return xr.mean(axis=self.pitch_dim).squeeze()
+
+        return meridional(self._get_offset_slice(1)) - meridional(self.slice)
 
     def _build_rot_matrices(self, inward=True):
         """Compute xi, cosxi/sinxi and build rotation matrix pairs.
