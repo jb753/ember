@@ -2,9 +2,9 @@
 
 This module implements the marching cubes algorithm for extracting isosurfaces from 3D
 structured grids, along with utilities for creating both structured meridional cuts and
-unstructured triangulated cuts. The marching cubes implementation uses precomputed lookup
-tables (EDGETABLE and TRITABLE) to efficiently determine which cell edges intersect an
-isosurface and how to triangulate those intersections. Key functionality includes extracting
+unstructured triangulated cuts. The marching cubes implementation uses a precomputed lookup
+table (TRITABLE) to determine how to triangulate the cell edges an isosurface intersects.
+Key functionality includes extracting
 unstructured triangular cuts using signed distance fields, creating structured 2D meridional
 slices by interpolating along grid lines, and converting between structured quad meshes and
 unstructured triangle meshes. The module supports both direct marching cubes output and
@@ -29,271 +29,6 @@ import ember.grid
 from ember import util
 from ember.block import Block
 
-# Which edges are cut by the isosurface? 256 possible cases, each corresponding to
-# a 12-bit number, each bit corresponds to an edge
-_EDGETABLE = np.array(
-    [
-        0x0,
-        0x109,
-        0x203,
-        0x30A,
-        0x406,
-        0x50F,
-        0x605,
-        0x70C,
-        0x80C,
-        0x905,
-        0xA0F,
-        0xB06,
-        0xC0A,
-        0xD03,
-        0xE09,
-        0xF00,
-        0x190,
-        0x99,
-        0x393,
-        0x29A,
-        0x596,
-        0x49F,
-        0x795,
-        0x69C,
-        0x99C,
-        0x895,
-        0xB9F,
-        0xA96,
-        0xD9A,
-        0xC93,
-        0xF99,
-        0xE90,
-        0x230,
-        0x339,
-        0x33,
-        0x13A,
-        0x636,
-        0x73F,
-        0x435,
-        0x53C,
-        0xA3C,
-        0xB35,
-        0x83F,
-        0x936,
-        0xE3A,
-        0xF33,
-        0xC39,
-        0xD30,
-        0x3A0,
-        0x2A9,
-        0x1A3,
-        0xAA,
-        0x7A6,
-        0x6AF,
-        0x5A5,
-        0x4AC,
-        0xBAC,
-        0xAA5,
-        0x9AF,
-        0x8A6,
-        0xFAA,
-        0xEA3,
-        0xDA9,
-        0xCA0,
-        0x460,
-        0x569,
-        0x663,
-        0x76A,
-        0x66,
-        0x16F,
-        0x265,
-        0x36C,
-        0xC6C,
-        0xD65,
-        0xE6F,
-        0xF66,
-        0x86A,
-        0x963,
-        0xA69,
-        0xB60,
-        0x5F0,
-        0x4F9,
-        0x7F3,
-        0x6FA,
-        0x1F6,
-        0xFF,
-        0x3F5,
-        0x2FC,
-        0xDFC,
-        0xCF5,
-        0xFFF,
-        0xEF6,
-        0x9FA,
-        0x8F3,
-        0xBF9,
-        0xAF0,
-        0x650,
-        0x759,
-        0x453,
-        0x55A,
-        0x256,
-        0x35F,
-        0x55,
-        0x15C,
-        0xE5C,
-        0xF55,
-        0xC5F,
-        0xD56,
-        0xA5A,
-        0xB53,
-        0x859,
-        0x950,
-        0x7C0,
-        0x6C9,
-        0x5C3,
-        0x4CA,
-        0x3C6,
-        0x2CF,
-        0x1C5,
-        0xCC,
-        0xFCC,
-        0xEC5,
-        0xDCF,
-        0xCC6,
-        0xBCA,
-        0xAC3,
-        0x9C9,
-        0x8C0,
-        0x8C0,
-        0x9C9,
-        0xAC3,
-        0xBCA,
-        0xCC6,
-        0xDCF,
-        0xEC5,
-        0xFCC,
-        0xCC,
-        0x1C5,
-        0x2CF,
-        0x3C6,
-        0x4CA,
-        0x5C3,
-        0x6C9,
-        0x7C0,
-        0x950,
-        0x859,
-        0xB53,
-        0xA5A,
-        0xD56,
-        0xC5F,
-        0xF55,
-        0xE5C,
-        0x15C,
-        0x55,
-        0x35F,
-        0x256,
-        0x55A,
-        0x453,
-        0x759,
-        0x650,
-        0xAF0,
-        0xBF9,
-        0x8F3,
-        0x9FA,
-        0xEF6,
-        0xFFF,
-        0xCF5,
-        0xDFC,
-        0x2FC,
-        0x3F5,
-        0xFF,
-        0x1F6,
-        0x6FA,
-        0x7F3,
-        0x4F9,
-        0x5F0,
-        0xB60,
-        0xA69,
-        0x963,
-        0x86A,
-        0xF66,
-        0xE6F,
-        0xD65,
-        0xC6C,
-        0x36C,
-        0x265,
-        0x16F,
-        0x66,
-        0x76A,
-        0x663,
-        0x569,
-        0x460,
-        0xCA0,
-        0xDA9,
-        0xEA3,
-        0xFAA,
-        0x8A6,
-        0x9AF,
-        0xAA5,
-        0xBAC,
-        0x4AC,
-        0x5A5,
-        0x6AF,
-        0x7A6,
-        0xAA,
-        0x1A3,
-        0x2A9,
-        0x3A0,
-        0xD30,
-        0xC39,
-        0xF33,
-        0xE3A,
-        0x936,
-        0x83F,
-        0xB35,
-        0xA3C,
-        0x53C,
-        0x435,
-        0x73F,
-        0x636,
-        0x13A,
-        0x33,
-        0x339,
-        0x230,
-        0xE90,
-        0xF99,
-        0xC93,
-        0xD9A,
-        0xA96,
-        0xB9F,
-        0x895,
-        0x99C,
-        0x69C,
-        0x795,
-        0x49F,
-        0x596,
-        0x29A,
-        0x393,
-        0x99,
-        0x190,
-        0xF00,
-        0xE09,
-        0xD03,
-        0xC0A,
-        0xB06,
-        0xA0F,
-        0x905,
-        0x80C,
-        0x70C,
-        0x605,
-        0x50F,
-        0x406,
-        0x30A,
-        0x203,
-        0x109,
-        0x0,
-    ],
-    dtype=int,
-)
-
-# How to form triangles from the cut edges
 _TRITABLE = np.array(
     [
         [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
@@ -608,12 +343,22 @@ def _eijk(i, j, k, e):
         return (i, j + 1, k), (i, j + 1, k + 1)
 
 
+# How many triangles each corner sign pattern makes, and the corner offsets
+# of a cell's 8 vertices and of the two ends of its 12 edges. All are derived
+# from the table and helpers above rather than written out again, and are
+# handed to the Fortran kernels so that they hold no copy of their own.
+_NTRITABLE = np.count_nonzero(_TRITABLE != -1, axis=1) // 3
+_VERT_IJK = np.array(
+    [[s.start for s in _vijk((2, 2, 2), v)] for v in range(8)], dtype=np.int32
+)
+_EDGE_IJK = np.array([_eijk(0, 0, 0, e) for e in range(12)], dtype=np.int32)
+
+
 def _cube_index(d):
     """For a 3D array of signed distances, get cube indices."""
     ni, nj, nk = d.shape
-    ind = np.zeros((ni - 1, nj - 1, nk - 1), dtype=int)
-    for v in range(8):
-        ind[d[_vijk(d.shape, v)] < 0.0] |= 2**v
+    ind = np.zeros((ni - 1, nj - 1, nk - 1), dtype=np.int32, order="F")
+    ember.fortran.marching_cubes_index(d, _VERT_IJK, ind)
     return ind
 
 
@@ -636,62 +381,51 @@ def _marching_cubes(data, dist):
 
     """
 
-    ni, nj, nk, nvar = data.shape
-
-    # Find an index into edge table to see which edges are cut
+    # Which of the 256 corner sign patterns each cell has, and so how many
+    # triangles it contributes
     icube = _cube_index(dist)
-    edge_index = _EDGETABLE[icube]
+    ntri_cell = _NTRITABLE[icube]
 
-    # Now treat each cell individually
-    # Most cells are not cut so for loop is not too bad
-    triangles = []
-    for i in range(ni - 1):
-        for j in range(nj - 1):
-            for k in range(nk - 1):
-                # Skip uncut cells
-                if not edge_index[i, j, k]:
-                    continue
+    # Where each cell's triangles start in the output. Counting in C order
+    # walks the cells i first, which is the order the triangles come back in.
+    ntri_flat = ntri_cell.ravel(order="C")
+    offsets = np.cumsum(ntri_flat) - ntri_flat
+    ntri = int(ntri_flat.sum())
 
-                # Preallocate for vertices that could be on any of 12 edges
-                cut_edges = np.full((12, nvar), np.nan)
-
-                # Loop over the vertices
-                for e in range(12):
-                    # If the edge index contains the bit
-                    if edge_index[i, j, k] & 2**e:
-                        # Get start and end indices for the edge
-                        ijk_st, ijk_en = _eijk(i, j, k, e)
-
-                        # Slice spatial dimensions, variables are in last axis
-                        data_st = data[ijk_st]  # Shape (nvar,)
-                        data_en = data[ijk_en]  # Shape (nvar,)
-
-                        # Perform linear interpolation
-                        frac = -dist[ijk_st] / (dist[ijk_en] - dist[ijk_st])
-                        assert (frac >= 0.0) and (frac <= 1.0)
-                        cut_edges[e] = data_st + (data_en - data_st) * frac
-
-                # We have found all the vertices we will need
-                # Now use cube_index to look up in TRITABLE how to
-                # assemble into triangles
-                triangle_index = _TRITABLE[icube[i, j, k]]
-
-                # Loop over the triangle indices in threes
-                for itri in range(0, len(triangle_index), 3):
-                    # Sentinel value indices no more triangles
-                    if triangle_index[itri] == -1:
-                        break
-
-                    # Pull out the cut edges for this triangle
-                    triangles.append(cut_edges[triangle_index[itri : itri + 3]])
-
-    if triangles:
-        return np.stack(triangles)
-    else:
+    # Nothing is cut
+    if ntri == 0:
         return None
 
+    # Only the cells that contribute a triangle reach the kernel, which for a
+    # cut of a 3D block is a couple of percent of them
+    cells = np.argwhere(ntri_cell > 0)
 
-def _signed_distance(xr, xr_query):
+    ijk_lo = np.zeros((ntri, 3, 3), dtype=np.int32, order="F")
+    ijk_hi = np.zeros((ntri, 3, 3), dtype=np.int32, order="F")
+    frac = np.zeros((ntri, 3), order="F")
+
+    ember.fortran.marching_cubes_edges(
+        dist,
+        cells,
+        offsets.reshape(ntri_cell.shape)[tuple(cells.T)],
+        icube[tuple(cells.T)],
+        _TRITABLE,
+        _EDGE_IJK,
+        ijk_lo,
+        ijk_hi,
+        frac,
+    )
+
+    # Interpolate every variable onto the vertices the kernel located. Done
+    # here rather than in the kernel so that the data keeps whatever precision
+    # it arrived in, and never has to be handed over in bulk.
+    data_lo = data[ijk_lo[..., 0], ijk_lo[..., 1], ijk_lo[..., 2]]
+    data_hi = data[ijk_hi[..., 0], ijk_hi[..., 1], ijk_hi[..., 2]]
+
+    return data_lo + (data_hi - data_lo) * frac[..., np.newaxis]
+
+
+def signed_distance(xr, xr_query):
     """Distance above or below a piecewise line in meridional plane.
 
     Note that this becomes increasingly inaccurate far away from the
@@ -716,43 +450,91 @@ def _signed_distance(xr, xr_query):
     assert xr_query.shape[-1] == 2, "Points must have shape (..., 2)"
     assert xr.ndim >= 2, "Segments must be at least 2D"
 
-    # Preallocate the signed distance
-    d = np.full(xr_query.shape[:-1], np.inf)
+    shape = xr_query.shape[:-1]
 
-    # Number of segments
-    nseg = xr.shape[0]
+    # A single node spans no segment, so nothing is ever nearer than the
+    # sentinel.  The kernel would return its own, so screen the case out here.
+    if xr.shape[0] < 2:
+        return np.full(shape, np.inf)
 
-    # Loop over line segments
-    for i in range(nseg - 1):
-        # Get segment endpoints: current and next points
-        seg_start = xr[i]  # Shape (..., 2)
-        seg_end = xr[i + 1]  # Shape (..., 2)
+    # The kernel indexes points fastest and components slowest, which is the
+    # Fortran ordering ember stores nodal arrays in, so the reshape below is a
+    # view for a block coordinate array rather than a repack.  Widening to
+    # double is a copy, since those arrays are single precision, but it is one
+    # pass against the numpy version's ten per segment, and it keeps the return
+    # dtype this function has always had.
+    xr_query = np.asfortranarray(xr_query, dtype=np.float64)
+    d = ember.fortran.signed_distance(
+        np.asfortranarray(xr, dtype=np.float64),
+        xr_query.reshape(-1, 2, order="F"),
+    )
 
-        # Calculate vectors from segment start to points and along segment
-        a = xr_query - seg_start  # Point vector from segment start
-        b = seg_end - seg_start  # Segment direction vector
+    return d.reshape(shape, order="F")
 
-        # Project point onto segment and clamp to [0,1]
-        L = np.maximum(util.dot(b, b), 1e-9)  # Segment length squared
-        h = np.clip(util.dot(a, b) / L, 0.0, 1.0)  # Normalized distance along segment
 
-        # Get perpendicular component (shortest distance to segment)
-        parallel_component = b * h[..., np.newaxis]  # Add axis for broadcasting
-        perpendicular = a - parallel_component  # Perpendicular vector
-        di = np.sqrt(util.dot(perpendicular, perpendicular))  # Distance magnitude
+def _cut_reaches_block(xr_cut, block):
+    """Whether a cut curve comes near enough to a block to be worth evaluating.
 
-        # Find points where this segment gives the closest distance
-        ind = np.where(di < np.abs(d))
+    Clips each segment of the curve against the block's meridional bounding
+    box. A curve that reaches no block's box cannot cross that block, so its
+    distance field need never be built.
 
-        # Make the distance signed using perpendicular vector to segment
-        # For 2D, perpendicular to [bx, br] is [-br, bx]
-        normal = np.stack([-b[1], b[0]], axis=-1)  # Normal vector to segment
-        di *= np.sign(util.dot(perpendicular, normal))
+    The screen is conservative: a segment that enters the bounding box but
+    misses the block itself is still accepted, and the sign of the distance
+    field then rejects it as before.
 
-        # Update minimum distance where this segment is closest
-        d[ind] = di[ind]
+    Parameters
+    ----------
+    xr_cut : array_like, shape (n_segments, 2)
+        Meridional :math:`(x, r)` curve segments defining the cut surface.
+    block : Block
+        Block to test the curve against.
 
-    return d
+    Returns
+    -------
+    bool
+        False only when no segment of the curve enters the block's box.
+
+    """
+    # Taken from the nondimensional coordinates and scaled as four scalars,
+    # rather than from block.xrt, which would copy and scale every node
+    xrt_nd = block.xrt_nd
+    lo = np.array([xrt_nd[..., 0].min(), xrt_nd[..., 1].min()]) * block.L_ref
+    hi = np.array([xrt_nd[..., 0].max(), xrt_nd[..., 1].max()]) * block.L_ref
+
+    xr_cut = np.asarray(xr_cut)
+
+    # The same contract signed_distance asserts, checked here because the
+    # screen now sees the curve first
+    assert xr_cut.shape[-1] == 2, "Segments must have shape (..., 2)"
+    assert xr_cut.ndim >= 2, "Segments must be at least 2D"
+
+    seg_start = xr_cut[:-1]
+    seg_delta = xr_cut[1:] - seg_start
+
+    # Clip the segment parameter, which runs over [0, 1] along the segment, to
+    # the slab between each pair of opposite box faces in turn. What survives
+    # in both components at once is the part of the segment inside the box.
+    t_in = np.zeros(len(seg_start))
+    t_out = np.ones(len(seg_start))
+    for c in range(2):
+        # A segment constant in this component never crosses either face, so
+        # it either lies within the slab for its whole length or misses it
+        constant = seg_delta[:, c] == 0.0
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t_lo = (lo[c] - seg_start[:, c]) / seg_delta[:, c]
+            t_hi = (hi[c] - seg_start[:, c]) / seg_delta[:, c]
+
+        t_in = np.maximum(t_in, np.where(constant, 0.0, np.minimum(t_lo, t_hi)))
+        t_out = np.minimum(t_out, np.where(constant, 1.0, np.maximum(t_lo, t_hi)))
+
+        outside = constant & ((seg_start[:, c] < lo[c]) | (seg_start[:, c] > hi[c]))
+        t_in = np.where(outside, 1.0, t_in)
+        t_out = np.where(outside, 0.0, t_out)
+
+    # An empty interval on every segment means the curve misses the box. A
+    # curve of a single node spans no segment and misses by the same token.
+    return bool(np.any(t_in <= t_out))
 
 
 def unstructured(grid, xr_cut):
@@ -784,11 +566,20 @@ def unstructured(grid, xr_cut):
     triangles = []
     last_block = None
     for block in grid:
-        # Check if cut line intersects this block's domain
-        xr_coords = block.xrt[..., :2]
+        # Reject the blocks the curve does not reach before building any
+        # distance field. This also keeps out a block that the curve misses
+        # but whose field still changes sign, which happens across the medial
+        # axis between two segments, where the nearest segment switches and
+        # takes the sign with it without the distance passing through zero.
+        if not _cut_reaches_block(xr_cut, block):
+            continue
+
+        # Scaled from the nondimensional coordinates rather than read from
+        # block.xrt, which also copies the circumferential component
+        xr_coords = block.xrt_nd[..., :2] * block.L_ref
 
         # Evaluate signed distance for all points in the block
-        dist = _signed_distance(xr_cut, xr_coords)
+        dist = signed_distance(xr_cut, xr_coords)
 
         # Skip blocks that do not intersect the cut
         if np.all(dist >= 0) or np.all(dist <= 0):
@@ -814,6 +605,72 @@ def unstructured(grid, xr_cut):
 
     # Return None if no triangles found
     return None
+
+
+def _first_j_crossing(data, dist):
+    r"""Interpolate a block's data to the first sign change along ``j``.
+
+    Walks every :math:`(i, k)` grid line, finds the first ``j`` interval over
+    which the signed distance changes sign, and interpolates the data linearly
+    to the zero. Lines with no sign change, and lines whose bracketing
+    distances are too close together to interpolate between, come back as NaN.
+
+    Parameters
+    ----------
+    data : Array, shape (ni, nj, nk, nvar)
+        Nodal block data to interpolate.
+    dist : Array, shape (ni, nj, nk)
+        Signed distance to the cut curve at every node.
+
+    Returns
+    -------
+    Array, shape (ni, nk, nvar)
+        Data on the cut, NaN on the lines that do not cross it.
+
+    """
+    ni, nj, nk = dist.shape
+
+    cut_data = np.full((ni, nk, data.shape[-1]), np.nan)
+
+    # A single j station spans no interval to cross, so no line can cut
+    if nj < 2:
+        return cut_data
+
+    # Comparing signs rather than differencing them keeps a node sitting
+    # exactly on the curve a sign change on both sides of itself, which is
+    # what walking the line one interval at a time gives.
+    sgn = np.sign(dist)
+    changes = sgn[:, 1:, :] != sgn[:, :-1, :]  # Shape (ni, nj-1, nk)
+
+    # First sign change along j. argmax reports the first True, and zero for a
+    # line with no sign change at all, which found masks off below.
+    found = changes.any(axis=1)  # Shape (ni, nk)
+    j_cut = changes.argmax(axis=1)  # Shape (ni, nk)
+
+    # Distances bracketing the cut, gathered from each line's own j_cut
+    j_gather = j_cut[:, np.newaxis, :]  # Put back the j axis to gather along
+    d1 = np.take_along_axis(dist, j_gather, axis=1)[:, 0, :]
+    d2 = np.take_along_axis(dist, j_gather + 1, axis=1)[:, 0, :]
+
+    # A line whose bracketing distances are too close to interpolate between
+    # is left uncut, rather than moved on to its next crossing
+    delta = d2 - d1
+    valid = found & (np.abs(delta) >= 1e-12)
+
+    # Linear interpolation, clamped to the interval it came from.  The invalid
+    # lines divide by a zero delta here, and are masked off immediately after.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        frac = np.clip(-d1 / delta, 0.0, 1.0)
+
+    # Interpolate every variable across the bracketing pair of j stations
+    j_gather = j_gather[..., np.newaxis]  # Broadcast over the variables
+    data1 = np.take_along_axis(data, j_gather, axis=1)[:, 0, :, :]
+    data2 = np.take_along_axis(data, j_gather + 1, axis=1)[:, 0, :, :]
+    cut_data[valid] = (
+        data1[valid] + (data2[valid] - data1[valid]) * frac[valid, np.newaxis]
+    )
+
+    return cut_data
 
 
 def structured_meridional(grid, xr_cut):
@@ -845,53 +702,26 @@ def structured_meridional(grid, xr_cut):
     cut_blocks = []
 
     for block in grid:
-        # Get meridional coordinates
-        xr_coords = block.xrt[..., :2]  # Extract (x, r) coordinates
+        # Reject the blocks the curve does not reach before building any
+        # distance field, as in unstructured() above
+        if not _cut_reaches_block(xr_cut, block):
+            continue
+
+        # Get meridional coordinates, scaled from the nondimensional ones
+        # rather than read from block.xrt, which also copies theta
+        xr_coords = block.xrt_nd[..., :2] * block.L_ref
 
         # Get signed distance
-        dist = _signed_distance(xr_cut, xr_coords)
+        dist = signed_distance(xr_cut, xr_coords)
 
         # Check for intersection
         if np.all(dist >= 0) or np.all(dist <= 0):
             continue
 
-        ni, nj, nk = block.shape
+        ni, _, nk = block.shape
 
-        # Check if cut intersects this block
-        if np.all(dist >= 0) or np.all(dist <= 0):
-            continue
-
-        # Preallocate cut data for this block
-        cut_data = np.full((ni, nk, block._data.shape[-1]), np.nan)
-
-        # Find intersections along j-direction for each (i, k) line
-        for i in range(ni):
-            for k in range(nk):
-                # Get distance along j-direction for this (i, k) line
-                dist_line = dist[i, :, k]
-
-                # Find where distance changes sign
-                sign_changes = np.where(np.diff(np.sign(dist_line)) != 0)[0]
-
-                if len(sign_changes) > 0:
-                    # Take the first sign change
-                    j_cut = sign_changes[0]
-
-                    # Avoid division by zero
-                    d1, d2 = dist_line[j_cut], dist_line[j_cut + 1]
-                    if abs(d2 - d1) < 1e-12:
-                        continue
-
-                    # Linear interpolation
-                    frac = -d1 / (d2 - d1)
-
-                    # Clamp fraction to [0, 1]
-                    frac = max(0.0, min(1.0, frac))
-
-                    # Interpolate all data variables
-                    data1 = block._data[i, j_cut, k, :]
-                    data2 = block._data[i, j_cut + 1, k, :]
-                    cut_data[i, k, :] = data1 + (data2 - data1) * frac
+        # Interpolate to the first j crossing on every (i, k) line
+        cut_data = _first_j_crossing(block._data, dist)
 
         # Check if we found any valid cuts
         if not np.all(np.isnan(cut_data[..., 0])):
