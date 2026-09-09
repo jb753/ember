@@ -460,23 +460,6 @@ class Patch(ABC):
 
         return ijk_node
 
-    def attach_to_block_resampled(self, block, src):
-        """Attach to a resampled ``block``, carrying ``src``'s span-varying state.
-
-        ``src`` is this patch's still-attached original on the grid ``block``
-        was resampled from, and is the only place the source span stations can
-        be read from once the copy has been re-attached. The base
-        implementation is a plain :meth:`attach_to_block`: patch state that is
-        one number, or none at all, follows a block onto any node count without
-        help. Patch types holding a value per span station override this to
-        interpolate it onto the new stations.
-
-        Used by :func:`~ember.block_util.resample`, which is what puts a
-        configured patch on a coarser grid -- the multigrid hierarchy of
-        :meth:`ember.solver.Solver.run_fmg`, among others.
-        """
-        self.attach_to_block(block)
-
     def attach_to_block(self, block):
         """Attach this patch to a block and validate limits against block shape.
 
@@ -510,6 +493,23 @@ class Patch(ABC):
         if self._block_ref is not None:
             self._block_view = block[self.slice]
             self._block_view_offset_1 = block[self._get_offset_slice(1)]
+
+    def attach_to_block_resampled(self, block, src):
+        """Attach to a resampled ``block``, carrying ``src``'s span-varying state.
+
+        ``src`` is this patch's still-attached original on the grid ``block``
+        was resampled from, and is the only place the source span stations can
+        be read from once the copy has been re-attached. The base
+        implementation is a plain :meth:`attach_to_block`: patch state that is
+        one number, or none at all, follows a block onto any node count without
+        help. Patch types holding a value per span station override this to
+        interpolate it onto the new stations.
+
+        Used by :func:`~ember.block_util.resample`, which is what puts a
+        configured patch on a coarser grid -- the multigrid hierarchy of
+        :meth:`ember.solver.Solver.run_fmg`, among others.
+        """
+        self.attach_to_block(block)
 
     def check_match(self, other, rtol=1e-6):
         """Check if this patch matches another patch for pairing purposes.
@@ -922,6 +922,46 @@ class RevolutionPatch(Patch):
             np.allclose(c_node, 1.0, atol=1e-6) and np.allclose(s_node, 0.0, atol=1e-6)
         )
 
+    @contextlib.contextmanager
+    def _resolved(self):
+        """Hold ``block_view`` in interface coordinates for the duration of a block.
+
+        Everything read or written through :attr:`block_view` inside the
+        window -- including :attr:`block_avg`, which
+        :meth:`set_block_avg` derives from ``block_view.conserved_nd`` -- has
+        its axial and radial momentum replaced by the interface-normal and
+        in-surface meridional components, so code written against ``Vx`` as the
+        face-normal velocity holds at any face orientation.
+
+        Nested entries rotate once: a boundary condition that enters the window
+        and then calls :meth:`set_block_avg`, which enters it again, must not
+        rotate twice. The unrotate is in a ``finally``, so an exception raised
+        inside the window -- a singular Jacobian, an unset target -- still
+        leaves the block in ``(x, r)`` coordinates for whatever reads it next.
+
+        ``block_view_offset_1`` is *not* covered: it is a different slice of the
+        block and stays in ``(x, r)`` coordinates throughout, so a caller
+        comparing the interior layer against the face must project it onto the
+        frame axis itself.
+        """
+        self._rot_depth += 1
+        try:
+            if self._rot_depth == 1:
+                self._enter_resolved()
+                self.resolve_to_interface()
+            yield self
+        finally:
+            self._rot_depth -= 1
+            if self._rot_depth == 0:
+                self.resolve_from_interface()
+
+    def _enter_resolved(self):
+        """Hook run just before the outermost :meth:`_resolved` rotates in.
+
+        Runs with ``block_view`` still in ``(x, r)`` coordinates, which is what
+        a subclass settling its frame from the flow needs. Does nothing here.
+        """
+
     def set_block_avg(self):
         """Compute pitch-averaged conserved variables and store in block_avg.
 
@@ -1088,77 +1128,6 @@ class RevolutionPatch(Patch):
         cons[..., 1:3] = self._rot_buf
         self.block_view.update_cached_conserved()
 
-    @contextlib.contextmanager
-    def _resolved(self):
-        """Hold ``block_view`` in interface coordinates for the duration of a block.
-
-        Everything read or written through :attr:`block_view` inside the
-        window -- including :attr:`block_avg`, which
-        :meth:`set_block_avg` derives from ``block_view.conserved_nd`` -- has
-        its axial and radial momentum replaced by the interface-normal and
-        in-surface meridional components, so code written against ``Vx`` as the
-        face-normal velocity holds at any face orientation.
-
-        Nested entries rotate once: a boundary condition that enters the window
-        and then calls :meth:`set_block_avg`, which enters it again, must not
-        rotate twice. The unrotate is in a ``finally``, so an exception raised
-        inside the window -- a singular Jacobian, an unset target -- still
-        leaves the block in ``(x, r)`` coordinates for whatever reads it next.
-
-        ``block_view_offset_1`` is *not* covered: it is a different slice of the
-        block and stays in ``(x, r)`` coordinates throughout, so a caller
-        comparing the interior layer against the face must project it onto the
-        frame axis itself.
-        """
-        self._rot_depth += 1
-        try:
-            if self._rot_depth == 1:
-                self._enter_resolved()
-                self.resolve_to_interface()
-            yield self
-        finally:
-            self._rot_depth -= 1
-            if self._rot_depth == 0:
-                self.resolve_from_interface()
-
-    def _enter_resolved(self):
-        """Hook run just before the outermost :meth:`_resolved` rotates in.
-
-        Runs with ``block_view`` still in ``(x, r)`` coordinates, which is what
-        a subclass settling its frame from the flow needs. Does nothing here.
-        """
-
-    @property
-    def chi_node(self):
-        r"""Angle of the frame axis from :math:`+x`, one value per span node.
-
-        The meridional-plane angle :math:`\chi` that
-        :meth:`resolve_to_interface` rotates through, so that
-        :math:`V_n = \cos\chi\, V_x + \sin\chi\, V_r` is the velocity along the
-        frame axis and :math:`V_s = -\sin\chi\, V_x + \cos\chi\, V_r` the one
-        in the surface. Zero on a face whose frame axis is :math:`+x`.
-
-        Returns
-        -------
-        array
-            Angle [rad], shaped to broadcast over the patch along its span
-            dimension.
-        """
-        self._check_attached()
-        if self._rot_to is None:
-            raise ValueError(
-                f"Patch {self.label!r} has no interface frame: "
-                "_build_rot_matrices has not been called."
-            )
-        # Exactly zero where the rotation is being skipped as the identity,
-        # rather than the ~1e-7 radians that float32 coordinates leave on a
-        # nominally constant-x face. The two have to agree: a caller resolving
-        # an angle into the frame must get the same answer as one resolving a
-        # velocity, and the velocity is not being rotated at all.
-        if self._rot_identity:
-            return np.zeros_like(self._chi_node)
-        return self._chi_node
-
     def smooth_pitch_121(self, field, alpha):
         r"""Apply a periodic 1-2-1 smoothing pass along the pitch axis.
 
@@ -1242,6 +1211,37 @@ class RevolutionPatch(Patch):
         """
         self._check_attached()
         return self._block_avg
+
+    @property
+    def chi_node(self):
+        r"""Angle of the frame axis from :math:`+x`, one value per span node.
+
+        The meridional-plane angle :math:`\chi` that
+        :meth:`resolve_to_interface` rotates through, so that
+        :math:`V_n = \cos\chi\, V_x + \sin\chi\, V_r` is the velocity along the
+        frame axis and :math:`V_s = -\sin\chi\, V_x + \cos\chi\, V_r` the one
+        in the surface. Zero on a face whose frame axis is :math:`+x`.
+
+        Returns
+        -------
+        array
+            Angle [rad], shaped to broadcast over the patch along its span
+            dimension.
+        """
+        self._check_attached()
+        if self._rot_to is None:
+            raise ValueError(
+                f"Patch {self.label!r} has no interface frame: "
+                "_build_rot_matrices has not been called."
+            )
+        # Exactly zero where the rotation is being skipped as the identity,
+        # rather than the ~1e-7 radians that float32 coordinates leave on a
+        # nominally constant-x face. The two have to agree: a caller resolving
+        # an angle into the frame must get the same answer as one resolving a
+        # velocity, and the velocity is not being rotated at all.
+        if self._rot_identity:
+            return np.zeros_like(self._chi_node)
+        return self._chi_node
 
     @property
     def pitch_dim(self):
