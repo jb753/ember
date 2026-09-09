@@ -63,6 +63,7 @@ import ember.fluid
 from ember import util
 from ember.cut import (
     _marching_cubes,
+    _TRITABLE,
     unstructured,
     structured_meridional,
     interpolate_to_structured,
@@ -71,6 +72,8 @@ from ember.cut import (
     _vijk,
     _eijk,
     signed_distance,
+    _cut_reaches_block,
+    _first_j_crossing,
 )
 
 
@@ -1718,6 +1721,53 @@ class TestSingleBlockAcceptance:
             assert cut_max <= orig_max
 
 
+def _signed_distance_numpy(xr, xr_query):
+    """Reference for :func:`ember.cut.signed_distance`, kept for comparison.
+
+    The numpy implementation that ``signed_distance`` used before it moved to
+    the Fortran kernel in ``_fortran/distance.f90``. Retained here, and nowhere
+    in the package, purely so the kernel can be checked against it.
+    """
+
+    # Preallocate the signed distance
+    d = np.full(xr_query.shape[:-1], np.inf)
+
+    # Number of segments
+    nseg = xr.shape[0]
+
+    # Loop over line segments
+    for i in range(nseg - 1):
+        # Get segment endpoints: current and next points
+        seg_start = xr[i]  # Shape (..., 2)
+        seg_end = xr[i + 1]  # Shape (..., 2)
+
+        # Calculate vectors from segment start to points and along segment
+        a = xr_query - seg_start  # Point vector from segment start
+        b = seg_end - seg_start  # Segment direction vector
+
+        # Project point onto segment and clamp to [0,1]
+        L = np.maximum(util.dot(b, b), 1e-9)  # Segment length squared
+        h = np.clip(util.dot(a, b) / L, 0.0, 1.0)  # Normalized distance along segment
+
+        # Get perpendicular component (shortest distance to segment)
+        parallel_component = b * h[..., np.newaxis]  # Add axis for broadcasting
+        perpendicular = a - parallel_component  # Perpendicular vector
+        di = np.sqrt(util.dot(perpendicular, perpendicular))  # Distance magnitude
+
+        # Find points where this segment gives the closest distance
+        ind = np.where(di < np.abs(d))
+
+        # Make the distance signed using perpendicular vector to segment
+        # For 2D, perpendicular to [bx, br] is [-br, bx]
+        normal = np.stack([-b[1], b[0]], axis=-1)  # Normal vector to segment
+        di *= np.sign(util.dot(perpendicular, normal))
+
+        # Update minimum distance where this segment is closest
+        d[ind] = di[ind]
+
+    return d
+
+
 class TestSignedDistance:
     """Test signed distance function."""
 
@@ -1809,6 +1859,71 @@ class TestSignedDistance:
         with pytest.raises(AssertionError, match="Points must have shape"):
             signed_distance(segments, bad_points)
 
+    def test_signed_distance_matches_numpy_reference(self):
+        """The Fortran kernel reproduces the numpy implementation it replaced.
+
+        Magnitudes must agree to round-off. Signs may disagree, but only at a
+        point equidistant from two segments, where which segment is nearest --
+        and hence which side the point is deemed to be on -- is decided by the
+        last bit of the distance and is arbitrary in both implementations.
+        """
+
+        def nearest_two(xr, q):
+            """Distance to the nearest and second-nearest segment."""
+            per_seg = []
+            for i in range(len(xr) - 1):
+                a = q - xr[i]
+                b = xr[i + 1] - xr[i]
+                h = np.clip((a @ b) / max(b @ b, 1e-9), 0.0, 1.0)
+                perp = a - b * h[..., None]
+                per_seg.append(np.sqrt((perp * perp).sum(-1)))
+            per_seg = np.sort(np.stack(per_seg), axis=0)
+            if len(per_seg) == 1:
+                # One segment cannot tie with anything
+                return per_seg[0], np.full_like(per_seg[0], np.inf)
+            return per_seg[0], per_seg[1]
+
+        rng = np.random.default_rng(1)
+
+        # Curves chosen to make ties common: the sharp reflex corners of a
+        # zigzag and a random walk both put a long medial axis in the domain.
+        curves = {
+            "zigzag": np.stack(
+                [np.arange(12) * 0.1, np.where(np.arange(12) % 2, 0.9, 1.1)], -1
+            ),
+            "random_walk": np.cumsum(rng.normal(0.0, 0.2, (30, 2)), axis=0),
+            "square": np.array([[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]], float),
+            "single_segment": np.array([[0.0, 1.0], [1.0, 1.0]]),
+        }
+
+        for name, xr in curves.items():
+            lo, hi = xr.min(axis=0) - 1.0, xr.max(axis=0) + 1.0
+            q = rng.random((20000, 2)) * (hi - lo) + lo
+
+            expected = _signed_distance_numpy(xr, q)
+            actual = signed_distance(xr, q)
+
+            # Magnitude is the part that is not tie-dependent
+            assert np.allclose(
+                np.abs(actual), np.abs(expected), rtol=0.0, atol=1e-14
+            ), name
+
+            # Every sign disagreement sits on a tie between two segments
+            d_first, d_second = nearest_two(xr, q)
+            tied = (d_second - d_first) <= 1e-12 * np.maximum(d_first, 1e-300)
+            disagrees = np.sign(actual) != np.sign(expected)
+            assert not np.any(disagrees & ~tied), name
+
+    def test_signed_distance_single_node_curve(self):
+        """A curve of one node spans no segment, so nothing is ever nearer."""
+        xr = np.array([[0.5, 1.0]])
+        q = np.zeros((3, 4, 2))
+
+        dist = signed_distance(xr, q)
+
+        assert dist.shape == (3, 4)
+        assert np.all(np.isposinf(dist))
+
     def test_signed_distance_l_shaped_curve(self):
         """Test with an L-shaped curve having multiple segments."""
         # L-shaped curve: (0,0) -> (1,0) -> (1,1)
@@ -1829,3 +1944,398 @@ class TestSignedDistance:
 
         assert dist.shape == (4,)
         assert np.all(np.isfinite(dist))
+
+
+class TestCutScreen:
+    """The bounding-box screen that keeps whole blocks out of the cut."""
+
+    @staticmethod
+    def _block_spanning(x_lim, r_lim, shape=(5, 5, 5)):
+        """A block filling the given meridional box."""
+        block = ember.block.Block(shape=shape)
+        xrt = util.linmesh3(x_lim, r_lim, [0.0, 0.1], shape)
+        block.set_x(xrt[..., 0])
+        block.set_r(xrt[..., 1])
+        block.set_t(xrt[..., 2])
+        block.set_fluid(
+            ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
+        )
+        conserved = np.ones((*shape, 5))
+        conserved[..., 1] = 100.0
+        conserved[..., 2] = 50.0
+        conserved[..., 3] = 25.0
+        conserved[..., 4] = 250000.0
+        block.set_conserved(conserved)
+        return block
+
+    # A zigzag has sharp reflex corners, so the medial axis between adjacent
+    # segments -- where the nearest segment switches and the distance changes
+    # sign without passing through zero -- runs a long way from the curve.
+    ZIGZAG = np.stack([np.arange(12) * 0.1, np.where(np.arange(12) % 2, 0.9, 1.1)], -1)
+
+    def test_screen_accepts_a_block_the_curve_crosses(self):
+        """A curve through the middle of a block is not screened out."""
+        block = self._block_spanning([0.0, 1.0], [0.5, 1.5])
+        xr_cut = np.array([[0.2, 0.6], [0.8, 1.4]])
+
+        assert _cut_reaches_block(xr_cut, block)
+
+    def test_screen_rejects_a_distant_curve(self):
+        """A curve nowhere near a block is screened out."""
+        block = self._block_spanning([0.0, 1.0], [0.5, 1.5])
+        xr_cut = np.array([[5.0, 5.0], [6.0, 5.2]])
+
+        assert not _cut_reaches_block(xr_cut, block)
+
+    def test_screen_is_tighter_than_a_bounding_box(self):
+        """A diagonal segment that only its bounding box overlaps is rejected.
+
+        The segment runs corner to corner past the block, so the two boxes
+        overlap even though the segment itself stays clear.
+        """
+        block = self._block_spanning([0.0, 0.2], [1.0, 1.2])
+        xr_cut = np.array([[-1.0, 1.1], [1.2, 3.0]])
+
+        # The bounding boxes do overlap, so a box-on-box test would accept
+        seg_lo = np.minimum(xr_cut[0], xr_cut[1])
+        seg_hi = np.maximum(xr_cut[0], xr_cut[1])
+        assert np.all(seg_lo <= [0.2, 1.2]) and np.all(seg_hi >= [0.0, 1.0])
+
+        assert not _cut_reaches_block(xr_cut, block)
+
+    def test_screen_rejects_a_single_node_curve(self):
+        """A curve of one node spans no segment and so reaches nothing."""
+        block = self._block_spanning([0.0, 1.0], [0.5, 1.5])
+
+        assert not _cut_reaches_block(np.array([[0.5, 1.0]]), block)
+
+    def test_no_triangles_from_a_block_the_curve_misses(self):
+        """A sign change across the medial axis does not make a cut.
+
+        This block sits clear of the zigzag, but the nearest segment switches
+        within it, so the distance field changes sign there without ever
+        reaching zero. Marching cubes takes that at face value and returns
+        triangles for a surface that is not on the cut curve, so the screen
+        has to reject the block before the field is ever built.
+        """
+        block = self._block_spanning([1.21, 1.39], [1.83, 2.19])
+
+        # The field really does change sign, and away from the curve at that
+        dist = signed_distance(self.ZIGZAG, block.xrt_nd[..., :2] * block.L_ref)
+        assert dist.min() < 0.0 < dist.max()
+        assert np.abs(dist).min() > 0.1
+
+        # Which the old np.all() test on its own would have taken as a cut
+        assert not (np.all(dist >= 0) or np.all(dist <= 0))
+        assert _marching_cubes(block._data, dist) is not None
+
+        # The screen keeps the block out, so no spurious cut comes back
+        assert not _cut_reaches_block(self.ZIGZAG, block)
+        assert unstructured(ember.grid.Grid([block]), self.ZIGZAG) is None
+        assert len(structured_meridional(ember.grid.Grid([block]), self.ZIGZAG)) == 0
+
+
+def _first_j_crossing_loop(data, dist):
+    """Reference for :func:`ember.cut._first_j_crossing`, kept for comparison.
+
+    The per-``(i, k)`` Python walk that ``structured_meridional`` used before
+    it was vectorised. Retained here, and nowhere in the package, purely so
+    the vectorised version can be checked against it.
+    """
+    ni, nj, nk = dist.shape
+    cut_data = np.full((ni, nk, data.shape[-1]), np.nan)
+
+    for i in range(ni):
+        for k in range(nk):
+            # Get distance along j-direction for this (i, k) line
+            dist_line = dist[i, :, k]
+
+            # Find where distance changes sign
+            sign_changes = np.where(np.diff(np.sign(dist_line)) != 0)[0]
+
+            if len(sign_changes) > 0:
+                # Take the first sign change
+                j_cut = sign_changes[0]
+
+                # Avoid division by zero
+                d1, d2 = dist_line[j_cut], dist_line[j_cut + 1]
+                if abs(d2 - d1) < 1e-12:
+                    continue
+
+                # Linear interpolation
+                frac = -d1 / (d2 - d1)
+
+                # Clamp fraction to [0, 1]
+                frac = max(0.0, min(1.0, frac))
+
+                # Interpolate all data variables
+                data1 = data[i, j_cut, k, :]
+                data2 = data[i, j_cut + 1, k, :]
+                cut_data[i, k, :] = data1 + (data2 - data1) * frac
+
+    return cut_data
+
+
+class TestFirstJCrossing:
+    """The vectorised (i, k) walk behind structured_meridional."""
+
+    @staticmethod
+    def _fields(shape, style, rng):
+        """A distance field of the given awkward shape, plus data to carry."""
+        if style == "smooth":
+            # One clean crossing partway along every line
+            dist = np.linspace(-1.0, 1.0, shape[1])[None, :, None] + rng.normal(
+                0.0, 0.05, shape
+            )
+        elif style == "many_crossings":
+            dist = rng.normal(0.0, 1.0, shape)
+        elif style == "exact_zeros":
+            # Nodes sitting exactly on the curve, which count as a sign change
+            # on both sides of themselves
+            dist = rng.normal(0.0, 1.0, shape)
+            dist[rng.random(shape) < 0.25] = 0.0
+        elif style == "no_crossing":
+            dist = np.abs(rng.normal(0.0, 1.0, shape)) + 0.1
+        elif style == "degenerate":
+            # Bracketing distances too close together to interpolate between
+            dist = np.sign(rng.normal(0.0, 1.0, shape)) * 1e-18
+        else:
+            dist = rng.choice([-1e-13, 1e-13, -1.0, 1.0], size=shape)
+
+        return dist, rng.normal(0.0, 1.0, shape + (7,))
+
+    def test_matches_the_python_walk(self):
+        """The vectorised walk reproduces the loop it replaced, exactly."""
+        rng = np.random.default_rng(0)
+        styles = (
+            "smooth",
+            "many_crossings",
+            "exact_zeros",
+            "no_crossing",
+            "degenerate",
+            "near_degenerate",
+        )
+
+        for shape in [(4, 5, 3), (3, 2, 2), (6, 9, 4), (1, 7, 1)]:
+            for style in styles:
+                for _ in range(20):
+                    dist, data = self._fields(shape, style, rng)
+
+                    expected = _first_j_crossing_loop(data, dist)
+                    actual = _first_j_crossing(data, dist)
+
+                    # Uncut lines must be NaN in exactly the same places
+                    assert np.array_equal(np.isnan(expected), np.isnan(actual)), (
+                        shape,
+                        style,
+                    )
+
+                    cut = ~np.isnan(expected)
+                    assert np.array_equal(expected[cut], actual[cut]), (shape, style)
+
+    def test_takes_the_first_crossing_not_the_nearest(self):
+        """A line crossing several times is cut at the first crossing."""
+        # Crosses between j=1 and j=2, then again between j=3 and j=4
+        dist = np.array([2.0, 1.0, -1.0, -2.0, 3.0]).reshape(1, 5, 1)
+        data = np.arange(5, dtype=float).reshape(1, 5, 1, 1)
+
+        cut = _first_j_crossing(data, dist)
+
+        # Halfway between j=1 and j=2, where the data is 1.0 and 2.0
+        assert cut.shape == (1, 1, 1)
+        assert cut[0, 0, 0] == pytest.approx(1.5)
+
+    def test_degenerate_line_is_left_uncut(self):
+        """Bracketing distances too close to interpolate leave the line NaN.
+
+        The line does change sign, and later crosses cleanly, but the walk
+        does not move on to that second crossing.
+        """
+        dist = np.array([1e-18, -1e-18, 1.0, -1.0]).reshape(1, 4, 1)
+        data = np.arange(4, dtype=float).reshape(1, 4, 1, 1)
+
+        assert np.all(np.isnan(_first_j_crossing(data, dist)))
+
+    def test_single_j_station_cuts_nothing(self):
+        """One j station spans no interval, so no line can cross."""
+        dist = np.array([-1.0]).reshape(1, 1, 1)
+        data = np.zeros((1, 1, 1, 3))
+
+        cut = _first_j_crossing(data, dist)
+
+        assert cut.shape == (1, 1, 3)
+        assert np.all(np.isnan(cut))
+
+
+# Which edges each of the 256 corner sign patterns cuts. ember.cut carried
+# this as a table of its own until the marching cubes topology moved into
+# _fortran/marching.f90; it is exactly the set of edges the triangle table
+# names, so the reference below derives it rather than repeating it.
+_REF_EDGETABLE = np.array(
+    [
+        # A set, because a pattern names the same edge once per triangle that
+        # meets on it, and these are bits to be set rather than added
+        sum(1 << e for e in {int(e) for e in _TRITABLE[case] if e >= 0})
+        for case in range(256)
+    ]
+)
+
+
+def _cube_index_numpy(d):
+    """Reference for :func:`ember.cut._cube_index`, kept for comparison.
+
+    The numpy version used before the corner sign patterns moved into
+    ``_fortran/marching.f90``, slicing the field once per corner.
+    """
+    ni, nj, nk = d.shape
+    ind = np.zeros((ni - 1, nj - 1, nk - 1), dtype=int)
+    for v in range(8):
+        ind[d[_vijk(d.shape, v)] < 0.0] |= 2**v
+    return ind
+
+
+def _marching_cubes_loop(data, dist):
+    """Reference for :func:`ember.cut._marching_cubes`, kept for comparison.
+
+    The pure Python implementation used before the topology moved to the
+    Fortran kernel in ``_fortran/marching.f90``. Retained here, and nowhere in
+    the package, purely so the kernel can be checked against it.
+    """
+    ni, nj, nk, nvar = data.shape
+
+    # Find an index into edge table to see which edges are cut
+    icube = _cube_index_numpy(dist)
+    edge_index = _REF_EDGETABLE[icube]
+
+    # Now treat each cell individually
+    # Most cells are not cut so for loop is not too bad
+    triangles = []
+    for i in range(ni - 1):
+        for j in range(nj - 1):
+            for k in range(nk - 1):
+                # Skip uncut cells
+                if not edge_index[i, j, k]:
+                    continue
+
+                # Preallocate for vertices that could be on any of 12 edges
+                cut_edges = np.full((12, nvar), np.nan)
+
+                # Loop over the vertices
+                for e in range(12):
+                    # If the edge index contains the bit
+                    if edge_index[i, j, k] & 2**e:
+                        # Get start and end indices for the edge
+                        ijk_st, ijk_en = _eijk(i, j, k, e)
+
+                        # Slice spatial dimensions, variables are in last axis
+                        data_st = data[ijk_st]  # Shape (nvar,)
+                        data_en = data[ijk_en]  # Shape (nvar,)
+
+                        # Perform linear interpolation
+                        frac = -dist[ijk_st] / (dist[ijk_en] - dist[ijk_st])
+                        assert (frac >= 0.0) and (frac <= 1.0)
+                        cut_edges[e] = data_st + (data_en - data_st) * frac
+
+                # We have found all the vertices we will need
+                # Now use cube_index to look up in TRITABLE how to
+                # assemble into triangles
+                triangle_index = _TRITABLE[icube[i, j, k]]
+
+                # Loop over the triangle indices in threes
+                for itri in range(0, len(triangle_index), 3):
+                    # Sentinel value indices no more triangles
+                    if triangle_index[itri] == -1:
+                        break
+
+                    # Pull out the cut edges for this triangle
+                    triangles.append(cut_edges[triangle_index[itri : itri + 3]])
+
+    if triangles:
+        return np.stack(triangles)
+    else:
+        return None
+
+
+class TestMarchingCubesKernel:
+    """The Fortran topology kernel behind _marching_cubes."""
+
+    def test_matches_the_python_loop(self):
+        """The kernel reproduces the loop it replaced, triangle for triangle.
+
+        Order matters as much as content: the triangles come back as a soup
+        with no other index, so the kernel has to emit them in the order the
+        cells were walked in, which is what the caller's offsets arrange.
+        """
+        rng = np.random.default_rng(0)
+
+        for shape in [(2, 2, 2), (3, 4, 5), (7, 6, 8), (2, 9, 3)]:
+            for trial in range(25):
+                if trial % 4 == 0:
+                    # A plane through the block, so whole sheets of cells cut
+                    n = np.arange(shape[0])[:, None, None]
+                    dist = n - 0.5 * shape[0] + rng.normal(0.0, 0.3, shape)
+                elif trial % 4 == 1:
+                    # Noise, which lights up many of the 256 patterns at once
+                    dist = rng.normal(0.0, 1.0, shape)
+                elif trial % 4 == 2:
+                    # Nodes sitting exactly on the cut
+                    dist = rng.normal(0.0, 1.0, shape)
+                    dist[rng.random(shape) < 0.2] = 0.0
+                else:
+                    # A sphere, giving a closed surface of every orientation
+                    g = np.meshgrid(
+                        *[np.linspace(-1, 1, n) for n in shape], indexing="ij"
+                    )
+                    dist = np.sqrt(sum(c**2 for c in g)) - 0.6
+
+                data = rng.normal(0.0, 1.0, shape + (4,))
+
+                expected = _marching_cubes_loop(data, dist)
+                actual = _marching_cubes(data, dist)
+
+                if expected is None:
+                    assert actual is None, (shape, trial)
+                    continue
+
+                assert actual is not None, (shape, trial)
+                assert actual.shape == expected.shape, (shape, trial)
+                assert actual.dtype == expected.dtype, (shape, trial)
+                # equal_nan, because a block carries NaN for any variable
+                # that has not been set, and those ride through the cut
+                assert np.array_equal(actual, expected, equal_nan=True), (
+                    shape,
+                    trial,
+                )
+
+    def test_matches_on_a_real_block_cut(self, simple_block):
+        """And on the distance field an actual cut produces."""
+        xr_cut = np.array([[0.2, 0.6], [0.8, 1.4]])
+        dist = signed_distance(
+            xr_cut, simple_block.xrt_nd[..., :2] * simple_block.L_ref
+        )
+        data = simple_block._data
+
+        expected = _marching_cubes_loop(data, dist)
+        actual = _marching_cubes(data, dist)
+
+        assert expected is not None
+        assert np.array_equal(actual, expected, equal_nan=True)
+
+    def test_cube_index_matches_the_numpy_version(self):
+        """The corner sign patterns match the slicing version they replaced."""
+        rng = np.random.default_rng(0)
+
+        for shape in [(2, 2, 2), (3, 4, 5), (7, 6, 8)]:
+            for _ in range(20):
+                dist = rng.normal(0.0, 1.0, shape)
+                # Exact zeros count as positive, being not less than zero
+                dist[rng.random(shape) < 0.2] = 0.0
+
+                assert np.array_equal(_cube_index(dist), _cube_index_numpy(dist))
+
+    def test_uncut_field_returns_none(self):
+        """A field of one sign produces no triangles at all."""
+        data = np.ones((4, 4, 4, 2))
+
+        assert _marching_cubes(data, np.ones((4, 4, 4))) is None
+        assert _marching_cubes(data, -np.ones((4, 4, 4))) is None
