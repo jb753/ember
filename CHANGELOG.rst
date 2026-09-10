@@ -7,7 +7,7 @@ public API without a deprecation period.
 
 .. _v0.4.1:
 
-0.4.1 (2026-09-09)
+0.4.1 (2026-09-10)
 ------------------
 
 * Promote `cut.signed_distance` to public API
@@ -22,7 +22,6 @@ public API without a deprecation period.
 * The equation-of-state-agnostic fluid base class is now public as ``Fluid``,
   renamed from ``_Fluid``, and carries the shared ``from_dict``/``to_dict`` and
   ``change_*`` contract.
-* ``cut.signed_distance`` is now public, renamed from ``cut._signed_distance``.
 * Trimmed the ``realgas_fit`` public surface to ``fit``, ``sample_coolprop``,
   ``FitResult`` and ``FitInfo``; ``legfit2d`` is now private, and the pure
   Legendre/coordinate helpers move to the ``ember._realgas_poly`` leaf module.
