@@ -270,9 +270,7 @@ def test_coarse_dt_is_the_harmonic_mean_not_the_arithmetic():
     dt_uniform = np.asfortranarray(np.ones((NI - 1, NJ - 1, NK - 1), dtype=np.float32))
 
     def coarse_only(dt_vol):
-        with_mg, _ = _run_mg(
-            residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=1
-        )
+        with_mg, _ = _run_mg(residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=1)
         without, _ = _run_mg(
             residual, dt_vol, vol, store, cons, NI, NJ, NK, n_levels=1, fmgrid=0.0
         )
@@ -590,6 +588,46 @@ def duct_grid_builder():
         return grid
 
     return _build
+
+
+def test_adaptive_smoothing_marches_without_diverging(duct_grid_builder):
+    """The ``adaptive_smoothing`` flag survives a real march end to end.
+
+    Exercises the wiring the unit tests cannot: the sensor reads P_nd/T_nd
+    recomputed from the freshly stepped state, and sf2n/dx are carved from the
+    shared scratch arena alongside every other phase of the step. A stale
+    cache, an undersized arena or an overlapping carve would show up here as a
+    divergence or a non-finite state rather than a wrong number.
+    """
+    common = dict(
+        n_step=50,
+        n_step_log=10,
+        n_step_avg=1,
+        cfl=0.17,
+        n_stage=0,
+        inviscid=True,
+        n_levels=0,
+        fac_mgrid=0.0,
+    )
+
+    grid_const = duct_grid_builder()
+    hist_const = ember.solver.Solver(adaptive_smoothing=False, **common).run(grid_const)
+
+    grid_adapt = duct_grid_builder()
+    hist_adapt = ember.solver.Solver(adaptive_smoothing=True, **common).run(grid_adapt)
+
+    assert not hist_const.diverged
+    assert not hist_adapt.diverged, "adaptive smoothing diverged where constant did not"
+
+    for block in grid_adapt:
+        assert np.all(np.isfinite(block.conserved_nd)), "non-finite state after march"
+
+    # The sensor fires somewhere in a duct with a developing solution, so the
+    # two marches must not land on the same state -- otherwise the flag is
+    # silently inert.
+    assert not np.allclose(
+        grid_const[0].conserved_nd, grid_adapt[0].conserved_nd, atol=1e-8
+    ), "adaptive_smoothing had no effect on the march"
 
 
 def test_scree_mg_converges_faster_than_plain_scree(duct_grid_builder):

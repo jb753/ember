@@ -926,6 +926,86 @@ EXPECTED_GRID_DOCSTRING_GROUPS = (
 )
 
 
+class TestSmooth:
+    """``Grid.smooth`` dispatches to either kernel and both preserve a uniform flow."""
+
+    @staticmethod
+    def _perturbed_grid(seed=0):
+        """A flow block with a shock-like pressure feature in the i direction."""
+        block = _make_flow_block(shape=(7, 6, 8))
+        rng = np.random.default_rng(seed)
+        P = 1e5 * np.ones(block.shape)
+        P[3:, :, :] = 1.6e5
+        rho = 1.2 + 0.05 * rng.standard_normal(block.shape)
+        block.set_P_rho(P, rho)
+        block.set_Vx(50.0 * np.ones(block.shape))
+        block.set_Vr(np.zeros(block.shape))
+        block.set_Vt(np.zeros(block.shape))
+        return Grid([block])
+
+    @pytest.mark.parametrize("adaptive", [False, True])
+    def test_uniform_flow_preserved(self, adaptive):
+        """Every stencil row has zero sum, so a uniform state is a fixed point."""
+        grid = Grid([_make_flow_block(shape=(7, 6, 8))])
+        before = grid[0].conserved_nd.copy()
+
+        grid.smooth(0.01, 0.005, adaptive=adaptive)
+
+        assert np.allclose(grid[0].conserved_nd, before, atol=1e-6), (
+            f"uniform flow disturbed, adaptive={adaptive}"
+        )
+
+    @pytest.mark.parametrize("adaptive", [False, True])
+    def test_smooth_runs_and_stays_finite(self, adaptive):
+        """Both paths smooth a perturbed field without producing NaN or Inf."""
+        grid = self._perturbed_grid()
+        before = grid[0].conserved_nd.copy()
+
+        grid.smooth(0.01, 0.005, adaptive=adaptive)
+
+        out = grid[0].conserved_nd
+        assert np.all(np.isfinite(out)), f"non-finite output, adaptive={adaptive}"
+        assert not np.allclose(out, before), f"field untouched, adaptive={adaptive}"
+
+    def test_adaptive_differs_from_const_at_a_shock(self):
+        """The flag must actually dispatch: the sensor changes the answer.
+
+        With a pressure jump present the sensor fires, raising the 2nd-order
+        factor above the constant ``sf2`` and clipping the 4th-order term, so
+        the two kernels cannot agree.
+        """
+        const = self._perturbed_grid()
+        adapt = self._perturbed_grid()
+        assert np.allclose(const[0].conserved_nd, adapt[0].conserved_nd)
+
+        const.smooth(0.01, 0.005, adaptive=False)
+        adapt.smooth(0.01, 0.005, adaptive=True)
+
+        assert not np.allclose(
+            const[0].conserved_nd, adapt[0].conserved_nd, atol=1e-6
+        ), "adaptive=True produced the constant-coefficient answer"
+
+    def test_repeated_calls_are_reproducible(self):
+        """The arena carve leaves no state: the same input gives the same output.
+
+        Guards the scratch carve specifically -- ``sf2n`` and ``dx`` are
+        borrowed from the shared arena, so a missing initialisation would show
+        up as a dependence on whatever the previous call left behind.
+        """
+        first = self._perturbed_grid()
+        second = self._perturbed_grid()
+
+        first.smooth(0.01, 0.005, adaptive=True)
+        # Drive an unrelated arena consumer in between to dirty the scratch.
+        second.smooth(0.02, 0.01, adaptive=True)
+        second[0].conserved_nd[...] = self._perturbed_grid()[0].conserved_nd
+        second.smooth(0.01, 0.005, adaptive=True)
+
+        assert np.allclose(first[0].conserved_nd, second[0].conserved_nd, atol=1e-6), (
+            "adaptive smoothing depends on stale scratch contents"
+        )
+
+
 def _grid_docstring_autosummary_tables():
     """Parse the ``ember.grid`` module docstring into (heading, entries) pairs,
     one per ``.. autosummary::`` table, attributed to the nearest preceding

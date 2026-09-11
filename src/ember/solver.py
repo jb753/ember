@@ -163,6 +163,15 @@ introduced by the march and multigrid corrections.
 :attr:`~Solver.sf4` and :attr:`~Solver.sf2` are coefficients on the
 fourth- and second-difference terms, each scaled by the run's ``cfl`` to make the effective dissipation independent of the time step.
 
+:attr:`~Solver.adaptive_smoothing` swaps the constant second-order factor for a
+JST normalised-curvature sensor on pressure and temperature, clipping the
+fourth-order factor against it as ``max(sf4 - sf2n, 0)``. Fourth-order
+dissipation then switches off inside a shock, where it would otherwise
+oscillate, and second-order dissipation appears only where the sensor fires.
+The stencil family and the biased boundary closures are shared with the
+constant-coefficient kernel, so :attr:`~Solver.sf4` and :attr:`~Solver.sf2`
+keep their meaning across the switch.
+
 .. _multigrid:
 
 Multigrid
@@ -394,7 +403,20 @@ class Solver(BaseSolver):
     """Fourth-order smoothing factor."""
 
     sf2: float = 0.002
-    """Second-order smoothing factor."""
+    """Second-order smoothing factor.
+
+    Constant everywhere unless :attr:`adaptive_smoothing` is set, in which case
+    it is the ceiling a JST shock sensor scales."""
+
+    adaptive_smoothing: bool = False
+    """Drive the second-order smoothing with a JST shock sensor.
+
+    Replaces the constant second-order factor with a normalised-curvature
+    sensor on pressure and temperature, and clips the fourth-order factor
+    against it, so fourth-order dissipation switches off inside a shock and
+    second-order dissipation appears only where it is needed. Same stencil
+    family and same boundary closures as the constant-coefficient kernel, so
+    :attr:`sf2` and :attr:`sf4` keep their meaning."""
 
     inviscid: bool = False
     """Skip viscous terms in the sources evaluation."""
@@ -1154,7 +1176,11 @@ def _run(grid, conf):
         _log_rss("step %d after integrator", i_step)
 
         # Smooth the post-step conserved solution
-        grid.smooth(conf.sf4 * conf.cfl, conf.sf2 * conf.cfl)
+        grid.smooth(
+            conf.sf4 * conf.cfl,
+            conf.sf2 * conf.cfl,
+            adaptive=conf.adaptive_smoothing,
+        )
         _log_rss("step %d after smooth", i_step)
 
         # Pseudotime average over the last n_step_avg steps. A window of 0 or

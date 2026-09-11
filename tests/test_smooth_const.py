@@ -1,8 +1,8 @@
 """Correctness harness for the constant-coefficient smoother ``smooth3d_const``.
 
-``smooth3d_const`` (``src/ember/_fortran/smooth_const.f90``) applies blended
+``smooth3d_const`` (``src/ember/_fortran/smooth.f90``) applies blended
 2nd/4th-order artificial dissipation with fixed, isotropic ``sf2``/``sf4``
-factors. Unlike the adaptive ``smooth3d`` (covered by ``test_smooth.py``) it has
+factors. Unlike ``smooth3d_adaptive`` (covered by ``test_smooth.py``) it has
 no shock sensor, no CFL scaling and no length weighting, and it uses biased
 4th-order differences at the boundaries so it is cubic-exact *everywhere*
 (interior and edges).
