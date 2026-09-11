@@ -11,8 +11,8 @@ Correctness contract:
 - The stored state is scale-invariant, so a lag carried across RK stages of
   differing ``alpha`` is not mis-scaled by the ratio of stage coefficients.
 - The limiter acts DOWNSTREAM of the multigrid restriction. This is the whole
-  point of the position (multall damps at ``tblock-p-2_3_1.f:7736``, after the
-  block sums at 7710-7713); the limiter removed in ember ``7b4fd71`` sat
+  point of the position (multall damps after the block sums); the limiter
+  removed in ember ``7b4fd71`` sat
   upstream of the restriction and broke the box sum's conservation. Here it
   must leave the residual history untouched.
 - A cell far above its block mean is pulled back towards ``dampin`` times it.

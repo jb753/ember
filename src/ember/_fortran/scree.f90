@@ -94,8 +94,8 @@ end subroutine fine_term
 ! Negative-feedback change limiter (multall's DAMP), applied to the ASSEMBLED
 ! increment.
 !
-! POSITION IS THE WHOLE POINT. multall applies this at tblock-p-2_3_1.f:7736,
-! to STORE *after* the block-sum corrections have been summed in at 7710-7713.
+! POSITION IS THE WHOLE POINT. multall applies this to STORE *after* the
+! block-sum corrections have been summed in.
 ! ember's previous limiter (removed in 7b4fd71) sat in set_residual, on the
 ! fine residual UPSTREAM of the restriction, and that is what broke it: the box
 ! sum is exact only because the residual is extensive and interior fluxes
