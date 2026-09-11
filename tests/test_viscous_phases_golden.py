@@ -217,6 +217,7 @@ def _run_phase2(jbw=0, mu=None, kappa=None):
     mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
 
     i_cusp_start, i_cusp_end = block.i_cusp
+    j_cusp_start, j_cusp_end = block.j_cusp
     # One carve for the whole viscous phase: every buffer below reaches this
     # one call, so carving them together is what makes them disjoint.
     faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
@@ -251,6 +252,8 @@ def _run_phase2(jbw=0, mu=None, kappa=None):
         **block.Omega_wall_nd,
         i_cusp_start=i_cusp_start,
         i_cusp_end=i_cusp_end,
+        j_cusp_start=j_cusp_start,
+        j_cusp_end=j_cusp_end,
         jbw_in=jbw,
     )
     # mu_turb's final node in each axis is padding the kernel never writes.

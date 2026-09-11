@@ -44,8 +44,15 @@ calculate_wdist integration:
 - test_inviscid_keeps_wall
 - test_rotating_keeps_wall
 - test_cooling_keeps_wall
-- test_cusp_keeps_wall
+- test_cusp_removes_wall
 - test_all_permeable_raises
+
+CuspPatch limits (validated in CuspPatch.attach_to_block):
+- test_cusp_invalid_on_i_face
+- test_cusp_invalid_on_j_face
+- test_cusp_partial_j_is_allowed
+- test_cusp_limits_must_agree
+- test_cusp_may_not_be_interrupted_mid_span
 """
 
 import numpy as np
@@ -314,3 +321,38 @@ def test_all_permeable_raises(passage_block):
     passage_block.patches.append(NonMatchPatch(k=-1))
     with pytest.raises(ValueError, match="No wall nodes"):
         Grid([passage_block]).calculate_wdist()
+
+
+def test_cusp_partial_j_is_allowed(block):
+    """A cusp need not span the whole j extent.
+
+    A blade stopping short of the hub or casing leaves a gap with no trailing
+    edge to cut; the cusp covers only the bladed part of the span.
+    """
+    block.patches.append(CuspPatch(k=0, j=(1, 2)))
+    assert block.j_cusp == (2, 3)
+    assert block.i_cusp == (1, block.shape[0])
+
+
+def test_cusp_limits_must_agree(block):
+    """Two cusps on a block disagreeing about their span is an error.
+
+    The seam correction pairs cell (i, j) on one face with cell (i, j) on the
+    other and reads the span from whichever patch it finds first, so a
+    disagreement would silently correct the wrong cells.
+    """
+    block.patches.append(CuspPatch(k=0))
+    with pytest.raises(ValueError, match="same i and j range"):
+        block.patches.append(CuspPatch(k=-1, j=(1, 2)))
+
+
+def test_cusp_may_not_be_interrupted_mid_span(block):
+    """Two disjoint j intervals on the same k face are refused.
+
+    The agreement check forbids it directly; were the limits made to agree it
+    would then be refused as an overlap. Either way a cusp is one contiguous
+    interval.
+    """
+    block.patches.append(CuspPatch(k=0, j=(0, 1)))
+    with pytest.raises(ValueError, match="same i and j range"):
+        block.patches.append(CuspPatch(k=0, j=(2, 3)))

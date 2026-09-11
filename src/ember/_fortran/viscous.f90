@@ -1321,6 +1321,7 @@ subroutine set_visc_force( &
     Omega_walli1_nd, Omega_wallj1_nd, Omega_wallk1_nd, &
     Omega_wallni_nd, Omega_wallnj_nd, Omega_wallnk_nd, &
     i_cusp_start, i_cusp_end, &
+    j_cusp_start, j_cusp_end, &
     jbw_in, ni, nj, nk)
 
     use viscous_helpers
@@ -1387,6 +1388,7 @@ subroutine set_visc_force( &
     real, intent(in) :: Omega_wallk1_nd(ni-1, nj-1)
     real, intent(in) :: Omega_wallnk_nd(ni-1, nj-1)
     integer, intent(in) :: i_cusp_start, i_cusp_end
+    integer, intent(in) :: j_cusp_start, j_cusp_end
 
     integer :: i, j, k, c, jc, kc
     logical :: k_interior, row_interior
@@ -1428,6 +1430,7 @@ subroutine set_visc_force( &
     ! A degenerate extent is refused rather than silently walked.
     if (ni < 2 .or. nj < 2 .or. nk < 2) return
     if (i_cusp_start < 0 .or. i_cusp_end < 0) return
+    if (j_cusp_start < 0 .or. j_cusp_end < 0) return
 
     ! ===== j-panel over the k walk =====
     ! Without this the walk carries a whole tau/q cell-plane pair plus the
@@ -1859,7 +1862,10 @@ subroutine set_visc_force( &
     end do
 
     ! ===== Cusp seam correction, O(surface) =====
-    ! The k=1 face is coupled to k=nk over the cusp i-interval, which is
+    ! The k=1 face is coupled to k=nk over the cusp (i, j) rectangle -- j is
+    ! bounded, not the full extent, because a blade stopping short of the hub
+    ! or casing leaves a gap with no trailing edge, whose k faces are a
+    ! periodic seam needing no correction. The coupling is
     ! non-local in k and so cannot ride inside the walk. Production handles it
     ! the same way and in the same place -- after the walk, before the wall
     ! zeroing -- by replacing each seam cell's one-sided face flow with the
@@ -1876,7 +1882,7 @@ subroutine set_visc_force( &
     ! the walk used. (nk=2, where the two seam cells coincide, is not
     ! supported, exactly as in production.)
     if (i_cusp_start > 0 .and. nk > 2) then
-        do j = 1, nj-1
+        do j = j_cusp_start, j_cusp_end-1
         do i = i_cusp_start, i_cusp_end-1
             do c = 1, 9
                 ! k=1 face: low side is the halo (layer 2), high side is cell

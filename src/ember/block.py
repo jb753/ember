@@ -367,6 +367,7 @@ Miscellaneous:
    Block.i_perk
    Block.ijk_wall_conv
    Block.ijk_wall_visc
+   Block.j_cusp
    Block.scratch
    Block.store
    Block.tau_q_faces
@@ -2999,7 +3000,12 @@ class Block(ember._struct.StructuredData):
     def i_cusp(self):
         """1-based start and end node indices of the cusp patch, (start, end).
 
-        Returns (0, 0) if the block has no cusp patches.
+        Returns (0, 0) if the block has no cusp patches. See :attr:`j_cusp` for
+        the spanwise extent of the same patch.
+
+        The first cusp patch found is the whole story:
+        :py:meth:`ember.cusp.CuspPatch.attach_to_block` requires every cusp
+        patch on a block to cover the same i and j range.
         """
         for patch in self.patches.cusp:
             lim = patch.ijk_lim_abs
@@ -3087,6 +3093,21 @@ class Block(ember._struct.StructuredData):
             "wallk1": _f(~(kwall[:, :, 0] == 0))[:, :, np.newaxis],
             "wallnk": _f(~(kwall[:, :, -1] == 0))[:, :, np.newaxis],
         }
+
+    @cached_object
+    def j_cusp(self):
+        """1-based start and end node indices of the cusp patch in j, (start, end).
+
+        The spanwise companion to :attr:`i_cusp`, and (0, 0) on the same
+        condition: a blade that does not run the full span leaves a hub or tip
+        gap carrying no cusp, and the seam correction must skip it. Together
+        the two give the kernels the (i, j) rectangle of the seam.
+        """
+        for patch in self.patches.cusp:
+            lim = patch.ijk_lim_abs
+            jst, jen = int(lim[1, 0]), int(lim[1, 1])
+            return (jst + 1, jen + 1)
+        return (0, 0)
 
     @derived_array
     def kappa_nd(self):

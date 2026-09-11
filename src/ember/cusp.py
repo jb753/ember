@@ -22,9 +22,15 @@ class CuspPatch(Patch):
     the cusp nodes (the axial range covered by the patch) are averaged across
     the two faces so that the solution remains continuous at the trailing edge.
 
-    Must be on a constant-k face and must span the full j extent of the block.
-    Paired with the corresponding face on the other side of the trailing edge
-    via :py:meth:`~ember.patch.Patch.check_match`.
+    Must be on a constant-k face. The i and j extents are both arbitrary: a
+    blade that does not run the full span leaves a hub or tip gap where there
+    is no trailing edge to cut, and the k face there carries a different patch
+    (a periodic seam, whose two sides are nodally coincident and so need no
+    correction at all). Paired with the corresponding face on the other side of
+    the trailing edge via :py:meth:`~ember.patch.Patch.check_match`.
+
+    Every CuspPatch on a block must cover the SAME i and j range; see
+    :py:meth:`attach_to_block`.
     """
 
     def _get_viable_transforms(self, other_shape):
@@ -58,22 +64,42 @@ class CuspPatch(Patch):
         return transforms
 
     def attach_to_block(self, block):
-        """Attach to block and validate cusp patch constraints."""
-        super().attach_to_block(block)
+        """Attach to block and validate cusp patch constraints.
 
-        lim = self.ijk_lim_abs
-        block_shape = block.shape
+        Beyond the constant-k face requirement, every CuspPatch already on the
+        block must cover the same i and j range as this one. The seam
+        correction in the kernels pairs cell ``(i, j)`` on the ``k=1`` face
+        with cell ``(i, j)`` on the ``k=nk`` face directly, with no transform,
+        and reads the span from whichever patch
+        :py:attr:`~ember.block.Block.i_cusp` and
+        :py:attr:`~ember.block.Block.j_cusp` find first --- so two cusps
+        disagreeing about their extent would silently correct the wrong cells.
+
+        This also forbids a cusp interrupted mid-span: a second patch on the
+        same k face would have to carry the same limits, which makes it overlap
+        the first, and the collection rejects overlaps. Each cusp is therefore
+        a single contiguous i,j interval and a block holds at most the
+        ``k=1``/``k=nk`` pair.
+        """
+        super().attach_to_block(block)
 
         if self.const_dim != 2:
             raise ValueError(
                 f"CuspPatch must be on a constant-k face, but const_dim={self.const_dim}."
             )
 
-        if lim[1, 0] != 0 or lim[1, 1] != block_shape[1] - 1:
-            raise ValueError(
-                f"CuspPatch must span the entire j extent, but j limits are "
-                f"{lim[1, 0]}:{lim[1, 1]} for block j size {block_shape[1]}."
-            )
+        lim = self.ijk_lim_abs
+        for other in block.patches.cusp:
+            if other is self:
+                continue
+            olim = other.ijk_lim_abs
+            if not np.array_equal(lim[:2], olim[:2]):
+                raise ValueError(
+                    f"All CuspPatches on a block must cover the same i and j "
+                    f"range, but this patch spans i {lim[0, 0]}:{lim[0, 1]}, "
+                    f"j {lim[1, 0]}:{lim[1, 1]} and an existing one spans "
+                    f"i {olim[0, 0]}:{olim[0, 1]}, j {olim[1, 0]}:{olim[1, 1]}."
+                )
 
     def check_match(self, other, rtol=1e-6):
         """Check if this CuspPatch matches another for pairing purposes.

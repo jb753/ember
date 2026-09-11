@@ -138,15 +138,18 @@ def _build_block():
     return block
 
 
-def _run_visc_force(block, i_cusp):
-    """The viscous pair with the cusp correction spanning ``i_cusp``.
+def _run_visc_force(block, i_cusp, j_cusp=None):
+    """The viscous pair with the cusp correction spanning ``i_cusp``/``j_cusp``.
+
+    ``j_cusp`` defaults to the block's own full-span cusp; pass a narrower
+    range to confine the correction to part of the span.
 
     Phase 1 is re-run on every call because phase 2 is not idempotent in
     general; here it also keeps each call independent of what the last one
     left in the shared arena.
     """
     viscous_util.fill_faces(block, PR_TURB)
-    return viscous_util.run_visc_force(block, PR_TURB, i_cusp=i_cusp)
+    return viscous_util.run_visc_force(block, PR_TURB, i_cusp=i_cusp, j_cusp=j_cusp)
 
 
 def _seam_tau_q(block):
@@ -235,8 +238,9 @@ def test_fixture_reaches_the_cusp_branch():
     """A block with no cusp patch gives i_cusp = (0, 0) and skips the whole
     correction -- which is exactly why the rest of the suite never sees it."""
     block = _build_block()
-    ni = block.shape[0]
+    ni, nj, _ = block.shape
     assert block.i_cusp == (1, ni), block.i_cusp
+    assert block.j_cusp == (1, nj), block.j_cusp
 
 
 def test_cusp_seam_correction_sign():
@@ -294,3 +298,34 @@ def test_cusp_seam_correction_sign():
                 "into the cusp block)"
             ),
         )
+
+
+def test_cusp_seam_correction_honours_a_partial_j_span():
+    """A cusp over part of the span corrects that part of the seam only.
+
+    The spanwise companion to the sign test: a blade stopping short of the hub
+    or casing leaves a gap with no trailing edge, whose k faces are a periodic
+    seam needing no correction at all. Pinned exactly on both sides, since the
+    correction is a per-(i, j) update with no coupling along j.
+    """
+    block = _build_block()
+    nj = block.shape[1]
+    jst, jen = 3, 7  # 1-based nodes, i.e. cells 3..6 -> 0-based 2:6
+    assert 1 < jst and jen < nj, "span must be interior for this test to bite"
+
+    f_off = _run_visc_force(block, (0, 0))
+    f_full = _run_visc_force(block, block.i_cusp, (1, nj))
+    f_part = _run_visc_force(block, block.i_cusp, (jst, jen))
+
+    inside = slice(jst - 1, jen - 1)
+    assert np.array_equal(f_part[:, inside], f_full[:, inside]), (
+        "partial span did not reproduce the full span inside its own j range"
+    )
+    outside = np.ones(f_off.shape[1], dtype=bool)
+    outside[inside] = False
+    assert np.array_equal(f_part[:, outside], f_off[:, outside]), (
+        "partial span corrected cells outside its j range"
+    )
+    assert not np.array_equal(f_part[:, inside], f_off[:, inside]), (
+        "partial span made no difference where it should have"
+    )

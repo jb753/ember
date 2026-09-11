@@ -500,8 +500,13 @@ contains
     subroutine correct_cusp_kface_du(P, P_offset, r, &
                                      cons, Omega, dAk, &
                                      wall_lo, wall_hi, dU, &
-                                     i_cusp_start, i_cusp_end, ni, nj, nk)
+                                     i_cusp_start, i_cusp_end, &
+                                     j_cusp_start, j_cusp_end, ni, nj, nk)
         ! Correct the residual for the cusp k-face coupling (matching Multall).
+        ! Runs over the (i, j) rectangle the cusp patch covers: j is bounded
+        ! rather than the full extent because a blade that stops short of the
+        ! casing or hub leaves a gap with no trailing edge to cut, whose k
+        ! faces are a periodic seam needing no correction.
         ! Mass / angular momentum / energy: full TFLUX average across the seam.
         ! Axial and radial momentum: rebuild both faces from seam-averaged
         ! mdot, velocity and pressure, with per-face dAk only.
@@ -531,6 +536,7 @@ contains
         real, intent(in) :: wall_hi(ni-1, nj-1)
         real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
         integer, intent(in) :: i_cusp_start, i_cusp_end
+        integer, intent(in) :: j_cusp_start, j_cusp_end
 
         integer :: i, j
         real :: pm_lo(6), mf_lo(3), mdot_lo
@@ -539,7 +545,7 @@ contains
         real :: raw_lo(5), raw_hi(5), corr_lo(5), corr_hi(5)
         real :: Vx_avg, Vr_avg, P_avg, mdot_avg
 
-        do j = 1, nj-1
+        do j = j_cusp_start, j_cusp_end-1
         do i = i_cusp_start, i_cusp_end-1
             ! Seam-averaged (unmasked) per-mass and mass-flux factors at k=1.
             pm_lo = 0.0e0; mf_lo = 0.0e0
@@ -1008,6 +1014,7 @@ subroutine set_residual( &
     walli1, wallj1, wallk1, &
     wallni, wallnj, wallnk, &
     i_cusp_start, i_cusp_end, &
+    j_cusp_start, j_cusp_end, &
     kb, njp, ni, nj, nk &
     )
 
@@ -1031,6 +1038,7 @@ subroutine set_residual( &
     real, intent(in) :: wallk1(ni-1, nj-1)
     real, intent(in) :: wallnk(ni-1, nj-1)
     integer, intent(in) :: i_cusp_start, i_cusp_end
+    integer, intent(in) :: j_cusp_start, j_cusp_end
     real, intent(inout) :: dU(ni-1, nj-1, nk-1, 5)
     ! Two transient rolling flow-scratch buffers: planes holds the k-face
     ! plane pair (slots pa/pb), rows holds the i-face row (slot 1) and the
@@ -1143,7 +1151,8 @@ subroutine set_residual( &
     if (i_cusp_start > 0 .and. nk > 2) then
         call correct_cusp_kface_du(P, P_offset, r, cons, &
                                    Omega, dAk, wallk1, wallnk, dU, &
-                                   i_cusp_start, i_cusp_end, ni, nj, nk)
+                                   i_cusp_start, i_cusp_end, &
+                                   j_cusp_start, j_cusp_end, ni, nj, nk)
     end if
 
 end subroutine set_residual

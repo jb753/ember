@@ -1527,6 +1527,7 @@ class Grid(_LabelledList):
             # consumption, so it cannot go stale; a no-op if already current.
             block.update_primitive()
             i_cusp_start, i_cusp_end = block.i_cusp
+            j_cusp_start, j_cusp_end = block.j_cusp
             ni, nj, nk = block.shape
             # Rolling face-flow buffers for the fused k-tiled residual: a
             # k-face plane pair and three rows (one i, two alternating j),
@@ -1559,6 +1560,8 @@ class Grid(_LabelledList):
                 **block.ijk_wall_conv,
                 i_cusp_start=i_cusp_start,
                 i_cusp_end=i_cusp_end,
+                j_cusp_start=j_cusp_start,
+                j_cusp_end=j_cusp_end,
                 kb=kb,
                 njp=njp,
                 ni=ni,
@@ -1678,6 +1681,7 @@ class Grid(_LabelledList):
             # the kernel, from the two k face buffers.
             for block in self:
                 i_cusp_start, i_cusp_end = block.i_cusp
+                j_cusp_start, j_cusp_end = block.j_cusp
                 # Everything the kernel takes from the arena, from one carve
                 # (ember.block._carve_viscous): the six face buffers it reads
                 # its halo from, the rolling tau/q cell-plane pair it produces
@@ -1727,6 +1731,8 @@ class Grid(_LabelledList):
                     **block.Omega_wall_nd,
                     i_cusp_start=i_cusp_start,
                     i_cusp_end=i_cusp_end,
+                    j_cusp_start=j_cusp_start,
+                    j_cusp_end=j_cusp_end,
                     # 0: panel width from the kernel's own VISC_JAREA. Nothing
                     # marches with anything else; the argument exists so the
                     # tests can sweep it (see test_viscous_phases_golden).
