@@ -35,6 +35,44 @@ module viscous_helpers
     real, parameter :: WALL_A1 = -1.767e-3
     real, parameter :: WALL_A2 = 3.177e-2
     real, parameter :: WALL_A3 = 2.5614e-1
+    ! The fit is a quadratic in 1/ln(Re) with a NEGATIVE leading constant, so
+    ! it crosses zero at ln(Re) = 24.0 and gives a negative cf -- a wall
+    ! pushing the flow along -- beyond it. Nothing on a sane mesh gets there
+    ! (Re here is on the cell thickness: 7e10 needs a first cell metres
+    ! thick), but a collapsed face does, because the floor below hands it the
+    ! largest Re the divide can produce. Both callers therefore clamp cf at
+    ! zero, which is also the correct asymptote: the fit is a friction curve
+    ! and friction does not change sign. One vmaxps, in the phase GCC already
+    ! if-converts, and it changes nothing the fit gets right.
+    ! Without it, wall_yplus's Re*sqrt(cf/2) is a square root of a negative
+    ! number, so the collapsed face NaNs the y+ field even once the flux is
+    ! clean.
+
+    ! Floor on the face area the wall function divides the cell volume by, to
+    ! get the cell thickness d = vol/|dA|. A COLLAPSED face has |dA| exactly
+    ! zero -- the degenerate end of a tip-clearance prism, NotWallPatch's
+    ! reason for existing -- and every wall face is put through this divide
+    ! unconditionally, the wall mask being applied to the RESULT. Without the
+    ! floor that face yields NaN, not a harmless infinity: -Ofast implements
+    ! the vector divide as vrcpps plus a Newton step (see the row forms'
+    ! header), and the step evaluates 2 - 0*Inf. The mask cannot then save it,
+    ! since it blends multiplicatively and 0*NaN is NaN, so a marked collapsed
+    ! face poisons its whole cell row just as an unmarked one does.
+    !
+    ! A floor rather than a branch: these divides sit in the row forms' phase
+    ! A, whose entire purpose is to be branch-free so it vectorises, and a max
+    ! against a constant is one vmaxps in the same lane. It binds on nothing
+    ! real. Areas here are nondimensional (divided by L_ref**2) and O(1e-3) on
+    ! a normal mesh; a face would have to be 1e-10 of L_ref on a side to reach
+    ! 1e-20, so max() returns |dA| unchanged for every face that has any area,
+    ! bit for bit. At the floor itself Re comes out ~1e21, seventeen orders
+    ! inside float32's range, so the curve fit's log stays finite.
+    !
+    ! The flux is then exactly zero without being special-cased: the stress
+    ! vector is scaled by the RAW |dA|, which is still zero, so a face with no
+    ! area carries no force -- which is the right answer for it, and now the
+    ! answer whether or not it was marked.
+    real, parameter :: WALL_DA_MIN = 1.0e-20
     ! i-tile the row forms work in. Fixed size so their phase-A temps are
     ! plain stack locals rather than automatic arrays sized by ni: kernel
     ! scratch is never allocated per call. 64 floats x ~11 temps is under
@@ -193,7 +231,7 @@ contains
         Vt_slip = Vt - (Omega_wall - Omega_block) * r
         V = sqrt(Vx**2 + Vr**2 + Vt_slip**2 + 1e-9)
         dA_mag = sqrt(dA(1)**2 + dA(2)**2 + dA(3)**2)
-        d = vol / dA_mag
+        d = vol / max(dA_mag, WALL_DA_MIN)
         Re = rho * V * d / mu
         if (Re .lt. 127.53373025e0) then
             cf = 2e0/Re
@@ -205,6 +243,7 @@ contains
             lnRew = log(Re)
             cf = (a1 + a2/lnRew + a3/lnRew/lnRew)
         end if
+        cf = max(cf, 0.0e0)
         tau = cf * 0.5e0 * rho * V * V
     end subroutine wall_core
 
@@ -366,7 +405,7 @@ contains
                 Vsf(t)  = Vsf(t) - (Omega_wall(i) - Omega_block) * rf(t)
                 Vm(t)   = sqrt(Vxf(t)**2 + Vrf(t)**2 + Vsf(t)**2 + 1e-9)
                 dAm(t)  = sqrt(dAk(1,i,j,k)**2 + dAk(2,i,j,k)**2 + dAk(3,i,j,k)**2)
-                d       = vol(i,j,kc) / dAm(t)
+                d       = vol(i,j,kc) / max(dAm(t), WALL_DA_MIN)
                 Rew(t)  = rhof(t) * Vm(t) * d / muf(t)
             end do
             ! --- B: skin friction, the one phase the branch keeps scalar ---
@@ -377,6 +416,7 @@ contains
                     lnRew = log(Rew(t))
                     cf(t) = (WALL_A1 + WALL_A2/lnRew + WALL_A3/lnRew/lnRew)
                 end if
+                cf(t) = max(cf(t), 0.0e0)
             end do
             ! --- C: stress, flux vector, mask blend ---
             do t = 1, m
@@ -437,7 +477,7 @@ contains
                 Vsf(t)  = Vsf(t) - (Omega_wall(i) - Omega_block) * rf(t)
                 Vm(t)   = sqrt(Vxf(t)**2 + Vrf(t)**2 + Vsf(t)**2 + 1e-9)
                 dAm(t)  = sqrt(dAj(1,i,j,kc)**2 + dAj(2,i,j,kc)**2 + dAj(3,i,j,kc)**2)
-                d       = vol(i,jc,kc) / dAm(t)
+                d       = vol(i,jc,kc) / max(dAm(t), WALL_DA_MIN)
                 Rew(t)  = rhof(t) * Vm(t) * d / muf(t)
             end do
             do t = 1, m
@@ -447,6 +487,7 @@ contains
                     lnRew = log(Rew(t))
                     cf(t) = (WALL_A1 + WALL_A2/lnRew + WALL_A3/lnRew/lnRew)
                 end if
+                cf(t) = max(cf(t), 0.0e0)
             end do
             do t = 1, m
                 i = i0 + t - 1
