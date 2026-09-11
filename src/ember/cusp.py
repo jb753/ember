@@ -92,6 +92,20 @@ class CuspPatch(Patch):
         for other in block.patches.cusp:
             if other is self:
                 continue
+            if other._block_ref is None:
+                # A sibling that is not attached yet cannot be asked what it
+                # spans: a limit of -1 is a block size away from a number.
+                # Both writing and reading a grid detach every patch and then
+                # attach them one at a time --- see `Grid.write_emb`, which
+                # detaches before pickling and restores in a `finally`, and
+                # `Grid.read_emb`, which attaches what it unpickled --- so at
+                # this point the block's other cusp routinely has no block.
+                # Skipped rather than resolved, because the pair is still
+                # checked: whichever attaches second finds the first attached
+                # and compares then. Raising here instead would break the
+                # restore, and inside a `finally` that leaves every patch on
+                # the grid detached.
+                continue
             olim = other.ijk_lim_abs
             if not np.array_equal(lim[:2], olim[:2]):
                 raise ValueError(
