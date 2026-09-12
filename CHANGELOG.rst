@@ -7,16 +7,13 @@ public API without a deprecation period.
 
 .. _v0.4.2:
 
-0.4.2 (unreleased)
+0.4.2 (2026-09-12)
 ------------------
 
-* Disable the outlet's node-level backflow limiter (``OutletPatch._nodal_backflow``).
-  It fed the axial Mach number it drove back into its own correction rate, a
-  closed positive feedback that ran away unbounded at the non-reflecting
-  mixing plane; a reversed node is now left to the interior march like the
-  rest of its station.
-* Raise the default artificial-damping coefficient ``dampin`` from 3.0 to 10.0
-  and default ``adaptive_smoothing`` to ``False``.
+* Add Jameson-style adaptive smoothing
+* Allow cusp patches over partial j ranges
+* Add affordances for faces collapsing to zero area: wall function clipping and ``NotWallPatch`` to exempt collapsed nodes from the wall distance calculation
+* Add a soft-start reconfiguration method ``BaseSolver.soft()``
 
 .. _v0.4.1:
 
