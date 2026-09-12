@@ -36,9 +36,8 @@ design guess is the design exit state. :math:`V_s` is the exception: it is
 pinned at zero rather than prescribed or seeded, so backflow enters normal to
 the exit surface whatever that surface's orientation. Reversal confined to nodes within a
 station whose mean still runs forward is left to the interior march: the base
-class's node-level limiter is disabled here (see :attr:`OutletPatch._nodal_backflow`),
-having proved a closed positive feedback at the non-reflecting mixing plane
-rather than a safeguard.
+class's node-level limiter is disabled here, having proved a closed positive
+feedback at the non-reflecting mixing plane rather than a safeguard.
 
 See Also
 --------
@@ -273,10 +272,10 @@ class OutletPatch(NonReflectingPatch):
         the station's mean, and the Hilbert transform couples every node of a
         station to every other -- and the base class's node-level limiter, which
         would otherwise overwrite such a node with the four backflow rows and a
-        derived density, is disabled (:attr:`_nodal_backflow`). It fed the very
-        Mach number it drove back into its own correction rate, a closed
-        positive feedback that ran away unbounded at the non-reflecting mixing
-        plane; nothing about a physical outlet exempts it from the same loop.
+        derived density, is disabled here. It fed the very Mach number it drove
+        back into its own correction rate, a closed positive feedback that ran
+        away unbounded at the non-reflecting mixing plane; nothing about a
+        physical outlet exempts it from the same loop.
 
         The rows that can be prescribed are set independently, by this method
         or :meth:`set_backflow_Po_To` for the thermodynamic pair and by
