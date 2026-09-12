@@ -3002,7 +3002,7 @@ class Block(ember._struct.StructuredData):
         the spanwise extent of the same patch.
 
         The first cusp patch found is the whole story:
-        :py:meth:`ember.cusp.CuspPatch.attach_to_block` requires every cusp
+        :py:meth:`ember.patch.CuspPatch.attach_to_block` requires every cusp
         patch on a block to cover the same i and j range.
         """
         for patch in self.patches.cusp:

@@ -86,6 +86,12 @@ Patch types
    :show-inheritance:
    :class-doc-from: class
 
+.. autoclass:: ember.patch.NotWallPatch
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :class-doc-from: class
+
 Collections
 -----------
 
