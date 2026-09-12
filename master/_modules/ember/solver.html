@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.solver &#8212; ember 0.4.1.dev8+gd1f835205 documentation</title>
+    <title>ember.solver &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=348c414e"></script>
+    <script src="../../_static/documentation_options.js?v=9dd8b639"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.1.dev8+gd1f835205</p>
+<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
 
 
 
@@ -321,6 +321,15 @@
 <span class="sd">:attr:`~Solver.sf4` and :attr:`~Solver.sf2` are coefficients on the</span>
 <span class="sd">fourth- and second-difference terms, each scaled by the run&#39;s ``cfl`` to make the effective dissipation independent of the time step.</span>
 
+<span class="sd">:attr:`~Solver.adaptive_smoothing` swaps the constant second-order factor for a</span>
+<span class="sd">JST normalised-curvature sensor on pressure and temperature, clipping the</span>
+<span class="sd">fourth-order factor against it as ``max(sf4 - sf2n, 0)``. Fourth-order</span>
+<span class="sd">dissipation then switches off inside a shock, where it would otherwise</span>
+<span class="sd">oscillate, and second-order dissipation appears only where the sensor fires.</span>
+<span class="sd">The stencil family and the biased boundary closures are shared with the</span>
+<span class="sd">constant-coefficient kernel, so :attr:`~Solver.sf4` and :attr:`~Solver.sf2`</span>
+<span class="sd">keep their meaning across the switch.</span>
+
 <span class="sd">.. _multigrid:</span>
 
 <span class="sd">Multigrid</span>
@@ -359,6 +368,19 @@
 <span class="sd">requested :attr:`~Solver.n_levels`, identical to calling :meth:`Solver.run`</span>
 <span class="sd">directly on the finest grid. With ``n_levels &lt;= 0`` it reduces to a single call</span>
 <span class="sd">to :meth:`Solver.run`.</span>
+
+<span class="sd">**Soft start.** :meth:`BaseSolver.soft` returns a detuned copy of a solver --</span>
+<span class="sd">a lower CFL, heavier second-difference smoothing, the increment limiter on, no</span>
+<span class="sd">coarse correction -- whose converged answer is an initial guess the production</span>
+<span class="sd">settings can survive. The detuned values are one fixed known-robust</span>
+<span class="sd">configuration, not a factor on what came in, and the march length and the model</span>
+<span class="sd">choices are left alone: it is the same problem on the same grid. It is a</span>
+<span class="sd">configuration transform, not a march, so the schedule is written at the call</span>
+<span class="sd">site (``solver.soft().run(grid)`` then ``solver.run(grid)``, the grid carrying</span>
+<span class="sd">the guess between them in place). It is compulsory on the interface because</span>
+<span class="sd">only each solver knows what detuning means for its own settings, and orthogonal</span>
+<span class="sd">to the grid hierarchy above:</span>
+<span class="sd">``solver.soft().run_fmg(grid)`` softens every level of a full-multigrid startup.</span>
 
 <span class="sd">.. _body-forces:</span>
 
@@ -489,6 +511,27 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Solve on ``grid`` in place; return a ``ConvergenceHistory``.&quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+
+
+<div class="viewcode-block" id="BaseSolver.soft">
+<a class="viewcode-back" href="../../api/solver.html#ember.solver.BaseSolver.soft">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">soft</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy of this solver configured for a soft start.</span>
+
+<span class="sd">        A soft configuration trades convergence rate for robustness: the same</span>
+<span class="sd">        solver, detuned enough to survive an initial guess too far from the</span>
+<span class="sd">        solution for the production settings to tolerate. It solves the same</span>
+<span class="sd">        problem on the same grid, so its answer is a legitimate -- if</span>
+<span class="sd">        expensive to reach and slack -- initial guess for a run of ``self``:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            solver.soft().run(grid)   # robust startup, in place</span>
+<span class="sd">            hist = solver.run(grid)   # production settings from there</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 </div>
 
 
@@ -529,7 +572,20 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Fourth-order smoothing factor.&quot;&quot;&quot;</span>
 
     <span class="n">sf2</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.002</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Second-order smoothing factor.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Second-order smoothing factor.</span>
+
+<span class="sd">    Constant everywhere unless :attr:`adaptive_smoothing` is set, in which case</span>
+<span class="sd">    it is the ceiling a JST shock sensor scales.&quot;&quot;&quot;</span>
+
+    <span class="n">adaptive_smoothing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Drive the second-order smoothing with a JST shock sensor.</span>
+
+<span class="sd">    Replaces the constant second-order factor with a normalised-curvature</span>
+<span class="sd">    sensor on pressure and temperature, and clips the fourth-order factor</span>
+<span class="sd">    against it, so fourth-order dissipation switches off inside a shock and</span>
+<span class="sd">    second-order dissipation appears only where it is needed. Same stencil</span>
+<span class="sd">    family and same boundary closures as the constant-coefficient kernel, so</span>
+<span class="sd">    :attr:`sf2` and :attr:`sf4` keep their meaning.&quot;&quot;&quot;</span>
 
     <span class="n">inviscid</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Skip viscous terms in the sources evaluation.&quot;&quot;&quot;</span>
@@ -571,23 +627,10 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Negative-feedback change limiter (multall&#39;s ``DAMP``); 0 disables it.</span>
 
 <span class="sd">    Applied to the ASSEMBLED increment -- fine term plus injected coarse</span>
-<span class="sd">    multigrid correction -- immediately before it reaches the nodes, which is</span>
-<span class="sd">    where multall applies it (``tblock-p-2_3_1.f:7736``, after the block-sum</span>
-<span class="sd">    corrections are summed in at 7710-7713). Each cell&#39;s increment is soft-</span>
-<span class="sd">    clipped to ``dU / (1 + |dU| / (dampin * mean|dU|))``, per conserved</span>
-<span class="sd">    variable, so cells far above their block mean are pulled back towards</span>
-<span class="sd">    ``dampin`` times it.</span>
-
-<span class="sd">    This is NOT the limiter removed in ember ``7b4fd71``. That one sat in</span>
-<span class="sd">    ``set_residual``, on the fine residual upstream of the multigrid</span>
-<span class="sd">    restriction, and destroyed the extensivity the box sum relies on -- which</span>
-<span class="sd">    is why it and multigrid diverged together while either alone converged.</span>
-<span class="sd">    Here the restriction has already happened.</span>
-
-<span class="sd">    The block mean is lagged one call (see :attr:`ember.block.Block.damp_rfac`).</span>
-<span class="sd">    Honored by both integrators; note RK applies it once per stage, where</span>
-<span class="sd">    multall&#39;s scree-equivalent single update applies it once per step, so the</span>
-<span class="sd">    scree path (``n_stage=0``) is the faithful analogue.&quot;&quot;&quot;</span>
+<span class="sd">    multigrid correction -- immediately before it reaches the nodes. Each</span>
+<span class="sd">    cell&#39;s increment is soft-clipped to ``dU / (1 + |dU| / (dampin *</span>
+<span class="sd">    mean|dU|))``, per conserved variable, so cells far above their block mean</span>
+<span class="sd">    are pulled back towards ``dampin`` times it.&quot;&quot;&quot;</span>
 
     <span class="n">rf_inlet</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mf">0.05</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Characteristic under-relaxation</span>
@@ -685,6 +728,28 @@
 <span class="sd">        The public :class:`BaseSolver` entry point for the stage-by-stage march.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">_run</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Solver.soft">
+<a class="viewcode-back" href="../../api/solver.html#ember.solver.Solver.soft">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">soft</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy detuned for a robust start; see :meth:`BaseSolver.soft`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Solver</span>
+<span class="sd">            A new robust configuration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">cfl</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+            <span class="n">sf2</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span>
+            <span class="n">sf4</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+            <span class="n">dampin</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span>
+            <span class="n">fac_mgrid</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+            <span class="n">n_step_avg</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">adaptive_smoothing</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Solver.run_fmg">
@@ -1303,7 +1368,11 @@
         <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;step </span><span class="si">%d</span><span class="s2"> after integrator&quot;</span><span class="p">,</span> <span class="n">i_step</span><span class="p">)</span>
 
         <span class="c1"># Smooth the post-step conserved solution</span>
-        <span class="n">grid</span><span class="o">.</span><span class="n">smooth</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">sf4</span> <span class="o">*</span> <span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">sf2</span> <span class="o">*</span> <span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">)</span>
+        <span class="n">grid</span><span class="o">.</span><span class="n">smooth</span><span class="p">(</span>
+            <span class="n">conf</span><span class="o">.</span><span class="n">sf4</span> <span class="o">*</span> <span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span>
+            <span class="n">conf</span><span class="o">.</span><span class="n">sf2</span> <span class="o">*</span> <span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span>
+            <span class="n">adaptive</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">adaptive_smoothing</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;step </span><span class="si">%d</span><span class="s2"> after smooth&quot;</span><span class="p">,</span> <span class="n">i_step</span><span class="p">)</span>
 
         <span class="c1"># Pseudotime average over the last n_step_avg steps. A window of 0 or</span>

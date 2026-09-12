@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.inviscid &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>ember.notwall &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -96,7 +96,7 @@
     // level up is the site root holding versions.json and the version dirs.
     var root = "../../" + "../";
     var current = "master";
-    var page = "_modules/ember/inviscid.html";
+    var page = "_modules/ember/notwall.html";
     var box = document.getElementById("ember-versions");
     var select = document.getElementById("ember-version-select");
 
@@ -155,30 +155,44 @@
 
           <div class="body" role="main">
             
-  <h1>Source code for ember.inviscid</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;Inviscid wall boundary condition.</span>
+  <h1>Source code for ember.notwall</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Collapsed-face marker.</span>
 
-<span class="sd">InviscidPatch represents an impermeable but frictionless boundary condition,</span>
-<span class="sd">typically used for slip walls in inviscid flow calculations.</span>
+<span class="sd">NotWallPatch marks a block face that is not a boundary at all, because it has</span>
+<span class="sd">no area: the grid lines meeting it have converged to a line or a point.</span>
 
 <span class="sd">See Also</span>
 <span class="sd">--------</span>
 <span class="sd">ember.patch.Patch : Base class for all patches</span>
+
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">ember.basepatch</span><span class="w"> </span><span class="kn">import</span> <span class="n">Patch</span>
 
 
-<div class="viewcode-block" id="InviscidPatch">
-<a class="viewcode-back" href="../../api/patch.html#ember.patch.InviscidPatch">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">InviscidPatch</span><span class="p">(</span><span class="n">Patch</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Frictionless slip-wall boundary.</span>
+<div class="viewcode-block" id="NotWallPatch">
+<a class="viewcode-back" href="../../api/patch.html#ember.patch.NotWallPatch">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NotWallPatch</span><span class="p">(</span><span class="n">Patch</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A face with no area, and so no boundary condition.</span>
 
-<span class="sd">    Marks a face as impermeable but frictionless. The patch is included in the</span>
-<span class="sd">    ``slip`` collection, which causes the Fortran flux routines to apply a</span>
-<span class="sd">    slip (zero normal-velocity) condition without viscous stress. Use this</span>
-<span class="sd">    instead of a no-slip wall when viscous effects on that face should be</span>
-<span class="sd">    suppressed, for example on a symmetry plane or an inviscid endwall.</span>
+<span class="sd">    A structured block can be degenerate at one end of a direction: the grid</span>
+<span class="sd">    lines converge and the face collapses onto a line. The prism filling a</span>
+<span class="sd">    blade tip clearance is the case this exists for --- its streamwise ends sit</span>
+<span class="sd">    at the leading edge and at the trailing edge or cusp tip, where the two</span>
+<span class="sd">    surfaces of the section meet.</span>
+
+<span class="sd">    Such a face carries no flux, the flux being area-weighted and the area</span>
+<span class="sd">    zero, so it needs no boundary condition and takes no pair. What it does</span>
+<span class="sd">    need is to be told apart from a wall. Every face without a patch is a wall,</span>
+<span class="sd">    which is what makes a mesher&#39;s job small, but a collapsed face is the one</span>
+<span class="sd">    kind that is neither a wall nor anywhere flow passes. Left unmarked it</span>
+<span class="sd">    would seed the wall-distance search, putting a line of zero wall distance</span>
+<span class="sd">    through the middle of the flow, and be handed to a wall function that</span>
+<span class="sd">    divides the cell volume by the face area.</span>
+
+<span class="sd">    So this is a marker rather than a condition. It is in ``PERMEABLE_TYPES``,</span>
+<span class="sd">    which is the one place a face is classified, and has no communicator and no</span>
+<span class="sd">    data of its own.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 
 </pre></div>

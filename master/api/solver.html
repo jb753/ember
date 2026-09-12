@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Solver &#8212; ember 0.4.1.dev8+gd1f835205 documentation</title>
+    <title>Solver &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=348c414e"></script>
+    <script src="../_static/documentation_options.js?v=9dd8b639"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.1.dev8+gd1f835205</p>
+<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
 
 
 
@@ -84,6 +84,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#logging-averaging-and-convergence-history">Logging, averaging, and convergence history</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.solver.BaseSolver"><code class="docutils literal notranslate"><span class="pre">BaseSolver</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.BaseSolver.run"><code class="docutils literal notranslate"><span class="pre">run()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.BaseSolver.soft"><code class="docutils literal notranslate"><span class="pre">soft()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.solver.Solver"><code class="docutils literal notranslate"><span class="pre">Solver</span></code></a><ul>
@@ -93,6 +94,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.cfl"><code class="docutils literal notranslate"><span class="pre">cfl</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf4"><code class="docutils literal notranslate"><span class="pre">sf4</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf2"><code class="docutils literal notranslate"><span class="pre">sf2</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.adaptive_smoothing"><code class="docutils literal notranslate"><span class="pre">adaptive_smoothing</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.inviscid"><code class="docutils literal notranslate"><span class="pre">inviscid</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.fac_visc"><code class="docutils literal notranslate"><span class="pre">fac_visc</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.sf_resid"><code class="docutils literal notranslate"><span class="pre">sf_resid</span></code></a></li>
@@ -109,6 +111,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.rf_exchange"><code class="docutils literal notranslate"><span class="pre">rf_exchange</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.mix_reflective"><code class="docutils literal notranslate"><span class="pre">mix_reflective</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.run"><code class="docutils literal notranslate"><span class="pre">run()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.soft"><code class="docutils literal notranslate"><span class="pre">soft()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.solver.Solver.run_fmg"><code class="docutils literal notranslate"><span class="pre">run_fmg()</span></code></a></li>
 </ul>
 </li>
@@ -342,6 +345,14 @@ each step to suppress odd–even decoupling and high-frequency content
 introduced by the march and multigrid corrections.
 <a class="reference internal" href="#ember.solver.Solver.sf4" title="ember.solver.Solver.sf4"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf4</span></code></a> and <a class="reference internal" href="#ember.solver.Solver.sf2" title="ember.solver.Solver.sf2"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf2</span></code></a> are coefficients on the
 fourth- and second-difference terms, each scaled by the run’s <code class="docutils literal notranslate"><span class="pre">cfl</span></code> to make the effective dissipation independent of the time step.</p>
+<p><a class="reference internal" href="#ember.solver.Solver.adaptive_smoothing" title="ember.solver.Solver.adaptive_smoothing"><code class="xref py py-attr docutils literal notranslate"><span class="pre">adaptive_smoothing</span></code></a> swaps the constant second-order factor for a
+JST normalised-curvature sensor on pressure and temperature, clipping the
+fourth-order factor against it as <code class="docutils literal notranslate"><span class="pre">max(sf4</span> <span class="pre">-</span> <span class="pre">sf2n,</span> <span class="pre">0)</span></code>. Fourth-order
+dissipation then switches off inside a shock, where it would otherwise
+oscillate, and second-order dissipation appears only where the sensor fires.
+The stencil family and the biased boundary closures are shared with the
+constant-coefficient kernel, so <a class="reference internal" href="#ember.solver.Solver.sf4" title="ember.solver.Solver.sf4"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf4</span></code></a> and <a class="reference internal" href="#ember.solver.Solver.sf2" title="ember.solver.Solver.sf2"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf2</span></code></a>
+keep their meaning across the switch.</p>
 </section>
 <section id="multigrid">
 <span id="id2"></span><h2>Multigrid<a class="headerlink" href="#multigrid" title="Link to this heading">¶</a></h2>
@@ -377,6 +388,18 @@ coarsest level runs with no in-step multigrid and the finest runs at the full
 requested <a class="reference internal" href="#ember.solver.Solver.n_levels" title="ember.solver.Solver.n_levels"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_levels</span></code></a>, identical to calling <a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a>
 directly on the finest grid. With <code class="docutils literal notranslate"><span class="pre">n_levels</span> <span class="pre">&lt;=</span> <span class="pre">0</span></code> it reduces to a single call
 to <a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Solver.run()</span></code></a>.</p>
+<p><strong>Soft start.</strong> <a class="reference internal" href="#ember.solver.BaseSolver.soft" title="ember.solver.BaseSolver.soft"><code class="xref py py-meth docutils literal notranslate"><span class="pre">BaseSolver.soft()</span></code></a> returns a detuned copy of a solver –
+a lower CFL, heavier second-difference smoothing, the increment limiter on, no
+coarse correction – whose converged answer is an initial guess the production
+settings can survive. The detuned values are one fixed known-robust
+configuration, not a factor on what came in, and the march length and the model
+choices are left alone: it is the same problem on the same grid. It is a
+configuration transform, not a march, so the schedule is written at the call
+site (<code class="docutils literal notranslate"><span class="pre">solver.soft().run(grid)</span></code> then <code class="docutils literal notranslate"><span class="pre">solver.run(grid)</span></code>, the grid carrying
+the guess between them in place). It is compulsory on the interface because
+only each solver knows what detuning means for its own settings, and orthogonal
+to the grid hierarchy above:
+<code class="docutils literal notranslate"><span class="pre">solver.soft().run_fmg(grid)</span></code> softens every level of a full-multigrid startup.</p>
 </section>
 <section id="body-forces-and-viscous-model">
 <span id="body-forces"></span><h2>Body forces and viscous model<a class="headerlink" href="#body-forces-and-viscous-model" title="Link to this heading">¶</a></h2>
@@ -462,11 +485,26 @@ they are drop-in interchangeable.</p>
 <dd><p>Solve on <code class="docutils literal notranslate"><span class="pre">grid</span></code> in place; return a <code class="docutils literal notranslate"><span class="pre">ConvergenceHistory</span></code>.</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.solver.BaseSolver.soft">
+<span class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">soft</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#BaseSolver.soft"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.BaseSolver.soft" title="Link to this definition">¶</a></dt>
+<dd><p>Return a copy of this solver configured for a soft start.</p>
+<p>A soft configuration trades convergence rate for robustness: the same
+solver, detuned enough to survive an initial guess too far from the
+solution for the production settings to tolerate. It solves the same
+problem on the same grid, so its answer is a legitimate – if
+expensive to reach and slack – initial guess for a run of <code class="docutils literal notranslate"><span class="pre">self</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">solver</span><span class="o">.</span><span class="n">soft</span><span class="p">()</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span>   <span class="c1"># robust startup, in place</span>
+<span class="n">hist</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span>   <span class="c1"># production settings from there</span>
+</pre></div>
+</div>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ember.solver.Solver">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">Solver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_step</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_step_log</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_step_avg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf4</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.008</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.002</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inviscid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_visc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf_resid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gain_filt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta_filt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_stage</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_levels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expon_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.414</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dampin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_inlet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_outlet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_mix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mix_reflective</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#Solver"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.Solver" title="Link to this definition">¶</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">solver.</span></span><span class="sig-name descname"><span class="pre">Solver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_step</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_step_log</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_step_avg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf4</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.008</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.002</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">adaptive_smoothing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inviscid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_visc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf_resid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gain_filt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta_filt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_stage</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_levels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expon_mgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.414</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dampin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_inlet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_outlet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_mix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rf_exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mix_reflective</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#Solver"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.Solver" title="Link to this definition">¶</a></dt>
 <dd><p>Configuration for the explicit time-marching solver.</p>
 <p>Also the entry point: build one with the parameters below and call
 <a class="reference internal" href="#ember.solver.Solver.run" title="ember.solver.Solver.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">run()</span></code></a> (or <a class="reference internal" href="#ember.solver.Solver.run_fmg" title="ember.solver.Solver.run_fmg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">run_fmg()</span></code></a>) to march a grid in place.</p>
@@ -511,6 +549,20 @@ the solution. Must not exceed <a class="reference internal" href="#ember.solver.
 <dt class="sig sig-object py" id="ember.solver.Solver.sf2">
 <span class="sig-name descname"><span class="pre">sf2</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.002</span></span><a class="headerlink" href="#ember.solver.Solver.sf2" title="Link to this definition">¶</a></dt>
 <dd><p>Second-order smoothing factor.</p>
+<p>Constant everywhere unless <a class="reference internal" href="#ember.solver.Solver.adaptive_smoothing" title="ember.solver.Solver.adaptive_smoothing"><code class="xref py py-attr docutils literal notranslate"><span class="pre">adaptive_smoothing</span></code></a> is set, in which case
+it is the ceiling a JST shock sensor scales.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ember.solver.Solver.adaptive_smoothing">
+<span class="sig-name descname"><span class="pre">adaptive_smoothing</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#ember.solver.Solver.adaptive_smoothing" title="Link to this definition">¶</a></dt>
+<dd><p>Drive the second-order smoothing with a JST shock sensor.</p>
+<p>Replaces the constant second-order factor with a normalised-curvature
+sensor on pressure and temperature, and clips the fourth-order factor
+against it, so fourth-order dissipation switches off inside a shock and
+second-order dissipation appears only where it is needed. Same stencil
+family and same boundary closures as the constant-coefficient kernel, so
+<a class="reference internal" href="#ember.solver.Solver.sf2" title="ember.solver.Solver.sf2"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf2</span></code></a> and <a class="reference internal" href="#ember.solver.Solver.sf4" title="ember.solver.Solver.sf4"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sf4</span></code></a> keep their meaning.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -581,21 +633,10 @@ Honored by both integrators (<a class="reference internal" href="#ember.solver.s
 <span class="sig-name descname"><span class="pre">dampin</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#ember.solver.Solver.dampin" title="Link to this definition">¶</a></dt>
 <dd><p>Negative-feedback change limiter (multall’s <code class="docutils literal notranslate"><span class="pre">DAMP</span></code>); 0 disables it.</p>
 <p>Applied to the ASSEMBLED increment – fine term plus injected coarse
-multigrid correction – immediately before it reaches the nodes, which is
-where multall applies it (<code class="docutils literal notranslate"><span class="pre">tblock-p-2_3_1.f:7736</span></code>, after the block-sum
-corrections are summed in at 7710-7713). Each cell’s increment is soft-
-clipped to <code class="docutils literal notranslate"><span class="pre">dU</span> <span class="pre">/</span> <span class="pre">(1</span> <span class="pre">+</span> <span class="pre">|dU|</span> <span class="pre">/</span> <span class="pre">(dampin</span> <span class="pre">*</span> <span class="pre">mean|dU|))</span></code>, per conserved
-variable, so cells far above their block mean are pulled back towards
-<code class="docutils literal notranslate"><span class="pre">dampin</span></code> times it.</p>
-<p>This is NOT the limiter removed in ember <code class="docutils literal notranslate"><span class="pre">7b4fd71</span></code>. That one sat in
-<code class="docutils literal notranslate"><span class="pre">set_residual</span></code>, on the fine residual upstream of the multigrid
-restriction, and destroyed the extensivity the box sum relies on – which
-is why it and multigrid diverged together while either alone converged.
-Here the restriction has already happened.</p>
-<p>The block mean is lagged one call (see <a class="reference internal" href="block.html#ember.block.Block.damp_rfac" title="ember.block.Block.damp_rfac"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ember.block.Block.damp_rfac</span></code></a>).
-Honored by both integrators; note RK applies it once per stage, where
-multall’s scree-equivalent single update applies it once per step, so the
-scree path (<code class="docutils literal notranslate"><span class="pre">n_stage=0</span></code>) is the faithful analogue.</p>
+multigrid correction – immediately before it reaches the nodes. Each
+cell’s increment is soft-clipped to <code class="docutils literal notranslate"><span class="pre">dU</span> <span class="pre">/</span> <span class="pre">(1</span> <span class="pre">+</span> <span class="pre">|dU|</span> <span class="pre">/</span> <span class="pre">(dampin</span> <span class="pre">*</span>
+<span class="pre">mean|dU|))</span></code>, per conserved variable, so cells far above their block mean
+are pulled back towards <code class="docutils literal notranslate"><span class="pre">dampin</span></code> times it.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -679,6 +720,20 @@ this is set to.</p>
 <span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#Solver.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.Solver.run" title="Link to this definition">¶</a></dt>
 <dd><p>Drive <code class="docutils literal notranslate"><span class="pre">grid</span></code> through <code class="docutils literal notranslate"><span class="pre">n_step</span></code> steps in place; return the history.</p>
 <p>The public <a class="reference internal" href="#ember.solver.BaseSolver" title="ember.solver.BaseSolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseSolver</span></code></a> entry point for the stage-by-stage march.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.solver.Solver.soft">
+<span class="sig-name descname"><span class="pre">soft</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/solver.html#Solver.soft"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.solver.Solver.soft" title="Link to this definition">¶</a></dt>
+<dd><p>Return a copy detuned for a robust start; see <a class="reference internal" href="#ember.solver.BaseSolver.soft" title="ember.solver.BaseSolver.soft"><code class="xref py py-meth docutils literal notranslate"><span class="pre">BaseSolver.soft()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A new robust configuration.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#ember.solver.Solver" title="ember.solver.Solver">Solver</a></p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">

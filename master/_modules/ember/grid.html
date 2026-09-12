@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.grid &#8212; ember 0.4.1.dev8+gd1f835205 documentation</title>
+    <title>ember.grid &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=348c414e"></script>
+    <script src="../../_static/documentation_options.js?v=9dd8b639"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.1.dev8+gd1f835205</p>
+<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
 
 
 
@@ -1582,20 +1582,66 @@
 <div class="viewcode-block" id="Grid.smooth">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.smooth">[docs]</a>
     <span class="nd">@util</span><span class="o">.</span><span class="n">profile</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">smooth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sf4</span><span class="p">,</span> <span class="n">sf2</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply constant-coefficient artificial dissipation to every block.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">smooth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sf4</span><span class="p">,</span> <span class="n">sf2</span><span class="p">,</span> <span class="n">adaptive</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply blended 2nd/4th-order artificial dissipation to every block.</span>
+
+<span class="sd">        Both kernels share one stencil family and one set of biased boundary</span>
+<span class="sd">        closures, so ``sf4`` and ``sf2`` mean the same thing either way and a</span>
+<span class="sd">        run can be switched over without retuning them.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sf4 : float</span>
+<span class="sd">            Fourth-difference smoothing factor.</span>
+<span class="sd">        sf2 : float</span>
+<span class="sd">            Second-difference smoothing factor. Constant everywhere when</span>
+<span class="sd">            ``adaptive`` is False; the *ceiling* a JST shock sensor scales when</span>
+<span class="sd">            it is True.</span>
+<span class="sd">        adaptive : bool</span>
+<span class="sd">            Use the sensor-driven kernel. ``sf2`` is passed as both the</span>
+<span class="sd">            pressure and the temperature sensor weight, and the fourth-order</span>
+<span class="sd">            factor is clipped against the sensor as ``max(sf4 - sf2n, 0)``, so</span>
+<span class="sd">            the fourth-order term switches off inside a shock.</span>
+
+<span class="sd">            Costs two nodal sensor passes over</span>
+<span class="sd">            :attr:`~ember.block.Block.P_nd` and</span>
+<span class="sd">            :attr:`~ember.block.Block.T_nd`, and nothing else: both are cache</span>
+<span class="sd">            hits here. ``update_timestep`` fills the primitive cache every step</span>
+<span class="sd">            just before the integrator, and the integrator overwrites</span>
+<span class="sd">            ``conserved_nd`` in place without bumping the conserved versions --</span>
+<span class="sd">            the march flushes them at the top of the *next* step. So the sensor</span>
+<span class="sd">            is evaluated on the state as it stood before the integrator ran,</span>
+<span class="sd">            one step behind the state being smoothed. That lag is deliberate</span>
+<span class="sd">            and it is what makes the sensor free; it matters only where a</span>
+<span class="sd">            feature moves an appreciable distance in one step.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
             <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
-            <span class="c1"># Rolling k-plane buffer for the in-place sweep: min(6,nk) planes</span>
-            <span class="c1"># (five held for the high-k biased stencils, plus the two-plane</span>
-            <span class="c1"># writeback lag), carved zero-copy from the block scratch.</span>
-            <span class="n">kr</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="n">nk</span><span class="p">)</span>
-            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">smooth3d_const</span><span class="p">(</span>
-                <span class="n">x</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
-                <span class="n">sf4</span><span class="o">=</span><span class="n">sf4</span><span class="p">,</span>
-                <span class="n">sf2</span><span class="o">=</span><span class="n">sf2</span><span class="p">,</span>
-                <span class="n">xs</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">kr</span><span class="p">)),</span>
-            <span class="p">)</span></div>
+            <span class="k">if</span> <span class="n">adaptive</span><span class="p">:</span>
+                <span class="c1"># Sensor factors (3 directions) and the accumulated delta.</span>
+                <span class="n">sf2n</span><span class="p">,</span> <span class="n">dx</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">))</span>
+                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">smooth3d_adaptive</span><span class="p">(</span>
+                    <span class="n">x</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
+                    <span class="n">p</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_nd</span><span class="p">,</span>
+                    <span class="n">t</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">T_nd</span><span class="p">,</span>
+                    <span class="n">sf4</span><span class="o">=</span><span class="n">sf4</span><span class="p">,</span>
+                    <span class="n">sf2p</span><span class="o">=</span><span class="n">sf2</span><span class="p">,</span>
+                    <span class="n">sf2t</span><span class="o">=</span><span class="n">sf2</span><span class="p">,</span>
+                    <span class="n">sf2n</span><span class="o">=</span><span class="n">sf2n</span><span class="p">,</span>
+                    <span class="n">dx</span><span class="o">=</span><span class="n">dx</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Rolling k-plane buffer for the in-place sweep: min(6,nk)</span>
+                <span class="c1"># planes (five held for the high-k biased stencils, plus the</span>
+                <span class="c1"># two-plane writeback lag), carved zero-copy from the block</span>
+                <span class="c1"># scratch.</span>
+                <span class="n">kr</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="n">nk</span><span class="p">)</span>
+                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">smooth3d_const</span><span class="p">(</span>
+                    <span class="n">x</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
+                    <span class="n">sf4</span><span class="o">=</span><span class="n">sf4</span><span class="p">,</span>
+                    <span class="n">sf2</span><span class="o">=</span><span class="n">sf2</span><span class="p">,</span>
+                    <span class="n">xs</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">kr</span><span class="p">)),</span>
+                <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Grid.update_bconds">
@@ -1761,6 +1807,7 @@
             <span class="c1"># consumption, so it cannot go stale; a no-op if already current.</span>
             <span class="n">block</span><span class="o">.</span><span class="n">update_primitive</span><span class="p">()</span>
             <span class="n">i_cusp_start</span><span class="p">,</span> <span class="n">i_cusp_end</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">i_cusp</span>
+            <span class="n">j_cusp_start</span><span class="p">,</span> <span class="n">j_cusp_end</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">j_cusp</span>
             <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
             <span class="c1"># Rolling face-flow buffers for the fused k-tiled residual: a</span>
             <span class="c1"># k-face plane pair and three rows (one i, two alternating j),</span>
@@ -1793,6 +1840,8 @@
                 <span class="o">**</span><span class="n">block</span><span class="o">.</span><span class="n">ijk_wall_conv</span><span class="p">,</span>
                 <span class="n">i_cusp_start</span><span class="o">=</span><span class="n">i_cusp_start</span><span class="p">,</span>
                 <span class="n">i_cusp_end</span><span class="o">=</span><span class="n">i_cusp_end</span><span class="p">,</span>
+                <span class="n">j_cusp_start</span><span class="o">=</span><span class="n">j_cusp_start</span><span class="p">,</span>
+                <span class="n">j_cusp_end</span><span class="o">=</span><span class="n">j_cusp_end</span><span class="p">,</span>
                 <span class="n">kb</span><span class="o">=</span><span class="n">kb</span><span class="p">,</span>
                 <span class="n">njp</span><span class="o">=</span><span class="n">njp</span><span class="p">,</span>
                 <span class="n">ni</span><span class="o">=</span><span class="n">ni</span><span class="p">,</span>
@@ -1915,6 +1964,7 @@
             <span class="c1"># the kernel, from the two k face buffers.</span>
             <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
                 <span class="n">i_cusp_start</span><span class="p">,</span> <span class="n">i_cusp_end</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">i_cusp</span>
+                <span class="n">j_cusp_start</span><span class="p">,</span> <span class="n">j_cusp_end</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">j_cusp</span>
                 <span class="c1"># Everything the kernel takes from the arena, from one carve</span>
                 <span class="c1"># (ember.block._carve_viscous): the six face buffers it reads</span>
                 <span class="c1"># its halo from, the rolling tau/q cell-plane pair it produces</span>
@@ -1964,6 +2014,8 @@
                     <span class="o">**</span><span class="n">block</span><span class="o">.</span><span class="n">Omega_wall_nd</span><span class="p">,</span>
                     <span class="n">i_cusp_start</span><span class="o">=</span><span class="n">i_cusp_start</span><span class="p">,</span>
                     <span class="n">i_cusp_end</span><span class="o">=</span><span class="n">i_cusp_end</span><span class="p">,</span>
+                    <span class="n">j_cusp_start</span><span class="o">=</span><span class="n">j_cusp_start</span><span class="p">,</span>
+                    <span class="n">j_cusp_end</span><span class="o">=</span><span class="n">j_cusp_end</span><span class="p">,</span>
                     <span class="c1"># 0: panel width from the kernel&#39;s own VISC_JAREA. Nothing</span>
                     <span class="c1"># marches with anything else; the argument exists so the</span>
                     <span class="c1"># tests can sweep it (see test_viscous_phases_golden).</span>
