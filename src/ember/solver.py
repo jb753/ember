@@ -571,9 +571,10 @@ class Solver(BaseSolver):
             cfl=1.5,
             sf2=0.02,
             sf4=0.01,
-            dampin=3.0,
+            dampin=10.0,
             fac_mgrid=0.0,
             n_step_avg=1,
+            adaptive_smoothing=False,
         )
 
     def run_fmg(self, grid):

@@ -35,8 +35,10 @@ stands at the first timestep and frozen there, which for a run started from a
 design guess is the design exit state. :math:`V_s` is the exception: it is
 pinned at zero rather than prescribed or seeded, so backflow enters normal to
 the exit surface whatever that surface's orientation. Reversal confined to nodes within a
-station whose mean still runs forward is handled node by node as a limiter
-instead, applied by the base class.
+station whose mean still runs forward is left to the interior march: the base
+class's node-level limiter is disabled here (see :attr:`OutletPatch._nodal_backflow`),
+having proved a closed positive feedback at the non-reflecting mixing plane
+rather than a safeguard.
 
 See Also
 --------
@@ -155,6 +157,18 @@ class OutletPatch(NonReflectingPatch):
     # settable; attach_to_block pins it at zero.
     _target_seeded = (0, 1, 3)
 
+    # No nodal backflow limiter. It imposes a state on a node the interior is
+    # pushing flow in through and derives its axial velocity from an energy
+    # balance with no bearing on how hard the node was actually reversed, and
+    # the correction's rate is a function of the very Mach number it drives --
+    # a closed positive feedback with nothing damping it at rf_backflow=1.0.
+    # That ran the axial velocity away unbounded at the non-reflecting mixing
+    # plane (mixing_nonreflecting.py); dropped here too rather than waiting for
+    # it to happen at an outlet. A station whose mean reverses is still carried
+    # by the characteristic split -- this only gives up the node-level patch on
+    # top of it, which was never part of the Giles/Saxer theory to begin with.
+    _nodal_backflow = False
+
     def _copy(self, c):
         super()._copy(c)
         c._P_raw = None if self._P_raw is None else np.copy(self._P_raw)
@@ -254,16 +268,15 @@ class OutletPatch(NonReflectingPatch):
         wants moving downstream rather than the condition made cleverer.
 
         A **node** whose interior neighbour is pushing flow inward, at a station
-        whose mean is still forward, is overwritten with the same four
-        quantities and a density, the one quantity those four leave free, taken
-        from the interior: relaxed from its start-of-step value toward the
-        current one at a rate that falls away with the local axial Mach number,
-        and capped to keep the axial velocity real. There is no
-        characteristic split to change at that level -- the split belongs to the
-        station's mean, and the Hilbert transform couples every node of a
-        station to every other -- so this one is a limiter on the linear theory,
-        applied to what reaches the block and kept out of the state the solve
-        carries forward.
+        whose mean is still forward, is left to the interior march here: there is
+        no characteristic split to change at that level -- the split belongs to
+        the station's mean, and the Hilbert transform couples every node of a
+        station to every other -- and the base class's node-level limiter, which
+        would otherwise overwrite such a node with the four backflow rows and a
+        derived density, is disabled (:attr:`_nodal_backflow`). It fed the very
+        Mach number it drove back into its own correction rate, a closed
+        positive feedback that ran away unbounded at the non-reflecting mixing
+        plane; nothing about a physical outlet exempts it from the same loop.
 
         The rows that can be prescribed are set independently, by this method
         or :meth:`set_backflow_Po_To` for the thermodynamic pair and by

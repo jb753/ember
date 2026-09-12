@@ -1414,54 +1414,17 @@ def test_reversed_station_does_not_impose_the_exit_pressure():
     assert abs(P_face[2] - P_target) > 0.1 * P_target
 
 
-def test_nodal_backflow_falls_back_to_the_seeded_state():
-    """With nothing prescribed the node is imposed with the seed, not left alone."""
-    block = _backflow_block(rev_node=((3, 5),))
-    patch = _backflow_patch(block, backflow=False)
-    patch.update_soln()
-    patch.advance()
-    patch.apply()
+def test_a_reversed_node_gets_no_special_treatment():
+    """The node-level override is off (:attr:`OutletPatch._nodal_backflow`).
 
-    assert not patch._entering.any()
-    b = patch.block_view
-    # The seed is the exit plane's own mean, so what lands on the node is that
-    # and emphatically not the state set_backflow would have prescribed.
-    assert float(b.Vt_nd[0, 3, 5]) == pytest.approx(
-        _backflow_state(patch, 3)[3], rel=1e-5
-    )
-    assert float(b.Vt_nd[0, 3, 5]) != pytest.approx(BACK_VT / FLUID.V_ref, rel=1e-6)
-
-
-def test_nodal_backflow_imposes_the_prescribed_state_on_reversed_nodes():
-    """A node the interior is pushing flow in through is treated as an inlet."""
-    block = _backflow_block(rev_node=((3, 5),))
-    patch = _backflow_patch(block)
-    patch.update_soln()
-    patch.advance()
-    patch.apply()
-
-    assert not patch._entering.any()
-    b = patch.block_view
-    ho_snap, s_snap, Vs_snap, Vt_snap = _backflow_state(patch, 3)
-    assert float(b.ho_nd[0, 3, 5]) == pytest.approx(float(ho_snap), rel=1e-5)
-    assert float(b.s_nd[0, 3, 5]) == pytest.approx(float(s_snap), rel=1e-5)
-    assert float(b.Vt_nd[0, 3, 5]) == pytest.approx(float(Vt_snap), rel=1e-5)
-    # The in-surface component is the pinned zero, so the node comes in normal
-    # to the face -- which on this constant-x face means purely axially.
-    assert Vs_snap == 0.0
-    assert float(b.Vr_nd[0, 3, 5]) == pytest.approx(0.0, abs=1e-6)
-    # Reversed, which the primitive write can express directly: unlike the
-    # reflecting outlet there is no sign to flip back afterwards.
-    assert float(b.Vx_nd[0, 3, 5]) < 0.0
-
-
-def test_nodal_backflow_leaves_the_rest_of_the_face_untouched():
-    """Only the nodes the override flags depend on what the backflow state is.
-
-    The control is the same case with that state left to seed itself, which
-    imposes something different at the same node and nothing anywhere else.
+    A node the interior is locally pushing flow in through, at a station whose
+    mean still runs forward, used to be diverted to the backflow state as an
+    inlet. It is not any more: it is carried exactly like the rest of its
+    (forward) station, whatever the interior extrapolation sends it, and
+    whether or not a backflow state is even prescribed makes no difference.
     """
     node = (3, 5)
+    neighbour = (3, 4)
     plain = _backflow_patch(_backflow_block(rev_node=(node,)), backflow=False)
     imposed = _backflow_patch(_backflow_block(rev_node=(node,)))
     for patch in (plain, imposed):
@@ -1469,33 +1432,26 @@ def test_nodal_backflow_leaves_the_rest_of_the_face_untouched():
         patch.advance()
         patch.apply()
 
-    got = imposed.block_view.conserved_nd.copy()
-    expect = plain.block_view.conserved_nd.copy()
+    assert not imposed._entering.any()
+    np.testing.assert_array_equal(
+        imposed.block_view.conserved_nd, plain.block_view.conserved_nd
+    )
+
+    b = imposed.block_view
     j, k = node
-    assert not np.array_equal(got[0, j, k], expect[0, j, k])
-    got[0, j, k] = expect[0, j, k]
-    np.testing.assert_array_equal(got, expect)
-
-
-def test_nodal_backflow_stays_out_of_the_carried_state():
-    """The override changes what reaches the block, not what the solve carries."""
-    node = (3, 5)
-    plain = _backflow_patch(_backflow_block(rev_node=(node,)), backflow=False)
-    imposed = _backflow_patch(_backflow_block(rev_node=(node,)))
-    for patch in (plain, imposed):
-        patch.update_soln()
-        patch.advance()
-        patch.apply()
-
-    np.testing.assert_array_equal(imposed._prim_prev, plain._prim_prev)
-    # Which is only meaningful because the block did diverge between the two.
-    j, k = node
-    assert imposed._prim_prev[0, j, k, 1] > 0.0
-    assert float(imposed.block_view.Vx_nd[0, j, k]) < 0.0
+    nj, nk = neighbour
+    assert float(b.Vt_nd[0, j, k]) == pytest.approx(float(b.Vt_nd[0, nj, nk]))
+    # Emphatically not the state set_backflow prescribed.
+    Vt_snap = _backflow_state(imposed, 3)[3]
+    assert float(b.Vt_nd[0, j, k]) != pytest.approx(Vt_snap, rel=1e-3)
+    assert float(b.Vt_nd[0, j, k]) != pytest.approx(BACK_VT / FLUID.V_ref, rel=1e-6)
 
 
 def test_nodal_backflow_defers_to_a_reversed_station():
-    """A station the characteristic solve owns is not also treated node by node."""
+    """A reversed station's characteristic solve is unaffected by a nearby node
+    that is locally reversed but sits on a station whose mean still runs
+    forward -- that node is carried by the forward extrapolation now, not by
+    any node-level override (:attr:`OutletPatch._nodal_backflow` is off)."""
     block = _backflow_block(rev_span=(2,), rev_node=((3, 5),))
     patch = _backflow_patch(block, sigma=0.5)
     patch.update_soln()
@@ -1505,11 +1461,15 @@ def test_nodal_backflow_defers_to_a_reversed_station():
     b = patch.block_view
     Vt_snap = _backflow_state(patch, 3)[3]
     Vt_start = VT_MEAN / FLUID.V_ref
-    # The node-level case is imposed outright, so it lands on the snapshot.
-    assert float(b.Vt_nd[0, 3, 5]) == pytest.approx(Vt_snap, rel=1e-5)
-    # The reversed station is stepped toward it under-relaxed instead, so after
-    # one stage it is a fraction of the way rather than there. Measured as that
-    # fraction, since the snapshot swirl is below the through-flow's, not above.
+    # The forward station's node lands with the rest of its own station,
+    # untouched by the neighbouring station's reversal or by the backflow
+    # state.
+    assert float(b.Vt_nd[0, 3, 5]) == pytest.approx(float(b.Vt_nd[0, 3, 4]))
+    assert float(b.Vt_nd[0, 3, 5]) == pytest.approx(Vt_start, rel=1e-5)
+    # The reversed station is stepped toward the prescribed state under-relaxed
+    # instead, so after one stage it is a fraction of the way there. Measured
+    # as that fraction, since the snapshot swirl is below the through-flow's,
+    # not above.
     frac = (float(b.Vt_nd[0, 2, 5]) - Vt_start) / (Vt_snap - Vt_start)
     assert 0.0 < frac < 0.9
 
@@ -1585,11 +1545,14 @@ def test_backflow_runs_through_the_solver_loop():
     assert outlet._entering[3]
     assert _span_profile(outlet, b.Vx_nd)[3] < 0.0
 
-    # The lone reversed node, at a station whose mean still runs forward, is
-    # carried by the override instead.
+    # The lone reversed node, at a station whose mean still runs forward, gets
+    # no special treatment: it is carried the same as the rest of its station
+    # (the node-level override is off, see OutletPatch._nodal_backflow), not
+    # diverted to the backflow state.
     assert not outlet._entering[1]
-    assert float(b.Vt_nd[0, 1, 4]) == pytest.approx(
-        _backflow_state(outlet, 1)[3], rel=1e-5
+    assert float(b.Vt_nd[0, 1, 4]) == pytest.approx(float(b.Vt_nd[0, 1, 3]))
+    assert float(b.Vt_nd[0, 1, 4]) != pytest.approx(
+        _backflow_state(outlet, 1)[3], rel=1e-3
     )
 
 

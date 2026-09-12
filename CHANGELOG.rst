@@ -5,6 +5,19 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.2:
+
+0.4.2 (unreleased)
+------------------
+
+* Disable the outlet's node-level backflow limiter (``OutletPatch._nodal_backflow``).
+  It fed the axial Mach number it drove back into its own correction rate, a
+  closed positive feedback that ran away unbounded at the non-reflecting
+  mixing plane; a reversed node is now left to the interior march like the
+  rest of its station.
+* Raise the default artificial-damping coefficient ``dampin`` from 3.0 to 10.0
+  and default ``adaptive_smoothing`` to ``False``.
+
 .. _v0.4.1:
 
 0.4.1 (2026-09-10)
