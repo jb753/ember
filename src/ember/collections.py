@@ -573,6 +573,19 @@ class BlockPatchCollection(_LabelledList):
         return [p for p in self._items if isinstance(p, MixingPatch)]
 
     @property
+    def notwall(self):
+        """All :py:class:`~ember.patch.NotWallPatch` objects.
+
+        The collapsed faces of a degenerate block, which are in
+        :py:attr:`permeable` because that is where a face is told from a wall,
+        and are listed separately here because they are the one member of that
+        set nothing flows through.
+        """
+        from ember.patch import NotWallPatch  # noqa: PLC0415 - avoid circular import
+
+        return [p for p in self._items if isinstance(p, NotWallPatch)]
+
+    @property
     def outlet(self):
         """All :py:class:`~ember.patch.OutletPatch` objects.
 

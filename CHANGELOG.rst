@@ -5,6 +5,16 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.2:
+
+0.4.2 (2026-09-12)
+------------------
+
+* Add Jameson-style adaptive smoothing
+* Allow cusp patches over partial j ranges
+* Add affordances for faces collapsing to zero area: wall function clipping and ``NotWallPatch`` to exempt collapsed nodes from the wall distance calculation
+* Add a soft-start reconfiguration method ``BaseSolver.soft()``
+
 .. _v0.4.1:
 
 0.4.1 (2026-09-10)

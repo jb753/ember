@@ -159,6 +159,7 @@ from ember.inviscid import InviscidPatch
 from ember.mixing import MixingPatch
 from ember.nonmatch import NonMatchPatch
 from ember.nonreflecting import NonReflectingPatch
+from ember.notwall import NotWallPatch
 from ember.outlet import OutletPatch
 from ember.periodic import PeriodicPatch
 from ember.probe import ProbePatch
@@ -177,6 +178,7 @@ __all__ = [
     "CoolingPatch",
     "InviscidPatch",
     "CuspPatch",
+    "NotWallPatch",
     "ProbePatch",
     "BlockPatchCollection",
     "GridPatchCollection",
@@ -194,6 +196,10 @@ PERMEABLE_TYPES = (
     MixingPatch,
     NonMatchPatch,
     CuspPatch,
+    # Not a face flow passes through, but a face that is not there at all: a
+    # collapsed one carries no flux either way, and this is the one place a
+    # face is told from a wall.
+    NotWallPatch,
 )
 
 

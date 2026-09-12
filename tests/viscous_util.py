@@ -47,13 +47,15 @@ def fill_faces(block, pr_turb):
     return faces
 
 
-def run_visc_force(block, pr_turb, i_cusp=None, jbw=0):
+def run_visc_force(block, pr_turb, i_cusp=None, j_cusp=None, jbw=0):
     """Phase 2: interior tau/q, face fluxes and the polar source into F_body.
 
     Zeroes ``F_body_nd`` first and hands it back locked, as update_sources
-    leaves it. ``i_cusp`` defaults to the block's own; pass ``(0, 0)`` to run
-    with the cusp seam correction switched off, which is how a test isolates
-    it. ``jbw`` is the j-panel width, 0 meaning the kernel's own VISC_JAREA.
+    leaves it. ``i_cusp`` and ``j_cusp`` default to the block's own; pass
+    ``(0, 0)`` for ``i_cusp`` to run with the cusp seam correction switched
+    off, which is how a test isolates it, or a narrower ``j_cusp`` to confine
+    it to part of the span. ``jbw`` is the j-panel width, 0 meaning the
+    kernel's own VISC_JAREA.
 
     Returns ``fvisc``, a float64 copy of ``F_body_nd[..., 1:]``.
     """
@@ -63,6 +65,7 @@ def run_visc_force(block, pr_turb, i_cusp=None, jbw=0):
     mu_turb = block._get_data_by_keys(("mu_turb",), raise_uninit=False, writeable=True)
 
     i_cusp_start, i_cusp_end = block.i_cusp if i_cusp is None else i_cusp
+    j_cusp_start, j_cusp_end = block.j_cusp if j_cusp is None else j_cusp
     faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
     ember.fortran.set_visc_force(
         cons=block.conserved_nd,
@@ -95,6 +98,8 @@ def run_visc_force(block, pr_turb, i_cusp=None, jbw=0):
         **block.Omega_wall_nd,
         i_cusp_start=i_cusp_start,
         i_cusp_end=i_cusp_end,
+        j_cusp_start=j_cusp_start,
+        j_cusp_end=j_cusp_end,
         jbw_in=jbw,
     )
     # The kernel is mu_turb's producer, so mark it initialised for any later
@@ -104,7 +109,7 @@ def run_visc_force(block, pr_turb, i_cusp=None, jbw=0):
     return np.array(fbody[..., 1:], dtype=np.float64)
 
 
-def run_pair(block, pr_turb, comm=None, i_cusp=None, jbw=0):
+def run_pair(block, pr_turb, comm=None, i_cusp=None, j_cusp=None, jbw=0):
     """Both phases with the seam exchange between them, as update_sources runs.
 
     ``comm`` is a :class:`~ember.periodic_communicator.PeriodicCommunicator`,
@@ -115,4 +120,4 @@ def run_pair(block, pr_turb, comm=None, i_cusp=None, jbw=0):
     fill_faces(block, pr_turb)
     if comm is not None:
         comm.exchange_faces()
-    return run_visc_force(block, pr_turb, i_cusp=i_cusp, jbw=jbw)
+    return run_visc_force(block, pr_turb, i_cusp=i_cusp, j_cusp=j_cusp, jbw=jbw)

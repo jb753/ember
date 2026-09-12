@@ -130,7 +130,6 @@ dev = [
     "ruff==0.15.20",
     'sphinx-autobuild',
     'twine',
-    'bump-my-version',
     'ninja',
     "pyqt5>=5.15.11",  # for debug plotting
     "line-profiler>=5.0.0",

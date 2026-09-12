@@ -367,6 +367,7 @@ Miscellaneous:
    Block.i_perk
    Block.ijk_wall_conv
    Block.ijk_wall_visc
+   Block.j_cusp
    Block.scratch
    Block.store
    Block.tau_q_faces
@@ -561,9 +562,9 @@ def _store_slab(dest, slab, k0, n_face, comp_first):
     stored values are unchanged by the walk.
     """
     if comp_first:
-        dest[:, :, :, k0:k0 + n_face] = np.moveaxis(slab, -1, 0)
+        dest[:, :, :, k0 : k0 + n_face] = np.moveaxis(slab, -1, 0)
     else:
-        dest[:, :, k0:k0 + n_face, :] = slab
+        dest[:, :, k0 : k0 + n_face, :] = slab
 
 
 def _handle_output(result, out=None):
@@ -650,10 +651,8 @@ def _get_dai(xrt, out=None):
     # A slab at a time: each i-face spans k..k+1, so a slab of n+1 node planes
     # carries every stencil of its n face planes (see _GEOM_KCHUNK).
     for k0, n_face, n_node in _slab_ranges(nk - 1, 1):
-        node = np.asarray(xrt[:, :, k0:k0 + n_node, :], dtype=np.float64, order="F")
-        slab = util.allocate_or_reuse(
-            None, (ni, nj - 1, n_face, 3), dtype=np.float64
-        )
+        node = np.asarray(xrt[:, :, k0 : k0 + n_node, :], dtype=np.float64, order="F")
+        slab = util.allocate_or_reuse(None, (ni, nj - 1, n_face, 3), dtype=np.float64)
         ember.fortran.get_dai(node, slab)
         _store_slab(dest, slab, k0, n_face, comp_first)
 
@@ -693,10 +692,8 @@ def _get_daj(xrt, out=None):
 
     # As _get_dai: a j-face spans k..k+1, so the slab carries one extra plane.
     for k0, n_face, n_node in _slab_ranges(nk - 1, 1):
-        node = np.asarray(xrt[:, :, k0:k0 + n_node, :], dtype=np.float64, order="F")
-        slab = util.allocate_or_reuse(
-            None, (ni - 1, nj, n_face, 3), dtype=np.float64
-        )
+        node = np.asarray(xrt[:, :, k0 : k0 + n_node, :], dtype=np.float64, order="F")
+        slab = util.allocate_or_reuse(None, (ni - 1, nj, n_face, 3), dtype=np.float64)
         ember.fortran.get_daj(node, slab)
         _store_slab(dest, slab, k0, n_face, comp_first)
 
@@ -737,7 +734,7 @@ def _get_dak(xrt, out=None):
     # A k-face lies IN a node plane rather than spanning two, so here the slab
     # needs no extra plane and there are nk of them, not nk-1.
     for k0, n_face, n_node in _slab_ranges(nk, 0):
-        node = np.asarray(xrt[:, :, k0:k0 + n_node, :], dtype=np.float64, order="F")
+        node = np.asarray(xrt[:, :, k0 : k0 + n_node, :], dtype=np.float64, order="F")
         slab = util.allocate_or_reuse(
             None, (ni - 1, nj - 1, n_face, 3), dtype=np.float64
         )
@@ -842,17 +839,11 @@ def _get_vol(xrt, dAi, dAj, dAk, out=None):
     # sit between nodes in k) and n+1 of the k-face array (which does not).
     for k0, n_cell, n_node in _slab_ranges(nk - 1, 1):
         ks = slice(k0, k0 + n_cell)
-        xrt_f = np.asarray(
-            xrt[:, :, k0:k0 + n_node, :], dtype=np.float64, order="F"
-        )
+        xrt_f = np.asarray(xrt[:, :, k0 : k0 + n_node, :], dtype=np.float64, order="F")
         dAi_f = np.asarray(dAi[:, :, :, ks], dtype=np.float64, order="F")
         dAj_f = np.asarray(dAj[:, :, :, ks], dtype=np.float64, order="F")
-        dAk_f = np.asarray(
-            dAk[:, :, :, k0:k0 + n_node], dtype=np.float64, order="F"
-        )
-        slab = util.allocate_or_reuse(
-            None, (ni - 1, nj - 1, n_cell), dtype=np.float64
-        )
+        dAk_f = np.asarray(dAk[:, :, :, k0 : k0 + n_node], dtype=np.float64, order="F")
+        slab = util.allocate_or_reuse(None, (ni - 1, nj - 1, n_cell), dtype=np.float64)
         ember.fortran.get_vol(xrt_f, dAi_f, dAj_f, dAk_f, slab)
         out[:, :, ks] = slab
 
@@ -905,7 +896,6 @@ class _MaskedBlock:
         return wrapper
 
 
-
 # The scratch arena is sized for at most this many multigrid levels. Solver
 # configuration is validated against it (ember.solver._validate_mg), so a run
 # cannot ask for a coarser hierarchy than the arena was built to hold.
@@ -950,6 +940,14 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
                        is fused with the fine term's cell->node scatter)
       scree / RK, no MG  the caller's full-volume cell-shaped increment, which
                        the multigrid-off kernels still materialise
+      smooth           the constant-coefficient kernel's rolling k-plane
+                       buffer, or, with adaptive smoothing on, the nodal
+                       sensor factors (3 directions) plus the accumulated
+                       delta. Sized for the adaptive case unconditionally: it
+                       is the larger of the two and it never binds, sitting
+                       one nodal volume under ``update_residual``, so sizing
+                       for it costs nothing and spares the arena a dependence
+                       on a run-time flag
 
     WHICH PHASE BINDS depends on the shape, and that is new. The multigrid
     phase used to bind at every shape tried, on twelve coarse buffers of which
@@ -987,13 +985,14 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     transport = ni * nj * nk * 3
     mg = sum(int(np.prod(sh)) for sh in mg_coarse_shapes(ni, nj, nk, n_levels))
     return max(
-        faces + tq + visc_pr + transport,                      # update_sources
-        ni * nj * nk,                                          # update_primitive
-        ni * nj * nk,                                          # update_timestep
-        (ni - 1) * (nj - 1) * (nk - 1) * 5,                    # filter / SFD
-        ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,      # update_residual
-        mg + (ni - 1) * (nj - 1) * 5 * 2,                      # scree/RK + multigrid
-        (ni - 1) * (nj - 1) * (nk - 1) * 5,                    # scree/RK, no multigrid
+        faces + tq + visc_pr + transport,  # update_sources
+        ni * nj * nk,  # update_primitive
+        ni * nj * nk,  # update_timestep
+        (ni - 1) * (nj - 1) * (nk - 1) * 5,  # filter / SFD
+        ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,  # update_residual
+        ni * nj * nk * 4,  # smooth
+        mg + (ni - 1) * (nj - 1) * 5 * 2,  # scree/RK + multigrid
+        (ni - 1) * (nj - 1) * (nk - 1) * 5,  # scree/RK, no multigrid
     )
 
 
@@ -2999,7 +2998,12 @@ class Block(ember._struct.StructuredData):
     def i_cusp(self):
         """1-based start and end node indices of the cusp patch, (start, end).
 
-        Returns (0, 0) if the block has no cusp patches.
+        Returns (0, 0) if the block has no cusp patches. See :attr:`j_cusp` for
+        the spanwise extent of the same patch.
+
+        The first cusp patch found is the whole story:
+        :py:meth:`ember.patch.CuspPatch.attach_to_block` requires every cusp
+        patch on a block to cover the same i and j range.
         """
         for patch in self.patches.cusp:
             lim = patch.ijk_lim_abs
@@ -3087,6 +3091,21 @@ class Block(ember._struct.StructuredData):
             "wallk1": _f(~(kwall[:, :, 0] == 0))[:, :, np.newaxis],
             "wallnk": _f(~(kwall[:, :, -1] == 0))[:, :, np.newaxis],
         }
+
+    @cached_object
+    def j_cusp(self):
+        """1-based start and end node indices of the cusp patch in j, (start, end).
+
+        The spanwise companion to :attr:`i_cusp`, and (0, 0) on the same
+        condition: a blade that does not run the full span leaves a hub or tip
+        gap carrying no cusp, and the seam correction must skip it. Together
+        the two give the kernels the (i, j) rectangle of the seam.
+        """
+        for patch in self.patches.cusp:
+            lim = patch.ijk_lim_abs
+            jst, jen = int(lim[1, 0]), int(lim[1, 1])
+            return (jst + 1, jen + 1)
+        return (0, 0)
 
     @derived_array
     def kappa_nd(self):
@@ -3472,7 +3491,9 @@ class Block(ember._struct.StructuredData):
         n = _scratch_len(self.shape)
         logger.debug(
             "alloc: scratch arena %d elements (%.1f MB) for block %s",
-            n, n * 4 / 1024**2, self.shape,
+            n,
+            n * 4 / 1024**2,
+            self.shape,
         )
         return util.allocate_or_reuse(out, (n,))
 
@@ -3504,7 +3525,8 @@ class Block(ember._struct.StructuredData):
         # First touch only, like scratch: the other big solver allocation.
         logger.debug(
             "alloc: store buffer %.1f MB for block %s",
-            int(np.prod(self.shape)) * 5 * 4 / 1024**2, self.shape,
+            int(np.prod(self.shape)) * 5 * 4 / 1024**2,
+            self.shape,
         )
         return util.zeros(self.shape + (5,))
 
@@ -3601,7 +3623,6 @@ class Block(ember._struct.StructuredData):
             all carved from one allocation and therefore mutually disjoint.
         """
         return _carve_viscous(self)[0]
-
 
     @derived_array
     def To(self):

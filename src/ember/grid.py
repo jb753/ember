@@ -1360,20 +1360,66 @@ class Grid(_LabelledList):
         return Grid([ember.block_util.resample(b, factors) for b in self])
 
     @util.profile
-    def smooth(self, sf4, sf2):
-        """Apply constant-coefficient artificial dissipation to every block."""
+    def smooth(self, sf4, sf2, adaptive=False):
+        """Apply blended 2nd/4th-order artificial dissipation to every block.
+
+        Both kernels share one stencil family and one set of biased boundary
+        closures, so ``sf4`` and ``sf2`` mean the same thing either way and a
+        run can be switched over without retuning them.
+
+        Parameters
+        ----------
+        sf4 : float
+            Fourth-difference smoothing factor.
+        sf2 : float
+            Second-difference smoothing factor. Constant everywhere when
+            ``adaptive`` is False; the *ceiling* a JST shock sensor scales when
+            it is True.
+        adaptive : bool
+            Use the sensor-driven kernel. ``sf2`` is passed as both the
+            pressure and the temperature sensor weight, and the fourth-order
+            factor is clipped against the sensor as ``max(sf4 - sf2n, 0)``, so
+            the fourth-order term switches off inside a shock.
+
+            Costs two nodal sensor passes over
+            :attr:`~ember.block.Block.P_nd` and
+            :attr:`~ember.block.Block.T_nd`, and nothing else: both are cache
+            hits here. ``update_timestep`` fills the primitive cache every step
+            just before the integrator, and the integrator overwrites
+            ``conserved_nd`` in place without bumping the conserved versions --
+            the march flushes them at the top of the *next* step. So the sensor
+            is evaluated on the state as it stood before the integrator ran,
+            one step behind the state being smoothed. That lag is deliberate
+            and it is what makes the sensor free; it matters only where a
+            feature moves an appreciable distance in one step.
+        """
         for block in self:
             ni, nj, nk = block.conserved_nd.shape[:3]
-            # Rolling k-plane buffer for the in-place sweep: min(6,nk) planes
-            # (five held for the high-k biased stencils, plus the two-plane
-            # writeback lag), carved zero-copy from the block scratch.
-            kr = min(6, nk)
-            ember.fortran.smooth3d_const(
-                x=block.conserved_nd,
-                sf4=sf4,
-                sf2=sf2,
-                xs=util.carve_view(block.scratch, (ni, nj, kr)),
-            )
+            if adaptive:
+                # Sensor factors (3 directions) and the accumulated delta.
+                sf2n, dx = util.carve_view(block.scratch, (ni, nj, nk, 3), (ni, nj, nk))
+                ember.fortran.smooth3d_adaptive(
+                    x=block.conserved_nd,
+                    p=block.P_nd,
+                    t=block.T_nd,
+                    sf4=sf4,
+                    sf2p=sf2,
+                    sf2t=sf2,
+                    sf2n=sf2n,
+                    dx=dx,
+                )
+            else:
+                # Rolling k-plane buffer for the in-place sweep: min(6,nk)
+                # planes (five held for the high-k biased stencils, plus the
+                # two-plane writeback lag), carved zero-copy from the block
+                # scratch.
+                kr = min(6, nk)
+                ember.fortran.smooth3d_const(
+                    x=block.conserved_nd,
+                    sf4=sf4,
+                    sf2=sf2,
+                    xs=util.carve_view(block.scratch, (ni, nj, kr)),
+                )
 
     @util.profile
     def update_bconds(self, freeze=False, cfl=1.0):
@@ -1527,6 +1573,7 @@ class Grid(_LabelledList):
             # consumption, so it cannot go stale; a no-op if already current.
             block.update_primitive()
             i_cusp_start, i_cusp_end = block.i_cusp
+            j_cusp_start, j_cusp_end = block.j_cusp
             ni, nj, nk = block.shape
             # Rolling face-flow buffers for the fused k-tiled residual: a
             # k-face plane pair and three rows (one i, two alternating j),
@@ -1559,6 +1606,8 @@ class Grid(_LabelledList):
                 **block.ijk_wall_conv,
                 i_cusp_start=i_cusp_start,
                 i_cusp_end=i_cusp_end,
+                j_cusp_start=j_cusp_start,
+                j_cusp_end=j_cusp_end,
                 kb=kb,
                 njp=njp,
                 ni=ni,
@@ -1678,6 +1727,7 @@ class Grid(_LabelledList):
             # the kernel, from the two k face buffers.
             for block in self:
                 i_cusp_start, i_cusp_end = block.i_cusp
+                j_cusp_start, j_cusp_end = block.j_cusp
                 # Everything the kernel takes from the arena, from one carve
                 # (ember.block._carve_viscous): the six face buffers it reads
                 # its halo from, the rolling tau/q cell-plane pair it produces
@@ -1727,6 +1777,8 @@ class Grid(_LabelledList):
                     **block.Omega_wall_nd,
                     i_cusp_start=i_cusp_start,
                     i_cusp_end=i_cusp_end,
+                    j_cusp_start=j_cusp_start,
+                    j_cusp_end=j_cusp_end,
                     # 0: panel width from the kernel's own VISC_JAREA. Nothing
                     # marches with anything else; the argument exists so the
                     # tests can sweep it (see test_viscous_phases_golden).

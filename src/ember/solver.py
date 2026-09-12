@@ -163,6 +163,15 @@ introduced by the march and multigrid corrections.
 :attr:`~Solver.sf4` and :attr:`~Solver.sf2` are coefficients on the
 fourth- and second-difference terms, each scaled by the run's ``cfl`` to make the effective dissipation independent of the time step.
 
+:attr:`~Solver.adaptive_smoothing` swaps the constant second-order factor for a
+JST normalised-curvature sensor on pressure and temperature, clipping the
+fourth-order factor against it as ``max(sf4 - sf2n, 0)``. Fourth-order
+dissipation then switches off inside a shock, where it would otherwise
+oscillate, and second-order dissipation appears only where the sensor fires.
+The stencil family and the biased boundary closures are shared with the
+constant-coefficient kernel, so :attr:`~Solver.sf4` and :attr:`~Solver.sf2`
+keep their meaning across the switch.
+
 .. _multigrid:
 
 Multigrid
@@ -201,6 +210,19 @@ coarsest level runs with no in-step multigrid and the finest runs at the full
 requested :attr:`~Solver.n_levels`, identical to calling :meth:`Solver.run`
 directly on the finest grid. With ``n_levels <= 0`` it reduces to a single call
 to :meth:`Solver.run`.
+
+**Soft start.** :meth:`BaseSolver.soft` returns a detuned copy of a solver --
+a lower CFL, heavier second-difference smoothing, the increment limiter on, no
+coarse correction -- whose converged answer is an initial guess the production
+settings can survive. The detuned values are one fixed known-robust
+configuration, not a factor on what came in, and the march length and the model
+choices are left alone: it is the same problem on the same grid. It is a
+configuration transform, not a march, so the schedule is written at the call
+site (``solver.soft().run(grid)`` then ``solver.run(grid)``, the grid carrying
+the guess between them in place). It is compulsory on the interface because
+only each solver knows what detuning means for its own settings, and orthogonal
+to the grid hierarchy above:
+``solver.soft().run_fmg(grid)`` softens every level of a full-multigrid startup.
 
 .. _body-forces:
 
@@ -328,6 +350,24 @@ class BaseSolver(ABC):
         """Solve on ``grid`` in place; return a ``ConvergenceHistory``."""
         raise NotImplementedError
 
+    @abstractmethod
+    def soft(self):
+        """Return a copy of this solver configured for a soft start.
+
+        A soft configuration trades convergence rate for robustness: the same
+        solver, detuned enough to survive an initial guess too far from the
+        solution for the production settings to tolerate. It solves the same
+        problem on the same grid, so its answer is a legitimate -- if
+        expensive to reach and slack -- initial guess for a run of ``self``:
+
+        .. code-block:: python
+
+            solver.soft().run(grid)   # robust startup, in place
+            hist = solver.run(grid)   # production settings from there
+
+        """
+        raise NotImplementedError
+
 
 @dataclass(frozen=True)
 class Solver(BaseSolver):
@@ -363,7 +403,20 @@ class Solver(BaseSolver):
     """Fourth-order smoothing factor."""
 
     sf2: float = 0.002
-    """Second-order smoothing factor."""
+    """Second-order smoothing factor.
+
+    Constant everywhere unless :attr:`adaptive_smoothing` is set, in which case
+    it is the ceiling a JST shock sensor scales."""
+
+    adaptive_smoothing: bool = False
+    """Drive the second-order smoothing with a JST shock sensor.
+
+    Replaces the constant second-order factor with a normalised-curvature
+    sensor on pressure and temperature, and clips the fourth-order factor
+    against it, so fourth-order dissipation switches off inside a shock and
+    second-order dissipation appears only where it is needed. Same stencil
+    family and same boundary closures as the constant-coefficient kernel, so
+    :attr:`sf2` and :attr:`sf4` keep their meaning."""
 
     inviscid: bool = False
     """Skip viscous terms in the sources evaluation."""
@@ -405,23 +458,10 @@ class Solver(BaseSolver):
     """Negative-feedback change limiter (multall's ``DAMP``); 0 disables it.
 
     Applied to the ASSEMBLED increment -- fine term plus injected coarse
-    multigrid correction -- immediately before it reaches the nodes, which is
-    where multall applies it (``tblock-p-2_3_1.f:7736``, after the block-sum
-    corrections are summed in at 7710-7713). Each cell's increment is soft-
-    clipped to ``dU / (1 + |dU| / (dampin * mean|dU|))``, per conserved
-    variable, so cells far above their block mean are pulled back towards
-    ``dampin`` times it.
-
-    This is NOT the limiter removed in ember ``7b4fd71``. That one sat in
-    ``set_residual``, on the fine residual upstream of the multigrid
-    restriction, and destroyed the extensivity the box sum relies on -- which
-    is why it and multigrid diverged together while either alone converged.
-    Here the restriction has already happened.
-
-    The block mean is lagged one call (see :attr:`ember.block.Block.damp_rfac`).
-    Honored by both integrators; note RK applies it once per stage, where
-    multall's scree-equivalent single update applies it once per step, so the
-    scree path (``n_stage=0``) is the faithful analogue."""
+    multigrid correction -- immediately before it reaches the nodes. Each
+    cell's increment is soft-clipped to ``dU / (1 + |dU| / (dampin *
+    mean|dU|))``, per conserved variable, so cells far above their block mean
+    are pulled back towards ``dampin`` times it."""
 
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
@@ -517,6 +557,25 @@ class Solver(BaseSolver):
         The public :class:`BaseSolver` entry point for the stage-by-stage march.
         """
         return _run(grid, self)
+
+    def soft(self):
+        """Return a copy detuned for a robust start; see :meth:`BaseSolver.soft`.
+
+        Returns
+        -------
+        Solver
+            A new robust configuration.
+        """
+        return replace(
+            self,
+            cfl=1.5,
+            sf2=0.02,
+            sf4=0.01,
+            dampin=10.0,
+            fac_mgrid=0.0,
+            n_step_avg=1,
+            adaptive_smoothing=False,
+        )
 
     def run_fmg(self, grid):
         """Full-multigrid startup on ``grid`` in place.
@@ -1118,7 +1177,11 @@ def _run(grid, conf):
         _log_rss("step %d after integrator", i_step)
 
         # Smooth the post-step conserved solution
-        grid.smooth(conf.sf4 * conf.cfl, conf.sf2 * conf.cfl)
+        grid.smooth(
+            conf.sf4 * conf.cfl,
+            conf.sf2 * conf.cfl,
+            adaptive=conf.adaptive_smoothing,
+        )
         _log_rss("step %d after smooth", i_step)
 
         # Pseudotime average over the last n_step_avg steps. A window of 0 or
