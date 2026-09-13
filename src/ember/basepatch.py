@@ -211,9 +211,10 @@ class Patch(ABC):
     ):
         """Compare coordinates of this patch against another after a transform.
 
-        Extracts coordinates, applies pitch-wrapping on theta, computes an
-        absolute tolerance, applies the transform to the other patch's coords,
-        and returns whether all points agree within tolerance.
+        Extracts coordinates, applies the transform to the other patch's
+        coords, shifts its theta by the nearest whole number of pitches onto
+        this patch's, computes an absolute tolerance, and returns whether all
+        points agree within tolerance.
 
         Parameters
         ----------
@@ -227,7 +228,7 @@ class Patch(ABC):
             If True, compare only x and r coordinates (ignore theta).
             If False, convert to pseudo-Cartesian space before comparing.
         rtol : float, optional
-            Relative tolerance for pitch-wrapping and distance comparison.
+            Relative tolerance for distance comparison.
 
         Returns
         -------
@@ -238,12 +239,6 @@ class Patch(ABC):
 
         xrt_self = self.block[self.slice].xrt.copy()
         xrt_other = other.block[other.slice].xrt.copy()
-
-        # Pitch-wrap theta on both
-        pitch = self.block[self.slice].pitch
-        for xrt in (xrt_self, xrt_other):
-            t = np.mod(xrt[..., 2], pitch)
-            xrt[..., 2] = np.where(t / pitch > (1.0 - rtol), 0.0, t)
 
         atol = rtol * max(np.ptp(xrt_self[..., 0]), np.ptp(xrt_self[..., 1]))
 
@@ -257,6 +252,15 @@ class Patch(ABC):
             a = xrt_self[..., :2]
             b = xrt_other_t[..., :2]
         else:
+            # Remove whole pitches from the signed difference in theta, rather
+            # than wrapping each side into [0, pitch) on its own. Wrapped
+            # separately, two points one pitch apart that sit either side of
+            # the wrap cut --- which float32 coordinates put about 1e-7 of a
+            # pitch apart --- land at opposite ends of the pitch and look a
+            # whole pitch adrift, so the cut decides the answer.
+            pitch = self.block[self.slice].pitch
+            dt = xrt_other_t[..., 2] - xrt_self[..., 2]
+            xrt_other_t[..., 2] -= pitch * np.round(dt / pitch)
             a = pol_to_pseudocart(xrt_self)
             b = pol_to_pseudocart(xrt_other_t)
 
