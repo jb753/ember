@@ -2156,7 +2156,7 @@ class GridConnectivity:
         self._pairs_computed = False
         self._communicator = None
 
-    def _compute_pairs(self, rtol=1e-6):
+    def _compute_pairs(self, rtol=1e-5):
         # Collect patches of the specified type from all blocks
         patches = []
         blocks = []
@@ -2304,7 +2304,7 @@ class GridConnectivity:
         """Exchange boundary tau/q across periodic patches, face-buffer form."""
         return self._get_communicator().exchange_faces()
 
-    def pair(self, rtol=1e-6):
+    def pair(self, rtol=1e-5):
         """Pair patches of the specified type, caching the result.
 
         Filters patches to only include instances of self.patch_class, then uses
@@ -2419,7 +2419,7 @@ class GridConnectivityManager:
         """Drop all cached pairings and communicators across every patch type."""
         self._by_class = {}
 
-    def pair(self, rtol=1e-6):
+    def pair(self, rtol=1e-5):
         """Pair all patch types and return combined connectivity dictionary.
 
         Parameters
