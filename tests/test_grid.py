@@ -24,6 +24,8 @@ Test cases:
 - test_comprehensive_slice_scenarios: Comprehensive slice scenarios
 - TestPatchRelaxationFactor: Inlet/mixing patches carry their own rf attribute
 - TestApplyBconds: Grid.apply_bconds applies all BCs using patch rf
+- TestCheckNan: Grid.check_nan passes a healthy field and reports NaN density
+  and non-positive pressure, with where they are
 """
 
 import pytest
@@ -1080,3 +1082,61 @@ def test_grid_module_docstring_tables_alphabetical():
         assert entries == sorted(entries, key=str.lower), (
             f"table under {heading!r} not in alphabetical order: {entries}"
         )
+
+
+class TestCheckNan:
+    """Grid.check_nan reports a blown-up field, and where it blew up."""
+
+    NODE = (2, 3, 4)
+
+    # Internal energy here is measured from a datum well below the flow state,
+    # so zero is not low enough: this is far enough below the kinetic energy
+    # for the temperature, and with it the pressure, to go negative.
+    ENERGY_BELOW_ZERO_PRESSURE = -1e7
+
+    def test_a_healthy_field_passes(self):
+        Grid([_make_flow_block()]).check_nan()
+
+    def test_nan_density_is_reported_with_its_node(self):
+        block = _make_flow_block()
+        block.conserved_nd[self.NODE + (0,)] = np.nan
+        block.update_cached_conserved()
+
+        with pytest.raises(ember.grid.DivergenceError) as raised:
+            Grid([block]).check_nan()
+
+        message = str(raised.value)
+        assert "NaN in conserved_nd density of block 0" in message
+        assert "1 node(s), bbox i[2:2]/4 j[3:3]/5 k[4:4]/7, touches [interior only]" in message
+
+    def test_non_positive_pressure_is_reported_while_density_is_finite(self):
+        """An energy below the kinetic energy leaves density finite and pressure negative."""
+        block = _make_flow_block()
+        block.conserved_nd[self.NODE + (4,)] = self.ENERGY_BELOW_ZERO_PRESSURE
+        block.update_cached_conserved()
+        assert np.isfinite(block.conserved_nd[..., 0]).all()
+        assert block.P_nd[self.NODE] <= 0.0
+
+        with pytest.raises(ember.grid.DivergenceError) as raised:
+            Grid([block]).check_nan()
+
+        message = str(raised.value)
+        assert "Non-positive pressure in block 0" in message
+        assert "1 node(s), bbox i[2:2]/4 j[3:3]/5 k[4:4]/7, touches [interior only]" in message
+
+    def test_nan_density_is_reported_before_pressure(self):
+        """A NaN node is also a bad pressure; the NaN is the one named."""
+        block = _make_flow_block()
+        block.conserved_nd[self.NODE + (0,)] = np.nan
+        block.update_cached_conserved()
+
+        with pytest.raises(ember.grid.DivergenceError, match="NaN in conserved_nd density"):
+            Grid([block]).check_nan()
+
+    def test_a_bad_node_on_a_face_names_the_face(self):
+        block = _make_flow_block()
+        block.conserved_nd[0, 3, -1, 4] = self.ENERGY_BELOW_ZERO_PRESSURE
+        block.update_cached_conserved()
+
+        with pytest.raises(ember.grid.DivergenceError, match=r"touches \[i-lo, k-hi\]"):
+            Grid([block]).check_nan()
