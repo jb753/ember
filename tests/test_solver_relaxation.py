@@ -322,3 +322,41 @@ def test_fmg_applies_the_settings_on_every_level():
     assert len(histories) == 2  # coarse then fine
     np.testing.assert_allclose(sigmas(grid.patches.mixing), 0.13)
     np.testing.assert_allclose(rf_exchanges(grid.patches.mixing), 0.14)
+
+
+# The endwall band
+
+
+def test_the_endwall_band_settings_land_on_every_mixing_patch():
+    grid = make_grid(nblock=3)
+
+    ember.solver._apply_bcond_relaxation(
+        grid, solver(mix_endwall_span=0.05, mix_endwall_rf=0.2)
+    )
+
+    for patch in grid.patches.mixing:
+        assert (patch.endwall_span, patch.endwall_rf) == pytest.approx((0.05, 0.2))
+
+
+def test_the_endwall_band_is_off_unless_asked_for():
+    grid = make_grid()
+    for patch in grid.patches.mixing:
+        patch.endwall_span = 0.3
+
+    ember.solver._apply_bcond_relaxation(grid, solver())
+
+    assert [patch.endwall_span for patch in grid.patches.mixing] == [0.0, 0.0]
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"mix_endwall_span": -0.1},
+        {"mix_endwall_span": 0.5},
+        {"mix_endwall_span": 0.05, "mix_endwall_rf": 0.0},
+        {"mix_endwall_span": 0.05, "mix_endwall_rf": 1.5},
+    ],
+)
+def test_an_endwall_band_out_of_range_is_refused(settings):
+    with pytest.raises(ValueError, match="mix_endwall"):
+        ember.solver._apply_bcond_relaxation(make_grid(), solver(**settings))

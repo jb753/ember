@@ -161,12 +161,16 @@ class MixingCommunicator:
             if patch1._reflective:
                 # No exchange to relax; see MixingCommunicator._mix_uniform.
                 continue
-            if patch1.rf_exchange != patch2.rf_exchange:
-                raise ValueError(
-                    f"Mixing plane sides disagree on rf_exchange: "
-                    f"{patch1.label!r} has {patch1.rf_exchange}, "
-                    f"{patch2.label!r} has {patch2.rf_exchange}"
-                )
+            # The endwall band scales the same shared increment, so it is held
+            # to the same agreement.
+            for name in ("rf_exchange", "endwall_span", "endwall_rf"):
+                value1, value2 = getattr(patch1, name), getattr(patch2, name)
+                if value1 != value2:
+                    raise ValueError(
+                        f"Mixing plane sides disagree on {name}: "
+                        f"{patch1.label!r} has {value1}, "
+                        f"{patch2.label!r} has {value2}"
+                    )
 
     def _prune_pairs(self, mixing_pairs):
         """Prune bidirectional pairs to unidirectional mapping."""
@@ -486,6 +490,11 @@ class MixingCommunicator:
         # onto the target below.
         state = self._ensure_pair_state(key, nspan)
         v1 *= patch1.rf_exchange  # v1 = du
+        # Gentler near the endwalls if the plane asks for it; see
+        # MixingPatch.endwall_span. The weight is symmetric in span, so it
+        # reads the same in either side's span order.
+        if patch1.endwall_span > 0.0:
+            v1 *= patch1._endwall_weight()[:, np.newaxis].astype(v1.dtype)
         state["du"][:] = v1
 
         # Integrate the target-space mismatch onto the previous target, not the

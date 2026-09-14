@@ -525,6 +525,136 @@ def test_rf_exchange_back_fills_on_a_patch_pickled_without_it():
     assert revived.rf_exchange == pytest.approx(0.02)
 
 
+# The endwall band
+
+
+def correction(patch):
+    """The characteristic correction a patch would take this step, before sigma."""
+    with patch._resolved():
+        if patch._ref is None:
+            patch._calc_reference()
+        dchic, prim = patch._recombine()
+        return patch._calc_dchic(dchic, prim)
+
+
+def by_station(patch, field):
+    """A patch-shaped field with its span axis first."""
+    return np.moveaxis(field, patch.span_dim, 0)
+
+
+def pitch_mean_chic(patch, field):
+    """Pitchwise mean of a patch-shaped field carrying a trailing characteristic axis."""
+    return (field * patch.weight_pitch[..., np.newaxis]).sum(
+        axis=patch.pitch_dim, keepdims=True
+    )
+
+
+def test_the_endwall_band_is_off_by_default():
+    """A plane that asks for nothing behaves as it did before the band existed."""
+    patch = MixingPatch(i=-1)
+
+    assert patch.endwall_span == 0.0
+
+
+def test_the_endwall_band_ramps_the_exchange_linearly_from_the_wall():
+    """The increment is endwall_rf of the full one at a wall and all of it past the band."""
+    span, rf = 0.4, 0.25
+    increments = {}
+    for endwall_span in (0.0, span):
+        grid, patch_up, patch_dn, comm = exchanged(up={"P": 1.05e5}, dn={"P": 0.95e5})
+        for patch in grid.patches.mixing:
+            patch.endwall_span = endwall_span
+            patch.endwall_rf = rf
+        comm.exchange()
+        ((key, _),) = comm.pairs.items()
+        increments[endwall_span] = comm.get_stats(*key)["du"].copy()
+
+    spf = patch_up.spf
+    weight = rf + (1.0 - rf) * np.clip(np.minimum(spf, 1.0 - spf) / span, 0.0, 1.0)
+    assert weight.min() == pytest.approx(rf) and weight.max() == pytest.approx(1.0)
+    np.testing.assert_allclose(
+        increments[span], weight[:, np.newaxis] * increments[0.0], rtol=1e-5, atol=1e-12
+    )
+
+
+def test_the_endwall_band_ramps_the_harmonic_correction_out_and_nothing_else():
+    """The harmonic correction scales with distance to the wall inside the band.
+
+    None of it at the wall, all of it at the edge of the band and beyond, and
+    the pitch mean untouched throughout.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(sigma=1.0, Vt=0.0)
+    relax((patch_up, patch_dn), comm, 5)
+
+    wave = np.zeros(patch_up.shape + (5,), dtype=np.float32)
+    phase = 2.0 * np.pi * patch_up.block_view.t / patch_up.block.pitch
+    wave[..., 1] = 0.01 * np.cos(phase)
+    seed_chic(patch_up, wave)
+    comm.exchange()
+
+    patch_up.endwall_span = 0.0
+    full = correction(patch_up)
+    patch_up.endwall_span = 0.2
+    banded = correction(patch_up)
+
+    spf = patch_up.spf
+    weight = np.clip(np.minimum(spf, 1.0 - spf) / 0.2, 0.0, 1.0)
+    band = weight < 1.0
+    # Both walls, and a station part way up the ramp, so the test sees all three.
+    assert band.any() and not band.all()
+    assert ((weight > 0.0) & band).any()
+
+    h_full = by_station(patch_up, full - pitch_mean_chic(patch_up, full))
+    h_banded = by_station(patch_up, banded - pitch_mean_chic(patch_up, banded))
+    assert np.abs(h_full[band]).max() > 1e-4
+    np.testing.assert_allclose(
+        h_banded[band],
+        weight[band].reshape((-1,) + (1,) * (h_full.ndim - 1)) * h_full[band],
+        rtol=1e-4,
+        atol=1e-6,
+    )
+    np.testing.assert_array_equal(
+        by_station(patch_up, banded)[~band], by_station(patch_up, full)[~band]
+    )
+    np.testing.assert_allclose(
+        pitch_mean_chic(patch_up, banded),
+        pitch_mean_chic(patch_up, full),
+        rtol=1e-5,
+        atol=1e-9,
+    )
+
+
+def test_sides_must_agree_on_the_endwall_band():
+    """One plane has one band, for the same reason it has one rf_exchange."""
+    grid, patch_up, patch_dn = make_pair()
+    patch_up.endwall_span = 0.1
+
+    with pytest.raises(ValueError, match="disagree on endwall_span"):
+        MixingCommunicator(grid, grid.connectivity.mixing.pair())
+
+
+def test_copy_carries_the_endwall_band():
+    """Configuration, so it travels with the patch like rf_exchange."""
+    _, patch_up, _ = make_pair()
+    patch_up.endwall_span = 0.05
+    patch_up.endwall_rf = 0.2
+
+    copied = patch_up.copy()
+
+    assert (copied.endwall_span, copied.endwall_rf) == pytest.approx((0.05, 0.2))
+
+
+def test_the_endwall_band_survives_a_pickle_round_trip():
+    """It lives on the patch so a restart keeps it."""
+    patch = MixingPatch(i=-1)
+    patch.endwall_span = 0.05
+    patch.endwall_rf = 0.2
+
+    revived = pickle.loads(pickle.dumps(patch))
+
+    assert (revived.endwall_span, revived.endwall_rf) == pytest.approx((0.05, 0.2))
+
+
 @pytest.mark.parametrize(
     "name", ["set_adjustment", "set_Alpha", "set_Beta", "set_P", "set_ho_s"]
 )
