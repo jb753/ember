@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Convergence history &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>Convergence history &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -301,8 +301,8 @@ to size the backing array.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of a single property array.</p></li>
-<li><p><strong>n_row</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Number of blade rows this history tracks (default 1, i.e. 2
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of a single property array.</p></li>
+<li><p><strong>n_row</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Number of blade rows this history tracks (default 1, i.e. 2
 stations: inlet and exit).</p></li>
 </ul>
 </dd>
@@ -314,7 +314,7 @@ stations: inlet and exit).</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>n_log</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of records to allocate; one is filled per log step. The
+<li><p><strong>n_log</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of records to allocate; one is filled per log step. The
 solver derives this as <code class="docutils literal notranslate"><span class="pre">ceil(n_step</span> <span class="pre">/</span> <span class="pre">n_step_log)</span></code> – floor
 division would under-allocate when <code class="docutils literal notranslate"><span class="pre">n_step</span></code> is not a multiple of
 <code class="docutils literal notranslate"><span class="pre">n_step_log</span></code>.</p></li>
@@ -337,7 +337,7 @@ division would under-allocate when <code class="docutils literal notranslate"><s
 <p>Automatically detects gzip-compressed files.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Input CNV file to read</p>
+<dd class="field-odd"><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Input CNV file to read</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory" title="ember.convergence_history.ConvergenceHistory">ConvergenceHistory</a></p>
@@ -364,22 +364,22 @@ records.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Required fall of the residual from its peak over the whole march, in
+<li><p><strong>decay</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Required fall of the residual from its peak over the whole march, in
 decades: converged needs <code class="docutils literal notranslate"><span class="pre">log10(r.max()</span> <span class="pre">/</span> <span class="pre">r[-1])</span> <span class="pre">&gt;=</span> <span class="pre">decay</span></code>. The
 default <code class="docutils literal notranslate"><span class="pre">0</span></code> disables the check (0 decades of fall is always met).</p></li>
-<li><p><strong>slope</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Maximum allowed magnitude of the residual slope, in decades of
+<li><p><strong>slope</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Maximum allowed magnitude of the residual slope, in decades of
 residual per unit pseudo-time, where pseudo-time is <code class="docutils literal notranslate"><span class="pre">i_step</span> <span class="pre">*</span> <span class="pre">cfl</span></code>.
 Fitted over the last 20% of records so it reflects the recent tail
 rather than the startup transient. Converged needs
 <code class="docutils literal notranslate"><span class="pre">abs(d</span> <span class="pre">log10(r)</span> <span class="pre">/</span> <span class="pre">d(i_step</span> <span class="pre">*</span> <span class="pre">cfl))</span> <span class="pre">&lt;=</span> <span class="pre">slope</span></code>. The default <code class="docutils literal notranslate"><span class="pre">0</span></code>
 disables the check.</p></li>
-<li><p><strong>cfl</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – CFL number used to march, scaling the pseudo-time step so the slope
+<li><p><strong>cfl</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – CFL number used to march, scaling the pseudo-time step so the slope
 is comparable across runs with different step sizes. Only affects
 the <code class="docutils literal notranslate"><span class="pre">slope</span></code> criterion.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)">bool</a></p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)">bool</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -414,7 +414,7 @@ get there are one indexing away:</p>
 subtract it for elapsed march time.)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Settling band half-width, as a fraction of the total <code class="docutils literal notranslate"><span class="pre">zeta</span></code> swing.
+<dd class="field-odd"><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Settling band half-width, as a fraction of the total <code class="docutils literal notranslate"><span class="pre">zeta</span></code> swing.
 Default <code class="docutils literal notranslate"><span class="pre">0.01</span></code> (1%).</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -422,7 +422,7 @@ Default <code class="docutils literal notranslate"><span class="pre">0.01</span>
 <code class="docutils literal notranslate"><span class="pre">zeta</span></code> is within the band from the start, or is flat (zero swing).</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)">int</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -433,14 +433,14 @@ Default <code class="docutils literal notranslate"><span class="pre">0.01</span>
 <dd><p>Format convergence message for current log step.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>n_step</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Total steps in this march. When given, a timing line (tpnps,
+<dd class="field-odd"><p><strong>n_step</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Total steps in this march. When given, a timing line (tpnps,
 elapsed, estimated remaining) is inserted after the step header.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Formatted convergence status message</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -452,8 +452,8 @@ elapsed, estimated remaining) is inserted after the step header.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>i_step</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Current step index within this march.</p></li>
-<li><p><strong>n_step</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Total steps in this march.</p></li>
+<li><p><strong>i_step</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Current step index within this march.</p></li>
+<li><p><strong>n_step</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Total steps in this march.</p></li>
 </ul>
 </dd>
 </dl>
@@ -470,12 +470,12 @@ can meet is an untouched record past <code class="docutils literal notranslate">
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>i_step</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Index of the solver step being recorded.</p></li>
+<li><p><strong>i_step</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Index of the solver step being recorded.</p></li>
 <li><p><strong>conv</strong> (<a class="reference internal" href="grid.html#ember.grid.ConvergenceStep" title="ember.grid.ConvergenceStep"><em>ember.grid.ConvergenceStep</em></a>) – One step’s monitors, from <a class="reference internal" href="grid.html#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.get_convergence()</span></code></a>.
 The <code class="docutils literal notranslate"><span class="pre">mdot</span></code>, <code class="docutils literal notranslate"><span class="pre">ho</span></code> and <code class="docutils literal notranslate"><span class="pre">s</span></code> station vectors are unpacked into one
 scalar column per station; the history must have been constructed
 with a matching <code class="docutils literal notranslate"><span class="pre">n_row</span></code> to have enough station columns allocated.</p></li>
-<li><p><strong>time</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Elapsed time for this record, in seconds. Defaults to the wall-clock
+<li><p><strong>time</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Elapsed time for this record, in seconds. Defaults to the wall-clock
 time since the history was created (the live-solver behaviour); a
 reader replaying a log passes the log’s own time instead.</p></li>
 </ul>
@@ -491,7 +491,7 @@ reader replaying a log passes the log’s own time instead.</p></li>
 containing a list of {“x”: i_step, “y”: value} objects.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>directory</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em> or </em><em>path-like</em><em>, </em><em>optional</em>) – Output directory (default current directory).</p>
+<dd class="field-odd"><p><strong>directory</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em> or </em><em>path-like</em><em>, </em><em>optional</em>) – Output directory (default current directory).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -527,8 +527,8 @@ trim once the march is over.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Output filename</p></li>
-<li><p><strong>compress</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, compress using gzip (default False)</p></li>
+<li><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Output filename</p></li>
+<li><p><strong>compress</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, compress using gzip (default False)</p></li>
 </ul>
 </dd>
 </dl>

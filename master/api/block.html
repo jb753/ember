@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Block &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>Block &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -1208,7 +1208,7 @@ state. The setters may be
 called in either order to build up a complete flow field.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Number of nodes in each dimension <cite>(ni, nj, nk, …)</cite>. Any number of
+<dd class="field-odd"><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Number of nodes in each dimension <cite>(ni, nj, nk, …)</cite>. Any number of
 dimensions is supported. Defaults to <cite>()</cite>, giving a scalar block with
 no grid dimensions.</p>
 </dd>
@@ -1287,7 +1287,7 @@ nondimensional coordinates and angular momentum so that dimensional
 values are preserved.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>L_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Reference length scale [m]. Should be scalar, positive, and finite.</p>
+<dd class="field-odd"><p><strong>L_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Reference length scale [m]. Should be scalar, positive, and finite.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1298,7 +1298,7 @@ values are preserved.</p>
 <dd><p>Set a string label describing the block.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>label</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Descriptive label for the block.</p>
+<dd class="field-odd"><p><strong>label</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – Descriptive label for the block.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1322,7 +1322,7 @@ values are preserved.</p>
 <p>Used to determine circumferential periodicity.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>Nb</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of blades in the row containing this block [-].</p>
+<dd class="field-odd"><p><strong>Nb</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of blades in the row containing this block [-].</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1335,7 +1335,7 @@ values are preserved.</p>
 frame spinning at this angular velocity.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>Omega</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Angular velocity of the rotating reference frame [rad/s].</p>
+<dd class="field-odd"><p><strong>Omega</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Angular velocity of the rotating reference frame [rad/s].</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1499,7 +1499,7 @@ primitive to store the result.</p>
 <p>Converts to rad/s and calls <a class="reference internal" href="#ember.block.Block.set_Omega" title="ember.block.Block.set_Omega"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_Omega()</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>rpm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Angular velocity of the rotating reference frame [rpm].</p>
+<dd class="field-odd"><p><strong>rpm</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Angular velocity of the rotating reference frame [rpm].</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1537,7 +1537,7 @@ unit mass. The velocity field, if present, is preserved.</p>
 <dd><p>Set whether the data represents triangulated (unstructured) cut data.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>value</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – True if the block holds triangulated (unstructured) data with shape
+<dd class="field-odd"><p><strong>value</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – True if the block holds triangulated (unstructured) data with shape
 <code class="docutils literal notranslate"><span class="pre">(ntri,</span> <span class="pre">3)</span></code>; False for a structured quadrilateral mesh.</p>
 </dd>
 </dl>
@@ -1697,7 +1697,7 @@ objects; pass <code class="docutils literal notranslate"><span class="pre">keep_
 collection instead.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>keep_patches</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True (default), all patches are deep-copied onto the new block.
+<dd class="field-odd"><p><strong>keep_patches</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True (default), all patches are deep-copied onto the new block.
 If False, the returned block has no patches attached.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1729,7 +1729,7 @@ propagate to the parent:</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>mask</strong> (<em>array-like</em><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – Boolean array matching the block shape. Setters modify only the
+<dd class="field-odd"><p><strong>mask</strong> (<em>array-like</em><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – Boolean array matching the block shape. Setters modify only the
 nodes where it is True.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -2665,7 +2665,7 @@ what that correction needs and what a rolling pair could never give.</p>
 all carved from one allocation and therefore mutually disjoint.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of Array</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of Array</p>
 </dd>
 <dt class="field-odd">Type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>Boundary tau/q as six surface buffers</p>
@@ -3014,7 +3014,7 @@ original and vice versa. A scalar index on an axis removes that axis
 (<code class="docutils literal notranslate"><span class="pre">ndim</span></code> decreases by one); a slice preserves it.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>key</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><a class="reference internal" href="patch.html#ember.patch.Patch.slice" title="ember.patch.Patch.slice"><em>slice</em></a><em>, or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><em>int/slice</em>) – Index expression applied to the spatial axes.</p>
+<dd class="field-odd"><p><strong>key</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><a class="reference internal" href="patch.html#ember.patch.Patch.slice" title="ember.patch.Patch.slice"><em>slice</em></a><em>, or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><em>int/slice</em>) – Index expression applied to the spatial axes.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>out</strong> – A view with the selected spatial region.</p>
@@ -3041,7 +3041,7 @@ Metadata is shallow-copied from the original; beware that mutable
 metadata values are shared.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>, </em><em>optional</em>) – Shape of the new array. Defaults to scalar.</p>
+<dd class="field-odd"><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>, </em><em>optional</em>) – Shape of the new array. Defaults to scalar.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>out</strong> – A new uninitialised instance with copied metadata.</p>
@@ -3061,7 +3061,7 @@ numpy reversed-stride views. Writes through either object are visible
 in the other.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>axis</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Axis along which to reverse indexing.</p>
+<dd class="field-odd"><p><strong>axis</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Axis along which to reverse indexing.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>out</strong> – A new instance with reversed indexing along the given axis.</p>
@@ -3112,7 +3112,7 @@ reductions allocate their own and report writeable.</p>
 <dd><p>Calculate mean along specified axis, creating a new object.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>axis</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Axis along which to calculate mean. Must be less than ndim.
+<dd class="field-odd"><p><strong>axis</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Axis along which to calculate mean. Must be less than ndim.
 Default is 0 (first spatial dimension).</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -3132,7 +3132,7 @@ Default is 0 (first spatial dimension).</p>
 <dd><p>Calculate nanmean along specified axis, ignoring NaN values.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>axis</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Axis along which to calculate nanmean. Must be less than ndim.
+<dd class="field-odd"><p><strong>axis</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Axis along which to calculate nanmean. Must be less than ndim.
 Default is 0 (first spatial dimension).</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -3186,7 +3186,7 @@ otherwise numpy makes a copy. The total number of spatial points must
 be unchanged.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – New shape. Must contain the same number of elements as the original.</p>
+<dd class="field-odd"><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – New shape. Must contain the same number of elements as the original.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>out</strong> – A new instance with the specified shape.</p>
@@ -3259,7 +3259,7 @@ a zero-copy view where possible; otherwise numpy
 makes a copy. Writes through a view are visible in the original.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>, </em><em>optional</em>) – New order of the axes. If None, the axes order is reversed.</p>
+<dd class="field-odd"><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>, </em><em>optional</em>) – New order of the axes. If None, the axes order is reversed.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>out</strong> – A new instance with axes reordered as specified.</p>

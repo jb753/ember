@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Communicators &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>Communicators &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -230,7 +230,7 @@ ijk indices for efficient periodic boundary condition communication.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – The grid containing blocks with periodic patches</p></li>
-<li><p><strong>periodic_pairs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Dictionary from grid.connectivity.periodic.pair() with format:
+<li><p><strong>periodic_pairs</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Dictionary from grid.connectivity.periodic.pair() with format:
 {(bid, pid): ((nxbid, nxpid), (perm, flip))}</p></li>
 </ul>
 </dd>
@@ -241,7 +241,7 @@ ijk indices for efficient periodic boundary condition communication.</p>
 <dd><p>Pruned unidirectional pairs: {(bid, pid): ((nxbid, nxpid), (perm, flip))}</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -253,7 +253,7 @@ ijk indices for efficient periodic boundary condition communication.</p>
 source patches (untransformed) and target patches (transformed)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -303,11 +303,11 @@ that, exchanging the plain average of the two circumferential means instead.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – The grid instance.</p></li>
-<li><p><strong>mixing_pairs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Mapping of mixing patch pair information.</p></li>
+<li><p><strong>mixing_pairs</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Mapping of mixing patch pair information.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the two sides of a plane disagree on <code class="docutils literal notranslate"><span class="pre">rf_exchange</span></code>.</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the two sides of a plane disagree on <code class="docutils literal notranslate"><span class="pre">rf_exchange</span></code>.</p>
 </dd>
 </dl>
 <dl class="py attribute">
@@ -370,7 +370,7 @@ variables, shape <code class="docutils literal notranslate"><span class="pre">(n
 not been exchanged yet.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a> or None</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)">dict</a> or None</p>
 </dd>
 </dl>
 </dd></dl>
@@ -406,7 +406,7 @@ communicator interpolates between patches with different node distributions.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#ember.grid.Grid" title="ember.grid.Grid"><em>Grid</em></a>) – The grid containing blocks with non-matching patches</p></li>
-<li><p><strong>nonmatch_pairs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Dictionary from grid.connectivity.nonmatch.pair() with format:
+<li><p><strong>nonmatch_pairs</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – Dictionary from grid.connectivity.nonmatch.pair() with format:
 {(bid, pid): ((nxbid, nxpid), (perm, flip))}</p></li>
 </ul>
 </dd>
@@ -417,7 +417,7 @@ communicator interpolates between patches with different node distributions.</p>
 <dd><p>Pruned unidirectional pairs: {(bid, pid): ((nxbid, nxpid), (perm, flip))}</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -429,7 +429,7 @@ communicator interpolates between patches with different node distributions.</p>
 where uv_array has shape (…, …, 2) with [u, v] ∈ [0,1]^2</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
 </dd>
 </dl>
 </dd></dl>

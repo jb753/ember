@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.mixing &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>ember.mixing &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -330,6 +330,17 @@
         <span class="c1"># feedback, and the integrating form of the relaxation has a tighter</span>
         <span class="c1"># stability limit than a proportional one would.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">rf_exchange</span> <span class="o">=</span> <span class="mf">0.02</span>
+        <span class="c1"># The endwall band, as a fraction of span measured in from hub and</span>
+        <span class="c1"># casing, over which the exchange relaxes more gently and this side</span>
+        <span class="c1"># drops the harmonic part of its own correction; and the fraction of</span>
+        <span class="c1"># rf_exchange left at the wall itself, rising linearly to all of it at</span>
+        <span class="c1"># the edge of the band. The treatment of SU2&#39;s GILES_EXTRA_RELAXFACTOR:</span>
+        <span class="c1"># the exchange is linearised about one state per station, and the</span>
+        <span class="c1"># endwall flow is the first to put the two sides of a station far from</span>
+        <span class="c1"># one. Zero span is off. Both sides of a plane must agree, as for</span>
+        <span class="c1"># rf_exchange; see _endwall_weight.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">endwall_span</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">endwall_rf</span> <span class="o">=</span> <span class="mf">0.1</span>
         <span class="c1"># Per-station entering flag the communicator computed from the shared</span>
         <span class="c1"># symmetrised interface state, stamped here by</span>
         <span class="c1"># :class:`~ember.mixing_communicator.MixingCommunicator`</span>
@@ -397,9 +408,60 @@
         <span class="c1"># there.</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_copy</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
         <span class="n">c</span><span class="o">.</span><span class="n">rf_exchange</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rf_exchange</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">endwall_span</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">endwall_span</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">endwall_rf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">endwall_rf</span>
         <span class="n">c</span><span class="o">.</span><span class="n">_reflective</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reflective</span>
         <span class="c1"># _sign_settled is deliberately not carried: the copy re-settles</span>
         <span class="c1"># against its own block&#39;s flow, as _ref and the splits are rebuilt.</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_endwall_distance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Span fraction to the nearer endwall at each station, shape ``(nspan,)``.&quot;&quot;&quot;</span>
+        <span class="n">spf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spf</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">spf</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">spf</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_endwall_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Factor on :attr:`rf_exchange` at each span station, shape ``(nspan,)``.</span>
+
+<span class="sd">        :attr:`endwall_rf` at a wall, rising linearly to one at</span>
+<span class="sd">        :attr:`endwall_span` in from it, and one everywhere while the band is</span>
+<span class="sd">        off. Symmetric in span, so the two sides of a plane read the same</span>
+<span class="sd">        weights whichever way round their span axes run.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">endwall_span</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spf</span><span class="p">)</span>
+        <span class="n">ramp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_endwall_distance</span><span class="p">()</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">endwall_span</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">endwall_rf</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">endwall_rf</span><span class="p">)</span> <span class="o">*</span> <span class="n">ramp</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_calc_dchic</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dchic</span><span class="p">,</span> <span class="n">prim</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Change in the incoming characteristics, harmonics ramped out near the endwalls.</span>
+
+<span class="sd">        Inside the band set by :attr:`endwall_span` the harmonic part of the</span>
+<span class="sd">        inherited correction is scaled by the distance to the nearer wall over</span>
+<span class="sd">        the width of the band: none of it at the wall, which is left reflective</span>
+<span class="sd">        to its harmonics, and all of it at the edge of the band. The pitchwise</span>
+<span class="sd">        mean is always taken whole. SU2 zeroes the harmonics across the whole</span>
+<span class="sd">        band and restores them in one step at its edge; ramped here instead,</span>
+<span class="sd">        because a station that is reflective beside one that is not is itself a</span>
+<span class="sd">        spanwise discontinuity in the boundary condition, and a short spanwise</span>
+<span class="sd">        wavelength is exactly what the band is there to damp. Elsewhere, and</span>
+<span class="sd">        whenever the band is off, this is the inherited correction unchanged.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dchic_new</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_calc_dchic</span><span class="p">(</span><span class="n">dchic</span><span class="p">,</span> <span class="n">prim</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">endwall_span</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">dchic_new</span>
+        <span class="n">weight</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_endwall_distance</span><span class="p">()</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">endwall_span</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">band</span> <span class="o">=</span> <span class="n">weight</span> <span class="o">&lt;</span> <span class="mf">1.0</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">band</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">dchic_new</span>
+        <span class="c1"># _pitch_mean takes a patch-shaped field, so the weights are given the</span>
+        <span class="c1"># trailing characteristic axis here rather than there.</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="p">(</span><span class="n">dchic_new</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_pitch</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+            <span class="n">axis</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pitch_dim</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+        <span class="n">ramped</span> <span class="o">=</span> <span class="n">mean</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_span_bcast</span><span class="p">(</span><span class="n">weight</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">dchic_new</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_span_bcast</span><span class="p">(</span><span class="n">band</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="n">ramped</span><span class="p">,</span> <span class="n">dchic_new</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dchic_new</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_enter_resolved</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Settle the frame axis against the flow, once, before the first rotation.</span>

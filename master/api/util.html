@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Array utilities &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>Array utilities &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -449,7 +449,7 @@ and always <code class="docutils literal notranslate"><span class="pre">order=&q
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Shape of the new array.</p></li>
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Shape of the new array.</p></li>
 <li><p><strong>dtype</strong> (<em>numpy dtype</em><em>, </em><em>optional</em>) – Data type for the new array. Default is <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
 </ul>
 </dd>
@@ -494,7 +494,7 @@ written – use this only where every element will be set before being
 read.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Shape of the new array.</p>
+<dd class="field-odd"><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Shape of the new array.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Fortran-ordered, float32 array of the given shape with
@@ -515,7 +515,7 @@ uninitialised contents.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Shape of the new array.</p></li>
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Shape of the new array.</p></li>
 <li><p><strong>fill_value</strong> (<em>scalar</em>) – Value to fill every element with.</p></li>
 </ul>
 </dd>
@@ -540,7 +540,7 @@ specified shape and dtype. Otherwise returns the provided array.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>out</strong> (<em>Array</em><em> or </em><em>None</em>) – Pre-allocated output array, or None to allocate new array.</p></li>
-<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of array to allocate if out is None.</p></li>
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of array to allocate if out is None.</p></li>
 <li><p><strong>dtype</strong> (<em>numpy dtype</em><em>, </em><em>optional</em>) – Data type for new array. Default is np.float32.</p></li>
 </ul>
 </dd>
@@ -573,7 +573,7 @@ actual callers already pass exactly <code class="docutils literal notranslate"><
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>a</strong> (<em>array_like</em>) – Candidate array; may already have <code class="docutils literal notranslate"><span class="pre">shape</span></code> or be broadcastable to it.</p></li>
-<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Target shape.</p></li>
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Target shape.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -605,7 +605,7 @@ site.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>buf</strong> (<em>Array</em>) – Fortran-contiguous source buffer to reinterpret. Must be large enough to
 hold the concatenation of all <cite>shapes</cite> (<code class="docutils literal notranslate"><span class="pre">sum(prod(shape))</span></code> elements).</p></li>
-<li><p><strong>*shapes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – One shape per view, in packing order. Passing a single shape returns a
+<li><p><strong>*shapes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – One shape per view, in packing order. Passing a single shape returns a
 single view; passing several returns a list, one per shape.</p></li>
 </ul>
 </dd>
@@ -614,10 +614,10 @@ single view; passing several returns a list, one per shape.</p></li>
 aliasing a disjoint span of <cite>buf</cite>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Array or <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a> of Array</p>
+<dd class="field-odd"><p>Array or <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)">list</a> of Array</p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the packed views would not fit within <cite>buf</cite>.</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the packed views would not fit within <cite>buf</cite>.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -636,7 +636,7 @@ a debug-logging path never have to branch.</p>
 <dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">(rss,</span> <span class="pre">peak_rss)</span></code> in bytes.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)">int</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -684,10 +684,10 @@ common pattern of creating linspace vectors and then meshing them.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>x</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> or </em><em>array_like</em>) – Axial coordinate range [x_min, x_max].</p></li>
-<li><p><strong>r</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> or </em><em>array_like</em>) – Radial coordinate range [r_min, r_max].</p></li>
-<li><p><strong>t</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> or </em><em>array_like</em>) – Angular coordinate range [t_min, t_max].</p></li>
-<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of the grid (ni, nj, nk).</p></li>
+<li><p><strong>x</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> or </em><em>array_like</em>) – Axial coordinate range [x_min, x_max].</p></li>
+<li><p><strong>r</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> or </em><em>array_like</em>) – Radial coordinate range [r_min, r_max].</p></li>
+<li><p><strong>t</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> or </em><em>array_like</em>) – Angular coordinate range [t_min, t_max].</p></li>
+<li><p><strong>shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Shape of the grid (ni, nj, nk).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -719,7 +719,7 @@ coordinate for distance calculations in cylindrical coordinates.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>xrt</strong> (<em>array_like</em>) – Input coordinates with shape (…, 3) where the last dimension
 contains [x, r, θ] coordinates.</p></li>
-<li><p><strong>inplace</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, modify the input array in-place. If False (default),
+<li><p><strong>inplace</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, modify the input array in-place. If False (default),
 return a copy with the conversion applied.</p></li>
 </ul>
 </dd>
@@ -810,7 +810,7 @@ first point of the curve.</p>
 <dd class="field-odd"><p>Array, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (…)</p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the curve has fewer than two points, or reaches the axis.</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the curve has fewer than two points, or reaches the axis.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
@@ -844,8 +844,8 @@ way to our convention should be read with <code class="docutils literal notransl
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates (x, y, z) with components on last axis</p></li>
 <li><p><strong>Vxyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Cartesian velocity components (Vx, Vy, Vz) with components on last axis</p></li>
-<li><p><strong>perm</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate permutation (0, 1, 2) -&gt; reordered indices. Default: (0, 1, 2)</p></li>
-<li><p><strong>signs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate signs (-1 or 1 for each axis). Default: (1, 1, 1)</p></li>
+<li><p><strong>perm</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate permutation (0, 1, 2) -&gt; reordered indices. Default: (0, 1, 2)</p></li>
+<li><p><strong>signs</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate signs (-1 or 1 for each axis). Default: (1, 1, 1)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -884,8 +884,8 @@ given Cartesian data.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>xrt</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Polar coordinates (x, r, t) with components on last axis</p></li>
 <li><p><strong>Vxrt</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Polar velocity components (Vx, Vr, Vt) with components on last axis</p></li>
-<li><p><strong>perm</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate permutation (0, 1, 2) -&gt; reordered indices. Default: (0, 1, 2)</p></li>
-<li><p><strong>signs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate signs (-1 or 1 for each axis). Default: (1, 1, 1)</p></li>
+<li><p><strong>perm</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate permutation (0, 1, 2) -&gt; reordered indices. Default: (0, 1, 2)</p></li>
+<li><p><strong>signs</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>optional</em>) – Coordinate signs (-1 or 1 for each axis). Default: (1, 1, 1)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -952,7 +952,7 @@ orthogonal – so it undoes exactly this and nothing has to be re-derived
 to invert it.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>chi</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><em>Array</em>) – Angle [rad] of the frame axis from <span class="math notranslate nohighlight">\(+x\)</span>, any shape.</p>
+<dd class="field-odd"><p><strong>chi</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><em>Array</em>) – Angle [rad] of the frame axis from <span class="math notranslate nohighlight">\(+x\)</span>, any shape.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>rot_to, rot_from</strong> – <code class="docutils literal notranslate"><span class="pre">rot_to</span></code> turns <span class="math notranslate nohighlight">\((V_x, V_r)\)</span> into <span class="math notranslate nohighlight">\((V_n, V_s)\)</span>;
@@ -1047,7 +1047,7 @@ upsampling, fractional indices are linearly interpolated.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>factor</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Resampling factor. Values &gt; 1 increase resolution, &lt; 1 decrease resolution.
+<li><p><strong>factor</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Resampling factor. Values &gt; 1 increase resolution, &lt; 1 decrease resolution.
 Must be &gt; 0.</p></li>
 <li><p><strong>vector</strong> (<em>array_like</em>) – Input vector to resample.</p></li>
 <li><p><strong>i_crit</strong> (<em>array_like</em><em>, </em><em>optional</em>) – Critical indices that must be preserved in the output.
@@ -1092,8 +1092,8 @@ commonly used in patch operations for coordinate transformations.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>array</strong> (<em>Array</em>) – Input array to transform, typically with shape (…, 3) where the last
 dimension contains coordinate components.</p></li>
-<li><p><strong>perm</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Permutation to apply to spatial dimensions (0, 1, 2).</p></li>
-<li><p><strong>flip</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>, </em><em>optional</em>) – Dimensions to flip after permutation. Default is () (no flipping).</p></li>
+<li><p><strong>perm</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a>) – Permutation to apply to spatial dimensions (0, 1, 2).</p></li>
+<li><p><strong>flip</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em>, </em><em>optional</em>) – Dimensions to flip after permutation. Default is () (no flipping).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1131,7 +1131,7 @@ distribution, which clusters nodes near both endpoints (<code class="docutils li
 <p>The result is symmetric about 0.5 with exact endpoints 0 and 1.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>n</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of points to generate (must be &gt;= 2).</p>
+<dd class="field-odd"><p><strong>n</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of points to generate (must be &gt;= 2).</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Cosine-clustered vector from 0 to 1, dtype=float32.</p>
@@ -1161,9 +1161,9 @@ unit total length while respecting dmax after capping.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>ni</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of points to generate (must be &gt;= 2)</p></li>
-<li><p><strong>ER</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Expansion ratio for geometric spacing (must be &gt; 0)</p></li>
-<li><p><strong>dmax</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Maximum allowed spacing between consecutive points (must be &gt; 0)</p></li>
+<li><p><strong>ni</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of points to generate (must be &gt;= 2)</p></li>
+<li><p><strong>ER</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Expansion ratio for geometric spacing (must be &gt; 0)</p></li>
+<li><p><strong>dmax</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Maximum allowed spacing between consecutive points (must be &gt; 0)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1199,10 +1199,10 @@ growth rate is controlled rather than fixed by the distribution.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>n</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of points to generate. Must be odd and &gt;= 3, so that the two
+<li><p><strong>n</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Number of points to generate. Must be odd and &gt;= 3, so that the two
 mirrored halves share their midpoint.</p></li>
-<li><p><strong>ER</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Expansion ratio for geometric spacing (must be &gt; 0).</p></li>
-<li><p><strong>dmax</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Maximum allowed spacing in the returned vector (must be &gt; 0).</p></li>
+<li><p><strong>ER</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Expansion ratio for geometric spacing (must be &gt; 0).</p></li>
+<li><p><strong>dmax</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Maximum allowed spacing in the returned vector (must be &gt; 0).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>

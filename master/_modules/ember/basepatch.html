@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.basepatch &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>ember.basepatch &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -371,9 +371,10 @@
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Compare coordinates of this patch against another after a transform.</span>
 
-<span class="sd">        Extracts coordinates, applies pitch-wrapping on theta, computes an</span>
-<span class="sd">        absolute tolerance, applies the transform to the other patch&#39;s coords,</span>
-<span class="sd">        and returns whether all points agree within tolerance.</span>
+<span class="sd">        Extracts coordinates, applies the transform to the other patch&#39;s</span>
+<span class="sd">        coords, shifts its theta by the nearest whole number of pitches onto</span>
+<span class="sd">        this patch&#39;s, computes an absolute tolerance, and returns whether all</span>
+<span class="sd">        points agree within tolerance.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
@@ -387,7 +388,7 @@
 <span class="sd">            If True, compare only x and r coordinates (ignore theta).</span>
 <span class="sd">            If False, convert to pseudo-Cartesian space before comparing.</span>
 <span class="sd">        rtol : float, optional</span>
-<span class="sd">            Relative tolerance for pitch-wrapping and distance comparison.</span>
+<span class="sd">            Relative tolerance for distance comparison.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
@@ -398,12 +399,6 @@
 
         <span class="n">xrt_self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span><span class="o">.</span><span class="n">xrt</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
         <span class="n">xrt_other</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">block</span><span class="p">[</span><span class="n">other</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span><span class="o">.</span><span class="n">xrt</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-
-        <span class="c1"># Pitch-wrap theta on both</span>
-        <span class="n">pitch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span><span class="o">.</span><span class="n">pitch</span>
-        <span class="k">for</span> <span class="n">xrt</span> <span class="ow">in</span> <span class="p">(</span><span class="n">xrt_self</span><span class="p">,</span> <span class="n">xrt_other</span><span class="p">):</span>
-            <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mod</span><span class="p">(</span><span class="n">xrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">pitch</span><span class="p">)</span>
-            <span class="n">xrt</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">t</span> <span class="o">/</span> <span class="n">pitch</span> <span class="o">&gt;</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">rtol</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
 
         <span class="n">atol</span> <span class="o">=</span> <span class="n">rtol</span> <span class="o">*</span> <span class="nb">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ptp</span><span class="p">(</span><span class="n">xrt_self</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">ptp</span><span class="p">(</span><span class="n">xrt_self</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]))</span>
 
@@ -417,6 +412,15 @@
             <span class="n">a</span> <span class="o">=</span> <span class="n">xrt_self</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>
             <span class="n">b</span> <span class="o">=</span> <span class="n">xrt_other_t</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Remove whole pitches from the signed difference in theta, rather</span>
+            <span class="c1"># than wrapping each side into [0, pitch) on its own. Wrapped</span>
+            <span class="c1"># separately, two points one pitch apart that sit either side of</span>
+            <span class="c1"># the wrap cut --- which float32 coordinates put about 1e-7 of a</span>
+            <span class="c1"># pitch apart --- land at opposite ends of the pitch and look a</span>
+            <span class="c1"># whole pitch adrift, so the cut decides the answer.</span>
+            <span class="n">pitch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="p">]</span><span class="o">.</span><span class="n">pitch</span>
+            <span class="n">dt</span> <span class="o">=</span> <span class="n">xrt_other_t</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">xrt_self</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+            <span class="n">xrt_other_t</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-=</span> <span class="n">pitch</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">dt</span> <span class="o">/</span> <span class="n">pitch</span><span class="p">)</span>
             <span class="n">a</span> <span class="o">=</span> <span class="n">pol_to_pseudocart</span><span class="p">(</span><span class="n">xrt_self</span><span class="p">)</span>
             <span class="n">b</span> <span class="o">=</span> <span class="n">pol_to_pseudocart</span><span class="p">(</span><span class="n">xrt_other_t</span><span class="p">)</span>
 

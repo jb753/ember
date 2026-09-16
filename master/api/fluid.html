@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Fluid &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>Fluid &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -490,7 +490,7 @@ names that class, so loading the wrong file is an error rather than a
 constructor failure several arguments deep.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>data</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – As returned by <a class="reference internal" href="#ember.fluid.Fluid.to_dict" title="ember.fluid.Fluid.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>. Not modified.</p>
+<dd class="field-odd"><p><strong>data</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – As returned by <a class="reference internal" href="#ember.fluid.Fluid.to_dict" title="ember.fluid.Fluid.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a>. Not modified.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>fluid</strong> – A new instance of the class named by <code class="docutils literal notranslate"><span class="pre">data[&quot;type&quot;]</span></code>.</p>
@@ -664,7 +664,7 @@ to. <a class="reference internal" href="#ember.fluid.PerfectFluid" title="ember.
 <dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(P,</span> <span class="pre">h,</span> <span class="pre">T)</span></code>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of ndarray</p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of ndarray</p>
 </dd>
 </dl>
 </dd></dl>
@@ -718,11 +718,11 @@ only the scales that change. See <a class="reference internal" href="#reference-
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>rho_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
+<li><p><strong>rho_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
 their current value.</p></li>
-<li><p><strong>V_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
+<li><p><strong>V_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
 their current value.</p></li>
-<li><p><strong>Rgas_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
+<li><p><strong>Rgas_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
 their current value.</p></li>
 </ul>
 </dd>
@@ -750,7 +750,7 @@ number.</p>
 calls multiply together.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>scale_visc</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Factor to multiply this fluid’s viscosity by. Must be positive.</p>
+<dd class="field-odd"><p><strong>scale_visc</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Factor to multiply this fluid’s viscosity by. Must be positive.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>fluid_new</strong> – New fluid instance with scaled viscosity.</p>
@@ -779,7 +779,7 @@ another run therefore arrives with the scales of the run that wrote it;
 <dd class="field-odd"><p><strong>data</strong> – Constructor arguments plus a <code class="docutils literal notranslate"><span class="pre">type</span></code> key naming the class.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)">dict</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -865,15 +865,15 @@ another run therefore arrives with the scales of the run that wrote it;
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>cp</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Specific heat at constant pressure [J/kg/K].</p></li>
-<li><p><strong>gamma</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Ratio of specific heats [–].</p></li>
-<li><p><strong>mu</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Dynamic viscosity [kg/m/s].</p></li>
-<li><p><strong>Pr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Prandtl number [–].</p></li>
-<li><p><strong>P_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Datum pressure where u = 0 and s = 0 [Pa].</p></li>
-<li><p><strong>T_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Datum temperature where u = 0 and s = 0 [K].</p></li>
-<li><p><strong>rho_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Reference density for non-dimensionalisation.</p></li>
-<li><p><strong>V_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Reference velocity for non-dimensionalisation.</p></li>
-<li><p><strong>Rgas_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Reference gas constant for non-dimensionalisation.</p></li>
+<li><p><strong>cp</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Specific heat at constant pressure [J/kg/K].</p></li>
+<li><p><strong>gamma</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Ratio of specific heats [–].</p></li>
+<li><p><strong>mu</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Dynamic viscosity [kg/m/s].</p></li>
+<li><p><strong>Pr</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Prandtl number [–].</p></li>
+<li><p><strong>P_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Datum pressure where u = 0 and s = 0 [Pa].</p></li>
+<li><p><strong>T_dtm</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Datum temperature where u = 0 and s = 0 [K].</p></li>
+<li><p><strong>rho_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Reference density for non-dimensionalisation.</p></li>
+<li><p><strong>V_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Reference velocity for non-dimensionalisation.</p></li>
+<li><p><strong>Rgas_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Reference gas constant for non-dimensionalisation.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1539,7 +1539,7 @@ this method once per Runge-Kutta stage, so a fused evaluation can save time.</p>
 <dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(P,</span> <span class="pre">h,</span> <span class="pre">T)</span></code>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of ndarray</p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of ndarray</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1668,11 +1668,11 @@ only the scales that change. See <a class="reference internal" href="#reference-
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>rho_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
+<li><p><strong>rho_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
 their current value.</p></li>
-<li><p><strong>V_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
+<li><p><strong>V_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
 their current value.</p></li>
-<li><p><strong>Rgas_ref</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
+<li><p><strong>Rgas_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – New reference density, velocity and gas constant. Any left out keep
 their current value.</p></li>
 </ul>
 </dd>
@@ -2582,7 +2582,7 @@ work.</p>
 <dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(P,</span> <span class="pre">h,</span> <span class="pre">T)</span></code>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of ndarray</p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)">tuple</a> of ndarray</p>
 </dd>
 </dl>
 </dd></dl>

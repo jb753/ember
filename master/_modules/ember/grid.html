@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.grid &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>ember.grid &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -1428,22 +1428,30 @@
 <div class="viewcode-block" id="Grid.check_nan">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.check_nan">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">check_nan</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Scan every block&#39;s density field for NaN; report the first bad block.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Scan every block for NaN density or non-positive pressure; report the first bad block.</span>
 
-<span class="sd">        Cheap enough to call each solver step: only the density component</span>
+<span class="sd">        Cheap enough to call each solver step: the density component</span>
 <span class="sd">        ``conserved_nd[..., 0]`` is inspected, since a NaN in any conserved</span>
 <span class="sd">        variable propagates into density within a step through the</span>
 <span class="sd">        pressure/flux coupling. On the duct smoke test this costs ~0.5% of a</span>
 <span class="sd">        single full-field residual evaluation.</span>
 
+<span class="sd">        Pressure is checked as well, because it can go non-positive a step or</span>
+<span class="sd">        more before anything is NaN: an energy that has fallen below the kinetic</span>
+<span class="sd">        energy is still a finite density. That check reads</span>
+<span class="sd">        :attr:`~ember.block.Block.P_nd` after filling the primitive cache, as</span>
+<span class="sd">        the other consumers of it in the step do, so it costs one reduction and</span>
+<span class="sd">        leaves the cache current for them.</span>
+
 <span class="sd">        Raises</span>
 <span class="sd">        ------</span>
 <span class="sd">        DivergenceError</span>
-<span class="sd">            If any block contains a NaN. The message names the first such block</span>
-<span class="sd">            (index and label), the ``(i, j, k)`` node bounding box of the NaN</span>
-<span class="sd">            region, and which of the six boundary faces it touches -- enough to</span>
-<span class="sd">            tell a boundary-seeded blow-up from an interior one. The grid is left</span>
-<span class="sd">            untouched so the invalid field can be inspected.</span>
+<span class="sd">            If any block contains a NaN density or a non-positive pressure. The</span>
+<span class="sd">            message names the first such block (index and label), the</span>
+<span class="sd">            ``(i, j, k)`` node bounding box of the bad region, and which of the</span>
+<span class="sd">            six boundary faces it touches -- enough to tell a boundary-seeded</span>
+<span class="sd">            blow-up from an interior one. The conserved field is left untouched</span>
+<span class="sd">            so it can be inspected.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">iblock</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
             <span class="n">rho</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
@@ -1456,34 +1464,24 @@
             <span class="c1"># as well as maximum.reduce) and warns on the NaN it is looking for.</span>
             <span class="c1"># The mask is built below only once it is known to be non-empty,</span>
             <span class="c1"># where the bounding box needs it anyway.</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">rho</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
-                <span class="k">continue</span>
-            <span class="n">nan_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">rho</span><span class="p">)</span>
-            <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">ni</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">nj</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">nk</span>
-            <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">kk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">nan_mask</span><span class="p">)</span>
-            <span class="n">box</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;i[</span><span class="si">{</span><span class="n">ii</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ii</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]/</span><span class="si">{</span><span class="n">ni</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;j[</span><span class="si">{</span><span class="n">jj</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">jj</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]/</span><span class="si">{</span><span class="n">nj</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;k[</span><span class="si">{</span><span class="n">kk</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">kk</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]/</span><span class="si">{</span><span class="n">nk</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span>
-            <span class="n">faces</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">if</span> <span class="n">ii</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;i-lo&quot;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">ii</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">==</span> <span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;i-hi&quot;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">jj</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;j-lo&quot;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">jj</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">==</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;j-hi&quot;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">kk</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;k-lo&quot;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">kk</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">==</span> <span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;k-hi&quot;</span><span class="p">)</span>
-            <span class="n">touch</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">faces</span><span class="p">)</span> <span class="k">if</span> <span class="n">faces</span> <span class="k">else</span> <span class="s2">&quot;interior only&quot;</span>
-            <span class="k">raise</span> <span class="n">DivergenceError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;NaN in conserved_nd density of block </span><span class="si">{</span><span class="n">iblock</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2">): &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">nan_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> node(s), bbox </span><span class="si">{</span><span class="n">box</span><span class="si">}</span><span class="s2">, touches [</span><span class="si">{</span><span class="n">touch</span><span class="si">}</span><span class="s2">]&quot;</span>
-            <span class="p">)</span></div>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">rho</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
+                <span class="k">raise</span> <span class="n">DivergenceError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;NaN in conserved_nd density of block </span><span class="si">{</span><span class="n">iblock</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2">): </span><span class="si">{</span><span class="n">_where</span><span class="p">(</span><span class="n">block</span><span class="p">,</span><span class="w"> </span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">rho</span><span class="p">))</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+            <span class="c1"># Then pressure, which can go non-positive while density is still</span>
+            <span class="c1"># finite. See Grid.update_residual: fill the primitive cache at the</span>
+            <span class="c1"># point of consumption; a no-op if already current. min() propagates</span>
+            <span class="c1"># NaN, so the one comparison catches both.</span>
+            <span class="n">block</span><span class="o">.</span><span class="n">update_primitive</span><span class="p">()</span>
+            <span class="n">P</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">P_nd</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">P</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">:</span>
+                <span class="n">bad</span> <span class="o">=</span> <span class="o">~</span><span class="p">(</span><span class="n">P</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">DivergenceError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Non-positive pressure in block </span><span class="si">{</span><span class="n">iblock</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2">): &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;min P_nd </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmin</span><span class="p">(</span><span class="n">P</span><span class="p">))</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">_where</span><span class="p">(</span><span class="n">block</span><span class="p">,</span><span class="w"> </span><span class="n">bad</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Grid.copy">
@@ -2409,7 +2407,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_pairs_computed</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_communicator</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_pairs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_pairs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
         <span class="c1"># Collect patches of the specified type from all blocks</span>
         <span class="n">patches</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">blocks</span> <span class="o">=</span> <span class="p">[]</span>
@@ -2571,7 +2569,7 @@
 
 <div class="viewcode-block" id="GridConnectivity.pair">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.GridConnectivity.pair">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Pair patches of the specified type, caching the result.</span>
 
 <span class="sd">        Filters patches to only include instances of self.patch_class, then uses</span>
@@ -2695,7 +2693,7 @@
 
 <div class="viewcode-block" id="GridConnectivityManager.pair">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.GridConnectivityManager.pair">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Pair all patch types and return combined connectivity dictionary.</span>
 
 <span class="sd">        Parameters</span>
@@ -2809,10 +2807,41 @@
 
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_where</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">mask</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Describe the bad nodes of a block for a :class:`DivergenceError`.</span>
+
+<span class="sd">    How many there are, the ``(i, j, k)`` bounding box they fill, and which of</span>
+<span class="sd">    the six boundary faces that box touches -- enough to tell a boundary-seeded</span>
+<span class="sd">    blow-up from an interior one.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">ni</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">nj</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">nk</span>
+    <span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">,</span> <span class="n">kk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
+    <span class="n">box</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;i[</span><span class="si">{</span><span class="n">ii</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ii</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]/</span><span class="si">{</span><span class="n">ni</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;j[</span><span class="si">{</span><span class="n">jj</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">jj</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]/</span><span class="si">{</span><span class="n">nj</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;k[</span><span class="si">{</span><span class="n">kk</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">kk</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]/</span><span class="si">{</span><span class="n">nk</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="n">faces</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">ii</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;i-lo&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ii</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">==</span> <span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;i-hi&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">jj</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;j-lo&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">jj</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">==</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;j-hi&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">kk</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;k-lo&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">kk</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">==</span> <span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;k-hi&quot;</span><span class="p">)</span>
+    <span class="n">touch</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">faces</span><span class="p">)</span> <span class="k">if</span> <span class="n">faces</span> <span class="k">else</span> <span class="s2">&quot;interior only&quot;</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> node(s), bbox </span><span class="si">{</span><span class="n">box</span><span class="si">}</span><span class="s2">, touches [</span><span class="si">{</span><span class="n">touch</span><span class="si">}</span><span class="s2">]&quot;</span>
+
+
 <div class="viewcode-block" id="DivergenceError">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.DivergenceError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">DivergenceError</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Raised when a block&#39;s conserved field contains a NaN.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Raised when a block&#39;s flow field contains a NaN or a non-positive pressure.</span>
 
 <span class="sd">    A dedicated type lets a solver loop catch divergence precisely and exit</span>
 <span class="sd">    cleanly (leaving the invalid field in place for debugging) while genuinely</span>

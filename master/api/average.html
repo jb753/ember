@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Averaging &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>Averaging &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -193,7 +193,7 @@ across blade rows.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D structured or triangulated block.</p></li>
-<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to sum the mass flow;
+<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to sum the mass flow;
 for triangulated grids, should be None to sum over all faces.</p></li>
 </ul>
 </dd>
@@ -201,7 +201,7 @@ for triangulated grids, should be None to sum over all faces.</p></li>
 <dd class="field-even"><p><strong>mass_flow</strong> – Mass flow rate through the block.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)">float</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -228,7 +228,7 @@ enthalpy (energy),</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D structured or triangulated block.</p></li>
-<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to sum the flows;
+<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to sum the flows;
 for triangulated grids, should be None to sum over all faces.</p></li>
 </ul>
 </dd>
@@ -264,7 +264,7 @@ the Jacobian from <a class="reference internal" href="perturbation.html#module-e
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>scalar_node</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – Scalar field values at grid nodes</p></li>
 <li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D structured or triangulated block</p></li>
-<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to average;
+<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to average;
 for triangulated grids, should be None to average over all faces</p></li>
 </ul>
 </dd>
@@ -272,10 +272,10 @@ for triangulated grids, should be None to average over all faces</p></li>
 <dd class="field-even"><p><strong>avg_scalar</strong> – Mass-weighted average value</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)">float</a></p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the net mass flux through the block is zero</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the net mass flux through the block is zero</p>
 </dd>
 </dl>
 </dd></dl>
@@ -292,7 +292,7 @@ for triangulated grids, should be None to average over all faces</p></li>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>scalar_node</strong> (<em>Array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – Scalar field values at grid nodes</p></li>
 <li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D structured or triangulated block</p></li>
-<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to average;
+<li><p><strong>axes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default</em><em> (</em><em>0</em><em>, </em><em>1</em><em>)</em>) – For structured grids, axes over which to average;
 for triangulated grids, should be None to average over all faces</p></li>
 </ul>
 </dd>
@@ -300,7 +300,7 @@ for triangulated grids, should be None to average over all faces</p></li>
 <dd class="field-even"><p><strong>avg_scalar</strong> – Area-weighted average value</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)">float</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -355,12 +355,12 @@ angular momentum <span class="math notranslate nohighlight">\(r V_\theta\)</span
 pitch angle <span class="math notranslate nohighlight">\(\beta\)</span>. This second step is reversible, so the mixing
 loss is independent of <code class="docutils literal notranslate"><span class="pre">AR</span></code> and <code class="docutils literal notranslate"><span class="pre">AR=1</span></code> recovers the plain mix-out. The
 contraction stays on the mixed-out sub/supersonic branch and raises
-<a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> if it would choke.</p>
+<a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#RuntimeError" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> if it would choke.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>) or </em><em>(</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – 2D block, can be structured or triangulated.</p></li>
-<li><p><strong>AR</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>default 1.0</em>) – Area ratio for the isentropic contraction applied after mixing out.
+<li><p><strong>AR</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>default 1.0</em>) – Area ratio for the isentropic contraction applied after mixing out.
 <code class="docutils literal notranslate"><span class="pre">AR=1</span></code> retains the constant-area mix-out; <code class="docutils literal notranslate"><span class="pre">AR&lt;1</span></code> contracts the
 uniform state to area <code class="docutils literal notranslate"><span class="pre">AR</span> <span class="pre">*</span> <span class="pre">A</span></code>.</p></li>
 </ul>

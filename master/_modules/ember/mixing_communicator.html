@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.mixing_communicator &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>ember.mixing_communicator &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -321,12 +321,16 @@
             <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">_reflective</span><span class="p">:</span>
                 <span class="c1"># No exchange to relax; see MixingCommunicator._mix_uniform.</span>
                 <span class="k">continue</span>
-            <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">rf_exchange</span> <span class="o">!=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">rf_exchange</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Mixing plane sides disagree on rf_exchange: &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">patch1</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2"> has </span><span class="si">{</span><span class="n">patch1</span><span class="o">.</span><span class="n">rf_exchange</span><span class="si">}</span><span class="s2">, &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">patch2</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2"> has </span><span class="si">{</span><span class="n">patch2</span><span class="o">.</span><span class="n">rf_exchange</span><span class="si">}</span><span class="s2">&quot;</span>
-                <span class="p">)</span>
+            <span class="c1"># The endwall band scales the same shared increment, so it is held</span>
+            <span class="c1"># to the same agreement.</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;rf_exchange&quot;</span><span class="p">,</span> <span class="s2">&quot;endwall_span&quot;</span><span class="p">,</span> <span class="s2">&quot;endwall_rf&quot;</span><span class="p">):</span>
+                <span class="n">value1</span><span class="p">,</span> <span class="n">value2</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">patch1</span><span class="p">,</span> <span class="n">name</span><span class="p">),</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">patch2</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">value1</span> <span class="o">!=</span> <span class="n">value2</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Mixing plane sides disagree on </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">patch1</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2"> has </span><span class="si">{</span><span class="n">value1</span><span class="si">}</span><span class="s2">, &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">patch2</span><span class="o">.</span><span class="n">label</span><span class="si">!r}</span><span class="s2"> has </span><span class="si">{</span><span class="n">value2</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_prune_pairs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mixing_pairs</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Prune bidirectional pairs to unidirectional mapping.&quot;&quot;&quot;</span>
@@ -646,6 +650,11 @@
         <span class="c1"># onto the target below.</span>
         <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_pair_state</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">nspan</span><span class="p">)</span>
         <span class="n">v1</span> <span class="o">*=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">rf_exchange</span>  <span class="c1"># v1 = du</span>
+        <span class="c1"># Gentler near the endwalls if the plane asks for it; see</span>
+        <span class="c1"># MixingPatch.endwall_span. The weight is symmetric in span, so it</span>
+        <span class="c1"># reads the same in either side&#39;s span order.</span>
+        <span class="k">if</span> <span class="n">patch1</span><span class="o">.</span><span class="n">endwall_span</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="n">v1</span> <span class="o">*=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">_endwall_weight</span><span class="p">()[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">v1</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
         <span class="n">state</span><span class="p">[</span><span class="s2">&quot;du&quot;</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">v1</span>
 
         <span class="c1"># Integrate the target-space mismatch onto the previous target, not the</span>

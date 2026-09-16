@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Cutting &#8212; ember 0.4.2.dev11+g5408a1514 documentation</title>
+    <title>Cutting &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=9dd8b639"></script>
+    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.2.dev11+g5408a1514</p>
+<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
 
 
 
@@ -289,15 +289,15 @@ nearest-neighbour fallback at the arc-length ends.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>unstructured_block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – Unstructured triangulated cut, for example from <a class="reference internal" href="#ember.cut.unstructured" title="ember.cut.unstructured"><code class="xref py py-func docutils literal notranslate"><span class="pre">unstructured()</span></code></a>.</p></li>
-<li><p><strong>interp_shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Target structured grid shape <code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">nj)</span></code>.</p></li>
-<li><p><strong>Beta</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Pitch angle in degrees fixing the meridional travel direction: the
+<li><p><strong>interp_shape</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – Target structured grid shape <code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">nj)</span></code>.</p></li>
+<li><p><strong>Beta</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Pitch angle in degrees fixing the meridional travel direction: the
 arc-length-zero end is the one with the smallest projection onto
 <code class="docutils literal notranslate"><span class="pre">d</span> <span class="pre">=</span> <span class="pre">(-sin</span> <span class="pre">Beta,</span> <span class="pre">cos</span> <span class="pre">Beta)</span></code>. <code class="docutils literal notranslate"><span class="pre">Beta</span> <span class="pre">=</span> <span class="pre">0</span></code> puts arc length 0 at minimum
 r; <code class="docutils literal notranslate"><span class="pre">Beta</span> <span class="pre">=</span> <span class="pre">+/-90</span></code> at maximum / minimum x. Default 0.</p></li>
-<li><p><strong>periodic</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True (default), wrap theta modulo the pitch so the uniform theta
+<li><p><strong>periodic</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – If True (default), wrap theta modulo the pitch so the uniform theta
 window is fully populated. If False, span the raw cloud theta range and
 rely on the nearest-neighbour fallback outside the data hull.</p></li>
-<li><p><strong>rtol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Relative tolerance for the periodic coverage check. With
+<li><p><strong>rtol</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Relative tolerance for the periodic coverage check. With
 <code class="docutils literal notranslate"><span class="pre">periodic=True</span></code> the cloud theta span must be at least
 <code class="docutils literal notranslate"><span class="pre">(1</span> <span class="pre">-</span> <span class="pre">rtol)</span> <span class="pre">*</span> <span class="pre">pitch</span></code> or a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> is raised. Default 0.05.</p></li>
 </ul>
