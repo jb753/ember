@@ -596,6 +596,11 @@ class Solver(BaseSolver):
             fac_mgrid=0.0,
             n_step_avg=1,
             adaptive_smoothing=False,
+            # A cold start's mixing planes need the faster exchange: at 0.02
+            # a turbine stage's soft pass diverged at the hub by step 34 that
+            # survives at 0.05, while the production march is steadier at the
+            # lower value (turbigen sweep9 0094 and 0017).
+            rf_exchange=0.05,
         )
 
     def run_fmg(self, grid):

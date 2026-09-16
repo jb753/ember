@@ -5,6 +5,19 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.3:
+
+0.4.3 (2026-09-16)
+------------------
+
+* Match periodic patches on a difference in theta, instead of wrapping each
+  face separately, relax tolerance slightly
+* Divergence check now raises on negative pressure
+* Add endwall bands to mixing plane exchange, reducing the mean relaxation
+  approaching the hub and casing by a specified factor, and turning off the
+  harmonic relaxation entirely
+
+
 .. _v0.4.2:
 
 0.4.2 (2026-09-12)
