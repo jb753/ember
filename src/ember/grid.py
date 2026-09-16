@@ -1234,10 +1234,10 @@ class Grid(_LabelledList):
 
         Pressure is checked as well, because it can go non-positive a step or
         more before anything is NaN: an energy that has fallen below the kinetic
-        energy is still a finite density. That check reads :attr:`Block.P_nd`
-        after filling the primitive cache, as the other consumers of it in the
-        step do, so it costs one reduction and leaves the cache current for
-        them.
+        energy is still a finite density. That check reads
+        :attr:`~ember.block.Block.P_nd` after filling the primitive cache, as
+        the other consumers of it in the step do, so it costs one reduction and
+        leaves the cache current for them.
 
         Raises
         ------
