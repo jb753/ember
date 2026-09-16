@@ -487,6 +487,27 @@ class Solver(BaseSolver):
     As :attr:`rf_inlet`, the default is imposed and None leaves each plane's own
     value alone."""
 
+    mix_endwall_span: float | None = 0.0
+    """Fraction of span, measured in from hub and casing, over which every
+    :class:`~ember.patch.MixingPatch` relaxes the exchange more gently and ramps
+    out the harmonic part of its own correction, down to the pitchwise mean
+    alone at the wall.
+
+    The endwall treatment of SU2's ``GILES_EXTRA_RELAXFACTOR``. The exchange is
+    linearised about one state per span station, and an endwall station is the
+    first where the two sides stop being near one: a corner separation can
+    leave them streaming away from the plane in opposite directions, with a
+    mean that cancels to nothing between them. Zero is off; must be below one
+    half. As :attr:`rf_inlet`, the default is imposed and None leaves each
+    plane's own value alone."""
+
+    mix_endwall_rf: float | None = 0.1
+    """Fraction of :attr:`rf_exchange` applied at the endwall itself, rising
+    linearly to all of it :attr:`mix_endwall_span` in from the wall. Relative
+    rather than absolute, unlike SU2's, so it keeps its meaning when
+    :attr:`rf_exchange` is retuned. Must lie in ``(0, 1]``; ignored while
+    :attr:`mix_endwall_span` is zero."""
+
     mix_reflective: bool | None = False
     r"""Run every mixing plane as a reflective one, imposing the mixed-out
     state directly instead of the characteristic exchange.
@@ -575,6 +596,11 @@ class Solver(BaseSolver):
             fac_mgrid=0.0,
             n_step_avg=1,
             adaptive_smoothing=False,
+            # A cold start's mixing planes need the faster exchange: at 0.02
+            # a turbine stage's soft pass diverged at the hub by step 34 that
+            # survives at 0.05, while the production march is steadier at the
+            # lower value (turbigen sweep9 0094 and 0017).
+            rf_exchange=0.05,
         )
 
     def run_fmg(self, grid):
@@ -988,6 +1014,26 @@ def _apply_bcond_relaxation(grid, conf):
     if conf.rf_exchange is not None:
         for patch in grid.patches.mixing:
             patch.rf_exchange = conf.rf_exchange
+
+    # Read by the communicator and by each side's own correction, and so held
+    # on the patch for the same reason as rf_exchange.
+    if conf.mix_endwall_span is not None and not 0.0 <= conf.mix_endwall_span < 0.5:
+        raise ValueError(
+            f"mix_endwall_span must lie in [0, 0.5), got {conf.mix_endwall_span}: "
+            "it is measured in from each endwall, so a half would meet in the middle."
+        )
+    if conf.mix_endwall_rf is not None and not 0.0 < conf.mix_endwall_rf <= 1.0:
+        raise ValueError(
+            f"mix_endwall_rf must lie in (0, 1], got {conf.mix_endwall_rf}: it is "
+            "the fraction of rf_exchange left at the wall."
+        )
+    for name, value in (
+        ("endwall_span", conf.mix_endwall_span),
+        ("endwall_rf", conf.mix_endwall_rf),
+    ):
+        if value is not None:
+            for patch in grid.patches.mixing:
+                setattr(patch, name, value)
 
     # Read by the patch itself (set_block_avg, step, apply, _calc_reference)
     # as well as by the communicator, none of which see a Solver -- hence the

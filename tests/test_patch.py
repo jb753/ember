@@ -2558,6 +2558,7 @@ Test cases:
 - test_periodic_patch_different_no_match: Different PeriodicPatches don't match
 - test_periodic_patch_different_type_no_match: PeriodicPatch doesn't match with other patch types
 - test_periodic_patch_tolerance_sensitivity: Tolerance parameter affects matching
+- test_periodic_patch_match_across_wrap_cut: Faces one pitch apart match with a node either side of the theta wrap cut
 - test_xrt_centre_shape_and_bounds: xrt_centre returns expected shape and reasonable values
 - test_xrt_centre_different_patches: Different patches have different centres
 - test_custom_patch_type_different_matching: Custom patch type could implement different matching
@@ -2661,6 +2662,52 @@ class TestPeriodicPatchCheckMatch:
 
         # With looser tolerance, might match (depending on geometry)
         # Don't assert this since it depends on the specific coordinates
+
+    def test_periodic_patch_match_across_wrap_cut(self):
+        """Test that faces one pitch apart match when a node straddles the wrap cut.
+
+        Wrapping each face's theta into [0, pitch) on its own snaps anything
+        above (1 - rtol) of a pitch to zero. A float32 node pair one pitch
+        apart can land either side of that cut, which made the two faces look a
+        whole pitch adrift and left a real periodic pair unmatched.
+        """
+        rtol = 1e-5
+        block = ember.block.Block(shape=(5, 6, 2))
+        block.set_Nb(147)
+        pitch = block.pitch
+
+        x = np.linspace(0.0, 0.1, 5)
+        r = np.linspace(1.9, 2.1, 6)
+        xv, rv = np.meshgrid(x, r, indexing="ij")
+        t = np.empty((5, 6, 2), dtype=np.float32)
+        t[..., 0] = 0.25 * pitch
+        t[..., 1] = 1.25 * pitch
+
+        # One node pair either side of the cut: k=0 just above it, one pitch
+        # back, and k=-1 just below it.
+        cut = np.float32((1.0 - rtol) * pitch)
+        t[2, 3, 1] = np.nextafter(cut, np.float32(0.0))
+        t[2, 3, 0] = (
+            np.nextafter(np.nextafter(cut, np.float32(1.0)), np.float32(1.0)) - pitch
+        )
+
+        block.set_x(np.stack([xv, xv], axis=-1))
+        block.set_r(np.stack([rv, rv], axis=-1))
+        block.set_t(t)
+
+        # The construction really does straddle the cut under separate wrapping
+        tb = block.t[2, 3]
+        wrapped = np.mod(tb, pitch)
+        wrapped = np.where(wrapped / pitch > (1.0 - rtol), 0.0, wrapped)
+        assert abs(wrapped[1] - wrapped[0]) > 0.5 * pitch
+
+        patch1 = PeriodicPatch(k=0)
+        patch2 = PeriodicPatch(k=-1)
+        patch1.attach_to_block(block)
+        patch2.attach_to_block(block)
+
+        assert patch1.check_match(patch2, rtol=rtol) == ((0, 1, 2), ())
+        assert patch2.check_match(patch1, rtol=rtol) == ((0, 1, 2), ())
 
 
 class TestPatchGetCenter:

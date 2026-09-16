@@ -170,6 +170,17 @@ class MixingPatch(NonReflectingPatch):
         # feedback, and the integrating form of the relaxation has a tighter
         # stability limit than a proportional one would.
         self.rf_exchange = 0.02
+        # The endwall band, as a fraction of span measured in from hub and
+        # casing, over which the exchange relaxes more gently and this side
+        # drops the harmonic part of its own correction; and the fraction of
+        # rf_exchange left at the wall itself, rising linearly to all of it at
+        # the edge of the band. The treatment of SU2's GILES_EXTRA_RELAXFACTOR:
+        # the exchange is linearised about one state per station, and the
+        # endwall flow is the first to put the two sides of a station far from
+        # one. Zero span is off. Both sides of a plane must agree, as for
+        # rf_exchange; see _endwall_weight.
+        self.endwall_span = 0.0
+        self.endwall_rf = 0.1
         # Per-station entering flag the communicator computed from the shared
         # symmetrised interface state, stamped here by
         # :class:`~ember.mixing_communicator.MixingCommunicator`
@@ -237,9 +248,60 @@ class MixingPatch(NonReflectingPatch):
         # there.
         super()._copy(c)
         c.rf_exchange = self.rf_exchange
+        c.endwall_span = self.endwall_span
+        c.endwall_rf = self.endwall_rf
         c._reflective = self._reflective
         # _sign_settled is deliberately not carried: the copy re-settles
         # against its own block's flow, as _ref and the splits are rebuilt.
+
+    def _endwall_distance(self):
+        """Span fraction to the nearer endwall at each station, shape ``(nspan,)``."""
+        spf = self.spf
+        return np.minimum(spf, 1.0 - spf)
+
+    def _endwall_weight(self):
+        """Factor on :attr:`rf_exchange` at each span station, shape ``(nspan,)``.
+
+        :attr:`endwall_rf` at a wall, rising linearly to one at
+        :attr:`endwall_span` in from it, and one everywhere while the band is
+        off. Symmetric in span, so the two sides of a plane read the same
+        weights whichever way round their span axes run.
+        """
+        if self.endwall_span <= 0.0:
+            return np.ones_like(self.spf)
+        ramp = np.clip(self._endwall_distance() / self.endwall_span, 0.0, 1.0)
+        return self.endwall_rf + (1.0 - self.endwall_rf) * ramp
+
+    def _calc_dchic(self, dchic, prim):
+        """Change in the incoming characteristics, harmonics ramped out near the endwalls.
+
+        Inside the band set by :attr:`endwall_span` the harmonic part of the
+        inherited correction is scaled by the distance to the nearer wall over
+        the width of the band: none of it at the wall, which is left reflective
+        to its harmonics, and all of it at the edge of the band. The pitchwise
+        mean is always taken whole. SU2 zeroes the harmonics across the whole
+        band and restores them in one step at its edge; ramped here instead,
+        because a station that is reflective beside one that is not is itself a
+        spanwise discontinuity in the boundary condition, and a short spanwise
+        wavelength is exactly what the band is there to damp. Elsewhere, and
+        whenever the band is off, this is the inherited correction unchanged.
+        """
+        dchic_new = super()._calc_dchic(dchic, prim)
+        if self.endwall_span <= 0.0:
+            return dchic_new
+        weight = np.clip(self._endwall_distance() / self.endwall_span, 0.0, 1.0)
+        band = weight < 1.0
+        if not band.any():
+            return dchic_new
+        # _pitch_mean takes a patch-shaped field, so the weights are given the
+        # trailing characteristic axis here rather than there.
+        mean = (dchic_new * self.weight_pitch[..., np.newaxis]).sum(
+            axis=self.pitch_dim, keepdims=True
+        )
+        ramped = mean + self._span_bcast(weight)[..., np.newaxis] * (dchic_new - mean)
+        return np.where(
+            self._span_bcast(band)[..., np.newaxis], ramped, dchic_new
+        ).astype(dchic_new.dtype, copy=False)
 
     def _enter_resolved(self):
         r"""Settle the frame axis against the flow, once, before the first rotation.

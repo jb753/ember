@@ -1224,22 +1224,30 @@ class Grid(_LabelledList):
             _calculate_wdist_row(row, limit_pitch)
 
     def check_nan(self):
-        """Scan every block's density field for NaN; report the first bad block.
+        """Scan every block for NaN density or non-positive pressure; report the first bad block.
 
-        Cheap enough to call each solver step: only the density component
+        Cheap enough to call each solver step: the density component
         ``conserved_nd[..., 0]`` is inspected, since a NaN in any conserved
         variable propagates into density within a step through the
         pressure/flux coupling. On the duct smoke test this costs ~0.5% of a
         single full-field residual evaluation.
 
+        Pressure is checked as well, because it can go non-positive a step or
+        more before anything is NaN: an energy that has fallen below the kinetic
+        energy is still a finite density. That check reads
+        :attr:`~ember.block.Block.P_nd` after filling the primitive cache, as
+        the other consumers of it in the step do, so it costs one reduction and
+        leaves the cache current for them.
+
         Raises
         ------
         DivergenceError
-            If any block contains a NaN. The message names the first such block
-            (index and label), the ``(i, j, k)`` node bounding box of the NaN
-            region, and which of the six boundary faces it touches -- enough to
-            tell a boundary-seeded blow-up from an interior one. The grid is left
-            untouched so the invalid field can be inspected.
+            If any block contains a NaN density or a non-positive pressure. The
+            message names the first such block (index and label), the
+            ``(i, j, k)`` node bounding box of the bad region, and which of the
+            six boundary faces it touches -- enough to tell a boundary-seeded
+            blow-up from an interior one. The conserved field is left untouched
+            so it can be inspected.
         """
         for iblock, block in enumerate(self):
             rho = block.conserved_nd[..., 0]
@@ -1252,34 +1260,24 @@ class Grid(_LabelledList):
             # as well as maximum.reduce) and warns on the NaN it is looking for.
             # The mask is built below only once it is known to be non-empty,
             # where the bounding box needs it anyway.
-            if not np.isnan(rho.max()):
-                continue
-            nan_mask = np.isnan(rho)
-            ni, nj, nk = block.ni, block.nj, block.nk
-            ii, jj, kk = np.nonzero(nan_mask)
-            box = (
-                f"i[{ii.min()}:{ii.max()}]/{ni - 1} "
-                f"j[{jj.min()}:{jj.max()}]/{nj - 1} "
-                f"k[{kk.min()}:{kk.max()}]/{nk - 1}"
-            )
-            faces = []
-            if ii.min() == 0:
-                faces.append("i-lo")
-            if ii.max() == ni - 1:
-                faces.append("i-hi")
-            if jj.min() == 0:
-                faces.append("j-lo")
-            if jj.max() == nj - 1:
-                faces.append("j-hi")
-            if kk.min() == 0:
-                faces.append("k-lo")
-            if kk.max() == nk - 1:
-                faces.append("k-hi")
-            touch = ", ".join(faces) if faces else "interior only"
-            raise DivergenceError(
-                f"NaN in conserved_nd density of block {iblock} ({block.label!r}): "
-                f"{nan_mask.sum()} node(s), bbox {box}, touches [{touch}]"
-            )
+            if np.isnan(rho.max()):
+                raise DivergenceError(
+                    f"NaN in conserved_nd density of block {iblock} "
+                    f"({block.label!r}): {_where(block, np.isnan(rho))}"
+                )
+
+            # Then pressure, which can go non-positive while density is still
+            # finite. See Grid.update_residual: fill the primitive cache at the
+            # point of consumption; a no-op if already current. min() propagates
+            # NaN, so the one comparison catches both.
+            block.update_primitive()
+            P = block.P_nd
+            if not P.min() > 0.0:
+                bad = ~(P > 0.0)
+                raise DivergenceError(
+                    f"Non-positive pressure in block {iblock} ({block.label!r}): "
+                    f"min P_nd {float(np.nanmin(P)):.4g}, {_where(block, bad)}"
+                )
 
     def copy(self, keep_patches=True):
         """Create a deep copy of the grid with copied blocks.
@@ -2156,7 +2154,7 @@ class GridConnectivity:
         self._pairs_computed = False
         self._communicator = None
 
-    def _compute_pairs(self, rtol=1e-6):
+    def _compute_pairs(self, rtol=1e-5):
         # Collect patches of the specified type from all blocks
         patches = []
         blocks = []
@@ -2304,7 +2302,7 @@ class GridConnectivity:
         """Exchange boundary tau/q across periodic patches, face-buffer form."""
         return self._get_communicator().exchange_faces()
 
-    def pair(self, rtol=1e-6):
+    def pair(self, rtol=1e-5):
         """Pair patches of the specified type, caching the result.
 
         Filters patches to only include instances of self.patch_class, then uses
@@ -2419,7 +2417,7 @@ class GridConnectivityManager:
         """Drop all cached pairings and communicators across every patch type."""
         self._by_class = {}
 
-    def pair(self, rtol=1e-6):
+    def pair(self, rtol=1e-5):
         """Pair all patch types and return combined connectivity dictionary.
 
         Parameters
@@ -2528,8 +2526,39 @@ class ConvergenceStep:
     ConvergenceHistory (.cnv) layout reads in both directions."""
 
 
+def _where(block, mask):
+    """Describe the bad nodes of a block for a :class:`DivergenceError`.
+
+    How many there are, the ``(i, j, k)`` bounding box they fill, and which of
+    the six boundary faces that box touches -- enough to tell a boundary-seeded
+    blow-up from an interior one.
+    """
+    ni, nj, nk = block.ni, block.nj, block.nk
+    ii, jj, kk = np.nonzero(mask)
+    box = (
+        f"i[{ii.min()}:{ii.max()}]/{ni - 1} "
+        f"j[{jj.min()}:{jj.max()}]/{nj - 1} "
+        f"k[{kk.min()}:{kk.max()}]/{nk - 1}"
+    )
+    faces = []
+    if ii.min() == 0:
+        faces.append("i-lo")
+    if ii.max() == ni - 1:
+        faces.append("i-hi")
+    if jj.min() == 0:
+        faces.append("j-lo")
+    if jj.max() == nj - 1:
+        faces.append("j-hi")
+    if kk.min() == 0:
+        faces.append("k-lo")
+    if kk.max() == nk - 1:
+        faces.append("k-hi")
+    touch = ", ".join(faces) if faces else "interior only"
+    return f"{mask.sum()} node(s), bbox {box}, touches [{touch}]"
+
+
 class DivergenceError(RuntimeError):
-    """Raised when a block's conserved field contains a NaN.
+    """Raised when a block's flow field contains a NaN or a non-positive pressure.
 
     A dedicated type lets a solver loop catch divergence precisely and exit
     cleanly (leaving the invalid field in place for debugging) while genuinely

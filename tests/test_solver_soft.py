@@ -10,6 +10,8 @@ Test cases:
 - test_soft_detunes_the_aggressive_settings: what a soft march backs away from
 - test_soft_is_the_same_configuration_whatever_it_started_from: absolute, not
   scaled -- a soft start is one known-robust setting, not a relative detuning
+- test_soft_exchanges_across_mixing_planes_at_a_fixed_rate: rf_exchange is
+  part of the fixed soft configuration, not inherited
 - test_soft_leaves_the_model_choices_alone: what it must not change, and why
 - test_soft_does_not_change_the_original: replace(), not assignment
 - test_soft_is_a_usable_configuration: __post_init__ accepts what it builds
@@ -93,6 +95,21 @@ def test_soft_is_the_same_configuration_whatever_it_started_from():
 
     assert aggressive.soft().cfl == timid.soft().cfl
     assert aggressive.soft().soft() == aggressive.soft()
+
+
+def test_soft_exchanges_across_mixing_planes_at_a_fixed_rate():
+    """rf_exchange is set outright, whatever the production march uses.
+
+    A cold start's mixing planes need the faster exchange even where the
+    production march is steadier at a lower one, so it is part of the fixed
+    soft configuration rather than inherited.
+    """
+    slow = ember.solver.Solver(n_step=100, rf_exchange=0.02)
+    fast = ember.solver.Solver(n_step=100, rf_exchange=0.2)
+
+    assert slow.soft().rf_exchange == 0.05
+    assert fast.soft().rf_exchange == 0.05
+    assert slow.soft().soft().rf_exchange == 0.05
 
 
 def test_soft_does_not_change_the_original():
