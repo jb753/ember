@@ -48,6 +48,13 @@ repos:
         files: ^src/ember/.*\.py$
         pass_filenames: true
 
+      - id: check-comments
+        name: check comment and docstring length
+        entry: uv run python tools/check_comments.py
+        language: system
+        files: ^src/ember/.*\.py$
+        pass_filenames: true
+
       - id: run-tests
         name: run tests
         entry: uv run pytest tests -q --tb=short

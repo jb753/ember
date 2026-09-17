@@ -433,13 +433,10 @@ def mix_out(block, AR=1.0):
         err_flow = flow - flow_mix
         err_flux = err_flow / A_ref
 
-        # Stop once the residual stops improving, not the moment it first drops
-        # below atol. Breaking at the atol crossing makes the answer depend on
-        # which iterate happens to land inside the tolerance ball first, and
-        # that in turn depends on the last bit of the input ordering -- mixing
-        # a cut and its k-axis-reversed twin then differ by ~3x the atol scale.
-        # Iterating on to the float32 fixed point costs ~2x the iterations and
-        # brings that difference down to the storage floor (~2e-6). atol
+        # Stop once the residual stops improving, not the moment it first
+        # drops below atol: breaking at the crossing makes the answer depend on
+        # which iterate lands inside the tolerance ball first, and so on input
+        # ordering. Iterating to the float32 fixed point removes that. atol
         # survives below as the scale that makes the five residuals comparable
         # and as the post-loop divergence check.
         err_scaled = np.max(np.abs(err_flow) / atol)

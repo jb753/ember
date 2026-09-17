@@ -89,9 +89,8 @@ def entropy_integral(alpha, c):
     which supplies the density dependence of entropy, from the reference isochor
     at the centre of the fit box up to the density of interest. Since
     :math:`\rho \propto \hat\rho + c`, the measure is
-    :math:`\mathrm{d}\ln\rho = \mathrm{d}\hat\rho / (\hat\rho + c)`, and each
-    basis term integrates in closed form. Polynomial division by
-    :math:`\hat\rho + c` leaves a constant remainder,
+    :math:`\mathrm{d}\ln\rho = \mathrm{d}\hat\rho / (\hat\rho + c)`, and
+    polynomial division by :math:`\hat\rho + c` leaves a constant remainder,
 
     .. math::
 
@@ -105,9 +104,8 @@ def entropy_integral(alpha, c):
             = \int Q_i(x)\,\mathrm{d}x + P_i(-c)\ln(x + c)
 
     and the whole integral splits into a polynomial part plus a single
-    logarithmic term whose coefficient depends only on internal energy. The
-    division and integration are done in the Legendre basis throughout, so no
-    monomial coefficients are ever formed.
+    logarithmic term whose coefficient depends only on internal energy. Both
+    steps stay in the Legendre basis, so no monomial coefficients are formed.
 
     Parameters
     ----------

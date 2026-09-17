@@ -109,19 +109,13 @@ class MixingPatch(NonReflectingPatch):
     _desc = "non-reflecting mixing plane"
 
     # Impose the mixed-out state directly instead of the characteristic
-    # exchange. The mechanism of :attr:`ember.solver.Solver.mix_reflective`,
-    # which is where what this does -- and what it gives up -- is written down,
-    # and which is the only supported way to set it: a march stamps every
-    # mixing patch of every level from its configuration, so a plane cannot
-    # differ from its run, and the two sides of a plane cannot differ from each
-    # other. Read in five places here (set_block_avg, step, apply,
-    # _calc_reference, check_match) and by
-    # :class:`~ember.mixing_communicator.MixingCommunicator`, none of which can
-    # see a Solver, which is why it lives on the patch at all.
-    #
-    # Both sides of a plane must agree: :meth:`check_match` will not pair a
-    # reflective face with a Saxer one, since the exchange has to know which of
-    # the two it is carrying out.
+    # exchange. What it does, and what it gives up, is written down in
+    # :attr:`ember.solver.Solver.mix_reflective`, the only supported way to set
+    # it: a march stamps every mixing patch of every level from its
+    # configuration, so neither the planes of a run nor the two sides of a
+    # plane can disagree -- :meth:`check_match` will not pair a reflective face
+    # with a Saxer one. It lives on the patch because its readers here and in
+    # :class:`~ember.mixing_communicator.MixingCommunicator` see no Solver.
     _reflective = False
 
     # Either side of the plane. The geometry gives a provisional answer at
@@ -145,14 +139,13 @@ class MixingPatch(NonReflectingPatch):
     _target_seeded = (0, 1, 2, 3, 4)
 
     # No nodal backflow limiter. The mix variables can express the state it
-    # imposes, unlike the inflow condition's angles, but what it would impose at
-    # a plane is the other row's pitch-uniform mixed-out state, and the axial
-    # velocity it derives from that comes out of an energy balance with no
-    # bearing on how hard the node was actually reversed. On the LISA rotor exit
-    # that turned a wake core reversed at -5 m/s into -31 m/s in one
-    # application, and the correction feeds its own rate through the Mach number
-    # it drives, so the node ran away with the interior held frozen. A station
-    # whose mean reverses is still carried by the characteristic split.
+    # imposes, unlike the inflow condition's angles, but what it would impose
+    # at a plane is the other row's pitch-uniform mixed-out state, whose axial
+    # velocity comes from an energy balance with no bearing on how hard the
+    # node was actually reversed -- deepening a reversed wake core rather than
+    # healing it, and feeding its own rate through the Mach number it drives.
+    # A station whose mean reverses is still carried by the characteristic
+    # split.
     _nodal_backflow = False
 
     def _setup(self):
@@ -163,22 +156,18 @@ class MixingPatch(NonReflectingPatch):
         # survives the pickle that drops the communicator, and so the two
         # planes of a multi-row grid can damp at different rates; both sides of
         # a plane must agree on it. Distinct from
-        # :attr:`~ember.patch.NonReflectingPatch.sigma`, which relaxes
-        # this side's own characteristic correction. Kept low: the
-        # direction-switched split (see
-        # :class:`~ember.mixing_communicator.MixingCommunicator`) is stiff
-        # feedback, and the integrating form of the relaxation has a tighter
-        # stability limit than a proportional one would.
+        # :attr:`~ember.patch.NonReflectingPatch.sigma`, which relaxes this
+        # side's own characteristic correction. Kept low: the exchange is stiff
+        # feedback, and its integrating form has a tight stability limit.
         self.rf_exchange = 0.02
         # The endwall band, as a fraction of span measured in from hub and
         # casing, over which the exchange relaxes more gently and this side
         # drops the harmonic part of its own correction; and the fraction of
         # rf_exchange left at the wall itself, rising linearly to all of it at
-        # the edge of the band. The treatment of SU2's GILES_EXTRA_RELAXFACTOR:
-        # the exchange is linearised about one state per station, and the
-        # endwall flow is the first to put the two sides of a station far from
-        # one. Zero span is off. Both sides of a plane must agree, as for
-        # rf_exchange; see _endwall_weight.
+        # the edge of the band. Follows SU2's GILES_EXTRA_RELAXFACTOR: the
+        # exchange is linearised about one state per station, and endwall flow
+        # is the first to put the two sides far from one. Zero span is off;
+        # both sides must agree, as for rf_exchange. See _endwall_weight.
         self.endwall_span = 0.0
         self.endwall_rf = 0.1
         # Per-station entering flag the communicator computed from the shared

@@ -626,69 +626,33 @@ class NonReflectingPatch(RevolutionPatch):
         r"""Build the pitchwise Hilbert transform matrix.
 
         The non-reflecting relations are written per pitchwise Fourier mode
-        :math:`m` in terms of the wave parameter (Giles Eq. 5.18, Saxer Eq. 15)
+        :math:`m` in terms of the wave parameter
+        :math:`\beta = i\,\mathrm{sign}(m)\sqrt{1 - M^2}` (Giles Eq. 5.18),
+        which depends on the mode only through :math:`\mathrm{sign}(m)` -- for
+        the inflow tangential vorticity characteristic (Giles Eq. 5.17) and the
+        outflow upstream-running pressure characteristic (Giles Eq. 5.32)
+        alike. Splitting :math:`\beta` from the real terms therefore separates
+        a local term from a Hilbert transform along the pitch, and no Fourier
+        transform is taken at run time.
 
-        .. math::
-            \beta = i\,\mathrm{sign}(m)\sqrt{1 - M^2},
-
-        which depends on the mode only through :math:`\mathrm{sign}(m)`. At an
-        inflow plane the relation for the tangential vorticity characteristic is
-        (Giles Eq. 5.17, Saxer Eq. 56)
-
-        .. math::
-            \hat{c}_t = -\frac{\beta + M_t}{1 + M_n}\hat{c}_\mathrm{up},
-
-        and at an outflow plane the relation for the upstream-running pressure
-        characteristic is (Giles Eq. 5.32, Saxer Eq. 57)
-
-        .. math::
-            \hat{c}_\mathrm{up} = \frac{2M_n}{\beta - M_t}\hat{c}_t
-                - \frac{\beta + M_t}{\beta - M_t}\hat{c}_\mathrm{down}.
-
-        In both, splitting :math:`\beta` from the real terms separates a local
-        term from a Hilbert transform along the pitch, and no Fourier transform
-        need be taken at run time; for the inflow relation,
-
-        .. math::
-            c_t = -\frac{M_t}{1 + M_n}c_\mathrm{up}
-                  + \frac{\sqrt{1 - M^2}}{1 + M_n}\mathcal{H}[c_\mathrm{up}].
-
-        The sign of the Hilbert term deserves care. Giles writes
-        :math:`\beta = i\,\mathrm{sign}(k)\sqrt{1-M^2}` for the continuous
-        wavenumber, but his transform pair (analysis with
-        :math:`\exp(+2\pi ijk/N)`, synthesis with :math:`\exp(-2\pi ijk/N)`)
-        represents the field as :math:`\exp(-ily)`, so the discrete mode index
-        carries the opposite sign to the continuous wavenumber. Getting it
-        backwards turns the condition from absorbing into amplifying. The
-        physical check is steady potential flow upstream of a blade row:
-        :math:`(1-M^2)\phi_{xx} + \phi_{yy} = 0` admits
-        :math:`\phi \sim \exp(\mu x + ily)` with
-        :math:`\mu = |l|/\sqrt{1-M^2}`, decaying upstream, and with
-        :math:`p' = -\bar{\rho}\bar{u}u'` this gives
-        :math:`c_t/c_\mathrm{up} = -i\,\mathrm{sign}(l)\sqrt{1-M^2}/(1+M)`.
-
-        Evaluating the analysis and synthesis sums directly with the node
-        weights :attr:`~ember.patch.RevolutionPatch.weight_pitch` gives
+        The sign of the Hilbert term follows the discrete mode index, which in
+        Giles' transform pair is opposite to the continuous wavenumber; taken
+        backwards, the condition amplifies rather than absorbs. Steady
+        potential flow upstream of a blade row fixes it. Evaluating the
+        analysis and synthesis sums directly with the node weights
+        :attr:`~ember.patch.RevolutionPatch.weight_pitch` gives
 
         .. math::
             \mathcal{H}_{ab} = -2\sum_{m=1}^{M} w_b
                 \sin\left(\frac{2\pi m(\theta_b - \theta_a)}{P}\right),
 
-        which needs no assumption of uniform pitchwise spacing: the weights are
-        a quadrature rule that already sums to one and already splits the
-        duplicated periodic end node into two half weights. Modes are truncated
-        at :math:`M = (N-1)//2` over the :math:`N` distinct nodes, excluding the
-        Nyquist mode whose sign is ambiguous, as Giles does. Built in double
-        precision and stored single.
-
-        On a uniform mesh the quadrature is exact and the matrix reproduces the
-        discrete Hilbert transform to round-off. On a stretched mesh it stays
-        accurate for harmonics resolved by the *coarsest* local spacing and
-        degrades progressively above that, so the highest resolved harmonics of
-        a strongly stretched pitch are absorbed only approximately. The
-        operator norm stays O(1) either way, so the failure mode is a boundary
-        that reflects a little at the shortest wavelengths, never one that
-        amplifies them.
+        which assumes no uniform pitchwise spacing, the weights being a
+        quadrature rule that already sums to one. Modes are truncated as Giles
+        does, at :math:`M = (N-1)//2` over the :math:`N` distinct nodes,
+        excluding the ambiguous Nyquist mode. The quadrature is exact on a
+        uniform mesh and degrades above the harmonics resolved by the
+        *coarsest* local spacing, so a stretched pitch reflects a little at the
+        shortest wavelengths; the operator norm stays O(1), never amplifying.
         """
         block = self.block
         pitch = float(block.pitch)
@@ -896,20 +860,13 @@ class NonReflectingPatch(RevolutionPatch):
         self._mask_out_bcast[...] = self._mask_out
 
         # Tested on the magnitude, so a station running backwards fast enough
-        # to be supersonic normal to the face is caught too: there one of the two acoustic
-        # characteristics changes direction and even the reversed split is
-        # wrong.
+        # to be supersonic normal to the face is caught too.
         #
-        # Warned rather than raised, and the step taken anyway. The condition
-        # is genuinely not implemented above Mach 1 and what it computes there
-        # is meaningless -- the wave parameter goes imaginary and the state
-        # turns to NaN within a step or two -- but the common way to arrive
-        # here is a march on its way to blowing up, and that is the solver's
-        # divergence to report, through Grid.check_nan, not the boundary
-        # condition's to pre-empt. Raising took a run that would have exited
-        # cleanly with a trimmed history and killed it with an exception
-        # instead. A case that is supersonic by design gets the same warning on
-        # its first step, which says plainly what is wrong.
+        # Warned rather than raised, and the step taken anyway: the condition
+        # is not implemented above Mach 1, but the usual way to arrive here is
+        # a march on its way to blowing up, which is the solver's divergence to
+        # report through Grid.check_nan. A case that is supersonic by design
+        # gets the same warning on its first step.
         unsupported = True
         if np.any(np.abs(Mn) >= 1.0):
             self._warn_unsupported(

@@ -191,17 +191,12 @@ import ember.mixing_communicator
 import ember.nonmatch_communicator
 
 
-# k-slab depth for the tiled kernels (set_visc_force, set_residual): cell
-# planes per slab, so that a slab's input planes stay cache-resident across
-# all three face directions.
-#
-# INERT TODAY, and kept only as a dummy the bench arms can share with
-# production. Both kernels were since rewritten to walk k once with rolling
-# face buffers, which subsumed the slab blocking: set_residual's slab loop
-# is now a pure re-nesting of `do k = 1, nk-1` (measured at 1M cells: every
-# kb from 2 to nk-1 is bitwise identical and within 1% on time), and
-# set_visc_force consumes kb only as a sanity guard. What bounds the
-# concurrent working set now is the j-panel width inside each kernel
+# k-slab depth for the tiled kernels (set_visc_force, set_residual), in cell
+# planes per slab. INERT, and kept only as a dummy the bench arms can share
+# with production: both kernels walk k once with rolling face buffers, which
+# subsumes the slab blocking, so set_residual's slab loop is a pure re-nesting
+# of `do k = 1, nk-1` and set_visc_force takes kb only as a sanity guard. What
+# bounds the concurrent working set is the j-panel width inside each kernel
 # (RES_JAREA/RES_JMIN, VISC_JAREA). Do not sweep this; see bench/README.md.
 _KB_SLAB = 8
 
@@ -599,30 +594,18 @@ class Grid(_LabelledList):
         aligns the Cartesian data with the structured grid, converts coordinates
         to polar, and transforms the momentum vector accordingly.
 
-        The input conserved state vector is:
-
-        .. math::
-
-            \mathcal{U}_{\mathrm{cart}} =
-            \begin{pmatrix} \rho,\ \rho V_x,\ \rho V_y,\ \rho V_z,\ \rho e \end{pmatrix}
-
-        The Cartesian momentum components are first converted to velocities,
-        rotated into the polar frame :math:`(x, r, \theta)`, then reassembled
-        as polar conserved variables:
-
-        .. math::
-
-            \mathcal{U} =
-            \begin{pmatrix} \rho,\ \rho V_x,\ \rho V_r,\ \rho r V_\theta,\ \rho e \end{pmatrix}
-
-        where the polar velocity components are:
+        The input state
+        :math:`(\rho,\ \rho V_x,\ \rho V_y,\ \rho V_z,\ \rho e)` has its
+        momentum converted to velocity and rotated into the polar frame
+        :math:`(x, r, \theta)` by
 
         .. math::
 
             V_r &= V_y \cos\theta - V_z \sin\theta \\
             V_\theta &= -V_y \sin\theta - V_z \cos\theta
 
-        with :math:`\theta = \mathrm{atan2}(-z,\, y)`.
+        with :math:`\theta = \mathrm{atan2}(-z,\, y)`, then reassembled as
+        :math:`(\rho,\ \rho V_x,\ \rho V_r,\ \rho r V_\theta,\ \rho e)`.
 
         .. warning::
 
@@ -728,29 +711,16 @@ class Grid(_LabelledList):
         aligns the Cartesian data with the structured grid, converts coordinates
         to polar, and rotates the velocity vector accordingly.
 
-        The input primitive state vector is:
-
-        .. math::
-
-            \mathcal{P}_{\mathrm{cart}} =
-            \begin{pmatrix} \rho,\ V_x,\ V_y,\ V_z,\ p \end{pmatrix}
-
-        The Cartesian velocity components are rotated into the polar frame
-        :math:`(x, r, \theta)` to give the polar primitive state:
-
-        .. math::
-
-            \mathcal{P} =
-            \begin{pmatrix} \rho,\ V_x,\ V_r,\ V_\theta,\ p \end{pmatrix}
-
-        where:
+        The input state :math:`(\rho,\ V_x,\ V_y,\ V_z,\ p)` has its velocity
+        rotated into the polar frame :math:`(x, r, \theta)` by
 
         .. math::
 
             V_r &= V_y \cos\theta - V_z \sin\theta \\
             V_\theta &= -V_y \sin\theta - V_z \cos\theta
 
-        with :math:`\theta = \mathrm{atan2}(-z,\, y)`.
+        with :math:`\theta = \mathrm{atan2}(-z,\, y)`, giving the polar
+        primitive state :math:`(\rho,\ V_x,\ V_r,\ V_\theta,\ p)`.
 
         Parameters
         ----------
@@ -1254,12 +1224,9 @@ class Grid(_LabelledList):
             # Scalar screen first: max propagates NaN, so this is exactly
             # isnan(rho).any() without materialising the full boolean mask --
             # a 1 MB temporary per step at 1M cells, on a path that passes
-            # every time. Infinities are deliberately not caught, matching the
-            # mask form it replaces. sum() would screen too, but is slower than
-            # the mask it saves (pairwise float32 summation does not vectorise
-            # as well as maximum.reduce) and warns on the NaN it is looking for.
-            # The mask is built below only once it is known to be non-empty,
-            # where the bounding box needs it anyway.
+            # every time. Infinities are deliberately not caught. The mask is
+            # built below only once it is known to be non-empty, where the
+            # bounding box needs it anyway.
             if np.isnan(rho.max()):
                 raise DivergenceError(
                     f"NaN in conserved_nd density of block {iblock} "
@@ -1801,16 +1768,12 @@ class Grid(_LabelledList):
 
         for block in self:
             if gain_filt != 0.0:
-                # SFD body force runs pre-step so it drives the RK integration,
-                # not just the post-step residual.
-                #
-                # The cell-centred conserved state this wants is not kept
-                # anywhere: the kernels that need it every step average the
-                # nodal state as they walk, and SFD is off by default. So
-                # materialise it here, into the arena. This is its own
-                # sub-phase -- the viscous loop above has finished with the
-                # arena by now -- and the buffer is exactly the size of the
-                # multigrid-off march's, so it never binds (see _scratch_len).
+                # SFD body force runs pre-step so it drives the RK
+                # integration, not just the post-step residual. The
+                # cell-centred conserved state it wants is not kept anywhere,
+                # so materialise it here into the arena: its own sub-phase, the
+                # viscous loop above having finished with the arena, sized so
+                # it never binds (see _scratch_len).
                 cons_cell = util.carve_view(block.scratch, block.shape_cell + (5,))
                 ember.fortran.node_to_cell(block.conserved_nd, cons_cell)
                 ember.fortran.apply_sfd_force(
