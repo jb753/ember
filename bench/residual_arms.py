@@ -40,6 +40,7 @@ these arms were built to support.
 
 import numpy as np
 
+import ember.fortran as F
 from ember import util
 from ember.cases import build_duct_grid
 
@@ -236,9 +237,7 @@ def build_kwargs(b):
         # `do k = 1, nk-1`); the two new arms drop the dummy entirely.
         prod=dict(planes=planes5, rows=rows5, kb=nk - 1),
         padnjp=dict(planes=planes_pad, rows=rows_pad, kb=nk - 1, njp=njp_pad),
-        alias4k=dict(
-            planes=planes_alias, rows=rows_alias, kb=nk - 1, njp=njp_alias
-        ),
+        alias4k=dict(planes=planes_alias, rows=rows_alias, kb=nk - 1, njp=njp_alias),
         staged=dict(planes=planes, rows=rows, fi=fi, fj=fj, fk=fk),
         split=dict(planes=planes, rows=rows, mrows=mrows, mplanes=mplanes),
         # The AoS dai/daj are stripped for this arm in callers(); dak stays,
@@ -283,17 +282,13 @@ def build_kwargs(b):
         ),
         # `rinv` is production's kernel plus one static geometry array: same
         # 5-wide carve, same kb, AoS dA untouched.
-        rinv=dict(
-            planes=planes5, rows=rows5, kb=nk - 1, rinv=_DA_SOA[key]["rinv"]
-        ),
+        rinv=dict(planes=planes5, rows=rows5, kb=nk - 1, rinv=_DA_SOA[key]["rinv"]),
     )
     return common, private
 
 
 def callers(b, du, dampin, active_arms=ARMS):
     """One zero-argument callable per active arm, writing into `du`."""
-    import ember.fortran as F
-
     common, private = build_kwargs(b)
     entry = {name: getattr(F, sym, None) for name, sym in ENTRY.items()}
     out = {}
@@ -380,8 +375,6 @@ if __name__ == "__main__":
     # deviations. This is deliberately the ONLY thing this module runs
     # standalone -- for timing, use bench_prod_baseline.py.
     import argparse
-
-    import ember.fortran as F
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--ncell", type=int, default=300_000)

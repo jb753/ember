@@ -65,7 +65,13 @@ def _get_atol(conserved, r_av, rtol):
     V_av = np.sqrt(Vx_av**2 + Vr_av**2 + Vt_av**2)
     return (
         np.array(
-            [rho_av, rho_av * V_av, rho_av * V_av, rho_av * r_av * V_av, rho_av * V_av**2]
+            [
+                rho_av,
+                rho_av * V_av,
+                rho_av * V_av,
+                rho_av * r_av * V_av,
+                rho_av * V_av**2,
+            ]
         )
         * rtol
     )

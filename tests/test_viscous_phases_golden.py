@@ -41,6 +41,7 @@ Regenerate the golden after an *intentional* change to either pass:
 
     uv run python tests/test_viscous_phases_golden.py
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -181,7 +182,9 @@ def _synthetic_faces(block):
     for buf in block.tau_q_faces:
         na, _, nb, _ = buf.shape
         ga, gc, gb = np.meshgrid(
-            np.linspace(0.0, 1.0, na), np.arange(9.0), np.linspace(0.0, 1.0, nb),
+            np.linspace(0.0, 1.0, na),
+            np.arange(9.0),
+            np.linspace(0.0, 1.0, nb),
             indexing="ij",
         )
         phase = 2.0 * np.pi * ((gc + 1.0) * ga + (gc + 2.0) * gb)
@@ -415,10 +418,20 @@ def test_phase1_reads_the_transport_fields_cell_by_cell():
     # all on this fixture, which is why it is not one of the two.
     faces = {"f_knk": np.s_[:, :, -1], "f_i1": np.s_[0, :, :]}
     for name, cells in faces.items():
-        tau_ratio = np.moveaxis(np.broadcast_to(
-            (fac_b / fac_a)[cells][..., None], (fac_a[cells].shape + (6,))), -1, 1)
-        q_ratio = np.moveaxis(np.broadcast_to(
-            (lam_b / lam_a)[cells][..., None], (lam_a[cells].shape + (3,))), -1, 1)
+        tau_ratio = np.moveaxis(
+            np.broadcast_to(
+                (fac_b / fac_a)[cells][..., None], (fac_a[cells].shape + (6,))
+            ),
+            -1,
+            1,
+        )
+        q_ratio = np.moveaxis(
+            np.broadcast_to(
+                (lam_b / lam_a)[cells][..., None], (lam_a[cells].shape + (3,))
+            ),
+            -1,
+            1,
+        )
         ratio = np.concatenate([tau_ratio, q_ratio], axis=1)
         # Layer 0, the block's own edge cell. Layer 1 is that times a mask the
         # transport cannot reach, so it carries no independent information.
@@ -426,8 +439,13 @@ def test_phase1_reads_the_transport_fields_cell_by_cell():
         expected = ref * ratio
         actual = np.asarray(got[name], dtype=np.float64)[..., 0]
         atol = 1e-5 * float(np.abs(expected).max())
-        np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=atol,
-                                   err_msg=f"{name} does not scale with transport")
+        np.testing.assert_allclose(
+            actual,
+            expected,
+            rtol=1e-4,
+            atol=atol,
+            err_msg=f"{name} does not scale with transport",
+        )
         # Not vacuous: varying the transport has to MOVE the output by much
         # more than the tolerance the comparison allows, or a kernel ignoring
         # the fields entirely would pass. It moves by a few percent here rather

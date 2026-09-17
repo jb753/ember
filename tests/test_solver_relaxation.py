@@ -212,9 +212,7 @@ def test_the_defaults_are_imposed_over_a_hand_set_value():
     conf.run(grid)
 
     np.testing.assert_allclose(sigmas(grid.patches.mixing), conf.rf_mix)
-    np.testing.assert_allclose(
-        rf_exchanges(grid.patches.mixing), conf.rf_exchange
-    )
+    np.testing.assert_allclose(rf_exchanges(grid.patches.mixing), conf.rf_exchange)
     assert grid.patches.inlet[0].sigma == pytest.approx(conf.rf_inlet)
     assert grid.patches.outlet[0].sigma == pytest.approx(conf.rf_outlet)
 

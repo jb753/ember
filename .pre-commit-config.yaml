@@ -1,3 +1,10 @@
+# Install with a plain `pre-commit install`, which reads this list. Without
+# the pre-commit type only the commit-msg hook runs, and at that stage the
+# only file a hook sees is the message, so every file-filtered hook skips.
+default_install_hook_types: [pre-commit, commit-msg]
+# Hooks run once, before the commit; only those naming a stage run elsewhere.
+default_stages: [pre-commit]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

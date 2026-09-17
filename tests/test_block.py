@@ -2171,7 +2171,9 @@ def test_set_I_s_Ma_rel_Alpha_rel_Beta(block):
 
     # Test axial flow case
     Beta_axial = np.zeros(shape, dtype=np.float32)  # Pure axial flow
-    ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta(block, I, s, Ma, Alpha_rel, Beta_axial)
+    ember.set_iterative.set_I_s_Ma_rel_Alpha_rel_Beta(
+        block, I, s, Ma, Alpha_rel, Beta_axial
+    )
 
     np.testing.assert_allclose(
         block.Vr, 0, atol=1e-3, err_msg="Should be pure axial flow (Vr ≈ 0)"

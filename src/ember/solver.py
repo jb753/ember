@@ -572,6 +572,15 @@ class Solver(BaseSolver):
         """
         return _run(grid, self)
 
+    def run_fmg(self, grid):
+        """Full-multigrid startup on ``grid`` in place.
+
+        Returns a list of per-level :class:`ConvergenceHistory`, coarsest first.
+        Not part of the :class:`BaseSolver` contract (plugins have no FMG
+        analogue).
+        """
+        return _run_fmg(grid, self)
+
     def soft(self):
         """Return a copy detuned for a robust start; see :meth:`BaseSolver.soft`.
 
@@ -595,15 +604,6 @@ class Solver(BaseSolver):
             # lower value (turbigen sweep9 0094 and 0017).
             rf_exchange=0.05,
         )
-
-    def run_fmg(self, grid):
-        """Full-multigrid startup on ``grid`` in place.
-
-        Returns a list of per-level :class:`ConvergenceHistory`, coarsest first.
-        Not part of the :class:`BaseSolver` contract (plugins have no FMG
-        analogue).
-        """
-        return _run_fmg(grid, self)
 
 
 def scree_step(

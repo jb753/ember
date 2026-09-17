@@ -122,11 +122,14 @@ def test_borrowed_quantities_are_not_published():
     # enthalpy is written over the kinetic energy in one shared buffer, so a
     # mistake there shows up as one of the two being the other.
     assert np.all(np.isfinite(np.asarray(block.ho_nd)))
-    assert _ulps(
-        np.asarray(block.ho_nd),
-        block.fluid.get_h(block._rho_nd_uninit, np.asarray(block._u_nd_uninit))
-        + np.asarray(block._halfVsq_nd_uninit),
-    ) <= 8.0
+    assert (
+        _ulps(
+            np.asarray(block.ho_nd),
+            block.fluid.get_h(block._rho_nd_uninit, np.asarray(block._u_nd_uninit))
+            + np.asarray(block._halfVsq_nd_uninit),
+        )
+        <= 8.0
+    )
 
 
 @pytest.mark.parametrize("kind", ("perfect", "real"))

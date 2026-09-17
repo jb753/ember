@@ -40,10 +40,10 @@ PR_TURB = 1.0
 # fused kernel -- the wall arguments are unchanged -- so it is a limitation to
 # know about, not a regression to gate.
 SHAPES = [
-    (5, 5, 3),    # one interior k plane
-    (5, 5, 2),    # ONE cell plane in k: no cusp pass, no interior k step
-    (4, 5, 5),    # two cell rows in i, shorter than a SIMD vector
-    (9, 13, 4),   # three panels of four rows, the last one short
+    (5, 5, 3),  # one interior k plane
+    (5, 5, 2),  # ONE cell plane in k: no cusp pass, no interior k step
+    (4, 5, 5),  # two cell rows in i, shorter than a SIMD vector
+    (9, 13, 4),  # three panels of four rows, the last one short
 ]
 
 
@@ -64,8 +64,11 @@ def _build(shape):
     x, r, t = block.x, block.r, block.t
     span = max(float(r.max() - r.min()), 1e-9)
     axial = max(float(x.max()), 1e-9)
-    block.set_Vx((100.0 + 20.0 * (r - r.min()) / span
-                  + 10.0 * np.sin(2.0 * np.pi * x / axial)).astype(np.float32))
+    block.set_Vx(
+        (
+            100.0 + 20.0 * (r - r.min()) / span + 10.0 * np.sin(2.0 * np.pi * x / axial)
+        ).astype(np.float32)
+    )
     block.set_Vr((5.0 * np.cos(2.0 * np.pi * t / pitch)).astype(np.float32))
     block.set_Vt((30.0 + 12.0 * (t - t.min()) / pitch).astype(np.float32))
     block.set_Omega(50.0)

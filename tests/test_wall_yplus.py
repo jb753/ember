@@ -146,14 +146,36 @@ def _wall_yplus_reference(block):
     # ---- k faces: kface(x,i,j,k) sums (i,j)/(i+1,j)/(i,j+1)/(i+1,j+1) at k ----
     def kface_ref(k_r, k_flow, vol_k):
         rf = _mean4(r[:-1, :-1, k_r], r[1:, :-1, k_r], r[:-1, 1:, k_r], r[1:, 1:, k_r])
-        Vxf = _mean4(Vx[:-1, :-1, k_flow], Vx[1:, :-1, k_flow], Vx[:-1, 1:, k_flow], Vx[1:, 1:, k_flow])
-        Vrf = _mean4(Vr[:-1, :-1, k_flow], Vr[1:, :-1, k_flow], Vr[:-1, 1:, k_flow], Vr[1:, 1:, k_flow])
-        Vtf = _mean4(Vt[:-1, :-1, k_flow], Vt[1:, :-1, k_flow], Vt[:-1, 1:, k_flow], Vt[1:, 1:, k_flow])
-        rhof = _mean4(rho[:-1, :-1, k_flow], rho[1:, :-1, k_flow], rho[:-1, 1:, k_flow], rho[1:, 1:, k_flow])
+        Vxf = _mean4(
+            Vx[:-1, :-1, k_flow],
+            Vx[1:, :-1, k_flow],
+            Vx[:-1, 1:, k_flow],
+            Vx[1:, 1:, k_flow],
+        )
+        Vrf = _mean4(
+            Vr[:-1, :-1, k_flow],
+            Vr[1:, :-1, k_flow],
+            Vr[:-1, 1:, k_flow],
+            Vr[1:, 1:, k_flow],
+        )
+        Vtf = _mean4(
+            Vt[:-1, :-1, k_flow],
+            Vt[1:, :-1, k_flow],
+            Vt[:-1, 1:, k_flow],
+            Vt[1:, 1:, k_flow],
+        )
+        rhof = _mean4(
+            rho[:-1, :-1, k_flow],
+            rho[1:, :-1, k_flow],
+            rho[:-1, 1:, k_flow],
+            rho[1:, 1:, k_flow],
+        )
         vol_ = vol[:, :, vol_k]
         dA0, dA1, dA2 = dAk[0, :, :, k_r], dAk[1, :, :, k_r], dAk[2, :, :, k_r]
         omega_wall = Omega_block  # no RotatingPatch in this fixture
-        return _wall_core_np(rf, dA0, dA1, dA2, vol_, Omega_block, omega_wall, mu, rhof, Vxf, Vrf, Vtf)
+        return _wall_core_np(
+            rf, dA0, dA1, dA2, vol_, Omega_block, omega_wall, mu, rhof, Vxf, Vrf, Vtf
+        )
 
     yplus_k1 = kface_ref(k_r=0, k_flow=1, vol_k=0)
     yplus_nk = kface_ref(k_r=-1, k_flow=-2, vol_k=-1)
@@ -162,14 +184,36 @@ def _wall_yplus_reference(block):
     # at fixed j, varying i,k ----
     def jface_ref(j_r, j_flow, vol_j):
         rf = _mean4(r[:-1, j_r, :-1], r[1:, j_r, :-1], r[:-1, j_r, 1:], r[1:, j_r, 1:])
-        Vxf = _mean4(Vx[:-1, j_flow, :-1], Vx[1:, j_flow, :-1], Vx[:-1, j_flow, 1:], Vx[1:, j_flow, 1:])
-        Vrf = _mean4(Vr[:-1, j_flow, :-1], Vr[1:, j_flow, :-1], Vr[:-1, j_flow, 1:], Vr[1:, j_flow, 1:])
-        Vtf = _mean4(Vt[:-1, j_flow, :-1], Vt[1:, j_flow, :-1], Vt[:-1, j_flow, 1:], Vt[1:, j_flow, 1:])
-        rhof = _mean4(rho[:-1, j_flow, :-1], rho[1:, j_flow, :-1], rho[:-1, j_flow, 1:], rho[1:, j_flow, 1:])
+        Vxf = _mean4(
+            Vx[:-1, j_flow, :-1],
+            Vx[1:, j_flow, :-1],
+            Vx[:-1, j_flow, 1:],
+            Vx[1:, j_flow, 1:],
+        )
+        Vrf = _mean4(
+            Vr[:-1, j_flow, :-1],
+            Vr[1:, j_flow, :-1],
+            Vr[:-1, j_flow, 1:],
+            Vr[1:, j_flow, 1:],
+        )
+        Vtf = _mean4(
+            Vt[:-1, j_flow, :-1],
+            Vt[1:, j_flow, :-1],
+            Vt[:-1, j_flow, 1:],
+            Vt[1:, j_flow, 1:],
+        )
+        rhof = _mean4(
+            rho[:-1, j_flow, :-1],
+            rho[1:, j_flow, :-1],
+            rho[:-1, j_flow, 1:],
+            rho[1:, j_flow, 1:],
+        )
         vol_ = vol[:, vol_j, :]
         dA0, dA1, dA2 = dAj[0, :, j_r, :], dAj[1, :, j_r, :], dAj[2, :, j_r, :]
         omega_wall = Omega_block
-        return _wall_core_np(rf, dA0, dA1, dA2, vol_, Omega_block, omega_wall, mu, rhof, Vxf, Vrf, Vtf)
+        return _wall_core_np(
+            rf, dA0, dA1, dA2, vol_, Omega_block, omega_wall, mu, rhof, Vxf, Vrf, Vtf
+        )
 
     yplus_j1 = jface_ref(j_r=0, j_flow=1, vol_j=0)
     yplus_nj = jface_ref(j_r=-1, j_flow=-2, vol_j=-1)

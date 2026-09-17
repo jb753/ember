@@ -185,9 +185,7 @@ def test_the_increment_is_uniform_over_a_coarse_block(synthetic):
     got, block = _rk_increment(
         SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, cluster=True
     )
-    off, _ = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=0.0, cluster=True
-    )
+    off, _ = _rk_increment(SHAPE, residual, dt_vol, fac_mgrid=0.0, cluster=True)
     corr = got - off
 
     cells = _reference_correction_cells(
@@ -256,9 +254,7 @@ def _dense_restriction(nc, np_):
         def Z(*shape):
             return np.asfortranarray(np.zeros(shape, dtype=np.float32))
 
-        n_corr, n_tri = ember.solver._mg_coarse_scratch_sizes(
-            ni, nj, nk, 1, np=np_
-        )
+        n_corr, n_tri = ember.solver._mg_coarse_scratch_sizes(ni, nj, nk, 1, np=np_)
         corr_all = Z(n_corr)
         ember.fortran.rk_mg_noirs(
             cons=Z(ni, nj, nk, np_),
@@ -278,7 +274,7 @@ def _dense_restriction(nc, np_):
             sdt=Z(nc, nc, nc),
             sv=Z(nc, nc, nc),
             corr_all=corr_all,
-                triw=Z(n_tri),
+            triw=Z(n_tri),
             rfac=Z(np_),
             dampin=0.0,
         )
@@ -483,12 +479,8 @@ def _golden_increment():
     rng = np.random.default_rng(11)
     residual = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
     dt_vol = 0.2 + 1.6 * rng.random((ni - 1, nj - 1, nk - 1))
-    on, _ = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, cluster=True
-    )
-    off, _ = _rk_increment(
-        SHAPE, residual, dt_vol, fac_mgrid=0.0, cluster=True
-    )
+    on, _ = _rk_increment(SHAPE, residual, dt_vol, fac_mgrid=FAC_MGRID, cluster=True)
+    off, _ = _rk_increment(SHAPE, residual, dt_vol, fac_mgrid=0.0, cluster=True)
     return (on - off).astype(np.float32)
 
 
@@ -518,7 +510,12 @@ def test_the_buffer_list_matches_the_shapes():
     shapes = ember.solver.mg_coarse_shapes(*SHAPE, N_LEVELS)
     assert len(names) == len(shapes) == 6
     assert set(names) == {
-        "dtblk", "rawbuf", "sdt", "sv", "corr_all", "triw",
+        "dtblk",
+        "rawbuf",
+        "sdt",
+        "sv",
+        "corr_all",
+        "triw",
     }
 
 

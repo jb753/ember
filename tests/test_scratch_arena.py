@@ -109,8 +109,9 @@ def test_viscous_views_are_stable_and_inside_the_arena(shape):
     """
     block = ember.block.Block(shape=shape)
     for face_a, face_b in zip(block.tau_q_faces, block.tau_q_faces):
-        assert face_a.__array_interface__["data"][0] == (
-            face_b.__array_interface__["data"][0]
+        assert (
+            face_a.__array_interface__["data"][0]
+            == (face_b.__array_interface__["data"][0])
         )
     faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
     for buf in (*block.tau_q_faces, tq, planes, rows, *transport):
@@ -127,12 +128,14 @@ def test_arena_is_smaller_than_the_buffers_it_replaced():
     volume, which used to be what bound it.
     """
     ni, nj, nk = 273, 65, 57
-    before = (ni + 1) * (nj + 1) * (nk + 1) * 10 + ni * nj * nk * 5 + sum(
-        int(np.prod(s)) for s in ember.block._viscous_face_shapes(ni, nj, nk)
+    before = (
+        (ni + 1) * (nj + 1) * (nk + 1) * 10
+        + ni * nj * nk * 5
+        + sum(int(np.prod(s)) for s in ember.block._viscous_face_shapes(ni, nj, nk))
     )
     after = _scratch_len((ni, nj, nk))
     assert after < before
-    assert after / before < 0.4   # measured 0.363 at this shape
+    assert after / before < 0.4  # measured 0.363 at this shape
 
 
 def test_no_phase_needs_a_volume_of_tau_q():

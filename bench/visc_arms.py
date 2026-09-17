@@ -39,9 +39,12 @@ socket contention -- the single largest effect measured on this kernel. Sweep
 it on a machine with a different L2 before changing VISC_JAREA.
 """
 
+import argparse
+
 import numpy as np
 
 import ember.block
+import ember.fortran as F
 
 from residual_arms import build_case, swirl  # noqa: F401  (re-export)
 
@@ -133,8 +136,6 @@ def seed_tau_q(grid, b):
     them before the state is perturbed would leave phase 2 reading a shell that
     does not belong to the velocities it also reads.
     """
-    import ember.fortran as F
-
     F.set_tau_q_faces(**_p1_kwargs(b))
     grid.connectivity.periodic.exchange_faces()
     return b.tau_q_faces
@@ -153,8 +154,6 @@ def callers_pair(grid, b):
     `prod` is the only arm that pays for phase 1 and the exchange, so it is the
     one to quote end to end; `p1` and `k2` say where its time goes.
     """
-    import ember.fortran as F
-
     kw_p1, kw_k2 = _p1_kwargs(b), _k2_kwargs(b)
     # Hoisted so the timed lambdas do no attribute lookup one another is not
     # also paying; the communicator itself is cached on the connectivity.
@@ -199,7 +198,8 @@ def check_pair(grid, b):
             idempotent=all(np.array_equal(x, y) for x, y in zip(first, second)),
             matches_prod_panel=(
                 all(np.array_equal(x, y) for x, y in zip(first, ref))
-                if name.startswith("jbw") else None
+                if name.startswith("jbw")
+                else None
             ),
         )
     return results
@@ -207,8 +207,6 @@ def check_pair(grid, b):
 
 def main():
     """Standalone correctness pre-flight for the harness's own assumptions."""
-    import argparse
-
     ap = argparse.ArgumentParser(description=main.__doc__)
     ap.add_argument("--ncell", type=int, default=300_000)
     ap.add_argument(
@@ -224,9 +222,11 @@ def main():
     grid, b = build_case(args.ncell, periodic_k=args.periodic_k)
     ni, nj, nk = b.shape
     print(f"grid {ni} x {nj} x {nk}  ncell={args.ncell}  cusp={b.i_cusp[0] > 0}")
-    print(f"periodic_k={args.periodic_k!r}  i_perk={b.i_perk}  "
-          f"k-seam non-wall fraction="
-          f"{float(np.asarray(b.ijk_wall_visc['wallk1']).mean()):.3f}")
+    print(
+        f"periodic_k={args.periodic_k!r}  i_perk={b.i_perk}  "
+        f"k-seam non-wall fraction="
+        f"{float(np.asarray(b.ijk_wall_visc['wallk1']).mean()):.3f}"
+    )
     print(f"arena {b.scratch.size * 4 / 1024**2:.2f} MB")
 
     # Rule 5: build_duct_grid is axially straight, so Vr = Vt = 0 and the
@@ -239,15 +239,22 @@ def main():
     print("\nharness preconditions:")
     bad = 0
     for name, r in check_pair(grid, b).items():
-        panel = "" if r["matches_prod_panel"] is None else (
-            "  panel-invariant" if r["matches_prod_panel"]
-            else "  PANEL CHANGES THE ANSWER"
+        panel = (
+            ""
+            if r["matches_prod_panel"] is None
+            else (
+                "  panel-invariant"
+                if r["matches_prod_panel"]
+                else "  PANEL CHANGES THE ANSWER"
+            )
         )
         print(f"  {name:>8}  idempotent={r['idempotent']}{panel}")
         bad += (not r["idempotent"]) or (r["matches_prod_panel"] is False)
     if bad:
-        print("  FAIL: see above -- a rep-based measurement would be timing "
-              "a moving target, or the panel widths are not the same kernel")
+        print(
+            "  FAIL: see above -- a rep-based measurement would be timing "
+            "a moving target, or the panel widths are not the same kernel"
+        )
         return 1
     return 0
 

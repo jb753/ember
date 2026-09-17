@@ -167,7 +167,11 @@ def main():
     rank = int(os.environ["EMBER_BENCH_RANK"])
     barrier = Barrier(os.environ["EMBER_BARRIER"], rank, args.nranks)
 
-    from residual_arms import DAMPIN, build_case, callers
+    from residual_arms import (  # noqa: PLC0415 - needs bench/ on sys.path
+        DAMPIN,
+        build_case,
+        callers,
+    )
 
     t0 = time.perf_counter()
     grid, b = build_case(args.ncell, periodic_k=args.periodic_k)
@@ -179,7 +183,7 @@ def main():
     # tau/q halo input in place is exactly the sort of thing that comes back.
     pre = None
     if args.kernel == "viscpair":
-        import visc_arms
+        import visc_arms  # noqa: PLC0415 - only the selected arm
 
         visc_arms.swirl(b)
         visc_arms.seed_tau_q(grid, b)
@@ -192,7 +196,7 @@ def main():
         # Phase 3: the limiter+IRS fusion spans set_residual and the smoother,
         # so the pair is timed together. dU is an output of the first call, so
         # unlike --kernel irs there is nothing to seed.
-        import irs_arms
+        import irs_arms  # noqa: PLC0415 - only the selected arm
 
         irs_arms.swirl_state(b)
         built = irs_arms.callers_update(b, du)
@@ -201,7 +205,7 @@ def main():
         # are seeded untimed: pricing the residual build here would be timing
         # set_residual. Every arm is idempotent (rk_arms.check_correctness),
         # so no restore hook.
-        import rk_arms
+        import rk_arms  # noqa: PLC0415 - only the selected arm
 
         rk_arms.swirl(b)
         grid.update_residual()
@@ -211,7 +215,7 @@ def main():
         # The smoother consumes the residual, so seed dU with a real one
         # (untimed: it is the previous kernel's output, and pricing it here
         # would be timing set_residual). See irs_arms.seed_du.
-        import irs_arms
+        import irs_arms  # noqa: PLC0415 - only the selected arm
 
         irs_arms.swirl_state(b)
         irs_arms.seed_du(b)
@@ -259,7 +263,7 @@ def main():
         # The IRS smoother runs in place, so rep n smooths rep n-1's output.
         # That is timing-neutral only while the field stays normal -- assert
         # it rather than assume it (irs_arms.check_denormals).
-        import irs_arms
+        import irs_arms  # noqa: PLC0415 - only the selected arm
 
         extra = irs_arms.check_denormals(du)
         if extra["frac_subnormal"] > 1e-6:

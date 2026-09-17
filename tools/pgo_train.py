@@ -46,8 +46,8 @@ def main():
     )
     args = ap.parse_args()
 
-    from ember.cases import build_duct_grid
-    from ember.solver import Solver
+    from ember.cases import build_duct_grid  # noqa: PLC0415 - keep --help light
+    from ember.solver import Solver  # noqa: PLC0415 - keep --help light
 
     for ncell in (int(n) for n in args.ncells.split(",")):
         t0 = time.perf_counter()

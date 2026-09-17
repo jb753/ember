@@ -36,8 +36,11 @@ empirically after the timed run rather than trusting the argument, and
 `--reps`-dependence of the median would show it too.
 """
 
+import argparse
+
 import numpy as np
 
+import ember.fortran as F
 from ember import util
 
 from residual_arms import (  # noqa: F401  (re-export)
@@ -45,6 +48,7 @@ from residual_arms import (  # noqa: F401  (re-export)
     build_case,
     build_kwargs,
     callers,
+    swirl,
 )
 
 # Jameson IRS coefficient. Production's default is sf_resid=0.0 (IRS off), so
@@ -153,15 +157,11 @@ def swirl_state(b):
     solves act on. Reusing residual_arms.swirl() gives the residual cross-
     stream content before it is handed to the smoother.
     """
-    from residual_arms import swirl
-
     return swirl(b)
 
 
 def callers_irs(b, du, sf=SF, active_arms=IRS_ARMS):
     """One zero-argument callable per active IRS arm, operating in place on `du`."""
-    import ember.fortran as F
-
     ni, nj, nk = b.shape
     out = {}
     for name in active_arms:
@@ -231,8 +231,6 @@ def callers_update(b, du, dampin=DAMPIN, sf=SF):
     `current`, which composes the kernels in the opposite order and is a
     genuine numerics change from both (same test file, current version).
     """
-    import ember.fortran as F
-
     ni, nj, nk = b.shape
     common, private = build_kwargs(b)
     kw_damped = dict(common, **private["prod"], du=du, dampin=dampin)
@@ -247,15 +245,25 @@ def callers_update(b, du, dampin=DAMPIN, sf=SF):
     def fused():
         ravg = F.set_residual(**kw_plain)
         F.smooth_residual_scale_tri(
-            du=du, dt_vol=b.dt_vol_nd, ravg=ravg, dampin=dampin, sf=sf,
-            work=work, **shape
+            du=du,
+            dt_vol=b.dt_vol_nd,
+            ravg=ravg,
+            dampin=dampin,
+            sf=sf,
+            work=work,
+            **shape,
         )
 
     def current():
         F.set_residual(**kw_plain)
         F.smooth_residual_scale_tri(
-            du=du, dt_vol=b.dt_vol_nd, ravg=np.zeros(5, dtype=du.dtype),
-            dampin=0.0, sf=sf, work=work, **shape
+            du=du,
+            dt_vol=b.dt_vol_nd,
+            ravg=np.zeros(5, dtype=du.dtype),
+            dampin=0.0,
+            sf=sf,
+            work=work,
+            **shape,
         )
         F.damp_residual(du=du, dt_vol=b.dt_vol_nd, dampin=dampin, **shape)
 
@@ -361,8 +369,6 @@ def check_denormals(du):
 
 def main():
     """Standalone Gate-2 correctness pre-flight. Times nothing."""
-    import argparse
-
     ap = argparse.ArgumentParser(description=main.__doc__)
     ap.add_argument("--ncell", type=int, default=300_000)
     ap.add_argument("--sf", type=float, default=SF)

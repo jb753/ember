@@ -1107,7 +1107,10 @@ class TestCheckNan:
 
         message = str(raised.value)
         assert "NaN in conserved_nd density of block 0" in message
-        assert "1 node(s), bbox i[2:2]/4 j[3:3]/5 k[4:4]/7, touches [interior only]" in message
+        assert (
+            "1 node(s), bbox i[2:2]/4 j[3:3]/5 k[4:4]/7, touches [interior only]"
+            in message
+        )
 
     def test_non_positive_pressure_is_reported_while_density_is_finite(self):
         """An energy below the kinetic energy leaves density finite and pressure negative."""
@@ -1122,7 +1125,10 @@ class TestCheckNan:
 
         message = str(raised.value)
         assert "Non-positive pressure in block 0" in message
-        assert "1 node(s), bbox i[2:2]/4 j[3:3]/5 k[4:4]/7, touches [interior only]" in message
+        assert (
+            "1 node(s), bbox i[2:2]/4 j[3:3]/5 k[4:4]/7, touches [interior only]"
+            in message
+        )
 
     def test_nan_density_is_reported_before_pressure(self):
         """A NaN node is also a bad pressure; the NaN is the one named."""
@@ -1130,7 +1136,9 @@ class TestCheckNan:
         block.conserved_nd[self.NODE + (0,)] = np.nan
         block.update_cached_conserved()
 
-        with pytest.raises(ember.grid.DivergenceError, match="NaN in conserved_nd density"):
+        with pytest.raises(
+            ember.grid.DivergenceError, match="NaN in conserved_nd density"
+        ):
             Grid([block]).check_nan()
 
     def test_a_bad_node_on_a_face_names_the_face(self):
