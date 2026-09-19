@@ -808,7 +808,7 @@ contains
         xl = XLEN_FAC * wsum * wsum
         visc_lim = 3000e0 * muc
         mut = max(0.0e0, min(rhoc * xl * vm, visc_lim))
-        fac = (muc + mut) * 0.5e0
+        fac = muc + mut
         tq(1) = t1*fac
         tq(2) = t2*fac
         tq(3) = t3*fac
@@ -823,12 +823,12 @@ contains
         f5 = T(i,j,k)+T(i+1,j,k)+T(i,j+1,k)+T(i+1,j+1,k)
         f6 = T(i,j,k+1)+T(i+1,j,k+1)+T(i,j+1,k+1)+T(i+1,j+1,k+1)
         tq(7) = (f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k) &
-              -f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1)) * (ivr*lambda*0.5e0)
+              -f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1)) * (ivr*lambda)
         tq(9) = (f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k) &
-              -f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1)) * (ivr*lambda*0.5e0)
+              -f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1)) * (ivr*lambda)
         tq(8) = ((f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k) &
               -f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))*ivr &
-              + 0.125e0*(f1+f2)/rcr) * (lambda*0.5e0)
+              + 0.125e0*(f1+f2)/rcr) * lambda
     end subroutine tau_q_at_cell
 
     ! One k-face viscous flux with tau/q supplied as two 9-vectors, for the
@@ -953,8 +953,10 @@ end module viscous_helpers
 ! `set_tau_q_faces` computes the stress tensor tau(6) and heat-flux vector q(3)
 ! for the cells on the block's BOUNDARY SHELL only, by a Green-Gauss gradient
 ! over the six cell faces, each face average being the mean of its four corner
-! nodes. tau and q are stored multiplied by 2, so that averaging two adjacent
-! cells recovers the correct face value without a further factor.
+! nodes. tau and q are stored at their physical value, and a face takes the
+! mean of its two adjacent cells. (They were once stored halved AND averaged,
+! which put half the physical stress on every interior face;
+! tests/test_viscous_stress_scale.py pins the scale.)
 !
 ! `set_visc_force` then walks k, producing interior tau/q into a rolling cell
 ! plane pair as it goes and consuming it in the same walk, and accumulates the
@@ -972,7 +974,7 @@ end module viscous_helpers
 !
 ! Interior faces take tauf as the average of tau_cell from the two adjacent
 ! cells; boundary faces (i=1, i=ni, j=1, j=nj, k=1, k=nk) take it from the
-! single adjacent interior cell (already doubled above, so no extra factor)
+! single adjacent interior cell, via the (2*wall - 1) halo below
 ! and blend the free-stream viscous stress with a wall-function force
 ! according to the wall weight.
 !
@@ -1269,7 +1271,7 @@ subroutine set_tau_q_faces( &
             ! where the mixing length comes from differs between them.
             visc_lim = 3000e0 * muc(i)
             mut = max(0.0e0, min(rhoc(i) * xlr(i) * vm, visc_lim))
-            fac = (muc(i) + mut) * 0.5e0
+            fac = muc(i) + mut
             tqr(i,1) = t1*fac
             tqr(i,2) = t2*fac
             tqr(i,3) = t3*fac
@@ -1284,12 +1286,12 @@ subroutine set_tau_q_faces( &
             f5 = T(i,j,k)+T(i+1,j,k)+T(i,j+1,k)+T(i+1,j+1,k)
             f6 = T(i,j,k+1)+T(i+1,j,k+1)+T(i,j+1,k+1)+T(i+1,j+1,k+1)
             tqr(i,7) = (f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k) &
-                  -f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1)) * (ivr(i)*lambda*0.5e0)
+                  -f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1)) * (ivr(i)*lambda)
             tqr(i,9) = (f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k) &
-                  -f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1)) * (ivr(i)*lambda*0.5e0)
+                  -f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1)) * (ivr(i)*lambda)
             tqr(i,8) = ((f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k) &
                   -f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))*ivr(i) &
-                  + 0.125e0*(f1+f2)/rcr(i)) * (lambda*0.5e0)
+                  + 0.125e0*(f1+f2)/rcr(i)) * lambda
         end do
 
         ! Dispatch: layer 1 is the block's own edge cell, layer 2 the halo
@@ -1671,7 +1673,7 @@ subroutine set_visc_force( &
             visc_lim = 3000e0 * muc(i)
             mut = max(0.0e0, min(rhoc(i) * (XLEN_FAC * wsum * wsum) * vm, visc_lim))
             mu_turb(i,j,k) = mut
-            fac = (muc(i) + mut) * 0.5e0
+            fac = muc(i) + mut
             tq(i+1,j+1,1,tb) = t1*fac
             tq(i+1,j+1,2,tb) = t2*fac
             tq(i+1,j+1,3,tb) = t3*fac
@@ -1686,12 +1688,12 @@ subroutine set_visc_force( &
             f5 = T(i,j,k)+T(i+1,j,k)+T(i,j+1,k)+T(i+1,j+1,k)
             f6 = T(i,j,k+1)+T(i+1,j,k+1)+T(i,j+1,k+1)+T(i+1,j+1,k+1)
             tq(i+1,j+1,7,tb) = (f1*dAi(1,i,j,k)-f2*dAi(1,i+1,j,k)+f3*dAj(1,i,j,k) &
-                  -f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1)) * (ivr(i)*lambda*0.5e0)
+                  -f4*dAj(1,i,j+1,k)+f5*dAk(1,i,j,k)-f6*dAk(1,i,j,k+1)) * (ivr(i)*lambda)
             tq(i+1,j+1,9,tb) = (f1*dAi(3,i,j,k)-f2*dAi(3,i+1,j,k)+f3*dAj(3,i,j,k) &
-                  -f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1)) * (ivr(i)*lambda*0.5e0)
+                  -f4*dAj(3,i,j+1,k)+f5*dAk(3,i,j,k)-f6*dAk(3,i,j,k+1)) * (ivr(i)*lambda)
             tq(i+1,j+1,8,tb) = ((f1*dAi(2,i,j,k)-f2*dAi(2,i+1,j,k)+f3*dAj(2,i,j,k) &
                   -f4*dAj(2,i,j+1,k)+f5*dAk(2,i,j,k)-f6*dAk(2,i,j,k+1))*ivr(i) &
-                  + 0.125e0*(f1+f2)/rcr(i)) * (lambda*0.5e0)
+                  + 0.125e0*(f1+f2)/rcr(i)) * lambda
         end do
         end do
         ! i/j halo edges of this plane, straight out of their face buffers.

@@ -11,6 +11,9 @@ public API without a deprecation period.
 ------------------
 
 * Add a Reichardt wall law option, ``Solver.wall_law = "reichardt"``, covering the sublayer, buffer and log layers without a switch
+* Fix interior viscous stresses and heat fluxes, which were half their
+  physical value: the cell stress was stored halved and then averaged onto the
+  face. Changes every viscous solution
 
 
 .. _v0.4.3:
