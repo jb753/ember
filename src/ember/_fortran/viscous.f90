@@ -1472,7 +1472,6 @@ subroutine set_visc_force( &
     integer, intent(in) :: wall_law
 
     integer :: i, j, k, c, jc, kc
-    logical :: k_interior, row_interior
     ! Cusp seam correction: the two seam face flows and the half-difference
     ! they contribute to both seam cells.
     real :: flow1(4), flownk(4), fcorr(4)
@@ -1750,13 +1749,13 @@ subroutine set_visc_force( &
     ! call site, and the fused rewrite of this kernel left it unwired.
     ! Omega_wallk1_nd(1,j) / wallk1(1,j) are contiguous i-columns passed by
     ! sequence association, so the (ni-1) dummies bind with no array temporary.
-    if (k == 2) then
+    if (k == 1) then
         do j = jp0, jp1
             call wall_row_kface(ni, nj, nk, cons, r, dAk, vol, Omega_block, &
                 Omega_wallk1_nd(1,j), mu, wall_law, wallk1(1,j), planes, j, 1, 1, pb)
         end do
     end if
-    if (k == nk-1) then
+    if (k == nk) then
         do j = jp0, jp1
             call wall_row_kface(ni, nj, nk, cons, r, dAk, vol, Omega_block, &
                 Omega_wallnk_nd(1,j), mu, wall_law, wallnk(1,j), planes, j, nk, -1, pb)
@@ -1766,7 +1765,6 @@ subroutine set_visc_force( &
     ! --- cell plane kc = k-1: i/j scan, one store per cell ---
     if (k > 1) then
         kc = k - 1
-        k_interior = (kc >= 2 .and. kc <= nk-2)
         sa = 2
         sb = 3
         do j = jp0, jp1+1
@@ -1805,17 +1803,16 @@ subroutine set_visc_force( &
                              + (wvisc(3)-qf(3))*dAj(3,i,j,kc)
             end do
             ! Row form, for the reason given at the k-face blend above.
-            if (j == 2) then
+            if (j == 1) then
                 call wall_row_jface(ni, nj, nk, cons, r, dAj, vol, Omega_block, &
                     Omega_wallj1_nd(1,kc), mu, wall_law, wallj1(1,kc), rows, 1, kc, 1, sb)
             end if
-            if (j == nj-1) then
+            if (j == nj) then
                 call wall_row_jface(ni, nj, nk, cons, r, dAj, vol, Omega_block, &
                     Omega_wallnj_nd(1,kc), mu, wall_law, wallnj(1,kc), rows, nj, kc, -1, sb)
             end if
             if (j > jp0) then
                 jc = j - 1
-                row_interior = k_interior .and. (jc >= 2 .and. jc <= nj-2)
                 do i = 1, ni
                     tauf(1) = (tq(i, jc+1, 1, ta) + tq(i+1, jc+1, 1, ta)) * 0.5e0
                     tauf(2) = (tq(i, jc+1, 2, ta) + tq(i+1, jc+1, 2, ta)) * 0.5e0
@@ -1858,19 +1855,19 @@ subroutine set_visc_force( &
                     wfac = 1.0e0 - walli1(jc,kc)
                     call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_walli1_nd(jc,kc), &
                         mu, wall_law, 1, jc, kc, 1, wf)
-                    rows(2,1,1) = walli1(jc,kc)*rows(2,1,1) + wfac*wf(1)
-                    rows(2,2,1) = walli1(jc,kc)*rows(2,2,1) + wfac*wf(2)
-                    rows(2,3,1) = walli1(jc,kc)*rows(2,3,1) + wfac*wf(3)
-                    rows(2,4,1) = walli1(jc,kc)*rows(2,4,1) + wfac*wf(4)
+                    rows(1,1,1) = walli1(jc,kc)*rows(1,1,1) + wfac*wf(1)
+                    rows(1,2,1) = walli1(jc,kc)*rows(1,2,1) + wfac*wf(2)
+                    rows(1,3,1) = walli1(jc,kc)*rows(1,3,1) + wfac*wf(3)
+                    rows(1,4,1) = walli1(jc,kc)*rows(1,4,1) + wfac*wf(4)
                 end if
                 if (wallni(jc,kc) /= 1.0e0) then
                     wfac = 1.0e0 - wallni(jc,kc)
                     call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_wallni_nd(jc,kc), &
                         mu, wall_law, ni, jc, kc, -1, wf)
-                    rows(ni-1,1,1) = wallni(jc,kc)*rows(ni-1,1,1) + wfac*wf(1)
-                    rows(ni-1,2,1) = wallni(jc,kc)*rows(ni-1,2,1) + wfac*wf(2)
-                    rows(ni-1,3,1) = wallni(jc,kc)*rows(ni-1,3,1) + wfac*wf(3)
-                    rows(ni-1,4,1) = wallni(jc,kc)*rows(ni-1,4,1) + wfac*wf(4)
+                    rows(ni,1,1) = wallni(jc,kc)*rows(ni,1,1) + wfac*wf(1)
+                    rows(ni,2,1) = wallni(jc,kc)*rows(ni,2,1) + wfac*wf(2)
+                    rows(ni,3,1) = wallni(jc,kc)*rows(ni,3,1) + wfac*wf(3)
+                    rows(ni,4,1) = wallni(jc,kc)*rows(ni,4,1) + wfac*wf(4)
                 end if
                 ! Production's association, not merely its order: its j and
                 ! k accumulates are `fvisc = fvisc + hi - lo`, i.e. ((x + hi) - lo),
@@ -1891,25 +1888,6 @@ subroutine set_visc_force( &
                                      + rows(i,4,sb) - rows(i,4,sa) &
                                      + planes(i,jc,4,pb) - planes(i,jc,4,pa)
                 end do
-                ! Wall mask, finished here while the row is still in L1. For a
-                ! row interior in j and k the ONLY mask its end cells carry is
-                ! walli1/wallni -- no j- or k-mask applies -- so those two cells
-                ! can be masked now. That is what removes the i=1/i=ni-1 sheet
-                ! from the O(surface) pass, where fvisc could only ever be
-                ! reached with stride ni-1 (opt-report: one such block gather-
-                ! vectorized, the other not vectorized at all). The cusp
-                ! correction cannot interfere -- it touches only kc=1 and
-                ! kc=nk-1, which are not interior rows.
-                if (row_interior) then
-                    fvisc(1,jc,kc,1) = fvisc(1,jc,kc,1) * walli1(jc,kc)
-                    fvisc(1,jc,kc,2) = fvisc(1,jc,kc,2) * walli1(jc,kc)
-                    fvisc(1,jc,kc,3) = fvisc(1,jc,kc,3) * walli1(jc,kc)
-                    fvisc(1,jc,kc,4) = fvisc(1,jc,kc,4) * walli1(jc,kc)
-                    fvisc(ni-1,jc,kc,1) = fvisc(ni-1,jc,kc,1) * wallni(jc,kc)
-                    fvisc(ni-1,jc,kc,2) = fvisc(ni-1,jc,kc,2) * wallni(jc,kc)
-                    fvisc(ni-1,jc,kc,3) = fvisc(ni-1,jc,kc,3) * wallni(jc,kc)
-                    fvisc(ni-1,jc,kc,4) = fvisc(ni-1,jc,kc,4) * wallni(jc,kc)
-                end if
             end if
             stmp = sa
             sa = sb
@@ -1975,7 +1953,6 @@ subroutine set_visc_force( &
         end do
     end if
 
-    call zero_wall_fvisc_border(fvisc, walli1, wallj1, wallk1, wallni, wallnj, wallnk, ni, nj, nk)
 
 end subroutine set_visc_force
 

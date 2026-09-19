@@ -14,6 +14,10 @@ public API without a deprecation period.
 * Fix interior viscous stresses and heat fluxes, which were half their
   physical value: the cell stress was stored halved and then averaged onto the
   face. Changes every viscous solution
+* Apply the wall-law stress on the wall face itself, not on the face above the
+  wall cell, and stop masking the wall cell's viscous force. The wall nodes now
+  feel the friction, so their slip settles by force balance instead of being
+  left to the smoothing
 
 
 .. _v0.4.3:
