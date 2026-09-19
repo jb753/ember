@@ -24,38 +24,37 @@ Overview of one time step
    the conserved state has gone non-finite. Sets a flag on the returned
    :class:`~ember.convergence_history.ConvergenceHistory` and leaves the
    invalid field in place for inspection.
-3. **Source terms**: :meth:`~ember.grid.Grid.update_sources` updates viscous
-   forces and the polar coordinates source term needed to balance the radial
-   momentum equation. With the Runge--Kutta integrator,
-   :attr:`~Solver.n_stage` ``> 0``, this runs once every full step
-   with the source terms held constant for all stages. When using the scree
-   integrator, :attr:`~Solver.n_stage` ``== 0``, the source terms are
-   recomputed every few steps to save cost.
+3. **Source terms**: :meth:`~ember.grid.Grid.update_sources` rebuilds the
+   viscous forces in :attr:`~ember.block.Block.F_body_nd`. With the
+   Runge--Kutta integrator, :attr:`~Solver.n_stage` ``> 0``, this runs once
+   every full step with the source terms held constant for all stages. When
+   using the scree integrator, :attr:`~Solver.n_stage` ``== 0``, the source
+   terms are recomputed every few steps to save cost.
 4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes
    the time step and stores it pre-divided by cell volume in
-   :attr:`~ember.block.Block.dt_vol_nd`.
-5. **Filter**: when :attr:`~Solver.gain_filt` is nonzero,
-   :meth:`~ember.grid.Grid.update_filter` advances the
-   selective-frequency-damping low-pass filter one step using that time step,
-   every step regardless of the source cadence above. The SFD body force of
-   stage 3 reads what this leaves behind on the following step. Skipped
-   entirely at the default zero gain.
-6. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
+   :attr:`~ember.block.Block.dt_vol_nd`. On the steps where stage 3 ran, the
+   same pass adds the cell sources to the body force: the polar coordinates
+   source term needed to balance the radial momentum equation and, when
+   :attr:`~Solver.gain_filt` is nonzero, the selective-frequency-damping
+   force. When the gain is nonzero it also advances the SFD low-pass filter
+   one step on the time step just computed, every step regardless of the
+   source cadence; the force reads the filter before that update.
+5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
    unintegrated net-flow residual, with optional implicit residual smoothing
    , :attr:`~Solver.sf_resid`.
-7. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
+6. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
    :meth:`~ember.convergence_history.ConvergenceHistory.record_convergence`
    and :meth:`~ember.convergence_history.ConvergenceHistory.format_message`
    record and print a :class:`~ember.convergence_history.ConvergenceHistory`
    row using the current residual.
-8. **March**: advance the solution with the selected integrator -- Denton's
+7. **March**: advance the solution with the selected integrator -- Denton's
    scree march, :func:`scree_step`, or Jameson multi-stage Runge--Kutta,
    :func:`rk_step` -- optionally accelerated by multigrid.
-9. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a
+8. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a
    constant-coefficient blended second- and fourth-order filter to the
    post-march :attr:`ember.block.Block.conserved_nd` field, to provide artificial dissipation and
    suppress odd-even decoupling.
-10. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`
+9. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`
     steps, :meth:`~ember.grid.Grid.accumulate_avg` accumulates the conserved
     state into a running average, which
     :meth:`~ember.grid.Grid.finalise_average` uses to replace the
@@ -230,8 +229,10 @@ Body forces and viscous model
 ------------------------------
 
 The cell-centred body-force buffer (``block.F_body_nd``) accumulates all
-source terms before they are added to the residual, rebuilt by
-:meth:`ember.grid.Grid.update_sources`:
+source terms before they are added to the residual. It is rebuilt in two
+passes: :meth:`ember.grid.Grid.update_sources` zeroes it and adds the viscous
+terms, then :meth:`ember.grid.Grid.update_timestep` with ``add_sources=True``
+adds the cell sources from the cell averages its timestep walk already forms:
 
 - Viscous shear stresses and heat flux, computed unless
   ``Solver.inviscid`` is set. The viscous pass is phased across the
@@ -1059,21 +1060,27 @@ def _run(grid, conf):
         # dt_vol is sized for an already-stale state and overshoots the
         # stability limit during a cold start, and the timestep refresh is cheap.
         n_step_source = 5 if conf.n_stage == 0 else 1
-        if i_step % n_step_source == 0:
-            grid.update_sources(conf.inviscid, conf.gain_filt)
+        add_sources = i_step % n_step_source == 0
+        if add_sources:
+            grid.update_sources(conf.inviscid)
             _log_rss("step %d after update_sources", i_step)
-        grid.update_timestep(rf=0.2, fac_visc=conf.fac_visc)
 
-        # Advance the SFD low-pass filter the body force above reads. It needs
-        # the dt_vol just computed, so it runs here rather than alongside the
-        # sources, and every step regardless of the source cadence: its dt is a
-        # per-step increment, so advancing it on the scree march's every-fifth
-        # refresh would stretch the time constant fivefold. update_sources
-        # picks up the state left here on the following step, the usual
-        # explicit SFD coupling. Skipped at the default zero gain, where the
-        # buffer is never allocated.
-        if conf.gain_filt != 0.0:
-            grid.update_filter(conf.cfl, conf.delta_filt)
+        # The timestep pass also finishes the body force on a refresh step (the
+        # polar source and the SFD force, onto the viscous part just built) and
+        # advances the SFD low-pass filter on the dt_vol it has just computed.
+        # The filter advances every step regardless of the source cadence: its
+        # dt is a per-step increment, so advancing it on the scree march's
+        # every-fifth refresh would stretch the time constant fivefold. The
+        # force reads the filter before this step's update, the usual explicit
+        # SFD coupling. At the default zero gain the filter is never touched.
+        grid.update_timestep(
+            rf=0.2,
+            fac_visc=conf.fac_visc,
+            add_sources=add_sources,
+            gain_filt=conf.gain_filt,
+            cfl=conf.cfl,
+            delta_filt=conf.delta_filt,
+        )
 
         # Prepare the residual
         grid.update_residual(sf=conf.sf_resid)

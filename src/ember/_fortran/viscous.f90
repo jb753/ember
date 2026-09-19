@@ -15,7 +15,7 @@ module viscous_helpers
     public :: wall_yplus_iface, wall_yplus_jface, wall_yplus_kface
     public :: kface_flow_tq, tau_q_at_cell
     public :: load_kface, load_ijedge_faces
-    public :: polar_src, zero_wall_fvisc_border
+    public :: zero_wall_fvisc_border
     public :: wall_row_kface, wall_row_jface
     public :: VISC_JAREA
     public :: XLEN_FAC
@@ -551,36 +551,6 @@ contains
         rf   = kface(r, i, j, k) * 0.25e0
         call wall_yplus(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_kface
-
-
-    ! Polar (radial-momentum) source per unit volume for cell (i,j,k):
-    !     S = (rho*Vt^2 + (P - P_offset)) / r
-    ! Identical arithmetic to production's trailing pass, factored out only so
-    ! the hot fused loop and the O(surface) boundary-shell pass cannot drift
-    ! apart. Bitwise agreement with production depends on this staying an
-    ! expression-for-expression copy of it.
-    pure function polar_src(cons, P, r, P_offset, i, j, k) result(S)
-        implicit none
-        real, intent(in), contiguous :: cons(:,:,:,:), P(:,:,:), r(:,:,:)
-        real, intent(in) :: P_offset
-        integer, intent(in) :: i, j, k
-        real :: S
-        real :: rhoc, rhorVtc, rc, Pc, Vtc
-        rhoc = 0.125e0 * ( &
-            cons(i,j,k,1) + cons(i+1,j,k,1) + cons(i,j+1,k,1) + cons(i+1,j+1,k,1) + &
-            cons(i,j,k+1,1) + cons(i+1,j,k+1,1) + cons(i,j+1,k+1,1) + cons(i+1,j+1,k+1,1))
-        rhorVtc = 0.125e0 * ( &
-            cons(i,j,k,4) + cons(i+1,j,k,4) + cons(i,j+1,k,4) + cons(i+1,j+1,k,4) + &
-            cons(i,j,k+1,4) + cons(i+1,j,k+1,4) + cons(i,j+1,k+1,4) + cons(i+1,j+1,k+1,4))
-        rc = 0.125e0 * ( &
-            r(i,j,k) + r(i+1,j,k) + r(i,j+1,k) + r(i+1,j+1,k) + &
-            r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))
-        Pc = 0.125e0 * ( &
-            P(i,j,k) + P(i+1,j,k) + P(i,j+1,k) + P(i+1,j+1,k) + &
-            P(i,j,k+1) + P(i+1,j,k+1) + P(i,j+1,k+1) + P(i+1,j+1,k+1))
-        Vtc = rhorVtc / (rhoc * rc)
-        S = ((Pc - P_offset) + rhoc * Vtc**2) / rc
-    end function polar_src
 
 
     ! zero_wall_fvisc for set_visc_force, whose fused store has ALREADY
@@ -1316,8 +1286,8 @@ end subroutine set_tau_q_faces
 ! loop with its fvisc accumulate through a rolling buffer -- the i direction a
 ! face row (`rows` slot 1), the j direction an alternating face-row pair (slots
 ! 2/3), the k direction an alternating face-plane pair (`planes`) -- and the
-! three differences plus the polar source land in ONE store per cell rather
-! than production's former four visits to fvisc.
+! three differences land in ONE store per cell rather than production's former
+! four visits to fvisc.
 !
 ! J-PANELLED. The k walk carries a tau/q cell plane pair and the k-face flow
 ! plane pair from one k step to the next. Untiled that is ~1.9 MB at a
@@ -1345,12 +1315,13 @@ end subroutine set_tau_q_faces
 ! call -- a rolling pair never could, which is why the fused kernels that took
 ! their halo from a volume could not implement this at all.
 !
-! The polar (radial-momentum) source is fused into the interior store above and
-! runs as a separate pass over the boundary shell after the wall zeroing, since
-! it is geometric content the wall mask must not eat.
+! The polar (radial-momentum) source is NOT added here. It is geometric
+! content the wall mask must not eat, so it would need a second pass over the
+! boundary shell after the zeroing; set_timestep_sources adds it instead, on
+! every cell at once, from the cell averages that kernel already forms.
 subroutine set_visc_force( &
     cons, vol, dAi, dAj, dAk, &
-    Omega_block, r, mu, P, P_offset, &
+    Omega_block, r, mu, &
     fvisc, &
     T, cp, kappa, Pr_turb, wdist, &
     mu_turb, &
@@ -1383,8 +1354,6 @@ subroutine set_visc_force( &
     real, intent(in) :: r(ni, nj, nk)
     real, intent(in) :: Omega_block
     real, intent(in) :: mu(ni, nj, nk)
-    real, intent(in) :: P(ni, nj, nk)
-    real, intent(in) :: P_offset
     real, intent(inout) :: fvisc(ni-1, nj-1, nk-1, 4)
     real, intent(in) :: T(ni, nj, nk)
     real, intent(in) :: cp(ni, nj, nk)
@@ -1452,11 +1421,6 @@ subroutine set_visc_force( &
     real :: vct(ni-1), rcr(ni-1), ivr(ni-1), rhoc(ni-1)
     real :: cpc(ni-1), muc(ni-1), kac(ni-1)
     real :: visc_lim, lambda
-    ! Scalars for the hand-inlined polar source (see the note at its first
-    ! use): GCC inlines polar_src into production's set_visc_force but not
-    ! into this larger fused body, and a call in the loop blocks
-    ! vectorization outright.
-    real :: prhoc, prhorVtc, prc, pPc, pVtc
     real :: f1, f2, f3, f4, f5, f6, g1, g2, g3
     real :: t1, t2, t3, t4, t5, t6, w1, w2, w3, vm, mut, fac, wsum
     ! Per-component corner velocities for the stage-1 gathers; ga..gd are the
@@ -1848,16 +1812,13 @@ subroutine set_visc_force( &
                                      + rows(i,4,sb) - rows(i,4,sa) &
                                      + planes(i,jc,4,pb) - planes(i,jc,4,pa)
                 end do
-                ! Wall mask and polar source, both finished here while the
-                ! row is still in L1. For a row interior in j and k the ONLY
-                ! mask its end cells carry is walli1/wallni -- no j- or k-mask
-                ! applies -- so those two cells can be masked now, and the
-                ! polar loop then covers the whole row unbroken and
-                ! unit-stride. That is what removes the i=1/i=ni-1 sheet from
-                ! the O(surface) pass, where fvisc could only ever be reached
-                ! with stride ni-1 (opt-report: one such block gather-
-                ! vectorized, the other not vectorized at all).
-                ! Order matches production: i-mask, then polar. The cusp
+                ! Wall mask, finished here while the row is still in L1. For a
+                ! row interior in j and k the ONLY mask its end cells carry is
+                ! walli1/wallni -- no j- or k-mask applies -- so those two cells
+                ! can be masked now. That is what removes the i=1/i=ni-1 sheet
+                ! from the O(surface) pass, where fvisc could only ever be
+                ! reached with stride ni-1 (opt-report: one such block gather-
+                ! vectorized, the other not vectorized at all). The cusp
                 ! correction cannot interfere -- it touches only kc=1 and
                 ! kc=nk-1, which are not interior rows.
                 if (row_interior) then
@@ -1869,23 +1830,6 @@ subroutine set_visc_force( &
                     fvisc(ni-1,jc,kc,2) = fvisc(ni-1,jc,kc,2) * wallni(jc,kc)
                     fvisc(ni-1,jc,kc,3) = fvisc(ni-1,jc,kc,3) * wallni(jc,kc)
                     fvisc(ni-1,jc,kc,4) = fvisc(ni-1,jc,kc,4) * wallni(jc,kc)
-                    do i = 1, ni-1
-                        prhoc = 0.125e0 * ( &
-                            cons(i,jc,kc,1) + cons(i+1,jc,kc,1) + cons(i,jc+1,kc,1) + cons(i+1,jc+1,kc,1) + &
-                            cons(i,jc,kc+1,1) + cons(i+1,jc,kc+1,1) + cons(i,jc+1,kc+1,1) + cons(i+1,jc+1,kc+1,1))
-                        prhorVtc = 0.125e0 * ( &
-                            cons(i,jc,kc,4) + cons(i+1,jc,kc,4) + cons(i,jc+1,kc,4) + cons(i+1,jc+1,kc,4) + &
-                            cons(i,jc,kc+1,4) + cons(i+1,jc,kc+1,4) + cons(i,jc+1,kc+1,4) + cons(i+1,jc+1,kc+1,4))
-                        prc = 0.125e0 * ( &
-                            r(i,jc,kc) + r(i+1,jc,kc) + r(i,jc+1,kc) + r(i+1,jc+1,kc) + &
-                            r(i,jc,kc+1) + r(i+1,jc,kc+1) + r(i,jc+1,kc+1) + r(i+1,jc+1,kc+1))
-                        pPc = 0.125e0 * ( &
-                            P(i,jc,kc) + P(i+1,jc,kc) + P(i,jc+1,kc) + P(i+1,jc+1,kc) + &
-                            P(i,jc,kc+1) + P(i+1,jc,kc+1) + P(i,jc+1,kc+1) + P(i+1,jc+1,kc+1))
-                        pVtc = prhorVtc / (prhoc * prc)
-                        fvisc(i,jc,kc,2) = fvisc(i,jc,kc,2) &
-                            + vol(i,jc,kc) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
-                    end do
                 end if
             end if
             stmp = sa
@@ -1953,99 +1897,6 @@ subroutine set_visc_force( &
     end if
 
     call zero_wall_fvisc_border(fvisc, walli1, wallj1, wallk1, wallni, wallnj, wallnk, ni, nj, nk)
-
-    ! ===== Polar source on the boundary shell, AFTER the wall zeroing =====
-    ! Interior cells took their polar source inside the fused store above; the
-    ! shell could not. Production adds the polar source after the zeroing pass
-    ! because it is a geometric source, not viscous content, so the wall mask
-    ! must not eat it -- and the fused store runs before that pass.
-    !
-    ! The four blocks below partition the shell so every cell in it is visited
-    ! EXACTLY once. This is stricter than the zeroing loops need to be: those
-    ! may overlap at edges and corners because a repeated multiply by the same
-    ! mask is harmless, but a repeated ADD is not. Each high-face block is also
-    ! guarded, so a degenerate dimension (one cell plane, where the low and
-    ! high faces are the same cells) does not double-add either.
-    do j = 1, nj-1
-    do i = 1, ni-1
-        prhoc = 0.125e0 * ( &
-            cons(i,j,1,1) + cons(i+1,j,1,1) + cons(i,j+1,1,1) + cons(i+1,j+1,1,1) + &
-            cons(i,j,1+1,1) + cons(i+1,j,1+1,1) + cons(i,j+1,1+1,1) + cons(i+1,j+1,1+1,1))
-        prhorVtc = 0.125e0 * ( &
-            cons(i,j,1,4) + cons(i+1,j,1,4) + cons(i,j+1,1,4) + cons(i+1,j+1,1,4) + &
-            cons(i,j,1+1,4) + cons(i+1,j,1+1,4) + cons(i,j+1,1+1,4) + cons(i+1,j+1,1+1,4))
-        prc = 0.125e0 * ( &
-            r(i,j,1) + r(i+1,j,1) + r(i,j+1,1) + r(i+1,j+1,1) + &
-            r(i,j,1+1) + r(i+1,j,1+1) + r(i,j+1,1+1) + r(i+1,j+1,1+1))
-        pPc = 0.125e0 * ( &
-            P(i,j,1) + P(i+1,j,1) + P(i,j+1,1) + P(i+1,j+1,1) + &
-            P(i,j,1+1) + P(i+1,j,1+1) + P(i,j+1,1+1) + P(i+1,j+1,1+1))
-        pVtc = prhorVtc / (prhoc * prc)
-        fvisc(i,j,1,2) = fvisc(i,j,1,2) &
-            + vol(i,j,1) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
-    end do
-    end do
-    if (nk-1 > 1) then
-        do j = 1, nj-1
-        do i = 1, ni-1
-            prhoc = 0.125e0 * ( &
-                cons(i,j,nk-1,1) + cons(i+1,j,nk-1,1) + cons(i,j+1,nk-1,1) + cons(i+1,j+1,nk-1,1) + &
-                cons(i,j,nk-1+1,1) + cons(i+1,j,nk-1+1,1) + cons(i,j+1,nk-1+1,1) + cons(i+1,j+1,nk-1+1,1))
-            prhorVtc = 0.125e0 * ( &
-                cons(i,j,nk-1,4) + cons(i+1,j,nk-1,4) + cons(i,j+1,nk-1,4) + cons(i+1,j+1,nk-1,4) + &
-                cons(i,j,nk-1+1,4) + cons(i+1,j,nk-1+1,4) + cons(i,j+1,nk-1+1,4) + cons(i+1,j+1,nk-1+1,4))
-            prc = 0.125e0 * ( &
-                r(i,j,nk-1) + r(i+1,j,nk-1) + r(i,j+1,nk-1) + r(i+1,j+1,nk-1) + &
-                r(i,j,nk-1+1) + r(i+1,j,nk-1+1) + r(i,j+1,nk-1+1) + r(i+1,j+1,nk-1+1))
-            pPc = 0.125e0 * ( &
-                P(i,j,nk-1) + P(i+1,j,nk-1) + P(i,j+1,nk-1) + P(i+1,j+1,nk-1) + &
-                P(i,j,nk-1+1) + P(i+1,j,nk-1+1) + P(i,j+1,nk-1+1) + P(i+1,j+1,nk-1+1))
-            pVtc = prhorVtc / (prhoc * prc)
-            fvisc(i,j,nk-1,2) = fvisc(i,j,nk-1,2) &
-                + vol(i,j,nk-1) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
-        end do
-        end do
-    end if
-    do k = 2, nk-2
-    do i = 1, ni-1
-        prhoc = 0.125e0 * ( &
-            cons(i,1,k,1) + cons(i+1,1,k,1) + cons(i,1+1,k,1) + cons(i+1,1+1,k,1) + &
-            cons(i,1,k+1,1) + cons(i+1,1,k+1,1) + cons(i,1+1,k+1,1) + cons(i+1,1+1,k+1,1))
-        prhorVtc = 0.125e0 * ( &
-            cons(i,1,k,4) + cons(i+1,1,k,4) + cons(i,1+1,k,4) + cons(i+1,1+1,k,4) + &
-            cons(i,1,k+1,4) + cons(i+1,1,k+1,4) + cons(i,1+1,k+1,4) + cons(i+1,1+1,k+1,4))
-        prc = 0.125e0 * ( &
-            r(i,1,k) + r(i+1,1,k) + r(i,1+1,k) + r(i+1,1+1,k) + &
-            r(i,1,k+1) + r(i+1,1,k+1) + r(i,1+1,k+1) + r(i+1,1+1,k+1))
-        pPc = 0.125e0 * ( &
-            P(i,1,k) + P(i+1,1,k) + P(i,1+1,k) + P(i+1,1+1,k) + &
-            P(i,1,k+1) + P(i+1,1,k+1) + P(i,1+1,k+1) + P(i+1,1+1,k+1))
-        pVtc = prhorVtc / (prhoc * prc)
-        fvisc(i,1,k,2) = fvisc(i,1,k,2) &
-            + vol(i,1,k) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
-    end do
-    end do
-    if (nj-1 > 1) then
-        do k = 2, nk-2
-        do i = 1, ni-1
-            prhoc = 0.125e0 * ( &
-                cons(i,nj-1,k,1) + cons(i+1,nj-1,k,1) + cons(i,nj-1+1,k,1) + cons(i+1,nj-1+1,k,1) + &
-                cons(i,nj-1,k+1,1) + cons(i+1,nj-1,k+1,1) + cons(i,nj-1+1,k+1,1) + cons(i+1,nj-1+1,k+1,1))
-            prhorVtc = 0.125e0 * ( &
-                cons(i,nj-1,k,4) + cons(i+1,nj-1,k,4) + cons(i,nj-1+1,k,4) + cons(i+1,nj-1+1,k,4) + &
-                cons(i,nj-1,k+1,4) + cons(i+1,nj-1,k+1,4) + cons(i,nj-1+1,k+1,4) + cons(i+1,nj-1+1,k+1,4))
-            prc = 0.125e0 * ( &
-                r(i,nj-1,k) + r(i+1,nj-1,k) + r(i,nj-1+1,k) + r(i+1,nj-1+1,k) + &
-                r(i,nj-1,k+1) + r(i+1,nj-1,k+1) + r(i,nj-1+1,k+1) + r(i+1,nj-1+1,k+1))
-            pPc = 0.125e0 * ( &
-                P(i,nj-1,k) + P(i+1,nj-1,k) + P(i,nj-1+1,k) + P(i+1,nj-1+1,k) + &
-                P(i,nj-1,k+1) + P(i+1,nj-1,k+1) + P(i,nj-1+1,k+1) + P(i+1,nj-1+1,k+1))
-            pVtc = prhorVtc / (prhoc * prc)
-            fvisc(i,nj-1,k,2) = fvisc(i,nj-1,k,2) &
-                + vol(i,nj-1,k) * (((pPc - P_offset) + prhoc * pVtc**2) / prc)
-        end do
-        end do
-    end if
 
 end subroutine set_visc_force
 

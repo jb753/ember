@@ -81,12 +81,25 @@ def test_viscous_pair_survives_degenerate_shapes(shape):
     fvisc = viscous_util.run_pair(block, PR_TURB)
 
     assert np.all(np.isfinite(fvisc)), f"non-finite viscous force at {shape}"
-    assert np.abs(fvisc).max() > 0.0, (
-        f"the viscous force is identically zero at {shape} -- the kernel "
-        "returned without doing anything"
-    )
     mu_turb = np.asarray(block.mu_turb)[:-1, :-1, :-1]
     assert np.all(np.isfinite(mu_turb)) and np.all(mu_turb >= 0.0)
+
+    # "Did the kernel do anything" is asked of mu_turb, which the walk writes
+    # on every cell unmasked. The force itself is only a fair witness where
+    # some cell has no wall face: with walls all round, the wall mask zeroes
+    # every wall-adjacent cell's viscous force (the shear is injected one face
+    # in instead), so a block at most two cells thick in any direction is
+    # legitimately all zero. That was masked for as long as the polar source
+    # rode in the same array.
+    assert mu_turb.max() > 0.0, (
+        f"mu_turb is identically zero at {shape} -- the kernel returned "
+        "without doing anything"
+    )
+    if min(n - 1 for n in shape) >= 3:
+        assert np.abs(fvisc).max() > 0.0, (
+            f"the viscous force is identically zero at {shape}, which has "
+            "interior cells"
+        )
 
 
 @pytest.mark.parametrize("shape", SHAPES)

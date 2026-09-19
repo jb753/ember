@@ -98,8 +98,6 @@ def _k2_kwargs(b):
         omega_block=b.Omega_nd,
         r=b.r_nd,
         mu=b.mu_nd,
-        p=b.P_nd,
-        p_offset=b.P_offset_nd,
         fvisc=b.F_body_nd[..., 1:],
         t=b.T_nd,
         cp=b.cp_nd,
@@ -120,6 +118,8 @@ def _k2_kwargs(b):
         **b.Omega_wall_nd,
         i_cusp_start=b.i_cusp[0],
         i_cusp_end=b.i_cusp[1],
+        j_cusp_start=b.j_cusp[0],
+        j_cusp_end=b.j_cusp[1],
         jbw_in=0,
     )
 

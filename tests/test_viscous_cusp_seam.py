@@ -51,7 +51,7 @@ correction disabled (``i_cusp_start = 0``) and once with it spanning the
 block, and compare the difference against ``fcorr`` recomputed independently
 in numpy from the same tau/q field. Because the two runs differ *only* by
 that branch, the difference isolates the correction exactly, and every other
-term -- including the fused polar source -- cancels.
+term cancels.
 """
 
 import numpy as np

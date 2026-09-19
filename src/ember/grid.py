@@ -146,7 +146,6 @@ has blown up.
    Grid.smooth
    Grid.update_bconds
    Grid.update_cached_conserved
-   Grid.update_filter
    Grid.update_residual
    Grid.update_sources
    Grid.update_timestep
@@ -199,6 +198,11 @@ import ember.nonmatch_communicator
 # bounds the concurrent working set is the j-panel width inside each kernel
 # (RES_JAREA/RES_JMIN, VISC_JAREA). Do not sweep this; see bench/README.md.
 _KB_SLAB = 8
+
+# Stand-in for conserved_filt_nd when SFD is off: set_timestep_sources takes the
+# filter state with its own extents and never touches it at zero gain, so a
+# zero-size array keeps the (cell-sized) filter buffer unallocated.
+_NO_FILT = np.zeros((0, 0, 0, 5), dtype=np.float32, order="F")
 
 
 class Grid(_LabelledList):
@@ -1451,44 +1455,6 @@ class Grid(_LabelledList):
         for block in self:
             block.update_cached_conserved()
 
-    def update_filter(self, cfl, delta_filt):
-        """Evolve the SFD low-pass filter one step on every block.
-
-        First-order exponential moving average of each block's cell-centred
-        conserved state toward its current cell state, with per-cell timestep
-        ``dt = cfl * dt_vol * vol``. ``cfl`` may be a per-cell/per-equation
-        array of shape ``(ni-1, nj-1, nk-1, 5)`` or a single scalar; the rank
-        selects the matching kernel. ``delta_filt`` is the filter time constant.
-
-        Must run after the CFL and ``dt_vol`` for the step are current. This is
-        the only writer of the read-only ``conserved_filt_nd`` buffer, so it
-        owns the ``flags.writeable`` toggle (mirrors the timestep writers).
-
-        """
-        kernel = (
-            ember.fortran.update_filter_scalar
-            if np.ndim(cfl) == 0
-            else ember.fortran.update_filter_array
-        )
-        for block in self:
-            cons_filt = block.conserved_filt_nd
-            cons_filt.flags.writeable = True
-            # Cell-centred conserved state, materialised into the arena for
-            # this call alone (as the SFD force does; see update_sources). The
-            # arena is free in this method, and the buffer is the size of the
-            # multigrid-off march's, so it never binds.
-            cons_cell = util.carve_view(block.scratch, block.shape_cell + (5,))
-            ember.fortran.node_to_cell(block.conserved_nd, cons_cell)
-            kernel(
-                cons_filt=cons_filt,
-                cons_cell=cons_cell,
-                cfl=cfl,
-                dt_vol=block.dt_vol_nd,
-                vol=block.vol_nd,
-                delta_filt=delta_filt,
-            )
-            cons_filt.flags.writeable = False
-
     @util.profile
     def update_residual(self, sf=0.0):
         """Rebuild the unintegrated net-flow residual on every block.
@@ -1598,14 +1564,16 @@ class Grid(_LabelledList):
             block.residual_nd.flags.writeable = False
 
     @util.profile
-    def update_sources(self, inviscid, gain_filt):
+    def update_sources(self, inviscid):
         """Zero and rebuild the body force on every block of this grid level.
 
-        Assembles, into each ``block.F_body_nd``, the viscous shear stresses
-        (unless ``inviscid``), the polar source, and the optional SFD force
-        (when ``gain_filt`` is nonzero) -- in that order, so the viscous
-        momentum/energy negation does not flip the polar source added
-        afterwards.
+        Zeroes each ``block.F_body_nd`` and assembles into it the viscous shear
+        stresses (unless ``inviscid``). That is only the first half of the body
+        force: the polar source and the optional SFD force are cell sources,
+        added by the :meth:`update_timestep` that follows with
+        ``add_sources=True``, from cell averages that kernel already forms.
+        ``F_body_nd`` is complete, and fit for :meth:`update_residual`, only
+        after both.
 
         The viscous calculation is phased across the whole grid: every block's
         BOUNDARY tau/q is computed first, then a single periodic seam exchange
@@ -1620,10 +1588,8 @@ class Grid(_LabelledList):
         Parameters
         ----------
         inviscid : bool
-            Skip the viscous shear-stress/heat-flux terms when True.
-        gain_filt : float
-            Selective-frequency-damping gain; the SFD force is added only when
-            nonzero.
+            Skip the viscous shear-stress/heat-flux terms when True, leaving
+            ``F_body_nd`` zeroed.
 
         """
         # F_body_nd is a read-only cached buffer. Unlock it for the assembly below
@@ -1686,10 +1652,9 @@ class Grid(_LabelledList):
             self.connectivity.periodic.exchange_faces()
 
             # Second viscous phase: interior tau/q and the face fluxes in one
-            # walk, accumulated into F_body_nd, with the polar (radial-momentum)
-            # source fused into the same kernel's final pass over fvisc -- see
-            # set_visc_force's header comment. The cusp seam is handled inside
-            # the kernel, from the two k face buffers.
+            # walk, accumulated into F_body_nd -- see set_visc_force's header
+            # comment. The cusp seam is handled inside the kernel, from the
+            # two k face buffers.
             for block in self:
                 i_cusp_start, i_cusp_end = block.i_cusp
                 j_cusp_start, j_cusp_end = block.j_cusp
@@ -1720,8 +1685,6 @@ class Grid(_LabelledList):
                     omega_block=block.Omega_nd,
                     r=block.r_nd,
                     mu=mu,
-                    p=block.P_nd,
-                    p_offset=block.P_offset_nd,
                     fvisc=block.F_body_nd[..., 1:],
                     t=block.T_nd,
                     cp=cp,
@@ -1753,65 +1716,48 @@ class Grid(_LabelledList):
                 # later reads through the public property succeed.
                 block._versions["mu_turb"] += 1
 
-        else:
-            # Inviscid: set_visc_force never runs, so the polar source (not
-            # otherwise fused anywhere) needs its own pass here.
-            for block in self:
-                ember.fortran.set_polar_source(
-                    cons=block.conserved_nd,
-                    r=block.r_nd,
-                    p=block.P_nd,
-                    p_offset=block.P_offset_nd,
-                    vol=block.vol_nd,
-                    net_flow=block.F_body_nd,
-                )
-
-        for block in self:
-            if gain_filt != 0.0:
-                # SFD body force runs pre-step so it drives the RK
-                # integration, not just the post-step residual. The
-                # cell-centred conserved state it wants is not kept anywhere,
-                # so materialise it here into the arena: its own sub-phase, the
-                # viscous loop above having finished with the arena, sized so
-                # it never binds (see _scratch_len).
-                cons_cell = util.carve_view(block.scratch, block.shape_cell + (5,))
-                ember.fortran.node_to_cell(block.conserved_nd, cons_cell)
-                ember.fortran.apply_sfd_force(
-                    f_body=block.F_body_nd,
-                    cons_filt=block.conserved_filt_nd,
-                    cons_cell=cons_cell,
-                    vol=block.vol_nd,
-                    gain_filt=gain_filt,
-                )
-
         for block in self:
             block.F_body_nd.flags.writeable = False
 
     @util.profile
-    def update_timestep(self, rf, fac_visc=1.0):
-        """Recompute the volumetric time step on every block.
+    def update_timestep(
+        self,
+        rf,
+        fac_visc=1.0,
+        add_sources=False,
+        gain_filt=0.0,
+        cfl=0.0,
+        delta_filt=1.0,
+    ):
+        """Recompute the volumetric time step, and the cell sources, on every block.
 
-        Uses a max-of-directional-radii variant of the JST/Blazek definition
-        ``dt_vol = 1 / max(lam_conv, lam_diff)``, where ``lam_conv`` is the
-        largest of the convective spectral radii
-        ``Lambda_d = |V_rel . dA_d| + a*||dA_d||`` over the three directions and
-        ``lam_diff = fac_visc * (mu_turb/rho)*max_d||dA_d||^2/vol`` is the
-        turbulent-diffusion radius over the same faces
-        (:func:`set_timestep_spectral`). Taking the max of the directional radii
-        (rather than Blazek's sum) makes the CFL number the true 1D Courant limit
-        (~``2*sqrt(2)`` for the 4-stage RK march) while staying
-        aspect-ratio-independent for the viscous limit too.
+        ``dt_vol = 1 / max(lam_conv, lam_diff)``: the largest single-direction
+        convective radius ``|V_rel . dA_d| + a*||dA_d||`` or turbulent-diffusion
+        radius ``fac_visc * (mu_turb/rho)*max_d||dA_d||^2/vol`` (see
+        :func:`set_timestep_sources`). The max, not Blazek's sum, makes the CFL
+        number the true 1D Courant limit (~``2*sqrt(2)`` for the 4-stage RK
+        march). ``rf`` blends ``rf*new + (1-rf)*old`` (``1.0`` for a fresh
+        recompute); ``fac_visc`` (>= 1) tightens the viscous limit.
 
-        ``rf`` is the relaxation factor blending the new ``dt_vol`` with the
-        existing buffer as ``rf*new + (1-rf)*old`` (pass ``rf=1.0`` for a fresh
-        recompute). This is the lone writer of each block's read-only
-        ``dt_vol_nd`` buffer, so it owns the ``flags.writeable`` toggle.
+        The same walk finishes the cell sources, from the cell averages it
+        already holds:
 
-        ``fac_visc`` (>= 1) multiplies the diffusion radius so the viscous march
-        tolerates the same cfl as the inviscid one; ``1.0`` leaves the bare
-        directional radius untouched.
+        * ``add_sources=True`` adds the polar source and, at nonzero
+          ``gain_filt``, the SFD force ``gain_filt * (cons_filt - cons_cell) *
+          vol`` onto ``F_body_nd``. Pass it exactly when :meth:`update_sources`
+          has just rebuilt the viscous part; otherwise ``F_body_nd`` is held.
+        * ``gain_filt != 0`` advances the SFD filter ``conserved_filt_nd`` by
+          ``dt * (cons_cell - cons_filt) / delta_filt``, ``dt = cfl * dt_vol *
+          vol`` on the ``dt_vol`` just computed. Once per step, whatever the
+          source cadence; the force reads the filter before the update.
+
+        This is the lone writer of ``dt_vol_nd``, of ``F_body_nd``'s cell
+        sources and of ``conserved_filt_nd``, so it owns their
+        ``flags.writeable`` toggles. At zero gain the filter is never touched,
+        and so never allocated.
 
         """
+        sfd = gain_filt != 0.0
         for block in self:
             # Fill the primitive cache before the carve below, not lazily
             # through `u_nd` after it. Two reasons, and the ordering is load
@@ -1831,8 +1777,13 @@ class Grid(_LabelledList):
             # takes anyway.
             a = util.carve_view(block.scratch, block.shape)
             block.fluid.get_a(block._rho_nd_uninit, block.u_nd, out=a)
+            P = block.P_nd
+            f_body = block.F_body_nd
+            cons_filt = block.conserved_filt_nd if sfd else _NO_FILT
             block.dt_vol_nd.flags.writeable = True
-            ember.fortran.set_timestep_spectral(
+            f_body.flags.writeable = True
+            cons_filt.flags.writeable = True
+            ember.fortran.set_timestep_sources(
                 dt_vol=block.dt_vol_nd,
                 a=a,
                 cons=block.conserved_nd,
@@ -1849,8 +1800,18 @@ class Grid(_LabelledList):
                 vol=block.vol_nd,
                 rf=rf,
                 fac_visc=fac_visc,
+                p=P,
+                p_offset=block.P_offset_nd,
+                f_body=f_body,
+                cons_filt=cons_filt,
+                add_sources=int(add_sources),
+                gain_filt=gain_filt,
+                cfl=cfl,
+                delta_filt=delta_filt,
             )
             block.dt_vol_nd.flags.writeable = False
+            f_body.flags.writeable = False
+            cons_filt.flags.writeable = False
 
     def write_emb(self, filename, compress=False):
         """Write grid to EMB binary format file.

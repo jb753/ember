@@ -922,9 +922,7 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
                        nodal transport trio (mu, kappa, cp) both kernels read
       update_primitive the nodal kinetic energy the kinematic kernel writes
                        and `ho` absorbs two lines later
-      update_timestep  the nodal acoustic speed set_timestep_spectral reads
-      filter / SFD     one cell-shaped conserved volume for apply_sfd_force
-                       and update_filter, both off by default
+      update_timestep  the nodal acoustic speed set_timestep_sources reads
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
       scree / RK, MG   the seven multigrid coarse buffers + the caller's
@@ -958,7 +956,6 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
         faces + tq + visc_pr + transport,  # update_sources
         ni * nj * nk,  # update_primitive
         ni * nj * nk,  # update_timestep
-        (ni - 1) * (nj - 1) * (nk - 1) * 5,  # filter / SFD
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,  # update_residual
         ni * nj * nk * 4,  # smooth
         mg + (ni - 1) * (nj - 1) * 5 * 2,  # scree/RK + multigrid
@@ -2597,13 +2594,13 @@ class Block(ember._struct.StructuredData):
         """Low-pass-filtered cell-centred conserved state, shape (ni-1, nj-1, nk-1, 5).
 
         Stateful selective-frequency-damping scratch: seeded to the current
-        cell-averaged conserved state on first access, then evolved each step by
-        :meth:`ember.grid.Grid.update_filter` and read by the SFD body force in
-        :meth:`ember.grid.Grid.update_sources`. Only allocated when
+        cell-averaged conserved state on first access, then read by the SFD
+        body force and evolved each step, in that order, by
+        :meth:`ember.grid.Grid.update_timestep`. Only allocated when
         ``Solver.gain_filt`` is nonzero, since nothing else touches it. The
         no-key ``cached_array`` allocates it once and never invalidates it;
         read-only to consumers, and its one writer
-        (:meth:`~ember.grid.Grid.update_filter`) toggles ``flags.writeable``
+        (:meth:`~ember.grid.Grid.update_timestep`) toggles ``flags.writeable``
         around its writes.
         """
         out = util.allocate_or_reuse(out, self.shape_cell + (5,))
@@ -3419,7 +3416,7 @@ class Block(ember._struct.StructuredData):
         including the six boundary tau/q face buffers (:attr:`tau_q_faces`),
         ``set_visc_force``'s rolling tau/q cell-plane pair, the nodal transport
         trio the viscous kernels read, the nodal acoustic speed
-        ``set_timestep_spectral`` reads, ``set_residual``'s and
+        ``set_timestep_sources`` reads, ``set_residual``'s and
         ``set_visc_force``'s rolling planes and rows, the IRS work vector, and
         the multigrid coarse scratch. It is sized from whichever phase needs
         most, so every phase fits without it being resized.

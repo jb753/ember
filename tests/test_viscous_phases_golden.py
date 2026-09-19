@@ -9,17 +9,13 @@ Fortran passes (see :mod:`test_set_F_body_golden` for the composed force):
     cells and layer 1 the halo value; then
   * phase 2 -- ``ember.fortran.set_visc_force`` produces INTERIOR tau/q inside
     its own k walk, turns tau/q into face fluxes, accumulates the viscous force
-    into ``F_body_nd``, writes ``mu_turb``, and folds in the polar
-    (radial-momentum) source in the same final pass (an optimisation: both
-    write the same ``F_body_nd`` slots, so this saves a whole separate
-    full-array touch -- see the kernel's header comment).
+    into ``F_body_nd`` and writes ``mu_turb``.
 
 ``test_set_F_body_golden`` only locks the *composition* of these passes with
-the (inviscid-only, now) polar call and the SFD term, so a change masked by
-another pass would slip through there, and a failure cannot be attributed to
-a single subroutine. These tests lock each pass independently -- phase 2's
-golden below is viscous+polar combined, not viscous alone, since that is now
-what ``set_visc_force`` computes:
+the cell sources the timestep pass adds after them (polar and SFD), so a
+change masked by another pass would slip through there, and a failure cannot
+be attributed to a single subroutine. These tests lock each pass
+independently -- phase 2's golden is the viscous force alone:
 
   * phase 1 is called directly and its six face buffers are compared to a
     committed golden; and
@@ -197,11 +193,9 @@ def _synthetic_faces(block):
 def _run_phase2(jbw=0, mu=None, kappa=None):
     """Call ``set_visc_force`` on a synthetic shell; return fvisc and mu_turb.
 
-    ``set_visc_force`` folds the polar (radial-momentum) source into its own
-    final pass over ``fvisc`` (see the kernel's header comment), so this golden
-    locks viscous+polar combined, not viscous alone. It also produces every
-    interior tau/q itself and writes ``mu_turb``, so that field is part of
-    THIS phase's golden and not phase 1's.
+    ``set_visc_force`` produces every interior tau/q itself and writes
+    ``mu_turb``, so that field is part of THIS phase's golden and not phase
+    1's. The polar source is not in ``fvisc``: the timestep pass adds it.
 
     ``jbw`` is the j-panel width; 0 mirrors production and sizes it from the
     kernel's own VISC_JAREA. ``mu``/``kappa`` override the block's own nodal
@@ -233,8 +227,6 @@ def _run_phase2(jbw=0, mu=None, kappa=None):
         omega_block=block.Omega_nd,
         r=block.r_nd,
         mu=block.mu_nd if mu is None else mu,
-        p=block.P_nd,
-        p_offset=block.P_offset_nd,
         fvisc=fbody[..., 1:],
         t=block.T_nd,
         cp=block.cp_nd,

@@ -1,8 +1,8 @@
 """Drive the two viscous kernels the way :meth:`ember.grid.Grid.update_sources`
 does, for tests that need the pair rather than the grid method.
 
-Three test modules run the viscous pair on a hand-built block -- the cusp seam,
-the periodic seam, and the polar/mu-limit comparison -- and each needs it
+Several test modules run the viscous pair on a hand-built block -- the cusp
+seam, the periodic seam, the degenerate shapes, and the mu-limit -- and each needs it
 slightly differently: one overrides ``i_cusp``, one toggles the seam exchange,
 one only wants the composed force. The call itself is thirty-odd arguments, so
 three copies of it would be three chances for a test to drift from production
@@ -48,7 +48,7 @@ def fill_faces(block, pr_turb):
 
 
 def run_visc_force(block, pr_turb, i_cusp=None, j_cusp=None, jbw=0):
-    """Phase 2: interior tau/q, face fluxes and the polar source into F_body.
+    """Phase 2: interior tau/q and face fluxes into F_body.
 
     Zeroes ``F_body_nd`` first and hands it back locked, as update_sources
     leaves it. ``i_cusp`` and ``j_cusp`` default to the block's own; pass
@@ -76,8 +76,6 @@ def run_visc_force(block, pr_turb, i_cusp=None, j_cusp=None, jbw=0):
         omega_block=block.Omega_nd,
         r=block.r_nd,
         mu=block.mu_nd,
-        p=block.P_nd,
-        p_offset=block.P_offset_nd,
         fvisc=fbody[..., 1:],
         t=block.T_nd,
         cp=block.cp_nd,

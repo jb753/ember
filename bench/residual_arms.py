@@ -131,8 +131,8 @@ def build_case(ncell, periodic_k=None):
     grid = build_duct_grid(ncell, periodic_k=periodic_k)
     grid.update_cached_conserved()
     grid.apply_bconds()
-    grid.update_sources(False, 0.0)  # seeds F_body and mu_turb
-    grid.update_timestep(rf=1.0)
+    grid.update_sources(False)  # seeds the viscous F_body and mu_turb
+    grid.update_timestep(rf=1.0, add_sources=True)  # + the polar source
     return grid, grid[0]
 
 
@@ -210,6 +210,8 @@ def build_kwargs(b):
         **b.ijk_wall_conv,
         i_cusp_start=i_cusp_start,
         i_cusp_end=i_cusp_end,
+        j_cusp_start=b.j_cusp[0],
+        j_cusp_end=b.j_cusp[1],
         njp=njp,
         ni=ni,
         nj=nj,
