@@ -98,6 +98,7 @@ def run_visc_force(block, pr_turb, i_cusp=None, j_cusp=None, jbw=0):
         i_cusp_end=i_cusp_end,
         j_cusp_start=j_cusp_start,
         j_cusp_end=j_cusp_end,
+        wall_law=0,
         jbw_in=jbw,
     )
     # The kernel is mu_turb's producer, so mark it initialised for any later

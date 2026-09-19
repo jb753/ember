@@ -10,6 +10,7 @@ module viscous_helpers
     private
     public :: iface, jface, kface
     public :: vel_at, iface_vel, jface_vel, kface_vel
+    public :: wall_cf, wall_cf_fit, wall_cf_reichardt
     public :: wall_core, wall_func, wall_yplus
     public :: wall_func_iface, wall_func_jface, wall_func_kface
     public :: wall_yplus_iface, wall_yplus_jface, wall_yplus_kface
@@ -30,8 +31,8 @@ module viscous_helpers
     ! volume the block would otherwise have to store.
     real, parameter :: XLEN_FAC = (0.41e0 * 0.125e0)**2
 
-    ! Skin-friction curve fit, shared by wall_core and the row forms below so
-    ! the two spellings of the same physics cannot drift apart.
+    ! Skin-friction curve fit, evaluated only in wall_cf_fit, which wall_core
+    ! and the row forms below all reach, so no two spellings can drift apart.
     real, parameter :: WALL_A1 = -1.767e-3
     real, parameter :: WALL_A2 = 3.177e-2
     real, parameter :: WALL_A3 = 2.5614e-1
@@ -47,6 +48,23 @@ module viscous_helpers
     ! Without it, wall_yplus's Re*sqrt(cf/2) is a square root of a negative
     ! number, so the collapsed face NaNs the y+ field even once the flux is
     ! clean.
+
+    ! Wall law selector, the `law` argument of wall_cf and everything that
+    ! reaches it: the cf(Re) curve fit above, or Reichardt's law (wall_cf's
+    ! header). Mirrored by ember.block_util._WALL_LAW.
+    integer, parameter :: WALL_LAW_FIT = 0
+    integer, parameter :: WALL_LAW_REICHARDT = 1
+    ! Reichardt's law: von Karman constant, the same 0.41 as XLEN_FAC's.
+    real, parameter :: REICH_K = 0.41e0
+    ! Newton steps inverting it, a fixed count so the loop has no data-
+    ! dependent exit. Measured in float32 over 1e-3 < Re < 1e22 from the
+    ! floored fit start: two reach 4e-6 in cf, three reach round-off (7e-7
+    ! for Re > 1; below Re = 0.1 float32 cancellation in the law's bracket
+    ! caps it at 2e-5 whatever the count).
+    integer, parameter :: REICH_NEWTON_N = 3
+    ! Floor on the fit's cf where it seeds Newton: past its zero at
+    ! ln(Re) = 24 the fit alone would start u+ at infinity.
+    real, parameter :: REICH_CF_FLOOR = 2.0e-4
 
     ! Floor on the face area the wall function divides the cell volume by, to
     ! get the cell thickness d = vol/|dA|. A COLLAPSED face has |dA| exactly
@@ -211,6 +229,63 @@ contains
         rhof = kface(cons(:,:,:,1), i, j, k) * 0.25e0
     end subroutine kface_vel
 
+    ! Skin friction from the cell Reynolds number Re = rho*V*d/mu, by law.
+    ! The row forms call the two laws directly, testing `law` once per row
+    ! rather than once per cell, so each phase-B loop stays straight-line.
+    pure elemental function wall_cf(Re, law) result(cf)
+        implicit none
+        real, intent(in) :: Re
+        integer, intent(in) :: law
+        real :: cf
+        if (law == WALL_LAW_REICHARDT) then
+            cf = wall_cf_reichardt(Re)
+        else
+            cf = wall_cf_fit(Re)
+        end if
+    end function wall_cf
+
+    ! The curve fit: cf = 2/Re (the discrete no-slip stress) below the root
+    ! of the two branches, a quadratic in 1/ln(Re) above it.
+    pure elemental function wall_cf_fit(Re) result(cf)
+        implicit none
+        real, intent(in) :: Re
+        real :: cf
+        real :: lnRew
+        if (Re .lt. 127.53373025e0) then
+            cf = 2e0/Re
+        else
+            lnRew = log(Re)
+            cf = (WALL_A1 + WALL_A2/lnRew + WALL_A3/lnRew/lnRew)
+        end if
+        cf = max(cf, 0.0e0)
+    end function wall_cf_fit
+
+    ! Reichardt's law, one expression from the sublayer to the log layer:
+    !
+    !   u+(s) = ln(1 + k*s)/k + 7.8*(1 - exp(-s/11) - (s/11)*exp(-s/3))
+    !
+    ! with s = y+. Re = y+ * u+ is monotone in s, so Newton solves
+    ! s*u+(s) = Re from the fit's answer, and then u+ = Re/s and
+    ! cf = 2/u+^2 = 2*(s/Re)^2. No switch: the sublayer is part of the law.
+    pure elemental function wall_cf_reichardt(Re) result(cf)
+        implicit none
+        real, intent(in) :: Re
+        real :: cf
+        real :: s, up, dup, e11, e3
+        integer :: n
+        s = Re * sqrt(0.5e0 * max(wall_cf_fit(Re), REICH_CF_FLOOR))
+        do n = 1, REICH_NEWTON_N
+            e11 = exp(-s / 11.0e0)
+            e3 = exp(-s / 3.0e0)
+            up = log(1.0e0 + REICH_K*s) / REICH_K &
+                + 7.8e0 * (1.0e0 - e11 - s / 11.0e0 * e3)
+            dup = 1.0e0 / (1.0e0 + REICH_K*s) &
+                + 7.8e0 * (e11 / 11.0e0 - e3 / 11.0e0 + s / 33.0e0 * e3)
+            s = s - (s*up - Re) / (up + s*dup)
+        end do
+        cf = 2.0e0 * (s / Re)**2
+    end function wall_cf_reichardt
+
     ! Shared core of wall_func/wall_yplus: the local wall-friction physics --
     ! slip velocity, Reynolds number on the cell-thickness scale
     ! d = vol/dA_mag, and the skin-friction curve fit -- with none of either
@@ -218,41 +293,30 @@ contains
     ! and wall_yplus's y+ can never silently drift apart: one Re/d
     ! definition, one curve fit, two three-line callers. See wall_yplus's own
     ! comment for the y+ derivation in terms of these outputs.
-    pure subroutine wall_core(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, &
+    pure subroutine wall_core(r, dA, vol, Omega_block, Omega_wall, mu, law, rho, Vx, Vr, Vt, &
                                V, dA_mag, Vt_slip, cf, Re, tau)
         implicit none
         real, intent(in) :: r, dA(3), vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt
+        integer, intent(in) :: law
         real, intent(out) :: V, dA_mag, Vt_slip, cf, Re, tau
-        real :: d, lnRew
-        real, parameter :: a1 = WALL_A1
-        real, parameter :: a2 = WALL_A2
-        real, parameter :: a3 = WALL_A3
+        real :: d
         ! Vt is relative to block frame; subtract wall velocity in block frame
         Vt_slip = Vt - (Omega_wall - Omega_block) * r
         V = sqrt(Vx**2 + Vr**2 + Vt_slip**2 + 1e-9)
         dA_mag = sqrt(dA(1)**2 + dA(2)**2 + dA(3)**2)
         d = vol / max(dA_mag, WALL_DA_MIN)
         Re = rho * V * d / mu
-        if (Re .lt. 127.53373025e0) then
-            cf = 2e0/Re
-        else
-            ! lnRew moved inside this branch (it used to be computed
-            ! unconditionally and wasted below Re=127.5) -- a drive-by
-            ! cleanup that fell out of extracting this core, not a change in
-            ! what either branch computes.
-            lnRew = log(Re)
-            cf = (a1 + a2/lnRew + a3/lnRew/lnRew)
-        end if
-        cf = max(cf, 0.0e0)
+        cf = wall_cf(Re, law)
         tau = cf * 0.5e0 * rho * V * V
     end subroutine wall_core
 
-    pure subroutine wall_func(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, flow)
+    pure subroutine wall_func(r, dA, vol, Omega_block, Omega_wall, mu, law, rho, Vx, Vr, Vt, flow)
         implicit none
         real, intent(in) :: r, dA(3), vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt
+        integer, intent(in) :: law
         real, intent(out) :: flow(4)
         real :: V, dA_mag, Vt_slip, cf, Re, tau, vec(3)
-        call wall_core(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, &
+        call wall_core(r, dA, vol, Omega_block, Omega_wall, mu, law, rho, Vx, Vr, Vt, &
                        V, dA_mag, Vt_slip, cf, Re, tau)
         vec(1) = Vx     / V * dA_mag
         vec(2) = Vr     / V * dA_mag
@@ -269,58 +333,59 @@ contains
     ! form: y+ = rho*u_tau*d/mu, u_tau = sqrt(tau/rho), d = Re*mu/(rho*V)
     ! => y+ = Re*sqrt(cf/2). Diagnostic-only -- see wall_yplus_field, never
     ! called from set_visc_force's per-step hot path.
-    pure subroutine wall_yplus(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, yplus)
+    pure subroutine wall_yplus(r, dA, vol, Omega_block, Omega_wall, mu, law, rho, Vx, Vr, Vt, yplus)
         implicit none
         real, intent(in) :: r, dA(3), vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt
+        integer, intent(in) :: law
         real, intent(out) :: yplus
         real :: V, dA_mag, Vt_slip, cf, Re, tau
-        call wall_core(r, dA, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, &
+        call wall_core(r, dA, vol, Omega_block, Omega_wall, mu, law, rho, Vx, Vr, Vt, &
                        V, dA_mag, Vt_slip, cf, Re, tau)
         yplus = Re * sqrt(cf * 0.5e0)
     end subroutine wall_yplus
 
-    pure subroutine wall_func_iface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, di, flow)
+    pure subroutine wall_func_iface(cons, r, dA, vol, Omega_block, Omega_wall, mu, law, i, j, k, di, flow)
         implicit none
         real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
-        integer, intent(in) :: i, j, k, di
+        integer, intent(in) :: law, i, j, k, di
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: flow(4)
         call iface_vel(cons, r, Omega_block, i+di, j, k, Vxf, Vrf, Vtf, rhof)
         muf  = iface(mu,  i+di, j, k) * 0.25e0
         rf   = iface(r, i, j, k) * 0.25e0
-        call wall_func(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
+        call wall_func(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, muf, law, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * di
     end subroutine wall_func_iface
 
-    pure subroutine wall_func_jface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, dj, flow)
+    pure subroutine wall_func_jface(cons, r, dA, vol, Omega_block, Omega_wall, mu, law, i, j, k, dj, flow)
         implicit none
         real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
-        integer, intent(in) :: i, j, k, dj
+        integer, intent(in) :: law, i, j, k, dj
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: flow(4)
         call jface_vel(cons, r, Omega_block, i, j+dj, k, Vxf, Vrf, Vtf, rhof)
         muf  = jface(mu,  i, j+dj, k) * 0.25e0
         rf   = jface(r, i, j, k) * 0.25e0
-        call  wall_func(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
+        call  wall_func(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, muf, law, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * dj
     end subroutine wall_func_jface
 
-    pure subroutine wall_func_kface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, dk, flow)
+    pure subroutine wall_func_kface(cons, r, dA, vol, Omega_block, Omega_wall, mu, law, i, j, k, dk, flow)
         implicit none
         real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
-        integer, intent(in) :: i, j, k, dk
+        integer, intent(in) :: law, i, j, k, dk
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: flow(4)
         call kface_vel(cons, r, Omega_block, i, j, k+dk, Vxf, Vrf, Vtf, rhof)
         muf  = kface(mu,  i, j, k+dk) * 0.25e0
         rf   = kface(r, i, j, k) * 0.25e0
-        call wall_func(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, flow)
+        call wall_func(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, law, rhof, Vxf, Vrf, Vtf, flow)
         flow = flow * dk
     end subroutine wall_func_kface
 
@@ -363,9 +428,9 @@ contains
     ! it silently drops unrelated subroutines from the f2py build).
     ! ------------------------------------------------------------------
     pure subroutine wall_row_kface(ni, nj, nk, cons, r, dAk, vol, Omega_block, Omega_wall, &
-        mu, wall, planes, j, k, dk, pslot)
+        mu, law, wall, planes, j, k, dk, pslot)
         implicit none
-        integer, intent(in) :: ni, nj, nk, j, k, dk, pslot
+        integer, intent(in) :: ni, nj, nk, law, j, k, dk, pslot
         real, intent(in) :: r(ni,nj,nk), mu(ni,nj,nk), cons(ni,nj,nk,5)
         real, intent(in) :: dAk(3,ni-1,nj-1,nk), vol(ni-1,nj-1,nk-1)
         real, intent(in) :: Omega_block, Omega_wall(ni-1), wall(ni-1)
@@ -374,7 +439,7 @@ contains
         real :: rf(WALL_TW), Vxf(WALL_TW), Vrf(WALL_TW), Vsf(WALL_TW)
         real :: rhof(WALL_TW), muf(WALL_TW), dAm(WALL_TW), Vm(WALL_TW)
         real :: Rew(WALL_TW), cf(WALL_TW)
-        real :: tau, vec1, vec2, vec3, wfac, w, d, lnRew
+        real :: tau, vec1, vec2, vec3, wfac, w, d
         real :: q1, q2, q3, q4
         kv = k + dk
         kc = k + (dk - 1) / 2
@@ -409,15 +474,15 @@ contains
                 Rew(t)  = rhof(t) * Vm(t) * d / muf(t)
             end do
             ! --- B: skin friction, the one phase the branch keeps scalar ---
-            do t = 1, m
-                if (Rew(t) .lt. 127.53373025e0) then
-                    cf(t) = 2e0 / Rew(t)
-                else
-                    lnRew = log(Rew(t))
-                    cf(t) = (WALL_A1 + WALL_A2/lnRew + WALL_A3/lnRew/lnRew)
-                end if
-                cf(t) = max(cf(t), 0.0e0)
-            end do
+            if (law == WALL_LAW_REICHARDT) then
+                do t = 1, m
+                    cf(t) = wall_cf_reichardt(Rew(t))
+                end do
+            else
+                do t = 1, m
+                    cf(t) = wall_cf_fit(Rew(t))
+                end do
+            end if
             ! --- C: stress, flux vector, mask blend ---
             do t = 1, m
                 i = i0 + t - 1
@@ -437,9 +502,9 @@ contains
     end subroutine wall_row_kface
 
     pure subroutine wall_row_jface(ni, nj, nk, cons, r, dAj, vol, Omega_block, Omega_wall, &
-        mu, wall, rows, j, kc, dj, sslot)
+        mu, law, wall, rows, j, kc, dj, sslot)
         implicit none
-        integer, intent(in) :: ni, nj, nk, j, kc, dj, sslot
+        integer, intent(in) :: ni, nj, nk, law, j, kc, dj, sslot
         real, intent(in) :: r(ni,nj,nk), mu(ni,nj,nk), cons(ni,nj,nk,5)
         real, intent(in) :: dAj(3,ni-1,nj,nk-1), vol(ni-1,nj-1,nk-1)
         real, intent(in) :: Omega_block, Omega_wall(ni-1), wall(ni-1)
@@ -448,7 +513,7 @@ contains
         real :: rf(WALL_TW), Vxf(WALL_TW), Vrf(WALL_TW), Vsf(WALL_TW)
         real :: rhof(WALL_TW), muf(WALL_TW), dAm(WALL_TW), Vm(WALL_TW)
         real :: Rew(WALL_TW), cf(WALL_TW)
-        real :: tau, vec1, vec2, vec3, wfac, w, d, lnRew
+        real :: tau, vec1, vec2, vec3, wfac, w, d
         real :: q1, q2, q3, q4
         jv = j + dj
         jc = j + (dj - 1) / 2
@@ -480,15 +545,15 @@ contains
                 d       = vol(i,jc,kc) / max(dAm(t), WALL_DA_MIN)
                 Rew(t)  = rhof(t) * Vm(t) * d / muf(t)
             end do
-            do t = 1, m
-                if (Rew(t) .lt. 127.53373025e0) then
-                    cf(t) = 2e0 / Rew(t)
-                else
-                    lnRew = log(Rew(t))
-                    cf(t) = (WALL_A1 + WALL_A2/lnRew + WALL_A3/lnRew/lnRew)
-                end if
-                cf(t) = max(cf(t), 0.0e0)
-            end do
+            if (law == WALL_LAW_REICHARDT) then
+                do t = 1, m
+                    cf(t) = wall_cf_reichardt(Rew(t))
+                end do
+            else
+                do t = 1, m
+                    cf(t) = wall_cf_fit(Rew(t))
+                end do
+            end if
             do t = 1, m
                 i = i0 + t - 1
                 tau  = cf(t) * 0.5e0 * rhof(t) * Vm(t) * Vm(t)
@@ -510,46 +575,46 @@ contains
     ! face-averaging, mu included, calling wall_yplus instead of wall_func.
     ! No `* di/dj/dk` sign multiply: y+ has no direction, unlike a flux vector. Used only by
     ! wall_yplus_field (post-processing), never set_visc_force.
-    pure subroutine wall_yplus_iface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, di, yplus)
+    pure subroutine wall_yplus_iface(cons, r, dA, vol, Omega_block, Omega_wall, mu, law, i, j, k, di, yplus)
         implicit none
         real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
-        integer, intent(in) :: i, j, k, di
+        integer, intent(in) :: law, i, j, k, di
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: yplus
         call iface_vel(cons, r, Omega_block, i+di, j, k, Vxf, Vrf, Vtf, rhof)
         muf  = iface(mu,  i+di, j, k) * 0.25e0
         rf   = iface(r, i, j, k) * 0.25e0
-        call wall_yplus(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
+        call wall_yplus(rf, dA(:,i,j,k), vol(i+(di-1)/2,j,k), Omega_block, Omega_wall, muf, law, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_iface
 
-    pure subroutine wall_yplus_jface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, dj, yplus)
+    pure subroutine wall_yplus_jface(cons, r, dA, vol, Omega_block, Omega_wall, mu, law, i, j, k, dj, yplus)
         implicit none
         real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
-        integer, intent(in) :: i, j, k, dj
+        integer, intent(in) :: law, i, j, k, dj
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: yplus
         call jface_vel(cons, r, Omega_block, i, j+dj, k, Vxf, Vrf, Vtf, rhof)
         muf  = jface(mu,  i, j+dj, k) * 0.25e0
         rf   = jface(r, i, j, k) * 0.25e0
-        call wall_yplus(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
+        call wall_yplus(rf, dA(:,i,j,k), vol(i,j+(dj-1)/2,k), Omega_block, Omega_wall, muf, law, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_jface
 
-    pure subroutine wall_yplus_kface(cons, r, dA, vol, Omega_block, Omega_wall, mu, i, j, k, dk, yplus)
+    pure subroutine wall_yplus_kface(cons, r, dA, vol, Omega_block, Omega_wall, mu, law, i, j, k, dk, yplus)
         implicit none
         real, intent(in), contiguous :: cons(:,:,:,:), r(:,:,:), mu(:,:,:)
         real, intent(in), contiguous :: dA(:,:,:,:), vol(:,:,:)
         real, intent(in) :: Omega_block, Omega_wall
-        integer, intent(in) :: i, j, k, dk
+        integer, intent(in) :: law, i, j, k, dk
         real :: Vxf, Vrf, Vtf, rf, rhof, muf
         real, intent(out) :: yplus
         call kface_vel(cons, r, Omega_block, i, j, k+dk, Vxf, Vrf, Vtf, rhof)
         muf  = kface(mu,  i, j, k+dk) * 0.25e0
         rf   = kface(r, i, j, k) * 0.25e0
-        call wall_yplus(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, rhof, Vxf, Vrf, Vtf, yplus)
+        call wall_yplus(rf, dA(:,i,j,k), vol(i,j,k+(dk-1)/2), Omega_block, Omega_wall, muf, law, rhof, Vxf, Vrf, Vtf, yplus)
     end subroutine wall_yplus_kface
 
 
@@ -1334,7 +1399,7 @@ subroutine set_visc_force( &
     Omega_wallni_nd, Omega_wallnj_nd, Omega_wallnk_nd, &
     i_cusp_start, i_cusp_end, &
     j_cusp_start, j_cusp_end, &
-    jbw_in, ni, nj, nk)
+    wall_law, jbw_in, ni, nj, nk)
 
     use viscous_helpers
     implicit none
@@ -1399,6 +1464,9 @@ subroutine set_visc_force( &
     real, intent(in) :: Omega_wallnk_nd(ni-1, nj-1)
     integer, intent(in) :: i_cusp_start, i_cusp_end
     integer, intent(in) :: j_cusp_start, j_cusp_end
+    ! Wall law for every wall face: WALL_LAW_FIT (the cf(Re) curve fit) or
+    ! WALL_LAW_REICHARDT. See wall_cf.
+    integer, intent(in) :: wall_law
 
     integer :: i, j, k, c, jc, kc
     logical :: k_interior, row_interior
@@ -1682,13 +1750,13 @@ subroutine set_visc_force( &
     if (k == 2) then
         do j = jp0, jp1
             call wall_row_kface(ni, nj, nk, cons, r, dAk, vol, Omega_block, &
-                Omega_wallk1_nd(1,j), mu, wallk1(1,j), planes, j, 1, 1, pb)
+                Omega_wallk1_nd(1,j), mu, wall_law, wallk1(1,j), planes, j, 1, 1, pb)
         end do
     end if
     if (k == nk-1) then
         do j = jp0, jp1
             call wall_row_kface(ni, nj, nk, cons, r, dAk, vol, Omega_block, &
-                Omega_wallnk_nd(1,j), mu, wallnk(1,j), planes, j, nk, -1, pb)
+                Omega_wallnk_nd(1,j), mu, wall_law, wallnk(1,j), planes, j, nk, -1, pb)
         end do
     end if
 
@@ -1736,11 +1804,11 @@ subroutine set_visc_force( &
             ! Row form, for the reason given at the k-face blend above.
             if (j == 2) then
                 call wall_row_jface(ni, nj, nk, cons, r, dAj, vol, Omega_block, &
-                    Omega_wallj1_nd(1,kc), mu, wallj1(1,kc), rows, 1, kc, 1, sb)
+                    Omega_wallj1_nd(1,kc), mu, wall_law, wallj1(1,kc), rows, 1, kc, 1, sb)
             end if
             if (j == nj-1) then
                 call wall_row_jface(ni, nj, nk, cons, r, dAj, vol, Omega_block, &
-                    Omega_wallnj_nd(1,kc), mu, wallnj(1,kc), rows, nj, kc, -1, sb)
+                    Omega_wallnj_nd(1,kc), mu, wall_law, wallnj(1,kc), rows, nj, kc, -1, sb)
             end if
             if (j > jp0) then
                 jc = j - 1
@@ -1781,14 +1849,14 @@ subroutine set_visc_force( &
                 end do
                 wfac = 1.0e0 - walli1(jc,kc)
                 call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_walli1_nd(jc,kc), &
-                    mu, 1, jc, kc, 1, wf)
+                    mu, wall_law, 1, jc, kc, 1, wf)
                 rows(2,1,1) = walli1(jc,kc)*rows(2,1,1) + wfac*wf(1)
                 rows(2,2,1) = walli1(jc,kc)*rows(2,2,1) + wfac*wf(2)
                 rows(2,3,1) = walli1(jc,kc)*rows(2,3,1) + wfac*wf(3)
                 rows(2,4,1) = walli1(jc,kc)*rows(2,4,1) + wfac*wf(4)
                 wfac = 1.0e0 - wallni(jc,kc)
                 call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_wallni_nd(jc,kc), &
-                    mu, ni, jc, kc, -1, wf)
+                    mu, wall_law, ni, jc, kc, -1, wf)
                 rows(ni-1,1,1) = wallni(jc,kc)*rows(ni-1,1,1) + wfac*wf(1)
                 rows(ni-1,2,1) = wallni(jc,kc)*rows(ni-1,2,1) + wfac*wf(2)
                 rows(ni-1,3,1) = wallni(jc,kc)*rows(ni-1,3,1) + wfac*wf(3)
@@ -1929,7 +1997,7 @@ subroutine wall_yplus_field( &
     Omega_wallni_nd, Omega_wallnj_nd, Omega_wallnk_nd, &
     yplus_i1, yplus_j1, yplus_k1, &
     yplus_ni, yplus_nj, yplus_nk, &
-    ni, nj, nk)
+    wall_law, ni, nj, nk)
 
     use viscous_helpers
     implicit none
@@ -1943,6 +2011,8 @@ subroutine wall_yplus_field( &
     real, intent(in) :: r(ni, nj, nk)
     real, intent(in) :: Omega_block
     real, intent(in) :: mu(ni, nj, nk)
+    ! Wall law (WALL_LAW_FIT or WALL_LAW_REICHARDT), as set_visc_force's.
+    integer, intent(in) :: wall_law
     real, intent(in) :: walli1(nj-1, nk-1), wallni(nj-1, nk-1)
     real, intent(in) :: wallj1(ni-1, nk-1), wallnj(ni-1, nk-1)
     real, intent(in) :: wallk1(ni-1, nj-1), wallnk(ni-1, nj-1)
@@ -1963,12 +2033,12 @@ subroutine wall_yplus_field( &
     do j = 1, nj-1
     do i = 1, ni-1
         if (wallk1(i,j) == 0.0e0) then
-            call wall_yplus_kface(cons, r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, &
+            call wall_yplus_kface(cons, r, dAk, vol, Omega_block, Omega_wallk1_nd(i,j), mu, wall_law, &
                                    i, j, 1, 1, yp)
             yplus_k1(i,j) = yp
         end if
         if (wallnk(i,j) == 0.0e0) then
-            call wall_yplus_kface(cons, r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, &
+            call wall_yplus_kface(cons, r, dAk, vol, Omega_block, Omega_wallnk_nd(i,j), mu, wall_law, &
                                    i, j, nk, -1, yp)
             yplus_nk(i,j) = yp
         end if
@@ -1978,12 +2048,12 @@ subroutine wall_yplus_field( &
     do k = 1, nk-1
     do i = 1, ni-1
         if (wallj1(i,k) == 0.0e0) then
-            call wall_yplus_jface(cons, r, dAj, vol, Omega_block, Omega_wallj1_nd(i,k), mu, &
+            call wall_yplus_jface(cons, r, dAj, vol, Omega_block, Omega_wallj1_nd(i,k), mu, wall_law, &
                                    i, 1, k, 1, yp)
             yplus_j1(i,k) = yp
         end if
         if (wallnj(i,k) == 0.0e0) then
-            call wall_yplus_jface(cons, r, dAj, vol, Omega_block, Omega_wallnj_nd(i,k), mu, &
+            call wall_yplus_jface(cons, r, dAj, vol, Omega_block, Omega_wallnj_nd(i,k), mu, wall_law, &
                                    i, nj, k, -1, yp)
             yplus_nj(i,k) = yp
         end if
@@ -1993,12 +2063,12 @@ subroutine wall_yplus_field( &
     do k = 1, nk-1
     do j = 1, nj-1
         if (walli1(j,k) == 0.0e0) then
-            call wall_yplus_iface(cons, r, dAi, vol, Omega_block, Omega_walli1_nd(j,k), mu, &
+            call wall_yplus_iface(cons, r, dAi, vol, Omega_block, Omega_walli1_nd(j,k), mu, wall_law, &
                                    1, j, k, 1, yp)
             yplus_i1(j,k) = yp
         end if
         if (wallni(j,k) == 0.0e0) then
-            call wall_yplus_iface(cons, r, dAi, vol, Omega_block, Omega_wallni_nd(j,k), mu, &
+            call wall_yplus_iface(cons, r, dAi, vol, Omega_block, Omega_wallni_nd(j,k), mu, wall_law, &
                                    ni, j, k, -1, yp)
             yplus_ni(j,k) = yp
         end if

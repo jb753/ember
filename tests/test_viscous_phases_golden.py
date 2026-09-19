@@ -249,6 +249,7 @@ def _run_phase2(jbw=0, mu=None, kappa=None):
         i_cusp_end=i_cusp_end,
         j_cusp_start=j_cusp_start,
         j_cusp_end=j_cusp_end,
+        wall_law=0,
         jbw_in=jbw,
     )
     # mu_turb's final node in each axis is padding the kernel never writes.

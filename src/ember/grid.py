@@ -1564,7 +1564,7 @@ class Grid(_LabelledList):
             block.residual_nd.flags.writeable = False
 
     @util.profile
-    def update_sources(self, inviscid):
+    def update_sources(self, inviscid, wall_law="fit"):
         """Zero and rebuild the body force on every block of this grid level.
 
         Zeroes each ``block.F_body_nd`` and assembles into it the viscous shear
@@ -1590,6 +1590,9 @@ class Grid(_LabelledList):
         inviscid : bool
             Skip the viscous shear-stress/heat-flux terms when True, leaving
             ``F_body_nd`` zeroed.
+        wall_law : {"fit", "reichardt"}
+            Skin-friction law at no-slip walls; see
+            :attr:`ember.solver.Solver.wall_law`.
 
         """
         # F_body_nd is a read-only cached buffer. Unlock it for the assembly below
@@ -1600,6 +1603,7 @@ class Grid(_LabelledList):
             block.F_body_nd.fill(0.0)
 
         if not inviscid:
+            law = ember.block_util._wall_law_code(wall_law)
             # The face buffers are pure scratch (always writeable); no locking
             # needed. First viscous phase: tau/q on the boundary SHELL only
             # (Pr_turb fixed at 1.0 for the grid march; mixing-length vorticity
@@ -1707,6 +1711,7 @@ class Grid(_LabelledList):
                     i_cusp_end=i_cusp_end,
                     j_cusp_start=j_cusp_start,
                     j_cusp_end=j_cusp_end,
+                    wall_law=law,
                     # 0: panel width from the kernel's own VISC_JAREA. Nothing
                     # marches with anything else; the argument exists so the
                     # tests can sweep it (see test_viscous_phases_golden).

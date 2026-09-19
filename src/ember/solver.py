@@ -245,7 +245,9 @@ adds the cell sources from the cell averages its timestep walk already forms:
   ``Solver.gain_filt`` is nonzero.
 
 The mixing-length turbulent viscosity uses a fixed turbulent Prandtl number
-of 1.0 and is evaluated from the absolute-frame vorticity magnitude.
+of 1.0 and is evaluated from the absolute-frame vorticity magnitude. No-slip
+walls take their shear stress from a wall function, a skin-friction law in the
+Reynolds number of the wall-adjacent cell, chosen by ``Solver.wall_law``.
 ``Solver.fac_visc`` multiplies the turbulent-diffusion timestep radius
 independently of this, tightening the viscous stability limit to recover the
 inviscid stable CFL where needed.
@@ -426,6 +428,19 @@ class Solver(BaseSolver):
     """Multiplier on the turbulent-diffusion timestep radius; >1 tightens the
     viscous limit to recover the inviscid stable CFL."""
 
+    wall_law: str = "fit"
+    """Skin-friction law at no-slip walls, ``"fit"`` or ``"reichardt"``.
+
+    Both give the wall shear stress from the Reynolds number of the
+    wall-adjacent cell, on the velocity at the first off-wall node. ``"fit"``
+    is a curve fit in ``ln(Re)``, switching to the laminar ``cf = 2/Re`` at
+    ``y+ = 11.3``; it follows the log law to a few percent above ``y+ = 30``
+    but reads up to 25% low in the buffer layer just above the switch.
+    ``"reichardt"`` inverts Reichardt's law, one expression from the viscous
+    sublayer through the buffer layer to the log layer, at the cost of three
+    Newton steps per wall face. Pass the same law to
+    :func:`ember.block_util.wall_yplus` for consistent y+."""
+
     sf_resid: float = 1.0
     """Implicit residual smoothing factor. Applied to the fine residual by
     :meth:`~ember.grid.Grid.update_residual` (``sf``) and, on both integrators,
@@ -544,7 +559,7 @@ class Solver(BaseSolver):
     each plane as it is. A grid with no mixing plane is unaffected."""
 
     def __post_init__(self):
-        """Reject averaging windows the march cannot honour.
+        """Reject averaging windows the march cannot honour, and unknown wall laws.
 
         :attr:`n_step_avg` counts the steps at the end of the march that
         :meth:`~ember.grid.Grid.accumulate_avg` sums into the pseudotime
@@ -556,7 +571,10 @@ class Solver(BaseSolver):
         bit as finite as the real one and neither the divergence check nor the
         convergence history has any way to notice. Caught at construction
         rather than after a march has been paid for.
+
+        An unknown :attr:`wall_law` is caught here for the same reason.
         """
+        ember.block_util._wall_law_code(self.wall_law)
         if self.n_step_avg < 0:
             raise ValueError(f"n_step_avg must be >= 0, got {self.n_step_avg}.")
         if self.n_step_avg > self.n_step:
@@ -1062,7 +1080,7 @@ def _run(grid, conf):
         n_step_source = 5 if conf.n_stage == 0 else 1
         add_sources = i_step % n_step_source == 0
         if add_sources:
-            grid.update_sources(conf.inviscid)
+            grid.update_sources(conf.inviscid, conf.wall_law)
             _log_rss("step %d after update_sources", i_step)
 
         # The timestep pass also finishes the body force on a refresh step (the

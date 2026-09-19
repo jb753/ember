@@ -5,6 +5,14 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.4:
+
+0.4.4 (2026-09-19)
+------------------
+
+* Add a Reichardt wall law option, ``Solver.wall_law = "reichardt"``, covering the sublayer, buffer and log layers without a switch
+
+
 .. _v0.4.3:
 
 0.4.3 (2026-09-16)
