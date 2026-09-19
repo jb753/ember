@@ -49,7 +49,7 @@ def _reichardt_cf_np(Re):
 
     Not a transcription of the kernel's Newton iteration: an independent
     solve of ``y+ * u+(y+) = Re`` to round-off, so the comparison also checks
-    that the kernel's fixed three steps have converged.
+    that the kernel's fixed two steps have converged.
     """
     k = 0.41
 

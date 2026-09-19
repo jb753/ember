@@ -437,7 +437,7 @@ class Solver(BaseSolver):
     ``y+ = 11.3``; it follows the log law to a few percent above ``y+ = 30``
     but reads up to 25% low in the buffer layer just above the switch.
     ``"reichardt"`` inverts Reichardt's law, one expression from the viscous
-    sublayer through the buffer layer to the log layer, at the cost of three
+    sublayer through the buffer layer to the log layer, at the cost of two
     Newton steps per wall face. Pass the same law to
     :func:`ember.block_util.wall_yplus` for consistent y+."""
 

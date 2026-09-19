@@ -58,10 +58,11 @@ module viscous_helpers
     real, parameter :: REICH_K = 0.41e0
     ! Newton steps inverting it, a fixed count so the loop has no data-
     ! dependent exit. Measured in float32 over 1e-3 < Re < 1e22 from the
-    ! floored fit start: two reach 4e-6 in cf, three reach round-off (7e-7
-    ! for Re > 1; below Re = 0.1 float32 cancellation in the law's bracket
-    ! caps it at 2e-5 whatever the count).
-    integer, parameter :: REICH_NEWTON_N = 3
+    ! floored fit start: one leaves 2% in cf, two 4e-6, which is far inside
+    ! the law's own uncertainty (a third reaches round-off, 7e-7, for a third
+    ! more cost). Below Re = 0.1 float32 cancellation in the law's bracket
+    ! caps it at 2e-5 whatever the count.
+    integer, parameter :: REICH_NEWTON_N = 2
     ! Floor on the fit's cf where it seeds Newton: past its zero at
     ! ln(Re) = 24 the fit alone would start u+ at infinity.
     real, parameter :: REICH_CF_FLOOR = 2.0e-4
@@ -1847,20 +1848,28 @@ subroutine set_visc_force( &
                                 + (wvisc(2)-qf(2))*dAi(2,i,jc,kc) &
                                 + (wvisc(3)-qf(3))*dAi(3,i,jc,kc)
                 end do
-                wfac = 1.0e0 - walli1(jc,kc)
-                call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_walli1_nd(jc,kc), &
-                    mu, wall_law, 1, jc, kc, 1, wf)
-                rows(2,1,1) = walli1(jc,kc)*rows(2,1,1) + wfac*wf(1)
-                rows(2,2,1) = walli1(jc,kc)*rows(2,2,1) + wfac*wf(2)
-                rows(2,3,1) = walli1(jc,kc)*rows(2,3,1) + wfac*wf(3)
-                rows(2,4,1) = walli1(jc,kc)*rows(2,4,1) + wfac*wf(4)
-                wfac = 1.0e0 - wallni(jc,kc)
-                call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_wallni_nd(jc,kc), &
-                    mu, wall_law, ni, jc, kc, -1, wf)
-                rows(ni-1,1,1) = wallni(jc,kc)*rows(ni-1,1,1) + wfac*wf(1)
-                rows(ni-1,2,1) = wallni(jc,kc)*rows(ni-1,2,1) + wfac*wf(2)
-                rows(ni-1,3,1) = wallni(jc,kc)*rows(ni-1,3,1) + wfac*wf(3)
-                rows(ni-1,4,1) = wallni(jc,kc)*rows(ni-1,4,1) + wfac*wf(4)
+                ! The i-face walls are one scalar call per row, so unlike the
+                ! row forms they can branch on the mask for free: a non-wall
+                ! face (mask 1) skips the wall law, and the blend it skips
+                ! was 1*rows + 0*wf, the identity for any finite wf.
+                if (walli1(jc,kc) /= 1.0e0) then
+                    wfac = 1.0e0 - walli1(jc,kc)
+                    call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_walli1_nd(jc,kc), &
+                        mu, wall_law, 1, jc, kc, 1, wf)
+                    rows(2,1,1) = walli1(jc,kc)*rows(2,1,1) + wfac*wf(1)
+                    rows(2,2,1) = walli1(jc,kc)*rows(2,2,1) + wfac*wf(2)
+                    rows(2,3,1) = walli1(jc,kc)*rows(2,3,1) + wfac*wf(3)
+                    rows(2,4,1) = walli1(jc,kc)*rows(2,4,1) + wfac*wf(4)
+                end if
+                if (wallni(jc,kc) /= 1.0e0) then
+                    wfac = 1.0e0 - wallni(jc,kc)
+                    call wall_func_iface(cons, r, dAi, vol, Omega_block, Omega_wallni_nd(jc,kc), &
+                        mu, wall_law, ni, jc, kc, -1, wf)
+                    rows(ni-1,1,1) = wallni(jc,kc)*rows(ni-1,1,1) + wfac*wf(1)
+                    rows(ni-1,2,1) = wallni(jc,kc)*rows(ni-1,2,1) + wfac*wf(2)
+                    rows(ni-1,3,1) = wallni(jc,kc)*rows(ni-1,3,1) + wfac*wf(3)
+                    rows(ni-1,4,1) = wallni(jc,kc)*rows(ni-1,4,1) + wfac*wf(4)
+                end if
                 ! Production's association, not merely its order: its j and
                 ! k accumulates are `fvisc = fvisc + hi - lo`, i.e. ((x + hi) - lo),
                 ! NOT x + (hi - lo). Grouping the differences instead re-rounds
