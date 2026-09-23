@@ -239,8 +239,37 @@ class StructuredData:
         # writeable, so that is the default.
         frozen = state.pop("_frozen", False)
         self.__dict__.update(state)
+        self._append_missing_keys()
         if frozen:
             self._data.flags.writeable = False  # end method
+
+    def _append_missing_keys(self):
+        """Give an unpickled instance a zero column for each key it predates.
+
+        ``_data`` and ``_data_inds`` are pickled per instance, so a file
+        written before a key was added to ``_data_keys`` comes back one column
+        short and the first read of the new key misses. New keys go at the end
+        of ``_data_keys``, which makes this a pure append: existing columns
+        keep their indices, and so does every consecutive-key group read as
+        one slice. The appended key's version is left at zero, so it still
+        reads as unset.
+
+        The index map is copied rather than extended in place. Views share it
+        with their parent, and the unpickler keeps that sharing while giving
+        each view its own copy of the data, so extending the shared map would
+        add a column to one array and an index past the end of the others.
+        """
+        missing = [k for k in self._data_keys if k not in self._data_inds]
+        if not missing:
+            return
+        nold = self._data.shape[-1]
+        data = util.zeros(self._data.shape[:-1] + (nold + len(missing),))
+        data[..., :nold] = self._data
+        inds = dict(self._data_inds)
+        for n, k in enumerate(missing):
+            inds[k] = nold + n
+        self._data = data
+        self._data_inds = inds  # end method
 
     def _bare_copy(self):
         """Create a new instance sharing metadata/init dicts, bypassing __init__."""

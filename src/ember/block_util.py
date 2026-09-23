@@ -777,6 +777,7 @@ def wall_yplus(block, wall_law="fit"):
         omega_block=block.Omega_nd,
         r=block.r_nd,
         mu=block.mu_nd,
+        fac_lam=block.fac_lam,
         **block.ijk_wall_visc,
         **block.Omega_wall_nd,
         wall_law=_wall_law_code(wall_law),

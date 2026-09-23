@@ -18,6 +18,12 @@ public API without a deprecation period.
   wall cell, and stop masking the wall cell's viscous force. The wall nodes now
   feel the friction, so their slip settles by force balance instead of being
   left to the smoothing
+* Add ``Block.fac_lam``, a prescribed laminar fraction, 1 laminar and 0
+  turbulent, defaulting to 0. It scales the mixing-length viscosity by
+  ``1 - fac_lam`` and blends the wall law's cf linearly toward the laminar
+  2/Re, so a region marked laminar also gets laminar wall shear. Unchanged
+  bit for bit where it is zero. ``.emb`` files written before it load with it
+  zero
 
 
 .. _v0.4.3:

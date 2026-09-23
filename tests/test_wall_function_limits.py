@@ -74,7 +74,16 @@ def _mu_for(Re, rho=1.0, V=1.0, d=D_EXACT):
 
 
 def _core(
-    mu, rho=1.0, Vx=1.0, Vr=0.0, Vt=0.0, r=1.0, Omega_block=0.0, Omega_wall=0.0, law=0
+    mu,
+    rho=1.0,
+    Vx=1.0,
+    Vr=0.0,
+    Vt=0.0,
+    r=1.0,
+    Omega_block=0.0,
+    Omega_wall=0.0,
+    law=0,
+    fac_lam=0.0,
 ):
     """wall_core with this file's fixed geometry; returns its six outputs."""
     return _HELPERS.wall_core(
@@ -85,6 +94,7 @@ def _core(
         np.float32(Omega_wall),
         np.float32(mu),
         law,
+        np.float32(fac_lam),
         np.float32(rho),
         np.float32(Vx),
         np.float32(Vr),
@@ -182,6 +192,7 @@ def test_laminar_branch_yplus_is_sqrt_re(case):
         np.float32(kwargs.get("Omega_wall", 0.0)),
         np.float32(mu),
         0,
+        np.float32(0.0),
         np.float32(1.0),
         np.float32(kwargs.get("Vx", 1.0)),
         np.float32(kwargs.get("Vr", 0.0)),
@@ -293,6 +304,7 @@ def test_wall_func_flux_carries_tau():
         np.float32(kwargs["Omega_wall"]),
         np.float32(mu),
         0,
+        np.float32(0.0),
         np.float32(1.0),
         np.float32(kwargs["Vx"]),
         np.float32(kwargs["Vr"]),
@@ -377,6 +389,7 @@ def _wall_yplus_with(block, mu):
         omega_block=block.Omega_nd,
         r=block.r_nd,
         mu=mu,
+        fac_lam=block.fac_lam,
         **block.ijk_wall_visc,
         **block.Omega_wall_nd,
         wall_law=0,
@@ -538,11 +551,13 @@ def test_reichardt_collapsed_face_carries_no_force():
     args = (np.float32(1.0), dA0, VOL, np.float32(0.0), np.float32(0.0))
     rest = (np.float32(1.0), np.float32(1.0), np.float32(0.0), np.float32(0.0))
     mu = _mu_for(100.0)
-    _V, _dA, _Vts, cf, Re, tau = _HELPERS.wall_core(*args, mu, LAW_REICHARDT, *rest)
+    _V, _dA, _Vts, cf, Re, tau = _HELPERS.wall_core(
+        *args, mu, LAW_REICHARDT, np.float32(0.0), *rest
+    )
     assert Re > 1e20, "not the collapsed-face Re"
     assert np.isfinite(cf) and cf > 0.0
     assert np.isfinite(tau)
-    flow = _HELPERS.wall_func(*args, mu, LAW_REICHARDT, *rest)
+    flow = _HELPERS.wall_func(*args, mu, LAW_REICHARDT, np.float32(0.0), *rest)
     assert np.all(flow == 0.0)
 
 

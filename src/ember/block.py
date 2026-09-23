@@ -215,6 +215,7 @@ Miscellaneous:
 
 .. autosummary::
 
+   Block.set_fac_lam
    Block.set_mu_turb
 
 .. _block-properties:
@@ -303,6 +304,7 @@ conserved variables themselves.
 
    Block.ao
    Block.conserved
+   Block.fac_lam
    Block.ho
    Block.ho_rel
    Block.I
@@ -1046,6 +1048,11 @@ class Block(ember._struct.StructuredData):
         # diffusion timestep, while still counting as "unset" for the TS3 writer.
         self._set_data_by_keys(("mu_turb",), 0.0, store_init=False)
 
+        # Prescribed laminar fraction: 0, fully turbulent, until a case sets
+        # it. Stored but not version-marked, like mu_turb, so the viscous
+        # kernels read a zero from any block that never called set_fac_lam.
+        self._set_data_by_keys(("fac_lam",), 0.0, store_init=False)
+
         # Initialize patch collection (only if not already present from deserialization)
         if "patches" not in self._metadata:
             patch_collection = ember.collections.BlockPatchCollection(self)
@@ -1513,6 +1520,23 @@ class Block(ember._struct.StructuredData):
         conserved[..., 3] /= self._rhoV_ref * self.L_ref
         conserved[..., 4] /= self._rhoVsq_ref
         self._set_data_by_keys(keys, conserved)
+
+    def set_fac_lam(self, fac_lam):
+        """Store the prescribed laminar fraction.
+
+        See :py:attr:`Block.fac_lam` for more details.
+
+        Parameters
+        ----------
+        fac_lam : array-like
+            Laminar fraction [-], 1 fully laminar and 0 fully turbulent. Must
+            lie in [0, 1] and broadcast to block shape.
+
+        """
+        fac_lam = np.asarray(fac_lam)
+        if np.any(~np.isfinite(fac_lam)) or np.any(fac_lam < 0) or np.any(fac_lam > 1):
+            raise ValueError("fac_lam must be finite and in [0, 1].")
+        self._set_data_by_keys(("fac_lam",), fac_lam)
 
     def set_fluid(self, fluid_new):
         """Set equation of state preserving any existing flow field.
@@ -2839,6 +2863,31 @@ class Block(ember._struct.StructuredData):
         """
         return util.allocate_or_reuse(out, self.shape_cell + (5,))
 
+    @derived_array
+    def fac_lam(self):
+        r"""Prescribed laminar fraction :math:`f_\mathrm{lam}` [-], nodal array.
+
+        A turbulence prescription, 1 fully laminar and 0 fully turbulent, and
+        zero unless :meth:`set_fac_lam` has been called. The viscous kernels
+        weight both halves of the turbulence model by it, linearly:
+
+        .. math::
+            \mu_\mathrm{turb} = (1 - f_\mathrm{lam})\,\mu_\mathrm{mix},
+            \qquad
+            c_f = f_\mathrm{lam}\,\frac{2}{Re} + (1 - f_\mathrm{lam})\,c_{f,\mathrm{law}},
+
+        with the mixing-length viscosity taken at the cell (eight-corner mean)
+        and the skin friction at the wall face (four-corner mean). Weighting
+        the wall shear as well as the eddy viscosity is what makes a region
+        prescribed laminar actually laminar: suppressing the mixing length
+        alone leaves a log-law wall shear under a laminar layer.
+
+        Dimensionless, so it has no ``_nd`` counterpart and, unlike
+        :attr:`wdist`, does not rescale with :attr:`L_ref`. A block unpickled
+        from before the field existed reads zeros.
+        """
+        return self._get_data_by_keys(("fac_lam",), raise_uninit=False)
+
     @property
     def flat(self):
         """Flatten all axes into a single axis, returning a view rather than a copy.
@@ -3864,6 +3913,9 @@ class Block(ember._struct.StructuredData):
         "rhoe",
         "wdist",
         "mu_turb",
+        # Last, so that adding it was a pure append: StructuredData.__setstate__
+        # migrates a file written without it by appending a zero column.
+        "fac_lam",
     )
     _defaults = {
         "Nb": 1,
