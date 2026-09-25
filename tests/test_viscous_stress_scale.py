@@ -21,7 +21,6 @@ so interior cells should match to well under 1%.
 """
 
 import numpy as np
-import pytest
 
 import ember.block
 import ember.grid

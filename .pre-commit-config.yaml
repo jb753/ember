@@ -85,6 +85,10 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.8
     hooks:
+      # Lint the same tree CI does on every commit, not only the staged files,
+      # so an error already in the tree cannot pass here and fail in CI.
       - id: ruff-check
-        args: [--fix]
+        args: [--fix, src, tests]
+        pass_filenames: false
+        always_run: true
       - id: ruff-format
