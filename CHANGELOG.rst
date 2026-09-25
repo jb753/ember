@@ -11,29 +11,15 @@ public API without a deprecation period.
 ------------------
 
 * Add ``ember.average.mass_band``, the part of a structured 2D cut carrying a
-  given band of mass fraction, such as the stream surface through the central
-  tenth of the flow. Its ends are placed so the band carries exactly that
-  fraction of the flow, and it can be mixed out or averaged like any other cut
-* Fix ``ember.cut.interpolate_to_structured`` laying nodes over solid where a
-  periodic cut passes through one, such as an H-mesh trailing edge cusp. Each
-  constant-``i`` line now spans only the fluid its triangles cover, so the
-  structured cut keeps the area and mass flow of the unstructured one; before,
-  the solid was filled with nearest-neighbour flow. Unchanged where the cut is
-  clear of any solid
-* Add a Reichardt wall law option, ``Solver.wall_law = "reichardt"``, covering the sublayer, buffer and log layers without a switch
-* Fix interior viscous stresses and heat fluxes, which were half their
-  physical value: the cell stress was stored halved and then averaged onto the
-  face. Changes every viscous solution
+  given band of mass fraction, such as a midspan streamsurface
+* Fix ``ember.cut.interpolate_to_structured`` putting nodes in empty space
+  when cutting through a solid
+* Add Reichardt wall function
+* Fix bug with halved interior viscous stresses and heat fluxes
 * Apply the wall-law stress on the wall face itself, not on the face above the
-  wall cell, and stop masking the wall cell's viscous force. The wall nodes now
-  feel the friction, so their slip settles by force balance instead of being
-  left to the smoothing
-* Add ``Block.fac_lam``, a prescribed laminar fraction, 1 laminar and 0
-  turbulent, defaulting to 0. It scales the mixing-length viscosity by
-  ``1 - fac_lam`` and blends the wall law's cf linearly toward the laminar
-  2/Re, so a region marked laminar also gets laminar wall shear. Unchanged
-  bit for bit where it is zero. ``.emb`` files written before it load with it
-  zero
+  wall cell, and stop masking the wall cell's viscous force
+* Add a prescribed transition property ``Block.fac_lam``, to scale interior
+  turbulent viscosity down and wall function toward laminar
 
 
 .. _v0.4.3:
