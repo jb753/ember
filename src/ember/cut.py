@@ -944,7 +944,10 @@ def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-6):
         Vertex arc length and theta, in pitches, of each triangle.
     tol : float
         Uncovered arcs narrower than this, in pitches, are round-off between
-        neighbouring triangles rather than solid.
+        neighbouring triangles rather than solid. An edge whose ends are both
+        within this of a line, in arc length, lies on it, and one ending within
+        this of a line crosses it, so float32 round-off in the cut's vertices
+        cannot drop an edge the line runs along.
 
     Returns
     -------
@@ -964,16 +967,19 @@ def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-6):
     # Edges (0, 1), (1, 2) and (2, 0) of every triangle
     za, zb = tri_zeta, np.roll(tri_zeta, -1, axis=1)
     ta, tb = tri_tn, np.roll(tri_tn, -1, axis=1)
-    flat = za == zb
+    z_min, z_max = np.minimum(za, zb), np.maximum(za, zb)
 
     for i, z in enumerate(zeta_t):
-        # Theta where each edge crosses the line; an edge on the line covers
-        # both its ends. Edges the line misses drop out of the min and max.
-        crosses = (za - z) * (zb - z) <= 0.0
+        # Theta where each edge crosses the line, clamped to the edge; an edge
+        # on the line covers both its ends. Edges the line misses drop out of
+        # the min and max.
+        on_line = (z_min >= z - tol) & (z_max <= z + tol)
+        crosses = (z_min <= z + tol) & (z_max >= z - tol)
         with np.errstate(divide="ignore", invalid="ignore"):
-            t_cross = ta + (z - za) / (zb - za) * (tb - ta)
-        lo = np.where(flat, np.minimum(ta, tb), t_cross)
-        hi = np.where(flat, np.maximum(ta, tb), t_cross)
+            frac = np.clip((z - za) / (zb - za), 0.0, 1.0)
+        t_cross = ta + frac * (tb - ta)
+        lo = np.where(on_line, np.minimum(ta, tb), t_cross)
+        hi = np.where(on_line, np.maximum(ta, tb), t_cross)
         lo = np.where(crosses, lo, np.inf).min(axis=1)
         hi = np.where(crosses, hi, -np.inf).max(axis=1)
         hit = np.isfinite(lo)

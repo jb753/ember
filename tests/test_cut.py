@@ -78,6 +78,7 @@ from ember.cut import (
     signed_distance,
     _cut_reaches_block,
     _first_j_crossing,
+    _pitchwise_fluid,
 )
 
 
@@ -1162,6 +1163,36 @@ class TestInterpolateToStructured:
 
         with pytest.raises(ValueError, match="separate"):
             interpolate_to_structured(raw, (9, 11), periodic=True, rtol=0.2)
+
+    def test_pitchwise_fluid_float32_jitter(self):
+        """Round-off in the cut's vertices is not mistaken for a solid.
+
+        The lines run exactly along rows of triangle edges, as a grid line
+        crossing the cut puts them. Jittered at float32 round-off, an edge on
+        a line no longer has exactly equal ends, and must still cover the line.
+        """
+        rng = np.random.default_rng(0)
+        zeta, tn = np.meshgrid(
+            np.linspace(0.0, 1.0, 5), np.linspace(0.0, 1.0, 9), indexing="ij"
+        )
+
+        # Two triangles per quad, three consecutive vertices each
+        def triangles(v):
+            quad = np.stack([v[:-1, :-1], v[1:, :-1], v[1:, 1:], v[:-1, 1:]], axis=-1)
+            return np.concatenate([quad[..., [0, 1, 2]], quad[..., [0, 2, 3]]]).reshape(
+                -1, 3
+            )
+
+        tri_zeta, tri_tn = triangles(zeta), triangles(tn)
+        zeta_t = np.linspace(0.0, 1.0, 9)
+
+        for _ in range(20):
+            jitter = rng.uniform(-1e-7, 1e-7, (2, *tri_zeta.shape))
+            start, width = _pitchwise_fluid(
+                zeta_t, tri_zeta + jitter[0], tri_tn + jitter[1]
+            )
+            np.testing.assert_array_equal(width, 1.0)
+            np.testing.assert_array_equal(start, 0.0)
 
     def test_interpolate_roundtrip_linear_field_unchanged(self):
         """Round-trip a known field through a sloping cut, oversampled.

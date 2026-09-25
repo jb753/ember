@@ -97,11 +97,14 @@ def _assert_close(actual, expected):
     """float32 tolerance, atol floated per conserved component.
 
     The components differ by orders of magnitude (rho*r*Vt against rho*e), so
-    one field-wide atol would be meaningless for the small ones.
+    one field-wide atol would be meaningless for the small ones. The atol is
+    ten times the kernel goldens', because round-off compounds over the 24
+    stages of a Runge-Kutta march: at theirs, macOS arm64 misses by 10% on a
+    few near-zero cells. A 1% change in the SFD gain still misses this by 30x.
     """
     assert actual.shape == expected.shape
     for c in range(expected.shape[-1]):
-        atol = 1e-5 * float(np.abs(expected[..., c]).max())
+        atol = 1e-4 * float(np.abs(expected[..., c]).max())
         np.testing.assert_allclose(
             actual[..., c], expected[..., c], rtol=1e-4, atol=atol
         )
