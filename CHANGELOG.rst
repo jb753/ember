@@ -7,7 +7,7 @@ public API without a deprecation period.
 
 .. _v0.4.4:
 
-0.4.4 (2026-09-19)
+0.4.4 (2026-09-25)
 ------------------
 
 * Add ``ember.average.mass_band``, the part of a structured 2D cut carrying a
