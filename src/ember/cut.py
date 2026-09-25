@@ -927,7 +927,7 @@ def interpolate_to_structured(
     return result_block
 
 
-def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-6):
+def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-4):
     """Return where the fluid lies on each pitchwise line, in pitches.
 
     Slices every triangle with each line ``zeta = zeta_t[i]``: a triangle the
@@ -946,8 +946,11 @@ def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-6):
         Uncovered arcs narrower than this, in pitches, are round-off between
         neighbouring triangles rather than solid. An edge whose ends are both
         within this of a line, in arc length, lies on it, and one ending within
-        this of a line crosses it, so float32 round-off in the cut's vertices
-        cannot drop an edge the line runs along.
+        this of a line crosses it. Neighbouring triangles each carry their own
+        float32 copy of a shared vertex, which a vectorised cut kernel can
+        round differently, and a triangle thin in arc length magnifies the
+        difference where a line crosses it: well past float32 epsilon, well
+        short of any solid a regrid could resolve.
 
     Returns
     -------

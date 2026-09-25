@@ -1168,8 +1168,10 @@ class TestInterpolateToStructured:
         """Round-off in the cut's vertices is not mistaken for a solid.
 
         The lines run exactly along rows of triangle edges, as a grid line
-        crossing the cut puts them. Jittered at float32 round-off, an edge on
-        a line no longer has exactly equal ends, and must still cover the line.
+        crossing the cut puts them. Each triangle's copy of a shared vertex is
+        jittered on its own, as a vectorised cut kernel can round them, so an
+        edge on a line no longer has exactly equal ends and neighbouring
+        triangles no longer meet exactly; the line must still be all fluid.
         """
         rng = np.random.default_rng(0)
         zeta, tn = np.meshgrid(
@@ -1187,7 +1189,7 @@ class TestInterpolateToStructured:
         zeta_t = np.linspace(0.0, 1.0, 9)
 
         for _ in range(20):
-            jitter = rng.uniform(-1e-7, 1e-7, (2, *tri_zeta.shape))
+            jitter = rng.uniform(-1e-6, 1e-6, (2, *tri_zeta.shape))
             start, width = _pitchwise_fluid(
                 zeta_t, tri_zeta + jitter[0], tri_tn + jitter[1]
             )
