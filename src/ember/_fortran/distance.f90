@@ -64,13 +64,18 @@ subroutine signed_distance(xr, xq, d, nseg, npt)
                 ! dot((px, pr), (-br, bx)).
                 cross = pr * bx - px * br
 
-                ! A zero cross product signs the distance zero rather than
-                ! picking a side, reproducing the numpy reference exactly:
-                ! sign(di, cross) would return +di instead.  This matters for a
-                ! point beyond a segment end and exactly on its axis, where the
-                ! perpendicular is parallel to the segment and the reference
-                ! returns zero for a point that is not on the curve.
-                sgn = merge(0.0d0, sign(1.0d0, cross), cross == 0.0d0)
+                ! A point beyond a segment end and on its axis has no side: the
+                ! perpendicular is parallel to the segment and the cross product
+                ! is zero.  Under -Ofast it comes out as +/- round-off instead,
+                ! whose sign differs between the vectorised loop body and the
+                ! scalar remainder, so equal points landed on opposite sides by
+                ! their place in the array.  Anything within 1e-12 of |a| |b|,
+                ! compared in squares to keep sqrt out, is therefore on the axis
+                ! and takes the positive side.  Not a zero sign, which the numpy
+                ! reference gives: stored as zero, the running minimum below
+                ! can then never be beaten by a nearer segment.
+                sgn = merge(1.0d0, sign(1.0d0, cross), &
+                            cross * cross <= 1.0d-24 * (ax * ax + ar * ar) * Lsq)
 
                 ! Compare unsigned, store signed, as the reference does
                 d(i) = merge(di * sgn, d(i), di < abs(d(i)))

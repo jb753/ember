@@ -1095,38 +1095,8 @@ class TestInterpolateToStructured:
         unstr_result = unstructured(grid, xr_cut)
         assert unstr_result is not None
 
-        # TEMPORARY DIAGNOSTIC: dump the cut on failure, for macOS/Windows CI
-        import sys as _sys
-        import ember.cut as _cut
-
-        np.set_printoptions(precision=17, linewidth=200, threshold=100000)
-        xr_nodes = periodic_block.xrt_nd[..., :2] * periodic_block.L_ref
-        print("DIAG platform", _sys.platform, "numpy", np.__version__)
-        print("DIAG node xr k=0", repr(xr_nodes[..., 0, :]))
-        print("DIAG node dist", repr(signed_distance(xr_cut, xr_nodes)))
-        X = np.asarray(unstr_result.x, dtype=np.float64)
-        R = np.asarray(unstr_result.r, dtype=np.float64)
-        T = np.asarray(unstr_result.t, dtype=np.float64)
-        print("DIAG ntri", X.shape)
-        for n in range(X.shape[0]):
-            print("DIAG tri", n, repr(X[n]), repr(R[n]), repr(T[n] / pitch))
-        _orig = _cut._pitchwise_fluid
-
-        def _spy(zeta_t, tri_zeta, tri_tn, *a, **k):
-            print("DIAG zeta_t", repr(zeta_t))
-            for n in range(tri_zeta.shape[0]):
-                print("DIAG tz", n, repr(tri_zeta[n]), repr(tri_tn[n]))
-            out = _orig(zeta_t, tri_zeta, tri_tn, *a, **k)
-            print("DIAG start width", repr(out[0]), repr(out[1]))
-            return out
-
-        _cut._pitchwise_fluid = _spy
-        try:
-            result = interpolate_to_structured(unstr_result, (5, 6), periodic=True)
-        finally:
-            _cut._pitchwise_fluid = _orig
+        result = interpolate_to_structured(unstr_result, (5, 6), periodic=True)
         d = result._data
-        print("DIAG theta out", repr(d[..., 2]))
 
         # Straight, line-conforming grid
         assert np.allclose(np.ptp(d[..., 0], axis=1), 0.0)  # x const along j
@@ -1934,6 +1904,26 @@ class TestSignedDistance:
 
         # Check signs are opposite
         assert np.sign(dist[0]) != np.sign(dist[1])
+
+    def test_signed_distance_on_segment_axis(self):
+        """A point on a segment's axis, beyond its end, has one sign and size.
+
+        Its cross product is zero, or round-off whose sign the vectorised loop
+        body and its scalar remainder decided differently, so the same point
+        took both signs by its place in the array. And a zero sign, stored,
+        could not be beaten by a nearer segment, leaving the point at zero.
+        """
+        # Beyond the end of a sloping cut, where a grid corner can sit; enough
+        # copies to fill vector lanes and leave a scalar remainder
+        seg = np.array([[0.2, 0.7], [0.8, 1.3]])
+        dist = signed_distance(seg, np.tile([1.0, 1.5], (37, 1)))
+        assert np.all(dist == dist[0])
+        assert abs(dist[0]) == pytest.approx(np.hypot(0.2, 0.2))
+
+        # On the axis of the first segment, nearer the second
+        seg = np.array([[0.0, 0.0], [1.0, 0.0], [2.0, 1.0]])
+        dist = signed_distance(seg, np.array([[3.0, 0.0]]))
+        assert abs(dist[0]) == pytest.approx(np.sqrt(2.0))
 
     def test_signed_distance_horizontal_line(self):
         """Test signed distance with a horizontal line segment."""
