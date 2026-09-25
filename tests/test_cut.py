@@ -1095,8 +1095,38 @@ class TestInterpolateToStructured:
         unstr_result = unstructured(grid, xr_cut)
         assert unstr_result is not None
 
-        result = interpolate_to_structured(unstr_result, (5, 6), periodic=True)
+        # TEMPORARY DIAGNOSTIC: dump the cut on failure, for macOS/Windows CI
+        import sys as _sys
+        import ember.cut as _cut
+
+        np.set_printoptions(precision=17, linewidth=200, threshold=100000)
+        xr_nodes = periodic_block.xrt_nd[..., :2] * periodic_block.L_ref
+        print("DIAG platform", _sys.platform, "numpy", np.__version__)
+        print("DIAG node xr k=0", repr(xr_nodes[..., 0, :]))
+        print("DIAG node dist", repr(signed_distance(xr_cut, xr_nodes)))
+        X = np.asarray(unstr_result.x, dtype=np.float64)
+        R = np.asarray(unstr_result.r, dtype=np.float64)
+        T = np.asarray(unstr_result.t, dtype=np.float64)
+        print("DIAG ntri", X.shape)
+        for n in range(X.shape[0]):
+            print("DIAG tri", n, repr(X[n]), repr(R[n]), repr(T[n] / pitch))
+        _orig = _cut._pitchwise_fluid
+
+        def _spy(zeta_t, tri_zeta, tri_tn, *a, **k):
+            print("DIAG zeta_t", repr(zeta_t))
+            for n in range(tri_zeta.shape[0]):
+                print("DIAG tz", n, repr(tri_zeta[n]), repr(tri_tn[n]))
+            out = _orig(zeta_t, tri_zeta, tri_tn, *a, **k)
+            print("DIAG start width", repr(out[0]), repr(out[1]))
+            return out
+
+        _cut._pitchwise_fluid = _spy
+        try:
+            result = interpolate_to_structured(unstr_result, (5, 6), periodic=True)
+        finally:
+            _cut._pitchwise_fluid = _orig
         d = result._data
+        print("DIAG theta out", repr(d[..., 2]))
 
         # Straight, line-conforming grid
         assert np.allclose(np.ptp(d[..., 0], axis=1), 0.0)  # x const along j
