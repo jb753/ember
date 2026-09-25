@@ -26,6 +26,7 @@ production ``MU`` puts every face at ``Re ~ 1e5-1e7``, so ``_wall_core_np``'s
 """
 
 import numpy as np
+import pytest
 
 import ember.block
 import ember.block_util
@@ -41,6 +42,32 @@ MU = 1.8e-5  # production magnitude, as in test_viscous_cusp_seam/phases_golden
 # viscous.f90 -- must match exactly, this is the thing under test.
 RE_SMALL = 127.53373025
 A1, A2, A3 = -1.767e-3, 3.177e-2, 2.5614e-1
+
+
+def _reichardt_cf_np(Re):
+    """Reichardt's law solved for cf in float64, by bisection on ln(y+).
+
+    Not a transcription of the kernel's Newton iteration: an independent
+    solve of ``y+ * u+(y+) = Re`` to round-off, so the comparison also checks
+    that the kernel's fixed two steps have converged.
+    """
+    k = 0.41
+
+    def uplus(s):
+        return np.log1p(k * s) / k + 7.8 * (
+            1.0 - np.exp(-s / 11.0) - s / 11.0 * np.exp(-s / 3.0)
+        )
+
+    lo = np.full_like(Re, -30.0)
+    hi = np.full_like(Re, 60.0)
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        s = np.exp(mid)
+        above = s * uplus(s) > Re
+        hi = np.where(above, mid, hi)
+        lo = np.where(above, lo, mid)
+    s = np.exp(0.5 * (lo + hi))
+    return 2.0 / uplus(s) ** 2
 
 
 def _build_block():
@@ -98,7 +125,9 @@ def _build_block():
     return block
 
 
-def _wall_core_np(r, dA0, dA1, dA2, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt):
+def _wall_core_np(
+    r, dA0, dA1, dA2, vol, Omega_block, Omega_wall, mu, rho, Vx, Vr, Vt, law
+):
     """numpy transcription of viscous_helpers' wall_core, through y+.
 
     float64 throughout (the block's own arrays are float32; cast up before
@@ -121,11 +150,13 @@ def _wall_core_np(r, dA0, dA1, dA2, vol, Omega_block, Omega_wall, mu, rho, Vx, V
     cf_small = 2.0 / np.where(small, Re, 1.0)  # dummy where not small: unused there
     cf_big = A1 + A2 / lnRe + A3 / lnRe**2
     cf = np.where(small, cf_small, cf_big)
+    if law == "reichardt":
+        cf = _reichardt_cf_np(Re)
 
     return Re * np.sqrt(cf * 0.5)
 
 
-def _wall_yplus_reference(block):
+def _wall_yplus_reference(block, law):
     """Build the six reference face arrays from the block's raw numpy state,
     following wall_func_iface/jface/kface's exact index conventions (see
     each call site in set_visc_force)."""
@@ -146,14 +177,48 @@ def _wall_yplus_reference(block):
     # ---- k faces: kface(x,i,j,k) sums (i,j)/(i+1,j)/(i,j+1)/(i+1,j+1) at k ----
     def kface_ref(k_r, k_flow, vol_k):
         rf = _mean4(r[:-1, :-1, k_r], r[1:, :-1, k_r], r[:-1, 1:, k_r], r[1:, 1:, k_r])
-        Vxf = _mean4(Vx[:-1, :-1, k_flow], Vx[1:, :-1, k_flow], Vx[:-1, 1:, k_flow], Vx[1:, 1:, k_flow])
-        Vrf = _mean4(Vr[:-1, :-1, k_flow], Vr[1:, :-1, k_flow], Vr[:-1, 1:, k_flow], Vr[1:, 1:, k_flow])
-        Vtf = _mean4(Vt[:-1, :-1, k_flow], Vt[1:, :-1, k_flow], Vt[:-1, 1:, k_flow], Vt[1:, 1:, k_flow])
-        rhof = _mean4(rho[:-1, :-1, k_flow], rho[1:, :-1, k_flow], rho[:-1, 1:, k_flow], rho[1:, 1:, k_flow])
+        Vxf = _mean4(
+            Vx[:-1, :-1, k_flow],
+            Vx[1:, :-1, k_flow],
+            Vx[:-1, 1:, k_flow],
+            Vx[1:, 1:, k_flow],
+        )
+        Vrf = _mean4(
+            Vr[:-1, :-1, k_flow],
+            Vr[1:, :-1, k_flow],
+            Vr[:-1, 1:, k_flow],
+            Vr[1:, 1:, k_flow],
+        )
+        Vtf = _mean4(
+            Vt[:-1, :-1, k_flow],
+            Vt[1:, :-1, k_flow],
+            Vt[:-1, 1:, k_flow],
+            Vt[1:, 1:, k_flow],
+        )
+        rhof = _mean4(
+            rho[:-1, :-1, k_flow],
+            rho[1:, :-1, k_flow],
+            rho[:-1, 1:, k_flow],
+            rho[1:, 1:, k_flow],
+        )
         vol_ = vol[:, :, vol_k]
         dA0, dA1, dA2 = dAk[0, :, :, k_r], dAk[1, :, :, k_r], dAk[2, :, :, k_r]
         omega_wall = Omega_block  # no RotatingPatch in this fixture
-        return _wall_core_np(rf, dA0, dA1, dA2, vol_, Omega_block, omega_wall, mu, rhof, Vxf, Vrf, Vtf)
+        return _wall_core_np(
+            rf,
+            dA0,
+            dA1,
+            dA2,
+            vol_,
+            Omega_block,
+            omega_wall,
+            mu,
+            rhof,
+            Vxf,
+            Vrf,
+            Vtf,
+            law,
+        )
 
     yplus_k1 = kface_ref(k_r=0, k_flow=1, vol_k=0)
     yplus_nk = kface_ref(k_r=-1, k_flow=-2, vol_k=-1)
@@ -162,14 +227,48 @@ def _wall_yplus_reference(block):
     # at fixed j, varying i,k ----
     def jface_ref(j_r, j_flow, vol_j):
         rf = _mean4(r[:-1, j_r, :-1], r[1:, j_r, :-1], r[:-1, j_r, 1:], r[1:, j_r, 1:])
-        Vxf = _mean4(Vx[:-1, j_flow, :-1], Vx[1:, j_flow, :-1], Vx[:-1, j_flow, 1:], Vx[1:, j_flow, 1:])
-        Vrf = _mean4(Vr[:-1, j_flow, :-1], Vr[1:, j_flow, :-1], Vr[:-1, j_flow, 1:], Vr[1:, j_flow, 1:])
-        Vtf = _mean4(Vt[:-1, j_flow, :-1], Vt[1:, j_flow, :-1], Vt[:-1, j_flow, 1:], Vt[1:, j_flow, 1:])
-        rhof = _mean4(rho[:-1, j_flow, :-1], rho[1:, j_flow, :-1], rho[:-1, j_flow, 1:], rho[1:, j_flow, 1:])
+        Vxf = _mean4(
+            Vx[:-1, j_flow, :-1],
+            Vx[1:, j_flow, :-1],
+            Vx[:-1, j_flow, 1:],
+            Vx[1:, j_flow, 1:],
+        )
+        Vrf = _mean4(
+            Vr[:-1, j_flow, :-1],
+            Vr[1:, j_flow, :-1],
+            Vr[:-1, j_flow, 1:],
+            Vr[1:, j_flow, 1:],
+        )
+        Vtf = _mean4(
+            Vt[:-1, j_flow, :-1],
+            Vt[1:, j_flow, :-1],
+            Vt[:-1, j_flow, 1:],
+            Vt[1:, j_flow, 1:],
+        )
+        rhof = _mean4(
+            rho[:-1, j_flow, :-1],
+            rho[1:, j_flow, :-1],
+            rho[:-1, j_flow, 1:],
+            rho[1:, j_flow, 1:],
+        )
         vol_ = vol[:, vol_j, :]
         dA0, dA1, dA2 = dAj[0, :, j_r, :], dAj[1, :, j_r, :], dAj[2, :, j_r, :]
         omega_wall = Omega_block
-        return _wall_core_np(rf, dA0, dA1, dA2, vol_, Omega_block, omega_wall, mu, rhof, Vxf, Vrf, Vtf)
+        return _wall_core_np(
+            rf,
+            dA0,
+            dA1,
+            dA2,
+            vol_,
+            Omega_block,
+            omega_wall,
+            mu,
+            rhof,
+            Vxf,
+            Vrf,
+            Vtf,
+            law,
+        )
 
     yplus_j1 = jface_ref(j_r=0, j_flow=1, vol_j=0)
     yplus_nj = jface_ref(j_r=-1, j_flow=-2, vol_j=-1)
@@ -236,10 +335,11 @@ def test_nonzero_on_default_noslip_jk_faces():
     assert np.all(got["yplus_k1"] > 0.0)
 
 
-def test_matches_reference_on_wall_faces():
+@pytest.mark.parametrize("law", ["fit", "reichardt"])
+def test_matches_reference_on_wall_faces(law):
     block = _build_block()
-    got = ember.block_util.wall_yplus(block)
-    ref = _wall_yplus_reference(block)
+    got = ember.block_util.wall_yplus(block, wall_law=law)
+    ref = _wall_yplus_reference(block, law)
 
     # Vacuity guard: the reference must not be trivially zero/degenerate.
     for key in ("yplus_j1", "yplus_nj", "yplus_k1", "yplus_nk"):

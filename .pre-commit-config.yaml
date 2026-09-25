@@ -1,3 +1,10 @@
+# Install with a plain `pre-commit install`, which reads this list. Without
+# the pre-commit type only the commit-msg hook runs, and at that stage the
+# only file a hook sees is the message, so every file-filtered hook skips.
+default_install_hook_types: [pre-commit, commit-msg]
+# Hooks run once, before the commit; only those naming a stage run elsewhere.
+default_stages: [pre-commit]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -48,6 +55,13 @@ repos:
         files: ^src/ember/.*\.py$
         pass_filenames: true
 
+      - id: check-comments
+        name: check comment and docstring length
+        entry: uv run python tools/check_comments.py
+        language: system
+        files: ^src/ember/.*\.py$
+        pass_filenames: true
+
       - id: run-tests
         name: run tests
         entry: uv run pytest tests -q --tb=short
@@ -71,6 +85,10 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.8
     hooks:
+      # Lint the same tree CI does on every commit, not only the staged files,
+      # so an error already in the tree cannot pass here and fail in CI.
       - id: ruff-check
-        args: [--fix]
+        args: [--fix, src, tests]
+        pass_filenames: false
+        always_run: true
       - id: ruff-format

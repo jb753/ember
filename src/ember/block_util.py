@@ -55,6 +55,19 @@ from ember.block import Block
 
 logger = logging.getLogger(__name__)
 
+# Wall law names to the integer codes of viscous.f90's WALL_LAW_* parameters.
+_WALL_LAW = {"fit": 0, "reichardt": 1}
+
+
+def _wall_law_code(wall_law):
+    """The ``viscous.f90`` code for a wall law name; raises on an unknown one."""
+    try:
+        return _WALL_LAW[wall_law]
+    except KeyError:
+        raise ValueError(
+            f"unknown wall_law {wall_law!r}; expected one of {sorted(_WALL_LAW)}"
+        ) from None
+
 
 def concatenate(*blocks, axis=0):
     """Concatenate multiple blocks along a specified axis.
@@ -716,7 +729,7 @@ def repeat_pitchwise(block, n_passage):
     return passages
 
 
-def wall_yplus(block):
+def wall_yplus(block, wall_law="fit"):
     """y+ on all six wall-adjacent boundary faces of ``block``.
 
     Post-processing only -- NOT part of the per-step viscous kernel.
@@ -741,6 +754,10 @@ def wall_yplus(block):
     Parameters
     ----------
     block : Block
+    wall_law : {"fit", "reichardt"}
+        Wall law to evaluate y+ under, as :attr:`ember.solver.Solver.wall_law`.
+        The y+ at a face depends on the law's skin friction, so pass the law
+        the solution was marched with.
 
     Returns
     -------
@@ -760,8 +777,10 @@ def wall_yplus(block):
         omega_block=block.Omega_nd,
         r=block.r_nd,
         mu=block.mu_nd,
+        fac_lam=block.fac_lam,
         **block.ijk_wall_visc,
         **block.Omega_wall_nd,
+        wall_law=_wall_law_code(wall_law),
     )
     return dict(zip(keys, result))
 

@@ -742,21 +742,27 @@ class TestComputeParametricCoords:
 
         # Test i=0 face (const_dim=0)
         xrt_i0 = xrt_full[0:1, :, :]
-        uv_i0 = ember.nonmatch_communicator._compute_parametric_coords(xrt_i0, const_dim=0)
+        uv_i0 = ember.nonmatch_communicator._compute_parametric_coords(
+            xrt_i0, const_dim=0
+        )
         assert uv_i0.shape == (1, nj, nk, 2)
         assert np.isclose(uv_i0[0, 0, 0, :], [0.0, 0.0]).all()
         assert np.isclose(uv_i0[0, -1, -1, :], [1.0, 1.0]).all()
 
         # Test j=0 face (const_dim=1)
         xrt_j0 = xrt_full[:, 0:1, :]
-        uv_j0 = ember.nonmatch_communicator._compute_parametric_coords(xrt_j0, const_dim=1)
+        uv_j0 = ember.nonmatch_communicator._compute_parametric_coords(
+            xrt_j0, const_dim=1
+        )
         assert uv_j0.shape == (ni, 1, nk, 2)
         assert np.isclose(uv_j0[0, 0, 0, :], [0.0, 0.0]).all()
         assert np.isclose(uv_j0[-1, 0, -1, :], [1.0, 1.0]).all()
 
         # Test k=0 face (const_dim=2)
         xrt_k0 = xrt_full[:, :, 0:1]
-        uv_k0 = ember.nonmatch_communicator._compute_parametric_coords(xrt_k0, const_dim=2)
+        uv_k0 = ember.nonmatch_communicator._compute_parametric_coords(
+            xrt_k0, const_dim=2
+        )
         assert uv_k0.shape == (ni, nj, 1, 2)
         assert np.isclose(uv_k0[0, 0, 0, :], [0.0, 0.0]).all()
         assert np.isclose(uv_k0[-1, -1, 0, :], [1.0, 1.0]).all()
@@ -862,7 +868,9 @@ class TestComputeParametricCoords:
         # Test with wrong last dimension size
         xrt_wrong = np.random.rand(1, 5, 6, 2).astype(np.float32)
         with pytest.raises(ValueError, match="Expected 2D patch"):
-            ember.nonmatch_communicator._compute_parametric_coords(xrt_wrong, const_dim=0)
+            ember.nonmatch_communicator._compute_parametric_coords(
+                xrt_wrong, const_dim=0
+            )
 
     def test_parametric_coords_different_resolutions(self):
         """Test that patches with different resolutions both map to [0,1]^2."""
@@ -881,8 +889,12 @@ class TestComputeParametricCoords:
         xv_f, rv_f, tv_f = np.meshgrid(x, r_fine, t_fine, indexing="ij")
         xrt_fine = np.stack([xv_f, rv_f, tv_f], axis=-1).astype(np.float32)
 
-        uv_coarse = ember.nonmatch_communicator._compute_parametric_coords(xrt_coarse, const_dim=0)
-        uv_fine = ember.nonmatch_communicator._compute_parametric_coords(xrt_fine, const_dim=0)
+        uv_coarse = ember.nonmatch_communicator._compute_parametric_coords(
+            xrt_coarse, const_dim=0
+        )
+        uv_fine = ember.nonmatch_communicator._compute_parametric_coords(
+            xrt_fine, const_dim=0
+        )
 
         # Both map to [0,1]^2
         assert np.isclose(uv_coarse[0, 0, 0, :], [0.0, 0.0]).all()

@@ -1,11 +1,13 @@
-"""Golden-value integration test for :meth:`ember.grid.Grid.update_sources`.
+"""Golden-value integration test for the assembled body force ``F_body_nd``.
 
 Builds a fixed single-block grid, periodic in theta (the k direction), with a
 deterministic swirling and sheared flow and a nonzero wall distance (so the
 turbulent mixing length is active). It then assembles the full body force --
 viscous shear stresses, the polar source, and the selective-frequency-damping
-(SFD) force -- via ``grid.update_sources`` and compares ``block.F_body_nd`` against a
-committed golden reference.
+(SFD) force -- the way the march does, ``grid.update_sources`` for the viscous
+part and then ``grid.update_timestep(add_sources=True)`` for the cell sources,
+and compares ``block.F_body_nd`` against a committed golden reference. The inviscid path, which skips the viscous pass and
+so leaves the polar source and the SFD force alone, has its own golden.
 
 This locks the numerical output of the viscous/polar/SFD body-force path. The
 structural test :mod:`test_viscous_periodic` only checks seam transparency, so
@@ -92,11 +94,19 @@ def _build_grid():
     return grid, block
 
 
-def _assemble():
+# Golden key per path. The inviscid path skips the viscous pass entirely, so
+# what it locks is the polar source and the SFD force on their own.
+GOLDEN_KEYS = {False: "F_body", True: "F_body_inviscid"}
+
+
+def _assemble(inviscid=False):
     """Build the grid and return a copy of the assembled F_body."""
     grid, block = _build_grid()
-    grid.update_sources(inviscid=False, gain_filt=GAIN_FILT)
-    return np.array(block.F_body_nd)  # F_body_nd is read-only after update_sources
+    # The viscous part, then the cell sources (polar + SFD) the timestep pass
+    # adds onto it -- together, what the march hands update_residual.
+    grid.update_sources(inviscid=inviscid)
+    grid.update_timestep(rf=1.0, add_sources=True, gain_filt=GAIN_FILT)
+    return np.array(block.F_body_nd)  # F_body_nd is read-only after update_timestep
 
 
 # The cell array is (ni-1, nj-1, nk-1, 5). The seven regions below tile the
@@ -113,12 +123,13 @@ REGIONS = {
 }
 
 
+@pytest.mark.parametrize("inviscid", list(GOLDEN_KEYS))
 @pytest.mark.parametrize("region", list(REGIONS))
-def test_set_F_body_matches_golden(region):
+def test_set_F_body_matches_golden(region, inviscid):
     if not GOLDEN_FILE.exists():
         pytest.skip(f"golden missing; regenerate with: uv run python {__file__}")
-    F_body = _assemble()
-    golden = np.load(GOLDEN_FILE)["F_body"]
+    F_body = _assemble(inviscid)
+    golden = np.load(GOLDEN_FILE)[GOLDEN_KEYS[inviscid]]
     assert F_body.shape == golden.shape
 
     sl = REGIONS[region]
@@ -135,11 +146,12 @@ def test_set_F_body_matches_golden(region):
 
 
 if __name__ == "__main__":
-    F_body = _assemble()
+    goldens = {key: _assemble(inviscid) for inviscid, key in GOLDEN_KEYS.items()}
     GOLDEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(GOLDEN_FILE, F_body=F_body)
-    print(
-        f"wrote {GOLDEN_FILE}\n"
-        f"  shape={F_body.shape}  |F|_max={np.abs(F_body).max():.6e}  "
-        f"sum={F_body.sum():.6e}"
-    )
+    np.savez_compressed(GOLDEN_FILE, **goldens)
+    print(f"wrote {GOLDEN_FILE}")
+    for key, F_body in goldens.items():
+        print(
+            f"  {key}: shape={F_body.shape}  |F|_max={np.abs(F_body).max():.6e}  "
+            f"sum={F_body.sum():.6e}"
+        )

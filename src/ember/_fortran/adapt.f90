@@ -1,46 +1,3 @@
-! Selective frequency damping body force.
-!
-! Adds the SFD forcing gain_filt * (cons_filt - cons_cell) * vol onto F_body_nd
-! for all five conserved equations, where cons_filt is the temporally
-! low-pass-filtered conserved state maintained by update_filter (Fortran) and
-! Grid.update_filter (Python). Called from Grid.update_sources in the pre-step
-! so the force drives the RK integration, one step behind the filter update
-! that Solver.run runs after the timestep refresh.
-!
-subroutine apply_sfd_force( &
-        f_body, &
-        cons_filt, &
-        cons_cell, &
-        vol, &
-        gain_filt, &
-        ni, nj, nk &
-    )
-
-    implicit none
-
-    integer, intent(in) :: ni, nj, nk
-    real, intent(inout) :: f_body(ni-1, nj-1, nk-1, 5)
-    real, intent(in) :: cons_filt(ni-1, nj-1, nk-1, 5)
-    real, intent(in) :: cons_cell(ni-1, nj-1, nk-1, 5)
-    real, intent(in) :: vol(ni-1, nj-1, nk-1)
-    real, intent(in) :: gain_filt
-
-    integer :: i, j, k, eq
-
-    do k = 1, nk-1
-    do j = 1, nj-1
-    do i = 1, ni-1
-        do eq = 1, 5
-            f_body(i, j, k, eq) = f_body(i, j, k, eq) + &
-                gain_filt * (cons_filt(i, j, k, eq) - cons_cell(i, j, k, eq)) * vol(i, j, k)
-        end do
-    end do
-    end do
-    end do
-
-end subroutine apply_sfd_force
-
-
 ! Compute unscaled volumetric timestep from directional convective/diffusion
 ! spectral radii. A variant of the JST/Blazek multidimensional definition:
 ! Blazek SUMS the directional radii; here we take the MAX so the CFL number
@@ -75,7 +32,42 @@ end subroutine apply_sfd_force
 ! stability backstop. Same dt_vol units (time/volume) and same rf blend, so it is
 ! a drop-in replacement in update_timestep.
 !
-subroutine set_timestep_spectral( &
+! CELL SOURCES. The same walk also finishes the body force and advances the
+! selective-frequency-damping (SFD) filter, because it already holds the cell
+! averages both need and is the only place the step's dt_vol exists in a
+! register. Per cell, after the dt_vol blend:
+!
+!   polar     f_body(3) += vol * ((P - P_offset) + rho*Vt^2) / r
+!   SFD force f_body(m) += gain_filt * (cons_filt(m) - cons_cell(m)) * vol
+!   filter    cons_filt(m) += dt * (cons_cell(m) - cons_filt(m)) / delta_filt
+!
+! with dt = cfl * dt_vol * vol the local step (the acoustic speed folded into
+! dt_vol keeps it finite as V -> 0, so the filter stays stable). The force
+! reads the filter BEFORE this step's update, the usual explicit SFD coupling.
+!
+! Two gates, because the two halves run on different cadences:
+!
+!   add_sources /= 0  the body force was rebuilt this step (Grid.update_sources
+!                     zeroed it and added the viscous part); add the polar
+!                     source and, when gain_filt /= 0, the SFD force. The scree
+!                     march refreshes sources every fifth step and holds
+!                     f_body in between, so it passes 0 on the other four.
+!   gain_filt /= 0    advance the filter, EVERY step: its dt is a per-step
+!                     increment, and advancing it on the source cadence would
+!                     stretch the time constant fivefold.
+!
+! The gates are tested once per ROW, not per cell: the timestep i loop stays
+! the straight-line loop it always was and leaves the cell averages in
+! automatic row arrays, and the sources run as short i loops over that row
+! while it is still in L1. Branching inside the cell loop instead left gfortran
+! unable to vectorize the timestep loop at all -- the conditional stores cannot
+! be if-converted, and the body is too big for it to unswitch -- and splitting
+! the body into inlined helpers is what ifort's IPO would not vectorize (see
+! the note on the walk below). cons_filt carries its own extents so the caller
+! can pass a zero-size array when gain_filt == 0 and never allocate the filter
+! state; it is not touched then.
+!
+subroutine set_timestep_sources( &
         dt_vol, &
         a, &
         cons, &
@@ -88,13 +80,24 @@ subroutine set_timestep_spectral( &
         vol, &
         rf, &
         fac_visc, &
-        ni, nj, nk &
+        P, &
+        P_offset, &
+        f_body, &
+        cons_filt, &
+        add_sources, &
+        gain_filt, &
+        cfl, &
+        delta_filt, &
+        ni, nj, nk, &
+        nfi, nfj, nfk &
     )
 
     implicit none
 
-    ! Array sizes
+    ! Array sizes. nfi/nfj/nfk are cons_filt's: the cell extents when the
+    ! filter is live, and may be 0 when gain_filt == 0.
     integer, intent(in) :: ni, nj, nk
+    integer, intent(in) :: nfi, nfj, nfk
 
     ! Node-centered flow properties
     real, intent(in) :: a(ni, nj, nk)               ! Acoustic speed
@@ -126,12 +129,31 @@ subroutine set_timestep_spectral( &
     ! erode the RK stability margin even when lam_diff would not otherwise bind).
     real, intent(in) :: fac_visc
 
+    ! Cell sources (see the header). f_body is only written when
+    ! add_sources /= 0, cons_filt only when gain_filt /= 0.
+    real, intent(in) :: P(ni, nj, nk)                ! Nodal static pressure
+    real, intent(in) :: P_offset
+    real, intent(inout) :: f_body(ni-1, nj-1, nk-1, 5)
+    real, intent(inout) :: cons_filt(nfi, nfj, nfk, 5)
+    integer, intent(in) :: add_sources
+    real, intent(in) :: gain_filt, cfl, delta_filt
+
     ! Local variables
     integer :: i, j, k
     real :: a_cell, rho_cell, rhoVx_cell, rhoVr_cell, rhorVt_cell, r_cell
     real :: Vx, Vr, Vt, U, Vt_rel, rf, dt_vol_new
     real :: Sx, Sr, St, s2_i, s2_j, s2_k, lam_i, lam_j, lam_k
     real :: lam_conv, lam_diff
+    real :: P_cell, dt
+    logical :: do_src, do_sfd
+    ! One row of cell averages, handed from the timestep loop to the source
+    ! loops. Automatic, as set_visc_force's row temps are and for the same
+    ! reason: a dummy-argument buffer costs the loops their vectorization.
+    real :: rho_row(ni-1), rhoVx_row(ni-1), rhoVr_row(ni-1), rhorVt_row(ni-1)
+    real :: r_row(ni-1), rhoe_row(ni-1)
+
+    do_src = add_sources /= 0
+    do_sfd = gain_filt /= 0.0e0
 
     ! Loop over cells. Every avg_cell() call is inlined by hand below (not
     ! left as a pure-function call): ifort 2022.1.0's IPO
@@ -146,7 +168,7 @@ subroutine set_timestep_spectral( &
     do j = 1, nj-1
     do i = 1, ni-1
         ! Average nodal properties to cell centers. rhoe (component 5) is
-        ! never read here, so it is never averaged.
+        ! averaged only for the SFD filter, the one reader of it here.
         a_cell = 0.125e0 * ( &
             a(i,j,k) + a(i+1,j,k) + a(i,j+1,k) + a(i+1,j+1,k) + &
             a(i,j,k+1) + a(i+1,j,k+1) + a(i,j+1,k+1) + a(i+1,j+1,k+1))
@@ -213,8 +235,65 @@ subroutine set_timestep_spectral( &
                    / (rho_cell * vol(i, j, k))
         dt_vol_new = 1.0e0 / max(lam_conv, lam_diff)
         dt_vol(i, j, k) = rf * dt_vol_new + (1.0e0 - rf) * dt_vol(i, j, k)
+
+        rho_row(i) = rho_cell
+        rhoVx_row(i) = rhoVx_cell
+        rhoVr_row(i) = rhoVr_cell
+        rhorVt_row(i) = rhorVt_cell
+        r_row(i) = r_cell
     end do
+
+        ! Polar source then SFD force, in that order, after the viscous part
+        ! update_sources left. Polar is expression-for-expression the viscous
+        ! kernel's former fused copy, Vt the absolute tangential velocity.
+        if (do_src) then
+            do i = 1, ni-1
+                P_cell = 0.125e0 * ( &
+                    P(i,j,k) + P(i+1,j,k) + P(i,j+1,k) + P(i+1,j+1,k) + &
+                    P(i,j,k+1) + P(i+1,j,k+1) + P(i,j+1,k+1) + P(i+1,j+1,k+1))
+                Vt = rhorVt_row(i) / (rho_row(i) * r_row(i))
+                f_body(i, j, k, 3) = f_body(i, j, k, 3) &
+                    + vol(i, j, k) * (((P_cell - P_offset) + rho_row(i) * Vt**2) / r_row(i))
+            end do
+        end if
+
+        if (do_sfd) then
+            do i = 1, ni-1
+                rhoe_row(i) = 0.125e0 * ( &
+                    cons(i,j,k,5) + cons(i+1,j,k,5) + cons(i,j+1,k,5) + cons(i+1,j+1,k,5) + &
+                    cons(i,j,k+1,5) + cons(i+1,j,k+1,5) + cons(i,j+1,k+1,5) + cons(i+1,j+1,k+1,5))
+            end do
+            ! The force reads the filter BEFORE this step's update below.
+            if (do_src) then
+                do i = 1, ni-1
+                    f_body(i, j, k, 1) = f_body(i, j, k, 1) + &
+                        gain_filt * (cons_filt(i, j, k, 1) - rho_row(i)) * vol(i, j, k)
+                    f_body(i, j, k, 2) = f_body(i, j, k, 2) + &
+                        gain_filt * (cons_filt(i, j, k, 2) - rhoVx_row(i)) * vol(i, j, k)
+                    f_body(i, j, k, 3) = f_body(i, j, k, 3) + &
+                        gain_filt * (cons_filt(i, j, k, 3) - rhoVr_row(i)) * vol(i, j, k)
+                    f_body(i, j, k, 4) = f_body(i, j, k, 4) + &
+                        gain_filt * (cons_filt(i, j, k, 4) - rhorVt_row(i)) * vol(i, j, k)
+                    f_body(i, j, k, 5) = f_body(i, j, k, 5) + &
+                        gain_filt * (cons_filt(i, j, k, 5) - rhoe_row(i)) * vol(i, j, k)
+                end do
+            end if
+            ! The filter advances on this step's blended dt_vol, just stored.
+            do i = 1, ni-1
+                dt = cfl * dt_vol(i, j, k) * vol(i, j, k)
+                cons_filt(i, j, k, 1) = cons_filt(i, j, k, 1) + &
+                    dt * (rho_row(i) - cons_filt(i, j, k, 1)) / delta_filt
+                cons_filt(i, j, k, 2) = cons_filt(i, j, k, 2) + &
+                    dt * (rhoVx_row(i) - cons_filt(i, j, k, 2)) / delta_filt
+                cons_filt(i, j, k, 3) = cons_filt(i, j, k, 3) + &
+                    dt * (rhoVr_row(i) - cons_filt(i, j, k, 3)) / delta_filt
+                cons_filt(i, j, k, 4) = cons_filt(i, j, k, 4) + &
+                    dt * (rhorVt_row(i) - cons_filt(i, j, k, 4)) / delta_filt
+                cons_filt(i, j, k, 5) = cons_filt(i, j, k, 5) + &
+                    dt * (rhoe_row(i) - cons_filt(i, j, k, 5)) / delta_filt
+            end do
+        end if
     end do
     end do
 
-end subroutine set_timestep_spectral
+end subroutine set_timestep_sources

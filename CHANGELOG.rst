@@ -5,6 +5,23 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.4:
+
+0.4.4 (2026-09-25)
+------------------
+
+* Add ``ember.average.mass_band``, the part of a structured 2D cut carrying a
+  given band of mass fraction, such as a midspan streamsurface
+* Fix ``ember.cut.interpolate_to_structured`` putting nodes in empty space
+  when cutting through a solid
+* Add Reichardt wall function
+* Fix bug with halved interior viscous stresses and heat fluxes
+* Apply the wall-law stress on the wall face itself, not on the face above the
+  wall cell, and stop masking the wall cell's viscous force
+* Add a prescribed transition property ``Block.fac_lam``, to scale interior
+  turbulent viscosity down and wall function toward laminar
+
+
 .. _v0.4.3:
 
 0.4.3 (2026-09-16)

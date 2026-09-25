@@ -164,7 +164,6 @@ class PeriodicCommunicator:
                 self.face_of[key] = face
                 self.ij_face_flat[key] = np.asfortranarray(ab.astype(np.int16))
 
-
     def apply(self):
         """Apply periodic boundary conditions by averaging conserved variables.
 
@@ -211,4 +210,3 @@ class PeriodicCommunicator:
             idx2 = self.ij_face_flat[key2]
             ember.fortran.copy_faces_by_ij(f1, f2, idx1, idx2)
             ember.fortran.copy_faces_by_ij(f2, f1, idx2, idx1)
-

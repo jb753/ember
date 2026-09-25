@@ -24,38 +24,37 @@ Overview of one time step
    the conserved state has gone non-finite. Sets a flag on the returned
    :class:`~ember.convergence_history.ConvergenceHistory` and leaves the
    invalid field in place for inspection.
-3. **Source terms**: :meth:`~ember.grid.Grid.update_sources` updates viscous
-   forces and the polar coordinates source term needed to balance the radial
-   momentum equation. With the Runge--Kutta integrator,
-   :attr:`~Solver.n_stage` ``> 0``, this runs once every full step
-   with the source terms held constant for all stages. When using the scree
-   integrator, :attr:`~Solver.n_stage` ``== 0``, the source terms are
-   recomputed every few steps to save cost.
+3. **Source terms**: :meth:`~ember.grid.Grid.update_sources` rebuilds the
+   viscous forces in :attr:`~ember.block.Block.F_body_nd`. With the
+   Runge--Kutta integrator, :attr:`~Solver.n_stage` ``> 0``, this runs once
+   every full step with the source terms held constant for all stages. When
+   using the scree integrator, :attr:`~Solver.n_stage` ``== 0``, the source
+   terms are recomputed every few steps to save cost.
 4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes
    the time step and stores it pre-divided by cell volume in
-   :attr:`~ember.block.Block.dt_vol_nd`.
-5. **Filter**: when :attr:`~Solver.gain_filt` is nonzero,
-   :meth:`~ember.grid.Grid.update_filter` advances the
-   selective-frequency-damping low-pass filter one step using that time step,
-   every step regardless of the source cadence above. The SFD body force of
-   stage 3 reads what this leaves behind on the following step. Skipped
-   entirely at the default zero gain.
-6. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
+   :attr:`~ember.block.Block.dt_vol_nd`. On the steps where stage 3 ran, the
+   same pass adds the cell sources to the body force: the polar coordinates
+   source term needed to balance the radial momentum equation and, when
+   :attr:`~Solver.gain_filt` is nonzero, the selective-frequency-damping
+   force. When the gain is nonzero it also advances the SFD low-pass filter
+   one step on the time step just computed, every step regardless of the
+   source cadence; the force reads the filter before that update.
+5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the
    unintegrated net-flow residual, with optional implicit residual smoothing
    , :attr:`~Solver.sf_resid`.
-7. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
+6. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,
    :meth:`~ember.convergence_history.ConvergenceHistory.record_convergence`
    and :meth:`~ember.convergence_history.ConvergenceHistory.format_message`
    record and print a :class:`~ember.convergence_history.ConvergenceHistory`
    row using the current residual.
-8. **March**: advance the solution with the selected integrator -- Denton's
+7. **March**: advance the solution with the selected integrator -- Denton's
    scree march, :func:`scree_step`, or Jameson multi-stage Runge--Kutta,
    :func:`rk_step` -- optionally accelerated by multigrid.
-9. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a
+8. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a
    constant-coefficient blended second- and fourth-order filter to the
    post-march :attr:`ember.block.Block.conserved_nd` field, to provide artificial dissipation and
    suppress odd-even decoupling.
-10. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`
+9. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`
     steps, :meth:`~ember.grid.Grid.accumulate_avg` accumulates the conserved
     state into a running average, which
     :meth:`~ember.grid.Grid.finalise_average` uses to replace the
@@ -230,8 +229,10 @@ Body forces and viscous model
 ------------------------------
 
 The cell-centred body-force buffer (``block.F_body_nd``) accumulates all
-source terms before they are added to the residual, rebuilt by
-:meth:`ember.grid.Grid.update_sources`:
+source terms before they are added to the residual. It is rebuilt in two
+passes: :meth:`ember.grid.Grid.update_sources` zeroes it and adds the viscous
+terms, then :meth:`ember.grid.Grid.update_timestep` with ``add_sources=True``
+adds the cell sources from the cell averages its timestep walk already forms:
 
 - Viscous shear stresses and heat flux, computed unless
   ``Solver.inviscid`` is set. The viscous pass is phased across the
@@ -244,7 +245,9 @@ source terms before they are added to the residual, rebuilt by
   ``Solver.gain_filt`` is nonzero.
 
 The mixing-length turbulent viscosity uses a fixed turbulent Prandtl number
-of 1.0 and is evaluated from the absolute-frame vorticity magnitude.
+of 1.0 and is evaluated from the absolute-frame vorticity magnitude. No-slip
+walls take their shear stress from a wall function, a skin-friction law in the
+Reynolds number of the wall-adjacent cell, chosen by ``Solver.wall_law``.
 ``Solver.fac_visc`` multiplies the turbulent-diffusion timestep radius
 independently of this, tightening the viscous stability limit to recover the
 inviscid stable CFL where needed.
@@ -425,6 +428,19 @@ class Solver(BaseSolver):
     """Multiplier on the turbulent-diffusion timestep radius; >1 tightens the
     viscous limit to recover the inviscid stable CFL."""
 
+    wall_law: str = "fit"
+    """Skin-friction law at no-slip walls, ``"fit"`` or ``"reichardt"``.
+
+    Both give the wall shear stress from the Reynolds number of the
+    wall-adjacent cell, on the velocity at the first off-wall node. ``"fit"``
+    is a curve fit in ``ln(Re)``, switching to the laminar ``cf = 2/Re`` at
+    ``y+ = 11.3``; it follows the log law to a few percent above ``y+ = 30``
+    but reads up to 25% low in the buffer layer just above the switch.
+    ``"reichardt"`` inverts Reichardt's law, one expression from the viscous
+    sublayer through the buffer layer to the log layer, at the cost of two
+    Newton steps per wall face. Pass the same law to
+    :func:`ember.block_util.wall_yplus` for consistent y+."""
+
     sf_resid: float = 1.0
     """Implicit residual smoothing factor. Applied to the fine residual by
     :meth:`~ember.grid.Grid.update_residual` (``sf``) and, on both integrators,
@@ -518,39 +534,32 @@ class Solver(BaseSolver):
     condition that stays non-reflecting to the harmonics. This replaces all of
     that with the simplest thing that couples two rows -- at every span station
     the conserved variables of both faces are set to the average of the two
-    sides' circumferential means, and the whole face is reset to it on every
-    application -- and it is worth being clear about what is given up and what
-    is not.
+    sides' circumferential means, the whole face reset to it on every
+    application.
 
-    What is given up is accuracy at the plane. Every pitchwise harmonic
-    reaching either face is annihilated at the boundary node rather than
-    absorbed, so the plane reflects; the state imposed is the *area* average of
-    the conserved variables, which preserves each row's mass flow exactly (the
-    face mass flux is linear in the conserved vector, and
-    :attr:`~ember.patch.RevolutionPatch.weight_pitch` is the same trapezoidal
-    quadrature the face quads use) but not the momentum or energy flux, so it
-    is not the flux-conserving mixed-out state a loss audit would want; and
-    there is no under-relaxation anywhere, so the two rows are yanked onto
-    their common mean every stage. :attr:`rf_mix` and :attr:`rf_exchange` both
-    address machinery this switches off, and so do nothing while it is set.
+    What is given up is accuracy at the plane. Every pitchwise harmonic is
+    annihilated at the boundary node rather than absorbed, so the plane
+    reflects; the state imposed is the *area* average of the conserved
+    variables, which preserves each row's mass flow exactly but not its
+    momentum or energy flux, so it is not the flux-conserving mixed-out state a
+    loss audit would want; and with no under-relaxation anywhere the two rows
+    are yanked onto their common mean every stage. :attr:`rf_mix` and
+    :attr:`rf_exchange` address machinery this switches off, and so do nothing
+    while it is set.
 
     What is *not* given up is conservation. The inviscid face flow is built
     from the four boundary nodes of each face quad and the face area vector
     alone, so two faces carrying the same pitch-uniform state pass identical
-    mass, meridional momentum, angular momentum and energy per unit annulus --
-    whatever their blade counts and pitchwise resolutions, and whatever their
-    rotational speeds, since the frame terms enter only through the
-    circumferential component of the face area, which vanishes on a surface of
-    revolution.
+    mass, meridional momentum, angular momentum and energy per unit annulus,
+    whatever their blade counts, pitchwise resolutions and rotational speeds.
 
     As :attr:`rf_inlet`, this is imposed on every mixing patch of every level at
     the start of the run, so the default overrides whatever a grid was pickled
     with, and both sides of every plane necessarily agree; pass None to leave
-    each plane as it is. A grid with no mixing plane is unaffected whatever
-    this is set to."""
+    each plane as it is. A grid with no mixing plane is unaffected."""
 
     def __post_init__(self):
-        """Reject averaging windows the march cannot honour.
+        """Reject averaging windows the march cannot honour, and unknown wall laws.
 
         :attr:`n_step_avg` counts the steps at the end of the march that
         :meth:`~ember.grid.Grid.accumulate_avg` sums into the pseudotime
@@ -562,7 +571,10 @@ class Solver(BaseSolver):
         bit as finite as the real one and neither the divergence check nor the
         convergence history has any way to notice. Caught at construction
         rather than after a march has been paid for.
+
+        An unknown :attr:`wall_law` is caught here for the same reason.
         """
+        ember.block_util._wall_law_code(self.wall_law)
         if self.n_step_avg < 0:
             raise ValueError(f"n_step_avg must be >= 0, got {self.n_step_avg}.")
         if self.n_step_avg > self.n_step:
@@ -578,6 +590,15 @@ class Solver(BaseSolver):
         The public :class:`BaseSolver` entry point for the stage-by-stage march.
         """
         return _run(grid, self)
+
+    def run_fmg(self, grid):
+        """Full-multigrid startup on ``grid`` in place.
+
+        Returns a list of per-level :class:`ConvergenceHistory`, coarsest first.
+        Not part of the :class:`BaseSolver` contract (plugins have no FMG
+        analogue).
+        """
+        return _run_fmg(grid, self)
 
     def soft(self):
         """Return a copy detuned for a robust start; see :meth:`BaseSolver.soft`.
@@ -602,15 +623,6 @@ class Solver(BaseSolver):
             # lower value (turbigen sweep9 0094 and 0017).
             rf_exchange=0.05,
         )
-
-    def run_fmg(self, grid):
-        """Full-multigrid startup on ``grid`` in place.
-
-        Returns a list of per-level :class:`ConvergenceHistory`, coarsest first.
-        Not part of the :class:`BaseSolver` contract (plugins have no FMG
-        analogue).
-        """
-        return _run_fmg(grid, self)
 
 
 def scree_step(
@@ -643,30 +655,13 @@ def scree_step(
         # that ordering.
         if n_levels_eff > 0:
             # Denton block-sum multigrid over the scheme-agnostic engine
-            # (mg_restrict_levels), like advance_rk_stage_mg's coarse path but
-            # for the scree fine term. Every level -- fine and coarse -- uses the
-            # Denton-lagged quantity q = 2*residual - store, not plain residual;
-            # verified against multall's TSTEP, which sums the lagged
-            # STORE = F1*DELTA + F2*DIFF into its block accumulators. For coarse
-            # level l = 1..n_levels (block size b = 2**l) the correction scales by
-            # coef_l = cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1) (advance_rk_stage_mg's
-            # formula at alpha=1, since scree takes one full-weight step), with
-            # the coarse timestep the volume-weighted harmonic mean of
-            # dt_vol over the block, sum(vol)/sum(vol/dt_vol). The correction
-            # is injected into the fine cell increment and fused with the fine
-            # term's cell->node scatter, so like the RK path it takes a rolling
-            # two-plane buffer rather than a full-volume increment. ONE carve
-            # for everything the kernel gets from the arena: rbuf and the
-            # multigrid scratch are live in the same call, so carving them
-            # together is what makes them disjoint -- util.carve_view packs the
-            # shapes end to end and guarantees it.
-            # sf_irs > 0 selects the coarse-IRS kernel; sf_irs == 0 selects
-            # the plain _noirs kernel, which enters no smoothing code at all (no
-            # Fortran-side IRS branch -- the two share the engine and differ only
-            # in the smoother passed). The fine term is not smoothed here: it
-            # already carries the residual the caller's update_residual smoothed.
-            # Coarse scratch is carved from the arena, dead outside the viscous
-            # pass (already completed and consumed before this call).
+            # (mg_restrict_levels), like advance_rk_stage_mg's coarse path at
+            # alpha=1 but for the scree fine term: every level uses the
+            # Denton-lagged q = 2*residual - store, and the correction is
+            # injected into the fine cell increment, fused with its cell->node
+            # scatter, so a rolling two-plane buffer serves. sf_irs > 0 picks
+            # the coarse-IRS kernel; the fine term arrives already smoothed by
+            # the caller. ONE carve: rbuf and coarse scratch reach one call.
             rbuf, *mg_bufs = util.carve_view(
                 block.scratch,
                 (ni - 1, nj - 1, 5, 2),
@@ -768,122 +763,35 @@ def advance_rk_stage_mg(
 ):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
-    The single RK stage integrator. Each stage marches every block off its
-    step-start conserved snapshot (``block.store``, seeded by the caller) using
-    the residual evaluated on the previous stage's state. In one pass it
-    assembles a cell-centred increment -- the fine RK term plus the injected
-    coarse block corrections of ``n_levels`` coarse levels -- and scatters it
-    onto the snapshot (multall's DO 1500 combine, then ``cell_to_node``)::
+    Each stage marches every block off its step-start snapshot (``block.store``,
+    seeded by the caller) using the previous stage's residual, assembling in one
+    pass a cell-centred increment -- fine RK term plus injected coarse -- thus::
 
         dU_cell = alpha*cfl*dt_vol*residual                          (fine)
                 + sum_l  inject_l( coef_l * dt_coarse_l * restrict_l(residual) )
         cons    = snapshot + cell_to_node(dU_cell)
 
-    ``n_levels`` counts the coarse levels only. ``n_levels == 0`` (the default)
-    is the trivial subcase: the coarse loop is empty, so the stage reduces to a
-    plain Jameson RK step ``cons = snapshot + alpha*cfl*dt_vol*residual``. For
-    ``l = 1..n_levels`` the coarse block has ``b = 2**l`` and
-    ``coef_l = alpha*cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1)``. The
-    ``expon_mgrid**-(l-1)`` term damps successively coarser levels: level 1
-    (finest coarse, ``b=2``) carries the full ``fac_mgrid``, level 2
-    ``fac_mgrid/expon_mgrid``, level 3 ``fac_mgrid/expon_mgrid**2``, and so on
-    (the default ``expon_mgrid=2.0`` reproduces the original fixed factor-2
-    decay).
+    ``n_levels`` counts coarse levels only; at the default 0 the coarse loop is
+    empty and this is a plain Jameson RK step. Level ``l`` has block size
+    ``b = 2**l`` and ``coef_l = alpha*cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1)``,
+    so coarser levels damp further. ``dt_coarse_l`` is the volume-weighted
+    HARMONIC mean of ``dt_vol``, the block wanting ``1/<Lambda>`` per cell.
 
-    ``dt_coarse_l`` is the volume-weighted HARMONIC mean of ``dt_vol`` over the
-    coarse block, ``sum(vol)/sum(vol/dt_vol)``, which is why the kernels take
-    ``block.vol_nd``. Harmonic because the block needs the reciprocal of the
-    block's spectral radius, ``1/<Lambda>``, and ``dt_vol`` is ``1/Lambda`` per
-    cell; by Jensen the arithmetic mean ``sum(dt_vol*vol)/sum(vol)`` that this
-    used to take is the larger of the two whenever ``Lambda`` varies over the
-    block, so it overstated the coarse timestep on a stretched mesh and
-    over-drove the block's smallest cells. This mirrors multall's ``STEP1 =
-    CFL*FBLK*PERPMIN/VSOUND/VOLB``: our ``dt_vol*vol`` is the per-cell
-    ``perp/(a+V)`` that multall sums into ``PERPMIN``, and the ``1/b**2`` stays
-    in ``coef_l``. Sampling ``dt_vol`` at the block's centre cell instead --
-    what this used to do -- is wrong by the local clustering ratio on a
-    stretched mesh. On a uniform mesh the two agree identically.
-    Scaling the block push by the same ``alpha`` as the fine term keeps the stage
-    consistent; the final stage (``alpha=1``) therefore lands the full-weight
-    coarse correction, matching Denton, while earlier stages damp it like the
-    fine residual.
+    Restriction is hierarchical, only level 1 reading the fine grid;
+    prolongation is injection, the transpose of the block-sum restriction on
+    any mesh, collapsed in place inside ``corr_all`` so the correction rides
+    the fine term's scatter, differing from it only at block faces.
 
-    Prolongation is **injection**: every fine cell under a coarse block takes
-    that block's correction unaltered, so ``inject_l`` above is a lookup.
-    ``mg_collapse_levels`` sums the levels in place inside ``corr_all`` --
-    coarsest first, each slot gaining the injected total of the one above it --
-    and ``mg_fine_scatter`` reads the finest slot once per fine cell. The
-    correction is then a cell quantity like the fine term, so both are added
-    into the increment and ride the one ``cell_to_node`` scatter. That costs
-    nothing: within a coarse block the correction is constant and the scatter is
-    a partition of unity, so it comes through exactly; the two differ only at
-    block faces, where the node takes the mean of the two adjoining blocks'
-    corrections. That is a one-cell smoothing of the staircase applied where the
-    staircase is.
+    The per-block body is one fused Fortran kernel (``rk_plain`` with no coarse
+    levels, else ``rk_mg_irs``/``rk_mg_noirs`` over the shared engine
+    ``mg_restrict_levels``), taking all its scratch from ``block.scratch`` in ONE
+    ``carve_view``, which is what makes the pieces disjoint. ``sf_irs`` (default
+    0, off) smooths the coarse residual as the caller already smoothed the fine.
 
-    Injection is exactly the transpose of the block-sum restriction, on any mesh
-    and with no normalisation, weights or geometry. This replaced a cascade of
-    factor-2 trilinear interpolations whose final hop targeted the fine nodes
-    through geometry-derived weights; that scheme, its per-block weight cache and
-    the ill-conditioning that made ``MG_W_LO``/``MG_W_HI`` necessary are all
-    gone. See ``docs/dev/plan_piecewise_constant_mgrid.md``.
-
-    The whole per-block body -- fine term, all coarse levels, and the final
-    scatter -- runs in one fused Fortran kernel (``rk_mg_irs``/``rk_mg_noirs``,
-    thin wrappers over the shared scheme-agnostic engine ``mg_restrict_levels``),
-    with no per-level Python crossings or numpy temporaries. With
-    ``n_levels == 0`` (or ``fac_mgrid == 0``) the coarse machinery is skipped
-    entirely by the ``rk_plain`` kernel (fine term + scatter, no coarse scratch).
-    Restriction is **hierarchical**: only level 1
-    reads the fine grid, coarser levels reduce the running accumulators
-    (``rawbuf`` for the residual, ``sdt``/``sv`` for the volume-weighted dt),
-    cutting restriction reads from ``n_levels x N`` to ~``1.14 x N``. Prolongation
-    is **injection**, collapsed IN PLACE inside ``corr_all``: its per-level
-    slots are compact and disjoint, so no accumulator is needed and nothing but
-    the final read touches the fine grid.
-
-    The coarse timestep (``dtblk``), the restriction accumulators, ``corr_all``,
-    the coarse-IRS coefficients (``triw``) and the rolling increment are
-    all carved from ``block.scratch`` at non-overlapping offsets, in ONE
-    ``carve_view`` -- they reach the same kernel call, so carving them together
-    is what makes them disjoint. The scatter reads the snapshot
-    from ``block.store`` and writes ``conserved_nd`` directly (frozen pressure,
-    bypasses the P/T cache).
-
-    ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is
-    recomputed once per stage even though ``dt_vol`` only changes once per step.
-    That redundancy is deliberate: confining ``dtblk``'s live range to a single
-    kernel call is what makes it safe to borrow the arena, which
-    :meth:`~ember.grid.Grid.update_residual` clobbers between stages. The
-    pre-pass costs under 1.15 fine-cell passes of two multiply-adds per level,
-    against a full residual evaluation already paid every stage.
-
-    No boundary masking is applied here: ``grid.apply_bconds`` re-imposes the
-    inlet/outlet/mixing/cusp targets between stages and at the next step top, so
-    the coarse push cannot leave a BC-controlled node inconsistent -- exactly as
-    for the fine RK term, which is likewise unmasked.
-
-    ``sf_irs`` (0 disables it, the default) applies implicit residual
-    smoothing (Jameson IRS) to the coarse block-restricted residual at every
-    level, exactly like the fine-grid smoothing ``Grid.update_residual``
-    already applies via its ``sf`` argument -- both are driven by the same
-    ``Solver.sf_resid`` value (see :func:`rk_step`). ``sf_irs > 0``
-    dispatches ``rk_mg_irs``; ``sf_irs == 0`` (the default) dispatches
-    ``rk_mg_noirs``, which enters no smoothing code at all. The two share
-    ``mg_restrict_levels`` and differ only in the coarse-residual smoother
-    passed to it, so the choice is a Python-side branch
-    with no ``sf_irs`` test inside the engine (the fine term is never smoothed
-    here -- it already carries the fine residual the caller smoothed). The
-    per-level scratch it needs (``triw``) is carved from
-    ``block.scratch`` -- caller-owned, no per-call allocation.
-
-    Assumes ``block.dt_vol_nd`` and ``block.residual_nd`` are populated and the
-    caller refreshes P/T, boundary conditions and the residual between stages.
-
-    ``fac_mgrid == 0`` scales every coarse correction to identically zero, so it
-    collapses to the plain-RK fast path (``n_levels`` passed as 0, empty coarse
-    loop) rather than running restrict/prolong for a guaranteed-zero push -- and
-    makes ``sf_irs`` inert, exactly as in :func:`scree_step`.
+    The scatter reads ``block.store`` and writes ``conserved_nd`` directly
+    (frozen pressure, bypassing the P/T cache). Unmasked: ``grid.apply_bconds``
+    re-imposes the targets between stages. Assumes ``dt_vol_nd`` and
+    ``residual_nd`` are populated.
     """
     # fac_mgrid == 0 makes the coarse loop a no-op; collapse to no-MG dispatch.
     n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
@@ -891,17 +799,13 @@ def advance_rk_stage_mg(
         ni, nj, nk = block.shape
         if n_levels_eff > 0:
             # Multigrid-on RK wrappers over the scheme-agnostic engine
-            # (mg_restrict_levels). sf_irs > 0 selects the coarse-IRS kernel;
+            # (mg_restrict_levels). sf_irs > 0 selects the coarse-IRS kernel,
             # otherwise the plain _noirs kernel, which enters no smoothing code
-            # (the two share the engine and differ only in the smoother passed --
-            # no Fortran-side IRS branch). Coarse scratch is carved from
-            # the arena, dead outside the viscous pass. mg_collapse_levels
-            # leaves the total in corr_all's finest slot and the fine scatter
-            # injects it into the increment alongside the fine term, so instead
-            # of a full-volume increment it takes a rolling two-plane buffer
-            # carved from scratch.
-            # One carve, same reason as scree_step above: rbuf and the
-            # multigrid scratch reach the same kernel call.
+            # at all; the two share the engine and differ only in the smoother
+            # passed. mg_collapse_levels leaves the total in corr_all's finest
+            # slot and the fine scatter injects it alongside the fine term, so
+            # a rolling two-plane buffer serves in place of a full-volume
+            # increment. One carve, as in scree_step: both reach one call.
             rbuf, *mg_bufs = util.carve_view(
                 block.scratch,
                 (ni - 1, nj - 1, 5, 2),
@@ -953,15 +857,14 @@ def rk_step(grid, conf):
     for block in grid:
         block.store[...] = block.conserved_nd
     for i_stage in range(conf.n_stage):
-        # Stage coefficient alpha_k = 1/(n_stage - k); the final stage takes the
-        # full step. advance_rk_stage_mg marches off the snapshot and folds in the
-        # Denton block-sum multigrid correction (empty coarse loop when
-        # conf.n_levels == 0, i.e. a plain RK stage). conf.sf_resid is the
-        # coarse-level IRS coefficient, so a nonzero sf_resid smooths both the
-        # fine residual (caller's update_residual) and the coarse block-restricted
-        # residual. Stage 0 reuses the step-top P/T flush and residual; later
-        # stages march off a changed conserved_nd, so P/T and bconds are
-        # refreshed below before the next advance.
+        # Stage coefficient alpha_k = 1/(n_stage - k); the final stage takes
+        # the full step. advance_rk_stage_mg marches off the snapshot and folds
+        # in the Denton block-sum multigrid correction (an empty coarse loop at
+        # conf.n_levels == 0, i.e. a plain RK stage). A nonzero conf.sf_resid
+        # smooths both the fine residual and the coarse block-restricted one.
+        # Stage 0 reuses the step-top P/T flush and residual; later stages
+        # march off a changed conserved_nd, so P/T and bconds are refreshed
+        # below before the next advance.
         alpha = 1.0 / (conf.n_stage - i_stage)
         advance_rk_stage_mg(
             grid,
@@ -1175,22 +1078,27 @@ def _run(grid, conf):
         # dt_vol is sized for an already-stale state and overshoots the
         # stability limit during a cold start, and the timestep refresh is cheap.
         n_step_source = 5 if conf.n_stage == 0 else 1
-        if i_step % n_step_source == 0:
-            grid.update_sources(conf.inviscid, conf.gain_filt)
+        add_sources = i_step % n_step_source == 0
+        if add_sources:
+            grid.update_sources(conf.inviscid, conf.wall_law)
             _log_rss("step %d after update_sources", i_step)
-        grid.update_timestep(rf=0.2, fac_visc=conf.fac_visc)
 
-        # Advance the SFD low-pass filter the body force above reads. It needs
-        # the dt_vol just computed, so it runs here rather than alongside the
-        # sources, and it runs every step regardless of the source cadence:
-        # its dt is a per-step increment, so advancing it only on the scree
-        # march's every-fifth-step refresh would stretch the effective time
-        # constant fivefold. update_sources therefore picks up the state left
-        # here on the following step, the usual explicit SFD coupling. Skipped
-        # entirely at the default zero gain, where nothing reads the filter and
-        # the buffer is never allocated.
-        if conf.gain_filt != 0.0:
-            grid.update_filter(conf.cfl, conf.delta_filt)
+        # The timestep pass also finishes the body force on a refresh step (the
+        # polar source and the SFD force, onto the viscous part just built) and
+        # advances the SFD low-pass filter on the dt_vol it has just computed.
+        # The filter advances every step regardless of the source cadence: its
+        # dt is a per-step increment, so advancing it on the scree march's
+        # every-fifth refresh would stretch the time constant fivefold. The
+        # force reads the filter before this step's update, the usual explicit
+        # SFD coupling. At the default zero gain the filter is never touched.
+        grid.update_timestep(
+            rf=0.2,
+            fac_visc=conf.fac_visc,
+            add_sources=add_sources,
+            gain_filt=conf.gain_filt,
+            cfl=conf.cfl,
+            delta_filt=conf.delta_filt,
+        )
 
         # Prepare the residual
         grid.update_residual(sf=conf.sf_resid)
@@ -1239,20 +1147,13 @@ def _run(grid, conf):
             grid.accumulate_avg(conf.n_step_avg)
 
     # Copy the final average back into the primary storage. Skipped on
-    # divergence: the loop broke before accumulate_avg ran, so this would
-    # overwrite the invalid conserved_nd with a zeroed average buffer and
-    # destroy the evidence. Skipped too when no averaging was asked for, where
-    # the accumulator was never touched and copying it back would write zeros
-    # over a perfectly good solution.
-    #
-    # The cache invalidation is NOT optional on that path. The integrators and
-    # smooth write conserved_nd through the frozen-pressure path, which does
-    # not bump the conserved versions, so the last cached P/T can still be
-    # marked current while the field underneath has moved on. finalise_average
-    # ends in update_cached_conserved and was covering for that; gating it out
-    # without this leaves a scree march handing back a stale P (the RK path
-    # only escapes because its per-stage apply_bconds bumps the versions
-    # anyway, which is luck, not a contract).
+    # divergence, where the loop broke before accumulate_avg ran and this would
+    # overwrite the invalid conserved_nd with a zeroed buffer, and when no
+    # averaging was asked for, where it would write zeros over a good solution.
+    # The cache invalidation is NOT optional on those paths: the integrators
+    # and smooth write conserved_nd through the frozen-pressure path, which
+    # does not bump the conserved versions, so the last cached P/T can be
+    # marked current while the field underneath has moved on.
     if not hist.diverged:
         if conf.n_step_avg > 1:
             grid.finalise_average()

@@ -32,9 +32,12 @@ leaves subnormals behind in `cons` (they are slow on this hardware and would
 bias every later rep).
 """
 
+import argparse
+
 import numpy as np
 
 import ember.fortran
+import ember.grid  # noqa: F401  (build_case returned a live grid)
 import ember.solver
 from ember import util
 
@@ -66,8 +69,6 @@ def seed_stage(b):
     residual is built from; this evaluates the residual itself and freezes the
     step-top snapshot exactly as `rk_step` does before its first stage.
     """
-    import ember.grid  # noqa: F401  (build_case returned a live grid)
-
     b.store[...] = b.conserved_nd
     return b
 
@@ -152,8 +153,6 @@ def check_correctness(b, active_arms=RK_ARMS):
 
 
 def main():
-    import argparse
-
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--ncell", type=int, default=1_000_000)
     args = ap.parse_args()

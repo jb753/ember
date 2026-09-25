@@ -1079,6 +1079,7 @@ class TestMemoryUsage:
             "rhoe",
             "wdist",
             "mu_turb",
+            "fac_lam",
         }
         assert set(data_usage.keys()) == expected_keys
 

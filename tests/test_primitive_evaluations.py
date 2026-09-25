@@ -176,7 +176,7 @@ def test_check_nan_fills_the_cache_the_rest_of_the_step_reads(count_eos):
     grid.check_nan()
     assert counts["get_P_h_T"] == N_BLOCK
 
-    grid.update_sources(inviscid=False, gain_filt=0.0)
-    grid.update_timestep(rf=1.0)
+    grid.update_sources(inviscid=False)
+    grid.update_timestep(rf=1.0, add_sources=True)
     grid.update_residual()
     assert counts["get_P_h_T"] == N_BLOCK

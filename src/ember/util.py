@@ -1200,18 +1200,13 @@ def resample(factor, vector, i_crit=None):
     # Calculate spans between consecutive critical indices
     spans = np.diff(i_crit)
 
-    # Allocate per-segment cell counts so they sum exactly to the target
-    # total, instead of rounding each segment independently. Independent
-    # rounding lets multiple segments each accrue a half-cell overshoot,
-    # producing an output one node larger than the global target -- which
-    # then violates the multigrid coarsening invariant
-    # n_coarse == (n_fine - 1) // 2 + 1.
-    #
-    # Largest-remainder (Hare quota): floor each segment's ideal cell count,
-    # then distribute the leftover cells to the segments with the largest
-    # fractional remainder. Segments are clamped to >= 1 cell to keep the
-    # critical-index mapping strictly increasing (two adjacent criticals
-    # cannot collapse to the same output node).
+    # Allocate per-segment cell counts by largest remainder (Hare quota):
+    # floor each segment's ideal count, then give the leftover cells to the
+    # largest fractional remainders. This makes the segments sum exactly to the
+    # target total; rounding each independently can overshoot by a node and
+    # break the multigrid invariant n_coarse == (n_fine - 1) // 2 + 1.
+    # Segments are clamped to >= 1 cell so the critical-index mapping stays
+    # strictly increasing.
     total_cells = int(np.round((ni - 1) * factor))
     seg_float = spans * factor
     seg_cells = np.floor(seg_float).astype(int)

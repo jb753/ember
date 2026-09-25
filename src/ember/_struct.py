@@ -239,8 +239,37 @@ class StructuredData:
         # writeable, so that is the default.
         frozen = state.pop("_frozen", False)
         self.__dict__.update(state)
+        self._append_missing_keys()
         if frozen:
             self._data.flags.writeable = False  # end method
+
+    def _append_missing_keys(self):
+        """Give an unpickled instance a zero column for each key it predates.
+
+        ``_data`` and ``_data_inds`` are pickled per instance, so a file
+        written before a key was added to ``_data_keys`` comes back one column
+        short and the first read of the new key misses. New keys go at the end
+        of ``_data_keys``, which makes this a pure append: existing columns
+        keep their indices, and so does every consecutive-key group read as
+        one slice. The appended key's version is left at zero, so it still
+        reads as unset.
+
+        The index map is copied rather than extended in place. Views share it
+        with their parent, and the unpickler keeps that sharing while giving
+        each view its own copy of the data, so extending the shared map would
+        add a column to one array and an index past the end of the others.
+        """
+        missing = [k for k in self._data_keys if k not in self._data_inds]
+        if not missing:
+            return
+        nold = self._data.shape[-1]
+        data = util.zeros(self._data.shape[:-1] + (nold + len(missing),))
+        data[..., :nold] = self._data
+        inds = dict(self._data_inds)
+        for n, k in enumerate(missing):
+            inds[k] = nold + n
+        self._data = data
+        self._data_inds = inds  # end method
 
     def _bare_copy(self):
         """Create a new instance sharing metadata/init dicts, bypassing __init__."""
@@ -517,47 +546,6 @@ class StructuredData:
         out._versions = self._versions.copy()
         return out  # end method
 
-    @property
-    def flat(self):
-        """Flatten all axes into a single axis, not a copy.
-
-        Returns a new instance sharing metadata and data with the original via
-        a numpy reshaped view. Writes through either object are visible in the
-        other.
-
-        Points are ordered Fortran-style, with the first axis varying fastest,
-        matching the column-major layout of the backing array. This is what
-        makes the result a view rather than a copy; a C-ordered flattening of
-        the same data would have to copy. Any code that flattens a block and
-        later reshapes the result back must therefore pass ``order="F"``.
-
-        Returns
-        -------
-        out : same type as ``self``, shape (npoints,)
-            A new instance with all points in a single dimension.
-
-        Raises
-        ------
-        ValueError
-            If this instance is a non-contiguous view (for example a strided
-            slice of a larger object) that cannot be flattened without
-            copying. Freshly allocated instances are always flattenable.
-
-        """
-        data = self._data.reshape((-1, self.nvar), order="F")
-
-        # reshape falls back to copying when the layout forbids a view, and
-        # does so silently, so check rather than hand back a detached array.
-        if not np.shares_memory(data, self._data):
-            raise ValueError(
-                f"Cannot flatten shape {self.shape} without copying: this is a "
-                "non-contiguous view. Take a copy() first if that is intended."
-            )
-
-        out = self.view()
-        out._data = data
-        return out  # end method
-
     def flip(self, axis):
         """Reverse indexing along the specified axis, not a copy.
 
@@ -794,6 +782,47 @@ class StructuredData:
 
         """
         return self._bare_copy()  # end method
+
+    @property
+    def flat(self):
+        """Flatten all axes into a single axis, not a copy.
+
+        Returns a new instance sharing metadata and data with the original via
+        a numpy reshaped view. Writes through either object are visible in the
+        other.
+
+        Points are ordered Fortran-style, with the first axis varying fastest,
+        matching the column-major layout of the backing array. This is what
+        makes the result a view rather than a copy; a C-ordered flattening of
+        the same data would have to copy. Any code that flattens a block and
+        later reshapes the result back must therefore pass ``order="F"``.
+
+        Returns
+        -------
+        out : same type as ``self``, shape (npoints,)
+            A new instance with all points in a single dimension.
+
+        Raises
+        ------
+        ValueError
+            If this instance is a non-contiguous view (for example a strided
+            slice of a larger object) that cannot be flattened without
+            copying. Freshly allocated instances are always flattenable.
+
+        """
+        data = self._data.reshape((-1, self.nvar), order="F")
+
+        # reshape falls back to copying when the layout forbids a view, and
+        # does so silently, so check rather than hand back a detached array.
+        if not np.shares_memory(data, self._data):
+            raise ValueError(
+                f"Cannot flatten shape {self.shape} without copying: this is a "
+                "non-contiguous view. Take a copy() first if that is intended."
+            )
+
+        out = self.view()
+        out._data = data
+        return out  # end method
 
     @property
     def frozen(self):
