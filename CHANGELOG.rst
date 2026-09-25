@@ -10,6 +10,16 @@ public API without a deprecation period.
 0.4.4 (2026-09-19)
 ------------------
 
+* Add ``ember.average.mass_band``, the part of a structured 2D cut carrying a
+  given band of mass fraction, such as the stream surface through the central
+  tenth of the flow. Its ends are placed so the band carries exactly that
+  fraction of the flow, and it can be mixed out or averaged like any other cut
+* Fix ``ember.cut.interpolate_to_structured`` laying nodes over solid where a
+  periodic cut passes through one, such as an H-mesh trailing edge cusp. Each
+  constant-``i`` line now spans only the fluid its triangles cover, so the
+  structured cut keeps the area and mass flow of the unstructured one; before,
+  the solid was filled with nearest-neighbour flow. Unchanged where the cut is
+  clear of any solid
 * Add a Reichardt wall law option, ``Solver.wall_law = "reichardt"``, covering the sublayer, buffer and log layers without a switch
 * Fix interior viscous stresses and heat fluxes, which were half their
   physical value: the cell stress was stored halved and then averaged onto the

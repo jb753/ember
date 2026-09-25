@@ -27,6 +27,14 @@ Test cases:
 - test_mix_out_k_axis_flip_invariance: Verify mixing is invariant to k-axis flip
 - test_mix_out_k_axis_flip_invariance_negative_vt: Verify k-axis flip invariance with negative Vt
 - test_mix_out_flip_invariance_beats_atol: Verify mix_out reproducibility beats its own atol
+- test_mass_band_uniform_flow: The central band of a uniform flow carries its share
+- test_mass_band_sheared_flow: A band carries hi - lo of a spanwise-varying flow
+- test_mass_band_within_one_strip: Both ends of a band in the same strip
+- test_mass_band_whole_cut: The band from zero to one is the cut itself
+- test_mass_band_axis_one: Banding along axis 1 agrees with axis 0 on the transpose
+- test_mass_band_backflow: Backflow at the hub does not stop the band being found
+- test_mass_band_invalid_arguments: Fractions out of order or range are refused
+- test_mass_band_structured_2d_only: Triangulated and 3D blocks are refused
 """
 
 import numpy as np
@@ -1055,6 +1063,104 @@ def test_mix_out_flip_invariance_beats_atol():
             rtol=rtol,
             err_msg=f"Mixed {name} should be k-flip invariant well inside atol",
         )
+
+
+def _sheared_cut(nr=41, Vx_hub=20.0, Vx_cas=60.0):
+    """Build a cut whose axial velocity rises linearly from hub to casing."""
+    shape = (3, nr, 9)
+    xrt = util.linmesh3((0.0, 0.1), (0.9, 1.1), (0.0, 0.1), shape)
+    block = Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(xrt[..., 1])
+    block.set_t(xrt[..., 2])
+    fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
+    block.set_fluid(fluid)
+    block.set_P_T(2e5, 400.0)
+    span = (xrt[..., 1] - 0.9) / 0.2
+    block.set_Vxrt(
+        np.stack(
+            [
+                Vx_hub + (Vx_cas - Vx_hub) * span,
+                np.zeros(shape),
+                np.zeros(shape),
+            ],
+            axis=-1,
+        )
+    )
+    return block[0]
+
+
+def _band_fraction(cut, lo, hi, axis=0):
+    """Return the fraction of the mass flow through `cut` that its band carries."""
+    band = average.mass_band(cut, lo, hi, axis=axis)
+    return float(average.flow_mass(band) / average.flow_mass(cut))
+
+
+def test_mass_band_uniform_flow():
+    """The central band of a uniform flow carries its share of the mass."""
+    cut = _low_mach_axial_cut()
+    assert _band_fraction(cut, 0.45, 0.55) == pytest.approx(0.1, rel=1e-6)
+
+
+@pytest.mark.parametrize("lo, hi", [(0.45, 0.55), (0.0, 0.3), (0.7, 1.0)])
+def test_mass_band_sheared_flow(lo, hi):
+    """A band carries hi - lo of the flow when the flux varies over the span."""
+    cut = _sheared_cut()
+    assert _band_fraction(cut, lo, hi) == pytest.approx(hi - lo, rel=1e-6)
+
+
+def test_mass_band_within_one_strip():
+    """A band narrower than a strip is placed exactly, and has only two nodes."""
+    cut = _sheared_cut(nr=3)
+    band = average.mass_band(cut, 0.1, 0.2)
+    assert band.shape == (2, cut.shape[1])
+    assert _band_fraction(cut, 0.1, 0.2) == pytest.approx(0.1, rel=1e-6)
+
+
+def test_mass_band_whole_cut():
+    """The band from zero to one is the cut itself."""
+    cut = _sheared_cut()
+    band = average.mass_band(cut, 0.0, 1.0)
+    assert band.shape == cut.shape
+    np.testing.assert_allclose(band._data, cut._data, rtol=1e-6)
+    np.testing.assert_allclose(
+        average.mix_out(band).conserved, average.mix_out(cut).conserved, rtol=1e-6
+    )
+
+
+def test_mass_band_axis_one():
+    """Banding along axis 1 of the transposed cut is the same band."""
+    cut = _sheared_cut()
+    band0 = average.mass_band(cut, 0.45, 0.55, axis=0)
+    band1 = average.mass_band(cut.transpose(), 0.45, 0.55, axis=1)
+    np.testing.assert_allclose(band1.transpose()._data, band0._data, rtol=1e-6)
+
+
+def test_mass_band_backflow():
+    """A strip of backflow at the hub does not stop the band being found."""
+    cut = _sheared_cut(Vx_hub=-20.0, Vx_cas=60.0)
+    assert _band_fraction(cut, 0.45, 0.55) == pytest.approx(0.1, rel=1e-6)
+
+
+@pytest.mark.parametrize(
+    "lo, hi, axis",
+    [(0.55, 0.45, 0), (0.5, 0.5, 0), (-0.1, 0.5, 0), (0.5, 1.1, 0), (0.4, 0.6, 2)],
+)
+def test_mass_band_invalid_arguments(lo, hi, axis):
+    """Fractions out of order or range, and a third axis, are refused."""
+    with pytest.raises(ValueError):
+        average.mass_band(_sheared_cut(), lo, hi, axis=axis)
+
+
+def test_mass_band_structured_2d_only():
+    """A triangulated cut, or a 3D block, has no strips to band."""
+    from ember.cut import triangulate_to_unstructured
+
+    cut = _sheared_cut()
+    with pytest.raises(ValueError):
+        average.mass_band(triangulate_to_unstructured(cut), 0.45, 0.55)
+    with pytest.raises(ValueError):
+        average.mass_band(cut[None], 0.45, 0.55)
 
 
 if __name__ == "__main__":

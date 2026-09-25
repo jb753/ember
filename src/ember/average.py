@@ -256,6 +256,139 @@ def mass_average(scalar_node, block, axes=None):
     return numerator / denominator
 
 
+def mass_band(block, lo, hi, axis=0):
+    r"""Extract the part of a structured 2D cut carrying a band of mass flow.
+
+    Integrates the mass flow strip by strip along `axis`, summing across the
+    other axis, to give a cumulative mass fraction :math:`\psi` running from
+    zero at the first node to one at the last. The band is the region
+    :math:`\mathrm{lo} \le \psi \le \mathrm{hi}`, so ``lo=0.45, hi=0.55`` on a
+    hub-to-casing axis is the stream surface carrying the central tenth of the
+    flow.
+
+    The two ends of the band sit at fractional node positions inside the
+    strips where :math:`\psi` first reaches `lo` and `hi`. The data are
+    interpolated linearly to those two positions and the original nodes
+    between them are copied through, so the band keeps the resolution of the
+    cut it came from. Each end is placed by bisection on the mass flow of the
+    partial strip it bounds, integrated just as :func:`flow_mass` integrates
+    the band, so the band carries :math:`\mathrm{hi} - \mathrm{lo}` of the flow
+    to round-off --- not merely to within the variation of flux and face area
+    across a strip, which a linear interpolation of :math:`\psi` would leave.
+
+    The first crossing is taken rather than an inverse interpolation of
+    :math:`\psi`, which need not be monotonic: a strip of backflow in a corner
+    elsewhere on the cut does not stop the band being found.
+
+    Parameters
+    ----------
+    block : Block, shape (ni, nj)
+        Structured 2D block.
+    lo, hi : float
+        Mass fractions bounding the band, :math:`0 \le \mathrm{lo} <
+        \mathrm{hi} \le 1`.
+    axis : int, default 0
+        Axis along which the mass fraction runs. The band spans the whole of
+        the other axis.
+
+    Returns
+    -------
+    band : Block, shape (nband, nj) or (ni, nband)
+        New block holding the band, with the metadata of `block`.
+
+    Raises
+    ------
+    ValueError
+        If `block` is triangulated or not 2D, if `axis` is not 0 or 1, if the
+        fractions are out of order or out of range, or if the net mass flux
+        through the block is zero.
+    """
+    if block.triangulated or block.ndim != 2:
+        raise ValueError("mass_band requires a structured 2D block.")
+    if axis not in (0, 1):
+        raise ValueError(f"axis must be 0 or 1, got {axis}.")
+    if not 0.0 <= lo < hi <= 1.0:
+        raise ValueError(f"Need 0 <= lo < hi <= 1, got lo={lo}, hi={hi}.")
+
+    # Mass through each strip between adjacent nodes along `axis`
+    dm = np.asarray(flow_mass(block, axes=(1 - axis,)), dtype=float)
+    total = dm.sum()
+    if np.abs(total) < 1e-14:
+        raise ValueError(
+            "Net mass flux through the block is zero, so it has no mass fraction."
+        )
+
+    # Dividing by a signed total makes the fraction run zero to one whichever
+    # way the flow crosses the cut. The last node is pinned to one, so that
+    # round-off cannot leave hi=1 short of it.
+    psi = np.concatenate([[0.0], np.cumsum(dm)]) / total
+    psi[-1] = 1.0
+
+    # Rows along the band axis, so both ends are found and built the same way
+    # whichever axis the fraction runs along.
+    data = np.moveaxis(block._data, axis, 0)
+
+    def fraction(p0, p1):
+        """Mass fraction between fractional positions p0 < p1 in one strip."""
+        return flow_mass(_interpolate_rows(block, data, [p0, p1], axis)) / total
+
+    # The low end: the partial strip from it up to the next node must carry
+    # what that node's fraction exceeds `lo` by.
+    k = int(np.argmax(psi >= lo))
+    if psi[k] == lo:
+        pos_lo = float(k)
+    else:
+        need = psi[k] - lo
+        pos_lo = _bisect(lambda p: fraction(p, k) < need, k - 1, k)
+
+    # The high end: the partial strip up to it must carry what `hi` exceeds the
+    # start of that strip by. The strip starts at the low end if both ends fall
+    # in the same one.
+    k = int(np.argmax(psi >= hi))
+    if psi[k] == hi:
+        pos_hi = float(k)
+    else:
+        start = max(k - 1, pos_lo)
+        need = hi - max(psi[k - 1], lo)
+        pos_hi = _bisect(lambda p: fraction(start, p) >= need, start, k)
+
+    inner = np.arange(np.floor(pos_lo) + 1, np.ceil(pos_hi))
+    pos = np.concatenate([[pos_lo], inner, [pos_hi]])
+    return _interpolate_rows(block, data, pos, axis)
+
+
+def _bisect(past, a, b, n=60):
+    """Return the point in [a, b] where the predicate `past` turns true.
+
+    `past` is false at `a` and true at `b`. Sixty halvings of a unit interval
+    reach the spacing of doubles, so the result is as exact as the predicate.
+    """
+    for _ in range(n):
+        p = 0.5 * (a + b)
+        if past(p):
+            b = p
+        else:
+            a = p
+    return 0.5 * (a + b)
+
+
+def _interpolate_rows(block, data, pos, axis):
+    """Return a block of `data` rows linearly interpolated to positions `pos`.
+
+    `data` has its interpolation axis first; the result has it back at `axis`.
+    A position on the last node is taken from the last strip rather than past
+    it.
+    """
+    pos = np.asarray(pos, dtype=float)
+    j0 = np.minimum(np.floor(pos).astype(int), data.shape[0] - 2)
+    w = (pos - j0)[:, None, None]
+    rows = np.moveaxis((1.0 - w) * data[j0] + w * data[j0 + 1], 0, axis)
+
+    out = block.empty(shape=rows.shape[:-1])
+    out._data = rows
+    return out
+
+
 def area_average(scalar_node, block, axes=None):
     r"""Take area-weighted average of a 2D nodal scalar field.
 
