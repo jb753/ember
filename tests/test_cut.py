@@ -45,6 +45,9 @@ Test cases:
 - test_interpolate_data_preservation: Interpolation preserves reasonable data ranges
 - test_interpolate_coordinate_monotonicity: Interpolated coordinates form monotonic grids
 - test_interpolate_minimal_input: Interpolation with minimal triangle data
+- test_interpolate_periodic_partial_pitch: A cut through a solid spans only the fluid
+- test_interpolate_periodic_tapered_solid: Each pitchwise line spans its own fluid
+- test_interpolate_periodic_two_solids_raise: Fluid in two pieces is refused
 - test_triangulate_simple_2d_block: Triangulation of simple 2D block
 - test_triangulate_data_preservation: Triangulation preserves original data values
 - test_triangulate_vertex_connectivity: Triangles share vertices correctly
@@ -57,6 +60,7 @@ Test cases:
 
 import numpy as np
 import pytest
+import ember.average
 import ember.grid
 import ember.block
 import ember.fluid
@@ -887,6 +891,41 @@ class TestNonIntersectionBehavior:
                 assert len(result_struct) >= 0
 
 
+def _part_pitch_block(t_lo, t_hi):
+    """Return a block of axial flow covering theta from `t_lo` to `t_hi(r)`.
+
+    Eight blades, so a pitch of pi/4, of which the block covers only part: the
+    rest is solid, as a blade or a trailing edge cusp is.
+    """
+    shape = (5, 9, 17)
+    xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 1.0], shape)
+    r = xrt[..., 1]
+    block = ember.block.Block(shape=shape)
+    block.set_x(xrt[..., 0])
+    block.set_r(r)
+    block.set_t(t_lo + xrt[..., 2] * (t_hi(r) - t_lo))
+    block.set_fluid(ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72))
+    block.set_P_T(1e5, 300.0)
+    block.set_Vxrt(np.stack([50.0 + 20.0 * r, 0.0 * r, 10.0 * r], axis=-1))
+    block.set_Nb(8)
+    return block
+
+
+def _assert_same_flow(structured, raw):
+    """Assert a regrid carries the area, mass and mixed-out state of its cut.
+
+    To the discretisation of a few regrid lines: a regrid laid over the solid
+    as well would be out by the solid's whole share of the pitch.
+    """
+    for integral in (ember.average.total_area, ember.average.flow_mass):
+        np.testing.assert_allclose(
+            np.abs(integral(structured)), np.abs(integral(raw)), rtol=2e-3, atol=1e-12
+        )
+    np.testing.assert_allclose(
+        ember.average.mix_out(structured).s, ember.average.mix_out(raw).s, atol=1e-2
+    )
+
+
 @pytest.fixture
 def periodic_block():
     """Create a 3x3x5 block spanning one full circumferential pitch."""
@@ -1080,6 +1119,49 @@ class TestInterpolateToStructured:
         if unstr_result is not None:
             with pytest.raises(ValueError, match="under one pitch"):
                 interpolate_to_structured(unstr_result, (5, 4), periodic=True)
+
+    def test_interpolate_periodic_partial_pitch(self):
+        """A cut through a solid spans only the fluid, not a whole pitch.
+
+        As through an H-mesh trailing edge cusp: the block covers 0.9 of a
+        pitch, and the rest is solid. Laid over a whole pitch, the regrid would
+        put flow on the solid and gain a tenth in area and mass flow.
+        """
+        pitch = 2.0 * np.pi / 8
+        grid = ember.grid.Grid([_part_pitch_block(0.0, lambda r: 0.9 * pitch)])
+        raw = unstructured(grid, np.array([[0.5, 0.4], [0.5, 1.6]]))
+
+        result = interpolate_to_structured(raw, (9, 11), periodic=True, rtol=0.2)
+
+        span = np.ptp(result.t, axis=1)
+        np.testing.assert_allclose(span, 0.9 * pitch, rtol=1e-5)
+        _assert_same_flow(result, raw)
+
+    def test_interpolate_periodic_tapered_solid(self):
+        """A solid that thins along the line leaves each line its own fluid."""
+        pitch = 2.0 * np.pi / 8
+        block = _part_pitch_block(0.0, lambda r: (0.8 + 0.1 * (r - 0.5)) * pitch)
+        raw = unstructured(ember.grid.Grid([block]), np.array([[0.5, 0.4], [0.5, 1.6]]))
+
+        result = interpolate_to_structured(raw, (9, 11), periodic=True, rtol=0.25)
+
+        span = np.ptp(result.t, axis=1)
+        np.testing.assert_allclose(span, (0.8 + 0.1 * (result.r[:, 0] - 0.5)) * pitch)
+        _assert_same_flow(result, raw)
+
+    def test_interpolate_periodic_two_solids_raise(self):
+        """Fluid in two pieces across the pitch has no single run of nodes."""
+        pitch = 2.0 * np.pi / 8
+        grid = ember.grid.Grid(
+            [
+                _part_pitch_block(0.0, lambda r: 0.45 * pitch),
+                _part_pitch_block(0.5 * pitch, lambda r: 0.95 * pitch),
+            ]
+        )
+        raw = unstructured(grid, np.array([[0.5, 0.4], [0.5, 1.6]]))
+
+        with pytest.raises(ValueError, match="separate"):
+            interpolate_to_structured(raw, (9, 11), periodic=True, rtol=0.2)
 
     def test_interpolate_roundtrip_linear_field_unchanged(self):
         """Round-trip a known field through a sloping cut, oversampled.
