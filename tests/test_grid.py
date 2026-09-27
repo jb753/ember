@@ -987,6 +987,26 @@ class TestSmooth:
             const[0].conserved_nd, adapt[0].conserved_nd, atol=1e-6
         ), "adaptive=True produced the constant-coefficient answer"
 
+    def test_temperature_weight_reaches_the_kernel(self):
+        """``sf2_T`` is the temperature limb's weight, ``sf2`` by default.
+
+        Omitting it and passing ``sf2`` must agree exactly; switching the
+        temperature limb off must change the answer on a field whose
+        temperature varies, or the argument is not being passed through.
+        """
+        default = self._perturbed_grid()
+        same = self._perturbed_grid()
+        p_only = self._perturbed_grid()
+
+        default.smooth(0.01, 0.005, adaptive=True)
+        same.smooth(0.01, 0.005, adaptive=True, sf2_T=0.005)
+        p_only.smooth(0.01, 0.005, adaptive=True, sf2_T=0.0)
+
+        assert np.array_equal(default[0].conserved_nd, same[0].conserved_nd)
+        assert not np.allclose(
+            default[0].conserved_nd, p_only[0].conserved_nd, atol=1e-7
+        ), "sf2_T=0 left the temperature limb in place"
+
     def test_repeated_calls_are_reproducible(self):
         """The arena carve leaves no state: the same input gives the same output.
 

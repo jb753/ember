@@ -409,7 +409,16 @@ class Solver(BaseSolver):
     """Second-order smoothing factor.
 
     Constant everywhere unless :attr:`adaptive_smoothing` is set, in which case
-    it is the ceiling a JST shock sensor scales."""
+    it is the ceiling a JST shock sensor scales: the weight on the pressure
+    sensor, and on the temperature sensor too unless :attr:`sf2_T` says
+    otherwise."""
+
+    sf2_T: float | None = None
+    """Weight on the temperature limb of the adaptive sensor.
+
+    None takes :attr:`sf2`, so both limbs share one weight, as they always
+    have; zero leaves the sensor on pressure alone, as classical JST has it.
+    Read only when :attr:`adaptive_smoothing` is set."""
 
     adaptive_smoothing: bool = False
     """Drive the second-order smoothing with a JST shock sensor.
@@ -1135,6 +1144,7 @@ def _run(grid, conf):
             conf.sf4 * conf.cfl,
             conf.sf2 * conf.cfl,
             adaptive=conf.adaptive_smoothing,
+            sf2_T=None if conf.sf2_T is None else conf.sf2_T * conf.cfl,
         )
         _log_rss("step %d after smooth", i_step)
 

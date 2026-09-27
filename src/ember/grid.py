@@ -1329,7 +1329,7 @@ class Grid(_LabelledList):
         return Grid([ember.block_util.resample(b, factors) for b in self])
 
     @util.profile
-    def smooth(self, sf4, sf2, adaptive=False):
+    def smooth(self, sf4, sf2, adaptive=False, sf2_T=None):
         """Apply blended 2nd/4th-order artificial dissipation to every block.
 
         Both kernels share one stencil family and one set of biased boundary
@@ -1345,10 +1345,11 @@ class Grid(_LabelledList):
             ``adaptive`` is False; the *ceiling* a JST shock sensor scales when
             it is True.
         adaptive : bool
-            Use the sensor-driven kernel. ``sf2`` is passed as both the
-            pressure and the temperature sensor weight, and the fourth-order
-            factor is clipped against the sensor as ``max(sf4 - sf2n, 0)``, so
-            the fourth-order term switches off inside a shock.
+            Use the sensor-driven kernel. ``sf2`` is the pressure sensor
+            weight, and the temperature sensor weight too unless ``sf2_T`` is
+            given, and the fourth-order factor is clipped against the sensor as
+            ``max(sf4 - sf2n, 0)``, so the fourth-order term switches off
+            inside a shock.
 
             Costs two nodal sensor passes over
             :attr:`~ember.block.Block.P_nd` and
@@ -1361,6 +1362,10 @@ class Grid(_LabelledList):
             one step behind the state being smoothed. That lag is deliberate
             and it is what makes the sensor free; it matters only where a
             feature moves an appreciable distance in one step.
+        sf2_T : float, optional
+            Temperature sensor weight for the adaptive kernel, ``sf2`` when
+            omitted; zero senses on pressure alone. Ignored when ``adaptive``
+            is False.
         """
         for block in self:
             ni, nj, nk = block.conserved_nd.shape[:3]
@@ -1373,7 +1378,7 @@ class Grid(_LabelledList):
                     t=block.T_nd,
                     sf4=sf4,
                     sf2p=sf2,
-                    sf2t=sf2,
+                    sf2t=sf2 if sf2_T is None else sf2_T,
                     sf2n=sf2n,
                     dx=dx,
                 )
