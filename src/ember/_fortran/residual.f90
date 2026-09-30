@@ -1265,5 +1265,3 @@ subroutine smooth_residual_tri_tiled(dU, sf, work, ni, nj, nk)
                        nci, ncj, nck)
 
 end subroutine smooth_residual_tri_tiled
-
-

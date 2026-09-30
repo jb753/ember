@@ -2,10 +2,13 @@
 
 ``tests/test_update_filter.py`` covers the filter kernel in isolation and
 ``tests/test_set_F_body_golden.py`` covers the body force it feeds. Neither
-covers the join: for a long time ``Solver.run`` never called
-:meth:`ember.grid.Grid.update_filter` at all (the call sat commented out, with
-a signature that predated the ``adapt_cfl`` split), so ``conserved_filt_nd``
-stayed at the seed it takes on first access. A nonzero
+covers the join: for a long time ``Solver.run`` never advanced the filter at
+all (the call sat commented out, with a signature that predated the
+``adapt_cfl`` split), so ``conserved_filt_nd`` stayed at the seed it takes on
+first access. The update now rides in :meth:`ember.grid.Grid.update_timestep`,
+which makes the join easier to get wrong in a new way: the timestep runs every
+step, the body force only on the source cadence, and the two gates must not be
+confused. A nonzero
 :attr:`~ember.solver.Solver.gain_filt` then did not low-pass anything -- it
 pulled the solution back towards its own initial condition for the whole run.
 These tests pin the wiring rather than the arithmetic.
@@ -17,6 +20,9 @@ Test cases:
   every-fifth-step source cadence, which would stretch delta_filt fivefold
 - test_no_filtering_never_touches_the_filter: the default zero gain skips the
   update and never allocates the buffer
+- test_scree_body_force_is_held_between_refreshes: on the scree march the body
+  force (polar + SFD) is rebuilt every fifth step and held, not re-added, in
+  between
 - test_the_damping_changes_the_solution: end to end, a nonzero gain reaches
   conserved_nd
 """
@@ -24,6 +30,7 @@ Test cases:
 import numpy as np
 import pytest
 
+import ember.fortran
 import ember.grid
 import ember.solver
 from conftest import cell_conserved
@@ -80,15 +87,21 @@ def _seed_filter(block):
 
 
 def _count_filter_calls(monkeypatch):
-    """Count calls to Grid.update_filter without suppressing them."""
+    """Count filter updates -- timestep kernel calls with the SFD gate on.
+
+    The filter advances inside ``set_timestep_sources`` whenever it is handed
+    a nonzero gain, so that is what is counted, per block (the duct is one).
+    The calls are passed through, not suppressed.
+    """
     calls = []
-    original = ember.grid.Grid.update_filter
+    original = ember.fortran.set_timestep_sources
 
-    def spy(self, cfl, delta_filt):
-        calls.append((cfl, delta_filt))
-        return original(self, cfl, delta_filt)
+    def spy(**kwargs):
+        if kwargs["gain_filt"] != 0.0:
+            calls.append((kwargs["cfl"], kwargs["delta_filt"]))
+        return original(**kwargs)
 
-    monkeypatch.setattr(ember.grid.Grid, "update_filter", spy)
+    monkeypatch.setattr(ember.fortran, "set_timestep_sources", spy)
     return calls
 
 
@@ -155,3 +168,48 @@ def test_the_damping_changes_the_solution(n_stage):
     cons_on = np.asarray(grid_on[0].conserved_nd)
     assert np.all(np.isfinite(cons_on))
     assert not np.array_equal(cons_on, cons_off)
+
+
+@pytest.mark.parametrize("gain_filt", [0.0, GAIN_FILT])
+def test_scree_body_force_is_held_between_refreshes(monkeypatch, gain_filt):
+    """The scree march rebuilds F_body every fifth step and holds it between.
+
+    The sources lag on the scree march (``n_step_source = 5``), so on steps
+    1-4 of each window ``F_body_nd`` must be BITWISE the one the refresh step
+    built: an accumulating term (polar or SFD) added on every step rather than
+    every refresh would grow it instead. Snapshots are taken at each
+    ``update_residual`` call and keyed by step, the step being counted off
+    ``update_timestep``, which runs once before the march and once per step.
+    Zero gain leaves the polar source alone, so both are checked.
+    """
+    n_step = 11
+    steps = []
+    snaps = {}
+    orig_timestep = ember.grid.Grid.update_timestep
+    orig_residual = ember.grid.Grid.update_residual
+
+    def timestep_spy(self, *args, **kwargs):
+        steps.append(None)
+        return orig_timestep(self, *args, **kwargs)
+
+    def residual_spy(self, *args, **kwargs):
+        snaps[len(steps) - 2] = np.array(self[0].F_body_nd)
+        return orig_residual(self, *args, **kwargs)
+
+    monkeypatch.setattr(ember.grid.Grid, "update_timestep", timestep_spy)
+    monkeypatch.setattr(ember.grid.Grid, "update_residual", residual_spy)
+
+    grid = _grid()
+    _seed_filter(grid[0])
+    hist = _conf(n_step=n_step, n_step_log=n_step, n_stage=0, gain_filt=gain_filt).run(
+        grid
+    )
+    assert not hist.diverged
+    assert sorted(snaps) == list(range(n_step))
+
+    for i_step in range(n_step):
+        refresh = i_step - i_step % 5
+        np.testing.assert_array_equal(snaps[i_step], snaps[refresh])
+    # And the refresh does rebuild it: the flow has moved in five steps.
+    assert not np.array_equal(snaps[5], snaps[0])
+    assert not np.array_equal(snaps[10], snaps[5])

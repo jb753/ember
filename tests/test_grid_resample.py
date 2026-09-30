@@ -552,7 +552,9 @@ class TestGridInterpFrom:
         # The physical state crosses unchanged.
         for name in ("P", "T", "Vx", "Vr", "Vt"):
             np.testing.assert_allclose(
-                getattr(tgt, name), getattr(src, name), rtol=1e-4,
+                getattr(tgt, name),
+                getattr(src, name),
+                rtol=1e-4,
                 err_msg=f"{name} was not preserved across the fluid change",
             )
         np.testing.assert_allclose(tgt.mu_turb, src.mu_turb, rtol=1e-4)
@@ -756,9 +758,9 @@ class TestInterpFromArrays:
 
         Block-to-block, this is the case that used to turn 400 K into 1000 K.
         """
-        shifted = PerfectFluid(
-            cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72
-        ).change_datum(P_dtm=3e5, T_dtm=900.0)
+        shifted = PerfectFluid(cp=1005.0, gamma=1.4, mu=1.8e-5, Pr=0.72).change_datum(
+            P_dtm=3e5, T_dtm=900.0
+        )
         tgt = _make_state_block((4, 4, 4))
         tgt.set_fluid(shifted)
 

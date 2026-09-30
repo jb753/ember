@@ -85,9 +85,7 @@ def private_definitions(paths):
         except SyntaxError:
             continue
         for node in ast.walk(tree):
-            if isinstance(
-                node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-            ):
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
                 names.add(node.name)
             elif isinstance(node, ast.Name):
                 names.add(node.id)

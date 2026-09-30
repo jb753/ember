@@ -3,8 +3,7 @@
 ``Block.scratch`` backs every throwaway buffer in the step: the viscous
 boundary tau/q face buffers and the rolling tau/q cell-plane pair, the nodal
 transport trio both viscous kernels read, both kernels' rolling planes and
-rows, the nodal acoustic speed the timestep kernel reads, the cell-shaped
-conserved volume the filter and the SFD force materialise, the IRS work vector
+rows, the nodal acoustic speed the timestep kernel reads, the IRS work vector
 and the multigrid coarse scratch. That is only safe under two rules,
 and neither is something the code can check for itself:
 
@@ -51,9 +50,6 @@ def _phase_buffers(block):
     return {
         "update_sources": [*faces, tq, planes, rows, *transport],
         "update_timestep": [util.carve_view(block.scratch, block.shape)],
-        # apply_sfd_force and update_filter are the only readers left that
-        # want a cell-shaped conserved volume; both materialise it here.
-        "filter_sfd": [util.carve_view(block.scratch, tmp_shape)],
         "update_residual": list(
             util.carve_view(block.scratch, (ni, njp, 5, 2), (ni, 5, 3))
         )
@@ -109,8 +105,9 @@ def test_viscous_views_are_stable_and_inside_the_arena(shape):
     """
     block = ember.block.Block(shape=shape)
     for face_a, face_b in zip(block.tau_q_faces, block.tau_q_faces):
-        assert face_a.__array_interface__["data"][0] == (
-            face_b.__array_interface__["data"][0]
+        assert (
+            face_a.__array_interface__["data"][0]
+            == (face_b.__array_interface__["data"][0])
         )
     faces, tq, planes, rows, transport = ember.block._carve_viscous(block)
     for buf in (*block.tau_q_faces, tq, planes, rows, *transport):
@@ -127,12 +124,14 @@ def test_arena_is_smaller_than_the_buffers_it_replaced():
     volume, which used to be what bound it.
     """
     ni, nj, nk = 273, 65, 57
-    before = (ni + 1) * (nj + 1) * (nk + 1) * 10 + ni * nj * nk * 5 + sum(
-        int(np.prod(s)) for s in ember.block._viscous_face_shapes(ni, nj, nk)
+    before = (
+        (ni + 1) * (nj + 1) * (nk + 1) * 10
+        + ni * nj * nk * 5
+        + sum(int(np.prod(s)) for s in ember.block._viscous_face_shapes(ni, nj, nk))
     )
     after = _scratch_len((ni, nj, nk))
     assert after < before
-    assert after / before < 0.4   # measured 0.363 at this shape
+    assert after / before < 0.4  # measured 0.363 at this shape
 
 
 def test_no_phase_needs_a_volume_of_tau_q():

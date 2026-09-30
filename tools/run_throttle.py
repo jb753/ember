@@ -88,10 +88,10 @@ def run(args):
     print(f"Reached target within {args.tol * 100:.2f}%: {hit}")
 
     if args.plot:
-        import matplotlib
+        import matplotlib  # noqa: PLC0415 - optional, only for --plot
 
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt  # noqa: PLC0415 - after the backend is set
 
         fig, (ax_m, ax_p, ax_r) = plt.subplots(3, 1, figsize=(7.5, 9.5), sharex=True)
 

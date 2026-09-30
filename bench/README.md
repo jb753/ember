@@ -987,4 +987,3 @@ the headline number, and where it lives.
   cost nothing (the damp-split scaling loop); a clean report can hide a slow
   gather-based implementation (the gather finding above). Only a real,
   correctly-built, correctly-barriered timing comparison decides.
-

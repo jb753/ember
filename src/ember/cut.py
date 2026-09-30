@@ -747,9 +747,13 @@ def interpolate_to_structured(
       cosine-clustered along the normalised arc length :math:`\zeta \in [0, 1]`
       (double-sided cosine clustering), resolving both extremities of
       the line.
-    - index ``j`` runs in theta. A constant-``j`` gridline has
-      ``theta = const`` (straight lines), laid out uniformly over one full
-      pitch.
+    - index ``j`` runs in theta, uniformly over the fluid on each constant-``i``
+      line. Where the cut is clear of any solid that is one full pitch, and
+      constant-``j`` gridlines have ``theta = const`` (straight lines). Where it
+      passes through a solid, such as an H-mesh trailing edge cusp, each line
+      spans one pitch less the solid it meets, found by slicing the cut's
+      triangles with it, and the constant-``j`` lines bend to follow the solid.
+      Laid over the whole pitch, the nodes on the solid would carry flow.
 
     Straight constant-theta lines rely on the solution being periodic in theta
     with period ``pitch = 2*pi/Nb``: source points are wrapped modulo the pitch
@@ -855,8 +859,15 @@ def interpolate_to_structured(
         # seam continuity instead.
         t0 = float(t_src.min())
         tn_src = (t_src - t0) / pitch
-        theta_t = np.linspace(t0, t0 + pitch, nj)
-        tn_t = (theta_t - t0) / pitch
+        # Each pitchwise line spans the fluid the triangles cover at its span:
+        # one whole pitch where the cut is clear of any blade, and one pitch
+        # less the solid where it passes through one, such as an H-mesh
+        # trailing edge cusp. A whole pitch there would lay nodes on the solid.
+        start, width = _pitchwise_fluid(
+            zeta_t, zeta_src.reshape(-1, 3), tn_src.reshape(-1, 3)
+        )
+        TT = start[:, None] + width[:, None] * np.linspace(0.0, 1.0, nj)[None, :]
+        theta_out = t0 + pitch * TT
         # Tile +/- one period so linear interpolation is continuous at the seam.
         src_pts = np.concatenate(
             [np.column_stack([zeta_src, tn_src + d]) for d in (-1.0, 0.0, 1.0)]
@@ -866,13 +877,14 @@ def interpolate_to_structured(
         lo, hi = float(t_src.min()), float(t_src.max())
         width = hi - lo if hi > lo else 1.0
         tn_src = (t_src - lo) / width
-        theta_t = np.linspace(lo, hi, nj)
-        tn_t = (theta_t - lo) / width
+        tn_t = np.linspace(0.0, 1.0, nj)
+        TT = np.broadcast_to(tn_t[None, :], (ni, nj))
+        theta_out = lo + width * TT
         src_pts = np.column_stack([zeta_src, tn_src])
         src_vars = variables
 
     # Target points in the unfolded (zeta, theta_norm) unit space.
-    ZT, TT = np.meshgrid(zeta_t, tn_t, indexing="ij")
+    ZT = np.broadcast_to(zeta_t[:, None], (ni, nj))
     target_pts = np.column_stack([ZT.ravel(), TT.ravel()])
 
     # Interpolate on the block's own triangles (3 consecutive vertices each)
@@ -907,12 +919,117 @@ def interpolate_to_structured(
     output_data = np.full((ni, nj, nvar), np.nan)
     output_data[..., 0] = x_t[:, None]
     output_data[..., 1] = r_t[:, None]
-    output_data[..., 2] = theta_t[None, :]
+    output_data[..., 2] = theta_out
     output_data[..., 3:] = interp.reshape(ni, nj, -1)
 
     result_block = unstructured_block.empty(shape=(ni, nj))
     result_block._data = output_data
     return result_block
+
+
+def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-4):
+    """Return where the fluid lies on each pitchwise line, in pitches.
+
+    Slices every triangle with each line ``zeta = zeta_t[i]``: a triangle the
+    line crosses covers the theta interval between the two edges it crosses,
+    or the whole of an edge lying on the line. Merged round one period, those
+    intervals are the fluid at that span, because a cut of the grid has
+    triangles only where the grid has cells. What they leave uncovered is solid.
+
+    Parameters
+    ----------
+    zeta_t : ndarray, shape (ni,)
+        Arc-length coordinate of each pitchwise line.
+    tri_zeta, tri_tn : ndarray, shape (ntri, 3)
+        Vertex arc length and theta, in pitches, of each triangle.
+    tol : float
+        Uncovered arcs narrower than this, in pitches, are round-off between
+        neighbouring triangles rather than solid. An edge whose ends are both
+        within this of a line, in arc length, lies on it, and one ending within
+        this of a line crosses it. Neighbouring triangles each carry their own
+        float32 copy of a shared vertex, which a vectorised cut kernel can
+        round differently, and a triangle thin in arc length magnifies the
+        difference where a line crosses it: well past float32 epsilon, well
+        short of any solid a regrid could resolve.
+
+    Returns
+    -------
+    start, width : ndarray, shape (ni,)
+        Theta at which the fluid starts on each line, and its extent, both in
+        pitches. A line with no solid on it starts at zero and spans one pitch.
+
+    Raises
+    ------
+    ValueError
+        If a line meets more than one solid, which no single run of nodes
+        across the pitch can avoid.
+    """
+    start = np.zeros(len(zeta_t))
+    width = np.ones(len(zeta_t))
+
+    # Edges (0, 1), (1, 2) and (2, 0) of every triangle
+    za, zb = tri_zeta, np.roll(tri_zeta, -1, axis=1)
+    ta, tb = tri_tn, np.roll(tri_tn, -1, axis=1)
+    z_min, z_max = np.minimum(za, zb), np.maximum(za, zb)
+
+    for i, z in enumerate(zeta_t):
+        # Theta where each edge crosses the line, clamped to the edge; an edge
+        # on the line covers both its ends. Edges the line misses drop out of
+        # the min and max.
+        on_line = (z_min >= z - tol) & (z_max <= z + tol)
+        crosses = (z_min <= z + tol) & (z_max >= z - tol)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            frac = np.clip((z - za) / (zb - za), 0.0, 1.0)
+        t_cross = ta + frac * (tb - ta)
+        lo = np.where(on_line, np.minimum(ta, tb), t_cross)
+        hi = np.where(on_line, np.maximum(ta, tb), t_cross)
+        lo = np.where(crosses, lo, np.inf).min(axis=1)
+        hi = np.where(crosses, hi, -np.inf).max(axis=1)
+        hit = np.isfinite(lo)
+
+        gaps = _periodic_gaps(lo[hit], hi[hit], tol)
+        if len(gaps) > 1:
+            raise ValueError(
+                f"The pitchwise line at zeta={z:.4g} meets {len(gaps)} separate "
+                "solids, so the fluid on it is not one run across the pitch."
+            )
+        if gaps:
+            gap_start, gap_end = gaps[0]
+            start[i] = gap_end % 1.0
+            width[i] = 1.0 - (gap_end - gap_start)
+
+    return start, width
+
+
+def _periodic_gaps(lo, hi, tol):
+    """Return the arcs of one period that no interval ``[lo, hi]`` covers.
+
+    Theta is in pitches and periodic, so intervals are wrapped into [0, 1), one
+    running past 1 is split at the seam, and an arc uncovered on both sides of
+    the seam is one arc. Each gap is ``(start, end)`` with ``end`` possibly past
+    1 when it wraps.
+    """
+    a = np.mod(lo, 1.0)
+    b = a + (hi - lo)
+    wraps = b > 1.0
+    a = np.concatenate([a, np.zeros(wraps.sum())])
+    b = np.concatenate([np.minimum(b, 1.0), b[wraps] - 1.0])
+    order = np.argsort(a)
+
+    gaps = []
+    reach = 0.0
+    for a_i, b_i in zip(a[order], b[order]):
+        if a_i > reach + tol:
+            gaps.append((reach, a_i))
+        reach = max(reach, b_i)
+    if reach < 1.0 - tol:
+        gaps.append((reach, 1.0))
+
+    # An arc open at both ends of the period is the same arc, across the seam
+    if len(gaps) > 1 and gaps[0][0] == 0.0 and gaps[-1][1] == 1.0:
+        gaps = [(gaps[-1][0], gaps[0][1] + 1.0)] + gaps[1:-1]
+
+    return gaps
 
 
 def triangulate_to_unstructured(block):

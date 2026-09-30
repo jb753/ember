@@ -2,6 +2,7 @@
 
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -163,13 +164,13 @@ BENCH_SUBROUTINES_DIR = "bench/subroutines"
 
 def select_bench_kernels():
     """Which bench/subroutines/*.f90 files EMBER_BENCH_KERNELS asks for, if any."""
-    import re
-
     wanted = os.environ.get("EMBER_BENCH_KERNELS", "").strip()
     if not wanted:
         return []
 
-    all_sources = glob.glob(os.path.join(os.path.abspath(BENCH_SUBROUTINES_DIR), "*.f90"))
+    all_sources = glob.glob(
+        os.path.join(os.path.abspath(BENCH_SUBROUTINES_DIR), "*.f90")
+    )
     by_name = {os.path.basename(s): s for s in all_sources}
     if wanted == "all":
         return all_sources
@@ -189,8 +190,10 @@ def select_bench_kernels():
     # Close over `use` dependencies among the bench/subroutines files.
     def modules(path):
         txt = open(path).read()
-        return (set(m.lower() for m in re.findall(r"(?im)^\s*module\s+(\w+)\s*$", txt)),
-                set(m.lower() for m in re.findall(r"(?im)^\s*use\s+(\w+)", txt)))
+        return (
+            set(m.lower() for m in re.findall(r"(?im)^\s*module\s+(\w+)\s*$", txt)),
+            set(m.lower() for m in re.findall(r"(?im)^\s*use\s+(\w+)", txt)),
+        )
 
     owner = {}
     for name, path in by_name.items():
@@ -247,7 +250,9 @@ class F2PyBuildExt(build_ext):
             return super().build_extension(ext)
 
         # Production sources: everything under src/ember/_fortran/, always.
-        fortran_sources = glob.glob(os.path.join(os.path.abspath(ext.sourcedir), "*.f90"))
+        fortran_sources = glob.glob(
+            os.path.join(os.path.abspath(ext.sourcedir), "*.f90")
+        )
 
         # Benchmark-only kernels from bench/subroutines/ are excluded unless
         # EMBER_BENCH_KERNELS asks for them: they are dead code in production
@@ -299,8 +304,7 @@ class F2PyBuildExt(build_ext):
                 ).strip()
             if _OPT_REPORT:
                 os.environ["LDFLAGS"] = (
-                    os.environ.get("LDFLAGS", "")
-                    + f" -fopt-info-vec-all={_OPT_REPORT}"
+                    os.environ.get("LDFLAGS", "") + f" -fopt-info-vec-all={_OPT_REPORT}"
                 ).strip()
         else:
             raise RuntimeError(
@@ -370,7 +374,9 @@ class F2PyBuildExt(build_ext):
         # module suffix is .so everywhere except Windows, where it's .pyd.
         so_patterns = ["fortran*.so", "fortran*.pyd"]
         so_files = [
-            f for pattern in so_patterns for f in glob.glob(os.path.join(build_tmp, pattern))
+            f
+            for pattern in so_patterns
+            for f in glob.glob(os.path.join(build_tmp, pattern))
         ]
         if not so_files:
             raise RuntimeError(

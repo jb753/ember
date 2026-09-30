@@ -2,7 +2,8 @@
 
 Builds a fixed single-block grid, periodic in theta (the k direction), with a
 deterministic swirling and sheared flow and a nonzero wall distance, assembles
-the body force via ``grid.update_sources``, then computes the unintegrated net-flow
+the body force via ``grid.update_sources`` and
+``grid.update_timestep(add_sources=True)``, then computes the unintegrated net-flow
 residual (inviscid face-flux balance + body force) via ``block.residual_nd`` and
 compares it against a committed golden reference.
 
@@ -92,7 +93,8 @@ def _build_grid():
 def _assemble():
     """Build the grid, assemble F_body_nd, and return the residual."""
     grid, block = _build_grid()
-    grid.update_sources(inviscid=False, gain_filt=GAIN_FILT)
+    grid.update_sources(inviscid=False)
+    grid.update_timestep(rf=1.0, add_sources=True, gain_filt=GAIN_FILT)
     grid.update_residual()
     return np.array(block.residual_nd)
 

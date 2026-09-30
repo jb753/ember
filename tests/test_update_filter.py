@@ -1,15 +1,16 @@
-"""Unit tests for :meth:`ember.grid.Grid.update_filter`.
+"""Unit tests for the SFD low-pass filter update in :meth:`ember.grid.Grid.update_timestep`.
 
-The SFD low-pass filter update was split out of the ``adapt_cfl`` kernel into a
-dedicated ``Grid.update_filter`` with two Fortran variants (array / scalar CFL).
-These tests pin the exponential-moving-average arithmetic and confirm the rank
-dispatch: a scalar CFL must match an array CFL filled with that scalar.
+The filter update rides in the timestep kernel (``set_timestep_sources``),
+gated on a nonzero ``gain_filt``, because that walk already holds the cell
+averages it needs and is where the step's ``dt_vol`` is computed. These tests
+pin the exponential-moving-average arithmetic against a numpy reference, and
+that sharing the walk costs the timestep and the body force nothing: the gates
+may not change ``dt_vol``, and a filter-only step may not touch ``F_body``.
 """
 
 import numpy as np
 
 import ember.block
-import ember.fortran
 from conftest import cell_conserved
 import ember.grid
 from ember import util
@@ -17,9 +18,13 @@ from ember.fluid import PerfectFluid
 
 SHAPE = (7, 9, 9)
 
+# Any nonzero gain switches the filter on; its value only scales the force,
+# which none of these calls add (add_sources is left off).
+GAIN = 1.0
+
 
 def _build_block():
-    """Small non-rotating block with a smooth flow and populated dt_vol."""
+    """Small non-rotating block, populated dt_vol, filter seeded off the flow."""
     block = ember.block.Block(shape=SHAPE)
     block.set_Nb(36)
     xrt = util.linmesh3((0.0, 0.15), (0.5, 0.9), (0.0, 0.1), SHAPE)
@@ -32,23 +37,15 @@ def _build_block():
     block.set_Vx((100.0 + 10.0 * (r - r.min())).astype(np.float32))
     block.set_Vr((5.0 * np.cos(t)).astype(np.float32))
     block.set_Vt((40.0 + 15.0 * np.sin(x)).astype(np.float32))
-    # Populate dt_vol_nd (mirrors Grid.update_timestep's per-block body).
-    block.dt_vol_nd.flags.writeable = True
-    ember.fortran.set_timestep_spectral(
-        dt_vol=block.dt_vol_nd,
-        a=block.a_nd,
-        cons=block.conserved_nd,
-        r=block.r_nd,
-        omega=block.Omega_nd,
-        dai=block.dAi_nd,
-        daj=block.dAj_nd,
-        dak=block.dAk_nd,
-        mu_turb=block._get_data_by_keys(("mu_turb",), raise_uninit=False),
-        vol=block.vol_nd,
-        rf=1.0,
-        fac_visc=1.0,
-    )
-    block.dt_vol_nd.flags.writeable = False
+    ember.grid.Grid([block]).update_timestep(rf=1.0)
+
+    # Seed the filter 2% off the flow, so one EMA step has somewhere to go: on
+    # first access it seeds itself to the current state, where the update is
+    # a no-op a broken kernel would pass.
+    cons_filt = block.conserved_filt_nd
+    cons_filt.flags.writeable = True
+    cons_filt *= np.float32(1.02)
+    cons_filt.flags.writeable = False
     return block
 
 
@@ -58,71 +55,69 @@ def _expected_ema(cons_filt, cons_cell, cfl, dt_vol, vol, delta):
     return cons_filt + dt * (cons_cell - cons_filt) / delta
 
 
-def test_update_filter_array_matches_reference():
-    block = _build_block()
-    delta = 1.5
-    cfl = np.full(block.shape_cell + (5,), 0.4, dtype=np.float32)
-    # Vary CFL per equation so a per-component bug would show.
-    cfl *= np.array([1.0, 0.8, 0.9, 1.1, 1.2], dtype=np.float32)
-
-    before = block.conserved_filt_nd.copy()
-    expected = _expected_ema(
-        before, cell_conserved(block), cfl, block.dt_vol_nd, block.vol_nd, delta
-    )
-    ember.grid.Grid([block]).update_filter(cfl, delta)
-    np.testing.assert_allclose(block.conserved_filt_nd, expected, rtol=1e-5)
-
-
-def test_update_filter_scalar_matches_reference():
+def test_update_filter_matches_reference():
+    """One step of the EMA, on the dt_vol the same call has just computed."""
     block = _build_block()
     delta = 2.0
     cfl = 0.4
 
     before = block.conserved_filt_nd.copy()
+    ember.grid.Grid([block]).update_timestep(
+        rf=1.0, gain_filt=GAIN, cfl=cfl, delta_filt=delta
+    )
     expected = _expected_ema(
         before, cell_conserved(block), cfl, block.dt_vol_nd, block.vol_nd, delta
     )
-    ember.grid.Grid([block]).update_filter(cfl, delta)
     np.testing.assert_allclose(block.conserved_filt_nd, expected, rtol=1e-5)
-
-
-def test_scalar_equals_array_filled_with_scalar():
-    cfl_scalar = 0.4
-    delta = 1.0
-
-    b_scalar = _build_block()
-    ember.grid.Grid([b_scalar]).update_filter(cfl_scalar, delta)
-
-    b_array = _build_block()
-    cfl_arr = np.full(b_array.shape_cell + (5,), cfl_scalar, dtype=np.float32)
-    ember.grid.Grid([b_array]).update_filter(cfl_arr, delta)
-
-    np.testing.assert_allclose(
-        b_scalar.conserved_filt_nd, b_array.conserved_filt_nd, rtol=1e-6
-    )
 
 
 def test_update_filter_relocks_buffer():
     """conserved_filt_nd is read-only to consumers after the update."""
     block = _build_block()
-    ember.grid.Grid([block]).update_filter(0.4, 1.0)
+    ember.grid.Grid([block]).update_timestep(
+        rf=1.0, gain_filt=GAIN, cfl=0.4, delta_filt=1.0
+    )
     assert not block.conserved_filt_nd.flags.writeable
 
 
 def test_update_filter_spans_all_blocks():
     """Every block in the grid is advanced, not just the first."""
     blocks = [_build_block(), _build_block()]
-    expected = [
-        _expected_ema(
-            b.conserved_filt_nd.copy(),
-            cell_conserved(b),
-            0.4,
-            b.dt_vol_nd,
-            b.vol_nd,
-            1.0,
+    before = [b.conserved_filt_nd.copy() for b in blocks]
+    ember.grid.Grid(blocks).update_timestep(
+        rf=1.0, gain_filt=GAIN, cfl=0.4, delta_filt=1.0
+    )
+    for block, filt in zip(blocks, before):
+        want = _expected_ema(
+            filt, cell_conserved(block), 0.4, block.dt_vol_nd, block.vol_nd, 1.0
         )
-        for b in blocks
-    ]
-    ember.grid.Grid(blocks).update_filter(0.4, 1.0)
-    for block, want in zip(blocks, expected):
         np.testing.assert_allclose(block.conserved_filt_nd, want, rtol=1e-5)
+
+
+def test_gates_do_not_change_the_timestep():
+    """dt_vol is bitwise the same whichever of the source halves run."""
+    dt_vols = []
+    for add_sources, gain in [(False, 0.0), (True, 0.0), (False, GAIN), (True, GAIN)]:
+        block = _build_block()
+        grid = ember.grid.Grid([block])
+        grid.update_sources(inviscid=True)
+        grid.update_timestep(
+            rf=0.2, add_sources=add_sources, gain_filt=gain, cfl=0.4, delta_filt=1.0
+        )
+        dt_vols.append(np.array(block.dt_vol_nd))
+    for dt_vol in dt_vols[1:]:
+        np.testing.assert_array_equal(dt_vol, dt_vols[0])
+
+
+def test_filter_alone_leaves_the_body_force():
+    """Off a source-refresh step the filter advances and F_body is held."""
+    block = _build_block()
+    grid = ember.grid.Grid([block])
+    grid.update_sources(inviscid=True)
+    grid.update_timestep(rf=1.0, add_sources=True, gain_filt=GAIN)
+    held = np.array(block.F_body_nd)
+    filt = np.array(block.conserved_filt_nd)
+
+    grid.update_timestep(rf=1.0, gain_filt=GAIN, cfl=0.4, delta_filt=1.0)
+    np.testing.assert_array_equal(block.F_body_nd, held)
+    assert not np.array_equal(block.conserved_filt_nd, filt)

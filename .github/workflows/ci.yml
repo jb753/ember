@@ -77,7 +77,8 @@ jobs:
   # The published docs are built and deployed by docs.yml, which triggers only
   # on push to master and on tags. That makes master the first place a broken
   # cross-reference shows up, and it has already shipped one. This job runs the
-  # same sphinx-build -W on pull requests so the failure lands on the PR.
+  # same sphinx-build -W on pull requests so the failure lands on the PR, and
+  # build-wheels waits on it so a failure stops the run there.
   #
   # It is here rather than in docs.yml because artifacts do not cross workflow
   # runs without a workflow_run trigger or an explicit run-id, and being in the
@@ -115,8 +116,12 @@ jobs:
         # can go green on something master then rejects.
         run: uv run --no-sync sphinx-build -W -b html docs docs/_build/html
 
+  # Gated on docs as well as test: a red docs build already fails the run, so
+  # the three-OS wheel builds and the install matrix behind them would only
+  # spend runner time on a result that cannot go green. Through publish.yml
+  # this also stops a release tag publishing with docs that do not build.
   build-wheels:
-    needs: test
+    needs: [test, docs]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

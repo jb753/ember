@@ -211,7 +211,7 @@ def main():
 
     so = args.so
     if so is None:
-        import ember.fortran as F
+        import ember.fortran as F  # noqa: PLC0415 - only without --so
 
         so = F.__file__
     fp = fingerprint(so, args.symbol)

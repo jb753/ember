@@ -215,6 +215,7 @@ Miscellaneous:
 
 .. autosummary::
 
+   Block.set_fac_lam
    Block.set_mu_turb
 
 .. _block-properties:
@@ -303,6 +304,7 @@ conserved variables themselves.
 
    Block.ao
    Block.conserved
+   Block.fac_lam
    Block.ho
    Block.ho_rel
    Block.I
@@ -921,57 +923,25 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
                        rolling tau/q cell-plane pair, planes and rows + the
                        nodal transport trio (mu, kappa, cp) both kernels read
       update_primitive the nodal kinetic energy the kinematic kernel writes
-                       and `ho` absorbs two lines later, live for that window
-                       only. Every caller fills the primitive cache before
-                       carving anything of its own, so this never coexists
-                       with another phase's buffers
-      update_timestep  the nodal acoustic speed set_timestep_spectral reads
-      filter / SFD     one cell-shaped conserved volume, materialised for
-                       apply_sfd_force and update_filter (both off by default;
-                       every other cell-conserved reader averages the nodal
-                       state as it walks). A sub-phase of update_sources for
-                       the first and a whole method for the second, never live
-                       alongside either's other buffers
+                       and `ho` absorbs two lines later
+      update_timestep  the nodal acoustic speed set_timestep_sources reads
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
       scree / RK, MG   the seven multigrid coarse buffers + the caller's
                        rolling two-plane increment (the prolongation is
-                       injection, collapsed in place inside ``corr_all``, and
-                       is fused with the fine term's cell->node scatter)
+                       injection, collapsed in place inside ``corr_all``)
       scree / RK, no MG  the caller's full-volume cell-shaped increment, which
                        the multigrid-off kernels still materialise
       smooth           the constant-coefficient kernel's rolling k-plane
                        buffer, or, with adaptive smoothing on, the nodal
                        sensor factors (3 directions) plus the accumulated
-                       delta. Sized for the adaptive case unconditionally: it
-                       is the larger of the two and it never binds, sitting
-                       one nodal volume under ``update_residual``, so sizing
-                       for it costs nothing and spares the arena a dependence
-                       on a run-time flag
+                       delta -- sized for the adaptive case, the larger
 
-    WHICH PHASE BINDS depends on the shape, and that is new. The multigrid
-    phase used to bind at every shape tried, on twelve coarse buffers of which
-    the separable-prolong scratch alone was 2.5M elements at 273x65x57.
-    Replacing the trilinear cascade with injection dropped five of those
-    buffers and took the phase from 25.02 MB to 9.82 MB there, so it no longer
-    binds anywhere: ``update_residual`` binds at 273x65x57 (20.96 MB) and
-    ``update_sources`` on a cube (2.67 MB at 49x49x49). The arena itself fell
-    only 25.02 -> 20.96 MB and 2.89 -> 2.67 MB, because the next phase down
-    takes over.
-
-    That matters for a decision recorded here, which the change has quietly
-    undermined: the transport trio -- three nodal fields that used to be cached
-    arrays outliving the phase that reads them -- was borrowed into this arena
-    on the argument that it cost nothing, being space the multigrid phase was
-    already sizing. It is no longer free on a cube, where ``update_sources`` is
-    now the binding phase and the trio is what puts it there. The trade is
-    still favourable (2.67 against the 2.89 the old multigrid phase demanded)
-    but it is a trade again, and shrinking the viscous phase is now the way to
-    shrink the arena.
-
-    Sizes are computed, never written as literals, so a buffer added to a phase
-    shows up here rather than silently overrunning its neighbour -- which is
-    what tests/test_scratch_arena exists to enforce.
+    Which phase binds depends on the shape: ``update_residual`` on an
+    elongated block, ``update_sources`` on a cube, where the borrowed nodal
+    transport trio is what puts it there. Sizes are computed, never written as
+    literals, so a buffer added to a phase shows up here rather than silently
+    overrunning its neighbour -- which tests/test_scratch_arena enforces.
     """
     from ember.solver import mg_coarse_shapes  # noqa: PLC0415 - circular import
 
@@ -988,7 +958,6 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
         faces + tq + visc_pr + transport,  # update_sources
         ni * nj * nk,  # update_primitive
         ni * nj * nk,  # update_timestep
-        (ni - 1) * (nj - 1) * (nk - 1) * 5,  # filter / SFD
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,  # update_residual
         ni * nj * nk * 4,  # smooth
         mg + (ni - 1) * (nj - 1) * 5 * 2,  # scree/RK + multigrid
@@ -1078,6 +1047,11 @@ class Block(ember._struct.StructuredData):
         # version-marked) so it reads as a benign zero for the always-on
         # diffusion timestep, while still counting as "unset" for the TS3 writer.
         self._set_data_by_keys(("mu_turb",), 0.0, store_init=False)
+
+        # Prescribed laminar fraction: 0, fully turbulent, until a case sets
+        # it. Stored but not version-marked, like mu_turb, so the viscous
+        # kernels read a zero from any block that never called set_fac_lam.
+        self._set_data_by_keys(("fac_lam",), 0.0, store_init=False)
 
         # Initialize patch collection (only if not already present from deserialization)
         if "patches" not in self._metadata:
@@ -1547,6 +1521,23 @@ class Block(ember._struct.StructuredData):
         conserved[..., 4] /= self._rhoVsq_ref
         self._set_data_by_keys(keys, conserved)
 
+    def set_fac_lam(self, fac_lam):
+        """Store the prescribed laminar fraction.
+
+        See :py:attr:`Block.fac_lam` for more details.
+
+        Parameters
+        ----------
+        fac_lam : array-like
+            Laminar fraction [-], 1 fully laminar and 0 fully turbulent. Must
+            lie in [0, 1] and broadcast to block shape.
+
+        """
+        fac_lam = np.asarray(fac_lam)
+        if np.any(~np.isfinite(fac_lam)) or np.any(fac_lam < 0) or np.any(fac_lam > 1):
+            raise ValueError("fac_lam must be finite and in [0, 1].")
+        self._set_data_by_keys(("fac_lam",), fac_lam)
+
     def set_fluid(self, fluid_new):
         """Set equation of state preserving any existing flow field.
 
@@ -1571,19 +1562,13 @@ class Block(ember._struct.StructuredData):
 
         """
         # Re-expressing the stored field is only meaningful when there is a
-        # field to re-express. A block whose storage was allocated but never
+        # field to re-express: a block whose storage was allocated but never
         # written -- a boundary patch's average block, say -- holds arbitrary
-        # values, and pushing those through an equation of state produces
-        # nonsense such as negative pressure. The result was discarded anyway
-        # (the writes below pass store_init=False, so the data stays marked
-        # uninitialised), but an equation of state that has to invert
-        # numerically cannot be asked to do it and rightly refuses.
-        #
-        # Radius is deliberately absent from this list. It is read tolerantly
-        # below and takes no part in the thermodynamic state, so a block
-        # holding a flow field but no coordinates yet still has to be
-        # re-expressed -- leaving it alone would strand the field on the
-        # reference scales of a fluid that no longer applies.
+        # values, which an equation of state that inverts numerically rightly
+        # refuses. Radius is deliberately absent from this list; it is read
+        # tolerantly below and takes no part in the thermodynamic state, so a
+        # block with a flow field but no coordinates yet must still be
+        # re-expressed onto the new fluid's reference scales.
         has_old = "fluid" in self._metadata and all(
             self._versions[key] for key in ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
         )
@@ -1983,18 +1968,13 @@ class Block(ember._struct.StructuredData):
         i0 = self._data_inds["rho"]  # rho..rhoe are consecutive at i0..i0+4
 
         # Fused Fortran pass into Block.scratch (see its docstring's consumer
-        # list) instead of the chain of np.multiply(out=...) calls this used
-        # to be: on the small, patch-face-sized arrays this runs on, the
-        # per-call numpy dispatch overhead dominated over the actual
-        # arithmetic. scratch can't be written to directly by the kernel
-        # from here -- _data is a non-contiguous slice for a patch's
-        # block_view, which f2py refuses as intent(inout) -- so the kernel
-        # lands in scratch and this does one explicit copy into _data.
-        # util.bcast_if_needed preserves the "inputs may broadcast to block
-        # shape" contract the docstring promises (the kernel itself needs
-        # exact shapes), but skips broadcast_to's own overhead on the common
-        # path where the caller already passed exactly self.shape -- true of
-        # every current caller.
+        # list) rather than a chain of np.multiply(out=...): on the small,
+        # patch-face-sized arrays this runs on, per-call numpy dispatch
+        # dominates the arithmetic. The kernel cannot write _data directly --
+        # for a patch's block_view it is a non-contiguous slice, which f2py
+        # refuses as intent(inout) -- so it lands in scratch and this copies
+        # once. util.bcast_if_needed keeps the docstring's "inputs may
+        # broadcast" contract while skipping the cost when they already match.
         shape = self.shape
         # The arena is flat, so carve the nodal view this kernel writes.
         nodal = util.carve_view(self.scratch, shape + (5,))
@@ -2496,15 +2476,13 @@ class Block(ember._struct.StructuredData):
             return
 
         shape = self.shape
-        # One borrowed nodal buffer serves both passes in turn, because their
-        # two throwaways never coexist: the kinetic energy exists only to make
-        # `u` inside the kernel, and the static enthalpy only because
-        # get_P_h_T produces it beside the pressure and temperature that are
-        # wanted. Neither is kept -- `ho_nd` is derived now, set_residual
-        # forming it from the conserved state at its own corners -- so the
-        # second write lands on top of the first. The arena is free at every
-        # call site: each calls this before carving anything of its own (see
-        # Grid.update_sources, update_residual, update_timestep).
+        # One borrowed nodal buffer serves both passes in turn, their two
+        # throwaways never coexisting: the kinetic energy exists only to make
+        # `u` inside the kernel, the static enthalpy only because get_P_h_T
+        # produces it beside the pressure and temperature that are wanted.
+        # Neither is kept, so the second write lands on the first. The arena is
+        # free at every call site, each calling this before carving anything of
+        # its own (see Grid.update_sources, update_residual, update_timestep).
         scrap = util.carve_view(self.scratch, shape)
         u = self._primitive_buffer("_u_nd_uninit", shape)
         P = self._primitive_buffer("P_nd", shape)
@@ -2640,13 +2618,13 @@ class Block(ember._struct.StructuredData):
         """Low-pass-filtered cell-centred conserved state, shape (ni-1, nj-1, nk-1, 5).
 
         Stateful selective-frequency-damping scratch: seeded to the current
-        cell-averaged conserved state on first access, then evolved each step by
-        :meth:`ember.grid.Grid.update_filter` and read by the SFD body force in
-        :meth:`ember.grid.Grid.update_sources`. Only allocated when
+        cell-averaged conserved state on first access, then read by the SFD
+        body force and evolved each step, in that order, by
+        :meth:`ember.grid.Grid.update_timestep`. Only allocated when
         ``Solver.gain_filt`` is nonzero, since nothing else touches it. The
         no-key ``cached_array`` allocates it once and never invalidates it;
         read-only to consumers, and its one writer
-        (:meth:`~ember.grid.Grid.update_filter`) toggles ``flags.writeable``
+        (:meth:`~ember.grid.Grid.update_timestep`) toggles ``flags.writeable``
         around its writes.
         """
         out = util.allocate_or_reuse(out, self.shape_cell + (5,))
@@ -2884,6 +2862,31 @@ class Block(ember._struct.StructuredData):
         ``(rho, rho*Vx, rho*Vr, rho*r*Vt, rho*E)``.
         """
         return util.allocate_or_reuse(out, self.shape_cell + (5,))
+
+    @derived_array
+    def fac_lam(self):
+        r"""Prescribed laminar fraction :math:`f_\mathrm{lam}` [-], nodal array.
+
+        A turbulence prescription, 1 fully laminar and 0 fully turbulent, and
+        zero unless :meth:`set_fac_lam` has been called. The viscous kernels
+        weight both halves of the turbulence model by it, linearly:
+
+        .. math::
+            \mu_\mathrm{turb} = (1 - f_\mathrm{lam})\,\mu_\mathrm{mix},
+            \qquad
+            c_f = f_\mathrm{lam}\,\frac{2}{Re} + (1 - f_\mathrm{lam})\,c_{f,\mathrm{law}},
+
+        with the mixing-length viscosity taken at the cell (eight-corner mean)
+        and the skin friction at the wall face (four-corner mean). Weighting
+        the wall shear as well as the eddy viscosity is what makes a region
+        prescribed laminar actually laminar: suppressing the mixing length
+        alone leaves a log-law wall shear under a laminar layer.
+
+        Dimensionless, so it has no ``_nd`` counterpart and, unlike
+        :attr:`wdist`, does not rescale with :attr:`L_ref`. A block unpickled
+        from before the field existed reads zeros.
+        """
+        return self._get_data_by_keys(("fac_lam",), raise_uninit=False)
 
     @property
     def flat(self):
@@ -3451,25 +3454,21 @@ class Block(ember._struct.StructuredData):
     def scratch(self, out):
         """Shared scratch arena, flat, sized to the most demanding phase of a step.
 
-        Pure transient scratch. This is shared, throwaway kernel
-        workspace, NOT a cached value. Its contents are meaningless between
-        kernel calls: every consumer overwrites it on entry and nothing may rely
-        on what it holds after a kernel returns. Do not read it expecting a
-        consistent value; do not stash a reference and assume it survives.
-
-        Owned writeable workspace for Fortran kernels that need transient
-        per-node scratch, allocated once and never invalidated. Left writeable
-        so callers can pass it straight to an ``intent(inout)`` kernel without
-        toggling ``flags.writeable``.
+        PURE TRANSIENT SCRATCH, NOT a cached value: shared, throwaway kernel
+        workspace, allocated once and never invalidated. Its contents are
+        meaningless between kernel calls -- every consumer overwrites it on
+        entry and nothing may rely on what it holds after a kernel returns.
+        Left writeable so callers can pass it straight to an ``intent(inout)``
+        kernel without toggling ``flags.writeable``.
 
         THE ONE ARENA. Every throwaway buffer in the step comes from here,
         including the six boundary tau/q face buffers (:attr:`tau_q_faces`),
         ``set_visc_force``'s rolling tau/q cell-plane pair, the nodal transport
-        trio the viscous kernels read, the nodal acoustic
-        speed ``set_timestep_spectral`` reads, ``set_residual``'s
-        and ``set_visc_force``'s rolling planes and rows, the IRS work vector,
-        and the multigrid coarse scratch. The arena is sized from whichever
-        phase needs most, so every phase fits without it being resized.
+        trio the viscous kernels read, the nodal acoustic speed
+        ``set_timestep_sources`` reads, ``set_residual``'s and
+        ``set_visc_force``'s rolling planes and rows, the IRS work vector, and
+        the multigrid coarse scratch. It is sized from whichever phase needs
+        most, so every phase fits without it being resized.
 
         THE RULE, and it is the whole safety argument. Buffers that reach the
         same kernel call must come from ONE ``util.carve_view``, which packs
@@ -3480,11 +3479,9 @@ class Block(ember._struct.StructuredData):
         second view during a phase that is already using the arena.
 
         This buffer is flat: consumers reshape it through ``carve_view``, so
-        needing a particular rank is not a reason to allocate separately.
-
-        If you need storage that must survive *alongside* this one within a
-        single kernel call or between calls, see :attr:`store` the persistent
-        buffer.
+        needing a particular rank is not a reason to allocate separately. For
+        storage that must survive *alongside* this one within a kernel call or
+        between calls, see the persistent buffer :attr:`store`.
         """
         # First touch only: scratch_array calls this once per block, and the
         # arena is one of the two big solver allocations.
@@ -3575,45 +3572,35 @@ class Block(ember._struct.StructuredData):
     def tau_q_faces(self):
         """Boundary tau/q as six surface buffers: ``(i1, ini, j1, jnj, k1, knk)``.
 
-        WARNING -- PURE TRANSIENT SCRATCH, and a VIEW into :attr:`scratch`,
-        not its own allocation. Valid only within a single viscous pass and
-        only in the slots that pass refreshes: ``set_tau_q_faces`` writes them,
+        WARNING -- PURE TRANSIENT SCRATCH, and a VIEW into :attr:`scratch`, not
+        its own allocation. Valid only within a single viscous pass and only in
+        the slots it refreshes: ``set_tau_q_faces`` writes them,
         ``exchange_faces`` overwrites the halo layer wherever a patch connects,
-        and ``set_visc_force`` reads them back -- all sequentially, within one
-        :meth:`ember.grid.Grid.update_sources`. Nothing may rely on what they
-        hold after that.
+        and ``set_visc_force`` reads them back, all within one
+        :meth:`ember.grid.Grid.update_sources`.
 
-        This is the ONLY tau/q that reaches memory. ``set_visc_force`` produces
+        This is the ONLY tau/q that reaches memory: ``set_visc_force`` makes
         interior tau/q inside its own k walk, into a rolling cell-plane pair,
-        and reads nothing but the boundary shell from outside it -- so the
-        values a viscous pass has to keep are O(surface), which is what these
-        buffers hold. They are also all the grid-wide periodic seam exchange
-        between the two kernels has to carry, and they are what lets that
-        kernel's halo source not depend on the block's topology.
+        so what a viscous pass must keep is O(surface). They are also all the
+        periodic seam exchange carries, freeing the kernel's halo source from
+        the block's topology.
 
         Each face carries TWO layers on its trailing axis:
 
-        * layer 0, the block's own edge-cell tau/q, written by the boundary
-          producer;
+        * layer 0, the block's own edge-cell tau/q, from the boundary producer;
         * layer 1, the halo value the face-flux kernel reads. The producer
           seeds it to ``(2*wall - 1) * layer0`` -- ``+edge`` for a permeable or
           slip face, so the boundary face takes the single-sided stress,
           ``-edge`` for a viscous wall, so the face average is zero -- and the
           periodic exchange then overwrites it wherever a patch connects.
-          Applying the sign once here is what lets the consumer read the halo
-          with no wall mask at all.
+          The sign applied once here spares the consumer any wall mask.
 
-        Keeping the two layers apart is what makes that exchange a
-        one-directional copy: it reads layer 0 and writes layer 1, which never
-        coincide, so it needs no temporary and tolerates a face pairing to
-        itself.
-
-        The component axis sits second so that, at a fixed index on the
-        trailing spatial axis, the ``(edge, component)`` block is contiguous --
-        the order the face-flux kernel walks it in. The cusp seam correction
-        reads layer 0 as well: ``k1`` and ``knk`` between them hold cell planes
-        1 and nk-1 and both their halos for the whole call, which is exactly
-        what that correction needs and what a rolling pair could never give.
+        Keeping the layers apart makes that exchange a one-directional copy,
+        layer 0 to layer 1, needing no temporary and tolerating a face paired to
+        itself. The component axis sits second so the ``(edge, component)``
+        block is contiguous, the order the face-flux kernel walks. The cusp seam
+        correction reads layer 0 too: ``k1`` and ``knk`` hold both k cell planes
+        and their halos for the whole call.
 
         Returns
         -------
@@ -3926,6 +3913,9 @@ class Block(ember._struct.StructuredData):
         "rhoe",
         "wdist",
         "mu_turb",
+        # Last, so that adding it was a pure append: StructuredData.__setstate__
+        # migrates a file written without it by appending a zero column.
+        "fac_lam",
     )
     _defaults = {
         "Nb": 1,

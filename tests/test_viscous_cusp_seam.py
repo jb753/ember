@@ -51,7 +51,7 @@ correction disabled (``i_cusp_start = 0``) and once with it spanning the
 block, and compare the difference against ``fcorr`` recomputed independently
 in numpy from the same tau/q field. Because the two runs differ *only* by
 that branch, the difference isolates the correction exactly, and every other
-term -- including the fused polar source -- cancels.
+term cancels.
 """
 
 import numpy as np
@@ -218,9 +218,7 @@ def _kface_flow(block, tau_cell, q_cell, kf):
         Vf[0] * tauf[4] + Vf[1] * tauf[5] + Vabs * tauf[2],
     )
     flow[..., 3] = (
-        (wvisc[0] - qf[0]) * dA1
-        + (wvisc[1] - qf[1]) * dA2
-        + (wvisc[2] - qf[2]) * dA3
+        (wvisc[0] - qf[0]) * dA1 + (wvisc[1] - qf[1]) * dA2 + (wvisc[2] - qf[2]) * dA3
     )
     return flow
 
@@ -277,15 +275,15 @@ def test_cusp_seam_correction_sign():
 
     # Only the two seam cell planes may move at all.
     interior = delta[:, :, 1 : nk - 2, :]
-    assert np.abs(interior).max() == 0.0, (
-        "the cusp correction touched non-seam cells"
-    )
+    assert np.abs(interior).max() == 0.0, "the cusp correction touched non-seam cells"
 
     tol = 1e-5 * scale
     for kc, label in ((0, "low"), (nk - 2, "high")):
         got = delta[:, :, kc, :]
-        ratio = np.median(got[np.abs(expected_seam) > tol]
-                          / expected_seam[np.abs(expected_seam) > tol])
+        ratio = np.median(
+            got[np.abs(expected_seam) > tol]
+            / expected_seam[np.abs(expected_seam) > tol]
+        )
         np.testing.assert_allclose(
             got,
             expected_seam,

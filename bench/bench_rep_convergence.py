@@ -49,7 +49,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 def collect(ncell, arm, reps, warmup, flush):
     """Time `reps` calls of one arm, keeping every sample."""
-    from residual_arms import DAMPIN, build_case, callers, flush_llc
+    from residual_arms import (  # noqa: PLC0415 - needs bench/ on sys.path
+        DAMPIN,
+        build_case,
+        callers,
+        flush_llc,
+    )
 
     grid, b = build_case(ncell)
     du = b.residual_nd
@@ -88,27 +93,41 @@ def analyze(path):
     d = np.load(path)
     s = d["samples"]
     full = float(np.median(s))
-    print(f"grid {tuple(d['shape'])}  ncell={int(d['ncell'])}  arm={str(d['arm'])}  "
-          f"flush={bool(d['flush'])}  reps={len(s)}")
-    print(f"\nper-rep distribution (ns/cell):")
-    print(f"  median {full:8.3f}   mean {s.mean():8.3f}   std {s.std():7.3f} "
-          f"({s.std() / full * 100:5.2f}% of median)")
+    print(
+        f"grid {tuple(d['shape'])}  ncell={int(d['ncell'])}  arm={str(d['arm'])}  "
+        f"flush={bool(d['flush'])}  reps={len(s)}"
+    )
+    print("\nper-rep distribution (ns/cell):")
+    print(
+        f"  median {full:8.3f}   mean {s.mean():8.3f}   std {s.std():7.3f} "
+        f"({s.std() / full * 100:5.2f}% of median)"
+    )
     for q in (0, 1, 5, 50, 95, 99, 100):
-        print(f"  p{q:<3d}  {np.percentile(s, q):8.3f}  "
-              f"({(np.percentile(s, q) / full - 1) * 100:+6.2f}%)")
+        print(
+            f"  p{q:<3d}  {np.percentile(s, q):8.3f}  "
+            f"({(np.percentile(s, q) / full - 1) * 100:+6.2f}%)"
+        )
 
     # Drift: is the trace stationary? Quartile means + a straight-line fit.
     q = np.array_split(s, 4)
     print("\ndrift across the run (quartile medians, % vs full median):")
-    print("  " + "  ".join(f"Q{i + 1} {(np.median(x) / full - 1) * 100:+.2f}%"
-                           for i, x in enumerate(q)))
+    print(
+        "  "
+        + "  ".join(
+            f"Q{i + 1} {(np.median(x) / full - 1) * 100:+.2f}%" for i, x in enumerate(q)
+        )
+    )
     slope = np.polyfit(np.arange(len(s)), s, 1)[0]
     print(f"  linear slope {slope * len(s) / full * 100:+.2f}% over the whole trace")
 
-    print("\ncontiguous-window bootstrap: central 95% interval of the estimator,"
-          "\nas % of the full-trace median (want the half-width <= 1%)\n")
-    print(f"{'n reps':>7} | {'median: 2.5%':>12} {'97.5%':>8} {'half-width':>11} "
-          f"| {'min: 2.5%':>10} {'97.5%':>8} {'half-width':>11}")
+    print(
+        "\ncontiguous-window bootstrap: central 95% interval of the estimator,"
+        "\nas % of the full-trace median (want the half-width <= 1%)\n"
+    )
+    print(
+        f"{'n reps':>7} | {'median: 2.5%':>12} {'97.5%':>8} {'half-width':>11} "
+        f"| {'min: 2.5%':>10} {'97.5%':>8} {'half-width':>11}"
+    )
     print("-" * 78)
     answer = {}
     for n in (1, 2, 3, 5, 10, 20, 30, 50, 100, 200, 500, 1000):
@@ -121,8 +140,10 @@ def analyze(path):
             lo, hi = np.percentile(v, [2.5, 97.5])
             lo_p, hi_p = (lo / full - 1) * 100, (hi / full - 1) * 100
             half = (hi_p - lo_p) / 2
-            row.append(f"{lo_p:>+11.2f}% {hi_p:>+7.2f}% {half:>10.2f}%" +
-                       (" |" if name == "median" else ""))
+            row.append(
+                f"{lo_p:>+11.2f}% {hi_p:>+7.2f}% {half:>10.2f}%"
+                + (" |" if name == "median" else "")
+            )
             if name not in answer and half <= 1.0:
                 answer[name] = n
         print(" ".join(row))
@@ -130,14 +151,17 @@ def analyze(path):
     print()
     for name in ("median", "min"):
         if name in answer:
-            print(f"  {name:>6}: {answer[name]} reps suffice for +/-1% within one launch")
+            print(
+                f"  {name:>6}: {answer[name]} reps suffice for +/-1% within one launch"
+            )
         else:
             print(f"  {name:>6}: NOT within +/-1% even at the longest window tested")
 
     # Plot to PDF (never raster).
-    import matplotlib
+    import matplotlib  # noqa: PLC0415 - optional, only for --plot
+
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt  # noqa: PLC0415 - after the backend is set
 
     ns = [1, 2, 3, 5, 10, 20, 30, 50, 100, 200, 500, 1000]
     fig, ax = plt.subplots(1, 2, figsize=(11, 4))
@@ -188,10 +212,18 @@ def main():
 
     flush = not args.no_flush
     samples, shape, ncell = collect(args.ncell, args.arm, args.reps, args.warmup, flush)
-    np.savez(args.out, samples=samples, shape=np.array(shape), ncell=ncell,
-             arm=args.arm, flush=flush)
-    print(f"wrote {args.out}  ({len(samples)} reps, median "
-          f"{np.median(samples):.3f} ns/cell)")
+    np.savez(
+        args.out,
+        samples=samples,
+        shape=np.array(shape),
+        ncell=ncell,
+        arm=args.arm,
+        flush=flush,
+    )
+    print(
+        f"wrote {args.out}  ({len(samples)} reps, median "
+        f"{np.median(samples):.3f} ns/cell)"
+    )
     analyze(args.out)
     return 0
 

@@ -1697,14 +1697,12 @@ class RealFluid(Fluid):
 
     # Step below which the stall test is allowed to end the loop. That test
     # reads a step which failed to shrink as a step at the arithmetic's floor,
-    # which is only true once Newton is in its quadratic regime. On the
-    # approach from a cold seed it is not: the step is relative in density, so
-    # a solve walking from the box centre out to the low-density edge takes two
-    # large steps of much the same size, and a step cut short by the box clamp
-    # can be larger than the one before it. Either reads as a stall and stops a
-    # solve that was closing on the answer -- which is how a datum inside the
-    # box came back reported as outside it. A solve at the floor is orders
-    # below this, so the gate costs the early exit nothing.
+    # true only once Newton is in its quadratic regime. On the approach from a
+    # cold seed it is not -- the step is relative in density, so two successive
+    # large steps can be much the same size, and one cut short by the box clamp
+    # can even grow -- and either reads as a stall, stopping a solve that was
+    # still closing on the answer. A solve at the floor is orders below this,
+    # so the gate costs the early exit nothing.
     _NEWTON_SETTLED = 1e-2
 
     # What _state returns, and what _state_buffers makes room for beyond it:
@@ -1776,17 +1774,11 @@ class RealFluid(Fluid):
         # A datum nobody asked for is placed at the centre of the fit box. The
         # box is the only region where this fluid exists, so its middle is the
         # one state always available to default to, whereas any fixed pressure
-        # and temperature belongs to some other fluid's box. Ambient is the
-        # tempting choice and is the wrong one: it falls inside the box of an
-        # air-like fit and hundreds of bar outside that of a dense working
-        # fluid, which is the case a real gas is here for.
-        #
-        # Read off the fitted surface rather than the table behind it, which
-        # this no longer has, and which would in any case put the datum a
-        # residual away from the surface it is supposed to be the origin of.
-        # The first pass above is what makes that possible: it configures the
-        # surface on a zero datum, after which get_P and get_T are evaluable --
-        # as _build_companion below already relies on.
+        # and temperature belongs to some other fluid's box -- ambient falls
+        # inside an air-like fit and hundreds of bar outside that of a dense
+        # working fluid. Read off the fitted surface, not the table behind it,
+        # which this no longer has; the first pass above configures the surface
+        # on a zero datum precisely so get_P and get_T are evaluable here.
         if P_dtm is None or T_dtm is None:
             rho_mid = 0.5 * (self._rho_lim[0] + self._rho_lim[1])
             u_mid = 0.5 * (self._u_lim[0] + self._u_lim[1])

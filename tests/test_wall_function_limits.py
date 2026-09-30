@@ -46,7 +46,9 @@ import pytest
 import ember.block
 import ember.block_util
 import ember.fortran
+import ember.solver
 from ember import util
+from ember.cases import build_duct_grid
 from ember.fluid import PerfectFluid
 from ember.inviscid import InviscidPatch
 
@@ -71,7 +73,18 @@ def _mu_for(Re, rho=1.0, V=1.0, d=D_EXACT):
     return np.float32(rho * V * d / Re)
 
 
-def _core(mu, rho=1.0, Vx=1.0, Vr=0.0, Vt=0.0, r=1.0, Omega_block=0.0, Omega_wall=0.0):
+def _core(
+    mu,
+    rho=1.0,
+    Vx=1.0,
+    Vr=0.0,
+    Vt=0.0,
+    r=1.0,
+    Omega_block=0.0,
+    Omega_wall=0.0,
+    law=0,
+    fac_lam=0.0,
+):
     """wall_core with this file's fixed geometry; returns its six outputs."""
     return _HELPERS.wall_core(
         np.float32(r),
@@ -80,6 +93,8 @@ def _core(mu, rho=1.0, Vx=1.0, Vr=0.0, Vt=0.0, r=1.0, Omega_block=0.0, Omega_wal
         np.float32(Omega_block),
         np.float32(Omega_wall),
         np.float32(mu),
+        law,
+        np.float32(fac_lam),
         np.float32(rho),
         np.float32(Vx),
         np.float32(Vr),
@@ -176,6 +191,8 @@ def test_laminar_branch_yplus_is_sqrt_re(case):
         np.float32(kwargs.get("Omega_block", 0.0)),
         np.float32(kwargs.get("Omega_wall", 0.0)),
         np.float32(mu),
+        0,
+        np.float32(0.0),
         np.float32(1.0),
         np.float32(kwargs.get("Vx", 1.0)),
         np.float32(kwargs.get("Vr", 0.0)),
@@ -225,6 +242,40 @@ def test_cf_continuous_across_laminar_switch():
     )
 
 
+def test_fit_tracks_log_law():
+    r"""Above the switch the fit is a log law, to within a few percent.
+
+    With ``u_tau = V*sqrt(cf/2)``, the fit's ``cf`` at a given ``Re`` implies
+    ``u+ = sqrt(2/cf)`` at ``y+ = Re/u+``. Across the log layer that pair
+    should satisfy ``u+ = ln(y+)/0.41 + 5.0``. Measured, the fit sits 2-3%
+    above it in ``u+`` over this range, so 5% leaves headroom and still fails
+    on a coefficient edit that bends the curve away from the log law.
+    """
+    Re = np.geomspace(500.0, 2e4, 9)
+    cf = np.array([_core(_mu_for(R))[3] for R in Re], dtype=np.float64)
+    uplus = np.sqrt(2.0 / cf)
+    yplus = Re / uplus
+
+    assert yplus.min() > 30.0 and yplus.max() < 1500.0, "not in the log layer"
+    np.testing.assert_allclose(
+        uplus,
+        np.log(yplus) / 0.41 + 5.0,
+        rtol=0.05,
+        err_msg="the turbulent fit no longer follows the log law",
+    )
+
+
+def test_fit_cf_decreases_with_re():
+    """Friction coefficient falls monotonically with Re, through the switch.
+
+    A wall whose ``cf`` rose with Re over some interval would have a local
+    stress growing faster than ``V^2``, which no smooth-wall law does.
+    """
+    Re = np.geomspace(1.0, 1e9, 400)
+    cf = np.array([_core(_mu_for(R))[3] for R in Re], dtype=np.float64)
+    assert np.all(np.diff(cf) < 0.0)
+
+
 def test_wall_func_flux_carries_tau():
     r"""``wall_func``'s flux vector is ``tau`` times the face area, directed
     along the slip velocity, and its work term is the wall speed times the
@@ -252,6 +303,8 @@ def test_wall_func_flux_carries_tau():
         np.float32(kwargs["Omega_block"]),
         np.float32(kwargs["Omega_wall"]),
         np.float32(mu),
+        0,
+        np.float32(0.0),
         np.float32(1.0),
         np.float32(kwargs["Vx"]),
         np.float32(kwargs["Vr"]),
@@ -336,8 +389,10 @@ def _wall_yplus_with(block, mu):
         omega_block=block.Omega_nd,
         r=block.r_nd,
         mu=mu,
+        fac_lam=block.fac_lam,
         **block.ijk_wall_visc,
         **block.Omega_wall_nd,
+        wall_law=0,
     )
     return dict(zip(keys, result))
 
@@ -426,3 +481,99 @@ def test_block_yplus_matches_first_cell_reynolds():
         rtol=RTOL,
         err_msg="block y+ does not match sqrt(Re) built from vol/|dAk| on this face",
     )
+
+
+# --------------------------------------------------------------------------
+# Reichardt's law (law = 1). No switch and no closed form: wall_cf_reichardt
+# inverts the law by Newton, so these check the law itself and that the
+# fixed iteration count has converged.
+# --------------------------------------------------------------------------
+
+LAW_REICHARDT = 1
+
+
+def _uplus_reichardt(s):
+    """Reichardt's u+(y+), kappa = 0.41, in float64."""
+    return np.log1p(0.41 * s) / 0.41 + 7.8 * (
+        1.0 - np.exp(-s / 11.0) - s / 11.0 * np.exp(-s / 3.0)
+    )
+
+
+@pytest.mark.parametrize("Re", np.geomspace(1.0, 1e7, 15))
+def test_reichardt_satisfies_the_law(Re):
+    r"""The pair ``(y+, u+)`` that ``cf`` implies lies on Reichardt's law.
+
+    ``u+ = V/u_tau = sqrt(2/cf)`` and ``y+ = Re/u+``, so the law holds at the
+    returned ``cf`` only if the inversion has converged. The fit it starts
+    from misses the law by up to 25%.
+    """
+    _V, _dA, _Vts, cf, Re_got, _tau = _core(_mu_for(Re), law=LAW_REICHARDT)
+    uplus = np.sqrt(2.0 / np.float64(cf))
+    yplus = np.float64(Re_got) / uplus
+    np.testing.assert_allclose(uplus, _uplus_reichardt(yplus), rtol=RTOL)
+
+
+def test_reichardt_with_swirl_and_rotating_wall():
+    """The law holds on the slip velocity, not the block-frame one.
+
+    Same point identity as above, on the swirl case whose wall turns relative
+    to the block, and the stress is ``cf*0.5*rho*V^2`` on that slip speed.
+    """
+    kwargs = dict(_LAMINAR_CASES[-1].values[0])
+    kwargs["Re"] = 1e4
+    mu, kwargs = _case_kwargs(kwargs)
+    V, _dA, _Vts, cf, Re, tau = _core(mu, law=LAW_REICHARDT, **kwargs)
+    uplus = np.sqrt(2.0 / np.float64(cf))
+    np.testing.assert_allclose(uplus, _uplus_reichardt(Re / uplus), rtol=RTOL)
+    np.testing.assert_allclose(tau, cf * 0.5 * V**2, rtol=RTOL)
+
+
+def test_reichardt_sublayer_is_near_no_slip_stress():
+    r"""Deep in the sublayer Reichardt tends to ``u+ = y+``, so ``tau`` tends to
+    the discrete no-slip stress ``mu*V/d``.
+
+    Not the exact identity of the fit's laminar branch: at ``Re = 1``
+    (``y+ ~ 1``) the law's ``u+`` is 1% above ``y+``, so ``tau`` sits 1%
+    below ``mu*V/d``.
+    """
+    mu = _mu_for(1.0)
+    V, dA_mag, _Vts, _cf, _Re, tau = _core(mu, law=LAW_REICHARDT)
+    np.testing.assert_allclose(tau, mu * V / (VOL / dA_mag), rtol=0.02)
+
+
+def test_reichardt_collapsed_face_carries_no_force():
+    """A face with zero area gives a finite stress and exactly zero flux.
+
+    ``WALL_DA_MIN`` hands a collapsed face ``Re ~ 1e21``, past the fit's zero
+    at ``ln(Re) = 24``, which is where the Newton start is floored.
+    """
+    dA0 = np.zeros(3, dtype=np.float32)
+    args = (np.float32(1.0), dA0, VOL, np.float32(0.0), np.float32(0.0))
+    rest = (np.float32(1.0), np.float32(1.0), np.float32(0.0), np.float32(0.0))
+    mu = _mu_for(100.0)
+    _V, _dA, _Vts, cf, Re, tau = _HELPERS.wall_core(
+        *args, mu, LAW_REICHARDT, np.float32(0.0), *rest
+    )
+    assert Re > 1e20, "not the collapsed-face Re"
+    assert np.isfinite(cf) and cf > 0.0
+    assert np.isfinite(tau)
+    flow = _HELPERS.wall_func(*args, mu, LAW_REICHARDT, np.float32(0.0), *rest)
+    assert np.all(flow == 0.0)
+
+
+def test_reichardt_reaches_the_march():
+    """``Solver.wall_law`` changes the marched solution, and stays finite.
+
+    A short viscous march of a small duct under each law: the two must both
+    stay finite and must differ, or the option is not reaching the kernel.
+    """
+    cons = {}
+    for law in ("fit", "reichardt"):
+        grid = build_duct_grid(8000, nj=17, nk=17)
+        hist = ember.solver.Solver(
+            n_step=6, n_step_log=6, n_levels=0, fac_mgrid=0.0, wall_law=law
+        ).run(grid)
+        assert not hist.diverged
+        cons[law] = np.array(grid[0].conserved_nd)
+        assert np.all(np.isfinite(cons[law]))
+    assert not np.array_equal(cons["fit"], cons["reichardt"])

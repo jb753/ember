@@ -24,6 +24,7 @@ the two-block tests below gate the direction handling that a block periodic to
 itself cannot: with both ends the same block, filling only one side still
 leaves every value right.
 """
+
 import numpy as np
 
 import ember.block
@@ -75,7 +76,7 @@ def _build_periodic_block(i_lims=None):
     block.set_Vr(np.zeros_like(Vx, dtype=np.float32))
     block.set_Vt(np.zeros_like(Vx, dtype=np.float32))
 
-    for i_lim in (i_lims or [(0, -1)]):
+    for i_lim in i_lims or [(0, -1)]:
         block.patches.append(PeriodicPatch(k=0, i=i_lim))
         block.patches.append(PeriodicPatch(k=-1, i=i_lim))
     return block
@@ -174,26 +175,32 @@ def test_exchange_faces_fills_both_blocks():
         viscous_util.fill_faces(block, PR_TURB)
 
     # k1 is index 4 in the tau_q_faces tuple, knk index 5.
-    before = [np.array(b.tau_q_faces[i][:, :, :, 1], copy=True)
-              for b in (up, dn) for i in (4, 5)]
+    before = [
+        np.array(b.tau_q_faces[i][:, :, :, 1], copy=True)
+        for b in (up, dn)
+        for i in (4, 5)
+    ]
     comm.exchange_faces()
     after = [b.tau_q_faces[i][:, :, :, 1] for b in (up, dn) for i in (4, 5)]
 
     labels = ["up.k1", "up.knk", "dn.k1", "dn.knk"]
-    unfilled = [n for n, b, a in zip(labels, before, after)
-                if np.array_equal(b, a)]
+    unfilled = [n for n, b, a in zip(labels, before, after) if np.array_equal(b, a)]
     assert not unfilled, f"exchange_faces left {unfilled} untouched"
 
     # Each halo layer must be exactly its partner's owned layer -- a copy, so
     # bitwise, unlike anything that goes through the producer twice.
     np.testing.assert_array_equal(
-        up.tau_q_faces[4][:, :, :, 1], dn.tau_q_faces[5][:, :, :, 0])
+        up.tau_q_faces[4][:, :, :, 1], dn.tau_q_faces[5][:, :, :, 0]
+    )
     np.testing.assert_array_equal(
-        up.tau_q_faces[5][:, :, :, 1], dn.tau_q_faces[4][:, :, :, 0])
+        up.tau_q_faces[5][:, :, :, 1], dn.tau_q_faces[4][:, :, :, 0]
+    )
     np.testing.assert_array_equal(
-        dn.tau_q_faces[4][:, :, :, 1], up.tau_q_faces[5][:, :, :, 0])
+        dn.tau_q_faces[4][:, :, :, 1], up.tau_q_faces[5][:, :, :, 0]
+    )
     np.testing.assert_array_equal(
-        dn.tau_q_faces[5][:, :, :, 1], up.tau_q_faces[4][:, :, :, 0])
+        dn.tau_q_faces[5][:, :, :, 1], up.tau_q_faces[4][:, :, :, 0]
+    )
 
 
 def test_exchange_faces_respects_subset_patches():

@@ -438,31 +438,13 @@ class MixingCommunicator:
         J = self._jac_buf[:nspan]
 
         # Split into upstream/downstream contributions in chic space. Which
-        # acoustic is incoming to the pressure-reading side depends on the
-        # direction of the mean throughflow, exactly as each patch's own
-        # incoming-characteristic table does (see ember.nonreflecting): row 0
-        # (Vx - a) feeds the P target where the mean runs forward, row 1
-        # (Vx + a) where it has reversed. The three convective characteristics
-        # (rows 2-4) always feed the four inflow quantities. Splitting by fixed
-        # row index instead -- as if every station ran forward -- feeds a
-        # reversed station's inflow rows from the wrong acoustic, so the
-        # exchange and the boundary condition disagree on which characteristic
-        # is incoming and a standing pitch-mean flux mismatch is left across the
-        # plane.
-        #
-        # The direction is read from patch1's shared entering flag
-        # (_calc_shared_entering, computed above in _prepare_pair), not
-        # independently from the raw sign of b_avg.Max: that flag is exactly
-        # what each patch's own _calc_entering now returns (Change 2), so this
-        # is the same hysteresis-damped decision the patches split their own
-        # incoming/outgoing characteristics on. Reading the raw instantaneous
-        # sign here instead, with no hysteresis, could disagree with the
-        # patches' own lagged decision for an exchange or two near a
-        # crossing -- fine for the old proportional relaxation, which
-        # re-derives its correction from scratch every step and forgets a bad
-        # one immediately, but not for the integrating form below, which
-        # accumulates whatever it is given and has no way to tell a
-        # wrong-direction contribution from a right one afterwards.
+        # acoustic is incoming to the pressure-reading side depends on the mean
+        # throughflow direction -- row 0 (Vx - a) forward, row 1 (Vx + a)
+        # reversed -- as each patch's own incoming-characteristic table does
+        # (see ember.nonreflecting); the convective rows always feed the inflow
+        # quantities. That direction comes from patch1's shared,
+        # hysteresis-damped entering flag, not the raw sign of b_avg.Max, so
+        # exchange and boundary condition agree on which is incoming.
         idx = np.arange(nspan)
         p_row = np.where((patch1._sign_interior > 0) == patch1._entering_shared, 0, 1)
         v2[:] = v1  # copy dchic into v2
@@ -497,15 +479,14 @@ class MixingCommunicator:
             v1 *= patch1._endwall_weight()[:, np.newaxis].astype(v1.dtype)
         state["du"][:] = v1
 
-        # Integrate the target-space mismatch onto the previous target, not the
-        # live interface baseline -- Holmes Eq. 15, applied to the auxiliary
-        # cells rather than re-derived each step. At the fixed point
-        # target_n = target_{n-1} forces rf_exchange*e_n = 0, i.e. exact flux
-        # balance; re-anchoring to the baseline every step (the proportional
-        # form this replaces) instead leaves a standing offset of size e_n
-        # itself. The previous target is symmetrised across the two sides,
-        # since before the first exchange each side has only seeded itself
-        # from its own interior.
+        # Integrate the target-space mismatch onto the previous target, not
+        # the live interface baseline -- Holmes Eq. 15, applied to the
+        # auxiliary cells. At the fixed point target_n = target_{n-1} forces
+        # rf_exchange*e_n = 0, i.e. exact flux balance; re-anchoring to the
+        # baseline every step instead leaves a standing offset of size e_n.
+        # The previous target is symmetrised across the two sides, since
+        # before the first exchange each side has only seeded itself from its
+        # own interior.
         target1 = patch1.get_target()
         target2 = patch2.get_target()
         if flip:
@@ -576,17 +557,14 @@ class MixingCommunicator:
             Vx_sq = 2.0 * (ho - h) - Vr**2 - Vt**2
             Max_sq = Vx_sq / a**2
 
-        # A negative Vx_sq (no real axial velocity solves the energy balance),
-        # of any magnitude, is not rejected on its own: right at a stalled or
-        # lightly reversed station this is an ordinary excursion of a
-        # converging integration -- the same territory the patches' own
-        # Ma_clip exists to ride through -- and rejecting it as harshly as a
-        # genuine runaway snaps a recovering trajectory back to the baseline
-        # hard enough to leave it oscillating rather than settling, which was
-        # tried and made things worse. Only the upper Mach bound, which a
-        # negative Max_sq automatically satisfies, gates this check; a
-        # negative Vx_sq large enough to matter shows up as non-physical
-        # elsewhere first (rho or P failing the checks above).
+        # A negative Vx_sq (no real axial velocity solves the energy balance)
+        # is not rejected on its own: at a stalled or lightly reversed station
+        # it is an ordinary excursion of a converging integration, the same
+        # territory the patches' own Ma_clip rides through, and rejecting it
+        # snaps a recovering trajectory back to the baseline hard enough to
+        # leave it oscillating. Only the upper Mach bound, which a negative
+        # Max_sq satisfies automatically, gates this check; a negative Vx_sq
+        # large enough to matter fails the rho or P checks above first.
         bad = (
             ~np.isfinite(rho)
             | (rho <= 0.0)

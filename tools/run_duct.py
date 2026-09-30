@@ -92,10 +92,10 @@ def run(args):
         print(f"Wrote {args.write_hist}")
 
     if args.plot:
-        import matplotlib
+        import matplotlib  # noqa: PLC0415 - optional, only for --plot
 
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt  # noqa: PLC0415 - after the backend is set
 
         fig, (ax_res, ax_err, ax_s) = plt.subplots(
             3, 1, figsize=(7.5, 9.5), sharex=True
@@ -108,7 +108,9 @@ def run(args):
 
         ax_err.axhline(0.0, color="0.6", lw=0.8)
         ax_err.plot(i_step, hist.err_mdot, marker=".", ms=3, lw=1.0)
-        ax_err.set_ylabel(r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$")
+        ax_err.set_ylabel(
+            r"$(\dot m_\mathrm{out} - \dot m_\mathrm{in}) / \bar{\dot m}$"
+        )
         ax_err.set_title("Mass flow error")
         ax_err.grid(True, alpha=0.3)
 
@@ -181,7 +183,10 @@ def main():
     )
     p.add_argument("--s-frac", type=float, default=0.01, help="Entropy IC offset")
     p.add_argument(
-        "--vx-ramp", type=float, default=0.01, help="Streamwise Vx ramp (outlet vs inlet)"
+        "--vx-ramp",
+        type=float,
+        default=0.01,
+        help="Streamwise Vx ramp (outlet vs inlet)",
     )
     p.add_argument("--plot", metavar="PATH", help="Write 3-panel figure to this path")
     p.add_argument(

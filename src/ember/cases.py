@@ -159,16 +159,11 @@ def build_duct_grid(
     block.patches["outlet"].set_backflow_ho_s(ho, so)
     block.patches["outlet"].set_backflow_Vt(0.0)
 
-    # Optional pitchwise periodicity. The duct's k faces are walls by default;
-    # making them periodic gives a block that is periodic to ITSELF in k, the
-    # topology the fused viscous seam study needs.
-    #
-    # Appended HERE, before grid.calculate_wdist() below and before anything
-    # reads a wall array, because block.ijk_wall_visc, block.i_perk and
-    # block._face_wall_arrays_slip are all cached_object and their docstrings
-    # forbid modifying patches after first access. Appending after the grid is
-    # built would leave wallk1 at 0.0 across the whole seam AND i_perk at
-    # (0, 0), silently -- the wall distance would be wrong too.
+    # Optional pitchwise periodicity: the duct's k faces are walls by default,
+    # so this gives a block periodic to ITSELF in k. Appended here, before the
+    # grid is built and before anything reads a wall array, because the cached
+    # wall and periodicity properties forbid modifying patches after first
+    # access -- appending later would silently leave the seam as wall.
     if periodic_k is not None:
         if periodic_k == "full":
             i_lims = [(0, -1)]

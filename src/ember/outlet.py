@@ -157,15 +157,13 @@ class OutletPatch(NonReflectingPatch):
     _target_seeded = (0, 1, 3)
 
     # No nodal backflow limiter. It imposes a state on a node the interior is
-    # pushing flow in through and derives its axial velocity from an energy
+    # pushing flow in through, derives its axial velocity from an energy
     # balance with no bearing on how hard the node was actually reversed, and
-    # the correction's rate is a function of the very Mach number it drives --
-    # a closed positive feedback with nothing damping it at rf_backflow=1.0.
-    # That ran the axial velocity away unbounded at the non-reflecting mixing
-    # plane (mixing_nonreflecting.py); dropped here too rather than waiting for
-    # it to happen at an outlet. A station whose mean reverses is still carried
-    # by the characteristic split -- this only gives up the node-level patch on
-    # top of it, which was never part of the Giles/Saxer theory to begin with.
+    # sets a correction rate that is a function of the very Mach number it
+    # drives -- a closed positive feedback with nothing damping it. A station
+    # whose mean reverses is still carried by the characteristic split; this
+    # gives up only the node-level patch on top of it, which was never part of
+    # the Giles/Saxer theory to begin with.
     _nodal_backflow = False
 
     def _copy(self, c):
@@ -253,45 +251,35 @@ class OutletPatch(NonReflectingPatch):
     def set_backflow_ho_s(self, ho, s):
         r"""Prescribe the stagnation enthalpy and entropy imposed where the exit flow reverses.
 
-        Reversal is carried at two levels, and both draw on the four backflow
+        Reversal is carried at two levels, both drawing on the four backflow
         quantities this and its companion setters prescribe.
 
         A **span station** whose mean has reversed is genuinely an inflow plane
         and is treated as one. Four of its five characteristics turn incoming,
-        so four quantities have to be prescribed, and the four backflow rows are
-        exactly they; the one wave still leaving, the downstream-running
-        pressure wave, is carried through from the interior as always. The
-        prescribed static pressure is not imposed at such a station: pressure is
-        what the free wave carries there. If a large part of the span ends up
-        reversed the exit level is no longer under control, and the boundary
-        wants moving downstream rather than the condition made cleverer.
+        and the four backflow rows are exactly they; the one still leaving, the
+        downstream-running pressure wave, is carried through from the interior,
+        so the prescribed static pressure is not imposed there. If much of the
+        span reverses, the exit level is no longer under control and the
+        boundary wants moving downstream.
 
-        A **node** whose interior neighbour is pushing flow inward, at a station
-        whose mean is still forward, is left to the interior march here: there is
-        no characteristic split to change at that level -- the split belongs to
-        the station's mean, and the Hilbert transform couples every node of a
-        station to every other -- and the base class's node-level limiter, which
-        would otherwise overwrite such a node with the four backflow rows and a
-        derived density, is disabled here. It fed the very Mach number it drove
-        back into its own correction rate, a closed positive feedback that ran
-        away unbounded at the non-reflecting mixing plane; nothing about a
-        physical outlet exempts it from the same loop.
+        A **node** whose interior neighbour pushes flow inward, at a station
+        whose mean is still forward, is left to the interior march: the split
+        belongs to the station's mean. The base class's node-level limiter is
+        disabled here, having fed the Mach number it drove back into its own
+        correction rate -- a closed positive feedback with nothing damping it.
 
-        The rows that can be prescribed are set independently, by this method
-        or :meth:`set_backflow_Po_To` for the thermodynamic pair and by
+        The rows are set independently, by this method or
+        :meth:`set_backflow_Po_To` for the thermodynamic pair and by
         :meth:`set_backflow_Vt` for the swirl, so a run can prescribe one and
         leave the rest seeded. The meridional direction is not among them: the
         backflow comes in normal to the exit surface, so the velocity in the
         surface is pinned at zero. See the class docstring.
 
         Both quantities here are measured from the fluid datum state where
-        :math:`u = s = 0` at :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`, the same
-        convention as :py:attr:`~ember.block.Block.ho` and
-        :py:attr:`~ember.block.Block.s`.
-
-        Calling any of the four is optional. Left alone, the rows are seeded
-        once from the pitchwise mean of the exit plane at the first timestep and
-        frozen there.
+        :math:`u = s = 0` at :math:`(p_\mathrm{dtm}, T_\mathrm{dtm})`, as for
+        :py:attr:`~ember.block.Block.ho` and :py:attr:`~ember.block.Block.s`.
+        Calling any of the four is optional: left alone, a row is seeded from
+        the pitchwise mean of the exit plane at the first timestep.
 
         Parameters
         ----------
@@ -400,80 +388,34 @@ class OutletPatch(NonReflectingPatch):
         r"""Throttle the outlet to a target mass flow.
 
         Turns :meth:`set_P` from the condition into a starting point. Each
-        timestep :meth:`update_target` measures the mass flow through the patch
-        and a proportional-integral controller moves the prescribed level until
-        the two agree:
+        timestep :meth:`update_target` measures the mass flow, forms the error
+        :math:`\varepsilon = (\dot m - \dot m_t)/\dot m_t` against the target
+        :math:`\dot m_t`, and moves the prescribed level by
 
         .. math::
 
-            \varepsilon = \frac{\dot m - \dot m_\mathrm{target}}
-                               {\dot m_\mathrm{target}}, \qquad
             \frac{\Delta p_\mathrm{throttle}}{p_\mathrm{ref}} =
-                K_p\, \varepsilon
-                + K_i \sum \varepsilon \,\mathrm{cfl}
+                K_p\, \varepsilon + K_i \sum \varepsilon \,\mathrm{cfl}
 
-        the sum running over timesteps. Raising the back pressure reduces the
-        flow, so the sign is as written: a mass flow above target pushes the
-        pressure up. What the boundary imposes is still a pressure, and the
-        characteristic treatment is untouched -- the throttle only chooses which
-        pressure.
+        summed over timesteps. The throttle only chooses which pressure the
+        boundary imposes: a mass flow above target raises it, reducing the flow.
 
-        **The gains are dimensionless and should not need tuning.** For a duct
-        or blade row passing :math:`\dot m \sim A\sqrt{2\rho(p_0 - p)}`, the
-        steady sensitivity of mass flow to exit pressure is
+        **The gains are dimensionless and should not need tuning.** The steady
+        sensitivity :math:`d\dot m/\dot m = -dp/2q` makes a correction of
+        :math:`2q\,\varepsilon` a Newton step whose natural scale is the exit
+        dynamic head -- the scale the nondimensionalisation already works in,
+        since :math:`p_\mathrm{ref} = \rho_\mathrm{ref}V_\mathrm{ref}^2`. So
+        :math:`K_p = 1` is that Newton step, and the default is half of it, a
+        full step ringing because the flow answers only once a wave has crossed
+        the domain; the integral removes the droop proportional action leaves. A
+        ``V_ref`` far from the exit velocity moves the loop gain by its square.
 
-        .. math::
+        **The integral is weighted by the CFL, not by the step**, since it would
+        otherwise keep acting on an error already answered; one :math:`K_i` then
+        holds across a CFL sweep, though not across a change of mesh or scheme.
 
-            \frac{d\dot m}{\dot m} = -\frac{dp}{2q}, \qquad
-            q = \tfrac{1}{2}\rho V_m^2
-
-        so a correction of :math:`2q\,\varepsilon` cancels the error outright: a
-        Newton step whose natural scale is the exit dynamic head. That is
-        exactly the scale the nondimensionalisation already works in, since
-        :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2` with
-        :math:`V_\mathrm{ref}` a typical convection velocity. Hence the
-        correction above is formed nondimensionally with no scale factor
-        written anywhere, and :math:`K_p = 1` is the notional Newton step.
-
-        The default is half that, because a pure Newton step overshoots and
-        rings: the mass flow answers a change in exit pressure only after a wave
-        has crossed the domain. Proportional action alone would then settle at a
-        standing droop, since it can hold a correction only in proportion to an
-        error, and the correction wanted at the target is not zero; the integral
-        is what removes it. Because the scale is a fixed reference quantity
-        rather than the dynamic head of the current solution, neither gain
-        depends on the flow field or on how good the initial guess was.
-
-        **The integral is weighted by the CFL, not by the step.** The
-        proportional term is memoryless and safe under any lag: it holds a fixed
-        correction until the flow answers. The integral is not -- over the steps
-        the domain takes to respond it keeps piling on correction for an error
-        it has already acted on -- so its gain has to be paced against how much
-        ground each step covers. Under local timestepping that is the Courant
-        number, so a march at twice the CFL needs half as many steps and
-        :math:`K_i \sum \varepsilon\,\mathrm{cfl}` keeps one gain valid across a
-        CFL sweep. :meth:`ember.grid.Grid.update_bconds` passes the march's cfl
-        down; nothing is held on the patch.
-
-        The step count also scales with mesh density, and with whatever
-        multigrid and residual smoothing are doing, and none of that is
-        knowable from here: a patch can count the cells along its own normal
-        but not along the flow path, which for a multi-block machine, or a
-        patch that is not on a streamwise face, is not the same number.
-        Refining the mesh may therefore want :math:`K_i` revisited. Changing the
-        CFL does not.
-
-        The price of the fixed pressure scale is a loop gain of
-        :math:`p_\mathrm{ref} / 2q = (\rho_\mathrm{ref}/\rho)
-        (V_\mathrm{ref}/V_m)^2` rather than exactly one, so the gains do assume
-        the reference scales are representative of the flow. A ``V_ref`` far
-        from the exit velocity moves the loop gain by its square, and is the
-        one case where these want retuning.
-
-        Only one outlet patch in a grid may be throttled; the solver refuses a
-        grid carrying more. Two patches
-        driving independent controllers at the same target would each apply the
-        full correction for an error they share.
+        Only one outlet patch in a grid may be throttled; two controllers at the
+        same target would each apply the full correction for a shared error.
 
         Parameters
         ----------
