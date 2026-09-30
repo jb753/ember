@@ -7,7 +7,7 @@ public API without a deprecation period.
 
 .. _v0.4.4:
 
-0.4.4 (2026-09-25)
+0.4.4 (2026-09-30)
 ------------------
 
 * Add ``ember.average.mass_band``, the part of a structured 2D cut carrying a
@@ -20,6 +20,8 @@ public API without a deprecation period.
   wall cell, and stop masking the wall cell's viscous force
 * Add a prescribed transition property ``Block.fac_lam``, to scale interior
   turbulent viscosity down and wall function toward laminar
+* Add ``Solver.sf2_T``, a separate weight on the temperature limb of the
+  adaptive smoothing sensor, defaulting to ``sf2``
 
 
 .. _v0.4.3:
